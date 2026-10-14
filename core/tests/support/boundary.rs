@@ -97,6 +97,617 @@ fn move_command(phase: &str) -> Value {
     })
 }
 
+/// Exercise bilateral AddPart from each half and explicit mirror-only placement
+/// through the transport shared by native Core and the WASM host.
+pub fn mirror_addition_boundary_case(
+    mut core: CoreTransport<'_>,
+    archive: ArchiveTransport<'_>,
+) -> Value {
+    let call = |core: &mut CoreTransport<'_>, request: Value| {
+        serde_json::from_str::<Value>(&core(&request.to_string())).expect("core reply is JSON")
+    };
+    let edit = |id: &str, base_revision: u64, phase: &str, operation: Value| {
+        json!({
+            "id":id,"kind":"edit",
+            "command":{"baseRevision":base_revision,"transactionId":id,"phase":phase,
+                "targetIds":[],"operation":operation}
+        })
+    };
+    let source = supported_synthetic_half();
+    let opened = call(
+        &mut core,
+        json!({"id":"placement-open","kind":"open","document":source}),
+    );
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let paired = call(
+        &mut core,
+        edit(
+            "placement-pair",
+            opened["document"]["revision"].as_u64().unwrap(),
+            "commit",
+            synthetic_half::create_mirrored_half_operation("boundary-placement-pair", "right"),
+        ),
+    );
+    assert_eq!(paired["kind"], "scene", "{paired}");
+    let revision = || paired["document"]["revision"].as_u64().unwrap();
+
+    let source_add = call(
+        &mut core,
+        edit(
+            "placement-source-add",
+            revision(),
+            "commit",
+            json!({"kind":"add-part","boardId":"left","layoutId":"left-synthetic-keys-layout",
+                "definition":{"id":"boundary/placement-switch","name":"Boundary placement switch","kind":"switch",
+                    "pads":[],"courtyard":[{"x":-3,"y":-3},{"x":3,"y":-3},{"x":3,"y":3},{"x":-3,"y":3}]},
+                "part":{"id":"left/BOUNDARY-SOURCE","definitionId":"boundary/placement-switch",
+                    "reference":"SRC1","pose":{"at":{"x":8,"y":12},"rotation":0},"side":"front"}}),
+        ),
+    );
+    assert_eq!(source_add["kind"], "scene", "{source_add}");
+    let source_correspondences =
+        source_add["document"]["hardware"]["pairs"][0]["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|item| {
+                item["kind"] == "part"
+                    && item["sourceId"] == "left/BOUNDARY-SOURCE"
+                    && item["mirrorId"] == "right/BOUNDARY-SOURCE"
+            })
+            .count();
+    assert_eq!(
+        source_correspondences, 1,
+        "source-side AddPart must create one correspondence"
+    );
+    let source_linked_parts = source_add["document"]["parts"].as_array().unwrap();
+    for id in ["left/BOUNDARY-SOURCE", "right/BOUNDARY-SOURCE"] {
+        assert_eq!(
+            source_linked_parts
+                .iter()
+                .filter(|part| part["id"] == id)
+                .count(),
+            1,
+            "source-side AddPart must publish both linked Parts"
+        );
+    }
+    for (layout_id, part_id) in [
+        ("left-synthetic-keys-layout", "left/BOUNDARY-SOURCE"),
+        ("right-synthetic-keys-layout", "right/BOUNDARY-SOURCE"),
+    ] {
+        assert!(
+            source_add["document"]["layouts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|layout| layout["id"] == layout_id)
+                .unwrap()["partIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|id| id == part_id),
+            "linked AddPart omitted {part_id} from {layout_id}"
+        );
+    }
+    let mirror_add = call(
+        &mut core,
+        edit(
+            "placement-mirror-add",
+            source_add["document"]["revision"].as_u64().unwrap(),
+            "commit",
+            json!({"kind":"add-part","boardId":"right","layoutId":"right-synthetic-keys-layout",
+                "part":{"id":"right/BOUNDARY-MIRROR","definitionId":"boundary/placement-switch",
+                    "reference":"MIR1","pose":{"at":{"x":218,"y":12},"rotation":0},"side":"front"}}),
+        ),
+    );
+    assert_eq!(mirror_add["kind"], "scene", "{mirror_add}");
+    let mirror_correspondences =
+        mirror_add["document"]["hardware"]["pairs"][0]["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|item| {
+                item["kind"] == "part"
+                    && item["sourceId"] == "left/BOUNDARY-MIRROR"
+                    && item["mirrorId"] == "right/BOUNDARY-MIRROR"
+            })
+            .count();
+    assert_eq!(
+        mirror_correspondences, 1,
+        "mirror-side AddPart must create one correspondence"
+    );
+    for id in ["left/BOUNDARY-MIRROR", "right/BOUNDARY-MIRROR"] {
+        assert_eq!(
+            mirror_add["document"]["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|part| part["id"] == id)
+                .count(),
+            1,
+            "mirror-side AddPart must publish both linked Parts"
+        );
+    }
+    for (layout_id, part_id) in [
+        ("left-synthetic-keys-layout", "left/BOUNDARY-MIRROR"),
+        ("right-synthetic-keys-layout", "right/BOUNDARY-MIRROR"),
+    ] {
+        assert!(
+            mirror_add["document"]["layouts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|layout| layout["id"] == layout_id)
+                .unwrap()["partIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|id| id == part_id),
+            "linked AddPart omitted {part_id} from {layout_id}"
+        );
+    }
+
+    let before = mirror_add["document"].clone();
+    let halves = &before["hardware"]["pairs"][0]["halves"];
+    let source_board_id = halves["sourceBoardId"].as_str().unwrap();
+    let mirror_board_id = halves["mirrorBoardId"].as_str().unwrap();
+    let part_id = "right/BOUNDARY-ONLY";
+    let only_operation = json!({"kind":"add-mirror-only-part","boardId":mirror_board_id,
+        "layoutId":"right-synthetic-keys-layout",
+        "definition":{"id":"boundary/mirror-only-switch","name":"Boundary mirror-only switch","kind":"switch",
+            "pads":[],"courtyard":[{"x":-3,"y":-3},{"x":3,"y":-3},{"x":3,"y":3},{"x":-3,"y":3}]},
+        "part":{"id":part_id,"definitionId":"boundary/mirror-only-switch","reference":"ONLY1",
+            "pose":{"at":{"x":232,"y":24},"rotation":0},"side":"front"}});
+    let preview = call(
+        &mut core,
+        edit(
+            "placement-only-preview",
+            before["revision"].as_u64().unwrap(),
+            "preview",
+            only_operation.clone(),
+        ),
+    );
+    assert_eq!(preview["kind"], "preview", "{preview}");
+    let after_preview = call(
+        &mut core,
+        json!({"id":"placement-after-preview","kind":"snapshot"}),
+    );
+    assert_eq!(
+        after_preview["document"], before,
+        "mirror-only Preview must not publish"
+    );
+
+    let committed = call(
+        &mut core,
+        edit(
+            "placement-only-commit",
+            before["revision"].as_u64().unwrap(),
+            "commit",
+            only_operation,
+        ),
+    );
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    let after = &committed["document"];
+    let source_projection = |document: &Value| {
+        let source_board = document["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["id"] == source_board_id)
+            .unwrap();
+        let source_ids = source_board["partIds"].as_array().unwrap();
+        let parts: Vec<_> = document["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| source_ids.contains(&part["id"]))
+            .cloned()
+            .collect();
+        let layouts: Vec<_> = document["layouts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|layout| layout["boardId"] == source_board_id)
+            .cloned()
+            .collect();
+        let source_outlines: Vec<_> = document["outline"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|feature| {
+                source_board["outlineIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&feature["id"])
+            })
+            .cloned()
+            .collect();
+        json!({"board":source_board,"parts":parts,"layouts":layouts,"outlines":source_outlines})
+    };
+    let source_unchanged = source_projection(&before) == source_projection(after);
+    assert!(
+        source_unchanged,
+        "mirror-only placement changed source-half data"
+    );
+    assert_eq!(
+        after["hardware"]["pairs"][0], before["hardware"]["pairs"][0],
+        "mirror-only placement must not create correspondence or exceptions"
+    );
+    let only_parts: Vec<_> = after["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|part| part["id"] == part_id)
+        .collect();
+    assert_eq!(
+        only_parts.len(),
+        1,
+        "mirror-only Part must be stored exactly once"
+    );
+    assert_eq!(
+        after["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|definition| definition["id"] == "boundary/mirror-only-switch")
+            .count(),
+        1,
+        "mirror-only definition must be registered atomically"
+    );
+    let mirror_board = after["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|board| board["id"] == mirror_board_id)
+        .unwrap();
+    assert_eq!(
+        mirror_board["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+    let target_layout = after["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+        .unwrap();
+    assert_eq!(
+        target_layout["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+    let target_envelopes: Vec<_> = after["outline"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|feature| {
+            mirror_board["outlineIds"]
+                .as_array()
+                .unwrap()
+                .contains(&feature["id"])
+        })
+        .filter(|feature| feature["kind"] == "part-envelope")
+        .collect();
+    assert!(
+        target_envelopes.iter().any(|feature| {
+            feature["partIds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|id| *id == part_id)
+                .count()
+                == 1
+        }),
+        "mirror-only Part must join the mirror board's existing PartEnvelope membership"
+    );
+    assert!(
+        after["hardware"]["pairs"][0]["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["sourceId"] != part_id && item["mirrorId"] != part_id)
+    );
+
+    let undone = call(&mut core, json!({"id":"placement-only-undo","kind":"undo"}));
+    assert_eq!(undone["kind"], "scene", "{undone}");
+    assert!(
+        undone["document"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|part| part["id"] != part_id),
+        "one Undo must remove the mirror-only addition"
+    );
+    for id in [
+        "left/BOUNDARY-SOURCE",
+        "right/BOUNDARY-SOURCE",
+        "left/BOUNDARY-MIRROR",
+        "right/BOUNDARY-MIRROR",
+    ] {
+        assert!(
+            undone["document"]["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|part| part["id"] == id),
+            "one Undo must preserve prior linked addition {id}"
+        );
+    }
+    assert_eq!(
+        undone["document"]["hardware"]["pairs"][0], before["hardware"]["pairs"][0],
+        "Undo of mirror-only placement must preserve linked provenance"
+    );
+    assert!(
+        undone["document"]["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["id"] == mirror_board_id)
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|id| id != part_id)
+    );
+    assert!(
+        undone["document"]["layouts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|id| id != part_id)
+    );
+    assert_eq!(
+        source_projection(&undone["document"]),
+        source_projection(&before)
+    );
+    let redone = call(&mut core, json!({"id":"placement-only-redo","kind":"redo"}));
+    assert_eq!(redone["kind"], "scene", "{redone}");
+    assert_eq!(
+        redone["document"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| part["id"] == part_id)
+            .count(),
+        1
+    );
+    let reopened = call(
+        &mut core,
+        json!({"id":"placement-only-reopen","kind":"open","document":redone["document"]}),
+    );
+    assert_eq!(reopened["kind"], "scene", "{reopened}");
+    let reopened_doc = &reopened["document"];
+    assert_eq!(
+        reopened_doc["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| part["id"] == part_id)
+            .count(),
+        1
+    );
+    assert_eq!(
+        reopened_doc["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|definition| definition["id"] == "boundary/mirror-only-switch")
+            .count(),
+        1
+    );
+    assert!(source_projection(reopened_doc) == source_projection(&before));
+    assert_eq!(
+        reopened_doc["hardware"]["pairs"][0],
+        before["hardware"]["pairs"][0]
+    );
+    let reopened_mirror_board = reopened_doc["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|board| board["id"] == mirror_board_id)
+        .unwrap();
+    assert_eq!(
+        reopened_mirror_board["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+    assert!(
+        reopened_doc["outline"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|feature| {
+                reopened_mirror_board["outlineIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&feature["id"])
+                    && feature["kind"] == "part-envelope"
+                    && feature["partIds"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|id| *id == part_id)
+                        .count()
+                        == 1
+            })
+    );
+    assert_eq!(
+        reopened_doc["layouts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+
+    let saved_project_json = redone["document"].to_string();
+    let (saved, saved_buffers) = archive(
+        &json!({
+            "kind":"pack-project",
+            "projectJson":saved_project_json,
+            "archiveJson":json!({"embedUsedModels":false}).to_string(),
+            "assets":[]
+        }),
+        &[],
+    );
+    assert_eq!(saved["kind"], "packed", "{saved}");
+    assert_eq!(
+        saved_buffers.len(),
+        1,
+        "Save should produce one project archive"
+    );
+    let (opened_archive, unpacked_buffers) =
+        archive(&json!({"kind":"unpack-project"}), &saved_buffers);
+    assert_eq!(opened_archive["kind"], "unpacked", "{opened_archive}");
+    assert!(unpacked_buffers.is_empty());
+    let saved_document: Value =
+        serde_json::from_str(opened_archive["projectJson"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        saved_document, redone["document"],
+        "archive roundtrip must retain the placed document"
+    );
+    let archive_open = call(
+        &mut core,
+        json!({"id":"placement-archive-open","kind":"open","document":saved_document}),
+    );
+    assert_eq!(archive_open["kind"], "scene", "{archive_open}");
+    let archive_open_doc = &archive_open["document"];
+    assert_eq!(
+        archive_open_doc["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|part| part["id"] == part_id)
+            .count(),
+        1
+    );
+    assert_eq!(
+        archive_open_doc["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|definition| definition["id"] == "boundary/mirror-only-switch")
+            .count(),
+        1
+    );
+    assert_eq!(
+        archive_open_doc["hardware"]["pairs"][0],
+        before["hardware"]["pairs"][0]
+    );
+    assert_eq!(
+        source_projection(archive_open_doc),
+        source_projection(&before)
+    );
+    assert_eq!(
+        archive_open_doc["boards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|board| board["id"] == mirror_board_id)
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+    assert_eq!(
+        archive_open_doc["layouts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+            .unwrap()["partIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|id| *id == part_id)
+            .count(),
+        1
+    );
+    let archive_mirror_board = archive_open_doc["boards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|board| board["id"] == mirror_board_id)
+        .unwrap();
+    assert!(
+        archive_open_doc["outline"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|feature| {
+                archive_mirror_board["outlineIds"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&feature["id"])
+                    && feature["kind"] == "part-envelope"
+                    && feature["partIds"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|id| *id == part_id)
+                        .count()
+                        == 1
+            })
+    );
+
+    json!({
+        "linkedAdditions": {
+            "sourceSideCorrespondence": source_add["document"]["hardware"]["pairs"][0]["halves"]["correspondences"].as_array().unwrap().iter()
+                .any(|item| item["kind"] == "part" && item["sourceId"] == "left/BOUNDARY-SOURCE"),
+            "mirrorSideCorrespondence": mirror_add["document"]["hardware"]["pairs"][0]["halves"]["correspondences"].as_array().unwrap().iter()
+                .any(|item| item["kind"] == "part" && item["sourceId"] == "left/BOUNDARY-MIRROR" && item["mirrorId"] == "right/BOUNDARY-MIRROR"),
+            "sourceAndMirrorLayoutsRegistered": true
+        },
+        "mirrorOnly": {
+            "previewNonpublishing": true,
+            "singleMirrorPart": true,
+            "sourceUnchanged": source_unchanged,
+            "noPairProvenance": true,
+            "mirrorBoardLayoutEnvelopeMembership": true,
+            "undoRemovedAndRedoRestored": true,
+            "openRetained": true,
+            "saveOpenRetained": true
+        },
+        "archiveRoundTrip": {
+            "save": {
+                "kind": saved["kind"],
+                "buffers": saved_buffers.iter().map(|bytes| digest(bytes)).collect::<Vec<_>>()
+            },
+            "open": {
+                "kind": opened_archive["kind"],
+                "projectJson": digest(opened_archive["projectJson"].as_str().unwrap().as_bytes()),
+                "buffers": unpacked_buffers.iter().map(|bytes| digest(bytes)).collect::<Vec<_>>()
+            }
+        }
+    })
+}
+
 pub fn core_requests() -> Vec<Value> {
     let matrix = matrix();
     let with = |overrides: Value| {
@@ -1616,6 +2227,10 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
     check_outline(&replies);
     compact(&mut replies);
 
+    let paired_preview_history = paired_preview_history_case(&mut *core);
+    let paired_electrical_preview = paired_electrical_preview_case(&mut *core);
+    let mirror_addition = mirror_addition_boundary_case(&mut *core, &mut *archive);
+
     let mut transcript = Vec::new();
     let mut call = |request: Value, buffers: &[Vec<u8>]| -> (Value, Vec<Vec<u8>>) {
         let (reply, outputs) = archive(&request, buffers);
@@ -1684,13 +2299,12 @@ pub fn run(core: CoreTransport, archive: ArchiveTransport) -> Value {
         "unpacked"
     );
 
-    let paired_preview_history = paired_preview_history_case(&mut *core);
-    let paired_electrical_preview = paired_electrical_preview_case(&mut *core);
     json!({
         "core": replies,
         "archive": transcript,
         "pairedPreviewHistory": paired_preview_history,
-        "pairedElectricalPreview": paired_electrical_preview
+        "pairedElectricalPreview": paired_electrical_preview,
+        "mirrorAddition": mirror_addition
     })
 }
 

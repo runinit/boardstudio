@@ -2459,6 +2459,7 @@ fn a_part_added_on_the_mirror_board_becomes_a_source_addition_with_its_mirror_pl
             mirror_id: "right/LED".into(),
             mirror_definition_id: "u".into(),
             mirror_reference: "right-D9".into(),
+            mirror_layout_id: None,
         }]
     );
 }
@@ -2481,11 +2482,59 @@ fn a_rotated_pair_map_places_and_turns_an_added_part_back_on_the_source() {
 }
 
 #[test]
-fn a_source_side_addition_is_unchanged() {
+fn a_source_side_addition_plans_its_mirror_without_changing_the_authored_request() {
     let source = json!({"kind": "add-part", "boardId": "left", "part": {
         "id": "left/LED", "definitionId": "u", "reference": "D9",
         "pose": {"at": {"x": 1, "y": 2}, "rotation": 30}, "side": "front"}});
-    expect_operation(&fixture(), source.clone(), source);
+    let result = canonical(&fixture(), &source).unwrap();
+    let operation = serde_json::to_value(result.operation).unwrap();
+    assert_close(&operation, &source, "operation");
+    assert_eq!(result.additions.len(), 1);
+    assert_eq!(result.additions[0].source_id, "left/LED");
+    assert_eq!(result.additions[0].mirror_id, "right/LED");
+}
+
+#[test]
+fn a_mirror_side_addition_maps_a_linked_layout_to_the_source_layout() {
+    let request = json!({"kind": "add-part", "boardId": "right", "layoutId": "right-layout", "part": {
+        "id": "right/LED", "definitionId": "u", "reference": "right-D9",
+        "pose": {"at": {"x": 230, "y": 12}, "rotation": 180}, "side": "front"}});
+    let result = canonical(&native_layout_fixture(), &request).unwrap();
+    let EditOperation::AddPart {
+        part,
+        board_id,
+        layout_id,
+        ..
+    } = result.operation
+    else {
+        panic!("the source-side addition remains AddPart")
+    };
+    assert_eq!(board_id.as_deref(), Some("left"));
+    assert_eq!(part.id, "left/LED");
+    assert_eq!(layout_id.as_deref(), Some("left-layout"));
+    assert_eq!(result.additions[0].mirror_layout_id, None);
+}
+
+#[test]
+fn a_mirror_side_addition_keeps_an_unpaired_target_layout_membership() {
+    let mut document = native_layout_fixture();
+    let mut local_layout = document.layouts[1].clone();
+    local_layout.id = "right-local-layout".into();
+    local_layout.name = "Target only".into();
+    local_layout.part_ids.clear();
+    document.layouts.push(local_layout);
+    let request = json!({"kind": "add-part", "boardId": "right", "layoutId": "right-local-layout", "part": {
+        "id": "right/LED", "definitionId": "u", "reference": "right-D9",
+        "pose": {"at": {"x": 230, "y": 12}, "rotation": 180}, "side": "front"}});
+    let result = canonical(&document, &request).unwrap();
+    let EditOperation::AddPart { layout_id, .. } = result.operation else {
+        panic!("the source-side addition remains AddPart")
+    };
+    assert!(layout_id.is_none());
+    assert_eq!(
+        result.additions[0].mirror_layout_id.as_deref(),
+        Some("right-local-layout")
+    );
 }
 
 #[test]
@@ -2498,7 +2547,7 @@ fn a_mirror_side_addition_whose_source_identity_is_taken_allocates_the_next_free
         .parts
         .push(serde_json::from_value(part("left/U1-new", "u", "X1", 0.0, 0.0, 0.0)).unwrap());
     let result = canonical(&taken, &request).unwrap();
-    let EditOperation::AddPart { part, board_id } = result.operation else {
+    let EditOperation::AddPart { part, board_id, .. } = result.operation else {
         panic!("an addition is expected");
     };
     assert_eq!(board_id.as_deref(), Some("left"));

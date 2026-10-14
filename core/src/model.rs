@@ -1680,6 +1680,19 @@ pub enum EditOperation {
         part: Part,
         #[serde(rename = "boardId", skip_serializing_if = "Option::is_none")]
         board_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        definition: Option<PartDefinition>,
+        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        layout_id: Option<String>,
+    },
+    AddMirrorOnlyPart {
+        part: Part,
+        #[serde(rename = "boardId")]
+        board_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        definition: Option<PartDefinition>,
+        #[serde(rename = "layoutId", default, skip_serializing_if = "Option::is_none")]
+        layout_id: Option<String>,
     },
     RemoveMatrix {
         id: String,

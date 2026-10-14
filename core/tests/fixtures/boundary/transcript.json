@@ -42206,6 +42206,36 @@
       "revision": 45
     }
   ],
+  "mirrorAddition": {
+    "archiveRoundTrip": {
+      "open": {
+        "buffers": [],
+        "kind": "unpacked",
+        "projectJson": "19469:de29955db80e4919"
+      },
+      "save": {
+        "buffers": [
+          "2892:8b91410d2d216205"
+        ],
+        "kind": "packed"
+      }
+    },
+    "linkedAdditions": {
+      "mirrorSideCorrespondence": true,
+      "sourceAndMirrorLayoutsRegistered": true,
+      "sourceSideCorrespondence": true
+    },
+    "mirrorOnly": {
+      "mirrorBoardLayoutEnvelopeMembership": true,
+      "noPairProvenance": true,
+      "openRetained": true,
+      "previewNonpublishing": true,
+      "saveOpenRetained": true,
+      "singleMirrorPart": true,
+      "sourceUnchanged": true,
+      "undoRemovedAndRedoRestored": true
+    }
+  },
   "pairedElectricalPreview": {
     "afterPreview": {
       "documentUnchanged": true,

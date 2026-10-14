@@ -1340,7 +1340,8 @@ mod preview_backup_tests {
 fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -> bool {
     if matches!(
         operation,
-        EditOperation::SetHalfException { .. }
+        EditOperation::AddMirrorOnlyPart { .. }
+            | EditOperation::SetHalfException { .. }
             | EditOperation::UnlinkHalves { .. }
             | EditOperation::SetMechanical {
                 target: Some(mechanical::MechanicalTarget::Instance { .. }),
@@ -1376,6 +1377,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::SelectOutline { .. }
             | EditOperation::RemoveOutline { .. }
             | EditOperation::AddPart { .. }
+            | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::RemoveParts { .. }
             | EditOperation::RemoveMatrix { .. }
             | EditOperation::SetMatrixCellsEnabled { .. }
@@ -1405,6 +1407,134 @@ fn prune_removed_components(before: &[Part], after: &mut ProjectDoc) -> Vec<Stri
         .map(|part| part.id.clone())
         .collect();
     outline_versions::prune_removed_sources(after, &removed)
+}
+
+fn add_part_placement(
+    document: &mut ProjectDoc,
+    part: &Part,
+    board_id: Option<&str>,
+    definition: Option<&PartDefinition>,
+    layout_id: Option<&str>,
+) -> Result<Vec<String>, String> {
+    if document.parts.iter().any(|existing| existing.id == part.id) {
+        return Err(format!("Duplicate part {}", part.id));
+    }
+    if let Some(definition) = definition {
+        if definition.id != part.definition_id {
+            return Err(format!(
+                "Definition {:?} does not match part definition {:?}",
+                definition.id, part.definition_id
+            ));
+        }
+        let mut existing = document
+            .definitions
+            .iter()
+            .filter(|item| item.id == definition.id);
+        match (existing.next(), existing.next()) {
+            (Some(current), None) if current == definition => {}
+            (None, None) => document.definitions.push(definition.clone()),
+            _ => {
+                return Err(format!(
+                    "Definition {:?} already exists with different or ambiguous contents",
+                    definition.id
+                ));
+            }
+        }
+    }
+    if !geometry::part_valid(part, document) {
+        return Err(format!("Unknown definition {}", part.definition_id));
+    }
+
+    let board_id = board_id
+        .map(str::to_owned)
+        .or_else(|| document.boards.first().map(|board| board.id.clone()));
+    let board_index = board_id
+        .as_deref()
+        .map(|id| {
+            let mut boards = document
+                .boards
+                .iter()
+                .enumerate()
+                .filter(|(_, board)| board.id == id);
+            let (index, _) = boards.next().ok_or_else(|| format!("Unknown board {id}"))?;
+            if boards.next().is_some() {
+                return Err(format!("Board {id:?} is ambiguous"));
+            }
+            Ok(index)
+        })
+        .transpose()?;
+    let board_outline = board_index
+        .and_then(|index| document.boards.get(index))
+        .map(|board| board.outline_ids.clone())
+        .unwrap_or_default();
+    if let Some(layout_id) = layout_id {
+        let mut layouts = document
+            .layouts
+            .iter()
+            .filter(|layout| layout.id == layout_id);
+        let layout = layouts
+            .next()
+            .ok_or_else(|| format!("Unknown layout {layout_id}"))?;
+        if layouts.next().is_some() {
+            return Err(format!("Layout {layout_id:?} is ambiguous"));
+        }
+        if Some(layout.board_id.as_str()) != board_id.as_deref() {
+            return Err(format!(
+                "Layout {layout_id:?} does not belong to selected board"
+            ));
+        }
+        if layout.part_ids.contains(&part.id) {
+            return Err(format!(
+                "Layout {layout_id:?} already contains part {:?}",
+                part.id
+            ));
+        }
+        let mut matrices = document
+            .matrices
+            .iter()
+            .filter(|matrix| matrix.id == layout.matrix_id);
+        let matrix = matrices.next();
+        if matrix.is_none_or(|matrix| matrix.board_id.as_deref() != Some(layout.board_id.as_str()))
+            || matrices.next().is_some()
+        {
+            return Err(format!(
+                "Layout {layout_id:?} has inconsistent matrix ownership"
+            ));
+        }
+    }
+
+    if let Some(index) = board_index {
+        document.boards[index].part_ids.push(part.id.clone());
+    }
+    let mut attached = false;
+    for feature in &mut document.outline {
+        if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
+            && board_outline.contains(id)
+        {
+            part_ids.push(part.id.clone());
+            attached = true;
+        }
+    }
+    if !attached
+        && document.boards.is_empty()
+        && let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = document
+            .outline
+            .iter_mut()
+            .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
+    {
+        part_ids.push(part.id.clone());
+    }
+    if let Some(layout_id) = layout_id {
+        document
+            .layouts
+            .iter_mut()
+            .find(|layout| layout.id == layout_id)
+            .ok_or_else(|| format!("Unknown layout {layout_id}"))?
+            .part_ids
+            .push(part.id.clone());
+    }
+    document.parts.push(part.clone());
+    Ok(vec![part.id.clone()])
 }
 
 fn apply(
@@ -1558,53 +1688,33 @@ fn apply(
         | EditOperation::SelectOutline { .. }
         | EditOperation::RenameOutline { .. }
         | EditOperation::RemoveOutline { .. }) => outline_versions::apply(doc, operation),
-        EditOperation::AddPart { part, board_id } => {
-            if doc.parts.iter().any(|item| item.id == part.id) {
-                return Err(format!("Duplicate part {}", part.id));
-            }
-            if !geometry::part_valid(part, doc) {
-                return Err(format!("Unknown definition {}", part.definition_id));
-            }
-            let board_index = if let Some(id) = board_id {
-                Some(
-                    doc.boards
-                        .iter()
-                        .position(|board| &board.id == id)
-                        .ok_or_else(|| format!("Unknown board {id}"))?,
-                )
-            } else if doc.boards.is_empty() {
-                None
-            } else {
-                Some(0)
-            };
-            let board_outline = board_index
-                .and_then(|index| doc.boards.get(index))
-                .map(|board| board.outline_ids.clone())
-                .unwrap_or_default();
-            if let Some(board) = board_index.and_then(|index| doc.boards.get_mut(index)) {
-                board.part_ids.push(part.id.clone());
-            }
-            let mut attached = false;
-            for feature in &mut doc.outline {
-                if let OutlineFeature::PartEnvelope { id, part_ids, .. } = feature
-                    && board_outline.contains(id)
-                {
-                    part_ids.push(part.id.clone());
-                    attached = true;
-                }
-            }
-            if !attached
-                && doc.boards.is_empty()
-                && let Some(OutlineFeature::PartEnvelope { part_ids, .. }) = doc
-                    .outline
-                    .iter_mut()
-                    .find(|feature| matches!(feature, OutlineFeature::PartEnvelope { .. }))
-            {
-                part_ids.push(part.id.clone());
-            }
-            doc.parts.push(part.clone());
-            Ok(vec![part.id.clone()])
-        }
+        EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. } => match op {
+            EditOperation::AddPart {
+                part,
+                board_id,
+                definition,
+                layout_id,
+            } => add_part_placement(
+                doc,
+                part,
+                board_id.as_deref(),
+                definition.as_ref(),
+                layout_id.as_deref(),
+            ),
+            EditOperation::AddMirrorOnlyPart {
+                part,
+                board_id,
+                definition,
+                layout_id,
+            } => add_part_placement(
+                doc,
+                part,
+                Some(board_id),
+                definition.as_ref(),
+                layout_id.as_deref(),
+            ),
+            _ => unreachable!("the placement arm matches both Part addition operations"),
+        },
         EditOperation::RemoveMatrix { id } => {
             let ids = doc
                 .matrices

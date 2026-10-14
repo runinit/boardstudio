@@ -61,6 +61,80 @@ fn paired_preview_history_case_is_ready_for_boundary_blessing() {
 }
 
 #[test]
+fn linked_and_mirror_only_additions_cross_the_native_wasm_boundary() {
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let scenario = boundary::mirror_addition_boundary_case(
+        &mut |request| engine.request(request),
+        &mut |request, buffers| {
+            let (reply, outputs) =
+                boardstudio_core::archive::request(&request.to_string(), buffers);
+            (serde_json::from_str(&reply).unwrap(), outputs)
+        },
+    );
+    assert!(
+        scenario["linkedAdditions"]["sourceSideCorrespondence"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["linkedAdditions"]["mirrorSideCorrespondence"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["linkedAdditions"]["sourceAndMirrorLayoutsRegistered"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["mirrorOnly"]["previewNonpublishing"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["mirrorOnly"]["singleMirrorPart"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(scenario["mirrorOnly"]["sourceUnchanged"].as_bool().unwrap());
+    assert!(
+        scenario["mirrorOnly"]["noPairProvenance"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["mirrorOnly"]["mirrorBoardLayoutEnvelopeMembership"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        scenario["mirrorOnly"]["undoRemovedAndRedoRestored"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(scenario["mirrorOnly"]["openRetained"].as_bool().unwrap());
+    assert!(
+        scenario["mirrorOnly"]["saveOpenRetained"]
+            .as_bool()
+            .unwrap()
+    );
+    assert_eq!(scenario["archiveRoundTrip"]["save"]["kind"], "packed");
+    assert_eq!(
+        scenario["archiveRoundTrip"]["save"]["buffers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(scenario["archiveRoundTrip"]["open"]["kind"], "unpacked");
+    assert!(
+        scenario["archiveRoundTrip"]["open"]["projectJson"]
+            .as_str()
+            .is_some_and(|digest| !digest.is_empty())
+    );
+}
+
+#[test]
 #[should_panic(expected = "core[1:splay-preview].n")]
 fn a_mismatch_inside_an_array_names_the_entry_by_its_id() {
     let got = serde_json::json!([{"id": "open", "n": 1}, {"id": "splay-preview", "n": 3}]);

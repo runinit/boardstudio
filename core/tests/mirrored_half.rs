@@ -781,6 +781,115 @@ fn reuse_board_projects_authored_features_without_copying_board_data() {
 }
 
 #[test]
+fn mirror_only_part_refuses_a_reuse_board_pair_target() {
+    let synthetic_input = synthetic_half::with_construction_features(synthetic_half::document());
+    let (mut engine, seed) = seed(&synthetic_input, "left");
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-flipped",
+        "left",
+        json!({"kind":"reuse-board","instanceId":"flipped"}),
+        mapping(0.0),
+    )
+    .unwrap();
+    let document = reply["document"].clone();
+    let mut target_owned_part = document["parts"][0].clone();
+    target_owned_part["id"] = json!("flipped/reuse-only");
+    target_owned_part["reference"] = json!("REUSE1");
+    let refusal: Value = serde_json::from_str(
+        &engine.request(
+            &json!({"id":"reuse-board-mirror-only","kind":"edit","command":{
+                "baseRevision":document["revision"],
+                "transactionId":"reuse-board-mirror-only",
+                "phase":"commit",
+                "targetIds":[],
+                "operation":{
+                    "kind":"add-mirror-only-part",
+                    "part":target_owned_part,
+                    "boardId":"left",
+                    "definition":null,
+                    "layoutId":null
+                }
+            }})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(refusal["kind"], "error", "{refusal}");
+    assert_eq!(snapshot(&mut engine), document, "refusal is atomic");
+}
+
+#[test]
+fn open_refuses_ambiguous_native_mirror_board_ownership_without_publication() {
+    let synthetic_input = synthetic_half::with_construction_features(synthetic_half::document());
+    let (mut source_engine, seed) = seed(&synthetic_input, "left");
+    let created = create(
+        &mut source_engine,
+        &seed,
+        "pair-right",
+        "left",
+        new_board("right", "right"),
+        synthetic_mapping(&synthetic_input),
+    )
+    .unwrap();
+    let mut ambiguous = created["document"].clone();
+    let mut extra_board = ambiguous["boards"][0].clone();
+    extra_board["id"] = json!("board-extra");
+    extra_board["name"] = json!("Extra source");
+    extra_board["outlineIds"] = json!([]);
+    extra_board["partIds"] = json!([]);
+    extra_board["netIds"] = json!([]);
+    ambiguous["boards"]
+        .as_array_mut()
+        .unwrap()
+        .push(extra_board);
+    let mut extra_source = ambiguous["hardware"]["instances"][0].clone();
+    extra_source["id"] = json!("instance-extra-source");
+    extra_source["name"] = json!("Extra source");
+    extra_source["boardId"] = json!("board-extra");
+    let mut extra_mirror = ambiguous["hardware"]["instances"][1].clone();
+    extra_mirror["id"] = json!("instance-extra-mirror");
+    extra_mirror["name"] = json!("Extra mirror");
+    ambiguous["hardware"]["instances"]
+        .as_array_mut()
+        .unwrap()
+        .extend([extra_source, extra_mirror]);
+    let mut duplicate_pair = ambiguous["hardware"]["pairs"][0].clone();
+    duplicate_pair["id"] = json!("ambiguous-pair");
+    duplicate_pair["members"] = json!(["instance-extra-source", "instance-extra-mirror"]);
+    duplicate_pair["constructionSource"] = json!("instance-extra-source");
+    duplicate_pair["features"] = json!([]);
+    duplicate_pair["halves"]["sourceBoardId"] = json!("board-extra");
+    ambiguous["hardware"]["pairs"]
+        .as_array_mut()
+        .unwrap()
+        .push(duplicate_pair);
+
+    let mut engine = CoreEngine::new();
+    let empty_before: Value = serde_json::from_str(
+        &engine
+            .request(&json!({"id":"snapshot-before-ambiguous-open","kind":"snapshot"}).to_string()),
+    )
+    .unwrap();
+    let open_reply: Value =
+        serde_json::from_str(&engine.request(
+            &json!({"id":"ambiguous-open","kind":"open","document":ambiguous}).to_string(),
+        ))
+        .unwrap();
+    assert_eq!(open_reply["kind"], "error", "{open_reply}");
+    let snapshot_reply: Value = serde_json::from_str(
+        &engine
+            .request(&json!({"id":"snapshot-after-rejected-open","kind":"snapshot"}).to_string()),
+    )
+    .unwrap();
+    assert_eq!(
+        snapshot_reply["document"], empty_before["document"],
+        "the rejected Open publishes no document"
+    );
+}
+
+#[test]
 fn parts_keep_their_side_and_every_generator_parameter_exactly() {
     let synthetic_input = synthetic_half::document();
     let mut doc = seed_document(&synthetic_input, "left");

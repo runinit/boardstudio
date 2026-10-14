@@ -359,7 +359,7 @@ class BrowserSmokeParserTests(unittest.TestCase):
 
     def test_a_failed_check_makes_the_run_fail(self):
         failing = '{"ok":false,"error":null,"checks":[{"name":"x","ok":false,"detail":"d"}]}'
-        with patch.object(browser, "serve"), patch.object(browser, "run_page", return_value=subprocess.CompletedProcess([], 0, f'<pre id="result">{failing}</pre>', "")), patch.object(browser.Path, "exists", return_value=True):
+        with patch.object(browser, "serve"), patch.object(browser, "run_page", return_value=f'<pre id="result">{failing}</pre>'), patch.object(browser.Path, "exists", return_value=True):
             with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as raised:
                 browser.main()
         self.assertEqual(raised.exception.code, 1)

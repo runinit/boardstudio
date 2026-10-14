@@ -172,6 +172,7 @@ pub(super) fn translate(
         // Every other family has its own translation in the parent module.
         Op::MoveParts { .. }
         | Op::AddPart { .. }
+        | Op::AddMirrorOnlyPart { .. }
         | Op::RemoveParts { .. }
         | Op::RemoveMatrix { .. }
         | Op::RemoveMatrixCells { .. }
@@ -626,6 +627,7 @@ fn add_module(
             mirror_id: mirror_part,
             mirror_definition_id: connector.map(|item| item.id.clone()).unwrap_or_default(),
             mirror_reference: host_connector_reference(links, &pair.halves.mirror_board_id),
+            mirror_layout_id: None,
         });
     }
     canonical.hosted.modules.push(ModuleAddition {
