@@ -3876,9 +3876,31 @@ fn stabilisers_keep_their_source_heading_and_mirrored_position_in_every_mode() {
                 }
                 let made =
                     create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+                let typed: ProjectDoc = serde_json::from_value(made.clone()).unwrap();
                 for index in 0..definitions.len() {
                     let source_id = format!("matrix/left-synthetic-keys/r0c0/stabiliser-{index}");
                     let mirror_id = format!("matrix/right-synthetic-keys/r0c0/stabiliser-{index}");
+                    let reason = Some(
+                        "Stabilisers keep their mirrored-X position and unchanged heading in every mode.",
+                    );
+                    assert_eq!(
+                        boardstudio_core::companion_placement_disabled_reason(
+                            &typed,
+                            "pair-stabilisers",
+                            &source_id,
+                        ),
+                        reason,
+                        "Core projects stabiliser eligibility from the source id"
+                    );
+                    assert_eq!(
+                        boardstudio_core::companion_placement_disabled_reason(
+                            &typed,
+                            "pair-stabilisers",
+                            &mirror_id,
+                        ),
+                        reason,
+                        "Core projects stabiliser eligibility from the mirror id"
+                    );
                     let original = part(&source, &source_id);
                     let mirrored = part(&made, &mirror_id);
                     let label =

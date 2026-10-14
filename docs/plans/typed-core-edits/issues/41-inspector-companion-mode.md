@@ -39,3 +39,7 @@ mirror rule and do not gain placement-mode controls.
 ## User decision (2026-10-14)
 
 Present the control in a named disclosure section, **Companion placement**.
+
+The user also approved a narrow read-only Core eligibility projection for stabilisers so the
+Inspector can display Core's disabled reason without duplicating the domain rule. The projection
+accepts either the source or mirror part id; mounted Inspector integration and coverage remain open.

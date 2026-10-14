@@ -357,6 +357,32 @@ pub(crate) const SYMMETRIC_DEFINITIONS: [&str; 2] = [
     "kicad:marbastlib/STAB_MX_6.25u",
 ];
 
+pub(crate) fn companion_placement_disabled_reason(
+    document: &ProjectDoc,
+    pair_id: &str,
+    item_id: &str,
+) -> Option<&'static str> {
+    let pair = document
+        .hardware
+        .as_ref()?
+        .pairs
+        .iter()
+        .find(|pair| pair.id == pair_id)?;
+    let correspondence = pair.halves.as_ref()?.correspondences.iter().find(|link| {
+        link.kind == MirroredItemKind::Part
+            && (link.source_id == item_id || link.mirror_id == item_id)
+    })?;
+    let source = document
+        .parts
+        .iter()
+        .find(|part| part.id == correspondence.source_id)?;
+    SYMMETRIC_DEFINITIONS
+        .contains(&source.definition_id.as_str())
+        .then_some(
+            "Stabilisers keep their mirrored-X position and unchanged heading in every mode.",
+        )
+}
+
 /// The uncertain-heading finding (ADR-0010, heading rule). A mirrored part of a pair whose footprint
 /// is handed (any footprint in neither [`SYMMETRIC_FOOTPRINTS`] nor [`SYMMETRIC_DEFINITIONS`]) and whose heading is off the 90-degree
 /// grid is reported for a person to confirm. Core neither refuses it nor turns the part to guess.

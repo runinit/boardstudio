@@ -127,6 +127,16 @@ pub fn authored_case_geometry_ready(
     })
 }
 
+/// Returns Core's reason when a linked item cannot change companion placement.
+/// Accepts either the source or mirror part id so Inspectors can normalize either selection.
+pub fn companion_placement_disabled_reason(
+    document: &ProjectDoc,
+    pair_id: &str,
+    item_id: &str,
+) -> Option<&'static str> {
+    mirrored_half::companion_placement_disabled_reason(document, pair_id, item_id)
+}
+
 /// Whether Case preparation may run for a selected board. A resolved
 /// mechanical configuration remains sufficient; otherwise saved authored
 /// Case geometry is admitted by its own capability above.
