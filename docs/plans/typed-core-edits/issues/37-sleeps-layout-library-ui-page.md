@@ -43,11 +43,14 @@ the next assertion reads a field or hook) and the same stopping rule (stop where
 - **parts** (`web/crates/parts`): not started. About 84 `tick()` (30 ms) sites (`component_model_editor`, `module_attachment`, `module_profile_editor`,
   `mechanical_profile_ui` define `tick`; `parts.rs`, `parts_new_component.rs`, `parts_import_footprint.rs`, `generator_settings.rs` and `assembly_editor.rs`
   also hold 30 ms waits); suite 16.1 s, about 2.6 s of waits. Each site needs its own predicate.
-- **Found by the 36 verifier, not yet fixed**: in pcb `failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_another_edit`
-  (`pcb_wiring/queued_edit_tests.rs`) the "unrelated" `ResolveEdit` ends as `BlockedByRecovery("save recovery is required")` because the injected Core failure
-  leaves the session in save recovery; it never lands, so "an unrelated edit must not clear the field's failure" is untested. Plan: fail with a refusal that
-  does not enter recovery (or recover first), then wait for `name == "Later name"` and `rendered_accepted(&probe)` before the failure assertion, and
-  mutate (clear the failure on any revision change) to see it fail.
+- **PCB recovery case**: `failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_another_edit`
+  (`pcb_wiring/queued_edit_tests.rs`) injects an executor failure, which correctly moves the session
+  into save recovery. Its following edit is therefore expected to end as
+  `BlockedByRecovery("save recovery is required")`; it is not a landed-edit regression. The test
+  now waits for and asserts that terminal outcome, verifies the accepted document remains unchanged,
+  and confirms the inline failure remains visible. A landed unrelated-edit check needs a separate
+  refusal fixture that does not put the runtime into recovery; this suite currently has no such
+  Core response hook.
 - **Residual negatives**: negative assertions that follow a positive wait (case held landing, presentation return, profile siblings; pcb `feedback.is_none()`
   after the net landing) still rely on effect-driven re-renders having run. A test-support idle signal (no dirty scopes, no held effects, no in-flight
   Core work) would close this; consider adding it to `test_wait.rs` before converting more suites.

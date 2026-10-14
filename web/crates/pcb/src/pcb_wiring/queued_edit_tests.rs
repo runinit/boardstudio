@@ -811,10 +811,8 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
         Some("The wiring mode change could not be applied: injected wiring refusal"),
         "the failure stays inline"
     );
-    // The injected Core failure leaves the session in save recovery, so this edit ends as
-    // `BlockedByRecovery` and never lands (found while verifying ticket 36): the test waits for
-    // the edit's terminal outcome, the only signal that it was handled. Ticket 37 carries the
-    // follow-up to make the unrelated edit land.
+    // An executor failure requires recovery; a subsequent edit is correctly blocked until the
+    // accepted document is recovered, so this check covers that blocked attempt only.
     let unrelated = support::observe_next(runtime);
     runtime.submit(Event::ResolveEdit {
         operation_id: runtime.operation(),
@@ -833,19 +831,25 @@ async fn failed_field_ticket_restores_accepted_value_and_keeps_feedback_across_a
             },
         ),
     });
-    settle_until(
-        runtime,
-        "the unrelated edit reaches its terminal outcome and the field keeps its failure",
-        || {
-            unrelated.borrow().is_some()
-                && rendered_accepted(&probe)
-                && (probe.mode.borrow().as_ref().unwrap().failure)().is_some()
-        },
-    )
+    settle_until(runtime, "the unrelated edit is blocked by recovery", || {
+        unrelated.borrow().is_some()
+    })
     .await;
+    assert_eq!(
+        *unrelated.borrow(),
+        Some(boardstudio_application::TerminalOutcome::BlockedByRecovery(
+            "save recovery is required".into()
+        )),
+        "the unrelated edit waits for recovery"
+    );
+    assert_eq!(
+        runtime.model().accepted.unwrap().document.name,
+        "Mode test",
+        "the blocked edit does not change the accepted document"
+    );
     assert!(
         (probe.mode.borrow().as_ref().unwrap().failure)().is_some(),
-        "an unrelated edit must not clear the field's failure"
+        "a blocked edit leaves the existing field failure visible"
     );
     runtime.submit(Event::SelectParts {
         operation_id: runtime.operation(),
