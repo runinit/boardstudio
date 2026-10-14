@@ -1,6 +1,6 @@
 # 19: Reconcile mirrored halves on every edit, and exceptions
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: [18](18-core-create-mirrored-half.md), [26](26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), [27](27-mirror-modules.md), [28](28-mirror-embedded-circuits.md), [29](29-mirror-switch-and-companion-headings.md), [30](30-independent-parts-use-the-full-heading-rule.md), [31](31-companion-placement-modes.md), [32](32-mirrored-half-labels.md), [39](39-stabilisers-and-companion-fallback.md), [105](105-mirrored-half-derivation-kernel.md), [106](106-reconcile-mirrored-matrices-layouts-parts.md), [107](107-reconcile-mirrored-hosted-electrical-items.md), [108](108-reconcile-mirrored-outlines-assemblies.md), [109](109-mirrored-half-exceptions-unlink.md), [109b](109b-mirror-only-replacement-parts-auto-pins.md), [110](110-inverse-map-mirrored-half-edits.md), [111](111-integrate-mirrored-half-reconciliation.md), [112](112-inverse-map-hosted-electrical-edits.md), [113](113-inverse-map-reviewed-outline-edits.md), [114](114-mirrored-edit-compatibility-constraints.md), [115](115-prepare-mirrored-edit-transaction.md), [116](116-prepare-mirrored-open-repair.md), [117](117-prepare-mirrored-preview-history-performance.md), [146](146-mirror-side-circuit-embeds-land-as-typed.md), [147](147-mirror-keycap-settings-and-plain-nets.md), [148](148-mirror-electrical-configuration-for-added-matrices.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -25,11 +25,11 @@ made on the mirror.
 
 ## Acceptance
 
-- [ ] A matrix, key, part, module, outline-version or net edit from either half moves both,
+- [x] A matrix, key, part, module, outline-version or net edit from either half moves both,
       in one Undo step.
-- [ ] A local or omitted item survives edits and reopen; Rejoin reflects the source again.
-- [ ] One-off screen/encoder/independent-part and diode/LED-companion changes/removals leave the rest of the pair linked; Local stays visible/independent, Omit stays absent and reference cleanup is targeted.
-- [ ] Performance guard: `core/tests/matrix_performance.rs` still passes; record the added cost.
+- [x] A local or omitted item survives edits and reopen; Rejoin reflects the source again.
+- [x] One-off screen/encoder/independent-part and diode/LED-companion changes/removals leave the rest of the pair linked; Local stays visible/independent, Omit stays absent and reference cleanup is targeted.
+- [x] Performance guard: `core/tests/matrix_performance.rs` still passes; record the added cost.
 
 ## Verification
 
@@ -62,7 +62,7 @@ Core tests, boundary parity native and WASM, `lint`, `test`. `impact` on `apply`
 
 ## Execution split and readiness gate
 
-Status remains `ready-for-agent`; parent closure requires all105–117 to meet their recorded acceptance and required independent review, followed by full parent acceptance after111 activation. One coherent unit may satisfy multiple tightly coupled dependency-ready private slices; record acceptance for each instead of creating a session/review for every ticket number. Luna implements; ONE fresh Sol 6.1 medium reviews each completed coherent unit. The original full acceptance, counterexamples and final activation gates remain binding.
+parent closure requires all105–117 to meet their recorded acceptance and required independent review, followed by full parent acceptance after111 activation. One coherent unit may satisfy multiple tightly coupled dependency-ready private slices; record acceptance for each instead of creating a session/review for every ticket number. Luna implements; ONE fresh Sol 6.1 medium reviews each completed coherent unit. The original full acceptance, counterexamples and final activation gates remain binding.
 
 The user grants B standing authority for planning, implementation, fresh acceptance and dependency-ready continuation within the approved mirror chain. This supersedes older per-command/per-child root START rules, clerical claim checkpoints and stale wrapper HUMAN holds. The exact narrow internal wrapper approval is in [106](106-reconcile-mirrored-matrices-layouts-parts.md#current-approved-execution-authority-2026-10-11); other unapproved visibility changes still escalate. Current approvals survive compaction; a handoff to root is notification, not an implicit unfinished-work review/STOP. Root schedules bounded GLOBAL foreground sequences and owns source-bound refresh, integration, batch checks and goldens. Disjoint non-shell source/planning work may overlap ordinary checks. No partial reconciliation is activated before111. Actual product/representability choices and cross-lane conflicts still escalate; already specified ticket/ADR feature operations/schema are authorized, not a blanket hold.
 
@@ -113,3 +113,69 @@ The serialized SetHalfException payload uses `itemKind` to select the mirrored i
 `kind: MirroredItemKind` field with a serde rename. This representation preserves the agreed
 item/state behavior and avoids two meanings for one JSON key. `HalfExceptionState` represents
 Local/Omitted/Linked edit intent; the durable exception overlay still stores only Local/Omitted.
+
+## Approved replacement cleanup seam (2026-10-14)
+The owner approved widening visibility if required and updating the spec. Reuse the verified
+`lifecycle::retire_replacement_records` with `pub(super)` access from transaction preparation;
+replace and delete the separate Part-only cleanup. Keeping the helper private would require
+duplicating its typed lifecycle policy or moving composition across existing module ownership.
+The narrow seam retains validation and atomic error propagation across all retained pairs.
+The same conditional approval covers moving the existing circuit reference allocator to its
+parent `modules` module with `pub(crate)` access, because reuse across circuit creation and
+mirrored planning otherwise requires duplication or exposing the private circuit module.
+Keep that module private and reuse `matrix::member_id` for validator identities. No external
+public API or unrelated helper visibility is added.
+
+Acceptance includes the public two-pair ReplaceDocument regression, private typed retirement
+and incomplete-closure refusal cases, exact Local payload preservation, and subsequent edits
+on both pairs. Independent review and full parent gates remain required.
+
+## Answer
+
+Resolved after fresh parent acceptance on 2026-10-14. Reviewed source commits `a5455f2f`
+and `24ddd6d3` are integrated locally into `dev` as `adda84b4d` and `21c5fd1a0`. All 22
+owned files match the reviewed candidate; pre-existing user changes are preserved. Nothing
+has been pushed. All 26 listed prerequisites are resolved. Fresh current-source independent
+reviews close the missing review records for 109, 110 and 112 without inventing historical
+approvals.
+
+- Both-author matrix/key/Part/module/circuit/outline-version/net edits and one-step history
+  pass through the public Core route. Prepared same-value commits preserve Redo; global-only
+  changes still commit. Creation no longer expands an authored envelope before the first edit.
+- Local/Omitted companions and independent parts retain selective ownership through edits,
+  actual archive Open and Rejoin. Explicit Local moves and authored replacement fields survive.
+  A Local controller retains its Part-owned data; still-linked electrical roles follow source
+  assignments and locks. The rest of the pair remains linked.
+- Source deletion and ReplaceDocument retire exact typed lifecycle records across retained
+  pairs, including Layout rows. Incomplete owner closure refuses atomically; Local replacement
+  payloads remain unchanged. Hosted additions preserve either author's payload and namespace.
+- Post-integration `python3 scripts/check.py repo test lint` passes all 1,976 baselined native
+  tests. The baseline adds 38 names and removes none. Core library: 811 passed, three existing
+  ignored. Public mirrored-half module: 108 passed, plus four related controls in the broader
+  filter. Native boundary parity: 7/7; real Chrome WASM transcript: 1/1.
+- Full web build, typecheck and browser gates pass: 89 page tests, 15 CAD checks and storage/
+  browser-crate suites. After the helper-only refactor, affected web providers, packaged page,
+  typecheck and real WASM parity pass again. Unchanged CAD/renderer artifacts are hash-verified;
+  full mounted-browser evidence is reused with the reviewed behavior-equivalence proof.
+- Eight applicable parent producer mutations compiled and failed their named tests, with exact
+  restoration. Initial insensitive survivors are retained; the authored-Local-field replacement
+  test kills the Local restoration mutant. The invalid board-wide controller-freeze oracle is
+  excluded. Runs predate the final helper-only refactor; their unchanged anchors and behavior
+  are reviewed, rather than presented as later reruns. Both review axes cover final source
+  and every subsequent delta.
+
+### Final cost evidence
+
+Five alternating release-binary rounds, each with 100 measured previews after 10 warmups,
+compare the same 186-Part paired fixture against pre-activation `a6a82a85`. Final candidate
+`24ddd6d3` is byte-identical in owned source to integrated `21c5fd1a0`. Median run p50/p95:
+1,528/2,273 µs baseline, 11,407/14,693 µs candidate; added cost 9,879/12,420 µs. The existing
+unpaired guard passes at 496/532 µs baseline and 510/531 µs candidate. All ten paired runs
+and both guard runs pass. No numeric latency budget exists; these are native measurements,
+not a browser latency guarantee. No run or tail was discarded.
+
+Evidence is under `.evidence/ticket19/`: final requirement/prerequisite audits; scoped and final
+independent reviews; `verification/`, `integration/post-integration-checks.log`; eight applicable
+mutation records; and `performance/performance-results.md` with raw rounds, binary hashes and
+quiet-slot metadata. The 10-second preflight observed 6.85% aggregate CPU busy; no jobs were
+stopped and no power configuration was changed.

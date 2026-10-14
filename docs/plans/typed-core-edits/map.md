@@ -473,3 +473,10 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   activation; added cost and run spread are recorded, with no invented budget. Next: 151
   bilateral linked default plus explicit mirror-only placement, then 109b and fresh parent-19
   acceptance. Parent 19 remains open; nothing pushed.
+
+- [19](issues/19-reconcile-mirrored-halves.md): resolved fresh full mirrored-half acceptance.
+  Source is integrated locally at `21c5fd1a0`; post-integration repo/test/lint passes all 1,976
+  native names, with 38 additions and no removals. Public both-author lifecycle/history, native/
+  WASM parity, build/typecheck/browser and eight applicable compiled mutation kills are covered
+  by independent reviews. Final paired native p50/p95 is 11,407/14,693 µs versus 1,528/2,273 µs
+  before activation; the existing unpaired guard passes. User changes are preserved; no push.
