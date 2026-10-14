@@ -7,7 +7,7 @@
 
 ## Editing
 
-- Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors. `rtk proxy rg` serves exhaustive text inventories; plain `rg` output is condensed.
+- Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
 - Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
 - Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
 - Evidence: logs, hashes and mutation results go in the gitignored `.evidence/`.
