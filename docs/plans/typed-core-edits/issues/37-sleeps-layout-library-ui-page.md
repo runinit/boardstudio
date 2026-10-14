@@ -132,7 +132,7 @@ baseline (81, 49, 68, 40, 30, 33, 16 except library, as above).
   `part_placement.rs` (16 and 20 ms), `board_inspector.rs` (50 ms and 10 ms loops), `layout_findings.rs`
   (40 ms x3), `layout_viewer.rs` (30 ms and 10 ms loop), `matrix_edit_test_support.rs` and the `*_pending`
   helpers (10 ms loops).
-- Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (59 calls to
+- Page binary (current, 2026-10-14): remaining waits are `layout_component_inspector_tests.rs` (57 calls to
   `settle_component_inspector`, plus its pending-edit drains), `layout_key_selection_actions/tests.rs` (4 waits: two fixed post-action delays,
   one shared refresh delay, and the full Editor mount), and `case_workspace.rs` (9 x 100 ms in the isolated
   launch). Fixed waits
@@ -423,3 +423,10 @@ the module passed with formatting and diff checks clean. This file has no fixed 
 `python3 scripts/check.py` passed all steps in 201.6 s (repo 0.4, tooling 3.8, lint 3.7, build 49.5,
 test 27.9, browser 116.2); all 97 page WASM tests passed. This is one current-tree full browser
 pass. The remaining wait audit, mutation checks, three-run requirement, and baseline evidence remain.
+
+
+## Progress (2026-10-14, mirrored-half disclosure test)
+
+Replaced the two fixed waits in `mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_action`
+with bounded checks for the mounted component Inspector and linked disclosure. The file's focused wasm
+modules passed 40/40 tests; formatting and diff checks passed. Remaining Inspector test waits stay open.

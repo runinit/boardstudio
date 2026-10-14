@@ -1290,15 +1290,31 @@ fn click_component_inspector(root_id: &str, selector: &str) {
 
 #[wasm_bindgen_test]
 async fn mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_action() {
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+
     let (probe, root) = mounted_probe("layout-component-mirrored-half-action-test-root").await;
-    settle_component_inspector().await;
+    wait_until("the component Inspector mounts", || {
+        root.query_selector(".m1-layout-component-inspector")
+            .is_ok_and(|inspector| inspector.is_some())
+    })
+    .await;
     *probe.mirrored_half_override.borrow_mut() = Some(MirroredHalfProjection {
         pair_id: "pair/A".into(),
         mirror_id: "mirror-part".into(),
         state: boardstudio_core::model::HalfExceptionState::Linked,
     });
     probe.refresh();
-    settle_component_inspector().await;
+    wait_until("the linked mirrored-half disclosure renders", || {
+        root.query_selector(".m1-layout-component-mirror-state")
+            .ok()
+            .flatten()
+            .is_some_and(|section| {
+                section
+                    .text_content()
+                    .is_some_and(|text| text.contains("Linked"))
+            })
+    })
+    .await;
 
     let document = web_sys::window().unwrap().document().unwrap();
     let section = document
