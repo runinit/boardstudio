@@ -43,3 +43,17 @@ Present the control in a named disclosure section, **Companion placement**.
 The user also approved a narrow read-only Core eligibility projection for stabilisers so the
 Inspector can display Core's disabled reason without duplicating the domain rule. The projection
 accepts either the source or mirror part id; mounted Inspector integration and coverage remain open.
+
+## Progress (2026-10-14)
+
+- `20ce8e8c` adds the named Companion placement disclosure, typed `SetCompanionPlacement`
+  submission, pending/error handling, source/mirror normalization, and Layout projections for
+  matrix, row, column, key, component, and multiple selected companion contexts. Independent
+  parts do not become placement targets; Core's stabiliser reason disables the mode control.
+- WASM tests cover target projection across those contexts, mixed modes and independent-part
+  exclusion, typed action emission, refusal-message rendering, and the disabled stabiliser state.
+  `repo`, `lint`, `typecheck`, the focused browser suite (36 tests), `cargo fmt --all --check`,
+  `git diff --check`, and `impeccable detect --json` passed.
+- Acceptance remains open: the mounted tests do not yet exercise selection through the full
+  Editor, a real refused Core operation, or the edit/Undo round trip. Mixed tweak rendering and
+  the pair-default contract also need integrated verification.
