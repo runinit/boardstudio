@@ -184,13 +184,6 @@ async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool
     .await;
 }
 
-async fn settle(runtime: &Rc<Runtime>) {
-    for _ in 0..12 {
-        support::run_pending(runtime).await;
-        rendered().await;
-    }
-}
-
 fn poke(probe: &Probe) {
     if let Some(mut poke) = probe.poke.borrow_mut().as_ref().copied() {
         poke.set(poke() + 1);
@@ -341,7 +334,17 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
     );
     assert!(projection.feedback.is_none());
     release.send(()).unwrap();
-    settle(&probe.runtime).await;
+    settle_until(
+        &probe.runtime,
+        "retired setup drains without feedback",
+        || {
+            let projection = mount(&probe).projection;
+            !projection.busy
+                && projection.project_feedback.is_none()
+                && projection.feedback.is_none()
+        },
+    )
+    .await;
     assert!(mount(&probe).projection.project_feedback.is_none());
     root.remove();
 }
@@ -393,7 +396,14 @@ async fn retained_rendered_controls_cannot_retarget_another_project() {
         operation_id: runtime.operation(),
         document: fixture_document("setup-retarget-b", 1),
     });
-    settle(&runtime).await;
+    settle_until(&runtime, "replacement project opens", || {
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.document.id == "setup-retarget-b")
+    })
+    .await;
     support::take_held_effects(&runtime);
     queue_reply(&probe, admit());
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
@@ -417,7 +427,15 @@ async fn retained_rendered_controls_reject_replaced_token_and_generation() {
         operation_id: runtime.operation(),
         document: fixture_document("setup-stale-revision", 2),
     });
-    settle(&runtime).await;
+    let previous_token = runtime.model().accepted.unwrap().token;
+    settle_until(&runtime, "replacement snapshot is accepted", || {
+        runtime
+            .model()
+            .accepted
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.token != previous_token)
+    })
+    .await;
     support::take_held_effects(&runtime);
     queue_reply(&probe, admit());
     stale.submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
@@ -509,14 +527,36 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
     // and therefore an eligible mechanical mirror pair.
     queue_reply(&probe, admit());
     mount(&probe).submit(PhysicalSetupIntent::ProjectReversibleLayout(true));
-    settle(&runtime).await;
+    settle_until(
+        &runtime,
+        "reversible layout is accepted and rendered",
+        || {
+            accepted_reversible(&runtime) == Some(serde_json::json!(true))
+                && mount(&probe).projection.reversible
+                && !mount(&probe).projection.busy
+        },
+    )
+    .await;
     assert_eq!(accepted_reversible(&runtime), Some(serde_json::json!(true)));
 
     let before_split = runtime.model().accepted.unwrap().document.hardware.clone();
 
     queue_reply(&probe, mounting_hole_reply());
     mount(&probe).submit(PhysicalSetupIntent::ProjectTopology(true));
-    settle(&runtime).await;
+    settle_until(&runtime, "split topology is accepted and rendered", || {
+        let accepted_split = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .and_then(|snapshot| snapshot.document.hardware.as_ref())
+            .is_some_and(|hardware| {
+                hardware.topology == boardstudio_core::model::HardwareTopology::Split
+            });
+        accepted_split
+            && mount(&probe).projection.topology == boardstudio_core::model::HardwareTopology::Split
+            && !mount(&probe).projection.busy
+    })
+    .await;
 
     let accepted = runtime.model().accepted.unwrap();
     let hardware = accepted
@@ -558,7 +598,19 @@ async fn a_reversible_split_establishes_its_mirror_pair_and_undoes_in_one_step()
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    settle(&runtime).await;
+    settle_until(
+        &runtime,
+        "Undo restores and renders pre-split hardware",
+        || {
+            let restored = runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.document.hardware == before_split);
+            restored && !mount(&probe).projection.busy
+        },
+    )
+    .await;
     let undone = runtime.model().accepted.unwrap();
     assert_eq!(
         undone.document.hardware, before_split,

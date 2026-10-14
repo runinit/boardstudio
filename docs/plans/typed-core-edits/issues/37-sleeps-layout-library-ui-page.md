@@ -523,6 +523,15 @@ callbacks update the test probes synchronously. The Parts browser crate passed a
 16.11 s with test names and count unchanged; formatting passed. The remaining wait audit, mutation
 checks, baseline name comparison, and three repeated browser gates remain open.
 
+## Progress (2026-10-14, bounded-wait mutations)
+
+Ran three representative wait mutations with `scripts/mutation-check.py`: the Layout render wait,
+Parts catalogue-loading wait, and Parts placement-action mount wait. Each never-true predicate
+failed with its named `wait_until` message at the 5,000 ms bound, and the mutation tool confirmed
+all three files were restored byte-for-byte. Logs and hash results are in ignored
+`.evidence/ticket37-mutation-results/`. This verifies timeout behavior; production-action removal
+mutations and the rest of #37 acceptance remain open.
+
 ## Progress (2026-10-14, Parts catalogue and browse waits)
 
 Converted the Parts search/browse UI and catalogue-state tests from fixed 10/30 ms sleeps and
@@ -530,3 +539,12 @@ Converted the Parts search/browse UI and catalogue-state tests from fixed 10/30 
 error alert. The Parts browser crate again passed all 70 tests (16.07 s) with unchanged test names
 and count; formatting passed. The remaining broad Parts audit, mutation checks, baseline name
 comparison, and three repeated browser gates remain open.
+
+## Progress (2026-10-14, PCB physical setup waits)
+
+Replaced the six 12-round fixed-settle loops in `pcb_physical_setup/tests.rs` with bounded
+predicates for silent retirement, project replacement, accepted reversible layout/topology, and
+Undo restoration. The topology waits also require the updated Inspector projection to render idle
+before the next action, preventing a stale mount from dropping that action. The focused split/Undo
+test passed, then all 49 PCB browser tests passed. Formatting passed. Other low-gain PCB render
+settles and the cross-ticket mutation, name-list, repeated-gate and full-gate evidence remain open.
