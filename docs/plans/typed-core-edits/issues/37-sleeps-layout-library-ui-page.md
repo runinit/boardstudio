@@ -560,3 +560,8 @@ poll, and eight-round drain loop are removed. The three focused mounted tests pa
 Parts suite passed 70/70 in 14.96 s before the final one-line oneshot-result unwrap; those same
 three tests passed again after that final edit. The broader Parts wait audit, production-action
 mutations, executed-name comparison, and current-tree repeated/full gates remain open.
+
+The production Save fit profile action was then renamed temporarily with
+`scripts/mutation-check.py`; the mounted editor test failed at its named 5,000 ms wait, and the
+tool restored the production file byte-for-byte (`restored_exact: true`). Evidence is in ignored
+`.evidence/ticket37-mutation-results/parts-mechanical-save-action-missing.log` and `results.json`.
