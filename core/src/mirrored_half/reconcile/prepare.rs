@@ -10,8 +10,8 @@ use super::{
 use crate::constraints::FramedConstraint;
 use crate::mirrored_half::inverse::{self, Canonical, PreparedConstraintEdit};
 use crate::model::{
-    BoardContours, EditOperation, Finding, Matrix, MirroredExceptionState, MirroredItemKind, Pose2,
-    Position, ProjectDoc, Scope, Severity,
+    BoardContours, EditOperation, Finding, HalfExceptionState, Matrix, MirroredExceptionState,
+    MirroredItemKind, Pose2, Position, ProjectDoc, Scope, Severity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -504,6 +504,8 @@ pub(crate) fn prepare_transaction(
     crate::outline_controls::detach_removed(&accepted.parts, &mut draft);
     changed.extend(crate::prune_removed_components(&accepted.parts, &mut draft));
 
+    resolve_mirror_replacement_electrical(accepted, &mut draft, &canonical.operation)?;
+
     validate_prepared_draft(accepted, &draft, &canonical.operation)?;
 
     let (mut actual_ids, _) = super::changed_document_fields(accepted, &draft)?;
@@ -515,6 +517,126 @@ pub(crate) fn prepare_transaction(
     actual_ids.sort();
     actual_ids.dedup();
     Ok((draft, actual_ids))
+}
+
+/// Plans replacement pin assignments after reconciliation has projected linked pins and locks.
+/// Placement-only Parts keep the existing 151 transaction behavior and do not require a board
+/// controller merely because the resolver can report unrelated board-level findings.
+fn resolve_mirror_replacement_electrical(
+    accepted: &ProjectDoc,
+    draft: &mut ProjectDoc,
+    operation: &EditOperation,
+) -> Result<(), String> {
+    let (mirror_board_id, added_part_id) = match operation {
+        EditOperation::AddMirrorOnlyPart { board_id, part, .. } => {
+            (board_id.as_str(), Some(part.id.as_str()))
+        }
+        EditOperation::SetHalfException {
+            pair_id,
+            kind: MirroredItemKind::Part,
+            state: HalfExceptionState::Linked,
+            ..
+        } => {
+            let pairs: Vec<_> = accepted
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter(|pair| pair.id == *pair_id)
+                .collect();
+            let [pair] = pairs.as_slice() else {
+                return Err("The exact lifecycle pair is unavailable or ambiguous".into());
+            };
+            let halves = pair
+                .halves
+                .as_ref()
+                .ok_or_else(|| "The exact lifecycle pair has no native halves".to_string())?;
+            (halves.mirror_board_id.as_str(), None)
+        }
+        _ => return Ok(()),
+    };
+    let rejoin_displaced_assignment = if added_part_id.is_none() {
+        let assignments_before = electrical_assignments(accepted, mirror_board_id)?;
+        let assignments_after = electrical_assignments(draft, mirror_board_id)?;
+        match (assignments_before, assignments_after) {
+            (Some(before), Some(after)) => before
+                .iter()
+                .any(|(function, pin)| after.get(function) != Some(pin)),
+            _ => false,
+        }
+    } else {
+        false
+    };
+    let mode = draft
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.boards)
+        .find(|board| board.board_id == mirror_board_id)
+        .map_or(crate::electrical::ElectricalMode::default(), |board| {
+            board.mode
+        });
+    let plan = crate::electrical::resolve(crate::electrical::ElectricalPlanRequest {
+        document: draft.clone(),
+        instance_id: None,
+        mode,
+        locks: Default::default(),
+        controller_profile: None,
+        board_id: Some(mirror_board_id.to_owned()),
+        controller_part_id: None,
+    });
+    let placement_requires_plan =
+        added_part_id.is_some_and(|part_id| plan_requires_electrical_for_part(&plan, part_id));
+    if !placement_requires_plan && !rejoin_displaced_assignment {
+        return Ok(());
+    }
+    if let Some(error) = plan
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity == "error")
+    {
+        return Err(error.message.clone());
+    }
+    crate::electrical::materialize_reviewed(draft, &plan, true)
+}
+
+fn electrical_assignments(
+    document: &ProjectDoc,
+    board_id: &str,
+) -> Result<Option<BTreeMap<String, String>>, String> {
+    let matches: Vec<_> = document
+        .hardware
+        .as_ref()
+        .into_iter()
+        .flat_map(|hardware| &hardware.boards)
+        .filter(|board| board.board_id == board_id)
+        .collect();
+    match matches.as_slice() {
+        [] => Ok(None),
+        [board] => Ok(Some(board.assignments.clone())),
+        _ => Err(format!("Mirror electrical board {board_id:?} is ambiguous")),
+    }
+}
+
+fn plan_requires_electrical_for_part(
+    plan: &crate::electrical::ElectricalPlan,
+    part_id: &str,
+) -> bool {
+    plan.peripherals
+        .iter()
+        .any(|peripheral| peripheral.part_id == part_id)
+        || plan
+            .assignments
+            .iter()
+            .any(|assignment| assignment.key_id == part_id)
+        || plan
+            .nets
+            .iter()
+            .any(|net| net.pins.iter().any(|pin| pin.part_id == part_id))
+        || plan
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.key_id.as_deref() == Some(part_id))
 }
 
 fn add_target_layout_memberships(

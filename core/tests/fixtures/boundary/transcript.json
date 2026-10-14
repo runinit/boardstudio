@@ -42206,6 +42206,20 @@
       "revision": 45
     }
   ],
+  "electricalMirrorReplacement": {
+    "archiveSaveOpenPreservesAssignments": true,
+    "capacityPlacementRefusalAtomic": true,
+    "capacityRejoinRefusalAtomic": true,
+    "freedCsPinWasAllocatedToReplacement": true,
+    "mirrorOnlyPlacementAutomaticallyPinned": true,
+    "omitReleasesPerPartCs": true,
+    "omittedReplacementArchiveOpenStable": true,
+    "previewNonpublishing": true,
+    "rejoinRestoresSourcePinsAndRepinsReplacement": true,
+    "singleStepUndoRedo": true,
+    "sourceUnchanged": true,
+    "supportedController": "ceoloide/mcu_nice_nano"
+  },
   "mirrorAddition": {
     "archiveRoundTrip": {
       "open": {
