@@ -211,5 +211,5 @@ Evidence (gitignored, main checkout): `.evidence/ticket149/final-review-results.
 `full-checks-final.log`, `connected149-mutation-summary.json`, individual mutation logs and
 red/green traces under `disabled-instance/`. Source `02afbc7d` is merged into local `dev` as
 `ebbca129`; post-merge `repo test lint` passed with all 1,817 baselined native tests executed
-(`post-merge-checks.log`). Nothing is pushed. Parent 19 remains open for 150, 111, 109b and full
-activated acceptance.
+(`post-merge-checks.log`). Nothing is pushed. Parent 19's full acceptance was subsequently
+completed and merged into `dev` on 2026-10-14 as `63e50a142`.
