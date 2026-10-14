@@ -3625,6 +3625,135 @@ fn production_prepared_routes_mirror_edits_preview_and_history() {
 }
 
 #[test]
+fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
+    let (mut engine, source) = seed(&runtime_supported_document(), "left");
+    let created = create(
+        &mut engine,
+        &source,
+        "runtime-rotated-edit-pair",
+        "left",
+        new_board("right", "right"),
+        json!({"at":{"x":200.0,"y":30.0},"rotation":90.0}),
+    )
+    .unwrap();
+    let accepted = created["document"].clone();
+    assert_eq!(
+        part(&accepted, "left/U1")["pose"],
+        json!({"at":{"x":-24.0,"y":0.0},"rotation":0.0})
+    );
+    assert_eq!(
+        part(&accepted, "right/U1")["pose"],
+        json!({"at":{"x":200.0,"y":54.0},"rotation":270.0})
+    );
+
+    let move_from_mirror = json!({
+        "kind":"move-parts",
+        "positions":[{"id":"right/U1","at":{"x":186.0,"y":46.0}}]
+    });
+    let preview = request(
+        &mut engine,
+        json!({"id":"runtime-rotated-preview","kind":"edit","command":{
+            "baseRevision":accepted["revision"],
+            "transactionId":"runtime-rotated-preview",
+            "phase":"preview",
+            "targetIds":["right/U1"],
+            "operation":move_from_mirror
+        }}),
+    );
+    assert_eq!(preview["kind"], "preview", "{preview}");
+    let preview_transform = |id: &str| {
+        preview["scene"]["transforms"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|transform| transform["id"] == id)
+            .unwrap_or_else(|| panic!("preview transform for {id} is missing: {preview}"))
+    };
+    let source_preview_pose = &preview_transform("left/U1")["pose"];
+    assert_point(
+        (
+            source_preview_pose["at"]["x"].as_f64().unwrap(),
+            source_preview_pose["at"]["y"].as_f64().unwrap(),
+        ),
+        (-16.0, 14.0),
+        "literal source Preview pose",
+    );
+    assert_eq!(source_preview_pose["rotation"], 0.0);
+    let mirror_preview_pose = &preview_transform("right/U1")["pose"];
+    assert_point(
+        (
+            mirror_preview_pose["at"]["x"].as_f64().unwrap(),
+            mirror_preview_pose["at"]["y"].as_f64().unwrap(),
+        ),
+        (186.0, 46.0),
+        "literal mirror Preview pose",
+    );
+    assert_eq!(mirror_preview_pose["rotation"], 270.0);
+    assert_eq!(snapshot(&mut engine), accepted, "Preview must not publish");
+
+    let committed = request(
+        &mut engine,
+        json!({"id":"runtime-rotated-commit","kind":"edit","command":{
+            "baseRevision":accepted["revision"],
+            "transactionId":"runtime-rotated-commit",
+            "phase":"commit",
+            "targetIds":["right/U1"],
+            "operation":move_from_mirror
+        }}),
+    );
+    assert_eq!(committed["kind"], "scene", "{committed}");
+    let committed_document = &committed["document"];
+    assert_eq!(
+        committed_document["revision"],
+        accepted["revision"].as_u64().unwrap() + 1
+    );
+    let source_committed_pose = &part(committed_document, "left/U1")["pose"];
+    assert_point(
+        (
+            source_committed_pose["at"]["x"].as_f64().unwrap(),
+            source_committed_pose["at"]["y"].as_f64().unwrap(),
+        ),
+        (-16.0, 14.0),
+        "literal committed source pose",
+    );
+    assert_eq!(source_committed_pose["rotation"], 0.0);
+    let mirror_committed_pose = &part(committed_document, "right/U1")["pose"];
+    assert_point(
+        (
+            mirror_committed_pose["at"]["x"].as_f64().unwrap(),
+            mirror_committed_pose["at"]["y"].as_f64().unwrap(),
+        ),
+        (186.0, 46.0),
+        "literal committed mirror pose",
+    );
+    assert_eq!(mirror_committed_pose["rotation"], 270.0);
+
+    let undone = request(
+        &mut engine,
+        json!({"id":"runtime-rotated-undo","kind":"undo"}),
+    )["document"]
+        .clone();
+    let mut expected_undo = accepted;
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(
+        undone, expected_undo,
+        "Undo restores the full accepted document"
+    );
+
+    let redone = request(
+        &mut engine,
+        json!({"id":"runtime-rotated-redo","kind":"redo"}),
+    )["document"]
+        .clone();
+    let mut expected_redo = committed_document.clone();
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(
+        redone, expected_redo,
+        "Redo restores the full committed document"
+    );
+}
+
+#[test]
 fn production_mirror_move_retunes_constraint_chain_through_preview_and_history() {
     let mut fixture = runtime_supported_document();
     let mut downstream = part(&fixture, "left/TRRS").clone();
