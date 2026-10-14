@@ -283,6 +283,7 @@ mod mounted_tests {
     use crate::runtime::project_name_test_support as support;
     use boardstudio_application::TerminalOutcome;
     use boardstudio_core::model::{Board, ProjectDoc};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use std::cell::RefCell;
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -384,12 +385,13 @@ mod mounted_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("mechanical profile entry mounts", || {
+            root.query_selector(".m1-parts-mechanical-fit button")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         (runtime, root, fixture)
-    }
-
-    async fn tick() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
     }
 
     fn entry(root: &DomElement) -> HtmlElement {
@@ -402,7 +404,12 @@ mod mounted_tests {
 
     async fn open_editor(root: &DomElement) -> HtmlElement {
         entry(root).click();
-        tick().await;
+        wait_until("mechanical profile editor opens", || {
+            root.query_selector("button[aria-label='Save fit profile']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         root.query_selector("button[aria-label='Save fit profile']")
             .unwrap()
             .unwrap()
@@ -410,21 +417,12 @@ mod mounted_tests {
             .unwrap()
     }
 
-    async fn wait_for_core(mut entered: futures_channel::oneshot::Receiver<()>) {
-        for _ in 0..100 {
-            if entered.try_recv().unwrap().is_some() {
-                return;
-            }
-            tick().await;
-        }
-        panic!("mechanical profile save did not enter the real Core gate");
-    }
-
-    async fn drain(runtime: &Rc<Runtime>) {
-        for _ in 0..8 {
+    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+        wait_until_step(what, async || {
             support::run_pending(runtime).await;
-            tick().await;
-        }
+            done()
+        })
+        .await;
     }
 
     #[wasm_bindgen_test]
@@ -438,9 +436,10 @@ mod mounted_tests {
         // The old rendered Save callback remains available until the close rerender.
         // Invoke it again after admission, before the browser can unmount the editor.
         save.click();
-        tick().await;
         support::drive_pending(&runtime);
-        wait_for_core(entered).await;
+        wait_until_future("mechanical profile save enters Core", entered)
+            .await
+            .unwrap();
         assert!(
             root.query_selector("button[aria-label='Save fit profile']")
                 .unwrap()
@@ -456,7 +455,14 @@ mod mounted_tests {
             "one-shot saves have no pending message"
         );
         release.send(()).unwrap();
-        drain(&runtime).await;
+        settle_until(&runtime, "mechanical profile save lands", || {
+            matches!(*first.borrow(), Some(TerminalOutcome::Completed))
+                && runtime.model().accepted.unwrap().document.definitions[0]
+                    .mechanical_profile
+                    .is_some()
+                && !entry(&root).has_attribute("disabled")
+        })
+        .await;
         assert!(matches!(*first.borrow(), Some(TerminalOutcome::Completed)));
         assert!(
             duplicate.borrow().is_none(),
@@ -481,13 +487,20 @@ mod mounted_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "mechanical profile disk failure");
         save.click();
-        tick().await;
         support::drive_pending(&runtime);
-        wait_for_core(entered).await;
+        wait_until_future("mechanical profile save enters Core", entered)
+            .await
+            .unwrap();
         assert!(entry(&root).has_attribute("disabled"));
         release.send(()).unwrap();
-        drain(&runtime).await;
-        assert!(!entry(&root).has_attribute("disabled"));
+        settle_until(&runtime, "mechanical profile save error appears", || {
+            !entry(&root).has_attribute("disabled")
+                && root
+                    .query_selector(".m1-parts-mechanical-fit [role=alert]")
+                    .unwrap()
+                    .is_some()
+        })
+        .await;
         let alert = root
             .query_selector(".m1-parts-mechanical-fit [role=alert]")
             .unwrap()
@@ -509,19 +522,32 @@ mod mounted_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         support::fail_next_persist(&runtime, "departed mechanical profile disk failure");
         save.click();
-        tick().await;
         support::drive_pending(&runtime);
-        wait_for_core(entered).await;
+        wait_until_future("mechanical profile save enters Core", entered)
+            .await
+            .unwrap();
         assert!(entry(&root).has_attribute("disabled"));
         let mut generation = fixture.generation.borrow().unwrap();
         generation += 1;
-        tick().await;
+        wait_until("retired mechanical profile save releases its entry", || {
+            !entry(&root).has_attribute("disabled")
+        })
+        .await;
         assert!(
             !entry(&root).has_attribute("disabled"),
             "retiring the observation re-enables the live parent control"
         );
         release.send(()).unwrap();
-        drain(&runtime).await;
+        settle_until(&runtime, "retired mechanical profile save settles", || {
+            matches!(
+                runtime.model().durability,
+                boardstudio_application::Durability::Failed { .. }
+            ) && root
+                .query_selector(".m1-parts-mechanical-fit [role=alert]")
+                .unwrap()
+                .is_none()
+        })
+        .await;
         assert!(
             root.query_selector(".m1-parts-mechanical-fit [role=alert]")
                 .unwrap()

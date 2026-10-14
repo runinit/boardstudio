@@ -551,3 +551,12 @@ Undo restoration. The topology waits also require the updated Inspector projecti
 before the next action, preventing a stale mount from dropping that action. The focused split/Undo
 test passed, then all 49 PCB browser tests passed. Formatting passed. Other low-gain PCB render
 settles and the cross-ticket mutation, name-list, repeated-gate and full-gate evidence remain open.
+
+## Progress (2026-10-14, Parts mechanical-profile waits)
+
+The mounted mechanical-profile tests now wait for the entry/editor controls, Core gate entry,
+save landing, persistence error, and silent owner retirement. Their 30 ms ticks, 100-round Core
+poll, and eight-round drain loop are removed. The three focused mounted tests passed, and the full
+Parts suite passed 70/70 in 14.96 s before the final one-line oneshot-result unwrap; those same
+three tests passed again after that final edit. The broader Parts wait audit, production-action
+mutations, executed-name comparison, and current-tree repeated/full gates remain open.
