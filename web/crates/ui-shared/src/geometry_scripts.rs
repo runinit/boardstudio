@@ -506,11 +506,31 @@ mod queued_script_tests {
         }
         *probe.version_signal.borrow_mut() = Some(version);
         use_context_provider(|| probe.runtime.clone());
-        rsx! { GeometryScriptsEditor { on_back: EventHandler::default() } }
+        rsx! {
+            GeometryScriptsEditor { on_back: EventHandler::default() }
+            output { id: "geometry-script-render-generation", "{version()}" }
+        }
     }
 
-    async fn render_wait() {
-        gloo_timers::future::TimeoutFuture::new(10).await;
+    async fn render_wait(probe: &ScriptProbe) {
+        let expected = probe.version.get().to_string();
+        crate::test_wait::wait_until(
+            "geometry script editor renders the requested generation",
+            || {
+                web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .query_selector(
+                        "#geometry-script-owner-test #geometry-script-render-generation",
+                    )
+                    .unwrap()
+                    .and_then(|element| element.text_content())
+                    .as_deref()
+                    == Some(expected.as_str())
+            },
+        )
+        .await;
     }
 
     async fn mount_editor(runtime: Rc<Runtime>) -> ScriptProbe {
@@ -532,8 +552,7 @@ mod queued_script_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.into()),
         );
-        render_wait().await;
-        render_wait().await;
+        render_wait(&probe).await;
         probe
     }
 
@@ -543,8 +562,7 @@ mod queued_script_tests {
         if let Some(mut version) = *probe.version_signal.borrow() {
             version.set(next);
         }
-        render_wait().await;
-        render_wait().await;
+        render_wait(probe).await;
     }
 
     fn select_script(id: &str) {
@@ -618,13 +636,14 @@ mod queued_script_tests {
     }
 
     async fn settle(runtime: &Rc<Runtime>, ticket: &EditTicket) {
-        for _ in 0..100 {
-            support::run_pending(runtime).await;
-            if !ticket.is_pending() {
-                return;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
+        crate::test_wait::wait_until_step(
+            "geometry script edit reaches a terminal outcome",
+            async || {
+                support::run_pending(runtime).await;
+                !ticket.is_pending()
+            },
+        )
+        .await;
     }
 
     #[wasm_bindgen_test]
@@ -659,25 +678,13 @@ mod queued_script_tests {
             entered.await.expect("script A reached Core");
             entered_core_task.set(true);
         });
-        for _ in 0..100 {
-            if entered_core.get() {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
-        assert!(entered_core.get(), "script A reached Core");
+        crate::test_wait::wait_until("script A reaches Core", || entered_core.get()).await;
         select_script("script-2");
         flush(&probe).await;
         assert_eq!(source_value(), "// script 2");
         support::fail_next_persist(&runtime, "disk full");
         release.send(()).expect("release held script A reply");
-        for _ in 0..100 {
-            if done.get() {
-                break;
-            }
-            gloo_timers::future::TimeoutFuture::new(10).await;
-        }
-        assert!(done.get(), "Session work completed");
+        crate::test_wait::wait_until("script A Session work completes", || done.get()).await;
         flush(&probe).await;
 
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);

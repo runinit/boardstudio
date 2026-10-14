@@ -451,3 +451,9 @@ render-generation signal. The probe is present in all four fixture hosts, includ
 retention, and unmount/remount cases. `wasm-pack test --headless --chrome web/crates/ui-shared --locked
 --lib` passed all 34 tests. The geometry-script, canvas-navigation, and scroll waits in ui-shared
 remain under audit; the full gate and acceptance evidence have not yet been rerun for this change.
+
+The geometry-script waits are also converted: editor renders use the host's requested render
+generation, and ticket/Core progress uses bounded state waits instead of 10 ms loops. The same
+ui-shared command passed all 34 tests in 1.13 s. The four remaining canvas-navigation and panel-scroll
+delays account for less than one second in this suite, below the ticket's per-suite stopping threshold;
+they are intentionally retained. A full repository gate has not yet been rerun after these changes.
