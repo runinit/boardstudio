@@ -707,6 +707,16 @@ mod mounted_tests {
                         *probe.results.borrow_mut() = results;
                     }
                 }, "settle for a departed owner" }
+            RenderProbe {}
+        }
+    }
+
+    #[component]
+    fn RenderProbe() -> Element {
+        let mut generation = use_signal(|| 0u64);
+        rsx! {
+            button { id: "render-probe", onclick: move |_| generation += 1, "render" }
+            output { id: "render-generation", "{generation()}" }
         }
     }
 
@@ -803,7 +813,29 @@ mod mounted_tests {
     }
 
     async fn rendered() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        crate::test_wait::wait_until("pending-edit helper host renders", || {
+            document
+                .query_selector(&format!("#{} #render-generation", root_id()))
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        let label = element("#render-generation");
+        let expected = label
+            .text_content()
+            .unwrap()
+            .parse::<u64>()
+            .expect("render generation is numeric")
+            + 1;
+        element("#render-probe")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        crate::test_wait::wait_until("pending-edit helper render is committed", || {
+            label.text_content().as_deref() == Some(expected.to_string().as_str())
+        })
+        .await;
     }
 
     #[wasm_bindgen_test]
@@ -1209,6 +1241,7 @@ mod mounted_tests {
                         probe.pending.set(helpers.is_pending(&Field::Name));
                     }
                 }, "settle typed value" }
+            RenderProbe {}
         }
     }
 
@@ -1413,6 +1446,7 @@ mod mounted_tests {
                         });
                     }
                 }, "settle retained draft" }
+            RenderProbe {}
         }
     }
 
@@ -1607,6 +1641,7 @@ mod mounted_tests {
                         probe.results.borrow_mut().extend(results);
                     }
                 }, "settle" }
+            RenderProbe {}
         }
     }
 

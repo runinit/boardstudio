@@ -443,3 +443,11 @@ mutation checks, three consecutive browser runs, and before/after suite evidence
 `python3 scripts/check.py` then passed all steps in **195.1 s** (repo 0.4, tooling 3.8, lint 3.5,
 build 46.4, test 28.8, browser 112.3); all 97 page WASM tests passed. This is one full browser
 pass after the Inspector conversion, not the required three consecutive runs.
+
+## Progress (2026-10-14, shared pending-edit helper waits)
+
+Replaced the mounted pending-edit helper's 30 ms render delays with a bounded wait on a dedicated
+render-generation signal. The probe is present in all four fixture hosts, including typed drafts,
+retention, and unmount/remount cases. `wasm-pack test --headless --chrome web/crates/ui-shared --locked
+--lib` passed all 34 tests. The geometry-script, canvas-navigation, and scroll waits in ui-shared
+remain under audit; the full gate and acceptance evidence have not yet been rerun for this change.
