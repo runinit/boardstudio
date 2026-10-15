@@ -16,7 +16,8 @@
 #include <TopAbs_ShapeEnum.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
-#include <TopTools_IndexedMapOfShape.hxx>
+#include <NCollection_IndexedMap.hxx>
+#include <TopTools_ShapeMapHasher.hxx>
 #include <TopoDS_Shape.hxx>
 
 #include <string>
@@ -46,8 +47,8 @@ Facts inspect_file(rust::Str path) {
       return facts;
     }
 
-    TopTools_IndexedMapOfShape allFaces;
-    TopTools_IndexedMapOfShape solidFaces;
+    NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> allFaces;
+    NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> solidFaces;
     TopExp::MapShapes(shape, TopAbs_FACE, allFaces);
     for (TopExp_Explorer solids(shape, TopAbs_SOLID); solids.More(); solids.Next()) {
       facts.solid_count += 1;

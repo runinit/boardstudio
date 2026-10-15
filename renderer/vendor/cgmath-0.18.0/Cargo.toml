@@ -49,3 +49,6 @@ version = "1.0"
 [features]
 swizzle = []
 unstable = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("simd"))'] }

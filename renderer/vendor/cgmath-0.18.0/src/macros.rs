@@ -35,7 +35,6 @@ macro_rules! impl_operator {
     }) => {
         impl<$S: $Constraint> $Op for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!($op(self) -> $Output {
                 let $x = self; $body
             });
@@ -43,7 +42,6 @@ macro_rules! impl_operator {
 
         impl<'a, $S: $Constraint> $Op for &'a $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!($op(self) -> $Output {
                 let $x = self; $body
             });
@@ -55,7 +53,6 @@ macro_rules! impl_operator {
     }) => {
         impl<$S: $Constraint> $Op<$Rhs> for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!($op(self, other: $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -63,7 +60,6 @@ macro_rules! impl_operator {
 
         impl<'a, $S: $Constraint> $Op<$Rhs> for &'a $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!($op(self, other: $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -75,7 +71,6 @@ macro_rules! impl_operator {
     }) => {
         impl<$S: $Constraint> $Op<$Rhs> for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -83,7 +78,6 @@ macro_rules! impl_operator {
 
         impl<'a, $S: $Constraint> $Op<&'a $Rhs> for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: &'a $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -91,7 +85,6 @@ macro_rules! impl_operator {
 
         impl<'a, $S: $Constraint> $Op<$Rhs> for &'a $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -99,7 +92,6 @@ macro_rules! impl_operator {
 
         impl<'a, 'b, $S: $Constraint> $Op<&'a $Rhs> for &'b $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: &'a $Rhs) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -111,7 +103,6 @@ macro_rules! impl_operator {
     }) => {
         impl $Op<$Rhs<$S>> for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: $Rhs<$S>) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -119,7 +110,6 @@ macro_rules! impl_operator {
 
         impl<'a> $Op<&'a $Rhs<$S>> for $Lhs {
             type Output = $Output;
-            #[inline]
             default_fn!( $op(self, other: &'a $Rhs<$S>) -> $Output {
                 let ($lhs, $rhs) = (self, other); $body
             });
@@ -132,7 +122,6 @@ macro_rules! impl_assignment_operator {
         fn $op:ident(&mut $lhs:ident, $rhs:ident) $body:block
     }) => {
         impl<$S: $Constraint + $Op<$S>> $Op<$Rhs> for $Lhs {
-            #[inline]
             default_fn!( $op(&mut $lhs, $rhs: $Rhs) $body );
         }
     };
