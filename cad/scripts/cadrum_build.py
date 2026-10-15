@@ -23,6 +23,13 @@ IMAGE = "boardstudio-cadrum-wasm:0.8.20-rust-1.98.0-wasi-sdk-33-bindgen-0.2.129"
 # Containerfile's content so a pull never returns an image built from different steps.
 REGISTRY_IMAGE = "ghcr.io/runinit/boardstudio-cadrum-wasm"
 CONTAINERFILE = "wasm/Containerfile"
+WASM_TEST_ONLY_SOURCES = frozenset({
+    "src/model/construction/equivalence.rs",
+    "src/model/construction/gasket_features.rs",
+    "src/model/construction/validation_tests.rs",
+    "src/model/source_validation_tests.rs",
+    "src/model/step_oracle.rs",
+})
 
 
 def run(command, **kwargs):
@@ -83,10 +90,11 @@ def provide_image(runtime):
     run([runtime, "build", "--file", CONTAINERFILE, "--tag", IMAGE, "."])
 
 
-def wasm_inputs_digest():
+def wasm_inputs_digest(*, no_opt=False):
     """Hash everything the container build reads, so an unchanged provider is not rebuilt."""
     contracts = CAD_ROOT.parent / "contracts/rust"
-    digest = hashlib.sha256(f"{IMAGE}\n{VERSION}\n".encode())
+    profile = "release-no-opt" if no_opt else "release"
+    digest = hashlib.sha256(f"{IMAGE}\n{VERSION}\n{profile}\n".encode())
     digest.update(Path(__file__).read_bytes())
     digest.update((CAD_ROOT / CONTAINERFILE).read_bytes())
     for base, names in ((CAD_ROOT.parent, ("Cargo.toml",)),
@@ -96,9 +104,14 @@ def wasm_inputs_digest():
             path = base / name
             files = sorted(path.rglob("*")) if path.is_dir() else [path]
             for file in files:
-                if file.is_file():
-                    digest.update(file.relative_to(CAD_ROOT.parent).as_posix().encode() + b"\0")
-                    digest.update(file.read_bytes())
+                if not file.is_file():
+                    continue
+                is_wasm_source = path == CAD_ROOT / "wasm/src"
+                is_test_only = file.relative_to(path).as_posix() in WASM_TEST_ONLY_SOURCES
+                if is_wasm_source and is_test_only:
+                    continue
+                digest.update(file.relative_to(CAD_ROOT.parent).as_posix().encode() + b"\0")
+                digest.update(file.read_bytes())
     return digest.hexdigest()
 
 
@@ -129,9 +142,9 @@ def _container_workspace_manifest():
             f'lints = {_toml_value(workspace.get("lints", {}))}\n')
 
 
-def build_wasm():
+def build_wasm(*, no_opt=False):
     stamp = CAD_ROOT / ".cache/cadrum/wasm-build.sha256"
-    inputs = wasm_inputs_digest()
+    inputs = wasm_inputs_digest(no_opt=no_opt)
     output = CAD_ROOT / "wasm/pkg/boardstudio_cadrum_wasm_bg.wasm"
     if output.is_file() and stamp.is_file() and stamp.read_text().strip() == inputs:
         print("cadrum: wasm/pkg is current; skipping the container build", flush=True)
@@ -170,6 +183,7 @@ def build_wasm():
     with tempfile.TemporaryDirectory(prefix="workspace-", dir=stamp.parent) as directory:
         manifest = Path(directory) / "Cargo.toml"
         manifest.write_text(workspace_manifest)
+        wasm_opt = ["--no-opt"] if no_opt else []
         run([runtime, "run", "--rm", "--volume", cad_mount,
              "--volume", f"{registry}:/root/.cargo/registry{label}",
              "--volume", f"{git_deps}:/root/.cargo/git{label}",
@@ -178,7 +192,7 @@ def build_wasm():
              "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
              "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", *jobs, *binaryen_cores, IMAGE,
              "wasm-pack", "build", "wasm", "--target", "web", "--out-dir", "pkg",
-             "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked"])
+             "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked", *wasm_opt])
     stamp.write_text(inputs + "\n")
 
 
