@@ -1,6 +1,6 @@
 # 45: Decide whether reversible-variant substitution needs a separate workflow
 
-Status: ready-for-human
+Status: wontfix
 Type: research
 Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)
@@ -23,3 +23,7 @@ A planner/user owns this ticket only. Record one decision: defer a general workf
 - [ ] Per-board hardware packets retain exact reversible/symmetry evidence and uncertain physical cases remain gated; no automatic side or parameter mutation is approved by this decision ticket.
 
 Docs-only `repo` after an answer. No implementation, browser/build or hardware claim is required here. Hardware compatibility remains per part and board revision.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

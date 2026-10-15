@@ -1,6 +1,6 @@
 # 43: Apply key-spacing preferences to new native assemblies
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: [42](42-global-key-spacing-preference.md)
 Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
@@ -22,3 +22,7 @@ One creation-route implementer owns the spacing input to `web/crates/catalogue/s
 ## Verification
 
 `repo lint test typecheck browser`; meaningful native/catalogue and mounted creation tests, followed by a fresh Sol verifier reverting one creation site at a time and observing the corresponding failure. No demo/golden change is expected. If the graph reports HIGH/CRITICAL shared-signature risk, report callers/processes before editing. Ticket 23 keeps global integration reviews/full check.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

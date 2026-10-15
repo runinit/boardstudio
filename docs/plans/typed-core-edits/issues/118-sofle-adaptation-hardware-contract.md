@@ -1,6 +1,6 @@
 # 118: Sofle adaptation hardware contract
 
-Status: ready-for-agent  
+Status: wontfix
 Type: research  
 Blocked by: none
 
@@ -28,3 +28,7 @@ The subsequent read-only audit identified the existing generator and public test
 ## References
 
 See the linked candidate audit for primary manufacturer and upstream firmware references and the provisional inventory.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

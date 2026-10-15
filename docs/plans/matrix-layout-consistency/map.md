@@ -19,8 +19,6 @@ Saved projects keep their geometry.
   [ADR-0006](../../adr/0006-replace-document-for-import-and-recovery.md).
 - Skills: `grilling` + `domain-modeling` for 01; `tdd` for build tickets;
   `codebase-design` for 02's interface; `code-review` before resolving a build ticket.
-  Use GitNexus `impact` before each symbol edit and `detect-changes` before each
-  commit.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 - Preserve the fixes from `39c9bbac2` (bulk key actions, deletion, layers, assembly
   reflow) and `f65ed01a6` (parametric key moves, assembly dependency graph, explicit

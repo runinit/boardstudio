@@ -15,9 +15,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 > `git stash`, no `git add -A`, no push, no merge. Maps (`docs/plans/*/map.md`), `CONTEXT.md` and `docs/adr/*` belong to
 > the orchestrator; propose text in your ticket Outcome. Generated goldens (`core/tests/fixtures/boundary/transcript.json`,
 > `core/tests/fixtures/demo-projects-baseline.json`) are root-owned; propose required regeneration in your Outcome.
-> For affected browser tests or configuration, compile the actual target; intermediate RED/fix work stays in the same writer unit, and the writer stops at a completed evidence-backed handoff. Run GitNexus impact before edits and
-> detect-changes before commits, bound to your checkout. Do not refresh GitNexus or register for its Stop hook; confirm
-> stale, empty or UNKNOWN caller answers with `rg` and report the limitation. Never run `scripts/check.py release`.
+> For affected browser tests or configuration, compile the actual target; intermediate RED/fix work stays in the same writer unit, and the writer stops at a completed evidence-backed handoff. Never run `scripts/check.py release`.
 > Use the evidence-reuse review policy in `verification-process.md`: one fresh Sol6.1 medium review for code/behaviour;
 > author checks plus root review may cover low-risk docs, mechanical copy and tracking. Implementers finish with
 > `Status: implemented (awaiting verification)` and an honest `## Outcome`: commands with
@@ -45,8 +43,7 @@ Replace `<agent>` in commit trailers with the app that makes the commit (for exa
 B owns standing planning → Luna implementation → ONE fresh Sol 6.1 medium acceptance per coherent unit → dependency-ready continuation through105–117. Group tightly coupled private slices when each acceptance and ownership stays explicit; do not require a review/session or root START per ticket number/private helper/test. Preserve full19 acceptance/counterexamples and111 activation gates. The user-approved removal-only wrapper in106 lifts its prior visibility HOLD, with remap_parts/PartChanges remaining private; no blanket visibility waiver. Current grants survive compaction; handoff is notification, not an implicit unfinished-work review or STOP. Root still schedules complete GLOBAL HEAVY cycles and owns refresh/integration/goldens; read-only commands and disjoint source work run freely alongside ordinary checks under the user-approved lighter policy, superseding older all-command restrictions. Escalate only actual new decisions/representability, ownership conflicts, unapproved API/schema/config/visibility or destructive changes, or concrete failed-acceptance scope.
 
 > Common rules above. Ticket: `docs/plans/typed-core-edits/issues/19-reconcile-mirrored-halves.md`, including its
-> "Contracts from other tickets". It edits the CRITICAL-impact apply path: run GitNexus impact and report its callers and
-> risk before changing it; confirm unresolved answers with `rg`. Keep `core/tests/matrix_performance.rs` passing and record
+> "Contracts from other tickets". It edits the apply path: report its callers before changing it. Keep `core/tests/matrix_performance.rs` passing and record
 > the added per-edit cost. Check steps: `repo`,
 > `lint`, `test`, `typecheck`, wasm boundary parity.
 

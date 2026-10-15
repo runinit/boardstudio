@@ -21,8 +21,6 @@ files). Never stage, reset or clean them.
 
 **Parent worktree** (the integration point): `.worktrees/tce-matrix`, branch
 `typed-core-edits/mechanical`, tip `a8c77581c`. All merged work and docs live here.
-Run parent-side checks from this worktree. It has its own GitNexus index
-(`node .gitnexus/run.cjs …` from inside it).
 
 **Lane worktrees** (each has its own branch; check each with
 `git -C <path> status --short && git -C <path> log --oneline -3`):
@@ -214,8 +212,7 @@ invocation as workflow control, not scope — strip it first.
    (`wasm-pack test --headless --chrome web/crates/layout --locked --lib`).
 4. Amend `docs/plans/typed-core-edits/issues/14-outline-web-adapter.md`'s
    Outcome with the refine control, the Copy root cause/fix and the gesture
-   evidence; run `python3 scripts/check.py repo`; GitNexus staged
-   detect-changes; commit.
+   evidence; run `python3 scripts/check.py repo`; commit.
 
 ### Step 2 — merge the 15 branch
 
@@ -290,12 +287,6 @@ effort, blocked only by matrix 11 now).
   gesture pass, rebuild providers from the exact source
   (`python3 scripts/build-web.py --providers-only` from the checkout being
   served), or outline controls fail with `unknown variant 'apply-outline-edit'`.
-- **GitNexus**: every worktree needs its own index — from that worktree run
-  `node /home/chris/01_Projects/ts-boardstudio2/.worktrees/tce-matrix/.gitnexus/run.cjs analyze --index-only`
-  (add `--force --no-parse-cache` when `outline_edit` symbols go unresolvable —
-  known incremental-index quirk). Impact before symbol edits, detect-changes
-  before commits, with `--repo <that cwd>`. Report HIGH/CRITICAL; treat UNKNOWN
-  as unresolved and confirm by targeted source search.
 - **Chrome lease**: one browser owner at a time; currently free.
 - **No outbound network** (GitHub downloads fail); podman is available; the CAD
   wasm build runs through podman.

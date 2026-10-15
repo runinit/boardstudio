@@ -1,6 +1,6 @@
 # 104: Keep the original REVIUNG41 archive as a historical reference
 
-Status: ready-for-agent
+Status: wontfix
 Type: task
 Blocked by: [103](103-reviung41-native-mechanics.md)
 Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
@@ -20,3 +20,7 @@ Own only the original-versus-measured provenance description in `content/demos/R
 - [ ] Documentation links pass `repo`. Reuse ticket 23’s actual archive/build/reopen results if they already establish the same current outputs; otherwise request the designated output owner’s build slot. Do not add a hash-only test that duplicates a generator implementation.
 
 The original’s gasket/hardware fit remains unqualified. Do not resolve ticket 04 or 23 here. VIK remains deferred until a host is selected and receives no rebuild work in this ticket.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

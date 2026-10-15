@@ -1,6 +1,6 @@
 # 42: Persist a global key-spacing preference
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Spec: [spec.md](../spec.md)
@@ -22,3 +22,7 @@ One web-preferences implementer owns a small typed spacing-preference value/code
 ## Verification
 
 `repo typecheck browser` for the preference/control/persistence behavior; add `lint test` if native shared code is touched. Fresh Sol verifier reproduces defaults, 19.00 round trip, invalid/storage-unavailable paths and mutation-checks the persistence site. Read DESIGN.md before implementation; no API-visibility widening or unrelated preference refactor is in scope. Board recipes keep explicit measured overrides; this is not a respace-all feature.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

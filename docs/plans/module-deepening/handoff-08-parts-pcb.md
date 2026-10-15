@@ -31,16 +31,10 @@ For text-field migrations, bind the actual stable draft/failure Signals before s
 
 ## Ownership and coordination
 
-This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev`, ticket claims/resolutions and the canonical GitNexus index. Follow the current [GitNexus rules](handoff.md#rules-every-agent-follows), including impact before function edits and complete change analysis before commits. Reindexing belongs to the orchestrator. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
+This app owns this assignment’s source and tests in its isolated worktree. The orchestrator owns `dev` and ticket claims/resolutions. Report a shared Runtime/helper contract gap before changing another ticket’s files. Stage explicit paths, preserve unrelated edits, and use the repo’s Git safety rules.
 
 ## Known verification limits
 
 The documented native CAD failure is `core_internal_gasket_fixtures_export_connected_positive_regions` (rotated-concave/bottom volume). Treat that gate as failing if reproduced; list the actual result. AppImage-hosted KiCad failures reported by the helper app are a separate environment issue, not the CAD failure. Run the current tree and report what actually happens. Browser presentation compiles only for WASM; native tests alone do not verify it.
 
-## Worktree GitNexus commands
-
-When root dev cannot resolve new branch symbols, use the
-[separately named worktree index and CLI checks](gitnexus-worktree-coverage.md).
-Run from this assigned checkout, use its stream alias and pinned base, and refresh
-that index before final change analysis. Root keeps ownership of `boardstudio`.
 Report graph coverage separately from executed tests and pinned reviews.

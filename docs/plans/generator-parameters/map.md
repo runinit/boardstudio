@@ -17,8 +17,7 @@ and enum kinds (option C) is out of scope.
 - Decision basis: [ADR-0003](../../adr/0003-rust-footprint-generators-in-core.md) and
   [ADR-0004](../../adr/0004-document-format-version-and-id-rename.md).
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
-- GitNexus `impact` before each symbol edit and `detect-changes` before each commit; the
-  index is stale, so say so. Native Core tests run in a non-nested checkout.
+- Native Core tests run in a non-nested checkout.
 - Never run `check.py release`. Do not merge to `dev` without the user.
 
 ## Decisions so far

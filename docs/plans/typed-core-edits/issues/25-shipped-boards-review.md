@@ -1,6 +1,6 @@
 # 25: Review and rebuild the shipped board projects, Sofle first
 
-Status: ready-for-agent
+Status: wontfix
 Type: task
 Blocked by: none
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -136,3 +136,4 @@ The independent Sol 6.1 xhigh reviewer rechecked the four corrections and closed
 ## Comments
 
 - Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

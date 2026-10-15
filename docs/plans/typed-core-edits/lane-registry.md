@@ -16,7 +16,7 @@ Luna implementation and one fresh Sol 6.1 medium review for code or behavior cha
 [agent-workflow.md](../../agents/agent-workflow.md#models-and-who-does-what-the-same-in-codex-and-claude)
 for new sessions; active sessions keep their settings and scope.
 The coordinator does not implement or verify work it delegates. Root owns integration, maps, shared file leases,
-command scheduling, batch checks and every GitNexus refresh. Reuse the listed chats rather than starting duplicate owners.
+command scheduling and batch checks. Reuse the listed chats rather than starting duplicate owners.
 
 Root: **Orchestration Chat**, `01a1272d-9690-7342-a509-877cc412ec02`.
 
@@ -44,10 +44,9 @@ The user approved the exact removal-only `pub(crate) remove_parts_by_id` wrapper
    exact paths, shared symbols/APIs, generated outputs and required commands. Root grants new/cross-lane ownership and a complete bounded GLOBAL HEAVY debugging/affected-check cycle; B selects approved dependency-ready scopes under its standing chain without another per-child START.
    A new lane gets its persistent chat and isolated worktree before implementation; a blocked lane may plan while holding.
 2. Before writes/heavy execution, confirm path/branch/status, inspect overlapping edits and the latest integration changes; read-only inspection runs freely.
-   Run GitNexus impact against the uniquely named index before symbol edits. Compare callers/processes with other lanes'
-   leases, including shared Core dispatch/model/reflection, catalogue assembly/recipe and browser adapter seams.
-3. Escalate an actual product/representability decision, cross-lane ownership/conflict, genuinely unapproved API visibility/schema/configuration or destructive user-data change, or concrete failed-acceptance scope to root **before editing the contested scope**. Routine private helpers/tests/fixture ports within the approved contract are not new approval gates; request root-owned source/index refresh when needed. Include paths/symbols, base/HEAD,
-   index freshness/risk, affected lanes, proposed owner/order and whether checks are running. Root resolves the lease and
+   Compare callers/processes with other lanes' leases, including shared Core dispatch/model/reflection, catalogue assembly/recipe and browser adapter seams.
+3. Escalate an actual product/representability decision, cross-lane ownership/conflict, genuinely unapproved API visibility/schema/configuration or destructive user-data change, or concrete failed-acceptance scope to root **before editing the contested scope**. Routine private helpers/tests/fixture ports within the approved contract are not new approval gates; request root-owned source review when needed. Include paths/symbols, base/HEAD,
+   source evidence, affected lanes, proposed owner/order and whether checks are running. Root resolves the lease and
    ordering and informs affected coordinators; work outside the contested scope may continue only within its existing lease.
 4. Before commit, run complete bound `detect_changes` and compare its actual changed files/processes to the lease.
    HIGH/CRITICAL impact must be reported before edits; UNKNOWN/empty/stale results need source confirmation.

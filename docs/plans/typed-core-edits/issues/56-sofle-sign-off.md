@@ -1,6 +1,6 @@
 # 56: Review the three rebuilt Sofles and obtain user sign-off
 
-Status: ready-for-human
+Status: wontfix
 Type: task
 Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Coordination: [23](23-redo-keyboard-04-on-native-halves.md)
@@ -26,3 +26,7 @@ The user reviews this concrete Sofle artifact and assembly-swap evidence and rec
 - [ ] Tickets 57 and 79 remain gated on this sign-off. Ticket 23 reuses this evidence and retains cross-board review and integration obligations.
 
 Docs-only repo for this ticket's record; schedule any needed browser/export run sequentially through the foreground owner. A substantive defect remains open and is routed to the smallest shared fix, not a board-specific workaround.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

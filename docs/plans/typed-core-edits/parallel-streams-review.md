@@ -76,19 +76,7 @@ ordinary check. It must not edit that check's checkout or inputs. Shell reads, m
 verification probes use the single global foreground command window. No release is inferred from inactivity. Timing windows
 pause other agent activity, browser sessions, graph work and refreshes on the machine.
 
-Before editing, compare the lease with current branch changes and bound GitNexus callers/processes. Before committing,
-compare complete `detect_changes` with the lease. Escalate overlaps, API changes, stale prerequisites, unexpected dirt and
-unassigned output to root before contested edits. Root broadcasts the resolution and owns all index refreshes/merges.
-File separation alone is not proof of behavioral independence. UNKNOWN/stale/empty or capped graph coverage needs source
-confirmation; partial/truncated analysis is unresolved.
-
-Index ownership alone does not serialize the detached Stop-hook refresh described in
-[gitnexus-index.md](../../agents/gitnexus-index.md#background-refresh-behaviour). Before activation, root must make automatic
-refreshes obey the same exclusive command window: either establish foreground-only refresh for the scheduled batch with
-the automatic path prevented from launching, or add and verify a lease-aware guard. Keep the window until the actual
-analyzer process exits; a detached launcher returning is not release. Confirm no refresh remains before granting another
-command or timing window. Freeze the indexed checkout and its inputs during refresh. This is an activation gate, not a
-claim that the existing hook already honors leases; any required tooling/configuration work gets an explicit owner.
+Before editing, compare the lease with current branch changes. Before committing, compare the complete diff with the lease. Escalate overlaps, API changes, stale prerequisites, unexpected dirt and unassigned output to root before contested edits. Root broadcasts the resolution and owns integration. File separation alone is not proof of behavioral independence.
 
 Use the [workflow's Luna-first effort policy](../../agents/agent-workflow.md#models-and-who-does-what-the-same-in-codex-and-claude)
 and fresh independent Sol acceptance verification. Run affected checks per ticket and one full default check per integration

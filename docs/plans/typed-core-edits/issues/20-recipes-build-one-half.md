@@ -1,6 +1,6 @@
 # 20: Recipes build one half
 
-Status: ready-for-agent
+Status: wontfix
 Type: task
 Blocked by: [19](19-reconcile-mirrored-halves.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -37,3 +37,7 @@ recipe geometry consistent as a stopgap.
 ## Verification
 
 `build` (sandbox lifted for wasm-pack), native `test` in the assigned lane worktree, `lint`, `repo`.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

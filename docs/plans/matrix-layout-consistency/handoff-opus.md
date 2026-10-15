@@ -27,8 +27,7 @@ the relevant Layout sections of [DESIGN.md](../../../DESIGN.md). Consult
 [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md) and its amendments
 for edit lifecycles, and
 [ADR-0006](../../adr/0006-replace-document-for-import-and-recovery.md) for typed
-Core edit ownership. Use the installed codebase-design, GitNexus
-exploration/impact, and Rust skills where relevant.
+Core edit ownership. Use the installed codebase-design and Rust skills where relevant.
 
 ## User's problem
 
@@ -74,11 +73,6 @@ recommendations are not approval for a new public interface or document format.
 5. This investigation was read-only. No new regression or browser reproduction
    was run for the stagger mismatch; source confirms the different writes.
 
-GitNexus is indexed as `boardstudio`. Its source snapshot was refreshed before
-the last commit, but metadata currently reports one commit behind. Verify
-freshness. Use `node .gitnexus/run.cjs` for CLI fallback; `query` for flows,
-`context` for symbols, `impact` before behavior changes, and `detect-changes`
-before commits. UNKNOWN or missing graph edges require source confirmation.
 
 ## Proposed behavior to evaluate
 

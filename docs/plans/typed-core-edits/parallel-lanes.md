@@ -13,10 +13,10 @@ Persistent coordinator chats, live worktree/file leases, command windows and cro
 ## Roles
 
 - **Orchestrator (one person or session):** owns the integration branch `typed-core-edits/mechanical`, hands out
-  lanes, merges them in order, runs the batch check, refreshes GitNexus, updates `map.md`.
+  lanes, merges them in order, runs the batch check and updates `map.md`.
 - **Lane agent (one per lane at a time):** works only in its lane worktree on its lane branch, on the files its
   tickets name, and writes an `## Outcome` in its ticket files. It never edits `map.md`, never merges, never
-  pushes, never refreshes GitNexus.
+  pushes.
 - **Lane coordinator (one persistent chat per lane):** owns planning and dispatches its implementer then a fresh verifier;
   follows the registry's leases and escalates cross-lane overlaps to root before contested edits.
 - **Implementer and verifier are different sessions with different models** (Luna 6 implements, Sol 6.1 verifies; models and
@@ -52,7 +52,6 @@ leaves them alone and asks.
 | `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | orchestrator only; lanes propose regeneration in their Outcome. Generated, never hand-merged; root regenerates when needed at the final batch boundary. |
 | `CONTEXT.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
 | `scripts/check.py` | lane C; root's temporary tooling-test-list conflict ownership ended at workflow merge `f2bccedc` |
-| GitNexus index | orchestrator ([gitnexus-index.md](../../agents/gitnexus-index.md)) |
 
 ## Setting up a lane
 
@@ -91,9 +90,7 @@ Paste this, then name the ticket(s). Everything else is in the ticket.
 > Use your absolute lane path as `exec_command`'s `workdir` on every shell call; report the path, branch and status first.
 > Implement test-first, run only the check steps the process table names, one command at a time in the
 > foreground. Stage explicit paths; no `git stash`, no `git add -A`, no push, no merge. Do not edit `map.md`,
-> `CONTEXT.md`, ADRs or the generated goldens. Run GitNexus impact before edits and
-> detect-changes before commits, bound to your checkout. Do not refresh GitNexus; if its answer is stale, empty or UNKNOWN,
-> confirm callers with `rg` and report the limitation. Follow the role time boxes in `verification-process.md`.
+> `CONTEXT.md`, ADRs or the generated goldens. Follow the role time boxes in `verification-process.md`.
 > Implementers finish with the ticket set to `implemented (awaiting verification)` and an honest
 > Outcome. Commit trailers name the agent that made the commit. Report what you ran and what you did not.
 
@@ -106,7 +103,7 @@ Verifier brief: the same, plus "do not trust the Outcome; reproduce it; fix only
 2. The orchestrator merges lanes into `typed-core-edits/mechanical` in dependency order (B before E; A before C's
    12; goldens last). Prefer `git merge --no-ff` of the lane branch; resolve conflicts only in files the lane owns.
 3. Re-bless generated goldens if needed after merging. After the batch's lanes have landed, run the **batch check**
-   (full `check.py`, never `release`) once on the integration branch, then update `map.md` and refresh GitNexus.
+   (full `check.py`, never `release`) once on the integration branch, then update `map.md`.
 4. Remove a finished lane worktree and branch only after the merge is recorded, the tree is clean and no agent owns it.
    Preserve active and unrelated worktrees.
 

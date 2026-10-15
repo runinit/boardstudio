@@ -1,6 +1,6 @@
 # 57: Pin per-board hardware for the seven measured splits
 
-Status: ready-for-human
+Status: wontfix
 Type: research
 Blocked by: [56](56-sofle-sign-off.md)
 Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-boards-review.md#4-corne)
@@ -29,3 +29,7 @@ The planner owns source research and proposals in this packet; the user owns des
 - [ ] Keep any human decisions per board; do not treat research evidence as approval or assume one board's selection applies to all.
 
 Record research completion separately from human approval. Tickets 58–78 are retired; ticket 25 governs saved-project delivery. No remaining-board work starts before 56 sign-off. Preserve source-backed hardware/material/process/tolerance and minimum-clearance choices as explicit human gates.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

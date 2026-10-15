@@ -24,6 +24,21 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- **Built-in/demo boards and their follow-on work are deferred.** User-authorized removal is
+  complete in [138](issues/138-retire-shipped-demos.md). Board-specific refresh, recipes,
+  hardware research and sign-off tickets are marked `wontfix` for this scope: [04](issues/04-refresh-included-keyboards.md),
+  [20](issues/20-recipes-build-one-half.md), [23](issues/23-redo-keyboard-04-on-native-halves.md),
+  [25](issues/25-shipped-boards-review.md), [42](issues/42-global-key-spacing-preference.md),
+  [43](issues/43-apply-key-spacing-on-creation.md), [45](issues/45-reversible-variant-substitution-decision.md),
+  [46](issues/46-sofle-hardware-inputs.md), [56](issues/56-sofle-sign-off.md),
+  [57](issues/57-measured-split-hardware-inputs.md), [79](issues/79-unibody-hardware-inputs.md),
+  [104](issues/104-preserve-reviung41-original-archive.md) and [118](issues/118-sofle-adaptation-hardware-contract.md).
+  Their source evidence remains historical. Reopen only if the user brings board demos back into scope.
+  Generic typed Core work remains active; mirrored-half tickets [21](issues/21-mirrored-half-web-adapter.md),
+  [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md)
+  and [41](issues/41-inspector-companion-mode.md) are resolved against synthetic fixtures. Ticket 22
+  records that per-item local exceptions do not apply to a reused physical PCB.
+
 - [151](issues/151-explicit-mirror-only-part-placement.md) is resolved and integrated locally
   at `773aee9ad`: explicit mirror-only placement and bilateral linked catalogue additions share
   the prepared transaction. Native, full build/browser, real-WASM transcript and independent
@@ -45,9 +60,9 @@ and for any bulk action a recorded decision permits.
   [16](issues/16-native-mirrored-halves.md), [ADR-0010](../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md)):
   one measured half; Core `CreateMirroredHalf` copies, reflects and links matrices,
   layouts, parts, outlines, modules, wiring and mechanical features through one pair map,
-  then reconciles on every edit. Exceptions per item. Build 17-22; 23 redoes keyboard
-  [04](issues/04-refresh-included-keyboards.md) on it. Generator-parameters 06 lands first;
-  its recipe reflection arithmetic is temporary.
+  then reconciles on every edit. Exceptions per item. Build 17-22; board refresh tickets
+  [04](issues/04-refresh-included-keyboards.md) and [23](issues/23-redo-keyboard-04-on-native-halves.md)
+  are deferred under 138. Recipe reflection arithmetic is retired with the demos.
 - Generator parameters are typed end to end (option B, user 2026-10-09):
   [generator-parameters](../generator-parameters/map.md) 01-05. Closure projection uses
   generator normalization; saved strings are repaired by a v3 to v4 migration; Core
@@ -75,12 +90,13 @@ and for any bulk action a recorded decision permits.
   is resolved: the user confirmed one typed outline-edit interface **including linked
   refinements** on 2026-10-09. See its [Answer](issues/03-decide-outline-version-intents.md#answer)
   and the dependency-ordered outline tickets 11-15. 01 and the outline planner split have landed.
-- After mechanical 02 and matrix integrated verification, [04](issues/04-refresh-included-keyboards.md)
-  redoes all included keyboards using the settled model (user follow-up, 2026-10-08).
+- Included-board refresh [04](issues/04-refresh-included-keyboards.md) is superseded by the
+  user-authorized demo retirement in 138; no built-in board rebuild is currently planned.
 
 ## Progress
 
-  Tickets [21](issues/21-mirrored-half-web-adapter.md), [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md) and [41](issues/41-inspector-companion-mode.md) are resolved; ticket 22 verifies shared-board mechanical feature exceptions through save/reopen.
+  Tickets [21](issues/21-mirrored-half-web-adapter.md), [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md) and [41](issues/41-inspector-companion-mode.md) are resolved. Ticket 22 verifies shared-board mechanical feature exceptions through save/reopen.
+
 Accepted bounded106 membership unit: source0fc21ca5e, integrated465137ee5; fresh Sol medium PASS, shifted-compaction expectedRED→45GREEN, affected95.1sPASS and ONEnew-wrapper cleanup mutationRED→restored45GREEN. Full106/19OPEN; independent Parts/Layout, whole-matrix removal and combined acceptance remain.
 
 Approved extension: [139](issues/139-generalized-mirrored-constraint-model.md) separately scopes the general constraint model for slanted axes and linked/Local endpoint relations; planning first, consumed by114, full19 scope retained.
@@ -107,17 +123,17 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
 
 - [137](issues/137-export-blocker-explanation.md) resolved: missing PCB blocker explanation fixed without changing readiness guards; source fa6b1bc8, SHA256 0e193336011ff1650b7b4c70eca29d7687142aedbe44539494bbf75a774571b0, merged no-ff at b618ece511339b89ece793711c68d17fa3a113cc. Fresh Sol 6.1 medium review PASS; independently reviewed compiled mounted WASM RED → GREEN 1/1 and reused repo/lint/typecheck evidence. Review: /home/chris/.cache/boardstudio-baselines/export137/independent-review.json. Synthetic fixture has no shipped/demo dependency.
 
-- [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parent 118 remains open.
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) resolved: front-only EC11 nominal-pattern/terminal-role qualification, fresh 3/3 focused and 90 crate tests (3 ignored), two restored producer probes; source `4a40faff`, integrated `6eeef607a`, full cohort PASS 510.0 s. Its board-adaptation parent 118 is deferred under 138.
 - [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) resolved: fixed existing assemblies and retained dependencies, fresh 9/9, three restored kernel probes plus non-pose/linked-key guard corrections; source `bcdef94c`, integrated `6eeef607a`, full cohort PASS 510.0 s. Parents 106/19 remain open and unactivated.
-- [135](issues/135-sofle-v2-encoder-configuration.md) resolved: persisted the ticket 133-qualified explicit EC11 configuration for Sofle v2 SW25. Source `4689c99b`, integrated `78eb5069`; independent archive/export/preservation verification passed with a restored override mutation. The E12+F135 cohort passed all default checks in 372.4 s. Parent118 remains open.
+- [135](issues/135-sofle-v2-encoder-configuration.md) resolved: persisted the ticket 133-qualified explicit EC11 configuration for Sofle v2 SW25. Source `4689c99b`, integrated `78eb5069`; independent archive/export/preservation verification passed with a restored override mutation. The E12+F135 cohort passed all default checks in 372.4 s. Parent118 is deferred under 138.
 
-- [136](issues/136-saved-project-publication.md) resolved at 4183cc0f1a08b554567faa3f9a01b74232689b7c: independent Sol 6.1 xhigh publication verification, six exact-restored meaningful mutations, native 2/2, Chrome Library 16 and complete source-bound graph MEDIUM (14/14 symbols, four files). Root integrated at 6163b9221; full cohort PASS 382.2 s. Binding: /home/chris/.cache/boardstudio-baselines/sofle-next-unit/publication136-verifier-final-source-output-binding.json. Ticket25/56/118 and physical/assembly-swap gates remain open.
+- [136](issues/136-saved-project-publication.md) resolved at 4183cc0f1a08b554567faa3f9a01b74232689b7c: independent Sol 6.1 xhigh publication verification, six exact-restored meaningful mutations, native 2/2, Chrome Library 16 and complete source-bound graph MEDIUM (14/14 symbols, four files). Root integrated at 6163b9221; full cohort PASS 382.2 s. Binding: /home/chris/.cache/boardstudio-baselines/sofle-next-unit/publication136-verifier-final-source-output-binding.json. Board delivery and physical/assembly-swap gates are deferred under 138; the accepted publication evidence remains historical.
 
 - [131](issues/131-diode-sod123-opt-in-qualification.md) and [132](issues/132-reconcile-fixed-membership-matrix-geometry.md)
   are independently verified and integrated at `b01c106a4`: opt-in Vishay diode land-pattern qualification and
   fixed-membership multi-key mirrored geometry/preservation. Both have meaningful restored producer/kernel
   mutation evidence. One full sequential cohort batch passed all default steps in 539.1 s, including 70 presentation
-  tests. Parent 106/19 remain open and unactivated; physical/system hardware ticket 118 remains open.
+  tests. Parent 106/19 remain open and unactivated; physical/system hardware follow-through is deferred under 138.
 
 - 31 companion placement modes, 32 mirrored-half labels and
   [39](issues/39-stabilisers-and-companion-fallback.md) stabiliser/companion fallback rules are independently
@@ -300,24 +316,28 @@ leases and sequential commands. B remains serial; A/F have isolated active slice
 verification window ended. Full parent acceptance is not waived by partial slices.
 
 - Native mirrored halves:17,18,26–32,39,105,132 and134 integrated. Bounded106membership accepted/integrated465137ee5 with45GREEN/affected95.1s and independentwrappermutationproof; full106/19OPEN. Next independentParts/Layout unit released; generalizedremoval/wholematrix/combinedacceptance remain. Selective independent-part/companion exceptions leave the rest linked;40placementcontrols companion-only.111activation and full19acceptance remain;139approvedgeneralconstraintmodeldesign is separate. Currentownership/evidence: [lane registry](lane-registry.md#coordinators).
-- Board artifact implementation/reintroduction is DEFERRED: user-authorized retirement [138](issues/138-retire-shipped-demos.md) supersedes current board-delivery readiness. Historical [25](issues/25-shipped-boards-review.md) contract: one ordinary saved project per board through existing request examples and common operations. [136](issues/136-saved-project-publication.md) is resolved and integrated at 6163b9221 after fresh independent verification; publication closes its bounded saved-archive scope. It does not wait for all25 or shared19/22. Ticket25/56/118 and physical/assembly-swap gates remain open. Sofle v2/RGB/Choc are Inspector assembly choices in one project; [56](issues/56-sofle-sign-off.md) gates its review and assembly-swap evidence before remaining boards. Shared mirror/link 19/22 remains required separately, but board creation does not wait on 19/22/44. Tickets 44, 47–55, 58–78 and 80–103 are wontfix with supersession answers; their evidence remains historical. [46](issues/46-sofle-hardware-inputs.md) reflects delegated BOM selection with evidence gaps only; [57](issues/57-measured-split-hardware-inputs.md) and [79](issues/79-unibody-hardware-inputs.md) preserve genuine human hardware/material/process/tolerance gates.
-- [133](issues/133-ec11e15244g1-encoder-qualification.md) and [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) are integrated after their full cohort PASS. B106 now has explicit wrapper approval and standing continuation authority as above, with its last bounded44/44 evidence retained; full106/19 acceptance remains open. Parent118 historical engineering gates remain open; board reintroduction is deferred.
+- Board artifact implementation/reintroduction is deferred under 138. Board-specific tickets
+  04, 20, 23, 25, 42, 43, 45, 46, 56, 57, 79, 104 and 118 are `wontfix` for this scope;
+  their source evidence remains historical. Generic mirror/Core and saved-user-project behavior
+  remains separate and active. Ticket 22 uses authored synthetic fixtures and has no shipped-board
+  acceptance dependency.
+- [133](issues/133-ec11e15244g1-encoder-qualification.md) and [134](issues/134-reconcile-fixed-membership-matrix-assemblies.md) are integrated after their full cohort PASS. B106 now has explicit wrapper approval and standing continuation authority as above, with its last bounded44/44 evidence retained; full106/19 acceptance remains open. Parent118's historical engineering gates are deferred with board reintroduction under 138.
 - [119](issues/119-mx-hotswap-socket-qualification.md) is resolved for the selected nonreversible MX socket
   configuration: 2.55 mm front/back outer pad widths, 1.6 mm PCB and F/B placements at 0/90/300 degrees.
   Fresh independent verification killed a 3.0-to-3.2 mm drill mutation, restored exact production bytes and passed
   focused, repo/lint and all 77 footprint tests. Default 2.6 mm pads, physical fit/model alignment and whole-board
-  qualification remain unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) stays open.
+  qualification remains unqualified; [118](issues/118-sofle-adaptation-hardware-contract.md) is deferred under 138.
 - [129](issues/129-choc-v1-hotswap-socket-qualification.md) is resolved for the selected Choc v1 socket
   configuration and integrated at `8e8f6bfab`. Independent verification of corrected commit `0c9a1178`
   killed the dimensioned lower-hole drill mutation, restored exact production bytes and passed repo/lint
   and all 79 footprint tests. The upper-hole diameter remains configuration-only; right-land dimensions,
   physical fit/model datum and whole-board qualification remain open. The earlier unsupported both-hole
-  manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 stays open.
+  manufacturer attribution at `2cff220e` failed review and was explicitly corrected. Ticket 118 is deferred under 138.
 - [130](issues/130-reset-switch-smd-side-qualification.md) is resolved for the bounded Panasonic side-reset
   generator configuration and integrated at `bf464be5e`. Fresh independent verification reviewed manufacturer
   drawing pixels and parser/model bindings, killed the lower-only 0.75-to-0.95 mm drill mutation, restored exact
   producer bytes and passed focused, repo/lint and all 81 footprint tests. Upper-hole diameter remains
-  configuration-only; actuator datum, physical fit, model alignment, case access and ticket 118 remain open.
+  configuration-only; actuator datum, physical fit, model alignment and case access remain unqualified. Ticket 118 is deferred under 138.
   The shared post-merge integration batch at `1ad6b95c8` passed in 401.0 s, including all 70 presentation tests.
 - [128](issues/128-keycaps-queued-settings-waits.md) is resolved for its bounded keycaps queued-settings slice,
   independently verified and integrated at `1ad6b95c8`. Nine restored mutation variants and the original
@@ -337,9 +357,9 @@ verification window ended. Full parent acceptance is not waived by partial slice
   and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
 - Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
-- The outline phase (11-15) is resolved. The remaining work is separate: matrix tickets 04-11
-  (their own map) and [04: Refresh included keyboards](issues/04-refresh-included-keyboards.md),
-  which is blocked only by matrix 11.
+- The outline phase (11-15) is resolved. Remaining matrix tickets 04-11 are tracked in their own
+  map. The separate included-board refresh [04](issues/04-refresh-included-keyboards.md) is deferred
+  under 138 and is no longer a delivery frontier.
 
 ## Outline implementation frontier
 

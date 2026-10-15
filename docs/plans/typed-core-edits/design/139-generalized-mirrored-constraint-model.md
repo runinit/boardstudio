@@ -15,7 +15,7 @@ Status: implementation-ready design for root review; no implementation or activa
 - The final captured lane was clean. Source hashes below bind the actual files read. Model, solver, layout, mechanical, migration, and host source stayed unchanged across that synchronization; the inspector changed only its corrective E12 copy. A subsequent writer must inspect later overlap before taking a lease.
 - Explicitly excluded from source reads and this design's leases: core/src/mirrored_half/reconcile.rs and core/src/matrix/deletion.rs. Current 106 corrective Parts/Layout work has priority. Existing accepted 106 behavior is an input, not reopened here.
 - Reused /home/chris/.cache/boardstudio-baselines/ticket114-planning/decision-packet.md. Its fixed-Offset limitation, canonical-operation seam, and exact-ID removal findings are inputs; this packet does not repeat its inventory or the 106 audit.
-- Read central agent-workflow.md, verification-process.md, gitnexus-index.md, lane-registry.md, tickets 139/114/110/19 and relevant 109/115/116 boundaries, ADR 0010 and ADR 0004. Applied codebase-design and gitnexus-exploring.
+- Read central agent-workflow.md, verification-process.md, lane-registry.md, tickets 139/114/110/19 and relevant 109/115/116 boundaries, ADR 0010 and ADR 0004. Applied codebase-design.
 - Read-only source/graph work only. No tests, builds, browser runs, timing, index refresh, source/tracker/ADR edits, or extra agents. This file is the sole deliverable.
 
 ## Decision

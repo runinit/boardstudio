@@ -1,6 +1,6 @@
 # 23: Redo keyboard 04 on the native mirrored halves
 
-Status: ready-for-agent
+Status: wontfix
 Type: task
 Blocked by: [25](25-shipped-boards-review.md), [56](56-sofle-sign-off.md), [104](104-preserve-reviung41-original-archive.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -25,3 +25,7 @@ Consume the saved board projects under25, including Sofle sign-off56 and preserv
 reuse sufficient fresh evidence here, while retaining 23's final Standards/Spec reviews and full integration check.
 Optional decision 45 and deferred VIK work do not become implicit blockers. Planning completion alone does not
 satisfy this gate: require the applicable board implementations, their independent verification and recorded human decisions.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

@@ -1,6 +1,6 @@
 # 46: Pin the hardware inputs for Sofle v2, RGB and Choc
 
-Status: ready-for-agent
+Status: wontfix
 Type: research
 Blocked by: none
 Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-boards-review.md#1-sofle-v2)
@@ -37,3 +37,7 @@ The planning researcher records sourced facts, BOM selection, and qualification 
 - [ ] Mount/profile/clearance choices are numerical, sourced and per variant; no physical fit is claimed from export success.
 
 Docs-only `repo` when answers land. The prior 47–55 implementation tickets are retired. Ticket 56 retains the separate human review and sign-off gate before other boards.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.

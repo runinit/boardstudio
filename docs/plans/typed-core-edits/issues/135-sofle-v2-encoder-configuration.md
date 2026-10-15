@@ -35,7 +35,7 @@ All other paths and hunks are excluded: footprint producer and ticket 133 test, 
 
 ## Acceptance
 
-- Before production editing, run source-bound GitNexus impact and resolve UNKNOWN/caller gaps with targeted source evidence; report HIGH/CRITICAL risk. The preparation packet is not graph clearance.
+- Before production editing, inspect callers with targeted source searches and report unresolved caller gaps. The preparation packet is not caller review.
 - Add a public recipe regression that fails on the old empty-override recipe because the explicit parameter contract is absent. Observe the expected failure before editing production code. Do not claim a geometry regression if existing defaults already produce the same geometry.
 - Assert every selected value on the v2 SW25 definition, preserving generator source/version/definition identity and both existing SW25 instances' identity, pose, side and wiring. Assert RGB/Choc configuration is unchanged.
 - Through existing public portable serialization/reopen facilities, assert the parameter map survives save/reopen and normalization without dropping or replacing it. If this requires a third production/test file or new public seam, stop and request the smallest lease amendment.

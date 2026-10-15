@@ -26,8 +26,6 @@ CAD gasket-volume baseline. Final Standards and Spec reviews have no blockers.
 
 Parts and Layout remain separate, unaccepted streams; parent08 stays claimed and
 cleanup remains blocked. Preserve their worktrees. Use the
-[worktree-specific GitNexus commands](gitnexus-worktree-coverage.md) for new branch
-symbols; only root refreshes canonical `boardstudio` after integration.
 
 ## Waves
 
@@ -97,9 +95,6 @@ panel migrations blocked on that gate.
   the resulting SIGKILL status alone does not establish OOM. The lease is still required.
 - Reviews pin the actual worktree, base and HEAD. Every shell read/review command uses
   that absolute workdir; start by confirming `git rev-parse HEAD` and the diff range.
-  The canonical `boardstudio` graph covers dev. For branch symbols, refresh the
-  [separately named worktree graph](gitnexus-worktree-coverage.md); confirm empty or
-  UNKNOWN results against current source. Root retains canonical index ownership.
 
 ## Third-app test preparation
 
@@ -160,15 +155,6 @@ Give each agent its ticket path plus this list.
   choices; `code-review` on the branch before reporting; `grilling` and
   `domain-modeling` only when the orchestrator relays a decision to the user.
 - Git: stage explicit paths only; never `git add -A`, `git add .` or `git stash`.
-- GitNexus: `impact` (upstream) before editing any function, class or method; report
-  HIGH/CRITICAL risk before editing. Run `detect_changes` with `scope: all` in the
-  correct worktree before each commit. Partial/truncated results require a rerun or
-  complete fallback. Use `rename` for renames (the `gitnexus-*` skills). An empty or
-  `UNKNOWN` result is unanswered, not safe: confirm with `rg`. The canonical index
-  covers dev; the orchestrator refreshes it after each merge
-  (`node .gitnexus/run.cjs analyze --index-only`). Agents may refresh only their
-  separately named worktree index using the [worktree coverage workflow](gitnexus-worktree-coverage.md);
-  root retains the canonical `boardstudio` index.
 - Context7 for crate and browser API docs; `memsearch:memory-recall` for why an earlier
   ticket chose something. Ticket text and ADRs win over memory.
 - Verification: the ticket's commands, then `python3 scripts/check.py` steps `lint`,
@@ -185,8 +171,7 @@ You are implementing ticket <path> in the BoardStudio repo, in worktree <dir> on
 branch <branch>, branched from dev at <sha>. Read AGENTS.md and
 docs/plans/module-deepening/handoff.md ("Rules every agent follows") first, then the
 ticket and every document it links as a decision. Implement the acceptance criteria
-with the tdd skill, run GitNexus impact before function edits and complete detect_changes
-(scope all, correct worktree) before each commit, and code-review the branch. Run the ticket's verification, coordinate integration
+with the tdd skill, code-review the branch, and run the ticket's verification. Coordinate integration
 with the orchestrator, and report commits, checks and follow-ups. Do not edit ticket status or the map.
 ```
 

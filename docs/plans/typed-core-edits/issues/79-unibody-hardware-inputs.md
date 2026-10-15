@@ -1,6 +1,6 @@
 # 79: Pin native unibody hardware and mounting profiles
 
-Status: ready-for-human
+Status: wontfix
 Type: research
 Blocked by: [56](56-sofle-sign-off.md)
 Parent: [25](25-shipped-boards-review.md) · Evidence: [audit](../audit/shipped-boards-review.md#12-gh60)
@@ -29,3 +29,7 @@ The planner owns source research and proposals; the user owns design approvals; 
 - [ ] Do not infer acceptance or physical fit from a saved project or successful export.
 
 Record research completion separately from human approval. Tickets 80–103 are retired; ticket 25 governs ordinary saved-project delivery. Ticket 23 retains cross-board review/integration, and 104 retains original-archive preservation evidence. Preserve genuine source-backed hardware, mounting, material/process, tolerance and clearance decisions as human gates; no physical/electrical qualification is implied by saved project output.
+
+## Comments
+
+- 2026-10-14: User deferred built-in board work under [138](138-retire-shipped-demos.md). This ticket's board-specific work is out of scope for now; re-triage only if the user brings built-in boards back into scope. Existing findings remain historical evidence, not implementation instructions.
