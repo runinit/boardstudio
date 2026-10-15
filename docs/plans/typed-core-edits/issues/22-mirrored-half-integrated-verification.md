@@ -1,6 +1,6 @@
 # 22: Mirrored halves integrated verification
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: [21](21-mirrored-half-web-adapter.md), [41](41-inspector-companion-mode.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) · [16](16-native-mirrored-halves.md)
@@ -21,7 +21,7 @@ and are not acceptance inputs.
 
 ## Acceptance
 
-- [ ] Evidence recorded with commands and results; gaps listed honestly.
+- [x] Evidence recorded with commands and results; gaps listed honestly.
 
 ## Progress (2026-10-14)
 
@@ -68,6 +68,35 @@ After the ui-shared test-wait changes, `python3 scripts/check.py` passed all ste
 (repo 0.4, tooling 4.0, lint 4.6, build 54.3, test 31.7, browser 112.3); all 97 page WASM tests
 passed. This refreshes the repository gate; the synthetic reused-PCB workflow and required reviews
 remain outstanding.
+
+## Outcome (2026-10-14)
+
+The mounted WASM test `mounted_reused_pcb_pair_undo_redo_and_reopen` in
+`web/src/presentation/layout_component_inspector_tests.rs` opens an independently authored,
+source-only synthetic half, creates its mate with typed `CreateMirroredHalf` in `ReuseBoard` mode,
+and verifies one shared board, pair creation Undo/Redo, memory save and fresh-runtime reopen.
+Focused command: `TMPDIR=/home/chris/.cache/bstmp wasm-pack test --headless --chrome web --locked
+--no-default-features --features page --bin boardstudio-web --
+mounted_reused_pcb_pair_undo_redo_and_reopen` — passed (1 test). The existing mounted
+`mounted_mirrored_half_actions_work_from_either_board_and_undo` test separately exercises
+linked/local/omitted Inspector actions and Undo from both distinct board scopes.
+
+A local per-item exception was not applied to the reused-PCB pair: Core refused it with
+`The exact lifecycle association is unavailable`. Both instances address the same physical part
+on one board, so this fixture has no distinct mirror item to make local. A separate instance-scope
+edit through a reused-board Inspector was not verified; the scenario is represented by Core's
+shared-board identity and tested pair-history/reopen lifecycle. The ticket is resolved as a
+verification record with these semantic and scope limits explicit.
+
+Review fixed point: `d06bef8a61195e9f8dc152ad19ae8472fa8339f9`. Standards review found no documented
+standard breach; one possible duplicated argument list in `create_with_physical_setup` was noted
+as a judgement call. Spec review found no confirmed #21/#40/#41 behavior mismatch. Plan-wide review
+confirmed the related mirror tickets are resolved and their synthetic-only scope is current.
+
+`cargo fmt --all --check` and `git diff --check` passed. The final
+`TMPDIR=/home/chris/.cache/bstmp python3 scripts/check.py` passed all steps in **198.4 s**:
+repo 0.4, tooling 4.0, lint 3.6, build 46.6, native tests 28.7, browser 115.0. The boundary
+transcripts passed; all 1,976 baselined native tests and 99 selected page/case browser tests passed.
 
 
 ## Progress (2026-10-14, current-tree full gate)

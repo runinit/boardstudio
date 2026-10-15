@@ -1667,6 +1667,132 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     root.remove();
 }
 
+#[wasm_bindgen_test]
+async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
+    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, MirroredHalfMode};
+    use boardstudio_web_ui_shared::test_wait::wait_until;
+
+    let (probe, root) = mounted_runtime_probe(
+        "layout-reused-pcb-mirror-test-root",
+        |document| {
+            document.hardware = Some(serde_json::from_value(serde_json::json!({
+                "topology":"split", "transport":"wireless",
+                "instances":[{"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":"selected-part","mechanical":{
+                    "boardId":"board","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
+                    "plateThickness":1.5,"plateFoamThickness":0.0,"pcbThickness":1.6,"bottomFoamThickness":0.0,"batteryHeight":0.0,"bottomThickness":2.0,
+                    "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.2,"profiles":[],"mounts":[],"closureMounts":[],"openings":[]
+                }}],
+                "boards":[{"boardId":"board","controllerPartId":"selected-part","mode":"matrix"}],"pairs":[]
+            })).expect("synthetic source half is valid"));
+        },
+        &["selected-part"],
+    )
+    .await;
+
+    wait_until("the synthetic source Inspector mounts", || {
+        probe.render_generation.borrow().is_some()
+    })
+    .await;
+    let accepted = probe.runtime.model().accepted.unwrap();
+    crate::runtime::project_name_test_support::submit_fixed_command(
+        &probe.runtime,
+        EditCommand {
+            base_revision: accepted.document.revision,
+            transaction_id: "create-reused-board-half".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec!["source-instance".into()],
+            operation: EditOperation::CreateMirroredHalf {
+                pair_id: "synthetic-pair".into(),
+                source_instance_id: "source-instance".into(),
+                mode: MirroredHalfMode::ReuseBoard {
+                    instance_id: "mirror-instance".into(),
+                },
+                labels: None,
+                physical_setup: None,
+                companion_mode: Default::default(),
+                companion_tweak: None,
+                mapping: Pose2 {
+                    at: Vec2::default(),
+                    rotation: 0.0,
+                },
+                id_rule: boardstudio_core::model::MirroredIdRule::BoardPrefix,
+                mounting_hole: None,
+            },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    let created = probe.runtime.model().accepted.unwrap();
+    let hardware = created.document.hardware.as_ref().unwrap();
+    assert_eq!(
+        created.document.boards.len(),
+        1,
+        "reuse mode keeps one physical PCB"
+    );
+    assert_eq!(hardware.instances.len(), 2);
+    assert!(
+        hardware
+            .instances
+            .iter()
+            .all(|instance| instance.board_id == "board")
+    );
+    let created_revision = created.document.revision;
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .is_empty()
+    );
+    probe.runtime.submit(boardstudio_application::Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    let final_snapshot = probe.runtime.model().accepted.unwrap();
+    assert!(final_snapshot.document.revision > created_revision);
+    assert!(
+        final_snapshot.document.hardware.as_ref().unwrap().pairs[0]
+            .halves
+            .is_some()
+    );
+    wait_until("the reused-board pair is durable", || {
+        matches!(
+            probe.runtime.model().durability,
+            boardstudio_application::Durability::Saved { .. }
+        )
+    })
+    .await;
+    let saved =
+        crate::runtime::project_name_test_support::saved_document(&probe.runtime, "inspector-doc")
+            .expect("accepted reused-board edits are saved");
+    assert_eq!(saved.boards.len(), 1);
+    assert!(
+        saved
+            .hardware
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .all(|instance| instance.board_id == "board")
+    );
+
+    let reopened = crate::runtime::project_name_test_support::new_runtime();
+    crate::runtime::project_name_test_support::open_document(&reopened, saved).await;
+    let reopened = reopened.model().accepted.unwrap();
+    assert_eq!(reopened.document.boards.len(), 1);
+    root.remove();
+}
+
 /// The position of a fixture part in the accepted document.
 fn accepted_position(probe: &MountedProbe, part_id: &str) -> Vec2 {
     probe

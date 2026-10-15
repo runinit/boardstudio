@@ -80,7 +80,7 @@ and for any bulk action a recorded decision permits.
 
 ## Progress
 
-  Ticket [21](issues/21-mirrored-half-web-adapter.md) is resolved after atomic physical setup and mounted exception/Undo coverage; ticket 22's reused-PCB workflow and reviews remain open, as does ticket 41's full Editor selection integration.
+  Tickets [21](issues/21-mirrored-half-web-adapter.md), [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md) and [41](issues/41-inspector-companion-mode.md) are resolved; ticket 22 records the shared-PCB exception limit and verification scope.
 Accepted bounded106 membership unit: source0fc21ca5e, integrated465137ee5; fresh Sol medium PASS, shifted-compaction expectedRED→45GREEN, affected95.1sPASS and ONEnew-wrapper cleanup mutationRED→restored45GREEN. Full106/19OPEN; independent Parts/Layout, whole-matrix removal and combined acceptance remain.
 
 Approved extension: [139](issues/139-generalized-mirrored-constraint-model.md) separately scopes the general constraint model for slanted axes and linked/Local endpoint relations; planning first, consumed by114, full19 scope retained.
