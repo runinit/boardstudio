@@ -1790,13 +1790,19 @@ mod mounted_save_replacement_tests {
     async fn mounted_save_persist_settlement_cannot_cross_replacement_with_colliding_ids() {
         let (session, core) = accepted(module_document("old-module-project", "Old project", 1.0));
         let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let initial = runtime.model().accepted.expect("old project accepted");
+        let initial = session
+            .read_model()
+            .accepted
+            .as_ref()
+            .expect("old project accepted")
+            .document
+            .clone();
         runtime
             .store
-            .save_document(&initial.document, &std::collections::BTreeMap::new())
+            .save_document(&initial, &std::collections::BTreeMap::new())
             .await
             .expect("seed the old project's durable baseline");
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
         let initial_scope = runtime.scope().expect("old project has scope");
         let probe = Rc::new(Probe {
             runtime: runtime.clone(),
