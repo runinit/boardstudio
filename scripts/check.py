@@ -58,6 +58,7 @@ TOOLING_TESTS = (
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
+DRAG_SMOKE = [PY, "scripts/run-drag-browser.py"]
 
 Command = list[str]
 
@@ -70,6 +71,7 @@ def typecheck() -> list[Command]:
 def browser() -> list[Command]:
     wasm_pack = ["wasm-pack", "test", "--headless", "--chrome", "web", "--locked", *WASM_PAGE]
     return [
+        DRAG_SMOKE,
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cadrum-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
@@ -121,6 +123,7 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "test": (True, [*CARGO_TESTS, [PY, "cad/scripts/test-cadrum.py"]]),
     "typecheck": (False, typecheck()),
     "browser": (True, browser()),
+    "drag-smoke": (False, [DRAG_SMOKE]),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
     "deny": (False, [["cargo", "deny", "--locked", "check", "licenses", "bans", "sources"]]),
     "precommit": (False, typecheck()),
@@ -235,7 +238,25 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
 
 
 def run(names: list[str], update_native_baseline: bool = False) -> int:
-    return run_plan([(name, STEPS[name][1]) for name in names], update_native_baseline)
+    names = list(names)
+    # The real-page smoke needs a current packaged page, including for `check.py browser` alone.
+    has_drag_smoke = any("scripts/run-drag-browser.py" in command for command in STEPS["browser"][1])
+    smoke_indices = [index for index, step in enumerate(names)
+                     if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
+    if smoke_indices:
+        smoke_index = smoke_indices[0]
+        built = any(step in ("build", "release") for step in names[:smoke_index])
+        if not built:
+            later_build = next((index for index in range(smoke_index + 1, len(names))
+                                if names[index] in ("build", "release")), None)
+            if later_build is None:
+                names.insert(smoke_index, "build")
+            else:
+                names.insert(smoke_index, names.pop(later_build))
+    plan: list[tuple[str, list[Command]]] = []
+    for name in names:
+        plan.append((name, STEPS[name][1]))
+    return run_plan(plan, update_native_baseline)
 
 
 def guard_native_tests(commands: list[Command], captured: list[tuple[Command, str]],
@@ -301,7 +322,8 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
         crates = {Path(package.directory).name for name, package in packages.items()
                   if name in selection.packages and package.directory.startswith("web/crates/")}
         if selection.full_rust:
-            commands = browser()
+            # The real-page drag smoke uses the packaged site; quick checks deliberately skip builds.
+            commands = [command for command in browser() if "run-drag-browser.py" not in " ".join(command)]
         else:
             commands = [command for command in browser() if is_crate_launch(command)
                         and any(part == f"web/crates/{crate}" for crate in crates for part in command)]

@@ -737,10 +737,13 @@ pub fn selected_part_bounds(
     board_id: &str,
     selected_ids: &[String],
 ) -> Option<(f64, f64, f64, f64)> {
+    if selected_ids.is_empty() {
+        return None;
+    }
     let board = document.boards.iter().find(|board| board.id == board_id)?;
     let mut bounds = None;
     for part in document.parts.iter().filter(|part| {
-        board.part_ids.contains(&part.id) && selected_ids.iter().any(|id| id == &part.id)
+        selected_ids.iter().any(|id| id == &part.id) && board.part_ids.contains(&part.id)
     }) {
         include_layout_part_bounds(document, scene, part, &mut bounds);
     }
@@ -1692,6 +1695,21 @@ mod tests {
             layout_canvas_bounds(&document, &scene, "board"),
             Some((28.0, 52.0, 58.0, 82.0)),
             "camera fitting uses the first transform and excludes parts outside the board"
+        );
+        assert_eq!(selected_part_bounds(&document, &scene, "board", &[]), None);
+        assert_eq!(
+            selected_part_bounds(&document, &scene, "board", &["other-board-part".into()]),
+            None
+        );
+        assert_eq!(
+            selected_part_bounds(
+                &document,
+                &scene,
+                "board",
+                &["matrix/keys/diode-1".into(), "other-board-part".into()]
+            ),
+            Some((40.0, 40.0, 70.0, 70.0)),
+            "selection fitting keeps board membership and the first displayed transform"
         );
     }
 

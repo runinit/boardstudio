@@ -3682,12 +3682,6 @@ fn Editor() -> Element {
         .parts
         .iter()
         .filter(|part| board_part_ids.contains(part.id.as_str()))
-        .cloned()
-        .collect();
-    let definitions: std::collections::BTreeMap<_, _> = document
-        .definitions
-        .iter()
-        .map(|definition| (definition.id.as_str(), definition))
         .collect();
     let matrices: Vec<_> = document
         .matrices
@@ -3704,11 +3698,6 @@ fn Editor() -> Element {
                         .any(|id| board_part_ids.contains(id.as_str()))
                         || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
         })
-        .collect();
-    let matrix_scenes: BTreeMap<_, _> = scene
-        .matrix_scenes
-        .iter()
-        .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
@@ -4733,6 +4722,32 @@ fn Editor() -> Element {
         }
     });
 
+    let accepted_canvas_source = layout_canvas::SceneSource {
+        document: document.clone(),
+        scene: snapshot.scene.clone(),
+        board_id: render_scope.board_id.clone(),
+    };
+    let canvas_source = layout_canvas::SceneSource {
+        scene: scene.clone(),
+        ..accepted_canvas_source.clone()
+    };
+    let accepted_layout_bounds = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
+        keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
+    }))();
+    let displayed_layout_bounds = use_memo(use_reactive(
+        (
+            &canvas_source,
+            &accepted_canvas_source,
+            &accepted_layout_bounds,
+        ),
+        |(source, accepted_source, accepted_bounds)| {
+            if source == accepted_source {
+                accepted_bounds
+            } else {
+                keycaps_fit::layout_canvas_bounds(&source.document, &source.scene, &source.board_id)
+            }
+        },
+    ))();
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -4741,11 +4756,7 @@ fn Editor() -> Element {
         "Keycaps" => keycaps_view
             .as_deref()
             .and_then(|view| keycaps_bounds(view, keycaps_contours.as_deref().unwrap_or(&[]))),
-        "Layout" => keycaps_fit::layout_canvas_bounds(
-            &snapshot.document,
-            &snapshot.scene,
-            &render_scope.board_id,
-        ),
+        "Layout" => accepted_layout_bounds,
         _ => None,
     };
     let bounds = workspace_rect_bounds.or_else(|| {
@@ -4783,7 +4794,7 @@ fn Editor() -> Element {
     // React normalizes its zoom against the physical getBounds basis; Keymap's existing camera
     // uses its key/contour basis. Convert only the displayed/effective scale between those bases.
     let keymap_scale_ratio = if active_workspace == "Keymap" && !layout_assembly_3d() {
-        keycaps_fit::layout_canvas_bounds(&document, &scene, &render_scope.board_id)
+        displayed_layout_bounds
             .map(|reference| {
                 let reference = keycaps_fit::aspect_bounds(reference, keymap_surface);
                 let current = keycaps_fit::aspect_bounds(
@@ -4821,9 +4832,9 @@ fn Editor() -> Element {
     let footer_board_bounds = if active_workspace == "Keymap" {
         workspace_rect_bounds
     } else {
-        keycaps_fit::layout_canvas_bounds(&document, &scene, &render_scope.board_id).map(
-            |(min_x, max_x, min_y, max_y)| (min_x + 12.0, max_x - 12.0, min_y + 12.0, max_y - 12.0),
-        )
+        displayed_layout_bounds.map(|(min_x, max_x, min_y, max_y)| {
+            (min_x + 12.0, max_x - 12.0, min_y + 12.0, max_y - 12.0)
+        })
     };
     let footer_selection_bounds = if active_workspace == "Keymap" {
         keymap_view.as_deref().and_then(|view| {
@@ -5708,7 +5719,7 @@ fn Editor() -> Element {
         selected.scope == render_scope
             && selection::context_is_current(&model, &selected.scope, &selected.context)
     });
-    let layout_transform_target = selected_tree_context
+    let transform_matrix_id = selected_tree_context
         .as_ref()
         .filter(|selected| selected.scope == render_scope && active_workspace == "Layout")
         .and_then(|selected| {
@@ -5723,14 +5734,38 @@ fn Editor() -> Element {
                 } => matrix_id.as_str(),
                 _ => return None,
             };
-            let matrix = matrices.iter().find(|matrix| matrix.id == matrix_id)?;
-            let projection = matrix_scenes.get(matrix_id)?;
-            Some((
-                (**matrix).clone(),
-                (**projection).clone(),
-                selected.context.clone(),
-            ))
+            Some(matrix_id.to_owned())
         });
+    let transform_matrix = use_memo(use_reactive(
+        (&accepted_canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let transform_projection = use_memo(use_reactive(
+        (&canvas_source, &transform_matrix_id),
+        |(source, matrix_id)| {
+            let matrix_id = matrix_id?;
+            source
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|matrix| matrix.matrix_id == matrix_id)
+                .cloned()
+                .map(Rc::new)
+        },
+    ))();
+    let layout_transform_target = transform_matrix
+        .zip(transform_projection)
+        .zip(selected_tree_context.as_ref())
+        .map(|((matrix, projection), selected)| (matrix, projection, selected.context.clone()));
     let transform_tool_owner = (
         layout_owner.scope.clone(),
         layout_owner.generation,
@@ -7243,11 +7278,34 @@ fn Editor() -> Element {
             }
         },
     );
-    let toolbar_input = match active_workspace {
-        "Layout" => {
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-            let supports_kind = |kind| {
-                selected_tree_context.as_ref().is_some_and(|selected| {
+    let retained_toolbar_cell = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
+    let toolbar_selection_availability = use_memo(use_reactive(
+        (
+            &accepted_canvas_source,
+            &snapshot.token,
+            &snapshot.session_epoch,
+            &model.active_instance_id,
+            &selected_tree_context,
+            &retained_toolbar_cell,
+            &active_workspace,
+        ),
+        |(source, token, session_epoch, active_instance_id, selected, retained, workspace)| {
+            if !matches!(workspace, "Layout" | "PCB") {
+                return (false, false);
+            }
+            let model = ReadModel {
+                accepted: Some(AcceptedSnapshot {
+                    token,
+                    session_epoch,
+                    document: source.document,
+                    scene: source.scene,
+                }),
+                active_board_id: source.board_id,
+                active_instance_id,
+                ..ReadModel::default()
+            };
+            let supports = |kind| {
+                selected.as_ref().is_some_and(|selected| {
                     objects::context_for_selection_kind(
                         &model,
                         &selected.context,
@@ -7257,6 +7315,14 @@ fn Editor() -> Element {
                     .is_some()
                 })
             };
+            (
+                supports(objects::LayoutSelectionKind::Column),
+                supports(objects::LayoutSelectionKind::Row),
+            )
+        },
+    ))();
+    let toolbar_input = match active_workspace {
+        "Layout" => {
             let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
@@ -7335,8 +7401,8 @@ fn Editor() -> Element {
             });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
-                column_available: supports_kind(objects::LayoutSelectionKind::Column),
-                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                column_available: toolbar_selection_availability.0,
+                row_available: toolbar_selection_availability.1,
                 pointer_tools_visible: true,
                 pointer_tools_available,
                 active_tool: layout_transform_tool(),
@@ -7382,18 +7448,6 @@ fn Editor() -> Element {
             ))
         }
         "PCB" => {
-            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &layout_owner);
-            let supports_kind = |kind| {
-                selected_tree_context.as_ref().is_some_and(|selected| {
-                    objects::context_for_selection_kind(
-                        &model,
-                        &selected.context,
-                        kind,
-                        retained.as_ref(),
-                    )
-                    .is_some()
-                })
-            };
             let properties_available = selected_tree_context.as_ref().is_some_and(|selected| {
                 matches!(
                     &selected.context,
@@ -7426,8 +7480,8 @@ fn Editor() -> Element {
             };
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
-                column_available: supports_kind(objects::LayoutSelectionKind::Column),
-                row_available: supports_kind(objects::LayoutSelectionKind::Row),
+                column_available: toolbar_selection_availability.0,
+                row_available: toolbar_selection_availability.1,
                 pointer_tools_visible: false,
                 pointer_tools_available: false,
                 active_tool: None,
@@ -8025,50 +8079,12 @@ fn Editor() -> Element {
             .0
             .unwrap_or(Vec2 { x: 19.05, y: 19.05 })
     };
-    let outline_snap_origins = visible
-        .iter()
-        .map(|part| {
-            let definition = definitions.get(part.definition_id.as_str()).copied();
-            let keycap = definition
-                .filter(|definition| definition.kind == PartKind::Switch)
-                .and_then(|definition| part.keycap.or(definition.keycap));
-            let local = if let Some(size) = keycap {
-                vec![
-                    Vec2 {
-                        x: -size.x / 2.0,
-                        y: -size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: size.x / 2.0,
-                        y: -size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: size.x / 2.0,
-                        y: size.y / 2.0,
-                    },
-                    Vec2 {
-                        x: -size.x / 2.0,
-                        y: size.y / 2.0,
-                    },
-                ]
-            } else {
-                definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
-            };
-            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
-            let world = local
-                .into_iter()
-                .map(|point| Vec2 {
-                    x: part.pose.at.x + point.x * cos - point.y * sin,
-                    y: part.pose.at.y + point.x * sin + point.y * cos,
-                })
-                .collect();
-            crate::presentation::outline_snapping::Origin {
-                reference: part.reference.clone(),
-                center: part.pose.at,
-                polygon: crate::presentation::outline_snapping::convex_hull(world),
-            }
-        })
-        .collect::<Vec<_>>();
+    let outline_snap_origins = use_memo(use_reactive((&accepted_canvas_source,), |(source,)| {
+        Rc::new(layout_canvas::snap_origins(
+            &source.document,
+            &source.board_id,
+        ))
+    }))();
     let outline_snap_settings = layout_snap_settings.read().clone();
     let outline_grid_active = outline_inspector
         .as_ref()
@@ -8690,7 +8706,7 @@ fn Editor() -> Element {
                                 height,
                                 snap_settings: outline_snap_settings.clone(),
                                 pitch: outline_pitch,
-                                origins: outline_snap_origins.clone(),
+                                origins: outline_snap_origins.as_ref().clone(),
                             }
                         }
                         if let Some(bridge) = selected_bridge {
@@ -8738,14 +8754,10 @@ fn Editor() -> Element {
                                 }
                             }
                         }
-                        {layout_canvas::scene(layout_canvas::LayoutCanvasInput {
-                            visible: &visible,
-                            definitions: &definitions,
-                            matrices: &matrices,
-                            matrix_scenes: &matrix_scenes,
-                            transforms: &scene.transforms,
-                            selected_ids: &model.selected_part_ids,
-                            selected_context: selected_tree_context.as_ref(),
+                        layout_canvas::Scene {
+                            source: canvas_source,
+                            selected_ids: model.selected_part_ids.clone(),
+                            selected_context: selected_tree_context.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
                             components_visible: !(layer_visibility.hidden)().contains("Components"),
                             keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
@@ -8753,7 +8765,7 @@ fn Editor() -> Element {
                                 && !(layer_visibility.hidden)().contains("Footprints"),
                             on_matrix_pointer_down: matrix_pointer_down,
                             on_part_pointer_down: part_pointer_down,
-                        })}
+                        }
                         if let Some((x, y, scale)) = selection_geometry_anchor
                             && let Some(tools) = canvas_transform_menu.clone()
                             && matrix_transform_inspector.projection.is_some()
@@ -8809,11 +8821,7 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in match &context {
-                                objects::TreeContext::Column { .. } => vec![objects::LayoutTransformTool::Stagger, objects::LayoutTransformTool::Splay],
-                                objects::TreeContext::Row { .. } => vec![objects::LayoutTransformTool::Offset],
-                                _ => vec![],
-                            } {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool()) {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
@@ -8889,7 +8897,7 @@ fn Editor() -> Element {
                                 height,
                                 snap_settings: outline_snap_settings.clone(),
                                 pitch: outline_pitch,
-                                origins: outline_snap_origins.clone(),
+                                origins: outline_snap_origins.as_ref().clone(),
                             }
                         }
                     }

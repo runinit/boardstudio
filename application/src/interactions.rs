@@ -117,7 +117,7 @@ pub fn snap_part(
     tolerance: f64,
     gap: Option<f64>,
 ) -> Option<SnapGuide> {
-    snap_part_candidates(document, moving, tolerance, gap, &document.parts)
+    snap_part_candidates(document, moving, tolerance, gap, document.parts.iter())
 }
 
 /// Snap against only parts owned by the selected board.
@@ -132,29 +132,28 @@ pub fn snap_part_in_board(
         return document
             .boards
             .is_empty()
-            .then(|| snap_part_candidates(document, moving, tolerance, gap, &document.parts))
+            .then(|| snap_part_candidates(document, moving, tolerance, gap, document.parts.iter()))
             .flatten();
     };
-    let candidates = if document.boards.len() == 1 && board.part_ids.is_empty() {
+    if document.boards.len() == 1 && board.part_ids.is_empty() {
         // Legacy single-board documents may omit the part index entirely.
-        document.parts.clone()
-    } else {
-        document
-            .parts
-            .iter()
-            .filter(|part| board.part_ids.contains(&part.id))
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-    snap_part_candidates(document, moving, tolerance, gap, &candidates)
+        return snap_part_candidates(document, moving, tolerance, gap, document.parts.iter());
+    }
+    let part_ids: std::collections::HashSet<_> =
+        board.part_ids.iter().map(String::as_str).collect();
+    let candidates = document
+        .parts
+        .iter()
+        .filter(|part| part_ids.contains(part.id.as_str()));
+    snap_part_candidates(document, moving, tolerance, gap, candidates)
 }
 
-fn snap_part_candidates(
+fn snap_part_candidates<'a>(
     document: &ProjectDoc,
     moving: &Part,
     tolerance: f64,
     gap: Option<f64>,
-    candidates: &[Part],
+    candidates: impl Iterator<Item = &'a Part> + Clone,
 ) -> Option<SnapGuide> {
     let moving_poly = selection_outline(std::slice::from_ref(moving), &document.definitions);
     if moving_poly.is_empty() || tolerance < 0.0 {
@@ -168,7 +167,7 @@ fn snap_part_candidates(
     };
     let mut best: Option<SnapGuide> = None;
     let mut distance_squared = tolerance * tolerance;
-    let mut consider = |from: Vec2, to: Vec2, label: String| {
+    let mut consider = |from: Vec2, to: Vec2, reference: &str, gap: Option<f64>| {
         let dx = to.x - from.x;
         let dy = to.y - from.y;
         let d = dx * dx + dy * dy;
@@ -181,11 +180,14 @@ fn snap_part_candidates(
                 },
                 from,
                 to,
-                label,
+                label: match gap {
+                    Some(gap) => format!("{reference} · envelope gap {gap:.2} mm"),
+                    None => format!("{reference} · corner / midpoint / center"),
+                },
             });
         }
     };
-    for target in candidates {
+    for target in candidates.clone() {
         if target.id == moving.id {
             continue;
         }
@@ -193,10 +195,10 @@ fn snap_part_candidates(
         if polygon.is_empty() {
             continue;
         }
-        let label = format!("{} · corner / midpoint / center", target.reference);
+        let target_landmarks = landmarks(&polygon, target.pose.at);
         for from in &moving_landmarks {
-            for to in landmarks(&polygon, target.pose.at) {
-                consider(*from, to, label.clone());
+            for to in &target_landmarks {
+                consider(*from, *to, &target.reference, None);
             }
         }
         let Some(gap) = gap else {
@@ -208,7 +210,6 @@ fn snap_part_candidates(
         if !axis_aligned(&polygon) {
             continue;
         }
-        let label = format!("{} · envelope gap {:.2} mm", target.reference, gap);
         if a.max_y.min(b.max_y) > a.min_y.max(b.min_y) {
             let y = (a.min_y.max(b.min_y) + a.max_y.min(b.max_y)) / 2.0;
             consider(
@@ -217,7 +218,8 @@ fn snap_part_candidates(
                     x: b.max_x + gap,
                     y,
                 },
-                label.clone(),
+                &target.reference,
+                Some(gap),
             );
             consider(
                 Vec2 { x: a.max_x, y },
@@ -225,7 +227,8 @@ fn snap_part_candidates(
                     x: b.min_x - gap,
                     y,
                 },
-                label.clone(),
+                &target.reference,
+                Some(gap),
             );
         }
         if a.max_x.min(b.max_x) > a.min_x.max(b.min_x) {
@@ -236,7 +239,8 @@ fn snap_part_candidates(
                     x,
                     y: b.max_y + gap,
                 },
-                label.clone(),
+                &target.reference,
+                Some(gap),
             );
             consider(
                 Vec2 { x, y: a.max_y },
@@ -244,7 +248,8 @@ fn snap_part_candidates(
                     x,
                     y: b.min_y - gap,
                 },
-                label,
+                &target.reference,
+                Some(gap),
             );
         }
     }

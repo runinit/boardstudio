@@ -1,10 +1,209 @@
 //! Read-only Layout canvas projection and scene rendering.
 use super::{FootprintGraphics, layout_matrix_relations};
 use boardstudio_core::model::{
-    Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, Side, Transform, Vec2,
+    Matrix, MatrixScene, Part, PartDefinition, PartKind, Pose2, ProjectDoc, SceneDelta, Side,
+    Transform, Vec2,
 };
 use dioxus::prelude::*;
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
+
+pub(super) fn transform_tools(
+    context: &super::objects::TreeContext,
+    active: Option<super::objects::LayoutTransformTool>,
+) -> Vec<super::objects::LayoutTransformTool> {
+    use super::objects::{LayoutTransformTool as Tool, TreeContext};
+    match context {
+        TreeContext::Column { .. } => match active {
+            Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],
+            Some(Tool::Origin) => vec![Tool::Stagger, Tool::Origin],
+            _ => vec![Tool::Stagger, Tool::Splay],
+        },
+        TreeContext::Row { .. } => vec![Tool::Offset],
+        _ => vec![],
+    }
+}
+
+pub(super) fn snap_origins(
+    document: &ProjectDoc,
+    board_id: &str,
+) -> Vec<super::outline_snapping::Origin> {
+    let board_parts: HashSet<_> = document
+        .boards
+        .iter()
+        .find(|board| board.id == board_id)
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    let definitions: BTreeMap<_, _> = document
+        .definitions
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition))
+        .collect();
+    document
+        .parts
+        .iter()
+        .filter(|part| board_parts.contains(part.id.as_str()))
+        .map(|part| {
+            let definition = definitions.get(part.definition_id.as_str()).copied();
+            let keycap = definition
+                .filter(|definition| definition.kind == PartKind::Switch)
+                .and_then(|definition| part.keycap.or(definition.keycap));
+            let local = if let Some(size) = keycap {
+                vec![
+                    Vec2 {
+                        x: -size.x / 2.0,
+                        y: -size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: size.x / 2.0,
+                        y: -size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: size.x / 2.0,
+                        y: size.y / 2.0,
+                    },
+                    Vec2 {
+                        x: -size.x / 2.0,
+                        y: size.y / 2.0,
+                    },
+                ]
+            } else {
+                definition.map_or_else(Vec::new, |definition| definition.courtyard.clone())
+            };
+            let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
+            let world = local
+                .into_iter()
+                .map(|point| Vec2 {
+                    x: part.pose.at.x + point.x * cos - point.y * sin,
+                    y: part.pose.at.y + point.x * sin + point.y * cos,
+                })
+                .collect();
+            super::outline_snapping::Origin {
+                reference: part.reference.clone(),
+                center: part.pose.at,
+                polygon: super::outline_snapping::convex_hull(world),
+            }
+        })
+        .collect()
+}
+
+#[derive(Clone)]
+pub(super) struct SceneSource {
+    pub(super) document: Arc<ProjectDoc>,
+    pub(super) scene: Arc<SceneDelta>,
+    pub(super) board_id: String,
+}
+
+impl PartialEq for SceneSource {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.document, &other.document)
+            && Arc::ptr_eq(&self.scene, &other.scene)
+            && self.board_id == other.board_id
+    }
+}
+
+#[derive(Props, Clone)]
+pub(super) struct SceneProps {
+    source: SceneSource,
+    selected_ids: Vec<String>,
+    selected_context: Option<super::objects::ScopedTreeContext>,
+    keys_visible: bool,
+    components_visible: bool,
+    keycaps_visible: bool,
+    footprints_visible: bool,
+    on_matrix_pointer_down: EventHandler<MatrixPointerDown>,
+    on_part_pointer_down: EventHandler<PartPointerDown>,
+}
+
+impl PartialEq for SceneProps {
+    fn eq(&self, other: &Self) -> bool {
+        // Props memoization refreshes callbacks even when the geometry does not rerender.
+        self.source == other.source
+            && self.selected_ids == other.selected_ids
+            && self.selected_context == other.selected_context
+            && self.keys_visible == other.keys_visible
+            && self.components_visible == other.components_visible
+            && self.keycaps_visible == other.keycaps_visible
+            && self.footprints_visible == other.footprints_visible
+    }
+}
+
+#[component]
+pub(super) fn Scene(props: SceneProps) -> Element {
+    let document = &props.source.document;
+    let scene_data = &props.source.scene;
+    let board_part_ids: HashSet<_> = document
+        .boards
+        .iter()
+        .find(|board| board.id == props.source.board_id)
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
+    let visible_indices: Vec<_> = document
+        .parts
+        .iter()
+        .enumerate()
+        .filter(|(_, part)| board_part_ids.contains(part.id.as_str()))
+        .map(|(index, _)| index)
+        .collect();
+    let visible: Vec<_> = visible_indices
+        .iter()
+        .map(|index| &document.parts[*index])
+        .collect();
+    let definition_indices = document
+        .definitions
+        .iter()
+        .enumerate()
+        .map(|(index, definition)| (definition.id.as_str(), index))
+        .collect();
+    let definitions = document
+        .definitions
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition))
+        .collect();
+    let matrices: Vec<_> = document
+        .matrices
+        .iter()
+        .filter(|matrix| {
+            matrix
+                .board_id
+                .as_deref()
+                .is_some_and(|id| id == props.source.board_id)
+                || (matrix.board_id.is_none()
+                    && (matrix
+                        .part_ids
+                        .iter()
+                        .any(|id| board_part_ids.contains(id.as_str()))
+                        || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
+        })
+        .collect();
+    let matrix_scenes = scene_data
+        .matrix_scenes
+        .iter()
+        .map(|matrix| (matrix.matrix_id.as_str(), matrix))
+        .collect();
+    scene(LayoutCanvasInput {
+        document,
+        visible_indices: &visible_indices,
+        definition_indices: &definition_indices,
+        visible: &visible,
+        definitions: &definitions,
+        matrices: &matrices,
+        matrix_scenes: &matrix_scenes,
+        transforms: &scene_data.transforms,
+        selected_ids: &props.selected_ids,
+        selected_context: props.selected_context.as_ref(),
+        keys_visible: props.keys_visible,
+        components_visible: props.components_visible,
+        keycaps_visible: props.keycaps_visible,
+        footprints_visible: props.footprints_visible,
+        on_matrix_pointer_down: props.on_matrix_pointer_down,
+        on_part_pointer_down: props.on_part_pointer_down,
+    })
+}
 
 pub(super) struct MatrixPointerDown {
     pub(super) event: PointerEvent,
@@ -20,7 +219,10 @@ pub(super) struct PartPointerDown {
 }
 
 pub(super) struct LayoutCanvasInput<'a> {
-    pub(super) visible: &'a [Part],
+    document: &'a Arc<ProjectDoc>,
+    visible_indices: &'a [usize],
+    definition_indices: &'a BTreeMap<&'a str, usize>,
+    pub(super) visible: &'a [&'a Part],
     pub(super) definitions: &'a BTreeMap<&'a str, &'a PartDefinition>,
     pub(super) matrices: &'a [&'a Matrix],
     pub(super) matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
@@ -42,14 +244,14 @@ struct Projection<'a> {
 }
 
 fn project<'a>(
-    visible: &'a [Part],
+    visible: &'a [&'a Part],
     matrices: &'a [&'a Matrix],
     matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
     transforms: &'a [Transform],
 ) -> Projection<'a> {
     let visible_by_id = visible
         .iter()
-        .map(|part| (part.id.as_str(), part))
+        .map(|part| (part.id.as_str(), *part))
         .collect();
     let mut matrix_keycaps = BTreeMap::new();
     for matrix in matrices {
@@ -77,6 +279,8 @@ fn project<'a>(
 }
 
 pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
+    #[cfg(test)]
+    SCENE_RENDERS.with(|count| count.set(count.get() + 1));
     let projection = project(
         input.visible,
         input.matrices,
@@ -143,7 +347,7 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                 }
             }
         }
-        for part in input.visible {
+        for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
             {
                 let pose = projection
                     .part_transforms
@@ -151,7 +355,6 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                     .copied()
                     .unwrap_or(part.pose);
                 let definition = input.definitions.get(part.definition_id.as_str()).copied();
-                let courtyard = definition.map(|definition| polygon_points(&definition.courtyard)).unwrap_or_default();
                 let selected = input.selected_ids.contains(&part.id);
                 let side_transform = if matches!(part.side, Side::Back) { "scale(-1 1)" } else { "" };
                 let is_matrix_key = projection.matrix_keycaps.contains_key(part.id.as_str());
@@ -180,54 +383,95 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                             onpointerdown: move |event: PointerEvent| {
                                 on_pointer_down.call(PartPointerDown { event, part_id: part_id.clone() });
                             },
-                            if layer_visible {
-                                layout_matrix_relations::RelationPartOutline {
-                                    key: "{part.id}", part_id: part.id.clone(), selected, points: courtyard
-                                }
-                            }
-                            if layer_visible && footprints_on {
-                                if let Some(definition) = definition {
-                                    FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
-                                    for pad in &definition.pads {
-                                        {
-                                            let rx = match &pad.shape {
-                                                boardstudio_core::model::PadShape::Circle | boardstudio_core::model::PadShape::Oval => pad.size.x.min(pad.size.y) / 2.0,
-                                                boardstudio_core::model::PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0,
-                                                boardstudio_core::model::PadShape::Rect => 0.0,
-                                            };
-                                            rsx! {
-                                                g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
-                                                    if pad.plated != Some(false) {
-                                                        rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
-                                                    }
-                                                    if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(size) = show_keycap {
-                                {
-                                    let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
-                                    rsx! {
-                                        g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
-                                            rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
-                                            rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(size) = show_keycap {
-                                rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
-                            }
-                            if layer_visible && show_keycap.is_none() {
-                                text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" }
+                            PartContents {
+                                source: PartSource {
+                                    document: input.document.clone(), part_index: *part_index,
+                                    definition_index: input.definition_indices.get(part.definition_id.as_str()).copied(),
+                                },
+                                selected, layer_visible, footprints_on, show_keycap,
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PartSource {
+    document: Arc<ProjectDoc>,
+    part_index: usize,
+    definition_index: Option<usize>,
+}
+
+impl PartialEq for PartSource {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.document, &other.document)
+            && self.part_index == other.part_index
+            && self.definition_index == other.definition_index
+    }
+}
+
+#[component]
+fn PartContents(
+    source: PartSource,
+    selected: bool,
+    layer_visible: bool,
+    footprints_on: bool,
+    show_keycap: Option<Vec2>,
+) -> Element {
+    #[cfg(test)]
+    PART_CONTENT_RENDERS.with(|count| count.set(count.get() + 1));
+    let part = &source.document.parts[source.part_index];
+    let definition = source
+        .definition_index
+        .map(|index| &source.document.definitions[index]);
+    let courtyard = definition
+        .map(|definition| polygon_points(&definition.courtyard))
+        .unwrap_or_default();
+    rsx! {
+        if layer_visible {
+            layout_matrix_relations::RelationPartOutline {
+                key: "{part.id}", part_id: part.id.clone(), selected, points: courtyard
+            }
+        }
+        if layer_visible && footprints_on {
+            if let Some(definition) = definition {
+                FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
+                for pad in &definition.pads {
+                    {
+                        let rx = match &pad.shape {
+                            boardstudio_core::model::PadShape::Circle | boardstudio_core::model::PadShape::Oval => pad.size.x.min(pad.size.y) / 2.0,
+                            boardstudio_core::model::PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0,
+                            boardstudio_core::model::PadShape::Rect => 0.0,
+                        };
+                        rsx! {
+                            g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
+                                if pad.plated != Some(false) {
+                                    rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" }
+                                }
+                                if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(size) = show_keycap {
+            {
+                let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0);
+                rsx! {
+                    g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
+                        rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
+                        rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
+                    }
+                    rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
+                }
+            }
+        }
+        if layer_visible && show_keycap.is_none() {
+            text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" }
         }
     }
 }
@@ -254,11 +498,218 @@ fn polygon_points(points: &[Vec2]) -> String {
 }
 
 #[cfg(test)]
+thread_local! {
+    static SCENE_RENDERS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static PART_CONTENT_RENDERS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use boardstudio_core::model::{MatrixSceneCell, Transform};
+    use boardstudio_core::model::{ProjectDoc, SceneDelta};
     use serde_json::json;
+    use std::sync::Arc;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn explicit_offset_and_origin_activate_the_named_canvas_handle() {
+        use super::super::objects::{LayoutTransformTool as Tool, TreeContext};
+        let column = TreeContext::Column {
+            matrix_id: "matrix".into(),
+            column: 0,
+        };
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Offset)),
+            vec![Tool::Offset, Tool::Splay]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Origin)),
+            vec![Tool::Stagger, Tool::Origin]
+        );
+        assert_eq!(
+            transform_tools(&column, None),
+            vec![Tool::Stagger, Tool::Splay]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Row {
+                    matrix_id: "matrix".into(),
+                    row: 0
+                },
+                Some(Tool::Stagger)
+            ),
+            vec![Tool::Offset]
+        );
+    }
+
+    fn fixture() -> (Arc<ProjectDoc>, Arc<SceneDelta>) {
+        let mut document = ProjectDoc::empty("canvas", "Canvas");
+        document.parts.push(
+            serde_json::from_value(json!({
+                "id": "key", "definitionId": "switch", "reference": "SW1",
+                "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front",
+                "keycap": {"x": 18.0, "y": 18.0}
+            }))
+            .unwrap(),
+        );
+        document.definitions.push(
+            serde_json::from_value(json!({
+                "id": "switch", "name": "Switch", "kind": "switch", "courtyard": [], "pads": []
+            }))
+            .unwrap(),
+        );
+        let mut stationary = document.parts[0].clone();
+        stationary.id = "stationary".into();
+        stationary.pose.at.x = 30.0;
+        document.parts.push(stationary);
+        document.boards.push(serde_json::from_value(json!({
+            "id": "board", "name": "Board", "partIds": ["key", "stationary"], "outlineIds": [], "netIds": [], "thickness": 1.6
+        })).unwrap());
+        let scene = serde_json::from_value(json!({
+            "revision": 0, "transactionId": "fixture", "changedIds": [], "transforms": [],
+            "matrixScenes": [], "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+            "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
+        })).unwrap();
+        (Arc::new(document), Arc::new(scene))
+    }
+
+    fn render_fixture() -> Element {
+        let mut highlight = use_signal(|| None::<Vec<String>>);
+        use_context_provider(|| super::super::RelationHighlight(highlight));
+        let (document, initial_scene) = use_hook(fixture);
+        let mut accepted_document = use_signal(|| document.clone());
+        let mut displayed = use_signal(|| initial_scene);
+        let mut generation = use_signal(|| 0_usize);
+        let mut observed = use_signal(|| 0_usize);
+        let mut selected = use_signal(Vec::<String>::new);
+        let mut keys = use_signal(|| true);
+        let captured_generation = generation();
+        rsx! {
+            button { id: "canvas-unrelated", onclick: move |_| generation += 1, "Unrelated update" }
+            button { id: "canvas-highlight", onclick: move |_| highlight.set(Some(vec!["key".into()])), "Highlight relation" }
+            button { id: "canvas-preview", onclick: move |_| {
+                let mut next = (*displayed()).clone();
+                next.transforms = vec![Transform { id: "key".into(), pose: Pose2 { at: Vec2 { x: 9.0, y: 4.0 }, rotation: 0.0 } }];
+                displayed.set(Arc::new(next));
+            }, "Preview" }
+            button { id: "canvas-select", onclick: move |_| selected.set(vec!["key".into()]), "Select" }
+            button { id: "canvas-accepted", onclick: move |_| {
+                let mut next = accepted_document();
+                Arc::make_mut(&mut next).parts[0].keycap = Some(Vec2 { x: 30.0, y: 18.0 });
+                accepted_document.set(next);
+            }, "Accepted geometry" }
+            button { id: "canvas-hide", onclick: move |_| keys.set(false), "Hide" }
+            output { id: "canvas-observed", "{observed()}" }
+            svg {
+                Scene {
+                    source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
+                    selected_ids: selected(), selected_context: None,
+                    keys_visible: keys(), components_visible: true, keycaps_visible: keys(), footprints_visible: false,
+                    on_matrix_pointer_down: |_| {},
+                    on_part_pointer_down: move |_| observed.set(captured_generation),
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn canvas_skips_unrelated_updates_but_refreshes_callbacks_preview_selection_and_layers() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(render_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let renders = SCENE_RENDERS.with(|count| count.get());
+        let click = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click()
+        };
+        click("#canvas-unrelated");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            SCENE_RENDERS.with(|count| count.get()),
+            renders,
+            "unchanged canvas inputs must not rebuild the scene"
+        );
+        let pointer = js_sys::eval("new PointerEvent('pointerdown', {bubbles: true})")
+            .unwrap()
+            .dyn_into::<web_sys::Event>()
+            .unwrap();
+        root.query_selector(".m1-part-hit-area")
+            .unwrap()
+            .unwrap()
+            .dispatch_event(&pointer)
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#canvas-observed")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("1"),
+            "memoized canvas callbacks must use the latest parent capture"
+        );
+        click("#canvas-highlight");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(
+            root.query_selector(".m1-part.is-relation-highlight")
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            SCENE_RENDERS.with(|count| count.get()),
+            renders,
+            "relation children remain reactive without rebuilding the canvas"
+        );
+        let part_renders = PART_CONTENT_RENDERS.with(|count| count.get());
+        click("#canvas-preview");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            PART_CONTENT_RENDERS.with(|count| count.get()),
+            part_renders,
+            "pose-only previews must not rebuild unchanged part graphics"
+        );
+        assert_eq!(
+            root.query_selector(".m1-scene-part")
+                .unwrap()
+                .unwrap()
+                .get_attribute("transform")
+                .as_deref(),
+            Some("translate(9,4) rotate(0) ")
+        );
+        click("#canvas-select");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(
+            root.query_selector(".m1-keycap-overlay.is-selected")
+                .unwrap()
+                .is_some()
+        );
+        click("#canvas-accepted");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector(".m1-part-hit-area")
+                .unwrap()
+                .unwrap()
+                .get_attribute("width")
+                .as_deref(),
+            Some("30"),
+            "accepted geometry must refresh cached graphics"
+        );
+        click("#canvas-hide");
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(root.query_selector(".m1-scene-part").unwrap().is_none());
+        root.remove();
+    }
 
     #[wasm_bindgen_test]
     fn projection_indexes_visible_parts_enabled_matrix_keycaps_and_first_transform() {
@@ -320,7 +771,8 @@ mod tests {
                 },
             },
         ];
-        let projection = project(&visible, &matrices, &matrix_scenes, &transforms);
+        let visible_refs: Vec<_> = visible.iter().collect();
+        let projection = project(&visible_refs, &matrices, &matrix_scenes, &transforms);
 
         assert!(projection.visible_by_id.contains_key("key-1"));
         assert_eq!(

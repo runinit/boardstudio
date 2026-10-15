@@ -75,6 +75,9 @@ Clippy, native Rust and provider tests, a checked web build, native/WASM boundar
 headless browser tests. Name steps (`python3 scripts/check.py --list`) to run only some. Each command
 and step prints its wall time. The checked `build` skips `wasm-opt` and the optimized page build; the
 opt-in `release` step (`python3 scripts/check.py release`) keeps both and is what ships.
+Running the `browser` step by itself first rebuilds the checked page so its real-page drag smoke
+cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small
+drag preflight by itself before a longer browser or performance run.
 
 **KiCad in native tests.** The native tests call `kicad-cli` (KiCad 10) and fail with a clear message when it
 is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
@@ -89,6 +92,11 @@ at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without 
 without the variable, for source-level debugging). Each batch has a bounded two-minute timeout,
 overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
 presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
+The browser step opens the packaged page and runs a trusted mouse-drag smoke over
+Part, Column, Stagger and Ctrl+Offset. It checks live preview, pointer capture, saved document state
+and exact Undo. Its success receipt and failure log are kept under `web/target/test-results/drag-browser/`.
+CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
+Chrome or Chromium executable available as `CHROME_BIN`.
 
 ## Source layout
 

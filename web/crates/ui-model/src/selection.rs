@@ -97,19 +97,22 @@ pub fn live_board_ids(model: &boardstudio_application::ReadModel) -> Vec<String>
     else {
         return Vec::new();
     };
+    let live: std::collections::HashSet<_> = snapshot
+        .document
+        .parts
+        .iter()
+        .map(|part| part.id.as_str())
+        .collect();
     board
         .part_ids
         .iter()
-        .filter(|id| snapshot.document.parts.iter().any(|part| part.id == **id))
+        .filter(|id| live.contains(id.as_str()))
         .cloned()
         .collect()
 }
 
 pub fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
-    live_board_ids(model)
-        .into_iter()
-        .filter(|id| objects::context_for_part(model, id).is_some())
-        .collect()
+    objects::eligible_live_ids(model)
 }
 
 pub fn context_is_current(
@@ -123,7 +126,7 @@ pub fn context_is_current(
             snapshot.session_epoch == scope.session_epoch
                 && snapshot.document.id == scope.document_id
         })
-        && objects::resolve_selection(model, context).is_some()
+        && objects::context_is_resolvable(model, context)
 }
 
 pub fn resolve_context(

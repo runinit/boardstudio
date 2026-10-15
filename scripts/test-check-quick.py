@@ -95,7 +95,13 @@ class QuickPlanTests(unittest.TestCase):
     def test_a_shared_edit_runs_the_full_native_and_browser_commands(self):
         plan = self.plan(["Cargo.lock"])
         self.assertEqual(plan["test"], check.CARGO_TESTS)
-        self.assertEqual(plan["browser"], check.browser())
+        self.assertEqual(plan["browser"], [command for command in check.browser()
+                                             if "run-drag-browser.py" not in " ".join(command)])
+
+    def test_quick_full_rust_plan_skips_page_drag_smoke_without_building(self):
+        plan = self.plan(["Cargo.lock"])
+        self.assertNotIn("build", plan)
+        self.assertFalse(any("run-drag-browser.py" in " ".join(command) for command in plan["browser"]))
 
     def test_changed_files_come_from_git_and_include_untracked_files(self):
         def fake(args, **kwargs):

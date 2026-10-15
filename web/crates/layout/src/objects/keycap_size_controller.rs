@@ -558,7 +558,9 @@ fn project_for_scope(
     // selection can contain parts that are not members of the last hit context. Validate
     // that context independently and use Session's accepted selected IDs as the authority,
     // matching React's selectedKeycaps projection.
-    super::resolve_selection(model, &selected.context)?;
+    if !crate::selection::context_is_current(model, scope, &selected.context) {
+        return None;
+    }
     let placement_list = placements(
         &snapshot.document,
         &snapshot.scene.matrix_scenes,

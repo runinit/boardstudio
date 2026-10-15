@@ -239,15 +239,25 @@ fn sort_saved(documents: &mut [ProjectDoc]) {
     });
 }
 
+#[derive(Clone)]
+struct KeyboardCardSource(Arc<ProjectDoc>);
+
+impl PartialEq for KeyboardCardSource {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 #[component]
 fn KeyboardCard(
-    document: Arc<ProjectDoc>,
+    document: KeyboardCardSource,
     current: bool,
     recovery_required: bool,
     deletable: bool,
     #[props(default)] on_select: Option<EventHandler<Arc<ProjectDoc>>>,
     #[props(default)] selected: bool,
 ) -> Element {
+    let document = document.0;
     let runtime = use_context::<Rc<Runtime>>();
     let mut pending_delete = use_context::<Signal<Option<Arc<ProjectDoc>>>>();
     let name = project_display_name(&document);
@@ -796,7 +806,7 @@ pub fn Library(
                 div { class: "m1-keyboard-grid",
                     for (document, is_current) in cards {
                         KeyboardCard { key: "{document.id}", selected: selected_project().as_ref().is_some_and(|selected| selected.id == document.id),
-                            document, current: is_current, recovery_required, deletable: true,
+                            document: KeyboardCardSource(document), current: is_current, recovery_required, deletable: true,
                             on_select: (!project_menu).then(|| EventHandler::new(move |document: Arc<ProjectDoc>| {
                                 let selected_id = document.id.clone();
                                 selected_project.set(Some(document));

@@ -22,9 +22,11 @@ pub(crate) use boardstudio_web_keycaps::{keycaps_finding_marker, keycaps_fit};
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_parts::parts;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use boardstudio_web_runtime::runtime;
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_runtime::{
-    case_generation_lifecycle, layout_viewer_source, model_delivery, operation_outcomes, runtime,
+    case_generation_lifecycle, layout_viewer_source, model_delivery, operation_outcomes,
 };
 #[cfg(target_arch = "wasm32")]
 #[allow(unused_imports)]

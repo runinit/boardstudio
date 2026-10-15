@@ -3,6 +3,12 @@ use boardstudio_core::model::{
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+#[cfg(test)]
+thread_local! {
+    static CONTEXT_LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CELL_CONFIG_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TreeContext {
     Outline {
@@ -960,12 +966,18 @@ fn matrix_for_board<'a>(
         .matrices
         .iter()
         .find(|matrix| matrix.id == matrix_id)?;
-    let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
-    if !visible_matrices(document, &board.id, &board_parts)
-        .iter()
-        .any(|matrix| matrix.id == matrix_id)
-    {
-        return None;
+    if let Some(owner) = item.board_id.as_deref() {
+        if owner != board.id {
+            return None;
+        }
+    } else {
+        let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
+        if !visible_matrices(document, &board.id, &board_parts)
+            .iter()
+            .any(|matrix| matrix.id == matrix_id)
+        {
+            return None;
+        }
     }
     let projected = scene
         .matrix_scenes
@@ -984,13 +996,31 @@ pub fn resolve_selection(
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)?;
-    let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
-    let live_parts: HashSet<_> = document
-        .parts
-        .iter()
-        .filter(|part| board_parts.contains(part.id.as_str()))
-        .map(|part| part.id.as_str())
-        .collect();
+    let live_parts = matches!(
+        context,
+        TreeContext::LayoutGroup { .. }
+            | TreeContext::Matrix { .. }
+            | TreeContext::Row { .. }
+            | TreeContext::Column { .. }
+    )
+    .then(|| {
+        let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
+        document
+            .parts
+            .iter()
+            .filter(|part| board_parts.contains(part.id.as_str()))
+            .map(|part| part.id.as_str())
+            .collect::<HashSet<_>>()
+    });
+    let is_live = |id: &str| {
+        live_parts.as_ref().map_or_else(
+            || {
+                board.part_ids.iter().any(|owned| owned == id)
+                    && document.parts.iter().any(|part| part.id == id)
+            },
+            |parts| parts.contains(id),
+        )
+    };
     let enabled_primary =
         |item: &Matrix, scene: &MatrixScene, row: u32, column: u32| -> Option<String> {
             let id = scene
@@ -999,31 +1029,31 @@ pub fn resolve_selection(
                 .find(|cell| cell.row == row && cell.column == column && cell.enabled)?
                 .member_id
                 .as_ref()?;
-            (live_parts.contains(id.as_str()) && item.part_ids.contains(id)).then(|| id.clone())
+            (is_live(id) && item.part_ids.contains(id)).then(|| id.clone())
         };
     let matrix_ordered_members =
         |item: &Matrix, scene: &MatrixScene, filter: Option<(bool, u32)>| -> Vec<String> {
             let matrix_parts: HashSet<_> = item.part_ids.iter().map(String::as_str).collect();
+            let mut configurations = HashMap::new();
+            for config in &item.cells {
+                #[cfg(test)]
+                CELL_CONFIG_VISITS.set(CELL_CONFIG_VISITS.get() + 1);
+                configurations
+                    .entry((config.row, config.column))
+                    .or_insert(config);
+            }
             let mut coord_for_id: HashMap<String, (u32, u32)> = HashMap::new();
             for cell in scene.cells.iter().filter(|cell| cell.enabled) {
-                let Some(primary) = cell
-                    .member_id
-                    .as_deref()
-                    .filter(|id| live_parts.contains(id))
-                else {
+                let Some(primary) = cell.member_id.as_deref().filter(|id| is_live(id)) else {
                     continue;
                 };
                 if matrix_parts.contains(primary) {
                     coord_for_id.insert(primary.to_owned(), (cell.row, cell.column));
                 }
-                if let Some(config) = item
-                    .cells
-                    .iter()
-                    .find(|config| config.row == cell.row && config.column == cell.column)
-                {
+                if let Some(config) = configurations.get(&(cell.row, cell.column)) {
                     for assembly in &config.assemblies {
                         let id = format!("{primary}/{}", assembly.id);
-                        if live_parts.contains(id.as_str()) && matrix_parts.contains(id.as_str()) {
+                        if is_live(&id) && matrix_parts.contains(id.as_str()) {
                             // Keep IDs owned by the document; row/column filtering still uses its primary cell.
                             coord_for_id.insert(id, (cell.row, cell.column));
                         }
@@ -1040,7 +1070,7 @@ pub fn resolve_selection(
                             Some((false, wanted)) => *column == wanted,
                             None => true,
                         })
-                        && live_parts.contains(id.as_str())
+                        && is_live(id)
                 })
                 .cloned()
                 .collect()
@@ -1100,13 +1130,7 @@ pub fn resolve_selection(
             }
             let mut ids = Vec::new();
             for layout in current_layouts.into_iter().flatten() {
-                ids.extend(
-                    layout
-                        .part_ids
-                        .iter()
-                        .filter(|id| live_parts.contains(id.as_str()))
-                        .cloned(),
-                );
+                ids.extend(layout.part_ids.iter().filter(|id| is_live(id)).cloned());
                 let (matrix, scene) =
                     matrix_for_board(document, &snapshot.scene, board, &layout.matrix_id)?;
                 ids.extend(matrix_ordered_members(matrix, scene, None));
@@ -1188,16 +1212,15 @@ pub fn resolve_selection(
                     if actual.as_ref() != Some(part_id) {
                         return None;
                     }
-                } else if actual.as_ref().is_some_and(|id| {
-                    matrix.part_ids.contains(id) && live_parts.contains(id.as_str())
-                }) {
+                } else if actual
+                    .as_ref()
+                    .is_some_and(|id| matrix.part_ids.contains(id) && is_live(id))
+                {
                     return None;
                 }
                 Some(
                     actual
-                        .filter(|id| {
-                            matrix.part_ids.contains(id) && live_parts.contains(id.as_str())
-                        })
+                        .filter(|id| matrix.part_ids.contains(id) && is_live(id))
                         .into_iter()
                         .collect(),
                 )
@@ -1206,23 +1229,52 @@ pub fn resolve_selection(
                 if !document.parts.iter().any(|part| part.id == *id) {
                     return None;
                 }
-                Some(
-                    live_parts
-                        .contains(id.as_str())
-                        .then(|| id.clone())
-                        .into_iter()
-                        .collect(),
-                )
+                Some(is_live(id).then(|| id.clone()).into_iter().collect())
             }
         }
         _ => None,
     }
 }
 
+pub(super) fn context_is_resolvable(
+    model: &boardstudio_application::ReadModel,
+    context: &TreeContext,
+) -> bool {
+    let (matrix_id, row, column) = match context {
+        TreeContext::Matrix { matrix_id } => (matrix_id, None, None),
+        TreeContext::Row { matrix_id, row } => (matrix_id, Some(*row), None),
+        TreeContext::Column { matrix_id, column } => (matrix_id, None, Some(*column)),
+        TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } => (matrix_id, Some(*row), Some(*column)),
+        _ => return resolve_selection(model, context).is_some(),
+    };
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return false;
+    };
+    let Some(board) = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)
+    else {
+        return false;
+    };
+    let Some((matrix, _)) = matrix_for_board(&snapshot.document, &snapshot.scene, board, matrix_id)
+    else {
+        return false;
+    };
+    row.is_none_or(|row| row < matrix.rows) && column.is_none_or(|column| column < matrix.columns)
+}
+
 pub fn context_for_part(
     model: &boardstudio_application::ReadModel,
     part_id: &str,
 ) -> Option<TreeContext> {
+    #[cfg(test)]
+    CONTEXT_LOOKUPS.set(CONTEXT_LOOKUPS.get() + 1);
     let snapshot = model.accepted.as_ref()?;
     let document = &snapshot.document;
     let board = document
@@ -1299,6 +1351,70 @@ pub fn context_for_part(
         column: None,
         assembly_id: None,
     })
+}
+
+pub(super) fn eligible_live_ids(model: &boardstudio_application::ReadModel) -> Vec<String> {
+    let Some(snapshot) = model.accepted.as_ref() else {
+        return Vec::new();
+    };
+    let Some(board) = snapshot
+        .document
+        .boards
+        .iter()
+        .find(|board| board.id == model.active_board_id)
+    else {
+        return Vec::new();
+    };
+    let document = &snapshot.document;
+    let board_parts = board.part_ids.iter().map(String::as_str).collect();
+    let live: HashSet<_> = document.parts.iter().map(|part| part.id.as_str()).collect();
+    let matrices = visible_matrices(document, &board.id, &board_parts);
+    let owned: HashSet<_> = matrices
+        .iter()
+        .flat_map(|matrix| matrix.part_ids.iter().map(String::as_str))
+        .collect();
+    let mut eligible: HashSet<&str> = HashSet::new();
+    for matrix in matrices {
+        let Some(scene) = snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+        else {
+            continue;
+        };
+        let members: HashSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
+        let mut configurations = HashMap::new();
+        for config in &matrix.cells {
+            configurations
+                .entry((config.row, config.column))
+                .or_insert(config);
+        }
+        for cell in scene.cells.iter().filter(|cell| cell.enabled) {
+            let Some(primary) = cell.member_id.as_deref() else {
+                continue;
+            };
+            if let Some(id) = members.get(primary) {
+                eligible.insert(id);
+            }
+            if let Some(config) = configurations.get(&(cell.row, cell.column)) {
+                for assembly in &config.assemblies {
+                    if let Some(id) = members.get(format!("{primary}/{}", assembly.id).as_str()) {
+                        eligible.insert(id);
+                    }
+                }
+            }
+        }
+    }
+    board
+        .part_ids
+        .iter()
+        .filter(|id| {
+            live.contains(id.as_str())
+                && (!owned.contains(id.as_str()) || eligible.contains(id.as_str()))
+        })
+        .cloned()
+        .collect()
 }
 
 /// Build the explicit component/Part Inspector context used by a finding action.

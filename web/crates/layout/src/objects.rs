@@ -8,6 +8,13 @@ use std::{collections::BTreeSet, rc::Rc};
 
 mod board_setup_controller;
 mod existing_half;
+#[cfg(test)]
+mod tree_projection_tests;
+
+#[cfg(test)]
+thread_local! {
+    static TREE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 mod keycap_resize;
 mod keycap_size;
 mod keycap_size_controller;
@@ -247,37 +254,57 @@ pub fn Objects(
             .as_deref()
             == Some("part")
     });
-    let mut items = if by_part() {
-        grouped_part_tree(&model, &current_expanded)
-    } else {
-        tree::build_tree(
-            document,
-            &board_id,
-            tree::Grouping::Column,
-            &current_expanded,
-            snapshot.scene.matrix_scenes.as_slice(),
-            snapshot.scene.board_outline_scenes.as_slice(),
-        )
-    };
-    for board in document.boards.iter().filter(|board| board.id != board_id) {
-        items.push(tree::TreeItem {
-            id: format!("board:{}", board.id),
-            label: board.name.clone(),
-            detail: Some(format!("{} parts", board.part_ids.len())),
-            level: 0,
-            kind: TreeKind::Board,
-            context: Some(TreeContext::Board {
-                board_id: board.id.clone(),
-            }),
-            expanded: None,
-            primary_id: None,
-            expandable: false,
-        });
-    }
+    let source = AcceptedSource(snapshot.clone());
+    let group_by_part = by_part();
+    let items = use_memo(use_reactive(
+        (&source, &board_id, &current_expanded, &group_by_part),
+        |(source, board_id, expanded, by_part)| {
+            #[cfg(test)]
+            TREE_BUILDS.set(TREE_BUILDS.get() + 1);
+            let snapshot = &source.0;
+            let document = &snapshot.document;
+            let mut items = if by_part {
+                grouped_part_tree(
+                    &ReadModel {
+                        accepted: Some(snapshot.clone()),
+                        active_board_id: board_id.clone(),
+                        ..ReadModel::default()
+                    },
+                    &expanded,
+                )
+            } else {
+                tree::build_tree(
+                    document,
+                    &board_id,
+                    tree::Grouping::Column,
+                    &expanded,
+                    &snapshot.scene.matrix_scenes,
+                    &snapshot.scene.board_outline_scenes,
+                )
+            };
+            for board in document.boards.iter().filter(|board| board.id != board_id) {
+                items.push(tree::TreeItem {
+                    id: format!("board:{}", board.id),
+                    label: board.name.clone(),
+                    detail: Some(format!("{} parts", board.part_ids.len())),
+                    level: 0,
+                    kind: TreeKind::Board,
+                    context: Some(TreeContext::Board {
+                        board_id: board.id.clone(),
+                    }),
+                    expanded: None,
+                    primary_id: None,
+                    expandable: false,
+                });
+            }
+            items
+        },
+    ));
+    let items = items.read();
 
     let current_context = selected_context.read().clone().filter(|selected| {
         active_scope.as_ref() == Some(&selected.scope)
-            && tree::resolve_selection(&model, &selected.context).is_some()
+            && super::selection::context_is_current(&model, &selected.scope, &selected.context)
     });
     let selected_matrix_id = current_context
         .as_ref()
@@ -357,7 +384,7 @@ pub fn Objects(
                     mirrored_pair,
                     matrix_inspector,
                     existing_half,
-                    snapshot: snapshot.clone(),
+                    snapshot: AcceptedSource(snapshot.clone()),
                     scope: active_scope.clone(),
                     selected_matrix_action: selected_matrix_action.clone(),
                     on_place_component,
@@ -543,6 +570,18 @@ pub fn Objects(
     }
 }
 
+#[derive(Clone)]
+struct AcceptedSource(AcceptedSnapshot);
+
+impl PartialEq for AcceptedSource {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.token == other.0.token
+            && self.0.session_epoch == other.0.session_epoch
+            && std::sync::Arc::ptr_eq(&self.0.document, &other.0.document)
+            && std::sync::Arc::ptr_eq(&self.0.scene, &other.0.scene)
+    }
+}
+
 #[component]
 fn AddObjectEntry(
     mut menu_open: Signal<bool>,
@@ -553,7 +592,7 @@ fn AddObjectEntry(
     mirrored_pair: Option<MirroredPairMount>,
     matrix_inspector: Option<MatrixInspectorMount>,
     existing_half: ExistingHalfMount,
-    snapshot: AcceptedSnapshot,
+    snapshot: AcceptedSource,
     scope: Option<Scope>,
     selected_matrix_action: Option<(Scope, String, String)>,
     on_place_component: EventHandler<super::part_placement::ComponentPlacementAction>,
@@ -561,6 +600,7 @@ fn AddObjectEntry(
     parts_query: super::parts::PartsQuery,
     on_browse_parts: EventHandler<()>,
 ) -> Element {
+    let snapshot = snapshot.0;
     let open_menu = menu_open();
     let mirrored_open = mirrored_pair
         .as_ref()

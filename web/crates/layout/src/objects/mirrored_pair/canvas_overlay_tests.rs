@@ -91,7 +91,7 @@ fn composition() -> Element {
                 show_trigger: true,
                 on_select: EventHandler::default(),
                 on_open_geometry_scripts: EventHandler::default(),
-                snapshot: snapshot(),
+                snapshot: super::super::AcceptedSource(snapshot()),
                 scope: Some(owner(1).scope),
                 on_place_component: EventHandler::default(),
                 layout_target: Signal::new(None),

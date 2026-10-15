@@ -57,9 +57,7 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
     assert_eq!(super::context_label(&empty, &matrix), None);
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg_attr(not(target_arch = "wasm32"), test)]
-fn part_context_preserves_exact_primary_and_assembly_membership() {
+fn part_context_model() -> ReadModel {
     use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
     use serde_json::json;
     use std::sync::Arc;
@@ -107,7 +105,7 @@ fn part_context_preserves_exact_primary_and_assembly_membership() {
         }], "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
         "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
     })).unwrap();
-    let model = ReadModel {
+    ReadModel {
         accepted: Some(AcceptedSnapshot {
             token: SnapshotToken(1),
             session_epoch: SessionEpoch(1),
@@ -116,7 +114,13 @@ fn part_context_preserves_exact_primary_and_assembly_membership() {
         }),
         active_board_id: "main".into(),
         ..ReadModel::default()
-    };
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn part_context_preserves_exact_primary_and_assembly_membership() {
+    let model = part_context_model();
     assert_eq!(
         super::context_for_part(&model, "key-10"),
         Some(TreeContext::Key {
@@ -154,6 +158,198 @@ fn part_context_preserves_exact_primary_and_assembly_membership() {
             assembly_id: None,
         })
     );
+    for (id, expected) in [
+        ("standalone", Some(vec!["standalone".to_owned()])),
+        ("off-board", Some(vec![])),
+        ("missing", None),
+    ] {
+        let context = TreeContext::Component {
+            part_id: Some(id.into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        };
+        assert_eq!(super::resolve_selection(&model, &context), expected, "{id}");
+    }
+    assert_eq!(
+        super::resolve_selection(
+            &model,
+            &TreeContext::Key {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 2
+            }
+        ),
+        Some(vec![]),
+        "a disabled primary stays an empty selection"
+    );
+    assert_eq!(
+        super::resolve_selection(
+            &model,
+            &TreeContext::Matrix {
+                matrix_id: "matrix".into()
+            }
+        ),
+        Some(vec![
+            "key-1".into(),
+            "key-10".into(),
+            "key-10/diode/path".into()
+        ]),
+        "bulk selection preserves enabled primary and declared companion order"
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn bulk_eligibility_preserves_context_rules_without_per_part_lookups() {
+    for variant in 0..6 {
+        let mut model = part_context_model();
+        let snapshot = model.accepted.as_mut().unwrap();
+        let document = std::sync::Arc::make_mut(&mut snapshot.document);
+        match variant {
+            1 => document.matrices[0].board_id = None,
+            2 => document.matrices[0].board_id = Some("other-board".into()),
+            3 => std::sync::Arc::make_mut(&mut snapshot.scene)
+                .matrix_scenes
+                .clear(),
+            4 => {
+                document.boards[0].part_ids.reverse();
+                document.boards[0].part_ids.push("key-10".into());
+                document.parts.retain(|part| part.id != "key-10");
+            }
+            5 => document.boards[0].part_ids.push("key-1".into()),
+            _ => {}
+        }
+        let ids = document.boards[0].part_ids.clone();
+        let expected: Vec<_> = ids
+            .iter()
+            .filter(|id| super::context_for_part(&model, id).is_some())
+            .cloned()
+            .collect();
+        super::CONTEXT_LOOKUPS.set(0);
+        assert_eq!(
+            super::eligible_live_ids(&model),
+            expected,
+            "variant {variant}"
+        );
+        assert_eq!(
+            super::CONTEXT_LOOKUPS.get(),
+            0,
+            "bulk lookup must not resolve every part separately"
+        );
+    }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn column_selection_visits_cell_configuration_once() {
+    let mut model = part_context_model();
+    let snapshot = model.accepted.as_mut().unwrap();
+    let document = std::sync::Arc::make_mut(&mut snapshot.document);
+    let matrix = &mut document.matrices[0];
+    matrix.cells = (0..64)
+        .map(|column| {
+            let mut cell = matrix.cells[0].clone();
+            cell.column = column;
+            cell.enabled = true;
+            cell
+        })
+        .collect();
+    matrix.columns = 64;
+    let scene = &mut std::sync::Arc::make_mut(&mut snapshot.scene).matrix_scenes[0];
+    scene.cells = (0..64)
+        .map(|column| {
+            let mut cell = scene.cells[0].clone();
+            cell.column = column;
+            cell.enabled = true;
+            cell
+        })
+        .collect();
+    super::CELL_CONFIG_VISITS.set(0);
+    assert!(
+        super::resolve_selection(
+            &model,
+            &TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 63,
+            }
+        )
+        .is_some()
+    );
+    assert!(
+        super::CELL_CONFIG_VISITS.get() <= 64,
+        "column lookup repeatedly scans configuration: {} visits",
+        super::CELL_CONFIG_VISITS.get()
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn matrix_context_validation_skips_member_projection_and_preserves_empty_contexts() {
+    for variant in 0..6 {
+        let mut model = part_context_model();
+        match variant {
+            1 => {
+                std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().document).matrices
+                    [0]
+                .board_id = None
+            }
+            2 => {
+                std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().document).matrices
+                    [0]
+                .board_id = Some("other-board".into())
+            }
+            3 => std::sync::Arc::make_mut(&mut model.accepted.as_mut().unwrap().scene)
+                .matrix_scenes
+                .clear(),
+            4 => model.active_board_id = "missing-board".into(),
+            5 => model.accepted = None,
+            _ => {}
+        }
+        for context in [
+            TreeContext::Matrix {
+                matrix_id: "matrix".into(),
+            },
+            TreeContext::Row {
+                matrix_id: "matrix".into(),
+                row: 0,
+            },
+            TreeContext::Row {
+                matrix_id: "matrix".into(),
+                row: 1,
+            },
+            TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 2,
+            },
+            TreeContext::Column {
+                matrix_id: "matrix".into(),
+                column: 3,
+            },
+            TreeContext::Key {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 2,
+            },
+            TreeContext::Matrix {
+                matrix_id: "missing".into(),
+            },
+        ] {
+            let expected = super::resolve_selection(&model, &context).is_some();
+            super::CELL_CONFIG_VISITS.set(0);
+            assert_eq!(
+                super::context_is_resolvable(&model, &context),
+                expected,
+                "{context:?}"
+            );
+            assert_eq!(
+                super::CELL_CONFIG_VISITS.get(),
+                0,
+                "validity checks must not project matrix members"
+            );
+        }
+    }
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]

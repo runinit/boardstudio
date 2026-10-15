@@ -88,6 +88,30 @@ class CheckTests(unittest.TestCase):
         for name in check.STEPS:
             self.assertIn(name, output.getvalue())
 
+    def test_browser_step_builds_fresh_page_assets_before_the_drag_smoke(self):
+        captured = {}
+
+        def record(plan, update_native_baseline=False):
+            captured["plan"] = plan
+            return 0
+
+        with mock.patch.object(check, "run_plan", side_effect=record):
+            self.assertEqual(check.run(["browser"]), 0)
+        self.assertEqual([name for name, _ in captured["plan"]], ["build", "browser"])
+        self.assertEqual(captured["plan"][-1][1][0], check.DRAG_SMOKE)
+
+    def test_drag_smoke_can_run_as_a_fresh_build_preflight(self):
+        captured = {}
+
+        def record(plan, update_native_baseline=False):
+            captured["plan"] = plan
+            return 0
+
+        with mock.patch.object(check, "run_plan", side_effect=record):
+            self.assertEqual(check.run(["drag-smoke"]), 0)
+        self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
+        self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
+
 
     def test_each_command_and_step_reports_its_wall_time(self):
         output = io.StringIO()

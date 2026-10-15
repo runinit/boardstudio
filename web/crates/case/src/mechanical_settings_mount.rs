@@ -40,6 +40,11 @@ type MountingHoleLoader =
     Rc<dyn Fn() -> LocalFuture<Result<Rc<boardstudio_core::model::PartDefinition>, String>>>;
 type PresentationKey = (&'static str, u64, Option<Scope>);
 
+#[cfg(test)]
+thread_local! {
+    static SOURCE_PROJECTIONS: Cell<usize> = const { Cell::new(0) };
+}
+
 struct CurrentSettingsOwner {
     runtime: Rc<Runtime>,
     alive: Rc<Cell<bool>>,
@@ -107,7 +112,9 @@ pub fn use_mechanical_settings_mount(
             });
         }
     });
-    let source_key = current_source_key(&runtime);
+    let source_key = (workspace() == "Case")
+        .then(|| current_source_key(&runtime))
+        .flatten();
     let source_projection = use_memo(use_reactive((&source_key,), {
         let runtime = runtime.clone();
         move |(key,)| project_settings_source(&runtime, key.as_ref())
@@ -1112,7 +1119,7 @@ mod tests {
         boardstudio_web_ui_model::state::use_empty_test_instance_selection();
         let runtime = use_context::<Rc<Runtime>>();
         let crate::WorkspaceState(mut workspace) = use_context::<crate::WorkspaceState>();
-        let version = use_signal(|| 0_u64);
+        let mut version = use_signal(|| 0_u64);
         use_context_provider(|| version);
         let mount = use_mechanical_settings_mount(
             runtime,
@@ -1127,6 +1134,8 @@ mod tests {
             button { id: "show-case", onclick: move |_| workspace.set("Case"), "Case" }
             output { id: "workspace", "{workspace()}" }
             output { id: "case-props", "{mount.props.is_some()}" }
+            button { id: "refresh-case-source", onclick: move |_| version += 1, "Refresh" }
+            output { id: "source-version", "{version()}" }
         }
     }
 
@@ -1177,6 +1186,31 @@ mod tests {
             !props_visible(),
             "hidden Case must skip preparing presentation props"
         );
+        SOURCE_PROJECTIONS.set(0);
+        let mut changed = runtime.model().accepted.unwrap().document.as_ref().clone();
+        changed.name = "Changed in Layout".into();
+        support::replace_document(&runtime, "hidden-case-change", &changed.id.clone(), changed)
+            .await;
+        root.query_selector("#refresh-case-source")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        wait_until("hidden Case observes the accepted update", || {
+            root.query_selector("#source-version")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("1")
+        })
+        .await;
+        assert_eq!(
+            SOURCE_PROJECTIONS.get(),
+            0,
+            "Layout commits must not prepare Case geometry"
+        );
         root.query_selector("#show-case")
             .unwrap()
             .unwrap()
@@ -1188,6 +1222,10 @@ mod tests {
             props_visible,
         )
         .await;
+        assert!(
+            SOURCE_PROJECTIONS.get() > 0,
+            "returning to Case prepares the latest source"
+        );
         root.remove();
     }
 
@@ -1395,6 +1433,8 @@ fn project_settings_source(
     if current_source_key(runtime).as_ref() != Some(key) {
         return None;
     }
+    #[cfg(test)]
+    SOURCE_PROJECTIONS.set(SOURCE_PROJECTIONS.get() + 1);
     let effective =
         boardstudio_web_host::cad_jobs::captured_case_document(accepted, &key.scope).ok()?;
     let configuration = effective.mechanical.clone().map(Rc::new);

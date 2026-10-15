@@ -161,7 +161,7 @@ impl TransformGesture {
 struct TransformDrag {
     pointer_id: i32,
     capture: SvgElement,
-    matrix: Matrix,
+    matrix: Rc<Matrix>,
     gesture: TransformGesture,
     transaction_id: String,
     owner: LayoutOwnerIdentity,
@@ -184,13 +184,13 @@ pub fn LayoutTransformToolOverlay(
     selected_context: Signal<Option<ScopedTreeContext>>,
     scope_generation: Signal<u64>,
     workspace: Signal<&'static str>,
-    matrix: Matrix,
-    projection: MatrixScene,
+    #[props(into)] matrix: Rc<Matrix>,
+    #[props(into)] projection: Rc<MatrixScene>,
     context: TreeContext,
     tool: LayoutTransformTool,
     #[props(default)] surface_size: Option<Signal<(f64, f64)>>,
     snap_settings: super::layout_toolbar::LayoutSnapSettings,
-    snap_origins: Vec<super::super::outline_snapping::Origin>,
+    #[props(into)] snap_origins: Rc<Vec<super::super::outline_snapping::Origin>>,
     splay_affect: Signal<MatrixSplayAffect>,
     view_x: f64,
     view_y: f64,
@@ -209,7 +209,7 @@ pub fn LayoutTransformToolOverlay(
     let _ = surface_size.map(|size| size());
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
     let snap_guide = use_signal(|| None::<Vec2>);
-    // True from a Shift pointer-down until release: the handle shows the offset glyph.
+    // True from a Ctrl pointer-down until release: the handle shows the offset glyph.
     let quick_glyph = use_signal(|| false);
     let runtime_inner = runtime.0.clone();
     let arbiter_for_drop = arbiter.clone();
@@ -2690,7 +2690,7 @@ mod nudge_tests {
         TransformDrag {
             pointer_id: 1,
             capture,
-            matrix: matrix_named(runtime, matrix_id),
+            matrix: Rc::new(matrix_named(runtime, matrix_id)),
             gesture,
             transaction_id: TRANSACTION.into(),
             owner: LayoutOwnerIdentity {
@@ -2730,6 +2730,23 @@ mod nudge_tests {
 
     fn offset_of(parameter: PlacementParameter) -> TransformGesture {
         TransformGesture::Offset { parameter }
+    }
+
+    #[wasm_bindgen_test]
+    async fn drag_samples_share_the_immutable_matrix() {
+        let runtime = fixture::open_matrix_runtime().await;
+        let drag = begin_gesture(
+            &runtime,
+            fixture::MATRIX_ID,
+            offset_of(PlacementParameter::ColumnOffset { column: 0 }),
+        );
+        let sample = drag.clone();
+        let matrix: &Matrix = &drag.matrix;
+        let sampled_matrix: &Matrix = &sample.matrix;
+        assert!(
+            std::ptr::eq(matrix, sampled_matrix),
+            "sampling a drag must not copy the accepted matrix"
+        );
     }
 
     #[wasm_bindgen_test]
