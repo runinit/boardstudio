@@ -891,6 +891,7 @@ mod settlement_tests {
     use boardstudio_core::model::ProjectDoc;
     use boardstudio_web_runtime::pending_edits::PendingEdits;
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use wasm_bindgen_test::*;
 
     fn definition() -> PartDefinition {
@@ -949,8 +950,12 @@ mod settlement_tests {
         } }
     }
 
-    async fn tick() {
-        gloo_timers::future::TimeoutFuture::new(30).await;
+    async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
+        wait_until_step(what, async || {
+            support::run_pending(runtime).await;
+            done()
+        })
+        .await;
     }
 
     type UploadEventProbe = Rc<std::cell::RefCell<Option<FormEvent>>>;
@@ -1013,7 +1018,11 @@ mod settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("model upload control mounts", || {
+            root.query_selector("input[type=file]").unwrap().is_some()
+                && handler_probe.borrow().is_some()
+        })
+        .await;
         let input = root
             .query_selector("input[type=file]")
             .unwrap()
@@ -1040,16 +1049,15 @@ mod settlement_tests {
         input
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &init).unwrap())
             .unwrap();
-        let mut held = false;
-        for _ in 0..100 {
+        let mut entered_core = false;
+        wait_until_step("uploaded model enters Core", async || {
             support::drive_pending(&runtime);
-            tick().await;
-            if entered.try_recv().unwrap().is_some() {
-                held = true;
-                break;
+            if !entered_core {
+                entered_core = entered.try_recv().unwrap().is_some();
             }
-        }
-        assert!(held, "the real uploaded model reaches the Core gate");
+            entered_core
+        })
+        .await;
         assert!(input.disabled(), "the pending upload disables its control");
         assert!(
             !root
@@ -1060,15 +1068,24 @@ mod settlement_tests {
         );
         let retained = handler_probe.borrow().as_ref().copied().unwrap();
         let event = event_probe.borrow().clone().unwrap();
-        retained.call(event);
         for _ in 0..10 {
-            tick().await;
+            retained.call(event.clone());
         }
         release.send(()).unwrap();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            tick().await;
-        }
+        settle_until(&runtime, "uploaded model lands once", || {
+            runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .assets
+                .iter()
+                .filter(|asset| asset.name == "retained-model.stl")
+                .count()
+                == 1
+                && !input.disabled()
+        })
+        .await;
         assert_eq!(
             runtime
                 .model()
@@ -1104,9 +1121,7 @@ mod settlement_tests {
     async fn commit(input: &HtmlInputElement, value: &str) {
         input.focus().unwrap();
         type_value(input, value);
-        tick().await;
         input.blur().unwrap();
-        tick().await;
     }
 
     #[wasm_bindgen_test]
@@ -1121,11 +1136,22 @@ mod settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("model offset input mounts", || {
+            root.query_selector("input[aria-label='Offset X mm']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let x = input(&root, "X");
         commit(&x, "4").await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "first model axis edit lands", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 4.0
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1137,13 +1163,26 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "model axis Undo renders", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 0.0
+                && x.value() == "0"
+        })
+        .await;
         assert_eq!(x.value(), "0", "Undo restores the accepted axis value");
 
         commit(&x, "4").await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "same model axis edit lands again", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 4.0
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1168,19 +1207,31 @@ mod settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("model offset input mounts", || {
+            root.query_selector("input[aria-label='Offset X mm']")
+                .unwrap()
+                .is_some()
+        })
+        .await;
         let x = input(&root, "X");
         let (entered, release) = support::gate_next_core_reply(&runtime);
         commit(&x, "4").await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("model axis commit enters Core", entered)
+            .await
+            .unwrap();
         x.focus().unwrap();
         type_value(&x, "0");
-        tick().await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "older model axis edit lands", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 4.0
+                && x.value() == "0"
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1196,9 +1247,14 @@ mod settlement_tests {
         );
 
         x.blur().unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "preserved baseline draft commits", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 0.0
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1210,14 +1266,28 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "clean axis draft follows Undo", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 4.0
+                && x.value() == "4"
+        })
+        .await;
         assert_eq!(x.value(), "4", "the clean axis follows Undo");
         runtime.submit(boardstudio_application::Event::Redo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "clean axis draft follows Redo", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 0.0
+                && x.value() == "0"
+        })
+        .await;
         assert_eq!(x.value(), "0", "the clean axis follows Redo");
         runtime.unsubscribe();
         root.remove();
@@ -1235,20 +1305,34 @@ mod settlement_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        tick().await;
+        wait_until("model offset inputs mount", || {
+            root.query_selector("input[aria-label='Offset X mm']")
+                .unwrap()
+                .is_some()
+                && root
+                    .query_selector("input[aria-label='Offset Y mm']")
+                    .unwrap()
+                    .is_some()
+        })
+        .await;
         let x = input(&root, "X");
         let y = input(&root, "Y");
         let (entered, release) = support::gate_next_core_reply(&runtime);
         commit(&x, "4").await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("first model axis edit enters Core", entered)
+            .await
+            .unwrap();
         commit(&y, "7").await;
         type_value(&y, "9");
-        tick().await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "queued model axes land", || {
+            let offset = initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset;
+            offset.x == 4.0 && offset.y == 7.0 && x.value() == "4" && y.value() == "9"
+        })
+        .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             initial_model(&accepted.document.definitions[0])
@@ -1265,8 +1349,17 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "first model axis Undo settles", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                == Vec3 {
+                    x: 4.0,
+                    y: 0.0,
+                    z: 0.0,
+                }
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1280,8 +1373,13 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "second model axis Undo settles", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                == Vec3::default()
+        })
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1291,10 +1389,11 @@ mod settlement_tests {
         let (entered, release) = support::gate_next_core_reply(&runtime);
         commit(&x, "7").await;
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("next model axis edit enters Core", entered)
+            .await
+            .unwrap();
         x.focus().unwrap();
         type_value(&x, "8");
-        tick().await;
         let escape = web_sys::KeyboardEventInit::new();
         escape.set_key("Escape");
         escape.set_bubbles(true);
@@ -1302,13 +1401,21 @@ mod settlement_tests {
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap(),
         )
         .unwrap();
-        tick().await;
         x.blur().unwrap();
-        tick().await;
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(
+            &runtime,
+            "Escape cancels the newer model axis draft",
+            || {
+                initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                    .unwrap()
+                    .offset
+                    .x
+                    == 7.0
+                    && x.value() == "7"
+            },
+        )
+        .await;
         assert_eq!(
             initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
                 .unwrap()
@@ -1320,12 +1427,23 @@ mod settlement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(&runtime, "model axis Undo restores the prior X", || {
+            initial_model(&runtime.model().accepted.unwrap().document.definitions[0])
+                .unwrap()
+                .offset
+                .x
+                == 0.0
+                && x.value() == "0"
+        })
+        .await;
         support::fail_next_core_reply(&runtime, "controlled model failure");
         commit(&x, "12").await;
-        support::run_pending(&runtime).await;
-        tick().await;
+        settle_until(
+            &runtime,
+            "failed model edit restores its accepted value",
+            || x.value() == "0",
+        )
+        .await;
         assert_eq!(
             x.value(),
             "0",
@@ -1340,6 +1458,7 @@ mod settlement_tests {
         let runtime = opened().await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let mut edits = PendingEdits::default();
+        let deletion = support::observe_next(&runtime);
         edits.begin(
             &runtime,
             0_u64,
@@ -1357,7 +1476,10 @@ mod settlement_tests {
             }),
         );
         support::drive_pending(&runtime);
-        entered.await.unwrap();
+        wait_until_future("definition deletion enters Core", entered)
+            .await
+            .unwrap();
+        let model_edit = support::observe_next(&runtime);
         edits.begin(
             &runtime,
             1_u64,
@@ -1366,8 +1488,11 @@ mod settlement_tests {
             offset_edit(Axis::X, 4.0),
         );
         release.send(()).unwrap();
-        tick().await;
-        support::run_pending(&runtime).await;
+        wait_until_step("deletion and model edit settle", async || {
+            support::run_pending(&runtime).await;
+            deletion.borrow().is_some() && model_edit.borrow().is_some()
+        })
+        .await;
         let results = edits.settle(true);
         assert!(
             matches!(&results[..], [PendingEditResult::Landed { .. }, PendingEditResult::Failed { message, .. }] if message.contains("removed")),

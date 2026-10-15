@@ -590,3 +590,11 @@ The production rotary Save callback was then disabled temporarily; the mounted t
 `wait_until: rotary save enters Core did not hold within 5000 ms`. The mutation runner restored the
 file exactly (`restored_exact: true`). Evidence is in ignored
 `.evidence/ticket37-mutation-results/parts-module-profile-save-action-missing.log` and `results.json`.
+
+## Progress (2026-10-14, Parts component-model waits)
+
+The component-model mounted tests now use bounded waits for input mounts, Core entry, accepted
+axis edits, Undo/Redo projections, definition retirement, and uploaded-model settlement. The
+30 ms `tick()` helper and the 100/10/12-round polling loops are removed from
+`component_model_editor.rs`. The focused waits passed and the full Parts suite passed 70/70 in
+12.41 s; current ticket-wide repeated/full gates remain open.
