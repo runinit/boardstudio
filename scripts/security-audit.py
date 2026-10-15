@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit every lockfile, including the registry identity of patched cgmath."""
+"""Audit every lockfile, including advisories for the cgmath-next fork."""
 
 import hashlib
 import json
@@ -9,41 +9,65 @@ import tempfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
-VENDOR = ROOT / "renderer/vendor/cgmath-0.18.0"
-PATCHED_ADVISORY = "RUSTSEC-2026-0197"
+VENDOR = ROOT / "renderer/vendor/cgmath-next-0.18.1"
+PROVENANCE = ROOT / "renderer/vendor/cgmath-next-security.json"
+PROVENANCE_SHA256 = "4118cd11df30c1011214ddcbd57f714ad72858b38f491a717e15f58d32b10ea7"
+UPSTREAM_PACKAGE = "cgmath-next"
+UPSTREAM_REPO = "https://github.com/kent-tokyo/cgmath-next"
+UPSTREAM_REVISION = "ca1e234d333d184894d1838cd67451a871f33ba1"
+UPSTREAM_ARCHIVE_SHA256 = "91e7fb669c7eaa07328128cc7168bb8a8ffc03f01b872cc8a50793e5b5068f30"
+REGISTRY_ARCHIVE_SHA256 = "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317"
+PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
 
 
 def verify_vendor():
-    provenance = json.loads((VENDOR.parent / "cgmath-security.json").read_text())
-    if provenance["patchedAdvisory"] != PATCHED_ADVISORY:
-        raise ValueError("Unexpected cgmath advisory exception")
+    provenance_bytes = PROVENANCE.read_bytes()
+    if hashlib.sha256(provenance_bytes).hexdigest() != PROVENANCE_SHA256:
+        raise ValueError("cgmath-next provenance record has changed")
+    provenance = json.loads(provenance_bytes)
+    if (provenance["upstreamRepo"] != UPSTREAM_REPO
+            or provenance["upstreamVersion"] != "0.18.1"
+            or provenance["upstreamRevision"] != UPSTREAM_REVISION
+            or provenance["upstreamArchiveSha256"] != UPSTREAM_ARCHIVE_SHA256
+            or provenance["archiveSha256"] != REGISTRY_ARCHIVE_SHA256):
+        raise ValueError("Unexpected cgmath-next source revision")
     actual = {
         str(file.relative_to(VENDOR)): hashlib.sha256(file.read_bytes()).hexdigest()
         for file in VENDOR.rglob("*")
         if file.is_file() and file.relative_to(VENDOR).parts[0] != "target"
     }
     if actual != provenance["files"]:
-        raise ValueError("Vendored cgmath differs from the reviewed security patch")
+        raise ValueError("Vendored cgmath-next differs from the reviewed source")
+    manifest = tomllib.loads((VENDOR / "Cargo.toml").read_text())
+    upstream_manifest = tomllib.loads((VENDOR / "Cargo.toml.orig").read_text())
+    if manifest["package"]["name"] != "cgmath" or manifest["package"]["version"] != provenance["version"]:
+        raise ValueError("Vendored package identity must match cgmath consumers")
+    if (upstream_manifest["package"]["name"] != UPSTREAM_PACKAGE
+            or upstream_manifest["package"]["version"] != provenance["upstreamVersion"]):
+        raise ValueError("Vendored source is not the cgmath-next package")
     metadata = json.loads(subprocess.check_output([
         "cargo", "metadata", "--locked", "--format-version", "1",
         "--manifest-path", "Cargo.toml",
     ], cwd=ROOT))
     packages = [package for package in metadata["packages"] if package["name"] == "cgmath"]
-    if len(packages) != 1 or Path(packages[0]["manifest_path"]).resolve() != VENDOR / "Cargo.toml":
-        raise ValueError("Renderer must resolve exclusively to the reviewed cgmath patch")
+    if (len(packages) != 1 or packages[0]["version"] != provenance["version"]
+            or Path(packages[0]["manifest_path"]).resolve() != VENDOR / "Cargo.toml"
+            or not any(target["name"] == "cgmath" and "lib" in target["kind"]
+                       for target in packages[0]["targets"])):
+        raise ValueError("Renderer must resolve exclusively to the reviewed cgmath-next source")
     return provenance
 
 
 def registry_lockfile(source, provenance):
-    # cargo-audit skips path dependencies. Restore the original registry identity
-    # only in its audit input so future cgmath advisories are still detected.
+    # cargo-audit skips path dependencies. Restore the cgmath identity only in
+    # its audit input so future advisories still apply to this renamed fork.
     blocks = source.split("[[package]]")
     for index, block in enumerate(blocks[1:], 1):
         package = tomllib.loads(block)
         if package["name"] == "cgmath" and "source" not in package:
             version = package["version"]
             if version != provenance["version"]:
-                raise ValueError("Unexpected vendored cgmath version")
+                raise ValueError("Unexpected vendored cgmath-next version")
             blocks[index] = block.replace(
                 f'version = "{version}"',
                 f'version = "{version}"\n'
@@ -57,9 +81,8 @@ def registry_lockfile(source, provenance):
 def main():
     provenance = verify_vendor()
     failed = False
-    locks = ["Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-0.18.0/Cargo.lock"]
-    # The workspace lock and the vendor's own lock both contain the patched cgmath.
-    patched_locks = {"Cargo.lock", "renderer/vendor/cgmath-0.18.0/Cargo.lock"}
+    locks = ["Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"]
+    patched_locks = {"Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"}
     for lock in locks:
         print(f"\nAuditing {lock}", flush=True)
         source = (ROOT / lock).read_text()
@@ -69,8 +92,9 @@ def main():
             audit_input.flush()
             command = ["cargo", "audit", "--file", audit_input.name, "--deny", "unsound"]
             if patched:
-                print(f"Verified local fix for {PATCHED_ADVISORY}; other advisories remain enforced.", flush=True)
-                command.extend(["--ignore", PATCHED_ADVISORY])
+                print(f"Verified cgmath-next source; ignoring its renamed upstream advisories {', '.join(PATCHED_ADVISORIES)}.", flush=True)
+                for advisory in PATCHED_ADVISORIES:
+                    command.extend(["--ignore", advisory])
             failed |= subprocess.run(command, cwd=ROOT).returncode != 0
     raise SystemExit(1 if failed else 0)
 

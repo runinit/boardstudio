@@ -1,36 +1,20 @@
-# cgmath security patch
+# Renderer math dependency
 
-The renderer retains three-d 0.19.0 and three-d-asset 0.10.0. Both resolve to
-the published cgmath 0.18.0 source in this directory through Cargo's patch table.
-The upstream Apache-2.0 license and provenance are retained.
+The workspace patches crates.io `cgmath` 0.18.0 to source from `cgmath-next`
+0.18.1 at upstream revision `ca1e234d333d184894d1838cd67451a871f33ba1`. The
+vendored manifest keeps package name `cgmath` and version `0.18.0` because
+`three-d` and `three-d-asset` require that package identity. `Cargo.toml.orig`
+preserves the upstream manifest, and `cgmath-next-security.json` verifies the
+source revision and every vendored file.
 
-`cgmath-security.json` records the verified crates.io archive checksum and hashes
-of every vendored file. Compared with that archive, `src/matrix.rs` replaces the
-six aliasing pointer swaps with safe value swaps and removes the unused pointer
-import. `tests/security_swaps.rs` and a reproducible test Cargo.lock are added. The upstream `.gitignore` is
-adjusted to retain that lockfile.
+The successor fixes the unsafe swap implementation and adds runtime layout
+guards before tuple reference conversions. Its `tests/soundness` suite covers
+those conversions and the swap regressions; CI runs that suite under Miri.
 
-This fixes [RUSTSEC-2026-0197](https://rustsec.org/advisories/RUSTSEC-2026-0197.html).
-The same aliasing pattern in matrix element swaps is fixed alongside column
-swaps. Equal valid indices are no-ops; invalid indices continue to panic.
+The vendored source removes obsolete `#[inline]` attributes on macro calls and
+unreachable `simd` and `rustc-serialize` cfgs that emitted compiler warnings.
+The removed SIMD code was not a declared Cargo feature. The explicit Rust 2015
+edition matches Cargo's previous default.
 
-The security tests reproduce undefined behavior on the original source under
-Miri and pass with the patch. Run them with:
-
-```sh
-cp -r renderer/vendor/cgmath-0.18.0 /tmp/cgmath-0.18.0
-cargo +nightly-2026-08-12 miri test --manifest-path /tmp/cgmath-0.18.0/Cargo.toml --locked --test security_swaps
-```
-
-The copy is needed because the workspace patches crates.io `cgmath` with this
-directory, so Cargo treats it as a workspace package in place.
-
-The security audit verifies file hashes and actual Cargo resolution before
-allowing the single patched advisory. It restores the registry identity in a
-temporary audit input because cargo-audit otherwise skips path dependencies.
-Future cgmath advisories still fail the gate. The unmaintained notices for
-cgmath, instant and smartstring remain visible and are not security fixes.
-
-Remove this patch when an upstream maintained release fixes these operations
-and the renderer can adopt it without an architecture change. Any local patch
-change requires reviewing the source diff, rerunning Miri and updating hashes.
+`cgmath-0.18.0/` retains the previous reviewed swap-only patch as an unused
+fallback. It is not in the active dependency graph.

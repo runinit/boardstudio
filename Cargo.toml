@@ -22,10 +22,15 @@ members = [
 ]
 # The CAD crates build in their own toolchains: cad/wasm inside the pinned
 # wasi-sdk container and cad/step-oracle against native OCCT.
-exclude = ["cad/wasm", "cad/step-oracle", "renderer/vendor/cgmath-0.18.0"]
+exclude = [
+  "cad/wasm",
+  "cad/step-oracle",
+  "renderer/vendor/cgmath-0.18.0",
+  "renderer/vendor/cgmath-next-0.18.1",
+]
 
 [patch.crates-io]
-cgmath = { path = "renderer/vendor/cgmath-0.18.0" }
+cgmath = { path = "renderer/vendor/cgmath-next-0.18.1" }
 
 # `dx serve` builds the page with this profile. Full debuginfo made the debug wasm
 # about 550 MB, and dx's `wasm-bindgen --keep-debug` pass over it took about 52 s of a

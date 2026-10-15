@@ -96,7 +96,7 @@ def browser() -> list[Command]:
     ]
 
 
-# `--no-deps` keeps Clippy off the vendored cgmath patch; its lints are not ours to fix.
+# `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
