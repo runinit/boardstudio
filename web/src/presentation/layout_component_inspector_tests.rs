@@ -133,6 +133,138 @@ fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
 }
 
 #[wasm_bindgen_test]
+fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
+    let (mut model, selected) = fixture();
+    let key = "matrix/component-matrix/r0c0";
+    let companion = "matrix/component-matrix/r0c0/led";
+    let disabled = "matrix/component-matrix/r0c1";
+    let deleted = "matrix/component-matrix/r0c2";
+    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
+    let document = Arc::make_mut(&mut snapshot.document);
+    document.boards[0]
+        .part_ids
+        .extend([key, companion, disabled, deleted].map(str::to_owned));
+    for (id, reference) in [
+        (key, "SW1"),
+        (companion, "D1"),
+        (disabled, "SW2"),
+        (deleted, "SW3"),
+    ] {
+        let mut part = document.parts[0].clone();
+        part.id = id.to_owned();
+        part.reference = reference.to_owned();
+        document.parts.push(part);
+    }
+    document.matrices.push(Matrix {
+        id: "component-matrix".into(),
+        name: None,
+        rows: 1,
+        columns: 3,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "component-definition".into(),
+        part_ids: [key, companion, disabled, deleted]
+            .map(str::to_owned)
+            .to_vec(),
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_offsets: vec![],
+        column_offsets: vec![],
+        column_staggers: vec![],
+        column_splays: vec![],
+        column_origins: vec![],
+        cells: vec![
+            MatrixCell {
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            },
+            MatrixCell {
+                deleted: false,
+                row: 0,
+                column: 1,
+                enabled: false,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            },
+            MatrixCell {
+                deleted: true,
+                row: 0,
+                column: 2,
+                enabled: true,
+                definition_id: None,
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            },
+        ],
+    });
+    Arc::make_mut(&mut snapshot.scene)
+        .matrix_scenes
+        .push(MatrixScene {
+            matrix_id: "component-matrix".into(),
+            columns: vec![],
+            companions: vec![],
+            cells: vec![
+                MatrixSceneCell {
+                    row: 0,
+                    column: 0,
+                    enabled: true,
+                    member_id: Some(key.into()),
+                    pose: Pose2 {
+                        at: Vec2::default(),
+                        rotation: 0.0,
+                    },
+                },
+                MatrixSceneCell {
+                    row: 0,
+                    column: 1,
+                    enabled: false,
+                    member_id: None,
+                    pose: Pose2 {
+                        at: Vec2::default(),
+                        rotation: 0.0,
+                    },
+                },
+            ],
+        });
+
+    let projection = super::layout_component_inspector_projection(&model, Some(&selected), 1, 1)
+        .expect("selected component projects");
+    let choices: Vec<_> = projection
+        .board_parts
+        .iter()
+        .filter(|part| [key, companion, disabled, deleted].contains(&part.id.as_str()))
+        .map(|part| (part.id.as_str(), part.matrix_key))
+        .collect();
+    assert_eq!(
+        choices,
+        [
+            (key, true),
+            (companion, false),
+            (disabled, false),
+            (deleted, false)
+        ]
+    );
+}
+
+#[wasm_bindgen_test]
 fn companion_placement_projection_normalizes_layout_selections() {
     use serde_json::json;
 

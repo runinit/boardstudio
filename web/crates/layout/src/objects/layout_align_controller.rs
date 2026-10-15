@@ -47,7 +47,7 @@ struct AlignFeedbackState {
     feedback: AlignFeedback,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct AlignProjection {
     references: Vec<AlignReference>,
     selected_reference: Option<String>,
@@ -57,6 +57,22 @@ struct AlignProjection {
     context: Option<TreeContext>,
     moving_ids: Vec<String>,
     reference_authoritative: bool,
+}
+
+#[derive(Clone, PartialEq)]
+struct AlignProjectionIdentity {
+    accepted_token: Option<boardstudio_application::SnapshotToken>,
+    live_scope: Option<Scope>,
+    active_board_id: String,
+    active_instance_id: Option<String>,
+    selected_ids: Vec<String>,
+    lifecycle: Lifecycle,
+    durability: Durability,
+    has_preview: bool,
+    has_gesture: bool,
+    selected: Option<ScopedTreeContext>,
+    workspace: &'static str,
+    owner_workspace: &'static str,
 }
 
 #[derive(Clone)]
@@ -100,13 +116,44 @@ pub fn use_canvas_align(
         workspace: current_workspace,
         scope_generation: current_scope_generation,
     };
-    let mut projection = project(
-        &runtime,
-        selected.as_ref(),
-        current_workspace,
-        selected_reference.read().as_deref(),
+    let model = runtime.model();
+    let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+    let active_board_id = model.active_board_id.clone();
+    let active_instance_id = model.active_instance_id.clone();
+    let selected_ids = model.selected_part_ids.clone();
+    let lifecycle = model.lifecycle;
+    let durability = model.durability.clone();
+    let has_preview = model.display_preview.is_some();
+    let has_gesture = model.gesture.is_some();
+    let live_scope = runtime.scope();
+    let projection_identity = AlignProjectionIdentity {
+        accepted_token,
+        live_scope,
+        active_board_id,
+        active_instance_id,
+        selected_ids,
+        lifecycle,
+        durability,
+        has_preview,
+        has_gesture,
+        selected: selected.clone(),
+        workspace: current_workspace,
         owner_workspace,
-    );
+    };
+    let mut projection = use_memo(use_reactive((&projection_identity,), {
+        let runtime = runtime.clone();
+        move |(identity,)| {
+            project(
+                &runtime,
+                identity.selected.as_ref(),
+                identity.workspace,
+                None,
+                identity.owner_workspace,
+            )
+        }
+    }))
+    .read()
+    .clone();
 
     // Numeric version is deliberately read as a dependency so the exact request settles after
     // accepted operations even when the Align popover or Layout workspace is hidden.
@@ -120,19 +167,11 @@ pub fn use_canvas_align(
         ),
         {
             let runtime = runtime.clone();
-            let mut selected_reference = selected_reference;
+            let selected_reference = selected_reference;
             let pending = pending.clone();
             let mut align_follow_up = align_follow_up;
             let mut feedback = feedback;
             move |(_, workspace, scope_generation, identity, _reference_id)| {
-                reconcile_reference(
-                    &runtime,
-                    selected_context,
-                    workspace,
-                    scope_generation,
-                    &mut selected_reference,
-                    owner_workspace,
-                );
                 settle_pending(
                     &runtime,
                     selected_context,
@@ -290,25 +329,6 @@ pub fn use_canvas_align(
         }
     });
 
-    projection = project(
-        &runtime,
-        selected.as_ref(),
-        current_workspace,
-        projection.selected_reference.as_deref(),
-        owner_workspace,
-    );
-    let retained_reference = selected_reference.peek().clone();
-    let eligible_reference_ids: Vec<_> = projection
-        .references
-        .iter()
-        .map(|reference| reference.id.clone())
-        .collect();
-    projection.selected_reference = reconcile_reference_choice(
-        retained_reference.as_deref(),
-        &eligible_reference_ids,
-        projection.reference_authoritative,
-        |next| selected_reference.set(next),
-    );
     let action = if projection.enabled {
         selected
             .as_ref()
@@ -337,36 +357,6 @@ pub fn use_canvas_align(
         on_reference,
         on_align,
     }
-}
-
-fn reconcile_reference(
-    runtime: &Runtime,
-    selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: &'static str,
-    _scope_generation: u64,
-    selected_reference: &mut Signal<Option<String>>,
-    owner_workspace: &'static str,
-) {
-    if !workspace_route_matches(workspace, owner_workspace) {
-        return;
-    }
-    let selected = selected_context.peek().clone();
-    if selected.is_none() {
-        return;
-    }
-    let current = project(runtime, selected.as_ref(), workspace, None, owner_workspace);
-    if !current.reference_authoritative {
-        return;
-    }
-    let eligible: Vec<_> = current
-        .references
-        .iter()
-        .map(|reference| reference.id.clone())
-        .collect();
-    let current_reference = selected_reference.peek().clone();
-    reconcile_reference_choice(current_reference.as_deref(), &eligible, true, |next| {
-        selected_reference.set(next)
-    });
 }
 
 fn workspace_route_matches(current: &str, owner: &str) -> bool {

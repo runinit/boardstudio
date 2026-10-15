@@ -59,6 +59,105 @@ fn stored_row_grouping_and_empty_model_projection_remain_defined() {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+fn part_context_preserves_exact_primary_and_assembly_membership() {
+    use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
+    use serde_json::json;
+    use std::sync::Arc;
+
+    let mut document = synthetic_outline_document();
+    let ids = [
+        "key-1",
+        "key-10",
+        "key-10/diode/path",
+        "key-10/unknown",
+        "disabled",
+        "disabled/diode",
+        "standalone",
+        "off-board",
+    ];
+    let part = document.parts[0].clone();
+    document.parts = ids
+        .iter()
+        .map(|id| {
+            let mut part = part.clone();
+            part.id = (*id).into();
+            part
+        })
+        .collect();
+    document.boards[0].part_ids = ids[..7].iter().map(|id| (*id).into()).collect();
+    document.boards[0].part_ids.push("missing".into());
+    document.matrices = vec![serde_json::from_value(json!({
+        "id": "matrix", "rows": 1, "columns": 3,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": 0},
+        "definitionId": "switch", "partIds": &ids[..6], "boardId": "main",
+        "cells": [
+            {"row": 0, "column": 0, "enabled": true, "assemblies": [{"id": "diode", "definitionId": "diode", "offset": {"x": 0, "y": 0}}]},
+            {"row": 0, "column": 1, "enabled": true, "assemblies": [{"id": "diode/path", "definitionId": "diode", "offset": {"x": 0, "y": 0}}]},
+            {"row": 0, "column": 2, "enabled": false, "assemblies": [{"id": "diode", "definitionId": "diode", "offset": {"x": 0, "y": 0}}]}
+        ]
+    })).unwrap()];
+    let scene = serde_json::from_value(json!({
+        "revision": 0, "transactionId": "context-test", "changedIds": [],
+        "transforms": [], "matrixScenes": [{
+            "matrixId": "matrix", "columns": [], "cells": [
+                {"row": 0, "column": 0, "enabled": true, "memberId": "key-1", "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}},
+                {"row": 0, "column": 1, "enabled": true, "memberId": "key-10", "pose": {"at": {"x": 19, "y": 0}, "rotation": 0}},
+                {"row": 0, "column": 2, "enabled": false, "memberId": "disabled", "pose": {"at": {"x": 38, "y": 0}, "rotation": 0}}
+            ]
+        }], "contours": [], "boardContours": [], "boardReadiness": [], "findings": [],
+        "readiness": {"layout": true, "outline": false, "pcb": false, "case": false}
+    })).unwrap();
+    let model = ReadModel {
+        accepted: Some(AcceptedSnapshot {
+            token: SnapshotToken(1),
+            session_epoch: SessionEpoch(1),
+            document: Arc::new(document),
+            scene: Arc::new(scene),
+        }),
+        active_board_id: "main".into(),
+        ..ReadModel::default()
+    };
+    assert_eq!(
+        super::context_for_part(&model, "key-10"),
+        Some(TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        })
+    );
+    assert_eq!(
+        super::context_for_part(&model, "key-10/diode/path"),
+        Some(TreeContext::Component {
+            part_id: Some("key-10/diode/path".into()),
+            matrix_id: Some("matrix".into()),
+            row: Some(0),
+            column: Some(1),
+            assembly_id: Some("diode/path".into()),
+        })
+    );
+    for id in [
+        "key-10/unknown",
+        "disabled",
+        "disabled/diode",
+        "off-board",
+        "missing",
+    ] {
+        assert_eq!(super::context_for_part(&model, id), None, "{id}");
+    }
+    assert_eq!(
+        super::context_for_part(&model, "standalone"),
+        Some(TreeContext::Component {
+            part_id: Some("standalone".into()),
+            matrix_id: None,
+            row: None,
+            column: None,
+            assembly_id: None,
+        })
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn deleted_cells_are_absent_from_tree_but_disabled_slots_remain() {
     let document = ProjectDoc::empty("tree-deletion", "Tree deletion");
     let matrix = serde_json::from_value(serde_json::json!({

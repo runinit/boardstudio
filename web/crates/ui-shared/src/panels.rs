@@ -153,6 +153,15 @@ pub fn use_panel_settings(side: PanelSide, storage_warning: Signal<bool>) -> Sig
     settings
 }
 
+struct PanelResizeDrag {
+    pointer_id: i32,
+    frame: HtmlElement,
+    frame_left: f64,
+    frame_right: f64,
+    available_width: f64,
+    width: Option<f64>,
+}
+
 fn read_settings(side: PanelSide, mut storage_warning: Signal<bool>) -> PanelSettings {
     let Some(storage) = preference_storage(&mut storage_warning) else {
         return PanelSettings::default_pinned();
@@ -290,6 +299,7 @@ fn panel_frame(
     let revealed = use_signal(|| false);
     let hovered = use_signal(|| false);
     let focus_rail_after_render = use_signal(|| false);
+    let resize_drag = use_hook(|| Rc::new(RefCell::new(None::<PanelResizeDrag>)));
     let hide_timer = use_hook(|| Rc::new(RefCell::new(None::<Timeout>)));
     let outside_listener = use_hook(OutsideListener::default);
 
@@ -313,6 +323,10 @@ fn panel_frame(
     let timer_rail_click = hide_timer.clone();
     let timer_content_enter = hide_timer.clone();
     let timer_content_leave = hide_timer.clone();
+    let resize_drag_start = resize_drag.clone();
+    let resize_drag_move = resize_drag.clone();
+    let resize_drag_end = resize_drag.clone();
+    let resize_drag_cancel = resize_drag.clone();
 
     use_effect(use_reactive((&compact(),), {
         let hide_timer = hide_timer.clone();
@@ -548,30 +562,39 @@ fn panel_frame(
                                 if raw.button() != 0 { return; }
                                 event.prevent_default();
                                 if let Some(target) = panel_resize_target(&raw) {
-                                    let _ = target.set_pointer_capture(raw.pointer_id());
+                                    if let Some(drag) = begin_panel_resize(side, raw.pointer_id()) {
+                                        let _ = target.set_pointer_capture(raw.pointer_id());
+                                        *resize_drag_start.borrow_mut() = Some(drag);
+                                    }
                                 }
                             },
                             onpointermove: move |event: dioxus::prelude::PointerEvent| {
                                 let Some(raw) = event.data().try_as_web_event() else { return; };
                                 let Some(target) = panel_resize_target(&raw) else { return; };
                                 if !target.has_pointer_capture(raw.pointer_id()) { return; }
-                                if let Some(width) = pointer_panel_width(side, raw.client_x()) {
-                                    set_panel_width(settings, side, width);
-                                }
+                                let mut active = resize_drag_move.borrow_mut();
+                                let Some(drag) = active.as_mut().filter(|drag| drag.pointer_id == raw.pointer_id()) else { return; };
+                                let requested = match side {
+                                    PanelSide::Objects => f64::from(raw.client_x()) - drag.frame_left,
+                                    PanelSide::Inspector => drag.frame_right - f64::from(raw.client_x()),
+                                };
+                                let width = side.resize_width(requested, drag.available_width);
+                                preview_panel_width(&drag.frame, &target, side, width);
+                                drag.width = Some(width);
                             },
                             onpointerup: move |event: dioxus::prelude::PointerEvent| {
-                                if let Some(raw) = event.data().try_as_web_event()
-                                    && let Some(target) = panel_resize_target(&raw)
-                                {
+                                let Some(raw) = event.data().try_as_web_event() else { return; };
+                                if let Some(target) = panel_resize_target(&raw) {
                                     let _ = target.release_pointer_capture(raw.pointer_id());
                                 }
+                                finish_panel_resize(settings, &resize_drag_end, raw.pointer_id());
                             },
                             onpointercancel: move |event: dioxus::prelude::PointerEvent| {
-                                if let Some(raw) = event.data().try_as_web_event()
-                                    && let Some(target) = panel_resize_target(&raw)
-                                {
+                                let Some(raw) = event.data().try_as_web_event() else { return; };
+                                if let Some(target) = panel_resize_target(&raw) {
                                     let _ = target.release_pointer_capture(raw.pointer_id());
                                 }
+                                finish_panel_resize(settings, &resize_drag_cancel, raw.pointer_id());
                             },
                         }
                     }
@@ -698,15 +721,78 @@ fn available_panel_width(side: PanelSide) -> f64 {
     (frame.get_bounding_client_rect().width() - opposing_width - MINIMUM_CENTER_WIDTH).max(0.0)
 }
 
-fn pointer_panel_width(side: PanelSide, client_x: i32) -> Option<f64> {
+fn begin_panel_resize(side: PanelSide, pointer_id: i32) -> Option<PanelResizeDrag> {
     let document = web_sys::window()?.document()?;
     let shell = document.get_element_by_id(PanelIds::for_side(side).shell)?;
-    let frame = shell.closest(".m1-editor-body").ok().flatten()?;
+    let frame = shell
+        .closest(".m1-editor-body")
+        .ok()
+        .flatten()?
+        .dyn_into::<HtmlElement>()
+        .ok()?;
     let rect = frame.get_bounding_client_rect();
-    Some(match side {
-        PanelSide::Objects => f64::from(client_x) - rect.left(),
-        PanelSide::Inspector => rect.right() - f64::from(client_x),
+    let opposing = match side {
+        PanelSide::Objects => PanelSide::Inspector,
+        PanelSide::Inspector => PanelSide::Objects,
+    };
+    let opposing_compact = media_query(opposing).is_some_and(|query| query.matches());
+    let opposing_width = if !opposing_compact
+        && document
+            .get_element_by_id(PanelIds::for_side(opposing).shell)
+            .is_some_and(|other| other.get_attribute("data-mode").as_deref() == Some("pinned"))
+    {
+        document
+            .get_element_by_id(PanelIds::for_side(opposing).shell)
+            .map(|other| other.get_bounding_client_rect().width())
+            .unwrap_or_default()
+    } else {
+        0.0
+    };
+    Some(PanelResizeDrag {
+        pointer_id,
+        frame,
+        frame_left: rect.left(),
+        frame_right: rect.right(),
+        available_width: (rect.width() - opposing_width - MINIMUM_CENTER_WIDTH).max(0.0),
+        width: None,
     })
+}
+
+fn preview_panel_width(
+    frame: &HtmlElement,
+    handle: &web_sys::Element,
+    side: PanelSide,
+    width: f64,
+) {
+    let variable = match side {
+        PanelSide::Objects => "--m1-left-panel-width",
+        PanelSide::Inspector => "--m1-right-panel-width",
+    };
+    let _ = frame.style().set_property(variable, &format!("{width}px"));
+    let _ = handle.set_attribute("aria-valuenow", &width.to_string());
+}
+
+fn finish_panel_resize(
+    mut settings: Signal<PanelSettings>,
+    resize_drag: &Rc<RefCell<Option<PanelResizeDrag>>>,
+    pointer_id: i32,
+) {
+    let width = {
+        let mut active = resize_drag.borrow_mut();
+        if active
+            .as_ref()
+            .is_some_and(|drag| drag.pointer_id == pointer_id)
+        {
+            active.take().and_then(|drag| drag.width)
+        } else {
+            None
+        }
+    };
+    if let Some(width) = width {
+        let mut next = settings();
+        next.width = Some(width);
+        settings.set(next);
+    }
 }
 
 fn set_panel_width(mut settings: Signal<PanelSettings>, side: PanelSide, requested: f64) {
@@ -878,3 +964,7 @@ fn remove_outside_listener(listener: &OutsideListener) {
 #[cfg(all(test, target_arch = "wasm32"))]
 #[path = "panels_scroll_tests.rs"]
 mod scroll_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "panels_resize_tests.rs"]
+mod resize_tests;

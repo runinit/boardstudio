@@ -1484,6 +1484,17 @@ impl Session {
                 );
                 continue;
             }
+            if let IntentKind::Edit(command) = &intent.kind
+                && command.phase == EditPhase::Preview
+                && self
+                    .model
+                    .accepted
+                    .as_ref()
+                    .is_none_or(|snapshot| snapshot.document.revision != command.base_revision)
+            {
+                self.settle(intent.operation_id, TerminalOutcome::Superseded, effects);
+                continue;
+            }
             if let IntentKind::Generate(scope) = &intent.kind {
                 if self.model.lifecycle != Lifecycle::Ready {
                     self.queue.push_front(intent);

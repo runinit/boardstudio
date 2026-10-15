@@ -102,7 +102,7 @@ Check-speed's pending links: [11](check-speed/issues/11-browser-measure.md), [12
 These items are not counted as pending tickets and do not create dependencies:
 
 - Remaining Inspector visual observation/polish, separately authorized: five objective source/acceptance packets are complete, but no live visual observations have occurred and no rendered CSS defect is established. Ticket 12 only corrected copy; it does not claim visual polish complete.
-- Typed Core's [not-yet-specified intent list](typed-core-edits/map.md#not-yet-specified) and the deferred behaviors in the [product backlog](../backlog.md): stale edit previews, Rust convention audit, Undo/Redo, generator error messaging, runtime ownership, geometry ownership, host interfaces, asynchronous cancellation, CAD transport, archive boundaries, identity, outline-edit follow-ups, catalogue boundaries, test-contract preservation, controls and canvas performance. Reproduce behavior before turning an item into implementation work.
+- Typed Core's [not-yet-specified intent list](typed-core-edits/map.md#not-yet-specified) and the deferred behaviors in the [product backlog](../backlog.md): Rust convention audit, Undo/Redo, generator error messaging, runtime ownership, geometry ownership, host interfaces, asynchronous cancellation, CAD transport, archive boundaries, identity, outline-edit follow-ups, catalogue boundaries, test-contract preservation and controls. Reproduce behavior before turning an item into implementation work.
 - Ticket-level human actions remain those explicitly marked `ready-for-human`, especially 45, 46, 56, 57 and 79; distinguish them from evidence/readiness gaps. The 118 engineering gaps do not imply a new BOM approval step.
 
 ## Operating constraints

@@ -4,6 +4,11 @@ Board Studio describes keyboard boards and their associated mechanical assemblie
 
 ## Language
 
+**Layout canvas view**:
+The rendered presentation of a board's layout. It reflects the current accepted design and
+any active preview; selection and gesture feedback affect its appearance without changing
+the accepted design.
+
 **Generated outline**:
 A board boundary derived from the current placement of its included components
 and the chosen outline settings; it updates as the layout changes.

@@ -1297,6 +1297,68 @@ fn selection_navigation_and_camera_updates_are_session_only() {
 }
 
 #[test]
+fn preview_queued_behind_a_commit_is_discarded_after_its_revision_changes() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+
+    let effects = session.submit(move_edit(20, 0, 3.0));
+    let (commit_id, commit_epoch, commit_request) = core_effect(&effects);
+    let commit_reply = engine.handle(commit_request);
+    session.submit(Event::PreviewEdit {
+        operation_id: OperationId(21),
+        transaction_id: "stale-position-preview".into(),
+        target_ids: vec!["key".into()],
+        operation: EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "key".into(),
+                at: Vec2 { x: 8.0, y: 0.0 },
+            }],
+        },
+    });
+
+    let effects = session.complete(Completion::Core {
+        request_id: commit_id,
+        executor_epoch: commit_epoch,
+        reply: Box::new(commit_reply),
+    });
+    let (save_attempt_id, committed) = save_effect(&effects);
+    assert_eq!(committed.parts[0].pose.at.x, 3.0);
+
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Core { .. }))
+    );
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            operation_id: OperationId(21),
+            outcome: TerminalOutcome::Superseded,
+            ..
+        }
+    )));
+    assert!(session.read_model().display_preview.is_none());
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .parts[0]
+            .pose
+            .at
+            .x,
+        3.0
+    );
+}
+
+#[test]
 fn matrix_range_selects_rectangle_of_live_primary_members_and_keeps_anchor() {
     let mut session = Session::new();
     let mut engine = CoreEngine::new();

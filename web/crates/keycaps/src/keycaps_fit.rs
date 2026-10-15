@@ -802,6 +802,22 @@ pub fn layout_canvas_bounds(
 
     let visible_part_ids: std::collections::BTreeSet<&str> =
         board.part_ids.iter().map(String::as_str).collect();
+    let mut parts = std::collections::BTreeMap::new();
+    for part in &document.parts {
+        parts.entry(part.id.as_str()).or_insert(part);
+    }
+    let mut definitions = std::collections::BTreeMap::new();
+    for definition in &document.definitions {
+        definitions
+            .entry(definition.id.as_str())
+            .or_insert(definition);
+    }
+    let mut transforms = std::collections::BTreeMap::new();
+    for transform in &scene.transforms {
+        transforms
+            .entry(transform.id.as_str())
+            .or_insert(transform.pose);
+    }
     let visible_matrices: Vec<_> = document
         .matrices
         .iter()
@@ -833,20 +849,10 @@ pub fn layout_canvas_bounds(
             else {
                 continue;
             };
-            let part = document.parts.iter().find(|part| part.id == member_id);
+            let part = parts.get(member_id).copied();
             let definition = part
-                .and_then(|part| {
-                    document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == part.definition_id)
-                })
-                .or_else(|| {
-                    document
-                        .definitions
-                        .iter()
-                        .find(|definition| definition.id == matrix.definition_id)
-                });
+                .and_then(|part| definitions.get(part.definition_id.as_str()).copied())
+                .or_else(|| definitions.get(matrix.definition_id.as_str()).copied());
             let size = part
                 .and_then(|part| part.keycap)
                 .or_else(|| definition.and_then(|definition| definition.keycap))
@@ -861,18 +867,14 @@ pub fn layout_canvas_bounds(
     for part in document
         .parts
         .iter()
-        .filter(|part| board.part_ids.contains(&part.id))
+        .filter(|part| visible_part_ids.contains(part.id.as_str()))
     {
-        let pose = scene
-            .transforms
-            .iter()
-            .find(|transform| transform.id == part.id)
-            .map_or(part.pose, |transform| transform.pose);
+        let pose = transforms
+            .get(part.id.as_str())
+            .copied()
+            .unwrap_or(part.pose);
         include_point(&mut bounds, pose.at);
-        let definition = document
-            .definitions
-            .iter()
-            .find(|definition| definition.id == part.definition_id);
+        let definition = definitions.get(part.definition_id.as_str()).copied();
         let keycap = (definition.is_some_and(|definition| {
             matches!(&definition.kind, boardstudio_core::model::PartKind::Switch)
         }))
@@ -1673,6 +1675,23 @@ mod tests {
             finding_navigation_bounds(&document, &scene, "different-finding", &part_target),
             Some((28.0, 52.0, 58.0, 82.0)),
             "an absent matching marker falls back to target bounds"
+        );
+        assert_eq!(
+            layout_canvas_bounds(&document, &scene, "board"),
+            Some((28.0, 52.0, 58.0, 82.0))
+        );
+        let mut scene = scene;
+        let mut duplicate = scene.transforms[0].clone();
+        duplicate.pose.at.x = 10_000.0;
+        scene.transforms.push(duplicate);
+        let mut off_board = document.parts[0].clone();
+        off_board.id = "other-board-part".into();
+        off_board.pose.at.x = 20_000.0;
+        document.parts.push(off_board);
+        assert_eq!(
+            layout_canvas_bounds(&document, &scene, "board"),
+            Some((28.0, 52.0, 58.0, 82.0)),
+            "camera fitting uses the first transform and excludes parts outside the board"
         );
     }
 

@@ -451,7 +451,8 @@ pub fn use_mechanical_settings_mount(
             )
         },
     ));
-    let props = current_projection.map(|current| {
+    // Keep settlement alive in every workspace; prepare panel data only while Case is visible.
+    let props = current_projection.filter(|_| workspace() == "Case").map(|current| {
         let configuration = current.configuration.as_ref();
         let mismatch = configuration
             .filter(|configuration| configuration.board_id != current.identity.active_board_id)
@@ -1105,6 +1106,90 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    fn workspace_props_host() -> Element {
+        crate::test_contexts::use_case_viewer_test_contexts();
+        boardstudio_web_ui_model::state::use_empty_test_instance_selection();
+        let runtime = use_context::<Rc<Runtime>>();
+        let crate::WorkspaceState(mut workspace) = use_context::<crate::WorkspaceState>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        let mount = use_mechanical_settings_mount(
+            runtime,
+            use_context::<crate::selection::SelectionAdapter>().generation,
+            workspace,
+            use_context::<InstanceSelection>(),
+            use_context::<CaseSelection>(),
+            EventHandler::new(|_| {}),
+        );
+        rsx! {
+            button { id: "show-layout", onclick: move |_| workspace.set("Layout"), "Layout" }
+            button { id: "show-case", onclick: move |_| workspace.set("Case"), "Case" }
+            output { id: "workspace", "{workspace()}" }
+            output { id: "case-props", "{mount.props.is_some()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn hidden_case_skips_presentation_props_and_rebuilds_them_on_return() {
+        use boardstudio_web_runtime::runtime::{
+            in_process_support, project_name_test_support as support,
+        };
+        use boardstudio_web_ui_shared::test_wait::wait_until;
+        use wasm_bindgen::JsCast;
+
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, in_process_support::board_document()).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let mut dom = VirtualDom::new(workspace_props_host);
+        dom.insert_any_root_context(Box::new(runtime.clone()));
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let props_visible = || {
+            root.query_selector("#case-props")
+                .ok()
+                .flatten()
+                .and_then(|element| element.text_content())
+                .as_deref()
+                == Some("true")
+        };
+        wait_until("Case prepares presentation props", props_visible).await;
+        root.query_selector("#show-layout")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        wait_until("workspace switches to Layout", || {
+            root.query_selector("#workspace")
+                .ok()
+                .flatten()
+                .and_then(|element| element.text_content())
+                .as_deref()
+                == Some("Layout")
+        })
+        .await;
+        assert!(
+            !props_visible(),
+            "hidden Case must skip preparing presentation props"
+        );
+        root.query_selector("#show-case")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        wait_until(
+            "Case rebuilds presentation props after return",
+            props_visible,
+        )
+        .await;
+        root.remove();
+    }
 
     fn assembly_with_plate(thickness: f64) -> MechanicalAssembly {
         serde_json::from_value(serde_json::json!({

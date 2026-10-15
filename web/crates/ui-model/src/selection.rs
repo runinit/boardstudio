@@ -336,14 +336,14 @@ pub fn submit_matrix_cell_selection(
     if !context_is_current(&model, scope, &context) {
         return None;
     }
-    let eligible = eligible_live_ids(&model);
-    if !eligible.iter().any(|id| id == &target_part_id) {
+    let eligible = |id: &str| objects::context_for_part(&model, id).is_some();
+    if !eligible(&target_part_id) {
         return None;
     }
     let range_anchor_is_current = mode != SelectionMode::Range
         || ((adapter.anchor_scope)().as_ref() == Some(scope)
             && model.selection_anchor_id.as_ref().is_some_and(|anchor| {
-                eligible.iter().any(|id| id == anchor)
+                eligible(anchor)
                     && matches!(
                         objects::context_for_part(&model, anchor),
                         Some(TreeContext::Key { matrix_id: anchor_matrix, .. })
@@ -359,7 +359,7 @@ pub fn submit_matrix_cell_selection(
     };
     let ids = objects::resolve_selection(&model, &context)?
         .into_iter()
-        .filter(|id| eligible.iter().any(|candidate| candidate == id))
+        .filter(|id| eligible(id))
         .collect::<Vec<_>>();
     let context = additive_inspector_context(&model, &context, &ids, mode, Some(hit_context));
     let mut selected_context = adapter.selected_context;

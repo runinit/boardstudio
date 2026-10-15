@@ -270,3 +270,47 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
         }
     }
 }
+
+#[component]
+pub(super) fn RelationMatrixKey(
+    part_id: Option<String>,
+    selected: bool,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    transform: String,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    on_pointer_down: EventHandler<PointerEvent>,
+) -> Element {
+    let RelationHighlight(highlight) = use_context::<RelationHighlight>();
+    let highlighted = part_id.as_ref().is_some_and(|id| {
+        highlight()
+            .as_ref()
+            .is_some_and(|part_ids| part_ids.contains(id))
+    });
+    rsx! {
+        rect {
+            class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
+            x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9",
+            transform: "{transform}", "data-matrix-id": "{matrix_id}", "data-row": "{row}", "data-column": "{column}",
+            onpointerdown: move |event| on_pointer_down.call(event)
+        }
+    }
+}
+
+#[component]
+pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: String) -> Element {
+    let RelationHighlight(highlight) = use_context::<RelationHighlight>();
+    let highlighted = highlight()
+        .as_ref()
+        .is_some_and(|part_ids| part_ids.contains(&part_id));
+    rsx! {
+        polygon {
+            points: "{points}",
+            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" }
+        }
+    }
+}

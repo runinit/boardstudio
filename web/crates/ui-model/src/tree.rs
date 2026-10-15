@@ -1235,6 +1235,9 @@ pub fn context_for_part(
     }
     let board_parts: HashSet<_> = board.part_ids.iter().map(String::as_str).collect();
     for matrix in visible_matrices(document, &board.id, &board_parts) {
+        if !matrix.part_ids.iter().any(|id| id == part_id) {
+            continue;
+        }
         let Some(scene) = snapshot
             .scene
             .matrix_scenes
@@ -1247,13 +1250,20 @@ pub fn context_for_part(
             let Some(primary) = cell.member_id.as_deref() else {
                 continue;
             };
-            if primary == part_id && matrix.part_ids.iter().any(|id| id == part_id) {
+            if primary == part_id {
                 return Some(TreeContext::Key {
                     matrix_id: matrix.id.clone(),
                     row: cell.row,
                     column: cell.column,
                 });
             }
+            // Only the matching primary can own this companion; avoid scanning every cell's assemblies.
+            let Some(assembly_id) = part_id
+                .strip_prefix(primary)
+                .and_then(|suffix| suffix.strip_prefix('/'))
+            else {
+                continue;
+            };
             if matrix
                 .cells
                 .iter()
@@ -1262,17 +1272,15 @@ pub fn context_for_part(
                     config
                         .assemblies
                         .iter()
-                        .any(|assembly| format!("{primary}/{}", assembly.id) == part_id)
+                        .any(|assembly| assembly.id == assembly_id)
                 })
-                && matrix.part_ids.iter().any(|id| id == part_id)
             {
-                let assembly_id = part_id.strip_prefix(&format!("{primary}/"))?.to_owned();
                 return Some(TreeContext::Component {
                     part_id: Some(part_id.to_owned()),
                     matrix_id: Some(matrix.id.clone()),
                     row: Some(cell.row),
                     column: Some(cell.column),
-                    assembly_id: Some(assembly_id),
+                    assembly_id: Some(assembly_id.to_owned()),
                 });
             }
         }

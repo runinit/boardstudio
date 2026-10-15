@@ -21,13 +21,29 @@ const fs = require('node:fs');
   };
   const undo = async () => page.getByRole('button', { name: 'Undo', exact: true }).click();
   const nav = async name => { await ready(); await page.getByRole('button', { name: `Open ${name} workspace`, exact: true }).click(); await page.waitForTimeout(300); };
+  const selectScope = async scope => {
+    const direct = page.getByRole('button', { name: `Select ${scope}`, exact: true });
+    if (await direct.isVisible().catch(() => false)) return direct.click();
+    await page.locator('#m1-layout-select-trigger').click();
+    await page.locator('#m1-layout-select-menu').getByRole('button', { name: scope, exact: true }).click();
+  };
   const shots = process.env.BOARDSTUDIO_SCREENSHOTS;
   if (shots) fs.mkdirSync(shots, { recursive: true });
   try {
-    await page.goto(process.env.BOARDSTUDIO_PREVIEW_URL || 'http://127.0.0.1:8182/');
+    await page.goto(process.env.BOARDSTUDIO_PREVIEW_URL || 'http://127.0.0.1:8182/', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await ready();
-    await page.getByRole('button', { name: 'Start Corne', exact: true }).click({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Select Column', exact: true }).click({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Split keyboard', exact: true }).click({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Continue to layout', exact: true }).click({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Add key matrix', exact: true }).click({ timeout: 60000 });
+    await page.getByLabel('New matrix rows', { exact: true }).fill('10');
+    await page.getByLabel('New matrix columns', { exact: true }).fill('10');
+    await page.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
+    await page.locator('.m1-scene-part[data-part-id^="matrix/"]').first().waitFor({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Edit existing objects', exact: true }).click({ timeout: 60000 });
+    await nav('Layout');
+    await page.getByRole('button', { name: 'Fit board', exact: true }).click();
+    await selectScope('Column');
     check('workspace navigation is in the Objects dock', await page.locator('#m1-objects-panel .m1-workflow-navigation').count() === 1 && await page.locator('.m1-topbar .m1-workflow-navigation').count() === 0);
     await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r0c2"] .m1-part-hit-area').first().click();
     check('canvas numeric card removed', await page.locator('.m1-canvas-measurements').count() === 0);
@@ -89,6 +105,8 @@ const fs = require('node:fs');
     check('Snap options open upward and stay in viewport', snapBody && snapBody.y >= 0 && snapBody.y + snapBody.height <= snapButton.y + 2);
     await page.getByLabel('Snap increment', { exact: true }).selectOption('0.5');
     await page.keyboard.press('Escape');
+    await selectScope('Key');
+    await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r5c5"] .m1-part-hit-area').first().click();
     const beforeDelete = await page.locator('.m1-scene-part').count();
     await page.locator('.m1-canvas-delete button').click();
     await page.waitForFunction(count => document.querySelectorAll('.m1-scene-part').length < count, beforeDelete);
@@ -102,15 +120,13 @@ const fs = require('node:fs');
     check('parts grouped by actual categories', await page.locator('.m1-component').filter({ hasText: 'Switches' }).count() === 1 && await page.locator('.m1-component').filter({ hasText: 'Diodes' }).count() === 1);
     await page.getByLabel('Group objects by', { exact: true }).selectOption('layout');
     check('layout grouping restores matrix tree', await page.locator('.m1-component').filter({ hasText: 'keys' }).count() > 0);
-    await page.locator('.m1-component').filter({ hasText: 'Right PCB' }).click();
-    await page.waitForFunction(() => document.querySelector('.m1-pcb-wiring-breadcrumb')?.textContent.includes('Right PCB'));
-    check('split-board tree navigation replaces removed board picker', true);
-    await page.locator('.m1-component').filter({ hasText: 'Left PCB' }).click();
-    await page.waitForFunction(() => document.querySelector('.m1-pcb-wiring-breadcrumb')?.textContent.includes('Left PCB'));
+    await page.locator('.m1-component').filter({ hasText: 'Main board' }).first().click();
+    await page.waitForFunction(() => document.querySelector('.m1-pcb-wiring-breadcrumb')?.textContent.includes('Main board'));
+    check('board tree navigation replaces removed board picker', true);
     for (const workspace of ['Layout', 'PCB', 'Keymap', 'Keycaps', 'Case', 'Parts']) {
       await nav(workspace);
       if (workspace === 'Layout') {
-        await page.getByRole('button', { name: 'Select Column', exact: true }).click();
+        await selectScope('Column');
         await page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r0c2"] .m1-part-hit-area').first().click();
       }
       if (workspace === 'Case') {

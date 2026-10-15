@@ -24,6 +24,7 @@ mod keycaps_workspace;
 pub(crate) use boardstudio_web_keymap::keymap;
 mod keymap_workspace;
 pub(crate) use boardstudio_web_ui_shared::layout_camera;
+mod layout_canvas;
 mod layout_component_edits;
 #[cfg(test)]
 mod layout_component_inspector_tests;
@@ -121,15 +122,14 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{
     CompanionPlacementTarget, Contour, EditOperation, Finding as LayoutFinding, HalfExceptionState,
-    Matrix, MirroredExceptionState, MirroredItemKind, Part, PartDefinition, PartKind, PartOutline,
-    Position, Vec2,
+    MirroredExceptionState, MirroredItemKind, Part, PartKind, PartOutline, Position, Vec2,
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -1341,28 +1341,48 @@ fn layout_component_inspector_projection(
         .boards
         .iter()
         .find(|board| board.id == model.active_board_id)?;
+    let board_part_ids: BTreeSet<_> = board.part_ids.iter().map(String::as_str).collect();
+    let parts_by_id: BTreeMap<_, _> = document
+        .parts
+        .iter()
+        .map(|part| (part.id.as_str(), part))
+        .collect();
     if model.selected_part_ids.iter().any(|selected_id| {
-        !board.part_ids.iter().any(|id| id == selected_id)
-            || !snapshot
-                .document
-                .parts
-                .iter()
-                .any(|part| part.id == *selected_id)
+        !board_part_ids.contains(selected_id.as_str())
+            || !parts_by_id.contains_key(selected_id.as_str())
     }) {
         return None;
+    }
+    let mut matrix_key_ids = BTreeSet::new();
+    for matrix in &document.matrices {
+        let Some(matrix_scene) = snapshot
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+        else {
+            continue;
+        };
+        let matrix_part_ids: BTreeSet<_> = matrix.part_ids.iter().map(String::as_str).collect();
+        matrix_key_ids.extend(
+            matrix_scene
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled)
+                .filter_map(|cell| cell.member_id.as_deref())
+                .filter(|id| matrix_part_ids.contains(id)),
+        );
     }
     let board_parts: Vec<_> = board
         .part_ids
         .iter()
         .filter_map(|id| {
-            document
-                .parts
-                .iter()
-                .find(|part| part.id == *id)
+            parts_by_id
+                .get(id.as_str())
                 .map(|part| inspector::BoardPartChoice {
                     id: part.id.clone(),
                     reference: part.reference.clone(),
-                    matrix_key: boardstudio_core::is_matrix_key(&document, &part.id),
+                    matrix_key: matrix_key_ids.contains(part.id.as_str()),
                 })
         })
         .collect();
@@ -3261,7 +3281,6 @@ fn Editor() -> Element {
     // clears it; an accepted revision that drops its parts is handled by the canvas filter.
     let relation_highlight = use_signal(|| None::<Vec<String>>);
     use_context_provider(|| RelationHighlight(relation_highlight));
-    let relation_ids = relation_highlight().unwrap_or_default();
     let highlight_context = (
         adapter.selected_context.read().clone(),
         model.selected_part_ids.clone(),
@@ -3682,23 +3701,11 @@ fn Editor() -> Element {
                         || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
         })
         .collect();
-    let matrix_scenes: std::collections::BTreeMap<_, _> = scene
+    let matrix_scenes: BTreeMap<_, _> = scene
         .matrix_scenes
         .iter()
         .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
-    let mut matrix_members = BTreeSet::new();
-    for matrix in &matrices {
-        if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
-            matrix_members.extend(
-                projected
-                    .cells
-                    .iter()
-                    .filter(|cell| cell.enabled)
-                    .filter_map(|cell| cell.member_id.as_deref()),
-            );
-        }
-    }
     let visible_ids: Rc<Vec<String>> =
         Rc::new(visible.iter().map(|part| part.id.clone()).collect());
     let select_tree = {
@@ -5737,16 +5744,53 @@ fn Editor() -> Element {
     );
     let component_inspector_generation =
         layout_component_inspector_lifetime.update(component_inspector_key);
-    let component_inspector = (active_workspace == "Layout")
-        .then(|| {
+    let component_inspector_scope_generation = (adapter.generation)();
+    let component_inspector_identity = (
+        accepted_token,
+        current_scope.clone(),
+        model.active_board_id.clone(),
+        model.active_instance_id.clone(),
+        model.selected_part_ids.clone(),
+        selected_tree_context.clone(),
+        component_inspector_generation,
+        component_inspector_scope_generation,
+        active_workspace,
+    );
+    let component_inspector = use_memo(use_reactive((&component_inspector_identity,), {
+        let runtime = runtime.clone();
+        move |(identity,)| {
+            let (
+                token,
+                _scope,
+                active_board_id,
+                active_instance_id,
+                selected_part_ids,
+                selected,
+                context_generation,
+                scope_generation,
+                workspace,
+            ) = identity;
+            if workspace != "Layout" {
+                return None;
+            }
+            let model = runtime.model();
+            if model.accepted.as_ref().map(|snapshot| snapshot.token) != token
+                || model.active_board_id != active_board_id
+                || model.active_instance_id != active_instance_id
+                || model.selected_part_ids != selected_part_ids
+            {
+                return None;
+            }
             layout_component_inspector_projection(
                 &model,
-                selected_tree_context.as_ref(),
-                component_inspector_generation,
-                (adapter.generation)(),
+                selected.as_ref(),
+                context_generation,
+                scope_generation,
             )
-        })
-        .flatten();
+        }
+    }))
+    .read()
+    .clone();
     let companion_placement = (active_workspace == "Layout")
         .then(|| {
             companion_placement_projection(
@@ -8172,6 +8216,330 @@ fn Editor() -> Element {
             Some((x, y, scale))
         })
         .flatten();
+    let matrix_pointer_down = EventHandler::new({
+        let runtime = runtime.clone();
+        let adapter = adapter.clone();
+        let svg = svg.clone();
+        let space_down = space_down.clone();
+        let scope = render_scope.clone();
+        let generation = render_generation;
+        let range_ids = visible_ids.clone();
+        let selection_kind = layout_selection_kind;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mut pending_splay_pick = pending_splay_origin_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        move |request: layout_canvas::MatrixPointerDown| {
+            let Some(pointer) = request.event.data().try_as_web_event() else {
+                return;
+            };
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && mirrored_pair.placement.is_some()
+            {
+                return;
+            }
+            if canvas_interaction.current().is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
+            if pointer.button() != 0 || space_down.get() {
+                return;
+            }
+            if pending_splay_pick.peek().is_some() {
+                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    pointer.prevent_default();
+                    pointer.stop_propagation();
+                    apply_pending_splay_origin_pick(
+                        &runtime,
+                        workspace,
+                        &adapter,
+                        &owner,
+                        &mut pending_splay_pick,
+                        &transform_inspector,
+                        point,
+                    );
+                    return;
+                }
+            }
+            pointer.prevent_default();
+            pointer.stop_propagation();
+            let current = runtime.model();
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let Some(hit_context) = objects::context_for_cell(
+                &current,
+                &request.matrix_id,
+                request.row,
+                request.column,
+            ) else {
+                return;
+            };
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let context = objects::context_for_selection_kind(
+                &current,
+                &hit_context,
+                selection_kind(),
+                retained.as_ref(),
+            )
+            .map(|projection| projection.context)
+            .unwrap_or_else(|| hit_context.clone());
+            let mode = if pointer.shift_key() {
+                SelectionMode::Range
+            } else if pointer.ctrl_key() || pointer.meta_key() {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            if let Some(target_part_id) = request.part_id {
+                selection::submit_matrix_cell_selection(
+                    &runtime,
+                    &adapter,
+                    &scope,
+                    generation,
+                    selection::MatrixCellSelection {
+                        matrix_id: request.matrix_id,
+                        target_part_id,
+                        hit_context: &hit_context,
+                        context,
+                        mode,
+                    },
+                );
+            } else {
+                selection::submit_canvas_selection(
+                    &runtime,
+                    &adapter,
+                    &scope,
+                    generation,
+                    context,
+                    mode,
+                    if mode == SelectionMode::Range {
+                        range_ids.as_ref().clone()
+                    } else {
+                        Vec::new()
+                    },
+                );
+            }
+        }
+    });
+    let part_pointer_down = EventHandler::new({
+        let runtime = runtime.clone();
+        let svg = svg.clone();
+        let drag = drag.clone();
+        let space_down = space_down.clone();
+        let canvas_interaction = canvas_interaction.clone();
+        let navigation = canvas_navigation.clone();
+        let adapter = adapter.clone();
+        let render_scope = render_scope.clone();
+        let generation = render_generation;
+        let range_ids = visible_ids.clone();
+        let selection_kind = layout_selection_kind;
+        let owner = layout_owner.clone();
+        let tree_cell_anchor = tree_cell_anchor.clone();
+        let mirrored_pair = mirrored_pair.clone();
+        let mut pending_splay_pick = pending_splay_origin_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
+        let mut selected_context = adapter.selected_context;
+        move |request: layout_canvas::PartPointerDown| {
+            let id = request.part_id;
+            let Some(pointer) = request.event.data().try_as_web_event() else {
+                return;
+            };
+            if pointer.button() != 0 {
+                return;
+            }
+            if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair)
+                && mirrored_pair.placement.is_some()
+            {
+                return;
+            }
+            if canvas_interaction.current().is_some() {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                return;
+            }
+            if runtime.scope().as_ref() != Some(&render_scope)
+                || (adapter.generation)() != generation
+            {
+                return;
+            }
+            if drag.borrow().is_some() || runtime.model().gesture.is_some() {
+                return;
+            }
+            pointer.prevent_default();
+            pointer.stop_propagation();
+            if pending_splay_pick.peek().is_some() {
+                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
+                    apply_pending_splay_origin_pick(
+                        &runtime,
+                        workspace,
+                        &adapter,
+                        &owner,
+                        &mut pending_splay_pick,
+                        &transform_inspector,
+                        point,
+                    );
+                    return;
+                }
+            }
+            if space_down.get() {
+                if let Some(svg) = svg.borrow().as_ref() {
+                    let _ = svg.set_pointer_capture(pointer.pointer_id());
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = svg.focus_with_options(&options);
+                }
+                navigation.start_space_pan(
+                    boardstudio_web_ui_shared::canvas_navigation::PanStart {
+                        pointer_id: i64::from(pointer.pointer_id()),
+                        scope: render_scope.clone(),
+                        generation,
+                        client: (f64::from(pointer.client_x()), f64::from(pointer.client_y())),
+                        camera: runtime.model().camera.center,
+                    },
+                );
+                return;
+            }
+            let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
+                if let Some(surface) = svg.borrow().as_ref() {
+                    let _ = surface.release_pointer_capture(pointer.pointer_id());
+                }
+                return;
+            };
+            let mode = if pointer.shift_key() {
+                SelectionMode::Range
+            } else if pointer.ctrl_key() || pointer.meta_key() {
+                SelectionMode::Toggle
+            } else {
+                SelectionMode::Replace
+            };
+            let current = runtime.model();
+            if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) {
+                return;
+            }
+            let Some(hit_context) = objects::context_for_part(&current, &id) else {
+                return;
+            };
+            update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
+            let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
+            let selection_projection = objects::context_for_selection_kind(
+                &current,
+                &hit_context,
+                selection_kind(),
+                retained.as_ref(),
+            );
+            let target_ids = selection_projection
+                .as_ref()
+                .map(|projection| projection.part_ids.clone())
+                .unwrap_or_else(|| {
+                    selection::resolve_context(&current, &hit_context).unwrap_or_default()
+                });
+            let context = selection_projection
+                .map(|projection| projection.context)
+                .unwrap_or_else(|| hit_context.clone());
+            if let objects::TreeContext::Key {
+                matrix_id,
+                row,
+                column,
+            } = &hit_context
+                && id == format!("matrix/{matrix_id}/r{row}c{column}")
+            {
+                selection::submit_matrix_cell_selection(
+                    &runtime,
+                    &adapter,
+                    &render_scope,
+                    generation,
+                    selection::MatrixCellSelection {
+                        matrix_id: matrix_id.clone(),
+                        target_part_id: id.clone(),
+                        hit_context: &hit_context,
+                        context: context.clone(),
+                        mode,
+                    },
+                );
+            } else if !current.selected_part_ids.contains(&id)
+                || mode != SelectionMode::Replace
+                || target_ids != current.selected_part_ids
+            {
+                selection::submit_canvas_selection(
+                    &runtime,
+                    &adapter,
+                    &render_scope,
+                    generation,
+                    context.clone(),
+                    mode,
+                    if mode == SelectionMode::Range {
+                        range_ids.as_ref().clone()
+                    } else {
+                        Vec::new()
+                    },
+                );
+            } else {
+                let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope)
+                    && current.selection_anchor_id.as_ref() == Some(&id)
+                    && selection::eligible_live_ids(&current).contains(&id);
+                if !anchor_valid {
+                    selection::submit_canvas_selection(
+                        &runtime,
+                        &adapter,
+                        &render_scope,
+                        generation,
+                        context,
+                        SelectionMode::Add,
+                        Vec::new(),
+                    );
+                } else {
+                    selected_context.set(Some(objects::ScopedTreeContext {
+                        scope: render_scope.clone(),
+                        context,
+                    }));
+                }
+            }
+            let current = runtime.model();
+            if !current.selected_part_ids.contains(&id) || mode != SelectionMode::Replace {
+                return;
+            }
+            let Some(snapshot) = current.accepted else {
+                return;
+            };
+            let positions: Vec<_> = snapshot
+                .document
+                .parts
+                .iter()
+                .filter(|part| current.selected_part_ids.contains(&part.id))
+                .map(|part| Position {
+                    id: part.id.clone(),
+                    at: part.pose.at,
+                })
+                .collect();
+            if positions.is_empty() {
+                return;
+            }
+            if let Some(svg) = svg.borrow().as_ref() {
+                let _ = svg.set_pointer_capture(pointer.pointer_id());
+                let options = web_sys::FocusOptions::new();
+                options.set_prevent_scroll(true);
+                let _ = svg.focus_with_options(&options);
+            }
+            *drag.borrow_mut() = Some(Drag {
+                pointer: i64::from(pointer.pointer_id()),
+                scope: render_scope.clone(),
+                generation,
+                gesture_generation: None,
+                origin,
+                client_x: f64::from(pointer.client_x()),
+                client_y: f64::from(pointer.client_y()),
+                positions,
+                active: false,
+                pan: false,
+                camera: Vec2::default(),
+            });
+        }
+    });
 
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
@@ -8360,208 +8728,23 @@ fn Editor() -> Element {
                                     }
                                 }
                             }
-                            for matrix in &matrices {
-                                if let Some(projected) = matrix_scenes.get(matrix.id.as_str()) {
-                                    for cell in projected.cells.iter().filter(|cell| cell.enabled) {
-                                        {
-                                            let member = cell.member_id.as_deref().and_then(|id| visible.iter().find(|part| part.id == id));
-                                            let cell_definition = match member {
-                                                Some(part) => definitions.get(part.definition_id.as_str()).copied(),
-                                                None => definitions.get(matrix.definition_id.as_str()).copied(),
-                                            };
-                                            let size = resolved_matrix_keycap(member, cell_definition, matrix);
-                                            let pose = cell.pose;
-                                            let cell_context = objects::TreeContext::Key { matrix_id: matrix.id.clone(), row: cell.row, column: cell.column };
-                                            let selected = cell.member_id.as_ref().is_some_and(|id| model.selected_part_ids.contains(id))
-                                                || selected_tree_context.as_ref().is_some_and(|selected| selected.context == cell_context);
-                                            let matrix_id = matrix.id.clone();
-                                            let cell_row = cell.row;
-                                            let cell_column = cell.column;
-                                            let target_part_id = cell.member_id.clone();
-                                            let runtime = runtime.clone();
-                                            let adapter = adapter.clone();
-                                            let svg = svg.clone();
-                                            let space_down = space_down.clone();
-                                            let scope = render_scope.clone();
-                                            let generation = render_generation;
-                                            let range_ids = visible_ids.clone();
-                                            let selection_kind = layout_selection_kind;
-                                            let owner = layout_owner.clone();
-                                            let tree_cell_anchor = tree_cell_anchor.clone();
-                                            let mut pending_splay_pick = pending_splay_origin_pick;
-                                            let transform_inspector = matrix_transform_inspector.clone();
-                                            let canvas_interaction = canvas_interaction.clone();
-                                            let mirrored_pair = mirrored_pair.clone();
-                                            let relation_highlighted = cell.member_id.as_ref().is_some_and(|id| relation_ids.contains(id));
-                                            rsx! { rect { class: if selected { "m1-matrix-key is-selected" } else if relation_highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" }, x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9", transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})", "data-matrix-id": "{matrix.id}", "data-row": "{cell.row}", "data-column": "{cell.column}",
-                                                onpointerdown: move |event: PointerEvent| {
-                                                    let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                                    if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
-                                                    if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
-                                                    if pointer.button() != 0 { return; }
-                                                    if space_down.get() { return; }
-                                                    if pending_splay_pick.peek().is_some() {
-                                                        if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                                                            pointer.prevent_default();
-                                                            pointer.stop_propagation();
-                                                            apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
-                                                            return;
-                                                        }
-                                                    }
-                                                    pointer.prevent_default();
-                                                    pointer.stop_propagation();
-                                                    let current = runtime.model();
-                                                    if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
-                                                    let Some(hit_context) = objects::context_for_cell(&current, &matrix_id, cell_row, cell_column) else { return; };
-                                                    update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
-                                                    let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-                                                    let context = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref())
-                                                        .map(|projection| projection.context)
-                                                        .unwrap_or_else(|| hit_context.clone());
-                                                    let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                                    if let Some(target_part_id) = target_part_id.clone() {
-                                                        selection::submit_matrix_cell_selection(&runtime, &adapter, &scope, generation, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id, hit_context: &hit_context, context, mode });
-                                                    } else {
-                                                        selection::submit_canvas_selection(&runtime, &adapter, &scope, generation, context, mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
-                                                    }
-                                                }
-                                            } }
-                                        }
-                                    }
-                                }
-                            }
                         }
-                        for part in visible.iter().cloned() {
-                            {
-                                let pose = scene.transforms.iter().find(|t| t.id == part.id).map(|t| t.pose).unwrap_or(part.pose);
-                                let definition = definitions.get(part.definition_id.as_str()).copied();
-                                let courtyard = definition.map(|d| polygon_points(&d.courtyard)).unwrap_or_default();
-                                let selected = model.selected_part_ids.contains(&part.id);
-                                let side_transform = if matches!(part.side, boardstudio_core::model::Side::Back) { "scale(-1 1)" } else { "" };
-                                let is_matrix_key = matrix_members.contains(part.id.as_str());
-                                let is_switch = is_matrix_key || definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
-                                let layer_visible = if is_switch { !(layer_visibility.hidden)().contains("Keys") } else { !(layer_visibility.hidden)().contains("Components") };
-                                let is_encoder = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Encoder) || definition.input_profile.as_ref().is_some_and(|profile| profile.rotary.is_some()));
-                                let keycap = if is_encoder { None } else {
-                                    let standalone_switch = definition.is_some_and(|definition| matches!(definition.kind, boardstudio_core::model::PartKind::Switch));
-                                    if is_matrix_key || standalone_switch {
-                                        part.keycap.or_else(|| definition.and_then(|definition| definition.keycap)).or_else(|| {
-                                            if !is_matrix_key { return None; }
-                                            matrices.iter().find_map(|matrix| {
-                                                let projected = matrix_scenes.get(matrix.id.as_str())?;
-                                                projected.cells.iter().any(|cell| cell.enabled && cell.member_id.as_deref() == Some(part.id.as_str())).then(|| resolved_matrix_keycap(Some(&part), definition, matrix))
-                                            })
-                                        })
-                                    } else { None }
-                                };
-                                let show_keycap = keycap.filter(|_| !(layer_visibility.hidden)().contains("Keycaps"));
-                                let footprints_on = (layer_visibility.footprints)() && !(layer_visibility.hidden)().contains("Footprints");
-                                let id = part.id.clone();
-                                let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone(); let space_down = space_down.clone();
-                                let canvas_interaction = canvas_interaction.clone();
-                                let navigation = canvas_navigation.clone();
-                                let adapter = adapter.clone(); let render_scope_for_hit = render_scope.clone();
-                                let mut selected_context = adapter.selected_context;
-                                let generation_for_hit = render_generation;
-                                let range_ids = visible_ids.clone();
-                                let selection_kind = layout_selection_kind;
-                                let owner = layout_owner.clone();
-                                let tree_cell_anchor = tree_cell_anchor.clone();
-                                let mirrored_pair = mirrored_pair.clone();
-                                let mut pending_splay_pick = pending_splay_origin_pick;
-                                let transform_inspector = matrix_transform_inspector.clone();
-                                rsx! { if layer_visible || show_keycap.is_some() { g { key: "{part.id}", class: "m1-scene-part", transform: "translate({pose.at.x},{pose.at.y}) rotate({pose.rotation}) {side_transform}", "data-part-id": "{part.id}",
-                                    onpointerdown: move |event: PointerEvent| {
-                                        let Some(pointer) = event.data().try_as_web_event() else { return; };
-                                        if pointer.button() != 0 { return; }
-                                        if canvas_interaction.is_owner(CanvasInteractionOwner::MirroredPair) && mirrored_pair.placement.is_some() { return; }
-                                        if canvas_interaction.current().is_some() { pointer.prevent_default(); pointer.stop_propagation(); return; }
-                                        if runtime.scope().as_ref() != Some(&render_scope_for_hit) || (adapter.generation)() != generation_for_hit { return; }
-                                        if drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
-                                        pointer.prevent_default(); pointer.stop_propagation();
-                                        if pending_splay_pick.peek().is_some() {
-                                            if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                                                apply_pending_splay_origin_pick(&runtime, workspace, &adapter, &owner, &mut pending_splay_pick, &transform_inspector, point);
-                                                return;
-                                            }
-                                        }
-                                        if space_down.get() {
-                                            if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
-                                            navigation.start_space_pan(boardstudio_web_ui_shared::canvas_navigation::PanStart { pointer_id: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, client: (f64::from(pointer.client_x()), f64::from(pointer.client_y())), camera: runtime.model().camera.center });
-                                            return;
-                                        }
-                                        let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else {
-                                            if let Some(surface) = svg.borrow().as_ref() { let _ = surface.release_pointer_capture(pointer.pointer_id()); }
-                                            return;
-                                        };
-                                        let mode = if pointer.shift_key() { SelectionMode::Range } else if pointer.ctrl_key() || pointer.meta_key() { SelectionMode::Toggle } else { SelectionMode::Replace };
-                                        let current = runtime.model();
-                                        if !layout_owner_is_current(&runtime, workspace, &adapter, &owner) { return; }
-                                        let Some(hit_context) = objects::context_for_part(&current, &id) else { return; };
-                                        update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
-                                        let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
-                                        let projection = objects::context_for_selection_kind(&current, &hit_context, selection_kind(), retained.as_ref());
-                                        let target_ids = projection.as_ref().map(|projection| projection.part_ids.clone())
-                                            .unwrap_or_else(|| selection::resolve_context(&current, &hit_context).unwrap_or_default());
-                                        let context = projection.map(|projection| projection.context).unwrap_or_else(|| hit_context.clone());
-                                        if let objects::TreeContext::Key { matrix_id, row, column } = &hit_context
-                                            && id == format!("matrix/{matrix_id}/r{row}c{column}")
-                                        {
-                                            selection::submit_matrix_cell_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, selection::MatrixCellSelection { matrix_id: matrix_id.clone(), target_part_id: id.clone(), hit_context: &hit_context, context: context.clone(), mode });
-                                        } else if !current.selected_part_ids.contains(&id)
-                                            || mode != SelectionMode::Replace
-                                            || target_ids != current.selected_part_ids
-                                        {
-                                            selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context.clone(), mode, if mode == SelectionMode::Range { range_ids.as_ref().clone() } else { Vec::new() });
-                                        } else {
-                                            let anchor_valid = (adapter.anchor_scope)().as_ref() == Some(&render_scope_for_hit)
-                                                && current.selection_anchor_id.as_ref() == Some(&id)
-                                                && selection::eligible_live_ids(&current).contains(&id);
-                                            if !anchor_valid {
-                                                selection::submit_canvas_selection(&runtime, &adapter, &render_scope_for_hit, generation_for_hit, context, SelectionMode::Add, Vec::new());
-                                            } else {
-                                                selected_context.set(Some(objects::ScopedTreeContext { scope: render_scope_for_hit.clone(), context }));
-                                            }
-                                        }
-                                        let current = runtime.model();
-                                        if !current.selected_part_ids.contains(&id) { return; }
-                                        if mode != SelectionMode::Replace { return; }
-                                        let Some(snapshot) = current.accepted else { return; };
-                                        let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
-                                        if positions.is_empty() { return; }
-                                        if let Some(svg) = svg.borrow().as_ref() { let _ = svg.set_pointer_capture(pointer.pointer_id()); let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true); let _ = svg.focus_with_options(&options); }
-                                        *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: render_scope_for_hit.clone(), generation: generation_for_hit, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
-                                    },
-                                    if layer_visible {
-                                        polygon { points: "{courtyard}", class: if selected { "m1-part selected" } else if relation_ids.contains(&part.id) { "m1-part is-relation-highlight" } else { "m1-part" } }
-                                    }
-                                    if layer_visible && footprints_on {
-                                        if let Some(definition) = definition {
-                                            FootprintGraphics { definition: definition.clone(), parameters: part.generator_parameters.clone() }
-                                            for pad in &definition.pads {
-                                                {
-                                                    let rx = match &pad.shape { boardstudio_core::model::PadShape::Circle | boardstudio_core::model::PadShape::Oval => pad.size.x.min(pad.size.y) / 2.0, boardstudio_core::model::PadShape::Roundrect => pad.size.x.min(pad.size.y) / 4.0, boardstudio_core::model::PadShape::Rect => 0.0 };
-                                                    rsx! { g { transform: "translate({pad.at.x} {pad.at.y}) rotate({pad.rotation.unwrap_or(0.0)})",
-                                                        if pad.plated != Some(false) { rect { class: "m1-part-pad", x: "{-pad.size.x / 2.0}", y: "{-pad.size.y / 2.0}", width: "{pad.size.x}", height: "{pad.size.y}", rx: "{rx}" } }
-                                                        if let Some(drill) = pad.drill { circle { class: "m1-part-drill", r: "{drill / 2.0}" } }
-                                                    } }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if let Some(size) = show_keycap {
-                                        { let inset = 1.5_f64.min(size.x / 6.0).min(size.y / 6.0); rsx! { g { class: if selected { "m1-keycap-overlay is-selected" } else { "m1-keycap-overlay" }, "aria-hidden": "true",
-                                            rect { x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}", rx: "0.9" }
-                                            rect { class: "m1-keycap-top", x: "{-size.x / 2.0 + inset}", y: "{-size.y / 2.0 + inset}", width: "{size.x - inset * 2.0}", height: "{size.y - inset * 2.0}", rx: "0.7" }
-                                        } } }
-                                    }
-                                    if let Some(size) = show_keycap {
-                                        rect { class: "m1-part-hit-area", x: "{-size.x / 2.0}", y: "{-size.y / 2.0}", width: "{size.x}", height: "{size.y}" }
-                                    }
-                                    if layer_visible && show_keycap.is_none() { text { transform: "scale(1,-1)", text_anchor: "middle", class: "m1-part-label", x: "0", y: "-5.2", "{part.reference}" } }
-                                }} }
-                            }
-                        }
+                        {layout_canvas::scene(layout_canvas::LayoutCanvasInput {
+                            visible: &visible,
+                            definitions: &definitions,
+                            matrices: &matrices,
+                            matrix_scenes: &matrix_scenes,
+                            transforms: &scene.transforms,
+                            selected_ids: &model.selected_part_ids,
+                            selected_context: selected_tree_context.as_ref(),
+                            keys_visible: !(layer_visibility.hidden)().contains("Keys"),
+                            components_visible: !(layer_visibility.hidden)().contains("Components"),
+                            keycaps_visible: !(layer_visibility.hidden)().contains("Keycaps"),
+                            footprints_visible: (layer_visibility.footprints)()
+                                && !(layer_visibility.hidden)().contains("Footprints"),
+                            on_matrix_pointer_down: matrix_pointer_down,
+                            on_part_pointer_down: part_pointer_down,
+                        })}
                         if let Some((x, y, scale)) = selection_geometry_anchor
                             && let Some(tools) = canvas_transform_menu.clone()
                             && matrix_transform_inspector.projection.is_some()
@@ -8812,19 +8995,6 @@ fn Editor() -> Element {
             }
         }
     }
-}
-
-fn resolved_matrix_keycap(
-    part: Option<&Part>,
-    definition: Option<&PartDefinition>,
-    matrix: &Matrix,
-) -> Vec2 {
-    part.and_then(|part| part.keycap)
-        .or_else(|| definition.and_then(|definition| definition.keycap))
-        .unwrap_or(Vec2 {
-            x: (matrix.pitch.x - matrix.edge_gap.map(|gap| gap.x).unwrap_or(1.0)).max(1.0),
-            y: (matrix.pitch.y - matrix.edge_gap.map(|gap| gap.y).unwrap_or(1.0)).max(1.0),
-        })
 }
 
 fn polygon_points(points: &[Vec2]) -> String {

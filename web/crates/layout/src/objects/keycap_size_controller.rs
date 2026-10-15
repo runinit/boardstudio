@@ -179,6 +179,24 @@ struct ContextTracker {
     generation: u64,
 }
 
+#[derive(Clone, PartialEq)]
+struct KeySizeProjectionIdentity {
+    accepted_token: Option<SnapshotToken>,
+    live_scope: Option<Scope>,
+    active_board_id: String,
+    active_instance_id: Option<String>,
+    selected_ids: Vec<String>,
+    lifecycle: Lifecycle,
+    durability: Durability,
+    has_preview: bool,
+    has_gesture: bool,
+    selected: Option<ScopedTreeContext>,
+    editor_instance_id: u64,
+    context_generation: u64,
+    scope_generation: u64,
+    workspace: &'static str,
+}
+
 pub fn use_key_size(
     runtime: Rc<Runtime>,
     version: Signal<u64>,
@@ -228,14 +246,47 @@ pub fn use_key_size(
             pending.settle(false, |_| Vec2::default());
         }
     });
-    let (projection, editable) = project(
-        &runtime,
-        selected.as_ref(),
+    let model = runtime.model();
+    let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
+    let live_scope = runtime.scope();
+    let active_board_id = model.active_board_id.clone();
+    let active_instance_id = model.active_instance_id.clone();
+    let selected_ids = model.selected_part_ids.clone();
+    let lifecycle = model.lifecycle;
+    let durability = model.durability.clone();
+    let has_preview = model.display_preview.is_some();
+    let has_gesture = model.gesture.is_some();
+    let projection_identity = KeySizeProjectionIdentity {
+        accepted_token,
+        live_scope,
+        active_board_id,
+        active_instance_id,
+        selected_ids,
+        lifecycle,
+        durability,
+        has_preview,
+        has_gesture,
+        selected,
         editor_instance_id,
         context_generation,
-        current_scope_generation,
-        current_workspace,
-    );
+        scope_generation: current_scope_generation,
+        workspace: current_workspace,
+    };
+    let (projection, editable) = use_memo(use_reactive((&projection_identity,), {
+        let runtime = runtime.clone();
+        move |(identity,)| {
+            project(
+                &runtime,
+                identity.selected.as_ref(),
+                identity.editor_instance_id,
+                identity.context_generation,
+                identity.scope_generation,
+                identity.workspace,
+            )
+        }
+    }))
+    .read()
+    .clone();
     let current_owner = projection
         .as_ref()
         .map(|projection| projection.owner.clone());
