@@ -156,20 +156,20 @@ def output_text(value: object) -> str:
     return value if isinstance(value, str) else ""
 
 
-def run_serial(command: Command, environment: dict[str, str],
+def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
                captured: list[tuple[Command, str]] | None = None) -> tuple[float, int]:
     print("$ " + shlex.join(command), flush=True)
     started = time.monotonic()
     if captured is not None and is_cargo_test(command):
         # The native test-name guard reads this output; it is printed whole once the command ends.
-        done = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
+        done = subprocess.run(command, cwd=cwd, env=environment, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True)
         text = output_text(done.stdout)
         print(text, end="" if text.endswith("\n") or not text else "\n", flush=True)
         captured.append((command, text))
         code = done.returncode
     else:
-        code = subprocess.run(command, cwd=ROOT, env=environment).returncode
+        code = subprocess.run(command, cwd=cwd, env=environment).returncode
     elapsed = time.monotonic() - started
     print(f"  ({elapsed:.1f}s)", flush=True)
     return elapsed, code
@@ -201,7 +201,7 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
     return time.monotonic() - started, failed
 
 
-def run_commands(name: str, commands: list[Command], environment: dict[str, str],
+def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None) -> tuple[float, bool]:
     """Runs a step's commands; consecutive crate launches in `browser`, and the independent
     workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
@@ -226,7 +226,7 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
                 return total, False
             index = end
             continue
-        elapsed, code = run_serial(command, environment, captured)
+        elapsed, code = run_serial(command, environment, cwd, captured)
         total += elapsed
         if code:
             return total, False
@@ -264,7 +264,8 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
             # Test wasm without DWARF is about a seventh of the size, which is most of a launch.
             environment.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
         captured: list[tuple[Command, str]] | None = [] if name == "test" else None
-        elapsed, passed = run_commands(name, commands, environment, captured)
+        cwd = ROOT / "web" if name == "layout-test-css" else ROOT
+        elapsed, passed = run_commands(name, commands, environment, cwd, captured)
         totals[name] = totals.get(name, 0.0) + elapsed
         if passed and captured:
             passed, written = guard_native_tests(commands, captured, update_native_baseline)
@@ -283,7 +284,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
 
 
 def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]") -> list[tuple[str, list[Command]]]:
-    """The checks that cover the selected change: never `build`, only the affected tests."""
+    """Run affected checks and required test assets, without the full frontend build."""
     plan: list[tuple[str, list[Command]]] = [("repo", STEPS["repo"][1])]
     if selection.tooling:
         plan.append(("tooling", STEPS["tooling"][1]))
@@ -308,6 +309,9 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
                 commands.append([PY, "scripts/run-wasm-tests.py", "--files", *selection.page_files,
                                  "--result-json", "web/target/test-results/browser-quick.json"])
         if commands:
+            if "layout" in crates:
+                plan.append(("layout-test-css", [["dx", "build", "--web", "--no-default-features",
+                                                  "--features", "page", "--cargo-args=--locked"]]))
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cadrum.py"]]))

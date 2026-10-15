@@ -150,6 +150,13 @@ class CheckTests(unittest.TestCase):
         self.assertNotIn("--fast", check.STEPS["release"][1][0])
         self.assertNotIn("release", check.DEFAULT)
 
+    def test_layout_test_css_build_runs_from_the_web_project(self):
+        command = ["dx", "build"]
+        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=0)) as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check.run_plan([("layout-test-css", [command])]), 0)
+        self.assertEqual(run.call_args.kwargs["cwd"], check.ROOT / "web")
+
     def test_independent_native_test_commands_run_together(self):
         commands = [[sys.executable, "-c", f"print({index})"] for index in range(3)]
         launched = []
