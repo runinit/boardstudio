@@ -13,6 +13,11 @@ SPEC.loader.exec_module(BUILD)
 
 
 class BuildWebTests(unittest.TestCase):
+    def test_offline_worker_waits_for_old_clients_before_activation(self):
+        worker = (BUILD.ROOT / "web/src/service_worker.rs").read_text()
+        self.assertNotIn("skip_waiting", worker)
+        self.assertIn("clients().claim()", worker)
+
     def test_provider_commands_use_retained_build_steps(self):
         commands = [" ".join(command) for command, _ in BUILD.provider_commands()]
         joined = "\n".join(commands)

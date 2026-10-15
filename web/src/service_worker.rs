@@ -50,7 +50,6 @@ async fn open_current_cache(scope_url: &str, manifest: &OfflineManifest) -> Resu
 }
 
 async fn install_policy() -> Result<(), JsValue> {
-    let global = js_sys::global().unchecked_into::<ServiceWorkerGlobalScope>();
     let manifest = manifest()?;
     let scope_url = scope();
     let cache = open_current_cache(&scope_url, &manifest).await?;
@@ -59,7 +58,8 @@ async fn install_policy() -> Result<(), JsValue> {
         files.push(&JsValue::from_str(&format!("{scope_url}{asset}")));
     }
     JsFuture::from(cache.add_all_with_str_sequence(files.as_ref())).await?;
-    JsFuture::from(global.skip_waiting()?).await?;
+    // Let the browser wait for clients of the active worker to close; they may
+    // still need its cache for assets loaded later while offline.
     Ok(())
 }
 
