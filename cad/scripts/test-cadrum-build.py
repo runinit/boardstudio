@@ -126,6 +126,17 @@ workspace = true
             build.build_wasm()
         self.assertFalse(mounted[0].exists(), "the temporary workspace manifest should be removed after the container exits")
 
+    def test_no_opt_is_parsed_by_wasm_pack_before_cargo_options(self):
+        self.wasm_sources()
+        environment = {"CADRUM_CONTAINER_RUNTIME": "docker", "CADRUM_IMAGE_READY": "1"}
+        with patch.dict(build.os.environ, environment, clear=True), \
+                patch.object(build, "prepare", return_value=self.root / "occt"), \
+                patch.object(build, "run") as run:
+            build.build_wasm(no_opt=True)
+        command = next(call.args[0] for call in run.call_args_list if call.args[0][1] == "run")
+        wasm_pack_arguments = command[command.index("wasm-pack"):]
+        self.assertLess(wasm_pack_arguments.index("--no-opt"), wasm_pack_arguments.index("--locked"))
+
     def test_new_contract_workspace_inheritance_fails_clearly(self):
         self.wasm_sources()
         contracts = self.project / "contracts/rust/Cargo.toml"

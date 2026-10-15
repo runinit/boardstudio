@@ -192,7 +192,7 @@ def build_wasm(*, no_opt=False):
              "--workdir", "/workspace/cad", "--env", f"OCCT_ROOT=/workspace/cad/{occt}",
              "--env", "CARGO_TARGET_DIR=/workspace/cad/wasm/target", *jobs, *binaryen_cores, IMAGE,
              "wasm-pack", "build", "wasm", "--target", "web", "--out-dir", "pkg",
-             "--out-name", "boardstudio_cadrum_wasm", "--release", "--locked", *wasm_opt])
+             "--out-name", "boardstudio_cadrum_wasm", *wasm_opt, "--release", "--locked"])
     stamp.write_text(inputs + "\n")
 
 
