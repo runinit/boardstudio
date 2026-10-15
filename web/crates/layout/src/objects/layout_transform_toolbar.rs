@@ -732,10 +732,11 @@ pub fn LayoutTransformToolOverlay(
         guide_for_end.set(None);
         let mut quick_for_end = quick_glyph;
         quick_for_end.set(false);
+        // Releasing capture fires `lostpointercapture`; retire the drag before it can cancel the drop.
+        drag_for_end.borrow_mut().take();
         if active.capture.has_pointer_capture(active.pointer_id) {
             let _ = active.capture.release_pointer_capture(active.pointer_id);
         }
-        drag_for_end.borrow_mut().take();
         arbiter_for_end.release(CanvasInteractionOwner::MatrixTransform);
     });
 
