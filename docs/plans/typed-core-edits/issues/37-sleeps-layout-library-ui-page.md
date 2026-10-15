@@ -603,3 +603,8 @@ The production file input's `onchange` was then removed temporarily; the upload 
 `wait_until: uploaded model enters Core did not hold within 5000 ms`. The mutation runner restored
 the source byte-for-byte. Evidence is in ignored
 `.evidence/ticket37-mutation-results/parts-model-upload-action-missing.log` and `results.json`.
+
+**Parts residual wait audit:** 29 fixed timers remain across definition name (80 ms), mechanical
+profile editor (30 ms), preview (40 ms), generator settings (350 ms), and assembly editor (290 ms).
+Their aggregate upper bound is 790 ms, below this ticket's roughly one-second stopping threshold;
+I am leaving them rather than adding more wait machinery for less than one second of suite time.
