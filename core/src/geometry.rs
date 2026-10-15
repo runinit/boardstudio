@@ -77,6 +77,9 @@ pub(super) struct FeatureShape {
 }
 type FeatureGeometry = Result<FeatureShape, String>;
 fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeometry {
+    if let OutlineFeature::Polygon { points, .. } = feature {
+        automatic::check_persisted_path_size(points.len())?;
+    }
     crate::outline_controls::validate(doc, feature)?;
     let mut path = match feature {
         OutlineFeature::Polygon { points, .. } => points.iter().copied().map(point).collect(),
@@ -250,7 +253,12 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
             })
             .collect();
     }
-    if !automatic::simple(&path) {
+    let simple = if matches!(feature, OutlineFeature::Polygon { .. }) {
+        automatic::persisted_simple(&path)?
+    } else {
+        automatic::simple(&path)
+    };
+    if !simple {
         return Err(
             "Outline requires a non-self-intersecting polygon with three distinct finite points"
                 .into(),
@@ -733,7 +741,10 @@ pub(crate) fn feature_source_contours(
     compose(features.iter(), &local, None).source
 }
 pub(crate) fn valid_polygon(points: &[Vec2]) -> bool {
-    automatic::simple(&points.iter().copied().map(point).collect())
+    if automatic::check_persisted_path_size(points.len()).is_err() {
+        return false;
+    }
+    automatic::persisted_simple(&points.iter().copied().map(point).collect()).unwrap_or(false)
 }
 
 pub(crate) fn board_outline_scenes(
@@ -886,6 +897,39 @@ mod tests {
             2,
             "split halves must retain separate outlines"
         );
+    }
+
+    #[test]
+    fn oversized_authored_outline_stays_saved_and_reports_a_finding() {
+        let mut doc = fixture(1);
+        let points = (0..=automatic::MAX_PERSISTED_OUTLINE_POINTS)
+            .map(|index| {
+                let angle = std::f64::consts::TAU * index as f64
+                    / (automatic::MAX_PERSISTED_OUTLINE_POINTS + 1) as f64;
+                Vec2 {
+                    x: angle.cos() * 20.0,
+                    y: angle.sin() * 20.0,
+                }
+            })
+            .collect();
+        doc.outline[0] = OutlineFeature::Polygon {
+            anchor_part_id: None,
+            id: "large-outline".into(),
+            points,
+            operation: crate::model::Operation::Add,
+        };
+
+        let (cache, _, findings) = outlines(&doc, None, &[]);
+
+        assert!(matches!(
+            &doc.outline[0],
+            OutlineFeature::Polygon { points, .. }
+                if points.len() == automatic::MAX_PERSISTED_OUTLINE_POINTS + 1
+        ));
+        assert!(findings.iter().any(|finding| {
+            finding.id == "outline:large-outline:invalid" && finding.message.contains("1024 points")
+        }));
+        assert!(cache.paths["large-outline"].1.is_err());
     }
 
     const SAMPLES: usize = 100;

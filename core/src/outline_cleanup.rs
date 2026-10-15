@@ -253,12 +253,13 @@ pub(super) fn repair(
         .keep_gaps
         .iter()
         .map(|gap| {
+            automatic::check_persisted_path_size(gap.points.len())?;
             let path = gap
                 .points
                 .iter()
                 .map(|p| outline_controls::point(doc, p).map(point))
                 .collect::<Result<Path, _>>()?;
-            if !automatic::simple(&path) {
+            if !automatic::persisted_simple(&path)? {
                 return Err(format!(
                     "Protected gap {} no longer has a valid source region",
                     gap.id

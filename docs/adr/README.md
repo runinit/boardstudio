@@ -17,6 +17,7 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0009](0009-generator-parameters-checked-in-core.md) | Core checks generator parameter types and names. | generator parameters |
 | [0010](0010-mirrored-half-is-a-core-maintained-reflection.md) | A mirrored half is a Core-maintained reflection with explicit exceptions. | mirrored halves, correspondences |
 | [0011](0011-part-offset-is-its-own-constraint-kind.md) | A part-axes offset is its own constraint kind, not a property on Offset. | placement constraints |
+| [0012](0012-bounded-outline-validation.md) | Outline validity uses exact 0.001 mm contacts and a 1024-point budget per persisted path. | outline path validation |
 
 ## Notes
 
