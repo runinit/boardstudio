@@ -1,6 +1,6 @@
 # 35: Cut version-literal and golden churn (audit phase 2, part 3)
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [34](34-test-speed-browser.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -54,5 +54,12 @@ Full `check.py` (default steps) with the sandbox lifted.
   Core tests (1 + 1 + 7) and the two affected mounted layout tests; `cargo fmt --all --check`
   passed.
 
-This ticket remains open: D8 is deliberately deferred and the dependent browser-maintenance tickets
-37 and 38 have not completed. The full audit is not closed by this partial outcome.
+At this progress point, ticket 35 was open because the dependent browser-maintenance tickets 37 and
+38 had not completed. Their completion and the final gate are reconciled below.
+
+## Reconciliation (2026-10-14)
+
+Tickets 37 and 38 are now complete, and the current-tree full `python3 scripts/check.py` passed in
+197.0 s. D8 remains explicitly deferred; no built-in-board baseline was changed. The remaining
+approved D5/D7 work is verified, while D6 was absent from this checkout. This ticket's scoped work
+is resolved without reopening the deferred D8 item.

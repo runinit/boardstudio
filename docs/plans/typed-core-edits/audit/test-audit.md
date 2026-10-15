@@ -275,8 +275,8 @@ the bodies, **names** means re-read before the change.
 | D7 | **Rewrite** goldens | boundary transcript to the projection in 5.5 (full bodies for 5 replies) | wire parity native and WASM, precise changed IDs, errors | same test plus `check_core` and `check_outline` assertions, which already name the behaviours | 0 s; transcript about 1.1 MB to about 0.2 MB; bump diff about 120 lines to a few | read |
 | D8 | **Rewrite** golden | `demo-projects-baseline.json`: drop recorded `hardware`, `parts`, `definitions`, `boards` for the 10 paired splits | none of these is frozen by contract; they were re-recorded 3 times | `included_keyboards` (pair structure, closure holes, export), `mirrored_half::every_shipped_split_...` (poses), keys/matrices/wiring still frozen | 0 s; baseline about 2.5 MB to about 1.3 MB | read (file header) |
 | M1 | **Rewrite** (speed, no loss) | fixed-sleep settle loops in `keymap::queued_edit_tests` (`settle`: 15 x 50 ms), `case::mechanical_settings` (`rendered` 60 ms), `pcb_*`, `parts_definition_name` | n/a | same assertions, wait until the runtime queue and render are quiet | see 7.1 | read 2 files |
-| M2 | **Merge** twins | `keymap::macro_controller::mounted_step_tests`: keycode/delay pairs (`a_failed_keycode_restores...` and `a_failed_delay_restores...`, `a_newer_keycode_draft...` and `a_newer_delay_draft...`, `raw_step_keycode_whitespace...` and `raw_step_delay_leading_zeros...`, `raw_step_newer_keycode...` and `raw_step_newer_delay...`) into four table-driven tests; same for the layer-name/macro-number/macro-text "newer draft" and "failed unchanged" variants in `queued_edit_tests` | the same draft-versus-failure rules for each field kind | table-driven tests with one row per field kind | about 6 to 10 s of the 27 s (7 to 10 tests) | **names, verify** |
-| M3 | **Review, probably merge** | `presentation::layout_component_inspector_tests` position-draft tests versus `presentation::inspector::tests::mounted_*position*` and `locked_position_tests` (about 5 pairs) | newer-draft preserved across landing/failure, locked/driven component has no position field | one surviving test per behaviour | about 5 to 8 s of the presentation run | **names, verify** |
+| M2 | **Merge exact twins** | Four keycode/delay pairs in `keymap::macro_controller::mounted_step_tests`, plus the macro-text/tap-time newer-draft pair in `queued_edit_tests` | failed submitted text restores, newer drafts survive older failures/landings, and raw text stays pending until canonical landing for each field | the retained shared helpers run once per field row; ten names become five tests | 5 tests removed net; focused Keymap suite passes 35/35 | **verified, #38** |
+| M3 | **Retain** | Layout component Inspector position drafts versus `presentation::inspector::tests` and `locked_position_tests` | preserve newer drafts, pending disablement and clean axes across their respective paths | different controls, commit owners and injected failure boundaries; no exact twin | no tests removed | **read and retained, #38** |
 | R1 | **Retire with ticket 23** | `included_keyboards::every_second_half_part_is_the_reflection_of_the_first_halfs_part`, `the_split_halves_outlines_are_mirror_images_through_the_pair_map`, `mirrored_half` recipe-bay comparisons | the recipe's reflection arithmetic | `mirrored_half::every_shipped_split_...` and the new operation-built halves | 0.4 s | read |
 
 Not proposed for removal (looked at, they earn their time): every `matrix_placement` test, the toolbar nudge and
@@ -315,6 +315,43 @@ change.
    a trade against isolation and the 120 s runner bound; not measured.
 7. **Module/circuit fixtures in `mirrored_half`**: four tests of 1.3 to 2.5 s each rebuild a module-hosting project;
    a shared builder could cut about 3 to 4 s of CPU. Low value for wall time.
+
+## Phase 2 results (2026-10-14)
+
+- **D5/D7:** `CURRENT_VERSION` replaces incidental current-format literals while migration inputs
+  stay explicit. The boundary transcript shrank from **1,143,772** to **108,125 bytes** (90.5%);
+  native and WASM parity passed. D6's named migration helper was absent in this checkout.
+- **D8:** deferred under the user's later instruction to remove built-in-board work from scope; no
+  demo-board baseline was edited.
+- **M1 / #37:** bounded waits replaced the ticketed fixed delays. Three consecutive browser runs
+  passed (113.8, 110.7, 111.4 s), followed by a full check (197.0 s). Baseline/current suite times,
+  test-name diff and mutation evidence are recorded in #37 and `.evidence/ticket37-*`.
+- **M2 / #38:** four Keycode/Delay pairs plus one macro text/number pair were merged into five
+  table-driven tests, preserving the original shared helper assertions for each input row. The
+  focused Keymap suite passes 35/35. Layer-name and mixed-owner/failure-boundary candidates remain.
+- **Test inventory:** baseline/current WASM counts are in
+  `.evidence/ticket37-test-names/name-diff.json`; all changed names are classified there. Added tests
+  protect mirror/companion features accumulated after the baseline. One shipped-demo test was
+  removed under the deferred built-in-board scope.
+- **Counts and current suite times:**
+
+  | Suite | Baseline → current tests | Current time across final runs |
+  | --- | ---: | ---: |
+  | case | 81 → 81 | 10.63–10.68 s |
+  | PCB | 49 → 49 | 15.01–15.07 s |
+  | Parts | 68 → 70 | 12.07–12.11 s |
+  | Layout + setup guide | 167 → 170 | 9.75–9.78 + 0.37–0.38 s |
+  | ui-shared | 34 → 34 | 1.09–1.13 s |
+  | Keycaps | 30 → 30 | 0.80–0.81 s |
+  | Keymap | 40 → 35 | 1.86–1.88 s |
+  | Library | 16 → 16 | 1.01–1.05 s |
+  | Page binary | 70 → 98 | 41.6–41.8 s |
+
+  Browser-step baseline was 143.8 s; the final three runs were 113.8, 110.7 and 111.4 s. The
+  full D5/D7 baseline and after checks were 696.5 and 932.2 s respectively; their build/tooling
+  variance is recorded in #35, so they are separate timing observations, not a speed comparison.
+- **Full check boundary:** D5/D7's before and after checks are recorded in #35. The final current-tree
+  `python3 scripts/check.py` passed in 197.0 s; `release` was not run.
 
 ## 8. Estimated time per `check.py` step
 

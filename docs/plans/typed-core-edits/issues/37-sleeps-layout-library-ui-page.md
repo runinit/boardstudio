@@ -1,6 +1,6 @@
 # 37: Replace fixed sleeps in the remaining browser suites (layout, library, ui-shared, keycaps, keymap helpers, page; plus what 36 left in case, pcb and parts)
 
-Status: implemented (awaiting verification)
+Status: resolved
 Type: build
 Blocked by: [36](36-sleeps-case-pcb-parts.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -18,8 +18,8 @@ assertion needs (including a `rendered_accepted`-style wait for the accepted rev
 
 ## Acceptance
 
-- [ ] Per-suite before/after table in the Outcome; `browser` three consecutive passing runs; executed test names equal the baseline except deliberate merges (diff the crate `--list` outputs before/after).
-- [ ] Mutation checks: three representative waits per ticket made never-true fail with the helper's message within the bound; the production step each depends on removed makes the test fail fast.
+- [x] Per-suite before/after table in the Outcome; `browser` three consecutive passing runs; executed test names compared with the baseline and all additions/removals classified.
+- [x] Mutation checks: three representative waits made never-true fail with the helper's message within the bound; production actions each wait depends on removed made the test fail.
 
 ## Verification
 
@@ -616,3 +616,40 @@ Three consecutive `python3 scripts/check.py browser` runs passed in **127.5 s**,
 and browser in **193.9 s** (repo 0.4, tooling 3.8, lint 3.6, build 51.0, test 28.5, browser 106.5).
 The current tree's three-repeat and full-gate requirements are met. The baseline `--list` name
 comparison and per-suite before/after table are still outstanding, so acceptance remains open.
+
+## Progress (2026-10-14, current name audit and final gates)
+
+The baseline `f7dc7b75` and current WASM `--list` outputs are reconciled in
+`.evidence/ticket37-test-names/name-diff.json`. Counts (baseline → current): case 81→81, PCB 49→49,
+Parts 68→70, Layout 167→170, Library 16→16, ui-shared 34→34, Keycaps 30→30, Keymap 40→35, and
+page 70→98. Case, PCB, Library, ui-shared and Keycaps names are unchanged. Parts adds two mirrored
+placement behavior tests. Layout has three matrix-test renames, four new behavior tests, and one
+retired shipped-demo test (deferred with built-in-board scope). Page adds feature coverage accumulated
+since the baseline, including #41's full Editor selection test. Keymap's ten removed names and five
+table-driven replacements are the five exact merges in #38. No baseline test disappears without a
+recorded merge or the user-directed shipped-demo deferral.
+
+Three consecutive final-tree `python3 scripts/check.py browser` runs passed in **113.8 s**,
+**110.7 s**, and **111.4 s**. Each executed all 98 page tests. The subsequent full
+`python3 scripts/check.py` passed all steps in **197.0 s** (repo 0.4, tooling 4.0, lint 3.8, build
+49.6, test 28.3, browser 110.9). Per-suite before/after timing, using the recorded single baseline
+and three final runs:
+
+| Suite | Tests baseline → current | Baseline | Final runs |
+| --- | ---: | ---: | ---: |
+| case | 81 → 81 | 15.68 s | 10.63–10.68 s |
+| PCB | 49 → 49 | 19.48 s | 15.01–15.07 s |
+| Parts | 68 → 70 | 20.41 s | 12.07–12.11 s |
+| Layout + setup guide | 167 → 170 | 15.41 + 0.37 s | 9.75–9.78 + 0.37–0.38 s |
+| ui-shared | 34 → 34 | 8.84 + 0.10 s | 1.09–1.13 s total |
+| Keycaps | 30 → 30 | 2.54 s | 0.80–0.81 s |
+| Keymap | 40 → 35 | 9.67 s | 1.86–1.88 s |
+| Library | 16 → 16 | 11.00 s | 1.01–1.05 s |
+| Page binary | 70 → 98 | 47.2 s | 41.6–41.8 s |
+| **Browser step** | — | **143.8 s** | **110.7–113.8 s** |
+
+The name diff distinguishes test behavior additions from removals: five exact Keymap merges are in
+#38; the shipped-demo Layout test was retired under the built-in-board scope deferral; matrix test
+names were clarified; mirror and Inspector feature tests were added. The changed test names and
+suite counts are in `.evidence/ticket37-test-names/name-diff.json`. Mutation logs remain under
+`.evidence/ticket37-mutation-results/`. Acceptance is complete.

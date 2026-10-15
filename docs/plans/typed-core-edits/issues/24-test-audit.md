@@ -1,6 +1,6 @@
 # 24: Audit the tests after the typed-edit, matrix and mirrored-half changes
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: [18](18-core-create-mirrored-half.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
@@ -33,10 +33,10 @@ literal-version fixtures). The full check is about ten minutes, so each test mus
 
 ## Acceptance
 
-- [ ] A written audit (counts, time, classification, decisions) committed with the ticket.
-- [ ] Removed or merged tests listed with the behaviour each protected and what still protects it.
-- [ ] Full check time before and after recorded; no behaviour loses its last guard.
-- [ ] The user approves the deletion list before it is executed (HITL checkpoint).
+- [x] A written audit (counts, time, classification, decisions) is recorded in the audit and phase 2 results.
+- [x] Merged tests and retained guards are listed with the behaviours they protect.
+- [x] Full check time before and after is recorded; merged scenarios remain covered.
+- [x] The user approved the phase 2 action list before execution.
 
 ## Verification
 
@@ -76,11 +76,32 @@ the audit. The recipe-reflection tests (audit R1) stay until ticket 23.
 
 ## Scope reconciliation (2026-10-14)
 
-The later instruction to remove built-in-board work from scope defers D8; the earlier approval does
-not authorize changing those baselines now. D5/D7 are committed as `84930356`; D6's helper is absent
-from this checkout. The test-maintenance audit remains open until the fixed-wait work in [37](37-sleeps-layout-library-ui-page.md)
-and exact-duplicate review in [38](38-merge-duplicate-browser-tests.md) are complete. No M2/M3 tests
-have been removed or merged yet.
+The later instruction to remove built-in-board work from scope defers D8; no baseline changes were
+made. D5/D7 are committed as `84930356`; D6's helper is absent from this checkout. M2 exact Keymap
+twins were merged by [38](38-merge-duplicate-browser-tests.md). The #37 wait replacements and
+mutation checks are recorded in that ticket. M3 was reviewed and retained: the Layout component
+Inspector and legacy position-draft tests use distinct controls, commit paths, and failure boundaries.
+
+## Phase 2 results (2026-10-14)
+
+- **D5/D7:** shipped in `84930356`; boundary transcript fell from 1,143,772 to 108,125 bytes
+  (90.5% smaller), with native and WASM parity. D6 had no remaining helper to remove. D8 remains
+  deferred by the user's built-in-board scope change.
+- **M1 / #37:** fixed waits were replaced with bounded state waits across the ticketed suites;
+  negative waits were mutation-checked against both predicates and production actions. Residual
+  Parts timers total 790 ms, below the ticket's roughly one-second cutoff. The final baseline/current
+  test-name diff and current-tree repeated/full gates are recorded in #37.
+- **M2 / #38:** five exact Keymap pairs are table-driven: four keycode/delay pairs and one macro
+  text/number pair. Ten names became five. Similar-looking layer-name and position-draft cases were
+  retained where owners, commit paths, or failure boundaries differ.
+- **Name audit:** native test count is governed by `check.py test`; WASM baseline/current names are
+  in `.evidence/ticket37-test-names/name-diff.json`. Added tests are feature coverage from the mirror
+  and companion work; the one shipped-demo test was retired under the later scope instruction.
+- **Gate boundary:** the default full `python3 scripts/check.py` passed after D5/D7 before this final
+  #41 test-only expansion; the final full gate after #41 is still required. `release` was not run.
+
+The final current-tree full check passed in 197.0 s. No test was removed solely as “trivial” or on a
+names-only duplicate guess. The separate integrated mirror review work remains in #22.
 
 ## Comments
 

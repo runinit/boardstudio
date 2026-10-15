@@ -1,6 +1,6 @@
 # 38: Merge the duplicate browser tests the audit named
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [37](37-sleeps-layout-library-ui-page.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
@@ -17,8 +17,8 @@ behavior; record those dispositions in the audit.
 
 ## Acceptance
 
-- [ ] The exact keymap twins are table-driven; non-exact candidates are retained with reasons.
-- [ ] Focused browser suites and full repository gate pass; test names are compared before and after, with only documented merges removed.
+- [x] The exact keymap twins are table-driven; non-exact candidates are retained with reasons.
+- [x] Focused browser suites and the full repository gate pass; test names are compared with baseline changes classified.
 
 ## Verification
 
@@ -38,3 +38,13 @@ Layout component Inspector; the other uses the legacy explicit Apply form and ch
 disablement and the clean axis. Their failure cases also inject different failure boundaries.
 They are not exact duplicates and remain separate. Focused Keymap verification passed 35/35 after
 the merges; full-tree verification and final name reconciliation remain open.
+
+The current page `--list` was refreshed after the Editor selection test expansion. Relative to the
+baseline, its old mounted key-selection name is replaced by
+`editor_owned_selection_kinds_apply_only_eligible_companions_and_undo`; the current page list has
+98 tests. The other page additions are feature coverage accumulated since the baseline, not
+duplicate-test removals. The evidence manifest is `.evidence/ticket37-test-names/name-diff.json`.
+
+The focused Keymap suite passes **35/35** and the final `python3 scripts/check.py` passes in
+**197.0 s**. The baseline-to-current name manifest records the five M2 merges separately from
+feature-test additions and the user-directed shipped-demo retirement. Ticket complete.

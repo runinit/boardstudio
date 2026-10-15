@@ -1,6 +1,6 @@
 # 41: Inspector controls for the companion placement mode
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [40](40-set-companion-placement-operation.md), [21](21-mirrored-half-web-adapter.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Decision: [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-stabilisers-fallbacks-and-editing-the-mode-2026-10-10)
@@ -29,8 +29,8 @@ mirror rule and do not gain placement-mode controls.
 
 ## Acceptance
 
-- [ ] Each selection kind changes eligible companions only; independent parts are excluded, stabiliser controls are disabled, Undo works, and mixed values display correctly.
-- [ ] DESIGN.md gets one sentence only if a new visible control pattern is introduced.
+- [x] Each selection kind changes eligible companions only; independent parts are excluded, stabiliser controls are disabled, Undo works, and mixed values display correctly.
+- [x] No new visible control pattern was introduced; the named disclosure reuses the existing pattern, so DESIGN.md needed no change.
 
 ## Verification
 
@@ -90,3 +90,19 @@ Three consecutive `python3 scripts/check.py browser` runs passed in **127.5 s**,
 **105.7 s**. The full `python3 scripts/check.py` passed all steps in **193.9 s**. These gates verify
 the current partial implementation; the mounted Editor coverage for each selection kind, mixed
 selection, refusal, and independent-part exclusion remains incomplete, so acceptance stays open.
+
+## Progress (2026-10-14, full Editor selection coverage)
+
+The mounted real-Editor test now applies placement from matrix, row, both columns, both keys, an
+individual component, and a multi-part selection. It verifies eligible source links change while
+unselected links retain their mode, and Undo restores each prior value. A rendered-context wait
+was necessary because changing the test adapter signal alone could leave the prior Inspector
+owner mounted for one render; this fixed the stale-context failure. The focused WASM suites for
+the key-selection actions and component Inspector pass **48/48**. Existing mounted checks retain
+refusal and stabiliser-disabled coverage, while the projection test checks independent-part
+exclusion. Final browser and repository gates remain pending.
+
+Those gates are recorded below.
+
+The three consecutive final-tree browser gates and the final full check passed; focused mounted
+WASM suites passed **48/48**. All #41 acceptance evidence is now present; resolved.
