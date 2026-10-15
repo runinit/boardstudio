@@ -1,6 +1,7 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -15,6 +16,7 @@ pub(super) struct ObjectsInput {
     pub(super) parts_query: super::parts::PartsQuery,
     pub(super) on_browse_parts: EventHandler<()>,
     pub(super) placement_error: Option<String>,
+    pub(super) add_object_menu_open: Signal<bool>,
 }
 
 pub(super) struct ToolbarInput {
@@ -124,6 +126,7 @@ pub(super) struct LayoutWorkspaceState {
     component_inspector_layout_pending: Signal<bool>,
     component_inspector_constraint_pending: Signal<bool>,
     component_inspector_remove_pending: Signal<bool>,
+    add_object_menu_open: Signal<bool>,
 }
 
 pub(super) fn use_layout_workspace_state(
@@ -154,6 +157,7 @@ pub(super) fn use_layout_workspace_state(
         component_inspector_layout_pending: use_signal(|| false),
         component_inspector_constraint_pending: use_signal(|| false),
         component_inspector_remove_pending: use_signal(|| false),
+        add_object_menu_open: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
@@ -172,6 +176,9 @@ pub(super) fn use_layout_workspace_state(
 }
 
 impl LayoutWorkspaceState {
+    pub(super) fn add_object_menu_open(self) -> Signal<bool> {
+        self.add_object_menu_open
+    }
     pub(super) fn selection_kind(self) -> Signal<objects::LayoutSelectionKind> {
         self.selection_kind
     }
@@ -340,6 +347,28 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 parts_query: Some(input.parts_query),
                 on_browse_parts: Some(input.on_browse_parts),
                 placement_error: input.placement_error,
+                add_object_menu_open: Some(input.add_object_menu_open),
+            }
+        }
+    }
+}
+
+pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
+    let open = menu_open();
+    rsx! {
+        div { class: "m1-layout-add-object",
+            button {
+                r#type: "button",
+                id: "m1-add-object-trigger",
+                aria_label: "Add object",
+                title: "Add object",
+                class: "m1-layout-add-trigger",
+                aria_expanded: if open { "true" } else { "false" },
+                onclick: move |_| menu_open.set(!menu_open()),
+                svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
+                    path { d: "M8 3v10M3 8h10" }
+                }
+                "Add object"
             }
         }
     }
@@ -368,11 +397,12 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         has_selection_context: input.has_selection_context,
                         show_relationships: input.show_relationships,
                         on_show_relationships: input.on_show_relationships,
+                        snap_in_dock: true,
                     }
                 }
                 if let Some(reason) = input.save_failure.as_ref() {
                     p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
-                    button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                    BoardButton { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
                 }
                 if input.recovery_required {
                     button { onclick: move |_| input.on_recover_saved.call(()), "Reopen last saved version (discard pending changes)" }
@@ -727,7 +757,11 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 }
             }
             if input.key_size.projection.is_some() {
-                objects::KeySizeControls { mount: input.key_size }
+                BoardDisclosure {
+                    class: "m1-layout-key-size-section m1-matrix-transform-section", open: true,
+                    heading: rsx! { summary { "Key size" } },
+                    objects::KeySizeControls { mount: input.key_size }
+                }
             }
             if input.matrix_transform_inspector.projection.is_some() {
                 objects::MatrixTransformInspector {

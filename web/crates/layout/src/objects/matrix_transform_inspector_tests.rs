@@ -19,6 +19,7 @@ wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
 #[derive(Clone)]
 struct Probe {
+    canvas_controls: bool,
     runtime: Rc<Runtime>,
     selected: ScopedTreeContext,
     root_id: &'static str,
@@ -54,6 +55,7 @@ fn matrix_transform_host() -> Element {
         "Layout",
     );
     *probe.mount.borrow_mut() = Some(mount.clone());
+    let mut canvas_tool = use_signal(|| Some(super::super::LayoutTransformTool::Stagger));
     let matrix_id = "matrix".to_owned();
     let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
     let canvas_runtime = probe.runtime.clone();
@@ -111,7 +113,23 @@ fn matrix_transform_host() -> Element {
                 }
             }
         }
-        MatrixTransformInspector { mount, on_pick_splay_origin: |_| {} }
+        if probe.canvas_controls {
+            div { id: "canvas-geometry-test",
+                super::super::LayoutCanvasControls {
+                    mount: mount.clone(),
+                    tools: super::super::LayoutTransformMenuMount {
+                        properties_available: true, column_available: true, row_available: true,
+                        pointer_tools_visible: true, pointer_tools_available: true,
+                        active_tool: canvas_tool(), on_selection_kind: EventHandler::new(|_| {}),
+                        on_show_properties: EventHandler::new(|_| {}),
+                        on_transform_tool: EventHandler::new(move |tool| canvas_tool.set(Some(tool))),
+                    },
+                }
+            }
+        }
+        div { id: "inspector-geometry-test",
+            MatrixTransformInspector { mount, on_pick_splay_origin: |_| {} }
+        }
     }
 }
 
@@ -323,6 +341,16 @@ async fn mount_selection_probe(
     context: TreeContext,
     selected_ids: &[&str],
 ) -> (Probe, web_sys::Element) {
+    mount_selection_probe_with_canvas(root_id, document, context, selected_ids, false).await
+}
+
+async fn mount_selection_probe_with_canvas(
+    root_id: &'static str,
+    document: ProjectDoc,
+    context: TreeContext,
+    selected_ids: &[&str],
+    canvas_controls: bool,
+) -> (Probe, web_sys::Element) {
     let runtime = support::new_runtime();
     support::open_document(&runtime, document).await;
     runtime.submit(Event::SelectParts {
@@ -334,6 +362,7 @@ async fn mount_selection_probe(
     support::run_pending(&runtime).await;
     let scope = runtime.scope().expect("the opened project has a scope");
     let probe = Probe {
+        canvas_controls,
         runtime,
         selected: ScopedTreeContext { scope, context },
         root_id,
@@ -932,6 +961,29 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
             .and_then(|element| element.text_content()),
         Some("The transform change could not be applied: injected transform failure".into()),
         "restoring the accepted projection must not clear the helper-owned failure"
+    );
+    assert_eq!(input.get_attribute("aria-invalid").as_deref(), Some("true"));
+    let descriptions = input
+        .get_attribute("aria-describedby")
+        .expect("units and failure describe the field");
+    let descriptions: Vec<_> = descriptions
+        .split_whitespace()
+        .map(|id| {
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id(id)
+                .expect("description is mounted")
+                .text_content()
+                .unwrap()
+        })
+        .collect();
+    assert!(descriptions.iter().any(|text| text == "mm"));
+    assert!(
+        descriptions
+            .iter()
+            .any(|text| text.contains("injected transform failure"))
     );
     root.remove();
 }
@@ -1584,5 +1636,153 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
         reason,
         "Converting would move this column: its splay pivots with the stagger."
     );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-disclosure-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle().await;
+    let accepted = probe.runtime.model().accepted.unwrap().document.revision;
+    let position = root
+        .query_selector("details[aria-label='Position and rotation']")
+        .unwrap()
+        .expect("position section is a mounted disclosure");
+    let splay = root
+        .query_selector("details[aria-label='Splay and origin']")
+        .unwrap()
+        .expect("splay section is a mounted disclosure");
+    assert!(
+        !splay.has_attribute("open"),
+        "specialist origin controls start collapsed"
+    );
+    splay
+        .query_selector("summary")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    let input = root
+        .query_selector("input[aria-label='Stagger']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    input.set_value("");
+    let event = DomEvent::new("input").unwrap();
+    event.init_event_with_bubbles("input", true);
+    input.dispatch_event(&event).unwrap();
+    settle().await;
+    position
+        .query_selector("summary")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    assert!(!position.has_attribute("open"));
+    assert!(
+        splay.has_attribute("open"),
+        "sections can be collapsed independently"
+    );
+    let mut version = probe.version.borrow().expect("Editor version signal");
+    let next = version.peek().saturating_add(1);
+    version.set(next);
+    settle().await;
+    assert!(
+        !position.has_attribute("open"),
+        "unrelated renders retain collapsed state"
+    );
+    assert!(
+        input.is_same_node(
+            root.query_selector("input[aria-label='Stagger']")
+                .unwrap()
+                .as_ref()
+                .map(|node| node.as_ref())
+        ),
+        "collapse never remounts field ownership"
+    );
+    position
+        .query_selector("summary")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    settle().await;
+    assert_eq!(input.value(), "");
+    assert_eq!(
+        probe.runtime.model().accepted.unwrap().document.revision,
+        accepted,
+        "toggling sections never submits edits"
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe_with_canvas(
+        "canvas-independent-drafts",
+        document,
+        column_context(0),
+        &[],
+        true,
+    )
+    .await;
+    settle().await;
+    let inspector = root
+        .query_selector("#inspector-geometry-test")
+        .unwrap()
+        .unwrap();
+    let canvas = root
+        .query_selector("#canvas-geometry-test")
+        .unwrap()
+        .unwrap();
+    let draft = inspector
+        .query_selector("input[aria-label='Stagger']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    draft.set_value("");
+    let input = DomEvent::new("input").unwrap();
+    input.init_event_with_bubbles("input", true);
+    draft.dispatch_event(&input).unwrap();
+    settle().await;
+    let before = probe.runtime.model().accepted.unwrap().document.revision;
+    set_numeric_field(&canvas, "Stagger", "4");
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.matrices[0].column_staggers[0], 4.0);
+    assert_eq!(accepted.document.revision, before + 1);
+    assert_eq!(
+        draft.value(),
+        "",
+        "canvas edits preserve an unfinished inspector draft"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle().await;
+    assert_eq!(
+        probe.runtime.model().accepted.unwrap().document.matrices[0]
+            .column_staggers
+            .first()
+            .copied()
+            .unwrap_or(0.0),
+        0.0
+    );
+    assert_eq!(draft.value(), "");
     root.remove();
 }

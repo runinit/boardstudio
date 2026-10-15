@@ -4,6 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{EditResolver, Event, ReadModel, Resolution, Scope, SelectionMode};
 use boardstudio_core::model::EditOperation;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::BoardButton;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
@@ -382,7 +383,7 @@ pub(super) fn SelectedKeysActions() -> Element {
             div { class: "m1-layout-transform-actions",
                 button { r#type: "button", aria_label: "Enable selected keys", onclick: move |_| on_action.call(Action::Enable), "Enable" }
                 button { r#type: "button", aria_label: "Disable selected keys", onclick: move |_| on_action.call(Action::Disable), "Disable" }
-                button { r#type: "button", aria_label: "Delete selected keys", disabled: delete_pending(), onclick: move |_| on_action.call(Action::Delete), "Delete keys" }
+                BoardButton { r#type: "button", aria_label: "Delete selected keys", disabled: delete_pending(), onclick: move |_| on_action.call(Action::Delete), "Delete keys" }
             }
             if let Some(message) = enabled_failure().or_else(|| failure()) { p { role: "alert", "{message}" } }
         }

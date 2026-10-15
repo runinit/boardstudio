@@ -1020,9 +1020,6 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
             }
             if !input.instance_scope_pending {
                 section { class: "m1-case-physical-setup", "aria-label": "Physical assembly",
-                    if input.selected_part_summary.is_none() {
-                        p { "Mechanical settings and closure hardware apply to all case assemblies. Select an assembly in Objects." }
-                    }
                     if let Some(instance) = input.physical_setup.projection.case_instance.clone() {
                         details {
                             summary { "Assembly setup" }

@@ -7,6 +7,7 @@ use super::pcb_wiring::{
 };
 use crate::firmware_position_choices;
 use crate::firmware_position_projection::{FirmwarePositionProjection, FirmwarePositionState};
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
@@ -128,11 +129,11 @@ pub fn FirmwareKeymapPanel(props: FirmwareKeymapPanelProps) -> Element {
         });
 
     rsx! {
-        details { class: "firmware-keymap-panel",
-            summary {
+        BoardDisclosure { class: "firmware-keymap-panel",
+            heading: rsx! { summary {
                 span { "Firmware keymap" }
                 span { class: "firmware-keymap-summary", "{assigned}/{keys.len()} assigned" }
-            }
+            } },
             {content}
             {feedback}
         }

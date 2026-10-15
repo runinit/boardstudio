@@ -146,6 +146,7 @@ pub fn physical_component_layers(
 
 #[component]
 pub fn CaseAssemblyLayers(
+    #[props(default)] initially_open: bool,
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
     selectable_layers: Vec<String>,
@@ -154,7 +155,7 @@ pub fn CaseAssemblyLayers(
     display: CaseDisplay,
     on_display_change: EventHandler<CaseDisplay>,
 ) -> Element {
-    let mut open = use_signal(|| false);
+    let mut open = use_signal(|| initially_open);
     let display_for_toggle = display.clone();
     let toggle = move |id: String| {
         let mut next = display_for_toggle.clone();

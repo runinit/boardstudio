@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 use dioxus_primitives::{
     popover::{PopoverContent, PopoverRoot, PopoverTrigger},
     toggle::Toggle,
+    toolbar::{Toolbar, ToolbarButton},
 };
 use wasm_bindgen::JsCast;
 
@@ -28,8 +29,38 @@ pub enum BoardButtonDensity {
     Compact,
 }
 
+/// A labeled group of direct actions with the pinned primitive's arrow-key navigation.
+#[component]
+pub fn BoardToolbar(label: String, #[props(default)] class: String, children: Element) -> Element {
+    rsx! { Toolbar { aria_label: label, class: "board-toolbar {class}", {children} } }
+}
+
+/// A toolbar action. The consuming workspace retains tool state and edit callbacks.
+#[component]
+pub fn BoardToolbarButton(
+    index: usize,
+    #[props(default)] disabled: bool,
+    #[props(default)] pressed: Option<bool>,
+    #[props(default)] class: String,
+    aria_label: String,
+    #[props(default)] title: Option<String>,
+    on_activate: EventHandler<()>,
+    children: Element,
+) -> Element {
+    rsx! {
+        ToolbarButton {
+            index, disabled,
+            class: "board-button board-button--compact {class}",
+            aria_label, aria_pressed: pressed, title,
+            on_click: move |_| on_activate.call(()),
+            {children}
+        }
+    }
+}
+
 #[component]
 pub fn BoardButton(
+    #[props(default = "button".to_owned())] r#type: String,
     #[props(default)] variant: BoardButtonVariant,
     #[props(default)] density: BoardButtonDensity,
     #[props(default)] disabled: bool,
@@ -39,6 +70,7 @@ pub fn BoardButton(
     #[props(default)] aria_label: Option<String>,
     #[props(default)] title: Option<String>,
     #[props(default)] onclick: EventHandler<MouseEvent>,
+    #[props(extends = button)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     let variant_class = match variant {
@@ -53,7 +85,7 @@ pub fn BoardButton(
     };
     rsx! {
         button {
-            r#type: "button",
+            r#type,
             class: "board-button {variant_class} {density_class} {class}",
             style,
             disabled,
@@ -61,7 +93,181 @@ pub fn BoardButton(
             aria_label,
             title,
             onclick,
+            ..attributes,
             {children}
+        }
+    }
+}
+
+/// A native controlled checkbox. Form events and label activation stay native.
+#[component]
+pub fn BoardCheckbox(
+    checked: bool,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] role: Option<String>,
+    #[props(default)] disabled: bool,
+    #[props(default)] class: String,
+    #[props(default)] onchange: EventHandler<FormEvent>,
+    #[props(extends = input)] attributes: Vec<Attribute>,
+) -> Element {
+    rsx! {
+        input {
+            r#type: "checkbox", class: "board-checkbox {class}",
+            checked, disabled, onchange, aria_label, role,
+            ..attributes,
+        }
+    }
+}
+
+/// A shared disclosure with native keyboard handling and persistent child drafts.
+/// The caller supplies its summary so controlled headings retain their handlers.
+#[component]
+pub fn BoardDisclosure(
+    #[props(default)] open: bool,
+    #[props(default)] class: String,
+    heading: Element,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+    children: Element,
+) -> Element {
+    rsx! {
+        details { class: "board-disclosure {class}", open,
+            ..attributes,
+            {heading}
+            {children}
+        }
+    }
+}
+
+/// Shared modal confirmation or non-modal inline task surface.
+/// Native modal dialogs provide focus trapping, Escape and focus restoration.
+#[component]
+pub fn BoardDialog(
+    open: bool,
+    #[props(default = true)] modal: bool,
+    #[props(default = true)] dismissible: bool,
+    #[props(default)] class: String,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] aria_labelledby: Option<String>,
+    #[props(default)] aria_describedby: Option<String>,
+    #[props(default)] on_close: EventHandler<()>,
+    children: Element,
+) -> Element {
+    let id = format!("board-dialog-{}", dioxus::core::current_scope_id().0);
+    let effect_id = id.clone();
+    use_effect(use_reactive((&open, &modal), move |(open, modal)| {
+        if !modal {
+            return;
+        }
+        let Some(dialog) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.get_element_by_id(&effect_id))
+            .and_then(|element| element.dyn_into::<web_sys::HtmlDialogElement>().ok())
+        else {
+            return;
+        };
+        if open && !dialog.open() {
+            let _ = dialog.show_modal();
+        } else if !open && dialog.open() {
+            dialog.close();
+        }
+    }));
+    rsx! {
+        if modal {
+            dialog {
+                id, class: "board-dialog {class}",
+                aria_label, aria_labelledby, aria_describedby,
+                onkeydown: move |event: KeyboardEvent| event.stop_propagation(),
+                oncancel: move |event| {
+                    event.prevent_default();
+                    if dismissible { on_close.call(()); }
+                },
+                {children}
+            }
+        } else if open {
+            div {
+                id, role: "dialog", class: "board-dialog-inline {class}",
+                aria_label, aria_labelledby, aria_describedby,
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key() == Key::Escape && dismissible {
+                        event.prevent_default(); event.stop_propagation(); on_close.call(());
+                    }
+                },
+                {children}
+            }
+        }
+    }
+}
+
+/// A controlled numeric draft. Parsing and committing remain with the owner.
+#[component]
+pub fn BoardNumberField(
+    label: String,
+    value: String,
+    #[props(default)] unit: String,
+    #[props(default)] readonly: bool,
+    #[props(default)] error: Option<String>,
+    #[props(default)] class: String,
+    #[props(default)] oninput: EventHandler<FormEvent>,
+    #[props(default)] onblur: EventHandler<FocusEvent>,
+    #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
+) -> Element {
+    let scope = dioxus::core::current_scope_id().0;
+    let unit_id = format!("board-number-{scope}-unit");
+    let error_id = format!("board-number-{scope}-error");
+    let described_by = match (unit.is_empty(), error.is_some()) {
+        (false, true) => Some(format!("{unit_id} {error_id}")),
+        (false, false) => Some(unit_id.clone()),
+        (true, true) => Some(error_id.clone()),
+        (true, false) => None,
+    };
+    let error_class = if error.is_some() { "has-error" } else { "" };
+    rsx! {
+        label { class: "board-field grid gap-1 {error_class} {class}",
+            span { "{label}" }
+            span { class: "board-field-input flex items-center gap-1.5 min-w-0",
+                input {
+                    class: "board-field-control min-w-0 w-full tabular-nums",
+                    r#type: "number", step: "any", value, readonly,
+                    aria_label: label,
+                    aria_invalid: error.is_some(),
+                    aria_describedby: described_by,
+                    oninput, onblur, onkeydown,
+                }
+                if !unit.is_empty() { small { id: unit_id, "{unit}" } }
+            }
+            if let Some(message) = error.as_deref() { small { id: error_id, role: "alert", "{message}" } }
+        }
+    }
+}
+
+/// A labeled native select with shared styling and associated validation feedback.
+#[component]
+pub fn BoardSelectField(
+    label: String,
+    value: String,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    #[props(default)] error: Option<String>,
+    #[props(default)] class: String,
+    #[props(default)] onchange: EventHandler<FormEvent>,
+    children: Element,
+) -> Element {
+    let error_id = format!("board-select-{}-error", dioxus::core::current_scope_id().0);
+    let described_by = error.as_ref().map(|_| error_id.clone());
+    let error_class = if error.is_some() { "has-error" } else { "" };
+    rsx! {
+        label { class: "board-field grid gap-1 {error_class} {class}",
+            span { "{label}" }
+            select {
+                class: "board-field-control min-w-0 w-full",
+                value, disabled,
+                aria_label: aria_label.unwrap_or(label),
+                aria_invalid: error.is_some(),
+                aria_describedby: described_by,
+                onchange,
+                {children}
+            }
+            if let Some(message) = error.as_deref() { small { id: error_id, role: "alert", "{message}" } }
         }
     }
 }
@@ -535,5 +741,176 @@ mod tests {
             "outside dismissal must not move body focus back to the trigger"
         );
         root().remove();
+    }
+}
+
+#[cfg(test)]
+mod native_control_tests {
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[component]
+    fn fixture() -> Element {
+        let mut checked = use_signal(|| false);
+        let mut changes = use_signal(|| 0_u32);
+        let mut submissions = use_signal(|| 0_u32);
+        let mut open = use_signal(|| false);
+        let mut busy = use_signal(|| false);
+        rsx! {
+            label { id: "shared-checkbox-label",
+                BoardCheckbox { checked: checked(), aria_label: "Shared enabled",
+                    onchange: move |event: FormEvent| { checked.set(event.checked()); changes.set(changes() + 1); },
+                }
+                "Enabled"
+            }
+            label {
+                BoardCheckbox { checked: false, disabled: true, aria_label: "Shared disabled",
+                    onchange: move |_| changes.set(changes() + 100),
+                }
+                "Disabled"
+            }
+            output { id: "shared-checkbox-changes", "{changes()}" }
+            BoardDisclosure {
+                class: "shared-disclosure",
+                heading: rsx! { summary { "Draft settings" } },
+                input { aria_label: "Persistent draft", value: "original" }
+            }
+            form { onsubmit: move |event: FormEvent| { event.prevent_default(); submissions.set(submissions() + 1); },
+                BoardButton { r#type: "submit", class: "shared-submit", "Save" }
+                BoardButton { r#type: "submit", class: "shared-disabled-submit", disabled: true, "Unavailable save" }
+            }
+            output { id: "shared-submissions", "{submissions()}" }
+            button { id: "shared-dialog-trigger", onclick: move |_| open.set(true), "Open confirmation" }
+            BoardDialog { open: open(), dismissible: !busy(), class: "shared-dialog",
+                aria_labelledby: "shared-dialog-title", on_close: move |_| open.set(false),
+                h2 { id: "shared-dialog-title", "Confirm action" }
+                label {
+                    BoardCheckbox { checked: busy(), aria_label: "Busy confirmation",
+                        onchange: move |event: FormEvent| busy.set(event.checked()),
+                    }
+                    "Busy"
+                }
+                BoardButton { class: "shared-dialog-cancel", autofocus: true, disabled: busy(),
+                    onclick: move |_| open.set(false), "Cancel"
+                }
+            }
+        }
+    }
+
+    async fn settle() {
+        gloo_timers::future::TimeoutFuture::new(60).await;
+    }
+
+    async fn mount() -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        settle().await;
+        root
+    }
+
+    fn element(root: &web_sys::Element, selector: &str) -> web_sys::HtmlElement {
+        root.query_selector(selector)
+            .unwrap()
+            .unwrap()
+            .dyn_into()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn checkbox_label_activates_once_and_disclosure_keeps_its_draft() {
+        let root = mount().await;
+        let disclosure = element(&root, ".shared-disclosure");
+        element(&root, ".shared-disclosure > summary").click();
+        assert!(disclosure.has_attribute("open"));
+        let input: web_sys::HtmlInputElement =
+            element(&root, "input[aria-label='Persistent draft']")
+                .dyn_into()
+                .unwrap();
+        input.set_value("unfinished draft");
+        element(&root, "#shared-checkbox-label").click();
+        settle().await;
+        assert_eq!(
+            element(&root, "#shared-checkbox-changes")
+                .text_content()
+                .as_deref(),
+            Some("1")
+        );
+        assert!(
+            disclosure.has_attribute("open"),
+            "an unrelated render must not collapse the section"
+        );
+        element(&root, "input[aria-label='Shared disabled']").click();
+        element(&root, ".shared-disclosure > summary").click();
+        assert!(!disclosure.has_attribute("open"));
+        element(&root, ".shared-disclosure > summary").click();
+        assert_eq!(input.value(), "unfinished draft");
+        assert_eq!(
+            element(&root, "#shared-checkbox-changes")
+                .text_content()
+                .as_deref(),
+            Some("1")
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn action_buttons_preserve_submit_and_disabled_semantics() {
+        let root = mount().await;
+        element(&root, ".shared-disabled-submit").click();
+        element(&root, ".shared-submit").click();
+        settle().await;
+        assert_eq!(
+            element(&root, "#shared-submissions")
+                .text_content()
+                .as_deref(),
+            Some("1")
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn confirmation_focus_and_busy_cancellation_stay_native() {
+        let root = mount().await;
+        let trigger = element(&root, "#shared-dialog-trigger");
+        trigger.focus().unwrap();
+        trigger.click();
+        settle().await;
+        let dialog: web_sys::HtmlDialogElement =
+            element(&root, ".shared-dialog").dyn_into().unwrap();
+        assert!(dialog.open());
+        let document = web_sys::window().unwrap().document().unwrap();
+        assert!(
+            document
+                .active_element()
+                .unwrap()
+                .class_name()
+                .contains("shared-dialog-cancel")
+        );
+        element(&root, "input[aria-label='Busy confirmation']").click();
+        settle().await;
+        let init = web_sys::EventInit::new();
+        init.set_cancelable(true);
+        dialog
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("cancel", &init).unwrap())
+            .unwrap();
+        settle().await;
+        assert!(dialog.open(), "a pending action cannot be dismissed");
+        element(&root, "input[aria-label='Busy confirmation']").click();
+        settle().await;
+        dialog
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("cancel", &init).unwrap())
+            .unwrap();
+        settle().await;
+        assert!(!dialog.open());
+        assert_eq!(
+            document.active_element().unwrap().id(),
+            "shared-dialog-trigger"
+        );
+        root.remove();
     }
 }

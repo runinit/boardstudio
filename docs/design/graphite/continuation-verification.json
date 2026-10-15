@@ -1,0 +1,75 @@
+{
+  "checks": {
+    "repo_and_tooling": "passed",
+    "native_fmt_clippy_tests_cad": "passed",
+    "fast_build": "passed",
+    "initial_browser_phase": "Case disclosure test failed; corrected and resumed",
+    "case_browser": 81,
+    "library_browser": 17,
+    "layout_browser": 174,
+    "setup_browser": 1,
+    "page_browser": 72,
+    "remaining_browser_phase": "passed",
+    "responsive_journeys": "1359/1024/390; passed",
+    "entry_flows": "new/matrix/download without embedded models/demo/import/saved Open; passed",
+    "mobile_handoff": "focus and 44px action within viewport; passed",
+    "proxy_regression": "red: staged model HTTP 404; green: all 3 dev-web tests pass",
+    "proxy_tooling": "quick repo/tooling checks passed",
+    "bundled_model_delivery": "88/88 HTTP 200; response bytes match staged vendor files",
+    "visual_final_review": "visual acceptance reopened: material typography, control hierarchy, Keymap canvas, browser and Export composition gaps; see visual-fidelity-gaps.md",
+    "impeccable_closure": "advance refused: missing tool-issued plan/asset acceptance receipt; completion incomplete",
+    "embedded_archive": "fresh context: embedded download passed, ZIP and embedded SHA-256 integrity passed, import and editor handoff passed",
+    "fidelity_batch_1": {
+      "scope": "shared styling and Layout",
+      "layout_browser": 174,
+      "inspector_browser": 19,
+      "clippy": "passed; boardstudio-web-layout all targets, warnings denied",
+      "formatting": "passed",
+      "responsive_journeys": "1359/1024/390 across all editor families and entry surfaces; passed",
+      "visual_evidence": "fidelity-1-Layout.png, fidelity-1-Layout-1024.png, fidelity-1-Layout-390.png",
+      "acceptance": "remaining gaps tracked in visual-fidelity-gaps.md"
+    },
+    "fidelity_batch_2": {
+      "scope": "PCB assignment disclosure and onboarding composition",
+      "changed_surface_check": "passed: documentation links, formatting, strict Clippy, page WASM typecheck, native tests, PCB and Layout browser suites, isolated setup test",
+      "pcb_browser": 49,
+      "layout_browser": 174,
+      "setup_browser": 1,
+      "keymap_browser": 40,
+      "library_browser": 17,
+      "export_browser": {
+        "executed": 1,
+        "failed": 0
+      },
+      "visual_review": {
+        "viewports": [
+          "1586x992",
+          "1024x768",
+          "390x844"
+        ],
+        "project_stage_and_layout_stage": "captured",
+        "horizontal_overflow": false,
+        "editor_footer_in_setup": "hidden",
+        "screenshots": [
+          "fidelity-2-Setup-project.png",
+          "fidelity-2-Setup-project-1024.png",
+          "fidelity-2-Setup-project-390.png",
+          "fidelity-2-Setup-layout.png",
+          "fidelity-2-Setup-layout-1024.png",
+          "fidelity-2-Setup-layout-390.png"
+        ]
+      },
+      "tailwind": "Pinned v4.1.5 regenerated the served asset; no Dioxus or watcher restart",
+      "impeccable_detector": "New setup literals moved to shared page/body type roles; remaining reports are existing type/radius literals elsewhere in the shared stylesheet"
+    }
+  },
+  "bounds": [
+    "Material visual fidelity gaps remain; application tests do not establish mockup fidelity",
+    "Impeccable CLI receipt remains pending despite chat approval; later workflow phases blocked; automatic pixel comparison reports drift",
+    "Batch 2 visual comparison uses the real single-board Graphite verification project; mock split-board art and selected controller/assembly states remain fixture differences."
+  ],
+  "preview": "http://127.0.0.1:8182/",
+  "scope_exclusions": [
+    "Case height/thickness drag handles; existing numeric editors retained"
+  ]
+}

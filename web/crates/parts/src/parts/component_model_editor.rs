@@ -9,6 +9,7 @@ use crate::{
 use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution, Scope, SessionEpoch};
 use boardstudio_core::model::{Asset, EditOperation, PartDefinition, PartModel, Vec3};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -685,22 +686,22 @@ pub fn ComponentModelEditor(
         .or_else(|| binding.as_ref().map(|model| model.asset_id.clone()));
 
     rsx! {
-        details { class: "m1-generator-settings m1-component-model-editor",
-            summary { "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } }
+        BoardDisclosure { class: "m1-generator-settings m1-component-model-editor",
+            heading: rsx! { summary { "3D model" small { if binding.is_some() { "Attached" } else { "Optional" } } } },
             if let Some(model) = binding.as_ref() {
                 if let Some(name) = asset_name.as_ref() {
                 p { class: "m1-parts-empty", "Bound asset: {name}" }
                 }
                 fieldset {
                     legend { "Model alignment" }
-                    ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) }
-                    ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
-                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) }
+                    { rsx! { ModelVectorEditor { key: "{owner:?}-Offset", field: VectorField::Offset, title: "Offset", value: model.offset, unit: "mm", positive: false,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Offset, axis, submitted, value)) } } }
+                    { rsx! { ModelVectorEditor { key: "{owner:?}-Rotation", field: VectorField::Rotation, title: "Rotation", value: model.rotation, unit: "°", positive: false,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Rotation, axis, submitted, value)) } } }
+                    { rsx! { ModelVectorEditor { key: "{owner:?}-Scale", field: VectorField::Scale, title: "Scale", value: model.scale, unit: "×", positive: true,
+                        on_commit: move |(axis, submitted, value)| transform_commit.call((VectorField::Scale, axis, submitted, value)) } } }
                 }
-                button { r#type: "button", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
+                BoardButton { r#type: "button", disabled: remove_pending, onclick: remove_model, "Remove attached model" }
             } else {
                 p { class: "m1-parts-empty", "No model attached to this component." }
             }
@@ -709,7 +710,7 @@ pub fn ComponentModelEditor(
             }
             if uploading() {
                 p { class: "m1-parts-loading", role: "status", "Reading and saving model file…" }
-                button { r#type: "button", onclick: cancel_upload, "Cancel model import" }
+                BoardButton { r#type: "button", onclick: cancel_upload, "Cancel model import" }
             }
 
             if let Some(message) = visible_notice { p { class: "m1-parts-preview-status", role: "status", "{message}" } }

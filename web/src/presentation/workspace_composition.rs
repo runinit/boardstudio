@@ -15,8 +15,8 @@ pub(super) struct SharedObjectsInput {
 pub(super) enum WorkspaceObjectsInput<'a> {
     Layout(Box<super::layout_workspace::ObjectsInput>),
     Pcb(Box<super::pcb_workspace::ObjectsInput>),
-    Keymap(SharedObjectsInput),
-    Keycaps(SharedObjectsInput),
+    Keymap(super::keymap_workspace::NavigationInput),
+    Keycaps(super::keycaps_workspace::NavigationInput),
     Case(Box<super::case_workspace::ObjectsInput<'a>>),
     Parts(super::parts_workspace::ObjectsInput),
 }
@@ -108,7 +108,9 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
     match input {
         WorkspaceInspectorInput::Layout(input) => super::layout_workspace::inspector(*input),
         WorkspaceInspectorInput::Pcb(Some(input)) => rsx! {
+            super::pcb_workspace::PcbInspector { selected: input.source.active_part_id.is_some(),
             super::pcb_wiring::PcbWiringInspector {
+                board_overview: true,
                 source: input.source,
                 resolution: input.resolution,
                 firmware_positions: input.firmware_positions,
@@ -124,6 +126,7 @@ pub(super) fn inspector(input: WorkspaceInspectorInput) -> Element {
                 pin_actions: input.pin_actions,
                 apply_actions: input.apply_actions,
                 protected_remap_actions: input.protected_remap_actions,
+            }
             }
         },
         WorkspaceInspectorInput::Pcb(None) => super::pcb_workspace::inspector(),

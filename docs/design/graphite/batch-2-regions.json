@@ -1,0 +1,160 @@
+{
+  "regions": [
+    {
+      "id": "header",
+      "kind": "chrome",
+      "container": true,
+      "pixelBox": {
+        "x": 0,
+        "y": 0,
+        "w": 1586,
+        "h": 64
+      },
+      "note": "Single semantic application header for brand/project, history, save state and Export. Per the browser feedback, workspace tabs and the compact workspace selector are removed; switching is owned by the shared Objects dock at every width, including onboarding.",
+      "codeDrawn": true
+    },
+    {
+      "id": "project",
+      "kind": "control",
+      "parentId": "header",
+      "pixelBox": {
+        "x": 16,
+        "y": 12,
+        "w": 385,
+        "h": 40
+      },
+      "note": "BoardStudio brand and project selection rendered as real text, SVG icon and native project menu.",
+      "codeDrawn": true
+    },
+    {
+      "id": "history-save-export",
+      "kind": "control",
+      "parentId": "header",
+      "pixelBox": {
+        "x": 1180,
+        "y": 12,
+        "w": 388,
+        "h": 40
+      },
+      "note": "Existing history commands, accepted save status and Export navigation; no fabricated saved state.",
+      "codeDrawn": true
+    },
+    {
+      "id": "objects",
+      "kind": "chrome",
+      "container": true,
+      "pixelBox": {
+        "x": 0,
+        "y": 64,
+        "w": 289,
+        "h": 877
+      },
+      "note": "Shared docked Objects shell and workspace navigation across Layout, PCB, Keymap, Keycaps, Case and Parts. Existing workspace trees retain their document selection, visibility and edit owners; onboarding remains a separate experience.",
+      "codeDrawn": true
+    },
+    {
+      "id": "tree",
+      "kind": "control",
+      "parentId": "objects",
+      "pixelBox": {
+        "x": 16,
+        "y": 82,
+        "w": 260,
+        "h": 650
+      },
+      "note": "Reuse the same Objects navigation and dock styling on every editor workspace, including return to Layout and an explicit current-workspace state. Workspace-specific tree children still come from authoritative domain projections; navigation does not fabricate geometry selections.",
+      "codeDrawn": true
+    },
+    {
+      "id": "snapping",
+      "kind": "control",
+      "parentId": "objects",
+      "pixelBox": {
+        "x": 16,
+        "y": 852,
+        "w": 260,
+        "h": 78
+      },
+      "note": "Visible controlled snapping preferences at the foot of the left dock, including increment and geometry mode.",
+      "codeDrawn": true
+    },
+    {
+      "id": "canvas",
+      "kind": "chrome",
+      "container": true,
+      "pixelBox": {
+        "x": 289,
+        "y": 64,
+        "w": 984,
+        "h": 877
+      },
+      "note": "Dominant neutral canvas holding existing semantic CAD geometry, camera and selection interactions.",
+      "codeDrawn": true
+    },
+    {
+      "id": "context-toolbar",
+      "kind": "control",
+      "parentId": "canvas",
+      "pixelBox": {
+        "x": 457,
+        "y": 123,
+        "w": 672,
+        "h": 63
+      },
+      "note": "Compact opaque strip with direct Matrix, Row, Column, Key and Part scope choices plus Transform and Align popovers. Transform subfunctions are selection-aware in a small labeled popover; compact mode affects the strip only. Existing selection and tool callbacks, keyboard focus, dismissal and persisted density remain authoritative.",
+      "codeDrawn": true
+    },
+    {
+      "id": "keyboard-geometry",
+      "kind": "control",
+      "parentId": "canvas",
+      "pixelBox": {
+        "x": 320,
+        "y": 243,
+        "w": 931,
+        "h": 597
+      },
+      "note": "Batch 2: authoritative product geometry, selection-owned move, stagger, independent offset, splay/origin handles and editable measurements. Reuse existing typed fields and owned gestures; keep Graphite tokens and dock topology fixed.",
+      "codeDrawn": true,
+      "container": true
+    },
+    {
+      "id": "inspector",
+      "kind": "chrome",
+      "container": true,
+      "pixelBox": {
+        "x": 1273,
+        "y": 64,
+        "w": 313,
+        "h": 877
+      },
+      "note": "Docked inspector with selected context, native numeric fields, persistent drafts and existing edit settlement.",
+      "codeDrawn": true
+    },
+    {
+      "id": "inspector-controls",
+      "kind": "control",
+      "parentId": "inspector",
+      "pixelBox": {
+        "x": 1289,
+        "y": 81,
+        "w": 279,
+        "h": 569
+      },
+      "note": "Properties/Relations retain scoped native fields and drafts. Independently collapsible Position/orientation, row, column Position/rotation, Splay/origin, and key Geometry/Assembly sections use shared native BoardDisclosure, keeping children mounted; the pinned AccordionContent unmounts when closed and is unsuitable for these draft owners. Existing Key size disclosure and edit settlement remain intact.",
+      "codeDrawn": true
+    },
+    {
+      "id": "status-footer",
+      "kind": "control",
+      "pixelBox": {
+        "x": 0,
+        "y": 941,
+        "w": 1586,
+        "h": 51
+      },
+      "note": "Real camera controls, coordinates and existing grid/findings status; no generated measurements are copied.",
+      "codeDrawn": true
+    }
+  ]
+}

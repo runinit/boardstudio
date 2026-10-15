@@ -8,6 +8,8 @@ use boardstudio_application::Event;
 #[cfg(test)]
 use boardstudio_core::model::{EditCommand, EditOperation, EditPhase};
 use boardstudio_core::model::{PartKind, ProjectDoc};
+use boardstudio_web_ui_shared::controls::BoardDialog;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -16,6 +18,10 @@ use std::{cell::Cell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
+
+/// Presentation-only browser visibility. The editor remains mounted while browsing.
+#[derive(Clone, Copy)]
+pub struct ProjectBrowserState(pub Signal<bool>);
 
 #[derive(Clone, Copy, PartialEq)]
 enum ListStatus {
@@ -236,6 +242,8 @@ fn KeyboardCard(
     current: bool,
     recovery_required: bool,
     deletable: bool,
+    #[props(default)] on_select: Option<EventHandler<Arc<ProjectDoc>>>,
+    #[props(default)] selected: bool,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let mut pending_delete = use_context::<Signal<Option<Arc<ProjectDoc>>>>();
@@ -243,10 +251,15 @@ fn KeyboardCard(
     let preview = preview(&document);
     let action_name = if recovery_required {
         format!("Recover from {name} (discard pending changes)")
+    } else if on_select.is_some() {
+        format!("Preview {name}")
     } else {
         format!("Open {name}")
     };
     let document_id = document.id.clone();
+    let project_id = document.id.clone();
+    let selected_document = document.clone();
+    let delete_document = document.clone();
     let detail = match &preview {
         Err(()) => "Open to check this keyboard".into(),
         Ok(preview) => format!(
@@ -260,13 +273,16 @@ fn KeyboardCard(
         ),
     };
     rsx! {
-        article { class: if current { "m1-keyboard-card is-current" } else { "m1-keyboard-card" },
+        article { class: if selected { "m1-keyboard-card is-selected" } else if current { "m1-keyboard-card is-current" } else { "m1-keyboard-card" },
+            "data-project-id": "{project_id}",
             button {
                 class: "m1-keyboard-tile",
                 r#type: "button",
                 aria_label: "{action_name}",
                 aria_current: current.then_some("true"),
+                aria_pressed: on_select.map(|_| selected),
                 onclick: move |_| {
+                    if let Some(on_select) = on_select { on_select.call(selected_document.clone()); return; }
                     super::close_project_menu();
                     runtime.open_saved(document_id.clone());
                 },
@@ -307,7 +323,7 @@ fn KeyboardCard(
                 }
                 span { class: "m1-keyboard-title", "{name}" }
                 span { class: "m1-keyboard-detail",
-                    "{detail}"
+                    span { class: "m1-keyboard-facts", "{detail}" }
                     if current {
                         span { class: "m1-keyboard-current",
                             svg { class: "m1-library-check-icon", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m4 10 4 4 8-8" } }
@@ -316,16 +332,16 @@ fn KeyboardCard(
                         }
                     },
                 }
-                if deletable {
-                    button {
-                        class: "m1-keyboard-delete",
-                        r#type: "button",
-                        aria_label: "Delete {name}",
-                        title: "Delete {name}",
-                        "data-project-id": "{document.id}",
-                        onclick: move |_| pending_delete.set(Some(document.clone())),
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" } }
-                    }
+            }
+            if deletable {
+                button {
+                    class: "m1-keyboard-delete",
+                    r#type: "button",
+                    aria_label: "Delete {name}",
+                    title: "Delete {name}",
+                    "data-project-id": "{document.id}",
+                    onclick: move |_| pending_delete.set(Some(delete_document.clone())),
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" } }
                 }
             }
     }
@@ -372,6 +388,7 @@ fn DemoKeyboardPreview(preview: Option<Preview>, fallback: String) -> Element {
 
 #[component]
 fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
+    let browser = try_use_context::<ProjectBrowserState>();
     let runtime = use_context::<Rc<Runtime>>();
     let fixture_document = use_resource({
         let runtime = runtime.clone();
@@ -412,6 +429,7 @@ fn DemoKeyboardCard(name: &'static str, fixture: &'static str) -> Element {
                 onclick: move |_| {
                     super::close_project_menu();
                     runtime.open_fixture(fixture);
+                    if let Some(mut browser) = browser { browser.0.set(false); }
                 },
                 DemoKeyboardPreview { preview: graphic, fallback }
                 span { class: "m1-keyboard-title", "{name}" }
@@ -457,6 +475,9 @@ pub fn Library(
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let browser = try_use_context::<ProjectBrowserState>();
+    let mut selected_project = use_signal(|| None::<Arc<ProjectDoc>>);
+
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let project_created = use_context::<Signal<Option<SetupGuideRequest>>>();
@@ -471,6 +492,9 @@ pub fn Library(
             let mut pending_new = pending_new;
             let mut new_error = new_error;
             super::close_project_menu();
+            if let Some(mut browser) = browser {
+                browser.0.set(false);
+            }
             if pending_new().is_some() {
                 return;
             }
@@ -484,9 +508,7 @@ pub fn Library(
             }
         }
     });
-    let start_new_card = start_new.clone();
     let start_new_menu_top = start_new.clone();
-    let start_new_menu_landing = start_new.clone();
     let recovery_required =
         runtime.model().lifecycle == boardstudio_application::Lifecycle::RecoveryRequired;
     let current_snapshot = runtime.model().accepted;
@@ -545,25 +567,6 @@ pub fn Library(
     let mut delete_error = use_signal(String::new);
     use_context_provider(|| pending_delete);
     let pending_delete_open = pending_delete().is_some();
-    use_effect(use_reactive!(|pending_delete_open| {
-        let Some(dialog) = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| {
-                document
-                    .query_selector(".m1-project-delete-dialog")
-                    .ok()
-                    .flatten()
-            })
-            .and_then(|element| element.dyn_into::<web_sys::HtmlDialogElement>().ok())
-        else {
-            return;
-        };
-        if pending_delete_open && !dialog.open() {
-            let _ = dialog.show_modal();
-        } else if !pending_delete_open && dialog.open() {
-            dialog.close();
-        }
-    }));
     let mut status = use_signal(|| ListStatus::Loading);
     let mut retry = use_signal(|| 0_u64);
     let retry_value = retry();
@@ -650,6 +653,36 @@ pub fn Library(
                 .map(|document| (Arc::clone(document), false)),
         );
     }
+    // Resolve selection against the current list so accepted renames and revisions
+    // update the handoff instead of leaving a captured document snapshot visible.
+    let selected_document = selected_project().and_then(|selected| {
+        cards
+            .iter()
+            .find(|(document, _)| document.id == selected.id)
+            .map(|(document, _)| Arc::clone(document))
+    });
+    let selected_preview = selected_document
+        .as_ref()
+        .and_then(|document| preview(document).ok());
+    let selected_summary = selected_document
+        .as_ref()
+        .map(|document| {
+            let key_count = selected_preview
+                .as_ref()
+                .map(|preview| preview.keys.len())
+                .unwrap_or_default();
+            let board_word = if document.boards.len() == 1 {
+                "board"
+            } else {
+                "boards"
+            };
+            format!(
+                "{key_count} keys · {} {board_word} · Revision {}",
+                document.boards.len(),
+                document.revision
+            )
+        })
+        .unwrap_or_default();
     let saved_count = cards.len();
     let query = search_query();
     cards.retain(|(document, _)| matches_project_search(document, &query));
@@ -658,7 +691,9 @@ pub fn Library(
     let menu_import = import.clone();
     let menu_save_copy = runtime.clone();
     let current_name_for_blur = current_name.clone();
+    let selection_name_for_blur = current_name_for_blur.clone();
     let rename_action_for_blur = name_action.clone();
+    let selection_rename_action_for_blur = rename_action_for_blur.clone();
     let mut guide_request = project_created;
     let mut guide_request_counter = guide_request_counter;
     let retry_generations = request_generation.clone();
@@ -680,6 +715,12 @@ pub fn Library(
                         svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 5 10 10M15 5 5 15" } }
                     }
                 }
+            }
+            if project_menu && !is_settings_page && browser.is_some() {
+                BoardButton { class: "m1-browse-projects", onclick: move |_| {
+                    if let Some(mut browser) = browser { browser.0.set(true); }
+                    super::close_project_menu();
+                }, "Browse projects" }
             }
             if is_settings_page {
                 div { class: "m1-workspace-preferences",
@@ -716,12 +757,13 @@ pub fn Library(
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
                                 menu_import.import_file(file);
+                                if let Some(mut browser) = browser { browser.0.set(false); }
                                 input.set_value("");
                             }}
                         }
                     }
             }
-            if has_current {
+            if has_current && project_menu {
                 section { class: "m1-project-current", "aria-label": "Current project",
                     label { class: "m1-project-title",
                         span { "Current project" }
@@ -768,8 +810,23 @@ pub fn Library(
                 }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
                 header { class: "m1-library-heading",
-                    h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
-                    span { "Saved in this browser" }
+                    if project_menu {
+                        h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
+                        span { "Saved in this browser" }
+                    } else {
+                        span { class: "m1-library-count", "{saved_count} saved keyboards" }
+                    }
+                    if !project_menu {
+                        BoardButton {
+                            class: "m1-library-new-action",
+                            variant: BoardButtonVariant::Primary,
+                            r#type: "button",
+                            aria_label: "Create new keyboard",
+                            disabled: pending_new().is_some(),
+                            onclick: move |_| start_new(),
+                            "New keyboard"
+                        }
+                    }
                 }
                 div { class: "m1-keyboard-search",
                     svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M13.5 13.5 18 18M15 8.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" } }
@@ -781,7 +838,7 @@ pub fn Library(
                         oninput: move |event: FormEvent| search_query.set(event.value()),
                     }
                     if !query.is_empty() {
-                        button { r#type: "button", onclick: move |_| search_query.set(String::new()), "Clear search" }
+                        BoardButton { r#type: "button", onclick: move |_| search_query.set(String::new()), "Clear search" }
                     }
                 }
                 if status() == ListStatus::Loading {
@@ -798,18 +855,24 @@ pub fn Library(
                     }
                 }
                 div { class: "m1-keyboard-grid",
-                    button {
-                        class: "m1-keyboard-tile m1-keyboard-new",
-                        r#type: "button",
-                        aria_label: "Create new keyboard",
-                        disabled: pending_new().is_some(),
-                        onclick: move |_| start_new_card(),
-                        div { class: "m1-keyboard-preview", "aria-hidden": "true", "＋" }
-                        span { class: "m1-keyboard-title", "New keyboard" }
-                        span { class: "m1-keyboard-detail", "Start with guided setup" }
-                    }
                     for (document, is_current) in cards {
-                        KeyboardCard { key: "{document.id}", document, current: is_current, recovery_required, deletable: project_menu }
+                        KeyboardCard { key: "{document.id}", selected: selected_project().as_ref().is_some_and(|selected| selected.id == document.id),
+                            document, current: is_current, recovery_required, deletable: true,
+                            on_select: (!project_menu).then(|| EventHandler::new(move |document: Arc<ProjectDoc>| {
+                                let selected_id = document.id.clone();
+                                selected_project.set(Some(document));
+                                spawn_local(async move {
+                                    gloo_timers::future::TimeoutFuture::new(0).await;
+                                    if selected_project.peek().as_ref().is_none_or(|document| document.id != selected_id)
+                                        || browser.is_some_and(|browser| !(browser.0)()) { return; }
+                                    if let Some(button) = web_sys::window().and_then(|window| window.document())
+                                        .and_then(|document| document.get_element_by_id("m1-browser-open-keyboard"))
+                                        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()) {
+                                        let _ = button.focus();
+                                    }
+                                });
+                            })),
+                        }
                     }
                 }
                 if no_search_matches {
@@ -819,7 +882,6 @@ pub fn Library(
                     DemoKeyboardCards { project_menu: true }
                 } else {
                     div { class: "m1-library-actions",
-                        button { r#type: "button", disabled: pending_new().is_some(), onclick: move |_| start_new_menu_landing(), "New project" }
                         if let Some(project_id) = current_project_id.clone() {
                             button { r#type: "button", onclick: move |_| {
                                 guide_request_counter += 1;
@@ -828,6 +890,7 @@ pub fn Library(
                                     request_id: format!("{}-guide-{}", project_id, guide_request_counter()),
                                     start_at_project: false,
                                 }));
+                                if let Some(mut browser) = browser { browser.0.set(false); }
                                 super::close_project_menu();
                             }, "Setup guide" }
                         }
@@ -837,11 +900,77 @@ pub fn Library(
                                 let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
                                 super::close_project_menu();
                                 import.import_file(file);
+                                if let Some(mut browser) = browser { browser.0.set(false); }
                                 input.set_value("");
                             }}
                         }
                     }
                     DemoKeyboardCards { project_menu: false }
+                }
+            }
+            if !project_menu {
+                aside { class: "m1-library-selection", aria_label: "Selected keyboard",
+                    if let Some(document) = selected_document {
+                        h2 { "{project_display_name(&document)}" }
+                        if current_project_id.as_deref() == Some(document.id.as_str()) {
+                            details { class: "m1-library-selection-rename-disclosure",
+                                summary { "Rename project" }
+                                label { class: "m1-library-selection-rename",
+                                    span { "Project name" }
+                                    input {
+                                        "aria-label": "Project name",
+                                        title: "Rename project",
+                                        value: "{project_name}",
+                                        oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
+                                        onkeydown: {
+                                            let accepted_name = current_name.clone();
+                                            move |event: KeyboardEvent| {
+                                                match event.data().key().to_string().as_str() {
+                                                    "Enter" => {
+                                                        event.prevent_default();
+                                                        if let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok()) { let _ = input.blur(); }
+                                                    }
+                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); },
+                                                    _ => {}
+                                                }
+                                            }
+                                        },
+                                        onblur: move |_| {
+                                            if !name_dirty() { return; }
+                                            name_dirty.set(false);
+                                            let draft = project_name();
+                                            if draft.trim().is_empty() { project_name.set(selection_name_for_blur.clone()); }
+                                            else if let Some(action) = selection_rename_action_for_blur.clone() { action.commit(&draft); }
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                        if let Some(message) = name_failure() { p { role: "alert", "{message}" } }
+                        p { class: "m1-library-selection-summary",
+                            "{selected_summary}"
+                        }
+                        p { class: "m1-library-selection-saved", "Saved in this browser" }
+                        div { class: "m1-library-selection-preview",
+                            DemoKeyboardPreview { preview: selected_preview, fallback: "Preview unavailable" }
+                        }
+                        div { class: "m1-library-selection-actions",
+                            BoardButton { "id": "m1-browser-open-keyboard", variant: BoardButtonVariant::Primary, onclick: {
+                                let runtime = runtime.clone(); let id = document.id.clone();
+                                move |_| { runtime.open_saved(id.clone()); if let Some(mut browser) = browser { browser.0.set(false); } }
+                            }, if recovery_required { "Recover (discard pending changes)" } else { "Open keyboard" } }
+                            if current_project_id.as_deref() == Some(document.id.as_str()) {
+                                BoardButton { onclick: { let runtime = runtime.clone(); move |_| runtime.export_project_copy() }, "Save project copy" }
+                            }
+                            BoardButton { variant: BoardButtonVariant::Danger, onclick: {
+                                let document = document.clone(); move |_| pending_delete.set(Some(document.clone()))
+                            }, "Delete keyboard" }
+                        }
+                    } else {
+                        h2 { "Select a keyboard" }
+                        p { "Choose a saved keyboard to preview it, then open it to continue editing." }
+                    }
+                    p { class: "m1-library-storage-note", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
                 }
             }
             if project_menu {
@@ -866,21 +995,18 @@ pub fn Library(
                     }
                 }
             }
-            if project_menu {
-                dialog {
+            BoardDialog {
+                    open: pending_delete_open,
+                    dismissible: !deleting_project(),
                     class: "m1-project-delete-dialog",
                     aria_labelledby: "m1-project-delete-title",
                     aria_describedby: "m1-project-delete-description",
-                    onkeydown: move |event: KeyboardEvent| event.stop_propagation(),
-                    oncancel: move |event| {
-                        event.prevent_default();
-                        if !deleting_project() {
-                            if let Some(project) = pending_delete() {
-                                focus_delete_trigger(project.id.clone());
-                            }
-                            pending_delete.set(None);
-                            delete_error.set(String::new());
+                    on_close: move |_| {
+                        if let Some(project) = pending_delete() {
+                            focus_delete_trigger(project.id.clone());
                         }
+                        pending_delete.set(None);
+                        delete_error.set(String::new());
                     },
                     if let Some(project) = pending_delete() {
                         h2 { id: "m1-project-delete-title", "Delete “{project_display_name(&project)}”?" }
@@ -892,7 +1018,7 @@ pub fn Library(
                         p { role: "alert", "{delete_error()}" }
                     }
                     div { class: "m1-project-delete-actions",
-                        button {
+                        BoardButton {
                             r#type: "button",
                             autofocus: true,
                             disabled: deleting_project(),
@@ -907,7 +1033,7 @@ pub fn Library(
                             },
                             "Cancel"
                         }
-                        button {
+                        BoardButton { variant: BoardButtonVariant::Danger,
                             class: "m1-project-delete-confirm",
                             r#type: "button",
                             disabled: deleting_project(),
@@ -942,6 +1068,9 @@ pub fn Library(
                                                 .cloned()
                                                 .collect();
                                             saved.set(remaining);
+                                            if selected_project.peek().as_ref().is_some_and(|selected| selected.id == project.id) {
+                                                selected_project.set(None);
+                                            }
                                             pending_delete.set(None);
                                             if let Some(generation) = generations.get().checked_add(1) {
                                                 generations.set(generation);
@@ -957,7 +1086,6 @@ pub fn Library(
                             if deleting_project() { "Deleting…" } else { "Delete keyboard" }
                         }
                     }
-                }
             }
             if pending_new().is_some() { p { role: "status", "Creating keyboard…" } }
             if !new_error().is_empty() { p { role: "alert", "{new_error()}" } }
@@ -1001,7 +1129,11 @@ mod mounted_tests {
         show_library: Rc<RefCell<Option<Signal<bool>>>>,
     }
 
+    #[derive(Clone, Copy)]
+    struct LibraryTestMode(bool);
+
     fn host() -> Element {
+        let project_menu = try_use_context::<LibraryTestMode>().is_none_or(|mode| mode.0);
         let seed = use_context::<Rc<Seed>>();
         let version = use_signal(|| 0_u64);
         *seed.state.borrow_mut() = Some(version);
@@ -1024,7 +1156,7 @@ mod mounted_tests {
             rsx! {
                 details { class: "m1-project-menu", open: true,
                     summary { "Project" }
-                    Library { project_menu: true }
+                    Library { project_menu }
                 }
             }
         } else {
@@ -1316,6 +1448,10 @@ mod mounted_tests {
     }
 
     fn mount_menu(runtime: Rc<Runtime>, root_id: &str) -> web_sys::Element {
+        mount_library(runtime, root_id, true)
+    }
+
+    fn mount_library(runtime: Rc<Runtime>, root_id: &str, project_menu: bool) -> web_sys::Element {
         let seed = Rc::new(Seed {
             state: Rc::new(RefCell::new(None)),
             show_library: Rc::new(RefCell::new(None)),
@@ -1337,12 +1473,81 @@ mod mounted_tests {
             .unwrap();
         let dom = VirtualDom::new(host);
         dom.provide_root_context(seed);
+        dom.provide_root_context(LibraryTestMode(project_menu));
         dom.provide_root_context(runtime.clone());
         dioxus_web::launch::launch_virtual_dom(
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         root
+    }
+
+    #[wasm_bindgen_test]
+    async fn browser_selection_previews_without_opening_and_focuses_the_handoff() {
+        let (session, core) = accepted(ProjectDoc::empty(
+            "browser-selection-current",
+            "Current keyboard",
+        ));
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        PROJECT_LIST_TEST_RESULTS.with(|results| {
+            results.borrow_mut().clear();
+            results.borrow_mut().push_back(Ok(vec![ProjectDoc::empty(
+                "browser-selection-other",
+                "Other keyboard",
+            )]));
+        });
+        let root = mount_library(runtime.clone(), "browser-selection-test-root", false);
+        wait_for_saved_cards(&root, 2).await;
+        click(&root, "button[aria-label='Preview Other keyboard']");
+        wait_until("selection reveals and focuses Open keyboard", || {
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .is_some_and(|element| element.id() == "m1-browser-open-keyboard")
+        })
+        .await;
+        assert_eq!(
+            runtime.model().accepted.as_ref().unwrap().document.id,
+            "browser-selection-current"
+        );
+        assert!(
+            root.query_selector(".m1-library-selection")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("Other keyboard")
+        );
+        click(&root, "button[aria-label='Preview Current keyboard']");
+        wait_until("current keyboard preview is selected", || {
+            root.query_selector(".m1-library-selection > h2")
+                .unwrap()
+                .and_then(|heading| heading.text_content())
+                .as_deref()
+                == Some("Current keyboard")
+        })
+        .await;
+        click(&root, ".m1-library-selection-rename-disclosure > summary");
+        type_value(&field(), "Renamed current");
+        let rename_slot = crate::runtime::project_name_test_support::observe_next(&runtime);
+        let _ = field().blur();
+        assert_eq!(
+            wait_outcome(&runtime, &rename_slot).await,
+            boardstudio_application::TerminalOutcome::Completed
+        );
+        wait_until("selected preview follows the accepted rename", || {
+            root.query_selector(".m1-library-selection > h2")
+                .unwrap()
+                .and_then(|heading| heading.text_content())
+                .as_deref()
+                == Some("Renamed current")
+        })
+        .await;
+        PROJECT_LIST_TEST_RESULTS.with(|results| results.borrow_mut().clear());
+        root.remove();
     }
 
     fn click(root: &web_sys::Element, selector: &str) {
@@ -1912,7 +2117,7 @@ mod mounted_tests {
             "m1-project-current",
             "m1-library-content m1-library-scroll",
             "m1-project-menu-footer",
-            "m1-project-delete-dialog",
+            "board-dialog m1-project-delete-dialog",
         ] {
             let child = menu_child.expect("expected direct menu child");
             assert_eq!(child.get_attribute("class").as_deref(), Some(expected));

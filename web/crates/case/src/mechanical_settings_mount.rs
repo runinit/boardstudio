@@ -764,7 +764,11 @@ pub fn use_mechanical_settings_mount(
                 ),
             )
         });
+        let preview_values = if configuration.is_none() {
+            boardstudio_core::mechanical::effective_inputs(&current.accepted.document, &current.accepted.scene.board_contours, &boardstudio_core::mechanical::MechanicalTarget::Board { board_id: current.identity.active_board_id.clone() }).ok().map(|inputs| settings_values(&inputs.configuration, transport))
+        } else { None };
         MechanicalSettingsProps {
+            preview_values,
             identity: current.identity.clone(),
             request_sequence,
             values: configuration

@@ -11,6 +11,7 @@ use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use super::{keycaps_finding_marker, keycaps_navigation};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -236,15 +237,22 @@ pub(super) struct InspectorInput {
     pub(super) on_export: EventHandler<()>,
 }
 
-pub(super) fn objects(input: SharedObjectsInput) -> Element {
+pub(super) struct NavigationInput {
+    pub(super) shared: SharedObjectsInput,
+    pub(super) view: Option<Rc<KeycapsView>>,
+    pub(super) settings_actions: Option<KeycapsSettingsActions>,
+}
+
+pub(super) fn objects(input: NavigationInput) -> Element {
+    let shared = input.shared;
     rsx! {
         objects::Objects {
-            selected_context: input.selected_context,
-            on_select: input.on_select,
-            on_navigate: input.on_navigate,
-            on_nudge: input.on_nudge,
-            on_open_geometry_scripts: input.on_open_geometry_scripts,
-            board_setup: Some(input.board_setup),
+            selected_context: shared.selected_context,
+            on_select: shared.on_select,
+            on_navigate: shared.on_navigate,
+            on_nudge: shared.on_nudge,
+            on_open_geometry_scripts: shared.on_open_geometry_scripts,
+            board_setup: Some(shared.board_setup),
             matrix_setup: None,
             mirrored_pair: None,
             pair_created: None,
@@ -255,12 +263,18 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
             placement_error: None,
             matrix_inspector: None,
         }
+        if let (Some(view), Some(actions)) = (input.view, input.settings_actions) {
+            div { class: "m1-keycaps-board-appearance",
+                KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions }
+            }
+        }
     }
 }
 
 pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
     rsx! {
         super::shared_viewer::DesignViewToolbar {
+            contextual_tools: input.contextual_tools,
             label: input.label,
             detail: input.detail,
             assembly_3d: input.assembly_3d,
@@ -332,12 +346,11 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     span { class: "m1-keycaps-inspector-assigned-count", "{assigned_count}/{key_count} assigned" }
                 }
                 if view.keys.is_empty() {
-                    p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to create a keymap." }
+                    p { class: "m1-keycaps-empty-note", role: "status", "Add switches in Layout to configure keycaps." }
                 }
                 if let Some(actions) = settings_actions.clone() {
-                    KeycapsBoardSettingsEditor { settings: view.board_settings.clone(), actions: actions.clone() }
-                    details { class: "m1-keycaps-disclosure", open: true,
-                        summary { "Matrix profiles" }
+                    BoardDisclosure { class: "m1-keycaps-disclosure",
+                        heading: rsx! { summary { "Matrix profiles" } },
                         section { class: "m1-keycaps-settings", "aria-label": "Matrix profiles",
                             for matrix in view.matrices.iter() {
                                 KeycapsMatrixSettingsEditor { key: "{matrix.id}", matrix_id: matrix.id.to_string(), matrix_name: matrix.name.to_string(), settings: matrix.settings.clone(), actions: actions.clone() }
@@ -346,8 +359,8 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         }
                     }
                 }
-                details { class: "m1-keycaps-disclosure m1-keycaps-selected-key", open: true,
-                    summary { "{selected_title}" }
+                BoardDisclosure { class: "m1-keycaps-disclosure m1-keycaps-selected-key", open: true,
+                    heading: rsx! { summary { "{selected_title}" } },
                     div { class: "m1-keycaps-selected-key-body",
                         KeycapsKeyList {
                             view: view.clone(),
@@ -366,7 +379,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                     on_retry: input.fit_retry,
                     on_navigate: input.fit_navigate,
                 }
-                button { disabled: view.keys.is_empty(), onclick: move |_| on_export.call(()), "Export keycap STEP" }
+                BoardButton { disabled: view.keys.is_empty(), onclick: move |_| on_export.call(()), "Export keycap STEP" }
             }
         }
     } else {

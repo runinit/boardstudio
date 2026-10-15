@@ -7,6 +7,7 @@ use boardstudio_core::model::{
     CaseOpening, EditOperation, EncoderDriver, HardwareOutput, ModuleDefinition, ModuleVolume,
     PartModel, RotaryProfile, Vec2, Vec3,
 };
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -626,8 +627,8 @@ pub fn ModuleProfileEditor(
     let current_draft = draft();
     let rotary_profile_exists = definition.electrical.rotary_profile.is_some();
     rsx! {
-        details { class: "m1-module-profile-editor m1-generator-settings",
-            summary { "Assembly geometry · {current_draft.volumes.len()} volumes · {current_draft.openings.len()} openings" }
+        BoardDisclosure { class: "m1-module-profile-editor m1-generator-settings",
+            heading: rsx! { summary { "Assembly geometry · {current_draft.volumes.len()} volumes · {current_draft.openings.len()} openings" } },
             p { class: "m1-parts-empty", "Coordinates use the module PCB midplane. Positive Z faces the module front. Unknown dimensions remain unqualified." }
             if rotary_profile_exists {
                 fieldset {
@@ -641,13 +642,13 @@ pub fn ModuleProfileEditor(
                         label { class: "m1-generator-field", "Pulses per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary pulses per rotation", value: "{rotary().steps}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.steps = event.value()); } } }
                         label { class: "m1-generator-field", "Actions per rotation", input { r#type: "number", min: "1", step: "1", aria_label: "Rotary actions per rotation", value: "{rotary().triggers_per_rotation}", oninput: move |event| { rotary_dirty.set(true); rotary.with_mut(|draft| draft.triggers_per_rotation = event.value()); } } }
                     }
-                    button { r#type: "button", onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
+                    BoardButton { r#type: "button", onclick: move |_| submit_profile.call(Some(None)), "Save rotary profile" }
                 }
             }
             for (index, volume) in current_draft.volumes.iter().enumerate() {
                 div { class: "m1-module-profile-volume", key: "volume-{volume.id}",
                     span { "{volume.purpose} · {volume.geometry.height} mm · " if volume.qualified { "Reviewed" } else { "Unreviewed" } " · {volume.source}" }
-                    button { r#type: "button", aria_label: "Remove measured volume {index + 1}", onclick: move |_| {
+                    BoardButton { r#type: "button", aria_label: "Remove measured volume {index + 1}", onclick: move |_| {
                         profile_dirty.set(true);
                         draft.with_mut(|draft| if index < draft.volumes.len() { draft.volumes.remove(index); });
                         error.set(None);
@@ -657,7 +658,7 @@ pub fn ModuleProfileEditor(
             for (index, opening) in current_draft.openings.iter().enumerate() {
                 div { class: "m1-module-profile-volume", key: "opening-{opening.id}",
                     span { "Opening · {opening.geometry.height} mm · " if opening.qualified { "Reviewed" } else { "Unreviewed" } " · {opening.source}" }
-                    button { r#type: "button", aria_label: "Remove functional opening {index + 1}", onclick: move |_| {
+                    BoardButton { r#type: "button", aria_label: "Remove functional opening {index + 1}", onclick: move |_| {
                         profile_dirty.set(true);
                         draft.with_mut(|draft| if index < draft.openings.len() { draft.openings.remove(index); });
                         error.set(None);
@@ -679,8 +680,8 @@ pub fn ModuleProfileEditor(
                 label { class: "m1-generator-field", "Height · mm", input { r#type: "number", min: "0.1", step: "0.1", aria_label: "Module volume height", value: "{shape().height}", oninput: move |event| shape.with_mut(|shape| shape.height = event.value()) } }
             }
             label { class: "m1-generator-field", "Dimension evidence", input { aria_label: "Module volume evidence", value: "{shape().source}", oninput: move |event| shape.with_mut(|shape| shape.source = event.value()) } }
-            label { class: "m1-module-profile-check", input { r#type: "checkbox", checked: shape().qualified, aria_label: "Dimensions and datum reviewed", onchange: move |event| shape.with_mut(|shape| shape.qualified = event.checked()) } "Dimensions and datum reviewed" }
-            button { r#type: "button", onclick: add_volume, "Add measured volume" }
+            label { class: "m1-module-profile-check", BoardCheckbox { checked: shape().qualified, aria_label: "Dimensions and datum reviewed", onchange: move |event: FormEvent| shape.with_mut(|shape| shape.qualified = event.checked()) } "Dimensions and datum reviewed" }
+            BoardButton { r#type: "button", onclick: add_volume, "Add measured volume" }
             if !candidate_models.is_empty() {
                 label { class: "m1-generator-field", "Attach candidate model", select { aria_label: "Module candidate model", value: "", onchange: move |event| {
                     let asset_id = event.value();
@@ -719,16 +720,16 @@ pub fn ModuleProfileEditor(
                             }
                         }
                     }
-                    button { r#type: "button", aria_label: "Remove module model {model_index + 1}", onclick: move |_| {
+                    BoardButton { r#type: "button", aria_label: "Remove module model {model_index + 1}", onclick: move |_| {
                         profile_dirty.set(true);
                         draft.with_mut(|draft| if model_index < draft.models.len() { draft.models.remove(model_index); });
                         error.set(None);
                     }, "Remove model" }
                 }
             }
-            label { class: "m1-module-profile-check", input { r#type: "checkbox", checked: reviewed(), aria_label: "Complete assembly, mounts, functional openings and cable clearance reviewed", onchange: move |event| reviewed.set(event.checked()) } "Complete assembly, mounts, functional openings and cable clearance reviewed" }
+            label { class: "m1-module-profile-check", BoardCheckbox { checked: reviewed(), aria_label: "Complete assembly, mounts, functional openings and cable clearance reviewed", onchange: move |event: FormEvent| reviewed.set(event.checked()) } "Complete assembly, mounts, functional openings and cable clearance reviewed" }
             p { class: "m1-parts-empty", "Saving a candidate model retains its alignment review. Electrical repairs, driver support and other missing evidence keep their own blockers." }
-            button { class: "m1-generator-apply", r#type: "button", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
+            BoardButton { class: "m1-generator-apply", r#type: "button", disabled: current_owner.is_none(), onclick: move |_| submit_profile.call(None), "Save project module profile" }
             if busy { p { class: "m1-parts-loading", role: "status", "Saving module profile…" } }
             if let Some(message) = visible_error { p { class: "m1-parts-load-error", role: "alert", "{message}" } }
         }

@@ -1,6 +1,7 @@
 //! Canvas lifetime and case controls consume immutable session snapshots.
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, GenerationStatus};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen_futures::spawn_local;
@@ -185,44 +186,6 @@ pub fn CasePanel(
     let title = case_generation_title(&model.generation, geometry);
     rsx! {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
-            div { class: "m1-case-header",
-                h2 { "Case assembly" }
-                label { class: "m1-case-live-toggle",
-                    input {
-                        r#type: "checkbox",
-                        role: "switch",
-                        checked: generation_enabled,
-                        onchange: move |event: FormEvent| {
-                            let enabled = event.checked();
-                            live_preview_control.set(enabled);
-                            automatic_generation_control.write().set_enabled(enabled);
-                            if !enabled && generation_busy {
-                                toggle_runtime.submit(Event::CancelGeneration {
-                                    operation_id: toggle_runtime.operation(),
-                                });
-                            }
-                        }
-                    }
-                    span { "Live preview" }
-                }
-                button { disabled: !generation_ready || generation_busy, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Update preview" }
-                button {
-                    disabled: !generation_busy,
-                    onclick: move |_| {
-                        live_preview.set(false);
-                        automatic_generation.write().set_enabled(false);
-                        cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() });
-                    },
-                    "Cancel"
-                }
-                if mechanical_export_configured {
-                    button {
-                        disabled: !mechanical_export_ready,
-                        onclick: export_mechanical_click,
-                        "Export geometry"
-                    }
-                }
-            }
             p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
             if runtime.native_case_preview_pending() {
                 p { class: "m1-case-live-status is-secondary", role: "status", "aria-live": "polite", "Preparing the accepted PCB preview…" }
@@ -233,8 +196,8 @@ pub fn CasePanel(
                 && let Some(rows) = runtime.native_model_delivery(preview)
                 && (rows.delivered.len() != preview.preview.models.len() || !rows.failures.is_empty())
             {
-                details { class: "m1-case-model-delivery",
-                    summary { "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" }
+                BoardDisclosure { class: "m1-case-model-delivery",
+                    heading: rsx! { summary { "Board models: {rows.delivered.len()} of {preview.preview.models.len()} decoded" } },
                     for failure in rows.failures.iter() {
                         p { role: "alert", "{failure.reference}: {failure.reason}" }
                     }
@@ -258,6 +221,44 @@ pub fn CasePanel(
                     mechanical_settings,
                 }
             }
+            footer { class: "m1-case-header m1-case-footer",
+                h2 { "Case assembly" }
+                label { class: "m1-case-live-toggle",
+                    BoardCheckbox {
+                        role: "switch",
+                        checked: generation_enabled,
+                        onchange: move |event: FormEvent| {
+                            let enabled = event.checked();
+                            live_preview_control.set(enabled);
+                            automatic_generation_control.write().set_enabled(enabled);
+                            if !enabled && generation_busy {
+                                toggle_runtime.submit(Event::CancelGeneration {
+                                    operation_id: toggle_runtime.operation(),
+                                });
+                            }
+                        }
+                    }
+                    span { "Live preview" }
+                }
+                BoardButton { disabled: !generation_ready || generation_busy, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Update preview" }
+                BoardButton {
+                    disabled: !generation_busy,
+                    onclick: move |_| {
+                        live_preview.set(false);
+                        automatic_generation.write().set_enabled(false);
+                        cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() });
+                    },
+                    "Cancel"
+                }
+                if mechanical_export_configured {
+                    BoardButton {
+                        disabled: !mechanical_export_ready,
+                        onclick: export_mechanical_click,
+                        "Export geometry"
+                    }
+                }
+            }
+
         }
     }
 }

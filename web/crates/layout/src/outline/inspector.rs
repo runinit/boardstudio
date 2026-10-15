@@ -9,6 +9,7 @@ use crate::outline_settings::OutlineEdit;
 use boardstudio_core::model::{
     Contour, CornerStyle, EditPhase, Operation, OutlineControlPoint, OutlineFeature, Side, Vec2,
 };
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -212,7 +213,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             },
                             "Insert after"
                         }
-                        button {
+                        BoardButton {
                             class: "m1-outline-remove-point",
                             r#type: "button",
                             disabled: !enabled || point_count <= 3,
@@ -457,8 +458,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                         "Gap {index + 1} · {gap.span:.1} mm span"
                                     }
                                     label { class: "m1-outline-field m1-outline-gap",
-                                        input {
-                                            r#type: "checkbox",
+                                        BoardCheckbox {
                                             aria_label: "Keep gap {index + 1}",
                                             checked: gap.protected,
                                             onchange: {
@@ -477,8 +477,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         legend { "Advanced cleanup and clearance" }
                         if envelope_editable {
                             label { class: "m1-outline-field m1-outline-gap",
-                                input {
-                                    r#type: "checkbox",
+                                BoardCheckbox {
                                     aria_label: "Automatic gap cleanup",
                                     checked: projection.repair.enabled,
                                     onchange: {
@@ -522,7 +521,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         p { "Support and clearance findings block affected fabrication exports. Editing and project saving stay available." }
                         if projection.active_version_id.is_none() {
                             for (index, gap) in projection.repair.keep_gaps.iter().enumerate() {
-                                button {
+                                BoardButton {
                                     class: "m1-outline-remove-gap",
                                     aria_label: "Remove protected gap {index + 1}",
                                     disabled: !one_shot_enabled,
@@ -592,7 +591,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             }
                                         }
                                         if let Some(version_id) = active_version.as_ref().filter(|_| index > 0) {
-                                            button {
+                                            BoardButton {
                                                 r#type: "button",
                                                 class: "m1-outline-remove-feature",
                                                 disabled: !one_shot_enabled,
@@ -734,7 +733,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     "Connection {index + 1} · {connection.points.len()} points · {connection.width:.2} mm"
                                 }
                                 if let Some(before) = projection.connection_feature.as_ref() {
-                                    button {
+                                    BoardButton {
                                         r#type: "button",
                                         class: "m1-outline-remove-feature",
                                         disabled: !one_shot_enabled,
@@ -885,7 +884,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                 },
                                                 "Insert after"
                                             }
-                                            button {
+                                            BoardButton {
                                                 r#type: "button",
                                                 disabled: !one_shot_enabled || connection.points.len() <= 2,
                                                 aria_label: "Remove connection point {index + 1}",
@@ -945,7 +944,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             onclick: move |_| { let mut points = drawing_points.read().clone(); points.pop(); drawing_points.set(points); },
                             "Undo point"
                         }
-                        button { r#type: "button", onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); }, "Cancel drawing" }
+                        BoardButton { r#type: "button", onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); }, "Cancel drawing" }
                         button {
                             r#type: "button",
                             disabled: !one_shot_enabled || drawing_points.read().len() < if tool == OutlineDrawTool::Connect { 2 } else { 3 }
@@ -1025,7 +1024,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     }
                 }
                 if let Some(delete) = delete {
-                    button { r#type: "button", disabled: !projection.enabled || projection.one_shot_pending, onclick: move |_| delete_handler.call(delete.clone()), "Delete outline" }
+                    BoardButton { r#type: "button", disabled: !projection.enabled || projection.one_shot_pending, onclick: move |_| delete_handler.call(delete.clone()), "Delete outline" }
                 }
             }
             if let Some(message) = projection.feedback.as_ref().and_then(|feedback| feedback.message.as_ref()) {

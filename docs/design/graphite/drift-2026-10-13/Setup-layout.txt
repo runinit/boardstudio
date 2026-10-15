@@ -1,0 +1,46 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Graphite comparison
+Saved
+Setup guide
+
+A step-by-step guide to your keyboard.
+
+Open editor
+
+Step 2 of 5. Move between steps freely; your work is kept.
+
+✓
+Project & hardware
+2
+Layout & assemblies
+3
+Controller & wiring
+4
+Case (optional)
+5
+Review & export
+Layout & assemblies
+
+3 layout findings need attention.
+
+Place keys with their switch, diode, and optional lighting assembly. Edit the layout on the canvas.
+
+Add key matrix
+Edit existing objects
+Continue to wiring
+Previous step
+Matrix
+Row
+Column
+Key
+Part
+Transform
+Align
+2D
+3D assembly
+Footprints
+Layers

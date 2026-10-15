@@ -181,6 +181,7 @@ mod ui {
     use crate::runtime::Runtime;
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::controls::BoardButton;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
@@ -679,7 +680,7 @@ mod ui {
             if let Some(ImportPhase::Preparing { filename }) = pending.read().as_ref() {
                 p { class: "m1-parts-loading", role: "status",
                     "Reading and importing {filename}…"
-                    button { type: "button", onclick: cancel, "Cancel import" }
+                    BoardButton { r#type: "button", onclick: cancel, "Cancel import" }
                 }
             }
             if let Some(message) = visible_error {

@@ -27,6 +27,8 @@ struct GeneratorLayerInventory {
 
 #[derive(Props, Clone, PartialEq)]
 pub struct PcbLayerControlsProps {
+    #[props(default)]
+    initially_open: bool,
     snapshot: AcceptedSnapshot,
     scope: Scope,
 }
@@ -36,6 +38,7 @@ pub fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
     let groups = use_layer_groups(&props.snapshot, &props.scope);
     rsx! {
         CanvasLayers {
+            initially_open: props.initially_open,
             trigger_id: String::from("m1-pcb-layers-trigger"),
             list_id: String::from("m1-pcb-layers-list"),
             groups,

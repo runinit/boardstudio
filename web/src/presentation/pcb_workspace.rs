@@ -1,6 +1,5 @@
 //! PCB-owned workspace surface composition.
 use super::objects;
-use super::pcb_layers::PcbLayerControls;
 use super::pcb_scene::{PcbPartHit, PcbPartPointerDown, PcbScene};
 use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
 use boardstudio_application::{AcceptedSnapshot, Scope};
@@ -63,6 +62,7 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
             on_browse_parts: Some(input.on_browse_parts),
             placement_error: input.placement_error,
             matrix_inspector: None,
+            add_object_menu_open: None,
         }
     }
 }
@@ -123,14 +123,33 @@ pub(super) fn canvas(input: CanvasInput) -> Element {
                     }
                 }
             }
-            PcbLayerControls {
-                snapshot: input.snapshot.clone(),
-                scope: input.scope.clone(),
-            }
+
         }
     }
 }
 
 pub(super) fn inspector() -> Element {
     rsx! {}
+}
+
+/// Both panes stay mounted so changing the presentation mode retains numeric drafts.
+#[component]
+pub(super) fn PcbInspector(selected: bool, children: Element) -> Element {
+    use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+    let mut wiring = use_signal(|| true);
+    rsx! {
+        section { class: "m1-pcb-inspector", aria_label: "PCB inspector",
+            div { class: "m1-inspector-mode", role: "group", aria_label: "PCB inspector mode",
+                BoardButton { pressed: Some(!wiring()), disabled: !selected, onclick: move |_| wiring.set(false), "Selection" }
+                BoardButton { pressed: Some(wiring()), onclick: move |_| wiring.set(true), "Routing & nets" }
+            }
+            div { hidden: wiring(),
+                BoardDisclosure { open: true, class: "m1-inspector-section",
+                    heading: rsx! { summary { "Position" } },
+                    super::inspector::Inspector {}
+                }
+            }
+            div { hidden: !wiring(), {children} }
+        }
+    }
 }

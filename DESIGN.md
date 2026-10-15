@@ -2,11 +2,16 @@
 name: BoardStudio — The Keyboard Lab
 description: A compact visual workbench with neutral panels and distinct geometry colors.
 colors:
+  light-field: '#f7f8fa'
+  light-toolbar: '#edf0f8'
+  light-toolbar-rule: '#c1cad6'
+  dark-field: '#171A20'
+  dark-toolbar: '#2D323B'
+  dark-toolbar-rule: '#454C57'
   light-accent: '#3858D6'
   light-accent-dark: '#2945b6'
   light-on-accent: '#FFFFFF'
   light-accent-secondary: '#8E5AA5'
-  light-teal: '#3858D6'
   light-paper: '#f7f8fa'
   light-canvas: '#E9EEF2'
   light-panel: '#FFFFFF'
@@ -16,8 +21,9 @@ colors:
   light-ink: '#182331'
   light-muted: '#576678'
   light-subtle: '#576678'
-  light-rule: '#dbe1e8'
+  light-rule: '#e2e7ed'
   light-rule-strong: '#9aaabc'
+  light-rule-control: '#7D8B9A'
   light-selection-surface: '#E9EDFF'
   light-selection-ink: '#253EAC'
   light-topbar: '#ffffff'
@@ -41,25 +47,28 @@ colors:
   light-geometry-graphic: '#397568'
   light-geometry-zone: '#ddebe5'
   light-geometry-text: '#8E5AA5'
+  keymap-key-face: '#252A32'
+  keymap-key-ink: '#EDF1F7'
+  keymap-key-rule: '#66717F'
   dark-accent: '#9AADFF'
   dark-accent-dark: '#b6c4ff'
   dark-on-accent: '#101725'
   dark-accent-secondary: '#B98CD1'
-  dark-teal: '#9AADFF'
-  dark-paper: '#151c26'
-  dark-canvas: '#101a22'
-  dark-panel: '#1c2632'
-  dark-raised: '#293443'
-  dark-surface-soft: '#263246'
-  dark-surface-strong: '#344562'
+  dark-paper: '#171A20'
+  dark-canvas: '#15171B'
+  dark-panel: '#202329'
+  dark-raised: '#3A3F48'
+  dark-surface-soft: '#282D36'
+  dark-surface-strong: '#343B48'
   dark-ink: '#EDF1F7'
   dark-muted: '#AFBCCB'
   dark-subtle: '#AFBCCB'
-  dark-rule: '#344151'
-  dark-rule-strong: '#61738a'
-  dark-selection-surface: '#304373'
+  dark-rule: '#30343B'
+  dark-rule-strong: '#66717F'
+  dark-rule-control: '#626D7B'
+  dark-selection-surface: '#303B56'
   dark-selection-ink: '#CDD6FF'
-  dark-topbar: '#16222d'
+  dark-topbar: '#1A1D22'
   dark-topbar-ink: '#EDF1F7'
   dark-status-success: '#6ab99d'
   dark-status-success-surface: '#18352d'
@@ -67,62 +76,77 @@ colors:
   dark-status-warning-surface: '#332A1D'
   dark-status-error: '#ff8389'
   dark-status-error-surface: '#491217'
-  dark-grid-small: '#203040'
-  dark-grid-large: '#344b60'
-  dark-geometry-outline: '#6F87A3'
+  dark-grid-small: '#252A32'
+  dark-grid-large: '#3A424E'
+  dark-geometry-outline: '#8995A5'
   dark-geometry-fill: '#18352d'
   dark-geometry-fill-muted: '#223041'
   dark-geometry-key: '#9AADFF'
   dark-geometry-part: '#B98CD1'
   dark-geometry-label: '#EDF1F7'
-  dark-geometry-body: '#223041'
+  dark-geometry-body: '#252A32'
   dark-geometry-board: '#6AB99D'
   dark-geometry-graphic: '#6AB99D'
   dark-geometry-zone: '#18352d'
   dark-geometry-text: '#B98CD1'
 typography:
+  brand:
+    fontFamily: "'Source Sans 3', 'Segoe UI', sans-serif"
+    fontSize: 22px
+    fontWeight: 650
+    letterSpacing: -0.02em
+  page-heading:
+    fontFamily: "'Source Sans 3', 'Segoe UI', sans-serif"
+    fontSize: 32px
+    fontWeight: 650
+    lineHeight: 1.12
+  panel-heading:
+    fontFamily: "'Source Sans 3', 'Segoe UI', sans-serif"
+    fontSize: 18px
+    fontWeight: 650
   preview-title:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
     fontSize: 20px
     fontWeight: 600
   inspector-title:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
-    fontSize: 23px
+    fontSize: 20px
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: -0.015em
   section:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
-    fontSize: 13px
+    fontSize: 18px
     fontWeight: 600
     lineHeight: 1.45
   body:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
-    fontSize: 13px
+    fontSize: 16px
     fontWeight: 400
     lineHeight: 1.45
     fontFeature: '''tnum'' 1'
   field:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
-    fontSize: 12px
+    fontSize: 16px
     fontWeight: 500
     lineHeight: 1.45
   supporting:
     fontFamily: '''Source Sans 3'', ''Segoe UI'', sans-serif'
-    fontSize: 12px
+    fontSize: 14px
     fontWeight: 400
     lineHeight: 1.55
   measurement:
     fontFamily: '''Source Code Pro'', Consolas, monospace'
-    fontSize: 12px
+    fontSize: 16px
     fontWeight: 400
   metadata:
     fontFamily: '''Source Code Pro'', Consolas, monospace'
-    fontSize: 10px
+    fontSize: 12px
     fontWeight: 400
 rounded:
-  field: 4px
-  control: 4px
+  field: 5px
+  control: 5px
+  toolbar: 6px
   menu: 5px
   flyout: 8px
 spacing:
@@ -130,30 +154,30 @@ spacing:
   inline: 8px
   field-gap: 12px
   panel-inset: 16px
-  section-end: 20px
+  section-end: 24px
+  page-inset: 32px
 components:
   button-primary:
     backgroundColor: '{colors.light-accent}'
     textColor: '{colors.light-on-accent}'
     rounded: '{rounded.control}'
-    padding: 0 13px
+    padding: 6px 12px
   button-primary-hover:
     backgroundColor: '{colors.light-accent-dark}'
     textColor: '{colors.light-on-accent}'
   button-secondary:
-    backgroundColor: transparent
+    backgroundColor: '{colors.light-surface-soft}'
     textColor: '{colors.light-ink}'
     rounded: '{rounded.control}'
-    padding: 0 12px
+    padding: 6px 12px
   numeric-field:
-    backgroundColor: '{colors.light-panel}'
+    backgroundColor: '{colors.light-field}'
     textColor: '{colors.light-ink}'
     rounded: '{rounded.field}'
     typography: '{typography.measurement}'
-  stage-navigation:
+  object-workspace-navigation:
     backgroundColor: '{colors.light-panel}'
     textColor: '{colors.light-muted}'
-    height: 48px
   revision-tag:
     backgroundColor: transparent
     textColor: '{colors.light-subtle}'
@@ -176,33 +200,36 @@ components:
     rounded: '{rounded.control}'
     padding: 7px 10px
   command-group:
-    backgroundColor: '{colors.light-panel}'
-    textColor: '{colors.light-muted}'
-    rounded: 3px
-    padding: 0 12px
-    height: 32px
+    backgroundColor: '{colors.light-toolbar}'
+    textColor: '{colors.light-ink}'
+    rounded: '{rounded.toolbar}'
+    padding: 5px
+  button-quiet:
+    backgroundColor: transparent
+    textColor: '{colors.light-ink}'
+    rounded: '{rounded.control}'
+    padding: 6px 12px
   button-primary-dark:
     backgroundColor: '{colors.dark-accent}'
     textColor: '{colors.dark-on-accent}'
     rounded: '{rounded.control}'
-    padding: 0 13px
+    padding: 6px 12px
   button-primary-hover-dark:
     backgroundColor: '{colors.dark-accent-dark}'
     textColor: '{colors.dark-on-accent}'
   button-secondary-dark:
-    backgroundColor: transparent
+    backgroundColor: '{colors.dark-surface-soft}'
     textColor: '{colors.dark-ink}'
     rounded: '{rounded.control}'
-    padding: 0 12px
+    padding: 6px 12px
   numeric-field-dark:
-    backgroundColor: '{colors.dark-panel}'
+    backgroundColor: '{colors.dark-field}'
     textColor: '{colors.dark-ink}'
     rounded: '{rounded.field}'
     typography: '{typography.measurement}'
-  stage-navigation-dark:
+  object-workspace-navigation-dark:
     backgroundColor: '{colors.dark-panel}'
     textColor: '{colors.dark-muted}'
-    height: 48px
   revision-tag-dark:
     backgroundColor: transparent
     textColor: '{colors.dark-subtle}'
@@ -225,11 +252,15 @@ components:
     rounded: '{rounded.control}'
     padding: 7px 10px
   command-group-dark:
-    backgroundColor: '{colors.dark-panel}'
-    textColor: '{colors.dark-muted}'
-    rounded: 3px
-    padding: 0 12px
-    height: 32px
+    backgroundColor: '{colors.dark-toolbar}'
+    textColor: '{colors.dark-ink}'
+    rounded: '{rounded.toolbar}'
+    padding: 5px
+  button-quiet-dark:
+    backgroundColor: transparent
+    textColor: '{colors.dark-ink}'
+    rounded: '{rounded.control}'
+    padding: 6px 12px
 ---
 
 # Design System: BoardStudio
@@ -238,28 +269,45 @@ components:
 
 **Creative North Star: "The Keyboard Lab"**
 
-The Keyboard Lab is an instrument-like workspace for exploring and refining keyboard designs. Compact neutral panels frame a dominant drawing surface. Color identifies actions, geometry, and state; labels and measurements carry the detail.
+The Keyboard Lab is a precise workspace for exploring and refining keyboard designs. Compact neutral panels frame a dominant drawing surface. Color identifies actions, geometry, and state; labels and measurements carry the detail.
 
-The working character is calm, precise, and restrained: small controls, aligned values, modest corners, and short state transitions. Catalog, canvas, and inspector share one workspace, with optional properties organized into disclosures. These descriptions record the approved unified workspace now implemented locally.
+The working character is calm, precise, and restrained: compact controls, aligned values, modest corners, and short state transitions. Catalog, canvas, and inspector share one workspace, with optional properties organized into disclosures. These descriptions record the approved unified workspace now implemented locally.
+
+Shared typography follows a readable 12 / 14 / 16 / 18 / 20 / 24 / 32px scale,
+with a 22px brand mark. Shared spacing follows 4 / 8 / 12 / 16 / 24 / 32px.
+Structural dividers stay subdued; editable fields retain a clear boundary, and
+focus, selection, validation and CAD geometry keep their distinct visible states.
 
 **Key Characteristics:**
 
-- Neutral shell with a separately colored slate canvas.
+- Graphite charcoal dark surfaces and neutral light surfaces around a dominant canvas.
 - Action blue, Board teal, Pad violet, and dashed key boundaries.
 - Compact fields and rule-separated inspector disclosures.
 - Fixed canvas controls and independently scrolling side panels.
 - Light and dark palettes with a persisted System option.
 
-The September 2026 cleanup preserves the unified workbench shell and its visual
-identity. Dioxus shell, panel, Inspector and geometry styles live in [the web stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
-Exploratory review images are local artifacts; current source supplies the
-implemented layout and token values.
+The October 2026 Graphite migration extends the unified workbench shell with a single header, labeled contextual tools and semantic shared controls. Dioxus shell, panel, Inspector and geometry styles use semantic `--wb-*` roles in [Tailwind source](web/tailwind.css) and [the base stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
+Approved Graphite comps are preserved in [the durable reference packet](docs/design/graphite/approved-suite/). Current source supplies the implemented layout and token values.
+
+The same dock vocabulary now covers PCB Placement/Wiring, Case assembly and
+construction disclosures, Keymap Layers/keys, Keycaps board appearance and
+selected-key overrides, and the Parts catalogue. Contextual shortcuts reveal and
+focus existing Inspector editors; they do not own document edits. Hidden PCB
+panes and collapsed disclosures retain their mounted draft owners.
+
+The project browser temporarily hides the mounted editor while selecting a saved
+keyboard and its real geometry preview. Setup uses a dedicated process surface
+beside the actual viewer; pre-layout hardware silhouettes are explicitly
+schematic. Export shows the accepted project revision and local-save state
+separately from portable downloads and fabrication readiness.
 
 ## Colors
 
 Role-led names describe the implemented palette. The frontmatter records separate
 `light-*` and `dark-*` values; neither theme is a global inversion. Removing the
-mode prefix from a color key gives its corresponding `--wb-` CSS token suffix.
+mode prefix from a paired color key gives its corresponding `--wb-` CSS token
+suffix. The `keymap-*` values are a fixed dark key-face treatment shared by both
+themes.
 Tokens in this document record the implementation; update the document and its
 sidecar together when the implementation's palette changes.
 
@@ -288,19 +336,24 @@ sidecar together when the implementation's palette changes.
 - **Geometry support:** `geometry-outline`, `geometry-body`, `geometry-label`,
   `geometry-text`, and `geometry-zone` keep boundaries, bodies, labels, and zones
   distinct. `geometry-fill-muted` supports inactive matrix cells.
+- **Keymap keys:** the fixed `keymap-key-face`, `keymap-key-ink`, and
+  `keymap-key-rule` tokens keep binding labels legible across themes.
 - **Status colors:** `status-success`, `status-warning`, and `status-error` have
   separate surface tokens for filled backgrounds. Geometry keepouts and cutouts
   currently reuse the error color and retain dashed boundaries.
 
 ### Neutral
 
-- **Slate canvas:** `canvas` is the drawing, footprint, and 3D preview field.
+- **Neutral canvas:** `canvas` is the drawing, footprint, and 3D preview field.
   `grid-small` and `grid-large` form its quiet measurement grid.
 - **Shell surfaces:** `paper`, `panel`, and `raised` distinguish the application,
   permanent panels, and raised or hovered areas. `surface-soft` and
   `surface-strong` provide additional interaction surfaces.
+- **Field and toolbar surfaces:** `field` distinguishes editable controls; `toolbar` and `toolbar-rule` back the contextual actions with a solid contrasting surface.
 - **Content and rules:** `ink`, `muted`, and `subtle` form the text hierarchy;
   `rule` and `rule-strong` separate panels and outline controls.
+
+**The Shared Token Rule.** Tailwind utilities and BoardStudio controls consume the same `--wb-*` roles. Keep workspace state and document edits out of visual primitives.
 
 **The Paired Foreground Rule.** Use each filled action with its designated foreground; ordinary content colors are not interchangeable with on-accent colors.
 
@@ -325,14 +378,14 @@ Calculated from current opaque CSS pairs (normal text target 4.5:1):
 
 | Pair | Light | Dark |
 | --- | --- | --- |
-| Primary text | 15.87:1 | 13.50:1 |
-| Muted text | 5.87:1 | 7.92:1 |
+| Primary text | 15.87:1 | 13.89:1 |
+| Muted text | 5.87:1 | 8.16:1 |
 | Action | 5.94:1 | 8.36:1 |
 | Action hover | 8.01:1 | 10.53:1 |
-| Selection | 7.63:1 | 6.74:1 |
-| Success | 6.31:1 | 6.59:1 |
-| Warning | 6.80:1 | 8.79:1 |
-| Error | 7.79:1 | 6.45:1 |
+| Selection | 7.63:1 | 7.77:1 |
+| Success | 5.44:1 | 5.70:1 |
+| Warning | 6.10:1 | 8.10:1 |
+| Error | 7.09:1 | 6.41:1 |
 
 These checks do not certify every composited state, geometry layer, or 3D material.
 
@@ -350,34 +403,39 @@ monospace loads on demand. Segoe UI/sans-serif and Consolas/monospace remain
 fallbacks. Source provenance and checksums live in `web/assets/fonts/README.md`;
 SIL OFL licenses ship in `web/assets/licenses/fonts/`.
 
-- Preview titles use 20px and selected inspector titles use 23px.
-- Section headings, actions, and control values use 13px; field labels and
-  supporting text use 12px, with measurements in Source Code Pro.
-- Pane and menu type roles stay fixed across viewport widths; browser zoom
-  controls the overall scale.
+- Preview titles use 20px, selected-object headings use 21px, and panel headings
+  use 18px. Disclosure headings and field values are generally 15px; compact
+  labels range from 12px to 13px, with metadata at 10px.
+- Measurements use Source Code Pro. The body and numeric value role is 15px on
+  desktop and 14px on narrow screens; help copy uses a 1.55 line height.
+- The main type roles contract on narrow screens: the page heading becomes 30px,
+  body and control text 14px, and the brand 22px. Browser zoom remains available.
 
 **The Measurement Rule.** Keep values and units aligned, use tabular numerals,
 and keep precise values available alongside direct manipulation.
 
 ## Layout
 
-The application owns the viewport height (100dvh). The 42px single-row header
-and 34px footer frame independently scrolling navigator,
-canvas, and right inspector panels. These shell heights remain fixed across
-desktop widths; the center expands to absorb available width.
+The application fills the viewport. On desktop, a 64px single-row header and
+48px footer frame the independently scrolling Objects dock, canvas, and
+Inspector. At 760px and below, the header becomes 56px. The center expands to
+absorb available width.
 
 | Width | Implemented arrangement |
 | --- | --- |
-| Above 1150px | Resizable navigator and inspector, flexible center; default widths remain clamp-based |
-| 981–1150px | Default 220px navigator and 300px inspector; saved widths are bounded to preserve the canvas |
-| 821–980px | Full-width center with navigator drawer and 300px inspector |
-| 820px and below | Full-width workspace with navigator and inspector drawers |
+| Above 1150px | Resizable Objects and Inspector docks, flexible center; default widths are clamp-based |
+| 981–1150px | Dock defaults narrow to 220px Objects and 300px Inspector; persisted widths remain bounded |
+| 821–980px | Objects opens as a drawer; Inspector remains docked |
+| 761–820px | Objects and Inspector open as separate drawers |
+| 760px and below | Layout offers full-workspace Objects and Inspector views; other workspaces retain their compact panel behavior |
 
-The project header is 42px at all widths; its project menu and Export controls keep 44px hit targets. At 820px and below, direct view tabs
-become a native Workspace selector; the footer has a 44px minimum height and
-grows when it wraps.
-The navigator drawer is capped at 290px
-and the inspector at 370px, each bounded by 92vw, with a scrim.
+Workspace links stay in the Objects dock at every width; the header has no
+duplicate workspace tabs or selector. The wide header keeps project identity,
+save status, history actions, and Export. History buttons move into the footer
+at 1100px and below; brand text and save labels hide at 1240px and below, while
+the save status itself hides on narrow mobile screens.
+The Layout toolbar wraps within 680px of container width, and coarse-pointer
+controls use 44px targets.
 
 Both desktop panels support pinned, collapsed, and opt-in auto-hide modes.
 Widths (navigator 200–420px, inspector 280–480px) and modes persist locally;
@@ -385,15 +443,16 @@ Workspace settings owns appearance and restoring this panel layout. The Project
 menu owns naming, opening, new projects, and saving portable copies.
 Collapsed panels release their full column and reopen from narrow edge controls.
 Auto-hide leaves the same reveal control and opens the panel over the canvas;
-pointer presence, keyboard focus, and resizing prevent dismissal. Reveals use
-a short slide, removed under reduced motion. Narrow screens use explicit drawers
-opened from the header instead of hover behavior. Resizing supports pointer
-dragging and arrow keys. Add opens a create view within the Objects panel.
+pointer presence, keyboard focus, and resizing prevent dismissal. Panel reveals
+slide over 220ms. Narrow screens use explicit panel controls instead of hover
+behavior. Resizing supports pointer dragging and arrow keys. Layout's Add action
+sits beside the Objects heading and opens a create view within the dock.
 
-The single header keeps direct Layout, PCB, Case, and Parts tabs visible outside
-the dock columns, so navigation survives collapsed or temporary panel states.
-The object tree is contextual to the active view and shows the relevant
-selectable objects. Export remains a dedicated header action and page.
+The Objects dock keeps direct Layout, PCB, Keymap, Keycaps, Case, and Parts links
+available even when the header is compact. The object tree is contextual to the active view and shows the relevant
+selectable objects. Layout also exposes PCB, Case and Keycaps as navigation leaves
+alongside Board, using the existing workspace state without changing document
+selection. Export remains a dedicated header action and page.
 When open, the setup guide occupies the left workspace in place of the object
 tree. Project → Setup guide is its entry point, and the guide header's
 Back to objects control returns to the contextual tree. The current-step list is
@@ -479,8 +538,9 @@ shadows. Save/live dots use the success foreground and have no halo in the unifi
 
 ## Shapes
 
-Unified inspector fields and action buttons use 4px corners; command buttons
-use 3px, menus 5px. Persistent workspace panels remain rectangular. Selection
+Shared inspector fields and action buttons use 5px corners; the contextual
+toolbar uses 6px corners. Menus and flyouts use 5–8px corners. Persistent
+workspace panels remain rectangular. Selection
 modes live in a labeled command menu; the earlier rounded floating scope dock
 is superseded.
 
@@ -492,35 +552,35 @@ consistent outline strokes; geometry uses actual editable and compiled shapes.
 
 ### Actions
 
-Primary actions use Action blue with the paired foreground, 4px corners,
-13px horizontal padding, and a 34px minimum height. The Parts placement action
-fills the inspector width and has a 38px minimum height. Hover changes the border
-to Action blue (or the fill to Action hover) immediately. Secondary actions are
-outlined, transparent, and more compact (32px base minimum height, 12px
-horizontal padding).
+Shared `BoardButton` primary actions use Action blue with the paired foreground,
+5px corners, 12px horizontal padding, and a 40px minimum height (34px compact;
+44px for coarse-pointer controls). The Parts placement action fills the
+Inspector width. Hover uses Action hover for primary buttons and a soft surface
+with an Action border for ordinary buttons. Secondary buttons are outlined on
+the panel surface; quiet actions are transparent.
 
-Keyboard focus is a 2px Action blue ring with 2px offset, set globally. Disabled
-buttons dim to 0.5 opacity by default; some inspector actions use 0.55–0.6 or a
-muted surface instead.
+Keyboard focus is a 2px Action blue ring with 2px offset. Shared buttons dim to
+0.58 opacity when disabled; some legacy inspector actions use their own muted
+surface or opacity treatment.
 
 ### Fields
 
-Fields combine a label, editable value, and adjacent unit. Numeric fields use a
-1px outline, 4px corners, and a 34px inspector minimum height. Ordinary name fields are 32px;
-generator text fields use 7px 8px padding. Focus changes the field border and/or
-adds a visible ring. Error text remains beside the operation that produced it.
+Fields combine a label, editable value, and adjacent unit. Shared numeric fields
+use a 1px outline, 5px corners, and a 40px outer height (44px on coarse pointers).
+The inner measurement control uses Source Code Pro. Focus shows a 2px Action
+ring with a 2px offset; invalid fields use the status-error border and nearby
+error text.
 
-### Stage navigation and preview switching
+### Workspace navigation and preview switching
 
-Layout, PCB, Case, and Parts are permanent text-labeled view tabs in the 44px
-header, outside the navigator and inspector docks. At 820px and below they use
-the native Workspace selector. Their contextual object tree changes with the
-selected view. Export is a dedicated labeled page with its own artifact,
-readiness, and review context. Save status sits beside the project identity;
-desktop Undo/Redo live in the canvas footer, while compact actions remain in
-the project menu. Active tabs use a 2px action-colored
-bottom rule, stronger text, and weight 600. The Parts preview uses two small
-outlined buttons with pressed state, switching between 2D footprint and 3D model.
+Layout, PCB, Keymap, Keycaps, Case, and Parts are text-labeled links in the
+Objects dock. The current workspace uses `aria-current="page"` and a soft
+surface; workspace navigation is not duplicated in the header. Export remains
+a dedicated header action and page with its own artifact, readiness, and review
+context. Save status sits beside project identity. Undo and Redo remain in the
+header on wide screens and move to the footer at 1100px and below. The Parts
+preview uses outlined controls with pressed state to switch between 2D footprint
+and 3D model.
 
 Add groups Layouts, contextual matrix actions, Parts, and Board geometry into
 named sections. Components prioritizes power/reset hardware; Controllers, Displays,
@@ -615,16 +675,12 @@ loading state.
 ### Motion and browser surfaces
 
 Motion tokens are `motion-feedback` (120ms), `motion-reveal` (180ms), and
-`motion-panel` (220ms) with a decelerating `ease-out` curve
-(`cubic-bezier(.16, 1, .3, 1)`). Only transforms use them today: auto-hide panels
-and mobile drawers slide over 220ms, and the command menu reveals over 180ms.
-Hover and selection color changes are immediate. Inspector carets, scrollbars,
-text selection, and focus rings use theme tokens. This is short state feedback,
-not an entrance-animation system.
-
-**Known gap:** the stylesheet has no `prefers-reduced-motion` rule, so panel and
-menu travel is not yet removed under reduced motion. Add one when motion is next
-touched; do not cite reduced-motion support as implemented.
+`motion-panel` (220ms), with the shared decelerating curve
+(`cubic-bezier(.16, 1, .3, 1)`). Panel transforms use the panel duration; the
+Layout command chevron uses the reveal duration. Hover, selection, and geometry
+color feedback are immediate. A reduced-motion rule disables transitions on
+shared buttons, toggles, and Layout command controls. The older panel transform
+rules still animate, so reduced-motion behavior is only partial.
 
 ## Do's and Don'ts
 
@@ -646,31 +702,59 @@ touched; do not cite reduced-motion support as implemented.
 
 ### Workbench typography
 
-Keep pane and menu roles stable across viewport widths: 23px inspector titles,
-13px semibold section headings and actions, 13px control values, and 12px field
-labels and supporting copy. This dense editing interface uses a 1.45 UI line
-height and 1.55 for help text in narrow panes. Use the bundled Source Sans 3 and Source Code Pro font
+Keep the established type roles: 18px panel headings, 21px selected-object
+headings, 15px body and editable values, 12–13px compact labels, and 10px mono
+metadata. At 760px and below, the page heading, body, and brand roles contract
+to 30px, 14px, and 22px. This dense editing interface uses a 1.45 UI line height
+and 1.55 for help text. Use the bundled Source Sans 3 and Source Code Pro font
 stacks; use monospace for measurements and code, not ordinary labels. Tree
 references do not shrink to make room for secondary descriptions; truncated
 names expose their full text on hover. Browser zoom remains available.
 
 ### Workbench motion
 
-Command options reveal from the pill's attached edge over 180ms. Side panes slide
-over 220ms and become hidden once off-screen. Menu dismissal, hover and selection
-color changes, and canvas geometry changes remain immediate. No loops, page-load
-choreography, layout-size animation, keyframes, or animation dependency is used.
+The Layout command chevron rotates over 180ms; the popover surface is placed
+beside its trigger. Side panes slide over 220ms and become hidden once off-screen.
+Menu dismissal, hover and selection color changes, and canvas geometry changes
+remain immediate. No loops, page-load choreography, layout-size animation,
+keyframes, or animation dependency is used.
 
-Intended reduced-motion behavior (not yet implemented; see Motion and browser
-surfaces): remove pane travel, substitute a brief opacity change for menu
-reveals, and retain color feedback.
+Reduced-motion handling currently covers shared button, toggle, and Layout
+command transitions; panel travel still needs a matching override before it can
+be described as fully reduced-motion compliant.
 
 ### Workbench controls and review
 
-Selection uses one labeled selector alongside Transform, Align, and Snap. The
+Layout exposes Matrix, Row, Column, Key and Part as direct selection buttons with
+the pinned toolbar primitive's arrow-key navigation. Compact toolbar mode hides
+visible action labels while retaining accessible names and pressed states; its
+preference persists locally. Transform subfunctions use a small selection-aware
+popover with visible labels even in compact mode. Align retains its existing
+menu, and snapping stays in the Objects dock. Workspace switching lives in the shared navigation group in every
+editor Objects dock, including onboarding; the header has no duplicate tabs or
+compact workspace selector. This group links Layout, PCB, Keymap, Keycaps, Case and Parts and marks
+the current workspace. Domain-specific tree contents and visibility owners stay
+with each workspace. Other workspaces retain their existing selection selector. The
 2D/3D switch occupies a separate control so view changes are distinct from editing. Rows/Columns tree grouping belongs in
 Objects options. Panel menu actions occupy full-width rows, and Escape closes
 the menu without changing the canvas selection.
+
+Shared controls live in `web/crates/ui-shared/src/controls.rs`, with token-based
+styles in `web/tailwind.css`. Use `BoardButton` variants for form and task actions;
+pass `type="submit"` explicitly for submission. Keep bespoke canvas, tree and
+navigation affordances in their owning workspace.
+
+`BoardCheckbox` retains native checkbox and switch form events and label
+activation. `BoardDisclosure` retains native details/summary keyboard behavior
+and keeps child drafts mounted while collapsed; controlled headings keep their
+existing handlers. Layout transform groups and key assembly groups collapse
+independently, starting open. Use this mounted disclosure for draft-owning fields:
+the pinned Dioxus AccordionContent currently unmounts closed content.
+`BoardDialog` provides native modal confirmation or an inline,
+non-modal task surface. Pending actions control whether dismissal is permitted.
+Browser file pickers remain native. Dioxus Components primitives own popovers
+and toggles; native form, disclosure and dialog semantics stay intact where they
+already provide the required behavior.
 
 Compact headers retain the active board name and a focusable local-save status.
 The status follows actual storage writes; a failed write must not show as saved.

@@ -3,6 +3,7 @@ use boardstudio_core::{
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -273,14 +274,14 @@ pub fn ProjectSetupGuide(
         SetupGuideStage::Review => 4,
     };
     let heading = match stage {
-        SetupGuideStage::Project => "Project & hardware",
+        SetupGuideStage::Project => "Start your keyboard",
         SetupGuideStage::Layout => "Layout & assemblies",
         SetupGuideStage::Wiring => "Controller & wiring",
         SetupGuideStage::Case => "Case (optional)",
         SetupGuideStage::Review => "Review & export",
     };
     rsx! {
-        aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
+        aside { class: "m1-setup-guide m1-setup-surface", "aria-label": "Project setup guide",
             header { class: "m1-setup-guide__header",
                 div {
                     h2 {
@@ -290,10 +291,10 @@ pub fn ProjectSetupGuide(
                     }
                     p { "A step-by-step guide to your keyboard." }
                 }
-                button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Back to objects" }
+                button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Open editor" }
             }
             p { class: "m1-setup-guide__intro", "Step {stage_index + 1} of 5. Move between steps freely; your work is kept." }
-            nav { class: "m1-setup-guide__steps", "aria-label": "Setup steps",
+            nav { class: "m1-setup-guide__steps m1-setup-stage-nav", "aria-label": "Setup steps",
                 button {
                     class: step_class(stage == SetupGuideStage::Project, stage_readiness[0]),
                     aria_current: (stage == SetupGuideStage::Project).then_some("step"),
@@ -330,7 +331,7 @@ pub fn ProjectSetupGuide(
                     strong { "Review & export" }
                 }
             }
-            section { class: "m1-setup-guide__content",
+            section { class: "m1-setup-guide__content m1-setup-stage-form",
                 h3 { "{heading}" }
                 p { class: "m1-setup-guide__status", "{stage_detail}" }
                 if stage == SetupGuideStage::Project {
@@ -352,33 +353,33 @@ pub fn ProjectSetupGuide(
                         }
                     }
                     if let Some(controls) = project_controls { {controls} }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Continue to layout" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Continue to layout" }
                 } else if stage == SetupGuideStage::Layout {
                     p { "Place keys with their switch, diode, and optional lighting assembly. Edit the layout on the canvas." }
                     if let Some(on_open) = on_open_matrix_setup {
-                        button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_open.call(()), "Add key matrix" }
+                        BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_open.call(()), "Add key matrix" }
                     }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Edit existing objects" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Continue to wiring" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Project), "Previous step" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Edit existing objects" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Continue to wiring" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Project), "Previous step" }
                 } else if stage == SetupGuideStage::Wiring {
                     p { "Place a controller, then review automatic pin assignments and reversible jumpers in PCB settings." }
                     if let Some(on_choose) = on_choose_controller {
-                        button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_choose.call(()), "Choose controller" }
+                        BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_choose.call(()), "Choose controller" }
                     }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("PCB"), "Review controller & wiring" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Continue to case" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Previous step" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("PCB"), "Review controller & wiring" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Continue to case" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Layout), "Previous step" }
                 } else if stage == SetupGuideStage::Case {
                     p { "Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately." }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Case"), "Open case settings" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Review), "Continue to review" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Previous step" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Case"), "Open case settings" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Review), "Continue to review" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Wiring), "Previous step" }
                 } else {
                     p { "Review the selected board’s findings and available outputs. Export checks still apply to each output." }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Export"), "Open export options" }
-                    button { class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Finish guide" }
-                    button { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Previous step" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_open_workspace.call("Export"), "Open export options" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", r#type: "button", onclick: move |_| on_dismiss.call(()), "Finish guide" }
+                    BoardButton { class: "m1-setup-guide__secondary", r#type: "button", onclick: move |_| on_stage_change.call(SetupGuideStage::Case), "Previous step" }
                 }
             }
         }
@@ -544,3 +545,26 @@ pub fn focus_settings(workspace: &str) {
 
 #[cfg(test)]
 mod tests;
+
+/// Physical topology only: these are schematic boards, not generated outlines.
+#[component]
+pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
+    rsx! {
+        section { class: "m1-setup-hardware-preview m1-setup-preview", aria_label: "Assembly preview",
+            h2 { "Assembly preview" }
+            p { if split { "Split keyboard" } else { "One keyboard" }
+                if split { if wired { " · Wired connection" } else { " · Wireless connection" } }
+            }
+            svg { view_box: "0 0 600 340", role: "img", "aria-label": "Schematic physical board arrangement",
+                rect { x: if split { "40" } else { "110" }, y: "70", width: if split { "220" } else { "380" }, height: "180", rx: "12" }
+                if split {
+                    rect { x: "340", y: "70", width: "220", height: "180", rx: "12" }
+                    if wired { path { class: "m1-setup-connection", d: "M260 200H340" } }
+                    text { x: "150", y: "290", "Left assembly" }
+                    text { x: "450", y: "290", "Right assembly" }
+                } else { text { x: "300", y: "290", "Keyboard assembly" } }
+            }
+            p { "Schematic arrangement. Add keys in Layout to create board geometry." }
+        }
+    }
+}

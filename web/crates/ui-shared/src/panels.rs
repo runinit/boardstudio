@@ -239,6 +239,7 @@ pub fn write_theme_preference(mut storage_warning: Signal<bool>, preference: &'s
 pub fn ObjectsPanel(
     compact_open: Signal<bool>,
     settings: Signal<PanelSettings>,
+    header_action: Option<Element>,
     children: Element,
 ) -> Element {
     let options = crate::object_options::use_object_options();
@@ -248,6 +249,7 @@ pub fn ObjectsPanel(
         settings,
         children,
         Some(options),
+        header_action,
     )
 }
 
@@ -258,7 +260,14 @@ pub fn InspectorPanel(
     children: Element,
 ) -> Element {
     let body = rsx! { div { class: "m1-inspector-body", {children} } };
-    panel_frame(PanelSide::Inspector, compact_open, settings, body, None)
+    panel_frame(
+        PanelSide::Inspector,
+        compact_open,
+        settings,
+        body,
+        None,
+        None,
+    )
 }
 
 fn panel_frame(
@@ -267,7 +276,15 @@ fn panel_frame(
     settings: Signal<PanelSettings>,
     children: Element,
     options: Option<Element>,
+    header_action: Option<Element>,
 ) -> Element {
+    let workspace = try_use_context::<super::WorkspaceState>().map_or("", |state| (state.0)());
+    let title = match (side, workspace) {
+        (PanelSide::Objects, "Keymap") => "Layers",
+        (PanelSide::Objects, "Case") => "Assembly",
+        (PanelSide::Objects, "Parts") => "Parts library",
+        _ => PanelIds::for_side(side).title,
+    };
     let compact = use_compact_viewport(side);
     let menu_open = use_signal(|| false);
     let revealed = use_signal(|| false);
@@ -444,7 +461,7 @@ fn panel_frame(
                     set_bool(focus_rail_after_render, true);
                 },
                     header { class: "m1-panel-heading",
-                        h2 { "{ids.title}" }
+                        h2 { "{title}" }
                         if compact() {
                             button {
                                 class: "m1-panel-close",
@@ -471,6 +488,9 @@ fn panel_frame(
                                 circle { cx: "8", cy: "13", r: "1.2" }
                             }
                         }
+                    }
+                    if let Some(action) = header_action {
+                        div { class: "m1-panel-header-action", {action} }
                     }
                     if menu_open() {
                         div {

@@ -27,19 +27,6 @@ pub(in crate::presentation) fn CanvasStatusFooter(
             span { "X " b { "{x:.2}" } }
             span { "Y " b { "{y:.2}" } }
         }
-        div { class: "m1-canvas-footer-grid",
-            button {
-                r#type: "button",
-                id: "m1-canvas-grid-trigger",
-                disabled: !snap_menu_available,
-                onclick: {
-                    let mut open_menu = open_menu;
-                    move |_| open_menu.set(Some(LayoutCommandMenu::Snap))
-                },
-                "Grid {super::objects::layout_snap_label(snap_settings.snap_fraction)}"
-            }
-            span { if snap_settings.geometry_snap { "Geometry snap on" } else { "Geometry snap off" } }
-        }
         div { class: "m1-canvas-footer-view-controls", role: "group", aria_label: "Canvas view controls",
             button {
                 class: "m1-canvas-footer-fit",

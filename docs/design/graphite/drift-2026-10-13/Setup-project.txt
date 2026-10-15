@@ -1,0 +1,49 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Graphite comparison
+Saved
+Setup guide
+
+A step-by-step guide to your keyboard.
+
+Open editor
+
+Step 1 of 5. Move between steps freely; your work is kept.
+
+✓
+Project & hardware
+2
+Layout & assemblies
+3
+Controller & wiring
+4
+Case (optional)
+5
+Review & export
+Start your keyboard
+
+Split keyboard · Main board.
+
+Project name
+Keyboard configuration
+One keyboard
+Split keyboard
+Half connection
+Wireless
+Wired
+
+Both halves use front-facing assemblies.
+
+Reversible layout
+Continue to layout
+Assembly preview
+
+Split keyboard · Wired connection
+
+Left assembly
+Right assembly
+
+Schematic arrangement. Add keys in Layout to create board geometry.

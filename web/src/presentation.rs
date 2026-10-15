@@ -75,6 +75,7 @@ pub(crate) use boardstudio_web_layout::outline_snapping;
 pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;
 pub(crate) use boardstudio_web_parts::parts;
+use boardstudio_web_ui_shared::controls::BoardButton;
 pub(crate) use boardstudio_web_ui_shared::panels;
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
@@ -91,6 +92,7 @@ pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
 mod workbench_shortcuts;
 mod workspace_composition;
+mod workspace_navigation;
 mod zmk_firmware_export;
 
 use crate::case_generation_lifecycle::AutomaticCaseGeneration;
@@ -382,6 +384,8 @@ pub fn App() -> Element {
     use_context_provider(|| adapter.clone());
     let mut workspace = use_signal(|| "Layout");
     use_context_provider(|| WorkspaceState(workspace));
+    let project_browser = use_signal(|| false);
+    use_context_provider(|| library::ProjectBrowserState(project_browser));
     let mut objects_open = use_signal(|| false);
     let mut inspector_open = use_signal(|| false);
     use_context_provider(|| CompactPanelState {
@@ -553,11 +557,13 @@ pub fn App() -> Element {
         durability_state(&runtime.model().durability)
     };
     let mut project_menu_page = use_signal(|| ProjectMenuPage::Project);
+    let header_undo = runtime.clone();
+    let header_redo = runtime.clone();
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
-        main { class: "m1-workbench",
+        main { class: if project_browser() || runtime.model().accepted.is_none() { "m1-workbench is-project-browser" } else { "m1-workbench" },
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
@@ -565,6 +571,13 @@ pub fn App() -> Element {
                 }
             },
             header { class: "m1-topbar",
+                div { class: "m1-brand", aria_label: "BoardStudio",
+                    svg { view_box: "0 0 24 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
+                        rect { x: "1", y: "2", width: "22", height: "16", rx: "2" }
+                        path { d: "M1 7h22M1 12h22M6 2v10M12 2v10M18 2v10M5 12v6M19 12v6" }
+                    }
+                    span { "BoardStudio" }
+                }
                 details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() == "Escape" {
                         event.prevent_default();
@@ -592,6 +605,15 @@ pub fn App() -> Element {
                     summary {
                         aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
                         i { "aria-hidden": "true" }
+                        span { class: "m1-save-label",
+                            match save_state {
+                                "saved" => "Saved",
+                                "saving" => "Saving…",
+                                "failed" => "Save failed",
+                                "ready" => "Ready",
+                                _ => "Pending",
+                            }
+                        }
                     }
                     div { role: "status",
                         if save_state == "saved" { "Changes are saved in this browser. Use Save project copy for a portable backup." }
@@ -600,7 +622,16 @@ pub fn App() -> Element {
                         else { "Local save status is unavailable." }
                     }
                 }
-                WorkspaceNavigation {}
+                if runtime.model().accepted.is_some() {
+                    div { class: "m1-header-history", role: "group", aria_label: "Edit history",
+                        BoardButton { aria_label: "Undo", title: "Undo (Ctrl/Cmd+Z)", onclick: move |_| header_undo.submit(Event::Undo { operation_id: header_undo.operation() }),
+                            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } }
+                        }
+                        BoardButton { aria_label: "Redo", title: "Redo (Ctrl/Cmd+Shift+Z)", onclick: move |_| header_redo.submit(Event::Redo { operation_id: header_redo.operation() }),
+                            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } }
+                        }
+                    }
+                }
                 if runtime.model().accepted.is_some() && workspace() != "Export" {
                     panels::CompactPanelControls {}
                 }
@@ -609,8 +640,10 @@ pub fn App() -> Element {
                     span { "Export" }
                 }
             }
-            if runtime.model().accepted.is_some() { Editor {} }
-            else { LibraryLanding {} }
+            if runtime.model().accepted.is_some() {
+                div { class: "m1-editor-host", hidden: project_browser(), Editor {} }
+            }
+            if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
                 RuntimeReportBanner {}
             if preference_warning() {
                 p { role: "status", "aria-live": "polite", class: "m1-status",
@@ -660,61 +693,10 @@ fn read_system_theme() -> &'static str {
 }
 
 #[component]
-fn WorkspaceNavigation() -> Element {
-    let mut workspace = use_context::<WorkspaceState>().0;
-    let tabs = ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"];
-    rsx! {
-        div { class: "m1-workflow-navigation",
-            nav { class: "m1-workflow-tabs", role: "tablist", "aria-label": "Board workflow",
-                for tab in tabs {
-                    button { key: "{tab}", role: "tab", id: "m1-tab-{tab}", "aria-selected": "{workspace() == tab}", "aria-controls": "m1-workspace-panel", onclick: move |_| workspace.set(tab), onkeydown: {
-                        let mut workspace = workspace;
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            let current = workspace();
-                            let index = tabs.iter().position(|candidate| *candidate == current).unwrap_or(0);
-                            let next = match key.as_str() { "ArrowRight" => Some((index + 1) % tabs.len()), "ArrowLeft" => Some((index + tabs.len() - 1) % tabs.len()), "Home" => Some(0), "End" => Some(tabs.len() - 1), _ => None };
-                            if let Some(next) = next {
-                                event.prevent_default();
-                                workspace.set(tabs[next]);
-                                if let Some(tab) = tabs.get(next)
-                                    && let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.get_element_by_id(&format!("m1-tab-{tab}"))).and_then(|element| element.dyn_into::<HtmlElement>().ok())
-                                {
-                                    let _ = element.focus();
-                                }
-                            }
-                        }
-                    },
-                        TabIcon { name: tab }
-                        "{tab}"
-                    }
-                }
-            }
-            select { class: "m1-workspace-select", "aria-label": "Workspace", value: "{workspace()}", onchange: move |event| workspace.set(match event.value().as_str() { "PCB" => "PCB", "Keymap" => "Keymap", "Keycaps" => "Keycaps", "Case" => "Case", "Parts" => "Parts", "Export" => "Export", _ => "Layout" }),
-                for tab in tabs { option { value: "{tab}", selected: workspace() == tab, "{tab}" } }
-                if workspace() == "Export" { option { value: "Export", selected: true, "Export" } }
-            }
-        }
-    }
-}
-
-#[component]
-fn TabIcon(name: &'static str) -> Element {
-    rsx! { svg { class: "m1-tab-icon", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
-        if name == "Layout" { path { d: "M3 14.5 14.5 3l2.5 2.5L5.5 17H3z" } path { d: "m11 6 3 3M3 17h14" } }
-        else if name == "PCB" { rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } circle { cx: "7", cy: "7", r: "1.2" } circle { cx: "13", cy: "13", r: "1.2" } path { d: "M8 7h3v3M7 8v3h3" } }
-        else if name == "Keymap" { rect { x: "3", y: "4", width: "14", height: "12", rx: "2" } path { d: "M6 7h2M10 7h2M14 7h1M6 10h2M10 10h2M6 13h8" } }
-        else if name == "Keycaps" { path { d: "m3 15 2-10h10l2 10zM5 5l2 4h6l2-4M7 9l-1 6m7-6 1 6" } }
-        else if name == "Case" { path { d: "m10 2 7 4v8l-7 4-7-4V6zM3 6l7 4 7-4m-7 4v8" } }
-        else { path { d: "M4 3h9l3 3v11H4z" } path { d: "M13 3v4h4M7 11h6M7 14h6" } }
-    } }
-}
-
-#[component]
 fn LibraryLanding() -> Element {
     rsx! {
         section { class: "m1-library-landing",
-            h1 { "Open a keyboard" }
+            h1 { "Your keyboards" }
             p { "Choose a demo copy, open a saved project, or import a BoardStudio archive." }
             Library { project_menu: false }
         }
@@ -735,7 +717,7 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             h1 { "Export" }
             p { "Create files from the saved keyboard in the current board and instance scope." }
             div { class: "m1-export-actions",
-                button { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+                BoardButton { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
             }
             if let Some(firmware) = zmk_firmware {
                 h2 { "Design files" }
@@ -755,7 +737,7 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                     }
                     span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                 }
-                button {
+                BoardButton {
                     class: "m1-export-action",
                     disabled: model.accepted.is_none(),
                     onclick: move |_| archive.export_project_copy(),
@@ -2460,6 +2442,8 @@ mod setup_project_name_queue_tests {
 
 #[component]
 fn Editor() -> Element {
+    boardstudio_web_ui_shared::layer_dock::use_layer_dock_provider();
+    parts::use_assembly_action_provider();
     let mut workspace_routing = use_hook(|| WorkspaceRoutingSlots {
         select_tree: EventHandler::new(|_: objects::TreeSelectRequest| {}),
         navigate: EventHandler::new(|_: (Scope, String, Option<String>)| {}),
@@ -4202,6 +4186,50 @@ fn Editor() -> Element {
         };
     let svg = use_hook(|| Rc::new(RefCell::new(None::<SvgElement>)));
     let zoom_surface_size = canvas_navigation.surface_size();
+    // Read actual post-layout dimensions so attached controls keep their screen size
+    // when the viewport or either dock changes, without polling or a resize loop.
+    let geometry_observer = use_hook(|| {
+        Rc::new(RefCell::new(
+            None::<(
+                web_sys::ResizeObserver,
+                Closure<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>,
+            )>,
+        ))
+    });
+    use_effect({
+        let svg = svg.clone();
+        let observer = geometry_observer.clone();
+        move || {
+            let _ = zoom_surface_size();
+            let _ = workspace();
+            let Some(surface) = svg.borrow().clone() else {
+                return;
+            };
+            if let Some((previous, _)) = observer.borrow_mut().take() {
+                previous.disconnect();
+            }
+            let measured = surface.clone();
+            let mut size = zoom_surface_size;
+            let callback =
+                Closure::<dyn FnMut(js_sys::Array, web_sys::ResizeObserver)>::new(move |_, _| {
+                    let rect = measured.get_bounding_client_rect();
+                    let next = (rect.width(), rect.height());
+                    if next != *size.peek() {
+                        size.set(next);
+                    }
+                });
+            if let Ok(next) = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()) {
+                next.observe(&surface);
+                *observer.borrow_mut() = Some((next, callback));
+            }
+        }
+    });
+    use_drop(move || {
+        if let Some((observer, _)) = geometry_observer.borrow_mut().take() {
+            observer.disconnect();
+        }
+    });
+
     let workspace_rect_bounds = match active_workspace {
         "PCB" => pcb_bounds(snapshot, &render_scope),
         "Keymap" => keymap_view
@@ -6544,8 +6572,28 @@ fn Editor() -> Element {
                 },
             ))
         }
-        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(shared_objects),
-        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(shared_objects),
+        "Keymap" => workspace_composition::WorkspaceObjectsInput::Keymap(
+            keymap_workspace::NavigationInput {
+                view: keymap_view.clone(),
+                scope: render_scope.clone(),
+                active_layer_id: keymap_layer_id(),
+                selected_key_id: model.selected_part_ids.first().cloned(),
+                layer_actions: keymap::LayerActions {
+                    enabled: layer_actions.enabled,
+                    feedback: layer_actions.feedback.clone(),
+                    on_operation: layer_actions.on_operation,
+                },
+                on_layer: keymap_layer,
+                on_select_key: keymap_select,
+            },
+        ),
+        "Keycaps" => workspace_composition::WorkspaceObjectsInput::Keycaps(
+            keycaps_workspace::NavigationInput {
+                shared: shared_objects,
+                view: keycaps_view.clone(),
+                settings_actions: keycaps_settings_actions.clone(),
+            },
+        ),
         "Case" => workspace_composition::WorkspaceObjectsInput::Case(Box::new(
             case_workspace::ObjectsInput {
                 model: &model,
@@ -6588,6 +6636,7 @@ fn Editor() -> Element {
                     .error
                     .clone()
                     .or_else(|| part_placement.error.clone()),
+                add_object_menu_open: layout_state.add_object_menu_open(),
             },
         )),
     };
@@ -6857,6 +6906,11 @@ fn Editor() -> Element {
             );
             workspace_composition::WorkspaceToolbarInput::Keymap(
                 shared_viewer::DesignViewToolbarProps {
+                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
+                        label: "Keymap tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
+                        generation: adapter.generation, actions: vec![("Assign", ".m1-keymap-editor-tab:nth-child(1)", true), ("Macros", ".m1-keymap-editor-tab:nth-child(2)", true), ("Encoders", ".m1-keymap-editor-tab:nth-child(3)", true)],
+                        disabled: false,
+                    } }),
                     label: "Keymap".into(),
                     detail: "Layers & key behaviors".into(),
                     assembly_3d: layout_assembly_3d(),
@@ -6877,6 +6931,11 @@ fn Editor() -> Element {
             );
             workspace_composition::WorkspaceToolbarInput::Keycaps(
                 shared_viewer::DesignViewToolbarProps {
+                    contextual_tools: Some(rsx! { workspace_navigation::InspectorActions {
+                        label: "Keycaps tools", workspace, inspect_open, inspector_settings: inspector_panel_settings,
+                        generation: adapter.generation, actions: vec![("Profile", ".m1-keycaps-selected-key select[aria-label^=\"Profile override\"]", false), ("Legend", ".m1-keycaps-selected-key input[aria-label^=\"Legend for\"]", false), ("Color", ".m1-keycaps-selected-key input[type=color]", false)],
+                        disabled: model.selected_part_ids.is_empty(),
+                    } }),
                     label: "Keycaps".into(),
                     detail: "Profiles, legends & fit".into(),
                     assembly_3d: layout_assembly_3d(),
@@ -7121,6 +7180,7 @@ fn Editor() -> Element {
                             }
                         };
                         Box::new(pcb_wiring::PcbWiringInspectorProps {
+                            board_overview: true,
                             source,
                             resolution: pcb_wiring_mount.resolution.clone(),
                             firmware_positions: firmware_position_projection,
@@ -7277,7 +7337,7 @@ fn Editor() -> Element {
             },
         )),
     };
-    let board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
+    let _board_reference_editor = if matches!(active_workspace, "Layout" | "Case") {
         let reference = document
             .board_references
             .iter()
@@ -7528,12 +7588,48 @@ fn Editor() -> Element {
         .unwrap_or(0);
     let guide_stage_readiness = guide_statuses.clone().map(|status| status.ready);
     let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+    let canvas_transform_menu = match &toolbar_input {
+        workspace_composition::WorkspaceToolbarInput::Layout(input) => {
+            Some(input.transform.clone())
+        }
+        _ => None,
+    };
+    let selection_geometry_anchor = (!layout_assembly_3d() && active_workspace == "Layout")
+        .then(|| {
+            let points: Vec<_> = visible
+                .iter()
+                .filter(|part| model.selected_part_ids.contains(&part.id))
+                .map(|part| {
+                    scene
+                        .transforms
+                        .iter()
+                        .find(|t| t.id == part.id)
+                        .map_or(part.pose.at, |t| t.pose.at)
+                })
+                .collect();
+            if points.is_empty() {
+                return None;
+            }
+            let scale = svg.borrow().as_ref().map_or(1.0, |_surface| {
+                let (surface_width, surface_height) = zoom_surface_size();
+                (width / surface_width.max(1.0)).max(height / surface_height.max(1.0))
+            });
+            let x = (points.iter().map(|p| p.x).sum::<f64>() / points.len() as f64).clamp(
+                view_x + 60.0 * scale,
+                (view_x + width - 60.0 * scale).max(view_x + 60.0 * scale),
+            );
+            let y = points.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) - 12.0 - 6.0 * scale;
+            Some((x, y, scale))
+        })
+        .flatten();
+
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             panels::CompactPanelScrim {}
             div { class: "m1-editor-body", style: "{panel_layout_style}",
-                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    if let Some(preferences) = guide {
+                if guide.is_some() {
+                    section { class: "m1-setup-surface", aria_label: "Keyboard setup",
+                    if let Some(preferences) = guide.clone() {
                         if let Some(message) = guide_name_failure() { p { role: "alert", "{message}" } }
                         setup_guide::ProjectSetupGuide {
                             stage: preferences.current_stage,
@@ -7553,15 +7649,44 @@ fn Editor() -> Element {
                                 Some(pcb_physical_setup::controller::project_setup_controls(
                                     physical_setup_mount.clone(),
                                 ))
-                            } else {
-                                None
-                            },
+                            } else { None },
                         }
-                    } else {
-                        {workspace_composition::objects(objects_input)}
+                    }
                     }
                 }
-                section { class: "m1-workspace-content", role: "tabpanel", id: "m1-workspace-panel", "aria-labelledby": "m1-tab-{active_workspace}",
+                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
+                    header_action: if active_workspace == "Layout" && guide.is_none() {
+                        Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
+                    } else { None },
+                    if guide.is_none() {
+                        workspace_navigation::WorkspaceObjectNavigation { workspace }
+                    }
+                    div { class: "m1-object-scroll-content",
+                    if guide.is_none() { {workspace_composition::objects(objects_input)} }
+                    }
+                    div { class: "m1-object-layer-dock",
+                        if active_workspace == "Layout" && !layout_assembly_3d() {
+                            CanvasLayers {
+                                initially_open: false,
+                                trigger_id: String::from("m1-layers-trigger"),
+                                list_id: String::from("m1-layers-list"),
+                                groups: canvas_layers::layout_groups(),
+                            }
+                        }
+                        if active_workspace == "PCB" {
+                            pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
+                        }
+                        boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
+                    }
+                    if active_workspace == "Layout" && !layout_assembly_3d() {
+                        objects::LayoutSnapDock {
+                            settings: layout_snap_settings.read().clone(),
+                            open_menu: layout_command_menu,
+                            on_snap_intent: layout_snap_intent,
+                        }
+                    }
+                }
+                section { class: "m1-workspace-content", role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
                     onfocusin: move |_| {
                         let compact = web_sys::window()
                             .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
@@ -7586,7 +7711,12 @@ fn Editor() -> Element {
                             on_preview: mirrored_pair.on_preview,
                         }
                     }
-                    if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
+                    if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
+                        setup_guide::SetupHardwarePreview {
+                            split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,
+                            wired: physical_setup_mount.projection.transport == boardstudio_core::model::HardwareTransport::Wired,
+                        }
+                    } else if matches!(active_workspace, "Layout" | "Keymap" | "Keycaps")
                         && layout_assembly_3d()
                     {
                         layout_viewer::LayoutCanonicalViewer {
@@ -7882,22 +8012,79 @@ fn Editor() -> Element {
                                 }} }
                             }
                         }
+                        if let Some((x, y, scale)) = selection_geometry_anchor
+                            && let Some(tools) = canvas_transform_menu.clone()
+                            && matrix_transform_inspector.projection.is_some()
+                        {
+                            g {
+                                foreignObject { class: "m1-canvas-delete-host", transform: "translate({x - 60.0 * scale} {y - 66.0 * scale}) scale({scale} {-scale})", width: "120", height: "44",
+                                objects::SelectionDeleteControl { mount: matrix_transform_inspector.clone() }
+                            }
+                            if !matches!(selected_tree_context.as_ref().map(|selected| &selected.context), Some(objects::TreeContext::Column { .. } | objects::TreeContext::Row { .. })) {
+                            { let runtime = runtime.clone(); let svg = svg.clone(); let drag = drag.clone();
+                                  let owner = layout_owner.clone(); let adapter = adapter.clone();
+                                  let arbiter = canvas_interaction.clone(); let scope = render_scope.clone();
+                                  rsx! {
+                                    g {
+                                        class: "m1-transform-handle m1-selection-move-handle",
+                                        transform: "translate({x} {y - 18.0 * scale}) scale({scale * 3.0})",
+                                        role: "button", tabindex: "0", "aria-label": "Move selection",
+                                        "aria-description": "Drag to move. Press Enter to edit the exact position.",
+                                        onkeydown: move |event: KeyboardEvent| {
+                                            if event.key() == Key::Enter || event.key() == Key::Character(" ".into()) {
+                                                event.prevent_default(); event.stop_propagation();
+                                                tools.on_show_properties.call(());
+                                            }
+                                        },
+                                        onpointerdown: move |event: PointerEvent| {
+                                            let Some(pointer) = event.data().try_as_web_event() else { return; };
+                                            if pointer.button() != 0 || arbiter.current().is_some()
+                                                || !layout_owner_is_current(&runtime, workspace, &adapter, &owner)
+                                                || drag.borrow().is_some() || runtime.model().gesture.is_some() { return; }
+                                            pointer.prevent_default(); pointer.stop_propagation();
+                                            let Some(origin) = coordinates(&svg, &pointer, view_x, view_y, width, height) else { return; };
+                                            let current = runtime.model();
+                                            let Some(snapshot) = current.accepted else { return; };
+                                            let positions: Vec<_> = snapshot.document.parts.iter().filter(|p| current.selected_part_ids.contains(&p.id)).map(|p| Position { id: p.id.clone(), at: p.pose.at }).collect();
+                                            if positions.is_empty() { return; }
+                                            if let Some(surface) = svg.borrow().as_ref() {
+                                                let _ = surface.set_pointer_capture(pointer.pointer_id());
+                                                let options = web_sys::FocusOptions::new(); options.set_prevent_scroll(true);
+                                                let _ = surface.focus_with_options(&options);
+                                            }
+                                            *drag.borrow_mut() = Some(Drag { pointer: i64::from(pointer.pointer_id()), scope: scope.clone(), generation: owner.generation, gesture_generation: None, origin, client_x: f64::from(pointer.client_x()), client_y: f64::from(pointer.client_y()), positions, active: false, pan: false, camera: Vec2::default() });
+                                        },
+                                        circle { r: "5" }
+                                        path { d: "M0 -3.2v6.4M-3.2 0h6.4M-1.4 -1.8 0 -3.2l1.4 1.4M-1.4 1.8 0 3.2l1.4 -1.4M-1.8 -1.4-3.2 0l1.4 1.4M1.8 -1.4 3.2 0l-1.4 1.4" }
+                                        title { "Move selection" }
+                                    }
+                                  }
+                                }
+                            }
+                            }
+                        }
                         if active_workspace == "Layout"
                             && !layout_assembly_3d()
-                            && let Some(tool) = layout_transform_tool()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
+                            for tool in match &context {
+                                objects::TreeContext::Column { .. } => vec![objects::LayoutTransformTool::Stagger, objects::LayoutTransformTool::Splay],
+                                objects::TreeContext::Row { .. } => vec![objects::LayoutTransformTool::Offset],
+                                _ => vec![],
+                            } {
                             objects::LayoutTransformToolOverlay {
+                                key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
                                 svg: objects::LayoutTransformSvg(svg.clone()),
                                 arbiter: canvas_interaction.clone(),
                                 owner: layout_owner.clone(),
                                 selected_context: adapter.selected_context,
                                 scope_generation: adapter.generation,
+                                surface_size: Some(zoom_surface_size),
                                 workspace,
-                                matrix,
-                                projection,
-                                context,
+                                matrix: matrix.clone(),
+                                projection: projection.clone(),
+                                context: context.clone(),
                                 tool,
                                 snap_settings: layout_snap_settings.read().clone(),
                                 snap_origins: outline_snap_origins.clone(),
@@ -7907,6 +8094,7 @@ fn Editor() -> Element {
                                 width,
                                 height,
                                 on_finish: EventHandler::new(move |_| layout_transform_tool.set(None)),
+                            }
                             }
                         }
                         if let Some(placement) = part_placement.projection.as_ref() {
@@ -7963,11 +8151,6 @@ fn Editor() -> Element {
                             }
                         }
                     }
-                        }
-                        CanvasLayers {
-                            trigger_id: String::from("m1-layers-trigger"),
-                            list_id: String::from("m1-layers-list"),
-                            groups: canvas_layers::layout_groups(),
                         }
                     } else if active_workspace == "Export" {
                         export_workspace::ExportWorkspace {
@@ -8032,21 +8215,7 @@ fn Editor() -> Element {
                         } else {
                             {workspace_composition::inspector(inspector_input)}
                         }
-                        if let Some((reference, assets, editable, owner)) = board_reference_editor {
-                            pcb_board_reference::Editor {
-                                reference,
-                                assets,
-                                disabled: !editable,
-                                runtime: pcb_board_reference::BoardReferenceRuntimeHandle::new(
-                                    runtime.clone(),
-                                ),
-                                workspace,
-                                adapter: pcb_board_reference::BoardReferenceAdapterHandle::new(
-                                    adapter.clone(),
-                                ),
-                                owner,
-                            }
-                        }
+
                     }
                 }
             }

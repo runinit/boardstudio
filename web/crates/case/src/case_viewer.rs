@@ -13,6 +13,7 @@ use boardstudio_core::model::{
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -292,12 +293,12 @@ fn use_case_keycaps(
         if let Some(error) = &shown.error {
             div { role: "alert",
                 "Keycap preview failed: {error}"
-                button { type: "button", onclick: move |_| retry += 1, "Retry keycaps" }
+                BoardButton { r#type: "button", onclick: move |_| retry += 1, "Retry keycaps" }
             }
         }
         if !shown.findings.is_empty() {
-            details { class: "m1-case-keycap-findings", open: true,
-                summary { "Keycap clearance · {shown.findings.len()} findings" }
+            BoardDisclosure { class: "m1-case-keycap-findings", open: true,
+                heading: rsx! { summary { "Keycap clearance · {shown.findings.len()} findings" } },
                 for finding in &shown.findings { p { key: "{finding.id}", "{finding.message}" } }
             }
         }

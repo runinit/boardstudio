@@ -3,6 +3,7 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 
 mod canvas_overlay;
@@ -225,7 +226,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 if let Some(error) = error { p { role: "alert", class: "m1-mirrored-pair-error", "{error}" } }
                 if let Some(status) = status { p { role: "status", class: "m1-mirrored-pair-status", "{status}" } }
                 footer { class: "m1-mirrored-pair-actions",
-                    button { r#type: "button", onclick: move |_| on_cancel.call(owner.clone()), "Cancel" }
+                    BoardButton { r#type: "button", onclick: move |_| on_cancel.call(owner.clone()), "Cancel" }
                     button { r#type: "submit", disabled: !can_preview, "Preview placement" }
                 }
             }

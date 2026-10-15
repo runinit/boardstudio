@@ -7,6 +7,7 @@ use boardstudio_core::model::{
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant, BoardCheckbox};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
@@ -346,7 +347,7 @@ pub fn ModuleAttachment(
 
     rsx! {
         section { class: "m1-module-attach", "aria-label": "Attach module to PCB",
-            button {
+            BoardButton { variant: BoardButtonVariant::Primary,
                 class: "m1-primary-button",
                 r#type: "button",
                 disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || !can_attach,
@@ -354,11 +355,10 @@ pub fn ModuleAttachment(
                 "Attach module to {board_name}"
             }
             label { class: "m1-module-attach-connection",
-                input {
-                    r#type: "checkbox",
+                BoardCheckbox {
                     checked: host_connection_enabled(),
                     disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || module_port_id.is_none(),
-                    onchange: move |event| {
+                    onchange: move |event: FormEvent| {
                         host_connection_enabled.set(event.checked());
                         if event.checked() && connector_selection().is_empty() {
                             connector_selection.set(initial_connector.clone());

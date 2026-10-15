@@ -1,6 +1,7 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, Scope};
 use boardstudio_core::model::{EditOperation, Position, Vec2};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -242,7 +243,7 @@ pub(super) fn Inspector() -> Element {
                 edit.y_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
             }} } }
-            button { disabled: apply_disabled(), onclick: submit, "Apply position" }
+            BoardButton { disabled: apply_disabled(), onclick: submit, "Apply position" }
             if let Some(message) = failure() { p { role: "alert", "{message}" } }
             if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
         } else { p { "Select a component to edit its position." } }

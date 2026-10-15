@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
@@ -1391,8 +1392,8 @@ pub fn KeycapsBoardSettingsEditor(props: KeycapsBoardSettingsEditorProps) -> Ele
     let clearance_target = target.clone();
     let clearance_baseline = baseline.clone();
     rsx! {
-        details { class: "m1-keycaps-disclosure", open: true,
-            summary { "Board colors" }
+        BoardDisclosure { class: "m1-keycaps-disclosure", open: true,
+            heading: rsx! { summary { "Board colors" } },
             section { class: "m1-keycaps-settings", aria_label: "Board colors",
                 label { "Keycap color",
                     input { r#type: "color", aria_label: "Board keycap color", value: "{settings.color}",
@@ -1469,8 +1470,8 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
                     option { value: "g20", "G20" } option { value: "choc", "Choc" }
                 }
             }
-            details {
-                summary { "Profile dimensions & socket" }
+            BoardDisclosure {
+                heading: rsx! { summary { "Profile dimensions & socket" } },
                 label { "First profile row",
                     input { r#type: "number", aria_label: "First profile row for {props.matrix_name}", min: "1", max: "5", step: "1", value: "{settings.first_row}",
                         oninput: move |event| if let Ok(value) = event.value().parse::<u8>() { emit_settings_change(&row_actions, row_target.clone(), row_baseline.clone(), KeycapEditChange::MatrixFirstRow(value)); } }
@@ -1506,7 +1507,7 @@ fn settings_feedback(
         for draft in retries {
             div { class: "m1-keycaps-retry-draft",
                 p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                button { onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
+                BoardButton { onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
                 button { onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
             }
         }
@@ -1690,8 +1691,8 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
             if accepted_color.is_some() {
                 button { onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
             }
-            details {
-                summary { "Keycap overrides" }
+            BoardDisclosure {
+                heading: rsx! { summary { "Keycap overrides" } },
                 label { "Profile",
                     select {
                         aria_label: "Profile override for {key.reference}",
@@ -1786,7 +1787,7 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
             for draft in retry_drafts.iter() {
                 div { class: "m1-keycaps-retry-draft",
                     p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
-                    button { onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
+                    BoardButton { onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
                     button { onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
                 }
             }

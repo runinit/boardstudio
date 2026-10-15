@@ -33,8 +33,18 @@ pub fn KeymapCanvas(
                     let pose = key.pose;
                     let size = key.size;
                     let binding = key.binding_title.clone();
-                    let foreground = foreground_color(&color);
-                    let font_size = (4.0_f64).min(13.0 / (binding.chars().count().max(1) as f64) * 1.3);
+                    let visible_binding = if binding.as_ref() == "Unassigned" {
+                        "—".to_owned()
+                    } else {
+                        binding.to_string()
+                    };
+                    let accessible_binding = if binding.as_ref() == "Unassigned" {
+                        "Unassigned".to_owned()
+                    } else {
+                        binding.to_string()
+                    };
+                    let font_size = (4.4_f64)
+                        .min(14.0 / (visible_binding.chars().count().max(1) as f64) * 1.3);
                     rsx! {
                         g {
                             key: "{id}",
@@ -42,7 +52,7 @@ pub fn KeymapCanvas(
                             transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
                             role: "button",
                             tabindex: "0",
-                            "aria-label": "Edit key {reference}",
+                            "aria-label": "Edit key {reference}, binding {accessible_binding}, key ID {id}",
                             onclick: move |event| {
                                 event.stop_propagation();
                                 on_select_key.call(click_id.to_string());
@@ -56,27 +66,25 @@ pub fn KeymapCanvas(
                                 }
                             },
                             rect {
+                                class: "m1-keymap-key-face",
                                 x: "{-size.x / 2.0}",
                                 y: "{-size.y / 2.0}",
                                 width: "{size.x}",
                                 height: "{size.y}",
                                 rx: "1.3",
-                                fill: "{color}",
+                                "data-document-color": "{color}",
                             }
                             g { transform: "scale(1 -1)",
                                 text {
+                                    class: if binding.as_ref() == "Unassigned" {
+                                        "m1-keymap-binding-label is-unassigned"
+                                    } else {
+                                        "m1-keymap-binding-label"
+                                    },
                                     text_anchor: "middle",
                                     dominant_baseline: "central",
-                                    fill: "{foreground}",
                                     font_size: "{font_size}",
-                                    if binding.is_empty() { "—" } else { "{binding}" }
-                                }
-                                text {
-                                    text_anchor: "middle",
-                                    y: "6",
-                                    font_size: "2.1",
-                                    fill: "{foreground}",
-                                    "{reference}"
+                                    "{visible_binding}"
                                 }
                             }
                         }
@@ -93,21 +101,4 @@ fn contour_points(points: &[Vec2]) -> String {
         .map(|point| format!("{},{}", point.x, point.y))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn foreground_color(color: &str) -> &'static str {
-    let Some(hex) = color.strip_prefix('#') else {
-        return "#ffffff";
-    };
-    let Ok(rgb) = u32::from_str_radix(hex, 16) else {
-        return "#ffffff";
-    };
-    let red = ((rgb >> 16) & 255) as f64;
-    let green = ((rgb >> 8) & 255) as f64;
-    let blue = (rgb & 255) as f64;
-    if red * 0.299 + green * 0.587 + blue * 0.114 > 150.0 {
-        "#182331"
-    } else {
-        "#ffffff"
-    }
 }

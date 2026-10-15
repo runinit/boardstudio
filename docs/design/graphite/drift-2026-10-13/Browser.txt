@@ -1,0 +1,63 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+BoardStudio
+Corne
+Your keyboards
+
+Choose a demo copy, open a saved project, or import a BoardStudio archive.
+
+1 saved keyboards
+New keyboard
+Corne
+42 keys · 2 boards
+Current
+Setup guide
+Import .boardstudio
+Demo keyboards
+Start an editable copy
+Sofle
+58 keys · 2 boards
+Corne
+42 keys · 2 boards
+Lily58
+58 keys · 2 boards
+Ferris Sweep
+34 keys · 2 boards
+Chocofi
+36 keys · 2 boards
+REVIUNG41
+41 keys · Single board
+TOTEM
+38 keys · 2 boards
+KLOR
+42 keys · 2 boards
+Cantor
+42 keys · 2 boards
+GH60 · ANSI
+61 keys · Single board
+Discipline · ANSI
+68 keys · Single board
+Mysterium · ANSI
+87 keys · Single board
+Voyager97 · 103-key layout
+103 keys · Single board
+Voyager104 · ANSI
+104 keys · Single board
+Plaid
+48 keys · Single board
+Lumberjack
+60 keys · Single board
+Corne
+Rename project
+
+42 keys · 2 boards · Revision 27
+
+Saved in this browser
+
+Open keyboard
+Save project copy
+Delete keyboard
+
+Projects are saved in this browser. Download a .boardstudio copy to move or back them up.
