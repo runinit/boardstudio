@@ -169,11 +169,33 @@ fn fixture() -> (ProjectDoc, TreeContext) {
 fn mirrored_companion_fixture() -> ProjectDoc {
     let (mut document, _) = fixture();
     document.definitions[0].kind = PartKind::Switch;
+    document.matrices[0].columns = 2;
+    let mut second_cell = document.matrices[0].cells[0].clone();
+    second_cell.column = 1;
+    document.matrices[0].cells.push(second_cell);
+    let mut second_key = document.parts[0].clone();
+    second_key.id = "matrix/matrix/r0c1".into();
+    second_key.reference = "K2".into();
+    second_key.pose.at.x = 19.0;
+    let mut second_led = document.parts[1].clone();
+    second_led.id = "matrix/matrix/r0c1/led".into();
+    second_led.pose.at.x = 19.0;
+    document.matrices[0]
+        .part_ids
+        .extend([second_key.id.clone(), second_led.id.clone()]);
+    document
+        .parts
+        .extend([second_key.clone(), second_led.clone()]);
     document.boards.push(Board {
         id: "mirror-board".into(),
         name: "Mirror board".into(),
         outline_ids: vec![],
-        part_ids: vec!["matrix/other/r0c0".into(), "matrix/other/r0c0/led".into()],
+        part_ids: vec![
+            "matrix/other/r0c0".into(),
+            "matrix/other/r0c0/led".into(),
+            "matrix/other/r0c1".into(),
+            "matrix/other/r0c1/led".into(),
+        ],
         net_ids: vec![],
         thickness: 1.6,
         traces: vec![],
@@ -184,7 +206,12 @@ fn mirrored_companion_fixture() -> ProjectDoc {
     mirror_matrix.id = "other".into();
     mirror_matrix.board_id = Some("mirror-board".into());
     mirror_matrix.origin.x = 50.0;
-    mirror_matrix.part_ids = vec!["matrix/other/r0c0".into(), "matrix/other/r0c0/led".into()];
+    mirror_matrix.part_ids = vec![
+        "matrix/other/r0c0".into(),
+        "matrix/other/r0c0/led".into(),
+        "matrix/other/r0c1".into(),
+        "matrix/other/r0c1/led".into(),
+    ];
     document.matrices.push(mirror_matrix);
     let mut mirror_key = document.parts[0].clone();
     mirror_key.id = "matrix/other/r0c0".into();
@@ -193,10 +220,21 @@ fn mirrored_companion_fixture() -> ProjectDoc {
     let mut mirror_led = document.parts[1].clone();
     mirror_led.id = "matrix/other/r0c0/led".into();
     mirror_led.pose.at.x = 50.0;
-    document.parts.push(mirror_led);
+    let mut mirror_second_key = second_key;
+    mirror_second_key.id = "matrix/other/r0c1".into();
+    mirror_second_key.pose.at.x = 69.0;
+    let mut mirror_second_led = second_led;
+    mirror_second_led.id = "matrix/other/r0c1/led".into();
+    mirror_second_led.pose.at.x = 69.0;
+    document
+        .parts
+        .extend([mirror_led, mirror_second_key, mirror_second_led]);
     document.boards[0]
         .part_ids
         .push("matrix/matrix/r0c0/led".into());
+    document.boards[0]
+        .part_ids
+        .extend(["matrix/matrix/r0c1".into(), "matrix/matrix/r0c1/led".into()]);
     document.hardware = Some(
         serde_json::from_value(serde_json::json!({
             "topology":"split", "transport":"wireless",
@@ -212,7 +250,9 @@ fn mirrored_companion_fixture() -> ProjectDoc {
                 "halves":{"sourceBoardId":"board","mirrorBoardId":"mirror-board","correspondences":[
                     {"kind":"matrix","sourceId":"matrix","mirrorId":"other"},
                     {"kind":"part","sourceId":"matrix/matrix/r0c0","mirrorId":"matrix/other/r0c0"},
-                    {"kind":"part","sourceId":"matrix/matrix/r0c0/led","mirrorId":"matrix/other/r0c0/led"}
+                    {"kind":"part","sourceId":"matrix/matrix/r0c0/led","mirrorId":"matrix/other/r0c0/led"},
+                    {"kind":"part","sourceId":"matrix/matrix/r0c1","mirrorId":"matrix/other/r0c1"},
+                    {"kind":"part","sourceId":"matrix/matrix/r0c1/led","mirrorId":"matrix/other/r0c1/led"}
                 ]}
             }]
         }))
@@ -592,42 +632,144 @@ fn editor_host() -> Element {
     boardstudio_web_ui_model::state::use_test_case_generation_state();
     rsx! {
         Editor {}
+        output { class: "editor-selected-context-test-render", "{selected:?}" }
         output { class: "selected-keys-test-render", "{version()}" }
     }
 }
 
-#[wasm_bindgen_test]
-async fn editor_owned_key_selection_applies_and_undoes_companion_placement() {
+async fn apply_and_undo_editor_companion_mode(
+    root: &web_sys::Element,
+    runtime: &Rc<Runtime>,
+    selection: &str,
+    source_ids: &[String],
+    undo: bool,
+) {
     use boardstudio_core::model::MirroredCompanionMode;
 
+    let details = root
+        .query_selector("details.m1-layout-companion-placement")
+        .unwrap()
+        .expect("Editor renders companion placement for this selection");
+    details.set_attribute("open", "").unwrap();
+    let mode = root
+        .query_selector("details.m1-layout-companion-placement select")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlSelectElement>()
+        .unwrap();
+    mode.set_value("duplicate-position");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    mode.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    wait_until("Editor accepts the selected companion mode", || {
+        root.query_selector("details.m1-layout-companion-placement button")
+            .unwrap()
+            .is_some_and(|button| !button.has_attribute("disabled"))
+    })
+    .await;
+    let apply = root
+        .query_selector("details.m1-layout-companion-placement button")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let accepted = runtime.model().accepted.unwrap();
+    let before = accepted.document.revision;
+    let original_modes = accepted.document.hardware.as_ref().unwrap().pairs[0]
+        .halves
+        .as_ref()
+        .unwrap()
+        .correspondences
+        .iter()
+        .filter(|link| link.source_id.ends_with("/led"))
+        .map(|link| (link.source_id.clone(), link.companion_mode.clone()))
+        .collect::<Vec<_>>();
+    apply.click();
+    wait_until_step(
+        &format!("Core applies the Editor-owned {selection} companion selection"),
+        async || {
+            support::run_pending(runtime).await;
+            let accepted = runtime.model().accepted.unwrap();
+            let links = &accepted.document.hardware.as_ref().unwrap().pairs[0]
+                .halves
+                .as_ref()
+                .unwrap()
+                .correspondences;
+            let landed = accepted.document.revision > before;
+            let error = root
+                .query_selector("details.m1-layout-companion-placement [role=alert]")
+                .unwrap()
+                .and_then(|alert| alert.text_content());
+            let unchanged = links
+                .iter()
+                .filter(|link| link.source_id.ends_with("/led"))
+                .map(|link| {
+                    let expected = if source_ids.contains(&link.source_id) {
+                        Some(MirroredCompanionMode::DuplicatePosition)
+                    } else {
+                        original_modes
+                            .iter()
+                            .find(|(id, _)| id == &link.source_id)
+                            .and_then(|(_, mode)| mode.clone())
+                    };
+                    (
+                        link.source_id.clone(),
+                        link.companion_mode.clone(),
+                        expected,
+                    )
+                })
+                .all(|(_, actual, expected)| actual == expected);
+            landed && unchanged || error.is_some()
+        },
+    )
+    .await;
+    assert!(
+        runtime.model().accepted.unwrap().document.revision > before,
+        "companion placement refused: {:?}",
+        root.query_selector("details.m1-layout-companion-placement [role=alert]")
+            .unwrap()
+            .and_then(|alert| alert.text_content())
+    );
+    if !undo {
+        return;
+    }
+    let accepted_revision = runtime.model().accepted.unwrap().document.revision;
+    runtime.submit(Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    wait_until_step(
+        "Undo restores the Editor-owned companion selection",
+        async || {
+            support::run_pending(runtime).await;
+            let accepted = runtime.model().accepted.unwrap();
+            accepted.document.revision > accepted_revision
+                && accepted.document.hardware.as_ref().unwrap().pairs[0]
+                    .halves
+                    .as_ref()
+                    .unwrap()
+                    .correspondences
+                    .iter()
+                    .filter(|link| link.source_id.ends_with("/led"))
+                    .all(|link| {
+                        original_modes
+                            .iter()
+                            .find(|(id, _)| id == &link.source_id)
+                            .is_some_and(|(_, mode)| link.companion_mode == *mode)
+                    })
+        },
+    )
+    .await;
+}
+
+#[wasm_bindgen_test]
+async fn editor_owned_selection_kinds_apply_only_eligible_companions_and_undo() {
     let runtime = support::new_runtime();
     support::open_document(&runtime, mirrored_companion_fixture()).await;
     assert!(
         runtime.model().accepted.is_some(),
         "mirrored companion fixture opens: {:?}",
         runtime.model().last_error
-    );
-    let initial_model = runtime.model();
-    let initial_scope = runtime.scope().unwrap();
-    let initial_context = ScopedTreeContext {
-        scope: initial_scope,
-        context: TreeContext::Key {
-            matrix_id: "matrix".into(),
-            row: 0,
-            column: 0,
-        },
-    };
-    assert!(
-        selection::context_is_current(
-            &initial_model,
-            &initial_context.scope,
-            &initial_context.context
-        ),
-        "synthetic mirrored key is a current Editor selection"
-    );
-    assert!(
-        companion_placement_projection(&initial_model, Some(&initial_context), 0, 0).is_some(),
-        "synthetic mirrored key has an eligible companion placement projection"
     );
     let probe = Probe {
         runtime: runtime.clone(),
@@ -649,106 +791,228 @@ async fn editor_owned_key_selection_applies_and_undoes_companion_placement() {
     })
     .await;
     let mut editor_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
-    let editor_context = ScopedTreeContext {
-        scope: runtime.scope().unwrap(),
-        context: initial_context.context,
-    };
-    editor_adapter.selected_context.set(Some(editor_context));
-    wait_until("the real Editor retains its selected key context", || {
-        probe
-            .adapter
-            .borrow()
-            .as_ref()
-            .and_then(|adapter| adapter.selected_context.read().clone())
-            .is_some()
-    })
-    .await;
-    let editor_selection = editor_adapter.selected_context.read().clone().unwrap();
-    assert!(
-        companion_placement_projection(&runtime.model(), Some(&editor_selection), 0, 0).is_some(),
-        "Editor selection has an eligible projection: {editor_selection:?}; live board {}, selected {:?}, pairs {}",
-        runtime.model().active_board_id,
-        runtime.model().selected_part_ids,
-        runtime
-            .model()
-            .accepted
-            .as_ref()
-            .and_then(|snapshot| snapshot.document.hardware.as_ref())
-            .map_or(0, |hardware| hardware.pairs.len())
-    );
-    wait_until(
-        "the real Editor renders the companion placement control",
-        || {
+    let model = runtime.model();
+    let active_board = model.active_board_id.clone();
+    let matrix_id = model
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.board_id.as_deref() == Some(active_board.as_str()))
+        .unwrap()
+        .id
+        .clone();
+    let key0 = format!("matrix/{matrix_id}/r0c0");
+    let key1 = format!("matrix/{matrix_id}/r0c1");
+    let led0 = format!("{key0}/led");
+    let led1 = format!("{key1}/led");
+    let scope = runtime.scope().unwrap();
+    let cases = [
+        (
+            TreeContext::Matrix {
+                matrix_id: matrix_id.clone(),
+            },
+            vec![
+                "matrix/matrix/r0c0/led".to_owned(),
+                "matrix/matrix/r0c1/led".to_owned(),
+            ],
+        ),
+        (
+            TreeContext::Row {
+                matrix_id: matrix_id.clone(),
+                row: 0,
+            },
+            vec![
+                "matrix/matrix/r0c0/led".to_owned(),
+                "matrix/matrix/r0c1/led".to_owned(),
+            ],
+        ),
+        (
+            TreeContext::Column {
+                matrix_id: matrix_id.clone(),
+                column: 0,
+            },
+            vec!["matrix/matrix/r0c0/led".to_owned()],
+        ),
+        (
+            TreeContext::Column {
+                matrix_id: matrix_id.clone(),
+                column: 1,
+            },
+            vec!["matrix/matrix/r0c1/led".to_owned()],
+        ),
+        (
+            TreeContext::Key {
+                matrix_id: matrix_id.clone(),
+                row: 0,
+                column: 0,
+            },
+            vec!["matrix/matrix/r0c0/led".to_owned()],
+        ),
+        (
+            TreeContext::Key {
+                matrix_id: matrix_id.clone(),
+                row: 0,
+                column: 1,
+            },
+            vec!["matrix/matrix/r0c1/led".to_owned()],
+        ),
+        (
+            TreeContext::Component {
+                part_id: Some(led1.clone()),
+                matrix_id: Some(matrix_id.clone()),
+                row: Some(0),
+                column: Some(1),
+                assembly_id: Some("led".into()),
+            },
+            vec!["matrix/matrix/r0c1/led".to_owned()],
+        ),
+    ];
+    for (context, expected) in cases {
+        let context_label = format!("{context:?}");
+        if matches!(&context, TreeContext::Component { .. }) {
+            runtime.submit(Event::SelectParts {
+                operation_id: runtime.operation(),
+                part_ids: expected.clone(),
+                range_part_ids: vec![],
+                mode: SelectionMode::Replace,
+            });
+            support::run_pending(&runtime).await;
+        }
+        let selection = ScopedTreeContext {
+            scope: scope.clone(),
+            context,
+        };
+        assert!(selection::context_is_current(
+            &runtime.model(),
+            &selection.scope,
+            &selection.context
+        ));
+        editor_adapter.selected_context.set(Some(selection.clone()));
+        wait_until("the real Editor retains the selected context", || {
+            editor_adapter.selected_context.read().as_ref() == Some(&selection)
+        })
+        .await;
+        let expected_context = format!("{:?}", selection);
+        wait_until("the Editor renders the selected context", || {
+            root.query_selector(".editor-selected-context-test-render")
+                .unwrap()
+                .is_some_and(|node| {
+                    node.text_content()
+                        .is_some_and(|text| text.contains(&expected_context))
+                })
+        })
+        .await;
+        wait_until("the real Editor renders companion placement", || {
             root.query_selector("details.m1-layout-companion-placement")
                 .unwrap()
                 .is_some()
+        })
+        .await;
+        let projection = companion_placement_projection(&runtime.model(), Some(&selection), 0, 0)
+            .expect("Editor selection projects eligible companions");
+        assert!(!projection.targets.is_empty());
+        apply_and_undo_editor_companion_mode(&root, &runtime, &context_label, &expected, true)
+            .await;
+    }
+
+    let first_column = ScopedTreeContext {
+        scope: scope.clone(),
+        context: TreeContext::Column {
+            matrix_id: matrix_id.clone(),
+            column: 0,
         },
-    )
-    .await;
-    assert!(
-        root.query_selector("details.m1-layout-companion-placement")
-            .unwrap()
-            .is_some(),
-        "real Editor renders the companion placement control"
-    );
-    root.query_selector("details.m1-layout-companion-placement summary")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    let mode = root
-        .query_selector("details.m1-layout-companion-placement select")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    mode.set_value("duplicate-position");
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    mode.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
-    let apply = root
-        .query_selector("details.m1-layout-companion-placement button")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
-    let before = runtime.model().accepted.unwrap().document.revision;
-    apply.click();
-    wait_until_step("Core accepts the Editor-owned companion edit", async || {
-        support::run_pending(&runtime).await;
-        let accepted = runtime.model().accepted.unwrap();
-        accepted.document.revision > before
-            && accepted.document.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .correspondences
-                .iter()
-                .any(|link| {
-                    link.source_id == "matrix/matrix/r0c0/led"
-                        && link.companion_mode == Some(MirroredCompanionMode::DuplicatePosition)
-                })
+    };
+    editor_adapter
+        .selected_context
+        .set(Some(first_column.clone()));
+    wait_until("the Editor selects the first companion column", || {
+        editor_adapter.selected_context.read().as_ref() == Some(&first_column)
     })
     .await;
-    let accepted_revision = runtime.model().accepted.unwrap().document.revision;
+    let expected_column_context = format!("{:?}", first_column);
+    wait_until("the Editor renders the first companion column", || {
+        root.query_selector(".editor-selected-context-test-render")
+            .unwrap()
+            .is_some_and(|node| {
+                node.text_content()
+                    .is_some_and(|text| text.contains(&expected_column_context))
+            })
+    })
+    .await;
+    apply_and_undo_editor_companion_mode(
+        &root,
+        &runtime,
+        "first column",
+        &["matrix/matrix/r0c0/led".into()],
+        false,
+    )
+    .await;
+
+    let selected_parts = vec![led0, led1];
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: selected_parts.clone(),
+        range_part_ids: vec![],
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    wait_until("the Editor retains both selected companions", || {
+        runtime.model().selected_part_ids == selected_parts
+    })
+    .await;
+    let multi_context = ScopedTreeContext {
+        scope,
+        context: objects::context_for_part(&runtime.model(), &selected_parts[0])
+            .expect("selected companion has an Editor component context"),
+    };
+    editor_adapter
+        .selected_context
+        .set(Some(multi_context.clone()));
+    wait_until("the full Editor shows mixed companion modes", || {
+        root.query_selector("details.m1-layout-companion-placement summary small")
+            .unwrap()
+            .is_some_and(|label| label.text_content().as_deref() == Some("Mixed"))
+    })
+    .await;
+    let multi_projection =
+        companion_placement_projection(&runtime.model(), Some(&multi_context), 0, 0)
+            .expect("multi-selection projects linked companions");
+    assert_eq!(multi_projection.targets.len(), 2);
+    apply_and_undo_editor_companion_mode(
+        &root,
+        &runtime,
+        "multiple selected parts",
+        &[
+            "matrix/matrix/r0c0/led".into(),
+            "matrix/matrix/r0c1/led".into(),
+        ],
+        true,
+    )
+    .await;
     runtime.submit(Event::Undo {
         operation_id: runtime.operation(),
     });
-    wait_until_step("Undo restores the linked companion mode", async || {
+    wait_until_step("the original companion mode is restored", async || {
         support::run_pending(&runtime).await;
-        let accepted = runtime.model().accepted.unwrap();
-        accepted.document.revision > accepted_revision
-            && accepted.document.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .correspondences
-                .iter()
-                .any(|link| {
-                    link.source_id == "matrix/matrix/r0c0/led" && link.companion_mode.is_none()
-                })
+        runtime
+            .model()
+            .accepted
+            .unwrap()
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs[0]
+            .halves
+            .as_ref()
+            .unwrap()
+            .correspondences
+            .iter()
+            .filter(|link| link.source_id.ends_with("/led"))
+            .all(|link| link.companion_mode.is_none())
     })
     .await;
     root.remove();
