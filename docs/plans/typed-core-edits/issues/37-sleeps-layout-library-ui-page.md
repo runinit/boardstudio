@@ -598,3 +598,8 @@ axis edits, Undo/Redo projections, definition retirement, and uploaded-model set
 30 ms `tick()` helper and the 100/10/12-round polling loops are removed from
 `component_model_editor.rs`. The focused waits passed and the full Parts suite passed 70/70 in
 12.41 s; current ticket-wide repeated/full gates remain open.
+
+The production file input's `onchange` was then removed temporarily; the upload test failed at
+`wait_until: uploaded model enters Core did not hold within 5000 ms`. The mutation runner restored
+the source byte-for-byte. Evidence is in ignored
+`.evidence/ticket37-mutation-results/parts-model-upload-action-missing.log` and `results.json`.
