@@ -7,6 +7,7 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{GenerationStatus, ReadModel, SelectionMode};
 use boardstudio_core::model::OutlineExportFormat;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -31,6 +32,17 @@ pub(super) fn ExportWorkspace(
             .as_ref()
             .is_some_and(|firmware| firmware.wiring_ready),
     );
+    let project_name = model
+        .accepted
+        .as_ref()
+        .map(|snapshot| snapshot.document.name.clone())
+        .unwrap_or_default();
+    let revision = model
+        .accepted
+        .as_ref()
+        .map(|snapshot| snapshot.document.revision)
+        .unwrap_or_default();
+    let durability = boardstudio_web_ui_shared::project_menu::durability_label(&model.durability);
     let back = return_workspace();
     let key_listener = use_hook(|| {
         let retained = Rc::new(RefCell::new(
@@ -119,24 +131,35 @@ pub(super) fn ExportWorkspace(
                 button { r#type: "button", onclick: review_wiring, "Review wiring" }
                 button { r#type: "button", onclick: review_case, "Review case" }
             }
-            section { class: "m1-export-portable", "aria-label": "Portable project",
-                h2 { "Portable project" }
-                p { "Keep an editable copy of the whole project, including all boards." }
-                label { class: "m1-export-option",
-                    input {
-                        r#type: "checkbox",
-                        aria_label: "Embed used models",
-                        checked: runtime.embed_used_models(),
-                        onchange: move |event: FormEvent| runtime.set_embed_used_models(event.checked()),
+            div { class: "m1-export-rail",
+                aside { class: "m1-export-current", aria_label: "Current design",
+                    h2 { "Current design" }
+                    dl {
+                        dt { "Project" } dd { "{project_name}" }
+                        dt { "Active board" } dd { "{board_name}" }
+                        dt { "Revision" } dd { "{revision}" }
+                        dt { "Local save" } dd { "{durability}" }
                     }
-                    span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
+                    p { "Review routing, firmware builds and mechanical fit in downstream tools." }
                 }
-                button {
-                    class: "m1-export-action",
-                    r#type: "button",
-                    disabled: model.accepted.is_none(),
-                    onclick: move |_| archive.export_project_copy(),
-                    "Save .boardstudio project"
+                section { class: "m1-export-portable", "aria-label": "Portable project",
+                    h2 { "Portable project" }
+                    p { "Keep an editable copy of the whole project, including all boards." }
+                    label { class: "m1-export-option",
+                        BoardCheckbox {
+                            aria_label: "Embed used models",
+                            checked: runtime.embed_used_models(),
+                            onchange: move |event: FormEvent| runtime.set_embed_used_models(event.checked()),
+                        }
+                        span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
+                    }
+                    BoardButton {
+                        class: "m1-export-action",
+                        r#type: "button",
+                        disabled: model.accepted.is_none(),
+                        onclick: move |_| archive.export_project_copy(),
+                        "Download .boardstudio project"
+                    }
                 }
             }
             RuntimeReportBanner {}
@@ -148,6 +171,8 @@ pub(super) fn ExportWorkspace(
 struct ExportRow {
     label: &'static str,
     detail: &'static str,
+    status: &'static str,
+    action: &'static str,
     ready: bool,
     available: bool,
     reason: Option<&'static str>,
@@ -169,13 +194,16 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             }
             span { class: "m1-export-row-copy",
                 strong { "{row.label}" }
+                span { class: if row.ready && row.available { "m1-handoff-state is-ready" } else { "m1-handoff-state" },
+                    if !row.available { "Provider unavailable" } else { "{row.status}" }
+                }
                 small { "{row.detail}" }
                 if let Some(reason) = row.reason { small { class: "m1-export-reason", "{reason}" } }
                 if row.ready && !row.available {
                     small { class: "m1-export-provider-gap", "This export provider is not connected in this build." }
                 }
             }
-            button {
+            BoardButton {
                 class: "m1-export-row-action",
                 r#type: "button",
                 aria_label: if row.ready && row.available { format!("Export {}", row.label) } else if row.ready { format!("{} export provider unavailable", row.label) } else { format!("{} needs work", row.label) },
@@ -185,7 +213,7 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                         on_export.call(());
                     }
                 },
-                if row.ready { "Export" } else { "Needs work" }
+                if row.ready { "{row.action}" } else { "Needs work" }
             }
         }
     }
@@ -272,6 +300,14 @@ fn export_rows(
         ExportRow {
             label: "KiCad board",
             detail: "Placements, resolved wiring, and board edges for KiCad",
+            status: if !wiring_ready {
+                "Needs controller wiring"
+            } else if !pcb_ready {
+                "Needs board review"
+            } else {
+                "Available"
+            },
+            action: "Export KiCad",
             ready: pcb_ready && wiring_ready,
             available: true,
             reason: if pcb_ready && wiring_ready {
@@ -286,6 +322,12 @@ fn export_rows(
         ExportRow {
             label: "Draft KiCad board",
             detail: "Incomplete wiring with a findings report",
+            status: if pcb_ready {
+                "Available"
+            } else {
+                "Needs board review"
+            },
+            action: "Export draft",
             ready: pcb_ready,
             available: true,
             reason: pcb_blocker,
@@ -294,6 +336,12 @@ fn export_rows(
         ExportRow {
             label: "ZMK firmware",
             detail: "ZMK v0.3.0 configuration and editable starter keymap",
+            status: if firmware_ready {
+                "Available"
+            } else {
+                "Needs controller wiring"
+            },
+            action: "Export firmware",
             ready: firmware_ready,
             available: true,
             reason: wiring_blocker,
@@ -302,6 +350,12 @@ fn export_rows(
         ExportRow {
             label: "KiCad footprints",
             detail: "Component footprint library",
+            status: if !document.definitions.is_empty() {
+                "Available"
+            } else {
+                "Needs component definition"
+            },
+            action: "Export footprints",
             ready: !document.definitions.is_empty(),
             available: true,
             reason: document
@@ -313,6 +367,12 @@ fn export_rows(
         ExportRow {
             label: "SVG board outline",
             detail: "Resolved board contour",
+            status: if outline_ready {
+                "Available"
+            } else {
+                "Needs outline review"
+            },
+            action: "Export SVG",
             ready: outline_ready,
             available: true,
             reason: outline_blocker,
@@ -321,6 +381,12 @@ fn export_rows(
         ExportRow {
             label: "DXF board outline",
             detail: "Resolved board contour",
+            status: if outline_ready {
+                "Available"
+            } else {
+                "Needs outline review"
+            },
+            action: "Export DXF",
             ready: outline_ready,
             available: true,
             reason: outline_blocker,
@@ -333,6 +399,12 @@ fn export_rows(
                 "Case STEP"
             },
             detail: "Saved authored case bodies",
+            status: if authored_case_ready {
+                "Available"
+            } else {
+                "Needs case geometry"
+            },
+            action: "Export STEP",
             ready: authored_case_ready,
             available: true,
             reason: (!authored_case_ready).then_some("Add and generate case geometry in Case."),
@@ -361,6 +433,12 @@ fn export_rows(
         rows.push(ExportRow {
             label: "Generated mechanical package",
             detail: "STEP/STL parts, outlines, specifications and FR4 plate project",
+            status: if ready {
+                "Available"
+            } else {
+                "Preview needs update"
+            },
+            action: "Export package",
             ready,
             available: true,
             reason: (!ready).then_some("Update the current mechanical preview before export."),
@@ -478,6 +556,7 @@ mod tests {
                 true,
                 Some("Review the board outline and layout findings."),
                 true,
+                "Needs board review",
                 "Needs work",
             ),
             (
@@ -485,12 +564,13 @@ mod tests {
                 false,
                 Some("Review the layout and resolve controller wiring in PCB."),
                 true,
+                "Needs controller wiring",
                 "Needs work",
             ),
-            (true, true, None, false, "Export"),
+            (true, true, None, false, "Available", "Export KiCad"),
         ];
 
-        for (pcb_ready, wiring_ready, expected_reason, disabled, label) in cases {
+        for (pcb_ready, wiring_ready, expected_reason, disabled, expected_status, label) in cases {
             let root = mount_export_row(ExportRowProbe {
                 runtime: runtime.clone(),
                 model: model_with_pcb_readiness(pcb_ready),
@@ -506,6 +586,14 @@ mod tests {
                 .unwrap();
             assert_eq!(button.has_attribute("disabled"), disabled);
             assert_eq!(button.text_content().as_deref(), Some(label));
+            assert_eq!(
+                root.query_selector(".m1-handoff-state")
+                    .unwrap()
+                    .unwrap()
+                    .text_content()
+                    .as_deref(),
+                Some(expected_status)
+            );
             let reason = root.query_selector(".m1-export-reason").unwrap();
             assert_eq!(
                 reason

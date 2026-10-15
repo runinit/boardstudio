@@ -1,4 +1,5 @@
 //! Shared empty-board entry; Session and the existing setup/Parts owners own actions.
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 
 #[component]
@@ -23,7 +24,7 @@ pub(super) fn EmptyBoardCanvas(
                     path { d: "M5 12h14m-6-6 6 6-6 6" }
                 }
             }
-            button { type: "button", class: "m1-empty-secondary",
+            BoardButton { r#type: "button", class: "m1-empty-secondary",
                 onclick: move |_| on_parts.call(()), "Browse individual parts"
             }
         }

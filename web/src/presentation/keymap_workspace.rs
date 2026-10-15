@@ -1,7 +1,7 @@
 //! Keymap-owned canvas and Inspector composition.
 use super::Runtime;
-use super::workspace_composition::{CanvasEventHandlers, SharedObjectsInput};
-use super::{keymap, objects};
+use super::keymap;
+use super::workspace_composition::CanvasEventHandlers;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Contour;
 use dioxus::prelude::*;
@@ -140,24 +140,29 @@ pub(super) struct InspectorInput {
     pub(super) scope_generation: u64,
 }
 
-pub(super) fn objects(input: SharedObjectsInput) -> Element {
+pub(super) struct NavigationInput {
+    pub(super) view: Option<Rc<keymap::KeymapView>>,
+    pub(super) scope: Scope,
+    pub(super) active_layer_id: String,
+    pub(super) selected_key_id: Option<String>,
+    pub(super) layer_actions: keymap::LayerActions,
+    pub(super) on_layer: EventHandler<String>,
+    pub(super) on_select_key: EventHandler<String>,
+}
+
+pub(super) fn objects(input: NavigationInput) -> Element {
     rsx! {
-        objects::Objects {
-            selected_context: input.selected_context,
-            on_select: input.on_select,
-            on_navigate: input.on_navigate,
-            on_nudge: input.on_nudge,
-            on_open_geometry_scripts: input.on_open_geometry_scripts,
-            board_setup: Some(input.board_setup),
-            matrix_setup: None,
-            mirrored_pair: None,
-            pair_created: None,
-            on_place_component: None,
-            layout_target: None,
-            parts_query: None,
-            on_browse_parts: None,
-            placement_error: None,
-            matrix_inspector: None,
+        if let Some(view) = input.view {
+            keymap::KeymapNavigation {
+                view, scope: input.scope, active_layer_id: input.active_layer_id,
+                selected_key_id: input.selected_key_id,
+                layer_operations_enabled: input.layer_actions.enabled,
+                layer_feedback: input.layer_actions.feedback,
+                on_layer_operation: input.layer_actions.on_operation,
+                on_layer: input.on_layer, on_select_key: input.on_select_key,
+            }
+        } else {
+            p { role: "status", "Layers are unavailable for the current board." }
         }
     }
 }
@@ -165,6 +170,7 @@ pub(super) fn objects(input: SharedObjectsInput) -> Element {
 pub(super) fn toolbar(input: super::shared_viewer::DesignViewToolbarProps) -> Element {
     rsx! {
         super::shared_viewer::DesignViewToolbar {
+            contextual_tools: input.contextual_tools,
             label: input.label,
             detail: input.detail,
             assembly_3d: input.assembly_3d,
@@ -281,6 +287,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
         };
         rsx! {
             keymap::KeymapPanel {
+                show_navigation: false,
                 view,
                 scope: render_scope.clone(),
                 layer_operations_enabled: layer_actions.enabled,

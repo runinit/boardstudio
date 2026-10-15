@@ -3,6 +3,10 @@ use super::tree::{self, TreeContext};
 use boardstudio_application::ReadModel;
 use boardstudio_core::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
+use boardstudio_web_ui_shared::controls::BoardCheckbox;
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardPopover, BoardToolbar, BoardToolbarButton,
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -141,9 +145,320 @@ fn finite_positive(value: f64) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[component]
+    fn pilot_popover_fixture() -> Element {
+        let open_menu = use_signal(|| Some(LayoutCommandMenu::Select));
+        let transition_trace = use_context_provider(|| Signal::new(Vec::<String>::new()));
+        let mut selection_kind = use_signal(|| LayoutSelectionKind::Matrix);
+        let open_menu_key = open_menu().map(LayoutCommandMenu::key).unwrap_or("none");
+        let transition_trace_text = transition_trace().join("\n");
+        rsx! {
+            div { id: "pilot-popover-command-surface", class: "m1-layout-command-pill",
+                LayoutSelectMenu {
+                    open_menu,
+                    selection_kind: selection_kind(),
+                    on_selection_kind: move |kind| selection_kind.set(kind),
+                }
+                LayoutSnapMenu {
+                    open_menu,
+                    settings: LayoutSnapSettings::default(),
+                    on_snap_intent: move |_| {},
+                    show_layout_state: true,
+                }
+                output { id: "pilot-open-menu-state", "{open_menu_key}" }
+                output { id: "pilot-menu-transition-trace", "{transition_trace_text}" }
+            }
+        }
+    }
+
+    #[component]
+    fn direct_selection_fixture() -> Element {
+        let open_menu = use_signal(|| Some(LayoutCommandMenu::Transform));
+        let mut kind = use_signal(|| LayoutSelectionKind::Key);
+        rsx! {
+            LayoutSelectionToolbar { open_menu, selection_kind: kind(), on_selection_kind: move |next| kind.set(next) }
+            output { id: "direct-selection-state", "{kind().label()}:{open_menu().is_none()}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn direct_selection_choices_support_pointer_keyboard_and_close_specialist_menu() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(direct_selection_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        for kind in LayoutSelectionKind::ALL {
+            let button = root
+                .query_selector(&format!("button[aria-label='Select {}']", kind.label()))
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            button.click();
+            gloo_timers::future::TimeoutFuture::new(30).await;
+            assert_eq!(
+                root.query_selector("#direct-selection-state")
+                    .unwrap()
+                    .unwrap()
+                    .text_content(),
+                Some(format!("{}:true", kind.label()))
+            );
+            assert_eq!(
+                button.get_attribute("aria-pressed").as_deref(),
+                Some("true")
+            );
+        }
+        let matrix = root
+            .query_selector("button[aria-label='Select Matrix']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        matrix.focus().unwrap();
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key("ArrowRight");
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        matrix
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(30).await;
+        assert_eq!(
+            document
+                .active_element()
+                .unwrap()
+                .get_attribute("aria-label")
+                .as_deref(),
+            Some("Select Row")
+        );
+        root.remove();
+    }
+
+    fn popover_test_element(selector: &str) -> web_sys::Element {
+        web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("missing pilot popover test element {selector}"))
+    }
+
+    async fn mount_pilot_popovers() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        if let Some(previous) = document.get_element_by_id("pilot-popover-command-surface") {
+            previous.remove();
+        }
+        if let Some(previous) = document.get_element_by_id("pilot-popover-test-styles") {
+            previous.remove();
+        }
+        let styles = document.create_element("style").unwrap();
+        styles.set_id("pilot-popover-test-styles");
+        let css = format!(
+            "{}\n{}",
+            include_str!("../../../../assets/m1.css"),
+            include_str!("../../../../assets/tailwind.css")
+        );
+        styles.set_text_content(Some(&css));
+        document.body().unwrap().append_child(&styles).unwrap();
+
+        let mount = document.create_element("div").unwrap();
+        mount.set_id("pilot-popover-test-root");
+        document.body().unwrap().append_child(&mount).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(pilot_popover_fixture),
+            dioxus_web::Config::new().rootnode(mount.into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        gloo_timers::future::TimeoutFuture::new(80).await;
+    }
+
+    #[wasm_bindgen_test]
+    async fn contextual_toolbar_stays_inside_its_workspace() {
+        mount_pilot_popovers().await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let workspace = document.create_element("section").unwrap();
+        workspace.set_class_name("m1-workspace-content");
+        workspace
+            .set_attribute(
+                "style",
+                "position:fixed;left:200px;top:60px;width:800px;height:600px",
+            )
+            .unwrap();
+        let region = document.create_element("div").unwrap();
+        region.set_class_name("m1-layout-toolbar-region");
+        let toolbar = document.create_element("div").unwrap();
+        toolbar.set_class_name("m1-canvas-toolbar");
+        let mount = document
+            .get_element_by_id("pilot-popover-test-root")
+            .unwrap();
+        toolbar.append_child(&mount).unwrap();
+        region.append_child(&toolbar).unwrap();
+        workspace.append_child(&region).unwrap();
+        document.body().unwrap().append_child(&workspace).unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let bounds = workspace.get_bounding_client_rect();
+        let controls = toolbar.get_bounding_client_rect();
+        assert!(
+            controls.left() >= bounds.left() && controls.right() <= bounds.right(),
+            "context controls must remain within the canvas rather than translating underneath the Objects dock"
+        );
+        workspace.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn pilot_popovers_preserve_select_rows_and_snap_field_layout() {
+        mount_pilot_popovers().await;
+
+        let select = popover_test_element("#m1-layout-select-menu");
+        let window = web_sys::window().unwrap();
+        let select_style = window.get_computed_style(&select).unwrap().unwrap();
+        assert_eq!(select_style.get_property_value("display").unwrap(), "grid");
+        assert_eq!(select_style.get_property_value("gap").unwrap(), "5px");
+        let options = select
+            .query_selector_all(".m1-layout-select-option")
+            .unwrap();
+        assert_eq!(options.length(), 5);
+        let mut previous_top = f64::NEG_INFINITY;
+        for index in 0..options.length() {
+            let option = options
+                .item(index)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            assert_eq!(
+                option.parent_element().unwrap().id(),
+                "m1-layout-select-menu",
+                "each selection option must be a direct grid row"
+            );
+            let top = option.get_bounding_client_rect().top();
+            assert!(
+                top > previous_top,
+                "selection options must occupy distinct rows"
+            );
+            previous_top = top;
+        }
+        let option_style = window
+            .get_computed_style(&popover_test_element(".m1-layout-select-option"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            option_style.get_property_value("border-radius").unwrap(),
+            "5px"
+        );
+
+        let snap_trigger = popover_test_element("#m1-layout-snap-trigger")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let transition_trace = popover_test_element("#pilot-menu-transition-trace");
+        transition_trace
+            .set_attribute("data-phase", "pointerdown-start")
+            .unwrap();
+        let pointer_down = web_sys::EventInit::new();
+        pointer_down.set_bubbles(true);
+        let pointer_down =
+            web_sys::Event::new_with_event_init_dict("pointerdown", &pointer_down).unwrap();
+        snap_trigger.dispatch_event(&pointer_down).unwrap();
+        transition_trace
+            .set_attribute("data-phase", "click-start")
+            .unwrap();
+        snap_trigger.click();
+        transition_trace
+            .set_attribute("data-phase", "settle-wait")
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        let callback_trace = transition_trace.text_content().unwrap_or_default();
+        let select_expanded = popover_test_element("#m1-layout-select-trigger")
+            .get_attribute("aria-expanded")
+            .unwrap_or_default();
+        let snap_expanded = snap_trigger
+            .get_attribute("aria-expanded")
+            .unwrap_or_default();
+        assert_eq!(
+            popover_test_element("#pilot-open-menu-state")
+                .text_content()
+                .as_deref(),
+            Some("snap"),
+            "the real Snap trigger should update the shared menu owner; callbacks: {callback_trace}; rendered expanded(select={select_expanded},snap={snap_expanded}); active={}",
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .map(|element| element.id())
+                .unwrap_or_default()
+        );
+        let snap = popover_test_element("#m1-layout-snap-menu");
+        let snap_style = window.get_computed_style(&snap).unwrap().unwrap();
+        assert_eq!(snap_style.get_property_value("display").unwrap(), "grid");
+        assert_eq!(snap_style.get_property_value("gap").unwrap(), "5px");
+        for selector in ["label", ".m1-layout-gap-field"] {
+            let label = snap.query_selector(selector).unwrap().unwrap();
+            assert_eq!(
+                label.parent_element().unwrap().id(),
+                "m1-layout-snap-menu",
+                "Snap labels must remain direct children of the styled popover"
+            );
+            let style = window.get_computed_style(&label).unwrap().unwrap();
+            assert_eq!(style.get_property_value("display").unwrap(), "grid");
+            assert_eq!(style.get_property_value("gap").unwrap(), "4px");
+        }
+
+        popover_test_element("#m1-layout-select-trigger")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        let snap_trigger = popover_test_element("#m1-layout-snap-trigger")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        snap_trigger.focus().unwrap();
+        transition_trace
+            .set_attribute("data-phase", "focused-click-start")
+            .unwrap();
+        snap_trigger.click();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        let callback_trace = transition_trace.text_content().unwrap_or_default();
+        assert_eq!(
+            popover_test_element("#pilot-open-menu-state")
+                .text_content()
+                .as_deref(),
+            Some("snap"),
+            "focused Snap activation must survive Select focus dismissal; callbacks: {callback_trace}; active={}",
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .map(|element| element.id())
+                .unwrap_or_default()
+        );
+        popover_test_element("#pilot-popover-test-root").remove();
+        document_cleanup_styles();
+    }
+
+    fn document_cleanup_styles() {
+        if let Some(styles) = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("pilot-popover-test-styles")
+        {
+            styles.remove();
+        }
+    }
 
     #[wasm_bindgen_test]
     fn retained_cell_survives_key_row_column_and_key_mode_changes() {
@@ -451,6 +766,9 @@ pub enum LayoutCommandMenu {
     Snap,
 }
 
+#[cfg(test)]
+type LayoutMenuTransitionTrace = Signal<Vec<String>>;
+
 impl LayoutCommandMenu {
     const fn key(self) -> &'static str {
         match self {
@@ -518,13 +836,6 @@ fn restore_layout_command_focus(menu: LayoutCommandMenu) {
     }
 }
 
-fn toggle_layout_command_menu(
-    mut open_menu: Signal<Option<LayoutCommandMenu>>,
-    menu: LayoutCommandMenu,
-) {
-    open_menu.set((open_menu() != Some(menu)).then_some(menu));
-}
-
 #[component]
 pub fn LayoutCommandPill(
     command_label: String,
@@ -539,7 +850,22 @@ pub fn LayoutCommandPill(
     on_snap_intent: EventHandler<LayoutSnapIntent>,
     has_selection_context: bool,
     on_show_relationships: EventHandler<()>,
+    #[props(default)] snap_in_dock: bool,
 ) -> Element {
+    let pointer_tools_visible = transform.pointer_tools_visible;
+    let mut compact = use_signal(|| {
+        web_sys::window()
+            .and_then(|window| window.local_storage().ok().flatten())
+            .and_then(|storage| {
+                storage
+                    .get_item("boardstudio:v2:layout-toolbar-compact")
+                    .ok()
+                    .flatten()
+            })
+            .as_deref()
+            == Some("true")
+    });
+    let geometry_snap_enabled = snap_settings.geometry_snap;
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
@@ -569,6 +895,11 @@ pub fn LayoutCommandPill(
                     listener_document
                         .get_element_by_id("m1-layout-command-pill")
                         .is_some_and(|pill| pill.contains(Some(target)))
+                        || listener_document
+                            .query_selector(".m1-layout-snap-dock")
+                            .ok()
+                            .flatten()
+                            .is_some_and(|dock| dock.contains(Some(target)))
                 });
                 if !inside {
                     open_menu.set(None);
@@ -601,15 +932,22 @@ pub fn LayoutCommandPill(
     });
 
     rsx! {
-        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill", role: "toolbar", aria_label: "{command_label}",
-            LayoutSelectMenu {
-                open_menu,
-                selection_kind,
-                on_selection_kind,
+        div { id: "m1-layout-command-pill", class: "m1-layout-command-pill layout-command-pill--contextual", role: "group", aria_label: "{command_label}",
+            "data-compact": pointer_tools_visible && compact(),
+            if pointer_tools_visible && has_selection_context {
+                LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
+                super::layout_transform_toolbar::LayoutContextActionToolbar {
+                    mount: transform.clone(), open_menu, selection_kind,
+                }
+            } else if pointer_tools_visible {
+                LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind }
+            } else {
+                LayoutSelectMenu { open_menu, selection_kind, on_selection_kind }
             }
             super::layout_transform_toolbar::LayoutTransformToolbar {
                 open_menu,
-                mount: transform,
+                mount: transform.clone(),
+                selection_kind: pointer_tools_visible.then_some(selection_kind),
             }
             super::layout_align::LayoutAlignToolbar {
                 mount: align,
@@ -618,23 +956,70 @@ pub fn LayoutCommandPill(
                 has_selection_context,
                 on_show_relationships,
             }
-            LayoutSnapMenu {
+            if pointer_tools_visible {
+                BoardButton {
+                    class: "layout-toolbar-density",
+                    aria_label: "Compact toolbar", title: if compact() { "Show toolbar labels" } else { "Use icon-only toolbar" },
+                    pressed: compact(),
+                    onclick: move |_| {
+                        let next = !compact();
+                        compact.set(next);
+                        if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
+                            let _ = storage.set_item("boardstudio:v2:layout-toolbar-compact", if next { "true" } else { "false" });
+                        }
+                    },
+                    svg { class: "m1-context-tool-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                        rect { x: "2", y: "4", width: "4", height: "4", rx: "1" }
+                        rect { x: "2", y: "12", width: "4", height: "4", rx: "1" }
+                        path { d: "M9 6h9M9 14h9" }
+                    }
+                }
+            }
+            if !snap_in_dock { LayoutSnapMenu {
                 open_menu,
                 settings: snap_settings,
                 on_snap_intent,
+                show_layout_state: pointer_tools_visible,
+            } }
+            if pointer_tools_visible && !snap_in_dock {
+                button {
+                    r#type: "button",
+                    class: "layout-geometry-snap-toggle px-2 py-1 text-xs font-medium",
+                    aria_label: "Geometry snap",
+                    aria_pressed: geometry_snap_enabled,
+                    onclick: move |_| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled)),
+                    span { if geometry_snap_enabled { "Geometry on" } else { "Geometry off" } }
+                }
+            }
+        }
+    }
+}
+
+/// Direct scope choices reuse the same retained-cell selection adapter as the menu.
+#[component]
+fn LayoutSelectionToolbar(
+    mut open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+    on_selection_kind: EventHandler<LayoutSelectionKind>,
+) -> Element {
+    rsx! {
+        BoardToolbar { class: "layout-selection-actions", label: "Selection scope",
+            for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
+                BoardToolbarButton {
+                    index, class: "layout-selection-action", aria_label: "Select {kind.label()}",
+                    title: "Select {kind.label()}", pressed: kind == selection_kind,
+                    on_activate: move |_| { on_selection_kind.call(kind); open_menu.set(None); },
+                    LayoutSelectionIcon { kind }
+                    span { class: "layout-action-label", "{kind.label()}" }
+                }
             }
         }
     }
 }
 
 #[component]
-fn LayoutSelectMenu(
-    open_menu: Signal<Option<LayoutCommandMenu>>,
-    selection_kind: LayoutSelectionKind,
-    on_selection_kind: EventHandler<LayoutSelectionKind>,
-) -> Element {
-    let is_open = open_menu() == Some(LayoutCommandMenu::Select);
-    let (x, y, width, height, radius, path) = match selection_kind {
+fn LayoutSelectionIcon(kind: LayoutSelectionKind) -> Element {
+    let (x, y, width, height, radius, path) = match kind {
         LayoutSelectionKind::Matrix => {
             ("3", "3", "14", "14", "1", "M3 8h14M3 12h14M8 3v14M12 3v14")
         }
@@ -651,32 +1036,83 @@ fn LayoutSelectMenu(
         ),
     };
     rsx! {
-        details {
-            class: "m1-layout-command-menu m1-layout-select-menu",
-            "data-layout-menu": "select",
+        svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+            rect { x, y, width, height, rx: radius }
+            path { d: path }
+        }
+    }
+}
+
+/// Always-visible snapping preferences; the existing intent owner remains authoritative.
+#[component]
+pub fn LayoutSnapDock(
+    settings: LayoutSnapSettings,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    on_snap_intent: EventHandler<LayoutSnapIntent>,
+) -> Element {
+    let mut open_menu = open_menu;
+    let open = open_menu() == Some(LayoutCommandMenu::Snap);
+    rsx! {
+        BoardPopover { open, on_open_change: move |next| { if next { open_menu.set(Some(LayoutCommandMenu::Snap)); } else if open_menu() == Some(LayoutCommandMenu::Snap) { open_menu.set(None); } },
+            trigger_id: "m1-layout-snap-trigger", content_id: "m1-snap-dock-options", trigger_label: "Snap",
+            root_class: "m1-layout-snap-dock", trigger_class: "m1-snap-dock-trigger", content_class: "m1-snap-dock-options", content_role: "region", content_label: "Snap options",
+            trigger: rsx! {
+                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
+                span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }
+                span { class: "m1-dock-chevron", "aria-hidden": "true", if open { "⌄" } else { "⌃" } }
+            },
+            LayoutSnapOptions { settings, on_snap_intent }
+        }
+    }
+}
+
+#[component]
+fn LayoutSelectMenu(
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+    on_selection_kind: EventHandler<LayoutSelectionKind>,
+) -> Element {
+    let is_open = open_menu() == Some(LayoutCommandMenu::Select);
+    #[cfg(test)]
+    let transition_trace = try_consume_context::<LayoutMenuTransitionTrace>();
+    rsx! {
+        BoardPopover {
             open: is_open,
-            onkeydown: move |event: KeyboardEvent| {
-                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Select) {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+            on_open_change: move |next: bool| {
+                #[cfg(test)]
+                let owner_before = open_menu();
+                open_menu.with_mut(|owner| {
+                    if next {
+                        *owner = Some(LayoutCommandMenu::Select);
+                    } else if *owner == Some(LayoutCommandMenu::Select) {
+                        *owner = None;
+                    }
+                });
+                #[cfg(test)]
+                if let Some(trace) = transition_trace {
+                    record_layout_menu_transition(
+                        trace,
+                        "Select",
+                        next,
+                        owner_before,
+                        open_menu(),
+                    );
                 }
             },
-            summary {
-                id: "m1-layout-select-trigger",
-                "aria-controls": "m1-layout-select-menu",
-                "aria-expanded": "{is_open}",
-                onclick: move |event: MouseEvent| {
-                    event.prevent_default();
-                    toggle_layout_command_menu(open_menu, LayoutCommandMenu::Select);
-                },
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    rect { x, y, width, height, rx: radius }
-                    path { d: "{path}" }
-                }
-                span { "Select: {selection_kind.label()}" }
-            }
-            div { id: "m1-layout-select-menu", class: "m1-layout-select-popover", role: "group", aria_label: "Selection scope",
+            root_class: "m1-layout-command-menu m1-layout-select-menu",
+            menu_kind: Some("select".to_owned()),
+            trigger_id: "m1-layout-select-trigger",
+            content_id: "m1-layout-select-menu",
+            trigger_label: format!("Select: {}", selection_kind.label()),
+            trigger_class: "m1-layout-select-trigger",
+            content_class: "m1-layout-select-popover",
+            content_role: "group",
+            content_label: Some("Selection scope".to_owned()),
+            trigger: rsx! {
+                LayoutSelectionIcon { kind: selection_kind }
+                span { "{selection_kind.label()}" }
+            },
+            children: rsx! {
                 LayoutCommandMenuHeader {
                     label: format!("Select: {}", selection_kind.label()),
                     close_label: format!("Close Select: {}", selection_kind.label()),
@@ -684,9 +1120,10 @@ fn LayoutSelectMenu(
                     menu: LayoutCommandMenu::Select,
                 }
                 for kind in LayoutSelectionKind::ALL {
-                    button {
-                        r#type: "button",
-                        aria_pressed: "{kind == selection_kind}",
+                    BoardButton {
+                        density: boardstudio_web_ui_shared::controls::BoardButtonDensity::Compact,
+                        class: "m1-layout-select-option",
+                        pressed: Some(kind == selection_kind),
                         onclick: move |_| {
                             on_selection_kind.call(kind);
                             close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
@@ -694,9 +1131,44 @@ fn LayoutSelectMenu(
                         "{kind.label()}"
                     }
                 }
-            }
+            },
         }
     }
+}
+
+#[cfg(test)]
+fn record_layout_menu_transition(
+    mut trace: LayoutMenuTransitionTrace,
+    menu: &str,
+    next: bool,
+    owner_before: Option<LayoutCommandMenu>,
+    owner_after: Option<LayoutCommandMenu>,
+) {
+    let document = web_sys::window().and_then(|window| window.document());
+    let expanded = |id| {
+        document
+            .as_ref()
+            .and_then(|document| document.get_element_by_id(id))
+            .and_then(|trigger| trigger.get_attribute("aria-expanded"))
+            .unwrap_or_else(|| "missing".to_owned())
+    };
+    let active = document
+        .as_ref()
+        .and_then(|document| document.active_element())
+        .map(|element| element.id())
+        .unwrap_or_default();
+    let select_expanded = expanded("m1-layout-select-trigger");
+    let snap_expanded = expanded("m1-layout-snap-trigger");
+    let phase = document
+        .as_ref()
+        .and_then(|document| document.get_element_by_id("pilot-menu-transition-trace"))
+        .and_then(|trace| trace.get_attribute("data-phase"))
+        .unwrap_or_else(|| "unknown".to_owned());
+    trace.with_mut(|events| {
+        events.push(format!(
+            "phase={phase} callback={menu}.on_open_change({next}) owner={owner_before:?}->{owner_after:?} expanded(select={select_expanded},snap={snap_expanded}) active={active}"
+        ));
+    });
 }
 
 #[component]
@@ -704,40 +1176,70 @@ fn LayoutSnapMenu(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
+    show_layout_state: bool,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Snap);
+    #[cfg(test)]
+    let transition_trace = try_consume_context::<LayoutMenuTransitionTrace>();
     rsx! {
-        details {
-            class: "m1-layout-command-menu m1-layout-snap-menu",
-            "data-layout-menu": "snap",
+        BoardPopover {
             open: is_open,
-            onkeydown: move |event: KeyboardEvent| {
-                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Snap) {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
+            on_open_change: move |next: bool| {
+                #[cfg(test)]
+                let owner_before = open_menu();
+                open_menu.with_mut(|owner| {
+                    if next {
+                        *owner = Some(LayoutCommandMenu::Snap);
+                    } else if *owner == Some(LayoutCommandMenu::Snap) {
+                        *owner = None;
+                    }
+                });
+                #[cfg(test)]
+                if let Some(trace) = transition_trace {
+                    record_layout_menu_transition(
+                        trace,
+                        "Snap",
+                        next,
+                        owner_before,
+                        open_menu(),
+                    );
                 }
             },
-            summary {
-                id: "m1-layout-snap-trigger",
-                "aria-controls": "m1-layout-snap-menu",
-                "aria-expanded": "{is_open}",
-                onclick: move |event: MouseEvent| {
-                    event.prevent_default();
-                    toggle_layout_command_menu(open_menu, LayoutCommandMenu::Snap);
-                },
+            root_class: "m1-layout-command-menu m1-layout-snap-menu",
+            menu_kind: Some("snap".to_owned()),
+            trigger_id: "m1-layout-snap-trigger",
+            content_id: "m1-layout-snap-menu",
+            trigger_label: "Snap settings".to_owned(),
+            trigger_class: "m1-layout-snap-trigger",
+            content_class: "m1-layout-snap-popover",
+            trigger: rsx! {
                 svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: "M4 3v7a6 6 0 0 0 12 0V3h-4v7a2 2 0 0 1-4 0V3ZM4 7h4M12 7h4" }
                 }
                 span { "Snap" }
-            }
-            div { id: "m1-layout-snap-menu", class: "m1-layout-snap-popover",
+                if show_layout_state {
+                    span { class: "text-xs text-muted", "{snap_label(settings.snap_fraction)}" }
+                }
+            },
+            children: rsx! {
                 LayoutCommandMenuHeader {
                     label: "Snap".to_owned(),
                     close_label: "Close Snap".to_owned(),
                     open_menu,
                     menu: LayoutCommandMenu::Snap,
                 }
+                LayoutSnapOptions { settings, on_snap_intent }
+            },
+        }
+    }
+}
+
+#[component]
+fn LayoutSnapOptions(
+    settings: LayoutSnapSettings,
+    on_snap_intent: EventHandler<LayoutSnapIntent>,
+) -> Element {
+    rsx! {
                 label { "Snap increment"
                     select {
                         "aria-label": "Snap increment",
@@ -756,8 +1258,7 @@ fn LayoutSnapMenu(
                     }
                 }
                 label { class: "m1-layout-snap-check",
-                    input {
-                        r#type: "checkbox",
+                    BoardCheckbox {
                         checked: settings.geometry_snap,
                         onchange: move |event: FormEvent| {
                             on_snap_intent.call(LayoutSnapIntent::GeometrySnap(event.checked()));
@@ -766,8 +1267,7 @@ fn LayoutSnapMenu(
                     "Geometry snap"
                 }
                 label { class: "m1-layout-snap-check",
-                    input {
-                        r#type: "checkbox",
+                    BoardCheckbox {
                         checked: settings.gap_snap,
                         disabled: !settings.geometry_snap,
                         onchange: move |event: FormEvent| {
@@ -789,7 +1289,5 @@ fn LayoutSnapMenu(
                     }
                 }
                 p { "Shared by Layout, drawing and perimeter editing. Unit steps use matrix pitch; mm steps use world coordinates. Hold Alt to bypass snapping." }
-            }
-        }
     }
 }

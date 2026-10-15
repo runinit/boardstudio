@@ -121,6 +121,19 @@ async fn switch_visibility_keeps_keycaps_independent() {
     .await;
     assert_eq!(count(&root, ".m1-keycap-overlay"), 1);
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
+    assert_eq!(
+        count(
+            &root,
+            "#m1-objects-panel #m1-layers-trigger[aria-expanded='false']"
+        ),
+        1,
+        "Layout layers must start collapsed at the persistent bottom edge"
+    );
+    assert_eq!(
+        count(&root, ".m1-workspace-content .m1-layers"),
+        0,
+        "the viewer must not duplicate the docked visibility controls"
+    );
     click(&root, "#m1-layers-trigger");
     wait_until("the layers menu offers Hide Switches", || {
         count(&root, "button[aria-label='Hide Switches']") == 1

@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     PartDefinition, Side, VikRole, VikSignal,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant, BoardCheckbox};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -630,7 +631,7 @@ fn PcbMountedModuleInspector(
                 for (index, support) in draft().mount_supports.iter().enumerate() {
                     div { key: "{support.mount_id}", class: "m1-pcb-module-support-row",
                         span { "{support.mount_id} · OD {support.outer_diameter} / ID {support.hole_diameter} · Z {support.z} · height {support.height} mm" }
-                        button { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
+                        BoardButton { r#type: "button", disabled: !editable, aria_label: "Remove support {support.mount_id}", onclick: move |_| {
                             edit_module_draft(draft, draft_dirty, |value| { value.mount_supports.remove(index); });
                         }, "Remove" }
                     }
@@ -677,7 +678,7 @@ fn PcbMountedModuleInspector(
                         }
                     }
                 }
-                button { r#type: "button", disabled: !editable || !has_source_mounts, onclick: move |_| {
+                BoardButton { r#type: "button", disabled: !editable || !has_source_mounts, onclick: move |_| {
                     let fields = support_draft().clone();
                     let source_mount = add_source_mounts.iter().find(|mount| mount.source_id == fields.mount_id);
                     let Some(mount) = source_mount else {
@@ -718,16 +719,15 @@ fn PcbMountedModuleInspector(
                 }, "Add specified {support_kind}" }
                 if !has_source_mounts { p { "This module snapshot has no source mounting holes for support placement." } }
             }
-            label { input { r#type: "checkbox", checked: draft().detached, disabled: !editable,
-                onchange: move |event| edit_module_draft(draft, draft_dirty, |value| value.detached = event.checked())
+            label { BoardCheckbox { checked: draft().detached, disabled: !editable,
+                onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| value.detached = event.checked())
             } "Detached" }
             section { class: "m1-pcb-module-connection", "aria-label": "VIK connection",
                 h3 { "VIK connection" }
-                label { input {
-                    r#type: "checkbox",
+                label { BoardCheckbox {
                     checked: draft().connection.is_some(),
                     disabled: !editable,
-                    onchange: move |event| {
+                    onchange: move |event: FormEvent| {
                         if event.checked() {
                             edit_module_draft(draft, draft_dirty, |value| value.connection = Some(ModuleConnection {
                                 host_connector_part_id: if available_connectors.is_empty() && create_automatic_connector_on_toggle { automatic_connector_id_for_toggle.clone() } else { String::new() },
@@ -847,7 +847,7 @@ fn PcbMountedModuleInspector(
                             }
                         }
                     }
-                    button { class: "m1-primary-button", r#type: "button", disabled: !editable || embed_disabled(), onclick: embed, "Copy circuit to PCB" }
+                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-primary-button", r#type: "button", disabled: !editable || embed_disabled(), onclick: embed, "Copy circuit to PCB" }
                     // A copy row cannot own its disabled Signal: the row unmounts when its
                     // removal lands, before the settlement drain releases the binding, and
                     // the drain would write a dropped Signal. The bounded removal action
@@ -859,7 +859,7 @@ fn PcbMountedModuleInspector(
                             span {
                                 "{circuit.part_ids.len()} components · {circuit.id.rsplit('/').next().unwrap_or(&circuit.id)}"
                             }
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 disabled: !editable || circuit_removal_disabled(),
                                 onclick: {
@@ -914,8 +914,8 @@ fn PcbMountedModuleInspector(
                 }
             }
             div { class: "m1-pcb-module-actions",
-                button { class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
-                button { class: "m1-danger-button", r#type: "button", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
+                BoardButton { variant: BoardButtonVariant::Primary, class: "m1-primary-button", r#type: "button", disabled: !editable || draft().connection.as_ref().is_some_and(|connection| connection.host_connector_part_id.is_empty()), onclick: save, "Save placement" }
+                BoardButton { variant: BoardButtonVariant::Danger, class: "m1-danger-button", r#type: "button", disabled: !editable || remove_disabled(), onclick: remove, "Remove module" }
             }
             if !feedback().is_empty() {
                 p { role: "status", "{feedback()}" }

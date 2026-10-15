@@ -4,6 +4,7 @@ use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     Constraint, ConstraintRelation, HalfExceptionState, MirrorAxis, OffsetAxes, PartOutline, Vec2,
 };
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -1385,7 +1386,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                         }
                         div { class: "m1-layout-component-constraint-actions",
                             button { r#type: "button", disabled: (props.constraint_pending)(), onclick: save_constraint, if active_constraint.is_some() { "Save constraint" } else { "Add constraint" } }
-                            if active_constraint.is_some() { button { r#type: "button", disabled: (props.remove_pending)(), onclick: remove_constraint, "Remove" } }
+                            if active_constraint.is_some() { BoardButton { r#type: "button", disabled: (props.remove_pending)(), onclick: remove_constraint, "Remove" } }
                         }
                     } else { p { "Add another part on this board to create a layout constraint." } }
                 }

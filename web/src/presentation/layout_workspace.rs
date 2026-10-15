@@ -1,6 +1,7 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -15,6 +16,7 @@ pub(super) struct ObjectsInput {
     pub(super) parts_query: super::parts::PartsQuery,
     pub(super) on_browse_parts: EventHandler<()>,
     pub(super) placement_error: Option<String>,
+    pub(super) add_object_menu_open: Signal<bool>,
 }
 
 pub(super) struct ToolbarInput {
@@ -138,6 +140,7 @@ pub(super) struct LayoutWorkspaceState {
     companion_placement_pending: Signal<bool>,
     companion_placement_error: Signal<Option<String>>,
     companion_placement_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
+    add_object_menu_open: Signal<bool>,
 }
 
 pub(super) fn use_layout_workspace_state(
@@ -174,6 +177,7 @@ pub(super) fn use_layout_workspace_state(
         companion_placement_edits: use_signal(
             super::layout_component_edits::LayoutComponentInspectorEdits::default,
         ),
+        add_object_menu_open: use_signal(|| false),
     };
     use_contextual_inspector_tab_reset(selected_context, state.inspector_tab);
     let observed_workspace = workspace();
@@ -192,6 +196,9 @@ pub(super) fn use_layout_workspace_state(
 }
 
 impl LayoutWorkspaceState {
+    pub(super) fn add_object_menu_open(self) -> Signal<bool> {
+        self.add_object_menu_open
+    }
     pub(super) fn selection_kind(self) -> Signal<objects::LayoutSelectionKind> {
         self.selection_kind
     }
@@ -375,6 +382,28 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
                 parts_query: Some(input.parts_query),
                 on_browse_parts: Some(input.on_browse_parts),
                 placement_error: input.placement_error,
+                add_object_menu_open: Some(input.add_object_menu_open),
+            }
+        }
+    }
+}
+
+pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
+    let open = menu_open();
+    rsx! {
+        div { class: "m1-layout-add-object",
+            button {
+                r#type: "button",
+                id: "m1-add-object-trigger",
+                aria_label: "Add object",
+                title: "Add object",
+                class: "m1-layout-add-trigger",
+                aria_expanded: if open { "true" } else { "false" },
+                onclick: move |_| menu_open.set(!menu_open()),
+                svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
+                    path { d: "M8 3v10M3 8h10" }
+                }
+                "Add object"
             }
         }
     }
@@ -382,26 +411,29 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-        div { class: "m1-canvas-toolbar",
-            if input.assembly_3d {
-                div { class: "m1-canvas-context",
-                    strong { "Layout" }
-                    span { "PCB assembly" }
-                }
-            } else {
-                objects::LayoutCommandPill {
-                    command_label: input.command_label,
-                    menu_owner_key: input.menu_owner_key,
-                    open_menu: input.open_menu,
-                    transform: input.transform,
-                    align: input.align,
-                    selection_kind: input.selection_kind,
-                    snap_settings: input.snap_settings,
-                    on_selection_kind: input.on_selection_kind,
-                    on_snap_intent: input.on_snap_intent,
-                    has_selection_context: input.has_selection_context,
-                    show_relationships: input.show_relationships,
-                    on_show_relationships: input.on_show_relationships,
+        div { class: "m1-layout-toolbar-region",
+            div { class: "m1-canvas-toolbar",
+                if input.assembly_3d {
+                    div { class: "m1-canvas-context",
+                        strong { "Layout" }
+                        span { "PCB assembly" }
+                    }
+                } else {
+                    objects::LayoutCommandPill {
+                        command_label: input.command_label,
+                        menu_owner_key: input.menu_owner_key,
+                        open_menu: input.open_menu,
+                        transform: input.transform,
+                        align: input.align,
+                        selection_kind: input.selection_kind,
+                        snap_settings: input.snap_settings,
+                        on_selection_kind: input.on_selection_kind,
+                        on_snap_intent: input.on_snap_intent,
+                        has_selection_context: input.has_selection_context,
+                        show_relationships: input.show_relationships,
+                        on_show_relationships: input.on_show_relationships,
+                        snap_in_dock: true,
+                    }
                 }
             }
             if let Some(reason) = input.save_failure.as_ref() {
@@ -414,26 +446,26 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             if input.recovery_required {
                 button { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
             }
-        }
-        div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
-            button {
-                r#type: "button",
-                aria_pressed: "{!input.assembly_3d}",
-                onclick: move |_| input.on_view_mode.call(false),
-                "2D"
-            }
-            button {
-                r#type: "button",
-                aria_pressed: "{input.assembly_3d}",
-                onclick: move |_| input.on_view_mode.call(true),
-                "3D assembly"
-            }
-            if !input.assembly_3d {
+            div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
                 button {
                     r#type: "button",
-                    aria_pressed: "{input.footprints_pressed}",
-                    onclick: move |_| input.on_toggle_footprints.call(()),
-                    "Footprints"
+                    aria_pressed: "{!input.assembly_3d}",
+                    onclick: move |_| input.on_view_mode.call(false),
+                    "2D"
+                }
+                button {
+                    r#type: "button",
+                    aria_pressed: "{input.assembly_3d}",
+                    onclick: move |_| input.on_view_mode.call(true),
+                    "3D assembly"
+                }
+                if !input.assembly_3d {
+                    button {
+                        r#type: "button",
+                        aria_pressed: "{input.footprints_pressed}",
+                        onclick: move |_| input.on_toggle_footprints.call(()),
+                        "Footprints"
+                    }
                 }
             }
         }
@@ -821,7 +853,11 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 }
             }
             if input.key_size.projection.is_some() {
-                objects::KeySizeControls { mount: input.key_size }
+                BoardDisclosure {
+                    class: "m1-layout-key-size-section m1-matrix-transform-section", open: true,
+                    heading: rsx! { summary { "Key size" } },
+                    objects::KeySizeControls { mount: input.key_size }
+                }
             }
             if input.matrix_transform_inspector.projection.is_some() {
                 objects::MatrixTransformInspector {

@@ -1,6 +1,7 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -200,7 +201,7 @@ pub fn MacroEditor(props: MacroEditorProps) -> Element {
                     }
                 }
             }
-            button {
+            BoardButton {
                 r#type: "button",
                 disabled: busy || macros.len() >= 128 || super::macro_controller::action_pending(None, MacroEditTarget::AddMacro),
                 onclick: move |_| {
@@ -337,7 +338,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                     } }
                 }
             }
-            button {
+            BoardButton {
                 r#type: "button", disabled: !props.enabled || !can_add_step || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::AddStep),
                 onclick: move |_| {
                     if !can_add_step { return; }
@@ -345,7 +346,7 @@ fn MacroCard(props: MacroCardProps) -> Element {
                         MacroEditChange::Change(MacroChange::AddStep { value: tap_a() }));
                 }, "Add step"
             }
-            button {
+            BoardButton {
                 r#type: "button", disabled: !props.enabled || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveMacro),
                 onclick: move |_| request(&remove_context, MacroEditTarget::RemoveMacro,
                     Some(remove_macro_id.clone()), None, MacroEditChange::Remove),
@@ -472,7 +473,7 @@ fn StepEditor(props: StepEditorProps) -> Element {
                     }) },
                 }
             }
-            button {
+            BoardButton {
                 r#type: "button", disabled: !props.enabled || props.sequence.len() <= 1 || super::macro_controller::action_pending(Some(&props.macro_id), MacroEditTarget::RemoveStep { index }),
                 onclick: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |_| {
                     if sequence_len <= 1 { return; }

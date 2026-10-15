@@ -19,6 +19,9 @@ use boardstudio_core::model::{
     MatrixSplayChange, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonDensity, BoardPopover, BoardToolbar, BoardToolbarButton,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
@@ -120,7 +123,7 @@ impl PartialEq for LayoutTransformSvg {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum TransformGesture {
-    /// Edits the column's stagger. `quick_offset` is latched from `shiftKey` at pointer-down
+    /// Edits the column's stagger. `quick_offset` is latched from `ctrlKey` at pointer-down
     /// and turns the drag into a free 2-D column-offset gesture for its whole length.
     Stagger {
         column: u32,
@@ -185,6 +188,7 @@ pub fn LayoutTransformToolOverlay(
     projection: MatrixScene,
     context: TreeContext,
     tool: LayoutTransformTool,
+    #[props(default)] surface_size: Option<Signal<(f64, f64)>>,
     snap_settings: super::layout_toolbar::LayoutSnapSettings,
     snap_origins: Vec<super::super::outline_snapping::Origin>,
     splay_affect: Signal<MatrixSplayAffect>,
@@ -194,6 +198,15 @@ pub fn LayoutTransformToolOverlay(
     height: f64,
     on_finish: EventHandler<()>,
 ) -> Element {
+    let control = use_signal(|| false);
+    let _control_listener = use_hook(move || {
+        Rc::new(if tool == LayoutTransformTool::Stagger {
+            CtrlModifierListener::install(control)
+        } else {
+            None
+        })
+    });
+    let _ = surface_size.map(|size| size());
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
     let snap_guide = use_signal(|| None::<Vec2>);
     // True from a Shift pointer-down until release: the handle shows the offset glyph.
@@ -239,6 +252,10 @@ pub fn LayoutTransformToolOverlay(
                             .is_some()
                     })
                 {
+                    return;
+                }
+                // Another visible handle may own the live gesture. Its listener cancels it.
+                if drag.borrow().is_none() && arbiter.current().is_some() {
                     return;
                 }
                 event.prevent_default();
@@ -290,7 +307,7 @@ pub fn LayoutTransformToolOverlay(
         },
     ));
 
-    let selected_points = {
+    let mut selected_points = {
         let model = runtime.0.model();
         model.accepted.as_ref().map_or_else(Vec::new, |snapshot| {
             model
@@ -307,6 +324,25 @@ pub fn LayoutTransformToolOverlay(
                 .collect::<Vec<_>>()
         })
     };
+    match &context {
+        TreeContext::Column { column, .. } => {
+            selected_points = projection
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled && cell.column == *column)
+                .map(|cell| cell.pose.at)
+                .collect()
+        }
+        TreeContext::Row { row, .. } => {
+            selected_points = projection
+                .cells
+                .iter()
+                .filter(|cell| cell.enabled && cell.row == *row)
+                .map(|cell| cell.pose.at)
+                .collect()
+        }
+        _ => {}
+    }
     let (handle_point, handle_scale, selected_column) = {
         let selected_column = context_column(&context).unwrap_or(0);
         let selected_row = context_row(&context);
@@ -358,28 +394,59 @@ pub fn LayoutTransformToolOverlay(
         let scale = svg.0.borrow().as_ref().map_or(3.0, |surface| {
             let rect = surface.get_bounding_client_rect();
             if rect.width() > 0.0 {
-                width / rect.width() * 3.0
+                (width / rect.width()).max(height / rect.height().max(1.0)) * 3.0
             } else {
                 3.0
             }
         });
+        let point = if matches!(
+            tool,
+            LayoutTransformTool::Stagger | LayoutTransformTool::Offset
+        ) && !selected_points.is_empty()
+        {
+            Some(Vec2 {
+                x: selected_points.iter().map(|p| p.x).sum::<f64>() / selected_points.len() as f64,
+                y: selected_points
+                    .iter()
+                    .map(|p| p.y)
+                    .fold(f64::INFINITY, f64::min)
+                    - matrix.pitch.y / 2.0
+                    - 6.0 * scale,
+            })
+        } else {
+            point
+        };
         (point, scale, selected_column)
     };
 
     let Some(handle_point) = handle_point else {
         return rsx! {};
     };
-    let angle_point = angle_handle_point(
+    let fallback_angle_point = angle_handle_point(
         &projection,
         selected_column,
         matrix.pitch.y,
         &selected_points,
     );
+    let angle_point = if selected_points.is_empty() {
+        fallback_angle_point
+    } else {
+        Vec2 {
+            x: selected_points.iter().map(|p| p.x).sum::<f64>() / selected_points.len() as f64,
+            y: selected_points
+                .iter()
+                .map(|p| p.y)
+                .fold(f64::INFINITY, f64::min)
+                - matrix.pitch.y / 2.0
+                - 18.0 * handle_scale,
+        }
+    };
     let angle_degrees = projection
         .columns
         .iter()
         .find(|basis| basis.column == selected_column)
         .map_or(0.0, |basis| basis.splay_angle);
+    let arc = splay_arc(handle_point, angle_point, angle_degrees);
     let current_owner = owner.clone();
     let current_context = context.clone();
     let matrix_for_key = matrix.clone();
@@ -417,7 +484,7 @@ pub fn LayoutTransformToolOverlay(
         let gesture = match gesture {
             TransformGesture::Stagger { column, .. } => TransformGesture::Stagger {
                 column,
-                quick_offset: pointer.shift_key(),
+                quick_offset: pointer.ctrl_key(),
             },
             other => other,
         };
@@ -864,16 +931,19 @@ pub fn LayoutTransformToolOverlay(
         .map_or(Vec2 { x: 0.0, y: 1.0 }, |basis| basis.stagger_axis);
     let arrow_rotation = stagger_arrow_degrees(stagger_axis);
     let handle_label = match (tool, context_row(&context)) {
+        (LayoutTransformTool::Stagger, None) if control() || quick_glyph() => {
+            "Drag to offset column"
+        }
         (LayoutTransformTool::Offset, Some(_)) => "Drag to offset row",
         (LayoutTransformTool::Offset, None) => "Drag to offset column",
         _ => "Drag to stagger",
     };
-    let handle_value = if tool == LayoutTransformTool::Offset {
+    let handle_value = if tool == LayoutTransformTool::Offset || control() || quick_glyph() {
         format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
     } else {
         format!("{stagger_now:.2} mm")
     };
-    let quick_offset_shown = quick_glyph() || tool == LayoutTransformTool::Offset;
+    let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
     rsx! {
         if let Some(guide) = snap_guide() {
             g { class: "m1-transform-snap-guide", "aria-hidden": "true",
@@ -883,11 +953,11 @@ pub fn LayoutTransformToolOverlay(
         if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
             g {
                 class: "m1-transform-handle m1-stagger-handle",
-                transform: "translate({handle_point.x} {handle_point.y})",
+                transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                 // The value is a description, not `aria-valuenow`: that belongs to range
                 // roles, and a handle that also edits a 2-D offset is a button.
                 role: "button", tabindex: "0", "aria-label": "{handle_label}",
-                "aria-description": "{handle_value}",
+                "aria-description": "{handle_value}. Hold Ctrl while dragging to offset the column.",
                 "data-quick-offset": "{quick_offset_shown}",
                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
                 onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
@@ -909,6 +979,8 @@ pub fn LayoutTransformToolOverlay(
             g { class: "m1-transform-splay-handles",
                 if tool == LayoutTransformTool::Splay {
                     path { class: "m1-transform-splay-guide", d: "M{handle_point.x} {handle_point.y} L{angle_point.x} {angle_point.y}" }
+                    path { class: "m1-transform-splay-guide", d: "{arc}" }
+
                 }
                 g {
                     class: "m1-transform-handle m1-splay-origin-handle",
@@ -1805,6 +1877,24 @@ fn abandon_transform_drag(
     true
 }
 
+// Presentation-only angular annotation: the accepted Core scene supplies origin and angle.
+fn splay_arc(origin: Vec2, end: Vec2, degrees: f64) -> String {
+    let dx = end.x - origin.x;
+    let dy = end.y - origin.y;
+    let radius = dx.hypot(dy);
+    let angle = dy.atan2(dx);
+    let sweep_degrees = degrees.clamp(-359.9, 359.9);
+    let start = angle - sweep_degrees.to_radians();
+    let x = origin.x + radius * start.cos();
+    let y = origin.y + radius * start.sin();
+    let large = u8::from(sweep_degrees.abs() > 180.0);
+    let sweep = u8::from(sweep_degrees >= 0.0);
+    format!(
+        "M{x} {y} A{radius} {radius} 0 {large} {sweep} {} {}",
+        end.x, end.y
+    )
+}
+
 fn angle_handle_point(
     projection: &MatrixScene,
     column: u32,
@@ -1822,7 +1912,11 @@ fn angle_handle_point(
             y: origin.y + 20.0,
         };
     }
-    let x = points.iter().map(|point| point.x).sum::<f64>() / points.len() as f64;
+    let x = points
+        .iter()
+        .map(|point| point.x)
+        .fold(f64::INFINITY, f64::min)
+        - pitch_y * 0.9;
     let y = points
         .iter()
         .map(|point| point.y)
@@ -1832,99 +1926,288 @@ fn angle_handle_point(
 }
 
 #[component]
+pub fn LayoutContextActionToolbar(
+    mount: LayoutTransformMenuMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    selection_kind: LayoutSelectionKind,
+) -> Element {
+    let property_action = mount.pointer_tools_visible
+        && mount.properties_available
+        && (matches!(
+            selection_kind,
+            LayoutSelectionKind::Matrix
+                | LayoutSelectionKind::Column
+                | LayoutSelectionKind::Key
+                | LayoutSelectionKind::Part
+        ) || (selection_kind == LayoutSelectionKind::Row && mount.row_available));
+    let selection_label = match selection_kind {
+        LayoutSelectionKind::Matrix => "Matrix",
+        LayoutSelectionKind::Row => "Row",
+        LayoutSelectionKind::Column => "Column",
+        LayoutSelectionKind::Key => "Key",
+        LayoutSelectionKind::Part => "Part",
+    };
+    let tools = match selection_kind {
+        LayoutSelectionKind::Matrix | LayoutSelectionKind::Key | LayoutSelectionKind::Part => vec![
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger column; selection changes to Column",
+                mount.column_available,
+            ),
+            (
+                LayoutTransformTool::Offset,
+                "Offset column",
+                "Activate Offset column; selection changes to Column",
+                mount.column_available,
+            ),
+        ],
+        LayoutSelectionKind::Row => vec![
+            (
+                LayoutTransformTool::Offset,
+                "Offset row",
+                "Activate Offset for the selected row",
+                mount.row_available,
+            ),
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger column; selection changes to Column",
+                mount.column_available,
+            ),
+        ],
+        LayoutSelectionKind::Column => vec![
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger for the selected column",
+                mount.column_available,
+            ),
+            (
+                LayoutTransformTool::Offset,
+                "Offset column",
+                "Activate Offset for the selected column",
+                mount.column_available,
+            ),
+        ],
+    };
+    let mut visible_tools = if mount.pointer_tools_visible && mount.pointer_tools_available {
+        tools
+            .into_iter()
+            .filter(|(_, _, _, available)| *available)
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    if mount.pointer_tools_visible
+        && mount.pointer_tools_available
+        && mount.column_available
+        && matches!(
+            selection_kind,
+            LayoutSelectionKind::Column | LayoutSelectionKind::Matrix
+        )
+    {
+        visible_tools.push((
+            LayoutTransformTool::Splay,
+            "Splay",
+            "Activate Splay for the selected column",
+            true,
+        ));
+    }
+    if !property_action && visible_tools.is_empty() {
+        return rsx! {};
+    }
+    let on_show_properties = mount.on_show_properties;
+    let on_selection_kind = mount.on_selection_kind;
+    let position_menu = open_menu;
+    let property_label = if selection_kind == LayoutSelectionKind::Row {
+        "Row offsets"
+    } else {
+        "Position"
+    };
+    let property_accessible_label = if selection_kind == LayoutSelectionKind::Row {
+        "Open Row offsets properties for Row".to_owned()
+    } else {
+        format!("Open Position and rotation properties for {selection_label}")
+    };
+
+    rsx! {
+        BoardToolbar {
+            class: "layout-context-actions flex items-center gap-1 px-2",
+            label: "Actions for {selection_label}",
+            if property_action {
+                BoardToolbarButton {
+                    index: 0,
+                    class: "layout-context-action",
+                    aria_label: property_accessible_label.clone(),
+                    title: property_accessible_label,
+                    on_activate: move |_| {
+                        on_show_properties.call(());
+                        if selection_kind == LayoutSelectionKind::Row {
+                            on_selection_kind.call(LayoutSelectionKind::Row);
+                        }
+                        close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
+                    },
+                    svg { class: "m1-context-tool-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                        path { d: "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3M5 7l-3 3 3 3M15 7l3 3-3 3" }
+                    }
+                    span { class: "layout-action-label", "{property_label}" }
+                }
+            }
+            for (index, (tool, label, accessible_label, _)) in visible_tools.into_iter().enumerate() {
+                LayoutContextToolButton {
+                    index: index + usize::from(property_action),
+                    mount: mount.clone(),
+                    open_menu,
+                    tool,
+                    label: label.to_owned(),
+                    accessible_label: accessible_label.to_owned(),
+                    pressed: mount.active_tool == Some(tool),
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn LayoutContextToolButton(
+    index: usize,
+    mount: LayoutTransformMenuMount,
+    open_menu: Signal<Option<LayoutCommandMenu>>,
+    tool: LayoutTransformTool,
+    label: String,
+    accessible_label: String,
+    pressed: bool,
+) -> Element {
+    let on_transform_tool = mount.on_transform_tool;
+    let glyph = match tool {
+        LayoutTransformTool::Stagger => "M10 2v16M6 6l4-4 4 4M6 14l4 4 4-4",
+        LayoutTransformTool::Offset => "M2 10h16M6 6l-4 4 4 4M14 6l4 4-4 4",
+        LayoutTransformTool::Splay => "M4 16h13M4 16l8-12M7 16a7 7 0 0 0 3-6",
+        LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
+    };
+    rsx! {
+        BoardToolbarButton {
+            index,
+            class: "layout-context-action",
+            aria_label: accessible_label.clone(),
+            title: accessible_label,
+            pressed,
+            on_activate: move |_| {
+                on_transform_tool.call(tool);
+                close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+            },
+            svg { class: "m1-context-tool-icon", view_box: "0 0 20 20", "aria-hidden": "true", path { d: glyph } }
+            span { class: "layout-action-label", {match label.as_str() {
+                "Stagger column" => "Stagger",
+                "Offset column" | "Offset row" => "Offset",
+                _ => label.as_str(),
+            }} }
+        }
+    }
+}
+
+#[component]
 pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
+    #[props(default)] selection_kind: Option<LayoutSelectionKind>,
 ) -> Element {
     let is_open = open_menu() == Some(LayoutCommandMenu::Transform);
     let position_label = "Position & rotation";
 
     rsx! {
-        details {
-            class: "m1-layout-command-menu m1-layout-transform-menu",
-            "data-layout-menu": "transform",
+        BoardPopover {
             open: is_open,
-            onkeydown: move |event: KeyboardEvent| {
-                if event.data().key().to_string() == "Escape" && open_menu() == Some(LayoutCommandMenu::Transform) {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+            on_open_change: move |next: bool| {
+                let mut open_menu = open_menu;
+                if next {
+                    open_menu.set(Some(LayoutCommandMenu::Transform));
+                } else if open_menu() == Some(LayoutCommandMenu::Transform) {
+                    open_menu.set(None);
                 }
             },
-            summary {
-                id: "m1-layout-transform-trigger",
-                "aria-controls": "m1-layout-transform-menu",
-                "aria-expanded": "{is_open}",
-                onclick: move |event: MouseEvent| {
-                    event.prevent_default();
-                    let mut open_menu = open_menu;
-                    open_menu.set((open_menu() != Some(LayoutCommandMenu::Transform)).then_some(LayoutCommandMenu::Transform));
-                },
+            trigger_id: "m1-layout-transform-trigger",
+            content_id: "m1-layout-transform-menu",
+            trigger_label: "Transform",
+            root_class: "m1-layout-command-menu m1-layout-transform-menu",
+            menu_kind: "transform",
+            content_class: "m1-layout-transform-popover grid gap-1",
+            content_role: "group",
+            content_label: "Transform tools and properties",
+            trigger: rsx! {
                 svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M10 1v18M1 10h18M7 4l3-3 3 3M7 16l3 3 3-3M4 7l-3 3 3 3M16 7l3 3-3 3" }
+                    circle { cx: "4", cy: "10", r: "1.2", fill: "currentColor" }
+                    circle { cx: "10", cy: "10", r: "1.2", fill: "currentColor" }
+                    circle { cx: "16", cy: "10", r: "1.2", fill: "currentColor" }
                 }
-                span { "Transform" }
+                span { class: "m1-visually-hidden", "Transform" }
+            },
+            super::layout_toolbar::LayoutCommandMenuHeader {
+                label: "Transform".to_owned(),
+                close_label: "Close Transform".to_owned(),
+                open_menu,
+                menu: LayoutCommandMenu::Transform,
             }
-            div { id: "m1-layout-transform-menu", class: "m1-layout-transform-popover",
-                super::layout_toolbar::LayoutCommandMenuHeader {
-                    label: "Transform".to_owned(),
-                    close_label: "Close Transform".to_owned(),
-                    open_menu,
-                    menu: LayoutCommandMenu::Transform,
+            if let Some(selection_kind) = selection_kind {
+                LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind }
+                BoardButton {
+                    density: BoardButtonDensity::Compact,
+                    disabled: !mount.pointer_tools_available || !mount.column_available,
+                    pressed: mount.active_tool == Some(LayoutTransformTool::Origin),
+                    onclick: move |_| {
+                        mount.on_transform_tool.call(LayoutTransformTool::Origin);
+                        close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                    },
+                    "Origin"
                 }
-                for (tool, label) in LayoutTransformTool::ALL {
-                    if mount.pointer_tools_visible {
-                        button {
-                            r#type: "button",
-                            disabled: !mount.pointer_tools_available,
-                            aria_pressed: mount.active_tool == Some(tool),
-                            "data-close-menu": "true",
-                            onclick: move |_| {
-                                mount.on_transform_tool.call(tool);
-                                close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                            },
-                            "{label}"
-                        }
-                    }
-                }
-                if mount.properties_available {
-                    button {
-                        r#type: "button",
-                        "data-close-menu": "true",
+            } else {
+            for (tool, label) in LayoutTransformTool::ALL {
+                if mount.pointer_tools_visible {
+                    BoardButton {
+                        density: BoardButtonDensity::Compact,
+                        disabled: !mount.pointer_tools_available,
+                        pressed: mount.active_tool == Some(tool),
                         onclick: move |_| {
-                            mount.on_show_properties.call(());
+                            mount.on_transform_tool.call(tool);
                             close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
                         },
-                        "{position_label}"
+                        "{label}"
                     }
-                } else {
-                    button { r#type: "button", disabled: true, "{position_label}" }
                 }
-                button {
-                    r#type: "button",
-                    disabled: !mount.column_available,
-                    "data-close-menu": "true",
-                    onclick: move |_| {
-                        mount.on_show_properties.call(());
-                        mount.on_selection_kind.call(LayoutSelectionKind::Column);
-                        close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                    },
-                    "Splay & origin"
-                }
-                button {
-                    r#type: "button",
-                    disabled: !mount.row_available,
-                    "data-close-menu": "true",
-                    onclick: move |_| {
-                        mount.on_show_properties.call(());
-                        mount.on_selection_kind.call(LayoutSelectionKind::Row);
-                        close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                    },
-                    "Row offsets"
-                }
-                if !mount.properties_available {
-                    p { "Select a matrix, row, column, key or part to open its current transform properties." }
-                }
+            }
+            BoardButton {
+                density: BoardButtonDensity::Compact,
+                disabled: !mount.properties_available,
+                onclick: move |_| {
+                    mount.on_show_properties.call(());
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                },
+                "{position_label}"
+            }
+            BoardButton {
+                density: BoardButtonDensity::Compact,
+                disabled: !mount.column_available,
+                onclick: move |_| {
+                    mount.on_show_properties.call(());
+                    mount.on_selection_kind.call(LayoutSelectionKind::Column);
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                },
+                "Splay & origin"
+            }
+            BoardButton {
+                density: BoardButtonDensity::Compact,
+                disabled: !mount.row_available,
+                onclick: move |_| {
+                    mount.on_show_properties.call(());
+                    mount.on_selection_kind.call(LayoutSelectionKind::Row);
+                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                },
+                "Row offsets"
+            }
+            }
+            if !mount.properties_available {
+                p { "Select a matrix, row, column, key or part to open its current transform properties." }
             }
         }
     }
@@ -1979,6 +2262,163 @@ mod shortcut_tests {
             }
             output { id: "shortcut-probe-state", "{properties_tab()}:{selection_changes()}" }
         }
+    }
+
+    #[derive(Props, Clone, PartialEq)]
+    struct ContextHostProps {
+        selection_kind: LayoutSelectionKind,
+        pointer_tools_visible: bool,
+    }
+
+    #[component]
+    fn context_test_host(props: ContextHostProps) -> Element {
+        let mut active_tool = use_signal(|| None::<LayoutTransformTool>);
+        let mut selection_kind = use_signal(|| props.selection_kind);
+        let open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let on_transform_tool = EventHandler::new(move |tool| {
+            let context = match selection_kind() {
+                LayoutSelectionKind::Row => TreeContext::Row {
+                    matrix_id: "matrix-1".to_owned(),
+                    row: 0,
+                },
+                _ => TreeContext::Column {
+                    matrix_id: "matrix-1".to_owned(),
+                    column: 0,
+                },
+            };
+            let activation = activate_transform_tool(active_tool(), tool, &context);
+            active_tool.set(activation.active);
+            if let Some(next_kind) = activation.selection_kind {
+                selection_kind.set(next_kind);
+            }
+        });
+        let mount = LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: props.pointer_tools_visible,
+            pointer_tools_available: true,
+            active_tool: active_tool(),
+            on_selection_kind: EventHandler::new(move |kind| selection_kind.set(kind)),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool,
+        };
+        let selection_label = match selection_kind() {
+            LayoutSelectionKind::Matrix => "Matrix",
+            LayoutSelectionKind::Row => "Row",
+            LayoutSelectionKind::Column => "Column",
+            LayoutSelectionKind::Key => "Key",
+            LayoutSelectionKind::Part => "Part",
+        };
+        let active_label = match active_tool() {
+            Some(LayoutTransformTool::Stagger) => "Stagger",
+            Some(LayoutTransformTool::Offset) => "Offset",
+            Some(LayoutTransformTool::Splay) => "Splay",
+            Some(LayoutTransformTool::Origin) => "Origin",
+            None => "None",
+        };
+
+        rsx! {
+            LayoutContextActionToolbar { mount, open_menu, selection_kind: selection_kind() }
+            output { id: "context-action-state", "{selection_label}:{active_label}" }
+        }
+    }
+
+    async fn mount_context_actions(
+        selection_kind: LayoutSelectionKind,
+        pointer_tools_visible: bool,
+    ) -> web_sys::Element {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                context_test_host,
+                ContextHostProps {
+                    selection_kind,
+                    pointer_tools_visible,
+                },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root
+    }
+
+    #[wasm_bindgen_test]
+    async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
+        let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
+        let buttons = root.query_selector_all(".layout-context-action").unwrap();
+        let labels = (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .map(|button| button.text_content().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["Row offsets", "Offset", "Stagger"]);
+        root.query_selector(
+            "button[aria-label='Activate Stagger column; selection changes to Column']",
+        )
+        .unwrap()
+        .unwrap()
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#context-action-state")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Column:Stagger")
+        );
+        assert_eq!(
+            root.query_selector("button[aria-label='Activate Stagger for the selected column']")
+                .unwrap()
+                .unwrap()
+                .get_attribute("aria-pressed")
+                .as_deref(),
+            Some("true")
+        );
+        let stagger = root
+            .query_selector("button[aria-label='Activate Stagger for the selected column']")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        stagger.focus().unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("ArrowRight");
+        key.set_bubbles(true);
+        stagger
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .unwrap()
+                .get_attribute("aria-label")
+                .as_deref(),
+            Some("Activate Offset for the selected column"),
+            "toolbar keyboard navigation must follow the updated selection's action order"
+        );
+        root.remove();
+
+        let pcb = mount_context_actions(LayoutSelectionKind::Matrix, false).await;
+        assert!(
+            pcb.query_selector(".layout-context-actions")
+                .unwrap()
+                .is_none(),
+            "PCB must not inherit Layout-only contextual quick actions"
+        );
+        pcb.remove();
     }
 
     #[wasm_bindgen_test]
@@ -2913,6 +3353,72 @@ mod tool_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn transform_popover_preserves_escape_and_outside_focus() {
+        let root = mount_menu(true).await;
+        let document = web_sys::window().unwrap().document().unwrap();
+        let trigger = root
+            .query_selector("#m1-layout-transform-trigger")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let content = root
+            .query_selector("#m1-layout-transform-menu")
+            .unwrap()
+            .unwrap();
+        assert_eq!(content.get_attribute("role").as_deref(), Some("group"));
+        let label_id = content.get_attribute("aria-labelledby").unwrap();
+        assert_eq!(
+            document
+                .get_element_by_id(&label_id)
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Transform tools and properties")
+        );
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        content
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape)
+                    .unwrap(),
+            )
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        assert_eq!(document.active_element().unwrap().id(), trigger.id());
+
+        trigger.click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("true")
+        );
+        let outside = document.create_element("button").unwrap();
+        outside.set_id("transform-outside-target");
+        root.append_child(&outside).unwrap();
+        outside
+            .dyn_ref::<web_sys::HtmlElement>()
+            .unwrap()
+            .focus()
+            .unwrap();
+        gloo_timers::future::TimeoutFuture::new(80).await;
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            document.active_element().unwrap().id(),
+            "transform-outside-target"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn the_menu_lists_stagger_offset_splay_origin_and_follows_availability() {
         for available in [true, false] {
             let root = mount_menu(available).await;
@@ -3095,7 +3601,7 @@ mod tool_tests {
             ("isPrimary", wasm_bindgen::JsValue::TRUE),
             ("button", 0.into()),
             ("buttons", buttons.into()),
-            ("shiftKey", shift.into()),
+            ("ctrlKey", shift.into()),
             ("clientX", client.0.into()),
             ("clientY", client.1.into()),
         ] {
@@ -3171,7 +3677,7 @@ mod tool_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn real_pointer_events_with_stubbed_capture_latch_shift_at_pointer_down_and_show_the_offset_glyph()
+    async fn real_pointer_events_with_stubbed_capture_latch_ctrl_at_pointer_down_and_show_the_offset_glyph()
      {
         let runtime = fixture::open_matrix_runtime().await;
         // The first edit syncs the fixture's unlaid poses.
@@ -3260,5 +3766,66 @@ mod tool_tests {
             "the offset is untouched"
         );
         root.remove();
+    }
+}
+
+// The modifier changes presentation immediately; pointer-down latches the edit intent.
+struct CtrlModifierListener {
+    document: web_sys::Document,
+    window: web_sys::Window,
+    down: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+    up: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
+    blur: Closure<dyn FnMut(web_sys::Event)>,
+}
+impl CtrlModifierListener {
+    fn install(mut pressed: Signal<bool>) -> Option<Self> {
+        let window = web_sys::window()?;
+        let document = window.document()?;
+        let down = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+            if event.key() == "Control" {
+                pressed.set(true);
+            }
+        }) as Box<dyn FnMut(_)>);
+        let up = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
+            if event.key() == "Control" {
+                pressed.set(false);
+            }
+        }) as Box<dyn FnMut(_)>);
+        let blur = Closure::wrap(
+            Box::new(move |_: web_sys::Event| pressed.set(false)) as Box<dyn FnMut(_)>
+        );
+        let listener = Self {
+            document,
+            window,
+            down,
+            up,
+            blur,
+        };
+        listener
+            .document
+            .add_event_listener_with_callback("keydown", listener.down.as_ref().unchecked_ref())
+            .ok()?;
+        listener
+            .document
+            .add_event_listener_with_callback("keyup", listener.up.as_ref().unchecked_ref())
+            .ok()?;
+        listener
+            .window
+            .add_event_listener_with_callback("blur", listener.blur.as_ref().unchecked_ref())
+            .ok()?;
+        Some(listener)
+    }
+}
+impl Drop for CtrlModifierListener {
+    fn drop(&mut self) {
+        let _ = self
+            .document
+            .remove_event_listener_with_callback("keydown", self.down.as_ref().unchecked_ref());
+        let _ = self
+            .document
+            .remove_event_listener_with_callback("keyup", self.up.as_ref().unchecked_ref());
+        let _ = self
+            .window
+            .remove_event_listener_with_callback("blur", self.blur.as_ref().unchecked_ref());
     }
 }

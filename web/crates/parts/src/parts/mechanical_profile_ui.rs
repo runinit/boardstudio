@@ -14,6 +14,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Scope};
 use boardstudio_core::model::{MechanicalPartProfile, PartDefinition};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::BoardButton;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -252,7 +253,7 @@ pub fn PartsMechanicalProfileWorkspace(
                         else { "Define this part’s fit once so every layout and case uses the same profile." }
                     }
                 }
-                button {
+                BoardButton {
                     class: "m1-secondary",
                     r#type: "button",
                     disabled: save_disabled(),

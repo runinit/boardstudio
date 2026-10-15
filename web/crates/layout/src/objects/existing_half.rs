@@ -7,6 +7,8 @@ use boardstudio_core::model::{
     EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::BoardDialog;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -741,16 +743,10 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let error = props.projection.error.clone();
 
     rsx! {
-        div {
-            role: "dialog",
-            aria_label: "Mirror existing half",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key().to_string() == "Escape" && props.projection.can_cancel {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    cancel.call(owner_escape.clone());
-                }
-            },
+        BoardDialog {
+            open: true, modal: false, aria_label: "Mirror existing half",
+            dismissible: props.projection.can_cancel,
+            on_close: move |_| cancel.call(owner_escape.clone()),
             section { class: "m1-matrix-setup m1-mirrored-pair-setup",
                 header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
                 p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
@@ -780,8 +776,8 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                     }
                     if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
                     footer { class: "m1-mirrored-pair-actions",
-                        button { class: "wb-secondary", r#type: "button", disabled: !props.projection.can_cancel, onclick: move |_| cancel.call(owner.clone()), "Cancel" }
-                        button { class: "wb-primary", r#type: "submit", disabled: !can_create, "Create linked half" }
+                        BoardButton { class: "wb-secondary", r#type: "button", disabled: !props.projection.can_cancel, onclick: move |_| cancel.call(owner.clone()), "Cancel" }
+                        BoardButton { variant: BoardButtonVariant::Primary, class: "wb-primary", r#type: "submit", disabled: !can_create, "Create linked half" }
                     }
                 }
             }

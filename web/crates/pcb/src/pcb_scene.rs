@@ -638,7 +638,11 @@ mod mounted_layer_tests {
                 .unwrap();
         row.dispatch_event(&event).unwrap();
         settle().await;
-        assert!(count("#m1-pcb-layers-list[hidden]") > 0);
+        assert_eq!(
+            count("#m1-pcb-layers-list"),
+            0,
+            "Escape unmounts the layer popover"
+        );
         assert_eq!(
             document.active_element().unwrap().id(),
             "m1-pcb-layers-trigger"
@@ -657,12 +661,42 @@ mod mounted_layer_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         settle().await;
+        if document
+            .get_element_by_id("m1-pcb-layers-trigger")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click("#m1-pcb-layers-trigger");
+            settle().await;
+        }
         assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
         click("#switch-pcb-board");
         settle().await;
+        if document
+            .get_element_by_id("m1-pcb-layers-trigger")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click("#m1-pcb-layers-trigger");
+            settle().await;
+        }
         assert_eq!(count("button[aria-label='Hide F.Cu']"), 0);
         click("#switch-pcb-board");
         settle().await;
+        if document
+            .get_element_by_id("m1-pcb-layers-trigger")
+            .unwrap()
+            .get_attribute("aria-expanded")
+            .as_deref()
+            != Some("true")
+        {
+            click("#m1-pcb-layers-trigger");
+            settle().await;
+        }
         assert_eq!(count("button[aria-label='Hide F.Cu']"), 1);
         root.remove();
     }

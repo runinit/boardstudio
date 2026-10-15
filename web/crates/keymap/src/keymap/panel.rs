@@ -1,6 +1,7 @@
 use super::view::KeymapView;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation};
 use boardstudio_application::Scope;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -8,6 +9,7 @@ use std::rc::Rc;
 #[component]
 pub fn KeymapPanel(
     view: Rc<KeymapView>,
+    #[props(default = true)] show_navigation: bool,
     scope: Scope,
     active_layer_id: String,
     selected_key_id: Option<String>,
@@ -80,8 +82,9 @@ pub fn KeymapPanel(
                 h2 { "Keymap" }
                 span { "{layer_count} layers · {key_count} keys" }
             }
-            details { class: "m1-keymap-layers", open: true,
-                summary { span { "Layers" } }
+            if show_navigation {
+            BoardDisclosure { class: "m1-keymap-layers", open: true,
+                heading: rsx! { summary { span { "Layers" } } },
                 div { class: "m1-keymap-layers-content",
                     div { role: "group", "aria-label": "Keymap layers",
                         for (index, layer) in view.layers.iter().enumerate() {
@@ -108,7 +111,7 @@ pub fn KeymapPanel(
                             let layer_name = layer.name.to_string();
                             let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
                             rsx! {
-                                KeymapLayerControls {
+                                { rsx! { KeymapLayerControls {
                                     key: "{layer_controls_key}",
                                     layer_id,
                                     layer_name,
@@ -117,12 +120,13 @@ pub fn KeymapPanel(
                                     enabled: layer_operations_enabled,
                                     feedback: layer_feedback.clone(),
                                     on_operation: on_layer_operation,
-                                }
+                                } } }
                             }
                         }
                     }
                     p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
                 }
+            }
             }
             div { class: "m1-keymap-actions", role: "group", "aria-label": "Keymap editors",
                 for (editor, label) in [
@@ -154,12 +158,13 @@ pub fn KeymapPanel(
                 }
             }
             if selected_editor() == KeymapEditor::Keys {
-                details { class: "m1-keymap-editor-section", open: keys_section_open(),
-                    summary { onclick: move |event: MouseEvent| {
+                BoardDisclosure { class: "m1-keymap-editor-section", open: keys_section_open(),
+                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
                         event.prevent_default();
                         keys_section_open.set(!keys_section_open());
-                    }, span { "{heading}" } }
+                    }, span { "{heading}" } } },
                     div { class: "m1-keymap-section-body",
+                        if show_navigation {
                         label { class: "m1-keymap-search-label", "Find a key"
                             input {
                                 class: "m1-keymap-search",
@@ -186,6 +191,7 @@ pub fn KeymapPanel(
                                 }
                             }
                         }
+                        }
                         if key_count == 0 {
                             p { class: "m1-keymap-empty", role: "status", "No keys are available on this board." }
                         } else if let Some(key) = selected {
@@ -202,27 +208,27 @@ pub fn KeymapPanel(
                     }
                 }
             } else if selected_editor() == KeymapEditor::Macros {
-                details { class: "m1-keymap-editor-section", open: macros_section_open(),
-                    summary { onclick: move |event: MouseEvent| {
+                BoardDisclosure { class: "m1-keymap-editor-section", open: macros_section_open(),
+                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
                         event.prevent_default();
                         macros_section_open.set(!macros_section_open());
-                    }, span { "Macros" } }
+                    }, span { "Macros" } } },
                     div { class: "m1-keymap-section-body",
                         {macros_editor}
                     }
                 }
             } else {
-                details { class: "m1-keymap-editor-section", open: encoders_section_open(),
-                    summary { onclick: move |event: MouseEvent| {
+                BoardDisclosure { class: "m1-keymap-editor-section", open: encoders_section_open(),
+                    heading: rsx! { summary { onclick: move |event: MouseEvent| {
                         event.prevent_default();
                         encoders_section_open.set(!encoders_section_open());
-                    }, span { "{encoder_heading}" } }
+                    }, span { "{encoder_heading}" } } },
                     div { class: "m1-keymap-section-body",
                         {encoders_editor}
                     }
                 }
             }
-            button {
+            BoardButton {
                 class: "m1-keymap-export",
                 r#type: "button",
                 disabled: !firmware_export_enabled,
@@ -240,6 +246,95 @@ enum KeymapEditor {
     Keys,
     Macros,
     Encoders,
+}
+
+/// Layer and key navigation for the dock; edits retain the existing layer controller.
+#[component]
+pub fn KeymapNavigation(
+    view: Rc<KeymapView>,
+    scope: Scope,
+    active_layer_id: String,
+    selected_key_id: Option<String>,
+    layer_operations_enabled: bool,
+    layer_feedback: Option<KeymapLayerFeedback>,
+    on_layer: EventHandler<String>,
+    on_layer_operation: EventHandler<KeymapLayerOperation>,
+    on_select_key: EventHandler<String>,
+) -> Element {
+    let mut query = use_signal(String::new);
+    let search = query().to_lowercase();
+    let active_layer = view
+        .layers
+        .iter()
+        .find(|layer| layer.id.as_ref() == active_layer_id)
+        .or_else(|| view.layers.first());
+    let layer_count = view.layers.len();
+    let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
+    rsx! {
+        section { class: "m1-keymap-navigation", aria_label: "Layers and keys",
+            BoardDisclosure { class: "m1-keymap-layers", open: true,
+                heading: rsx! { summary { span { "Layers" } } },
+                div { class: "m1-keymap-layers-content",
+                    div { role: "group", "aria-label": "Keymap layers",
+                        for (index, layer) in view.layers.iter().enumerate() {
+                            {
+                                let id = layer.id.clone();
+                                let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
+                                rsx! {
+                                    button {
+                                        key: "{id}",
+                                        class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
+                                        type: "button",
+                                        "aria-pressed": "{selected_layer}",
+                                        onclick: move |_| on_layer.call(id.to_string()),
+                                        span { class: "m1-keymap-layer-index", "{index}" }
+                                        "{layer.name}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
+                        {
+                            let layer_id = layer.id.to_string();
+                            let layer_name = layer.name.to_string();
+                            let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
+                            rsx! {
+                                { rsx! { KeymapLayerControls {
+                                    key: "{layer_controls_key}",
+                                    layer_id,
+                                    layer_name,
+                                    is_base,
+                                    layer_count,
+                                    enabled: layer_operations_enabled,
+                                    feedback: layer_feedback.clone(),
+                                    on_operation: on_layer_operation,
+                                } } }
+                            }
+                        }
+                    }
+                    p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
+                }
+            }
+
+            label { class: "m1-keymap-search-label", "Find a key"
+                input { class: "m1-keymap-search", r#type: "search", aria_label: "Find a key",
+                    value: query(), oninput: move |event| query.set(event.value()) }
+            }
+            div { class: "m1-keymap-key-navigation", role: "group", aria_label: "Keys on active layer",
+                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
+                    BoardButton { key: "{key.id}", class: "m1-navigation-row",
+                        pressed: Some(selected_key_id.as_deref() == Some(key.id.as_ref())),
+                        onclick: { let id = key.id.to_string(); move |_| on_select_key.call(id.clone()) },
+                        strong { "{key.reference}" } span { "{key.binding_title}" }
+                    }
+                }
+                if !view.keys.iter().any(|key| key.search_index.contains(&search)) {
+                    p { role: "status", "No keys match this search." }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -283,7 +378,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
 
     rsx! {
         div { class: "m1-keymap-layer-controls", role: "group", "aria-label": "Layer operations",
-            button {
+            BoardButton {
                 r#type: "button",
                 disabled: add_disabled,
                 onclick: move |_| props.on_operation.call(KeymapLayerOperation::Add),
@@ -316,7 +411,7 @@ fn KeymapLayerControls(props: KeymapLayerControlsProps) -> Element {
                 }
             }
             if !props.is_base {
-                button {
+                BoardButton {
                     r#type: "button",
                     disabled: remove_disabled,
                     onclick: {

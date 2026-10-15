@@ -11,6 +11,7 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
 use boardstudio_core::model::{Finding, ProjectDoc};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
@@ -327,7 +328,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 }
                 if let Some(error) = keycaps_preview_error() {
                     p { role: "alert", class: "m1-layout-viewer-status", "Keycap preview failed: {error}" }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
                         "Retry keycaps"
@@ -378,7 +379,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
             if let Some(error) = keycaps_preview_error() {
                 div { role: "alert", class: "m1-layout-viewer-status",
                     p { "Keycap preview failed: {error}" }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
                         "Retry keycaps"

@@ -70,6 +70,8 @@ impl CanvasLayerGroup {
 
 #[derive(Props, Clone, PartialEq)]
 pub struct CanvasLayersProps {
+    #[props(default)]
+    pub initially_open: bool,
     pub trigger_id: String,
     pub list_id: String,
     pub groups: Vec<CanvasLayerGroup>,
@@ -78,7 +80,7 @@ pub struct CanvasLayersProps {
 #[component]
 pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
     let layers = use_context::<LayerVisibility>();
-    let mut open = use_signal(|| false);
+    let mut open = use_signal(|| props.initially_open);
     let hidden = (layers.hidden)();
     let modules_hidden = (layers.modules_hidden)();
     let footprints = (layers.footprints)();
@@ -106,31 +108,13 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
             hidden.set(next);
         }
     };
-    let keydown_trigger_id = props.trigger_id.clone();
     let list_id = props.list_id.clone();
     rsx! {
-        section {
-            class: "m1-layers",
-            "data-open": "{open()}",
-            aria_label: "Canvas layers",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.data().key().to_string() == "Escape" && open() {
-                    event.prevent_default();
-                    open.set(false);
-                    focus_trigger(&keydown_trigger_id);
-                }
-            },
-            button {
-                id: "{trigger_id}",
-                class: "m1-layers-trigger",
-                aria_expanded: "{open()}",
-                aria_controls: "{list_id}",
-                onclick: move |_| open.set(!open()),
-                "Layers",
-                svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5-5" } }
-                }
-            }
+        super::controls::BoardPopover {
+            open: open(), on_open_change: move |next| open.set(next),
+            trigger_id: trigger_id.clone(), content_id: format!("{list_id}-popover"), trigger_label: "Layers",
+            root_class: "m1-layers", trigger_class: "m1-layers-trigger", content_class: "m1-layer-popup", content_role: "region", content_label: "Canvas layers",
+            trigger: rsx! { "Layers" svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5-5" } } } },
             if open() {
                 button {
                     class: "m1-layers-close",

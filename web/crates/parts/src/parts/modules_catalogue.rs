@@ -4,6 +4,7 @@ use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -557,8 +558,8 @@ pub fn ModuleInspector(
             }
         }
         if !definition.gates.is_empty() {
-            details {
-                summary { "Review {gate_count} remaining {gate_noun}" }
+            BoardDisclosure {
+                heading: rsx! { summary { "Review {gate_count} remaining {gate_noun}" } },
                 ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }

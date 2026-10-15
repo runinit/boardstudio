@@ -7,6 +7,8 @@ use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
+use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::controls::{BoardCheckbox, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1284,8 +1286,8 @@ pub fn GeneratorSettingsEditor(
                 { let group_entries = entries.iter().filter(|entry| entry.group == group).cloned().collect::<Vec<_>>();
                   rsx! {
                     if !group_entries.is_empty() {
-                    details { open: group == "Footprint options" || group == "Keycap dimensions",
-                        summary { "{group}" }
+                    BoardDisclosure { open: group == "Footprint options" || group == "Keycap dimensions",
+                        heading: rsx! { summary { "{group}" } },
                         fieldset {
                             class: "m1-generator-fields",
                             "aria-label": "{group}",
@@ -1334,7 +1336,7 @@ pub fn GeneratorSettingsEditor(
             {
                 p { class: "m1-parts-load-error", role: "alert", "{message.message}" }
             }
-            button {
+            BoardButton {
                 class: "m1-generator-apply",
                 r#type: "button",
                 disabled: !preview_ready || pending_edits.is_pending(&GeneratorKey::Apply),
@@ -1396,7 +1398,7 @@ fn GeneratorParameterField(
                     }
                 }
                 if !current.is_empty() {
-                    button {
+                    BoardButton {
                         r#type: "button",
                         class: "m1-generator-apply",
                         disabled: busy,
@@ -1425,11 +1427,10 @@ fn GeneratorParameterField(
     match entry.kind.as_str() {
         "boolean" => rsx! {
             label { class: "m1-generator-toggle",
-                input {
-                    r#type: "checkbox",
+                BoardCheckbox {
                     aria_label: "{key}",
                     checked: value.as_bool().unwrap_or(false),
-                    onchange: move |event| on_change.call(Value::Bool(event.checked())),
+                    onchange: move |event: FormEvent| on_change.call(Value::Bool(event.checked())),
                 }
                 "{label}"
             }

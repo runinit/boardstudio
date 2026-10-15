@@ -9,6 +9,7 @@ use boardstudio_core::model::{
     MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
     MechanicalPurposeMapping, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -347,7 +348,7 @@ pub fn ManualProfileEditor(
                     h2 { "{definition.name} fit" }
                     p { "Save the fit with this part. Every case using it inherits the profile." }
                 }
-                button { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
+                BoardButton { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
             }
             if show_family_selector {
                 label { class: "m1-parts-fit-field",
@@ -389,7 +390,7 @@ pub fn ManualProfileEditor(
                 }
             }
             if show_standard_action {
-                button {
+                BoardButton {
                     class: "m1-secondary",
                     r#type: "button",
                     "aria-label": "{standard_action_label}",
@@ -412,7 +413,7 @@ pub fn ManualProfileEditor(
                 section { class: "m1-parts-fit-section", "aria-label": "Footprint geometry",
                     header {
                         strong { "Footprint geometry" }
-                        button {
+                        BoardButton {
                             class: "m1-secondary",
                             r#type: "button",
                             disabled: extraction_pending.read().is_some(),
@@ -456,7 +457,7 @@ pub fn ManualProfileEditor(
                                 }
                             }
                         }
-                        button {
+                        BoardButton {
                             class: "m1-secondary",
                             r#type: "button",
                             disabled: extraction_pending.read().is_some() || purposes.read().is_empty(),
@@ -471,7 +472,7 @@ pub fn ManualProfileEditor(
             }
             {contour_editor(draft, ContourField::Cutouts, "Plate cutouts")}
             {contour_editor(draft, ContourField::Clearances, "Component clearances")}
-            button {
+            BoardButton { variant: BoardButtonVariant::Primary,
                 class: "m1-primary",
                 r#type: "button",
                 "aria-label": "{save_profile_label}",
@@ -851,7 +852,7 @@ fn contour_editor(
         section { class: "m1-parts-fit-section", "aria-label": "{label}",
             header {
                 strong { "{label}" }
-                button {
+                BoardButton {
                     class: "m1-secondary",
                     r#type: "button",
                     "aria-label": "Add {add_label}",
@@ -870,7 +871,7 @@ fn contour_editor(
                 div { class: "m1-parts-fit-contour",
                     header {
                         strong { "Contour {shape_index + 1}" }
-                        button {
+                        BoardButton {
                             class: "m1-secondary",
                             r#type: "button",
                             onclick: move |_| draft.with_mut(|profile| match field {
@@ -911,7 +912,7 @@ fn contour_editor(
                             }
                         }
                     }
-                    button {
+                    BoardButton {
                         class: "m1-secondary",
                         r#type: "button",
                         onclick: move |_| draft.with_mut(|profile| {

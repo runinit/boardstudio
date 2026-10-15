@@ -23,6 +23,28 @@ pub struct PcbWiringPinAssignment {
     pub locked: bool,
 }
 
+pub(super) struct PcbWiringPinGroups<'a> {
+    pub rows: Vec<&'a PcbWiringPinAssignment>,
+    pub columns: Vec<&'a PcbWiringPinAssignment>,
+    pub other: Vec<&'a PcbWiringPinAssignment>,
+}
+
+pub(super) fn group_assignments(assignments: &[PcbWiringPinAssignment]) -> PcbWiringPinGroups<'_> {
+    let mut groups = PcbWiringPinGroups {
+        rows: Vec::new(),
+        columns: Vec::new(),
+        other: Vec::new(),
+    };
+    for assignment in assignments {
+        match assignment.id.split_once('/') {
+            Some(("row", _)) => groups.rows.push(assignment),
+            Some(("column", _)) => groups.columns.push(assignment),
+            _ => groups.other.push(assignment),
+        }
+    }
+    groups
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PcbWiringPinEditRequest {
     pub identity: BoardWiringModeIdentity,

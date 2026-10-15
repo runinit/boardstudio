@@ -1,6 +1,7 @@
 //! Private authored Case body list and editor. Root owns the scoped edit adapter.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
@@ -450,8 +451,8 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                 }
                             }
                         }
-                        details { class: "m1-case-subsection", "aria-label": "Mounting", open: mounts_open,
-                            summary { class: "m1-case-subsection-heading", onclick: {
+                        BoardDisclosure { class: "m1-case-subsection", "aria-label": "Mounting", open: mounts_open,
+                            heading: rsx! { summary { class: "m1-case-subsection-heading", onclick: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
                                 move |event: MouseEvent| {
@@ -469,7 +470,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             },
                                 h3 { "Mounting" }
                                 small { "{body.mounts.as_ref().map_or(0, Vec::len)} mounts" }
-                            }
+                            } },
                             div { class: "m1-case-subsection-content",
                                 button {
                                     r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:add-mount")),
@@ -486,7 +487,7 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                     rsx! {
                                         fieldset { key: "{mount_id}", class: "m1-case-mount-editor",
                                             legend { "{mount_label}" }
-                                            button {
+                                            BoardButton {
                                                 r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:mount:{mount_id}:remove")),
                                                 "aria-label": "Remove {mount_label}",
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
@@ -537,8 +538,8 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             }
                             }
                         }
-                        details { class: "m1-case-subsection", "aria-label": "Gasket channel", open: gasket_open,
-                            summary { class: "m1-case-subsection-heading", onclick: {
+                        BoardDisclosure { class: "m1-case-subsection", "aria-label": "Gasket channel", open: gasket_open,
+                            heading: rsx! { summary { class: "m1-case-subsection-heading", onclick: {
                                 let mut disclosures = disclosures;
                                 let owner = editor_key.clone();
                                 move |event: MouseEvent| {
@@ -556,10 +557,10 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                             },
                                 h3 { "Gasket channel" }
                                 small { if body.gasket.is_some() { "Configured" } else { "Optional" } }
-                            }
+                            } },
                             div { class: "m1-case-subsection-content",
                                 if body.gasket.is_some() {
-                                    button { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
+                                    BoardButton { r#type: "button", disabled: !can_edit || action_pending(&format!("action:body:{body_id}:gasket")),
                                         onclick: { let submit = emit_edit.clone(); let body_id = body_id.clone(); move |_| submit(CaseBodyEdit::SetGasket { body_id: body_id.clone(), gasket: None }) },
                                         "Remove"
                                     }

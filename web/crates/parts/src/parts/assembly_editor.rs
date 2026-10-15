@@ -8,6 +8,7 @@ use boardstudio_core::model::{
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -480,6 +481,25 @@ pub fn SavedAssembliesEditor(
             Err(error) => feedback.set(Some(error)),
         }
     };
+    let create_action = EventHandler::new(new_assembly);
+    let action_slot = try_consume_context::<super::AssemblyCreateAction>();
+    let action_owner = dioxus::dioxus_core::current_scope_id();
+    use_effect(use_reactive((&create_action,), move |(action,)| {
+        if let Some(super::AssemblyCreateAction(mut slot)) = action_slot {
+            slot.set(Some((action_owner, action)));
+        }
+    }));
+    use_drop(move || {
+        if let Some(super::AssemblyCreateAction(mut slot)) = action_slot {
+            let owned = slot
+                .peek()
+                .as_ref()
+                .is_some_and(|(owner, _)| *owner == action_owner);
+            if owned {
+                slot.set(None);
+            }
+        }
+    });
     let customize_preset = {
         let runtime = runtime.clone();
         let workspace = workspace;
@@ -687,7 +707,9 @@ pub fn SavedAssembliesEditor(
     rsx! {
         section { class: "m1-parts-assemblies", "aria-label": "Saved assemblies",
             h2 { "Assemblies" }
-            button { class: "m1-parts-create-component", r#type: "button", onclick: new_assembly, "New assembly" }
+            if action_slot.is_none() {
+                button { class: "m1-parts-create-component", r#type: "button", onclick: move |event| create_action.call(event), "New assembly" }
+            }
             if assembly_selection().is_some() {
                 button {
                     class: "m1-parts-customize-preset",
@@ -1109,7 +1131,7 @@ fn AssemblyDraftFields(
             }
             { let add_draft = draft.clone(); let add_change = on_change.clone();
               let mut add_value = value; let add_assets = assets;
-              rsx! { button { r#type: "button", disabled: controls_disabled, onclick: move |_| {
+              rsx! { BoardButton { r#type: "button", disabled: controls_disabled, onclick: move |_| {
                   if let Some(id) = member_id(&add_value()) {
                       add_value.with_mut(|value| value.members.push(AssemblyMember {
                           parameters: None,
@@ -1125,8 +1147,8 @@ fn AssemblyDraftFields(
               }, "Add component" } }
             }
             div { class: "m1-parts-assembly-actions",
-                button { r#type: "button", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
-                button { r#type: "button", disabled: controls_disabled, onclick: on_close, "Close editor" }
+                BoardButton { r#type: "button", disabled: controls_disabled || save_pending, onclick: on_save, "Save assembly" }
+                BoardButton { r#type: "button", disabled: controls_disabled, onclick: on_close, "Close editor" }
             }
             div { class: "m1-parts-assembly-actions",
                 button {
@@ -1139,7 +1161,7 @@ fn AssemblyDraftFields(
                     "Place assembly in Layout"
                 }
                 if matrix_selected {
-                    button {
+                    BoardButton {
                         r#type: "button",
                         disabled: controls_disabled || matrix_pending || unsaved_assets,
                         onclick: move |_| on_apply.call(apply_value.clone()),
@@ -1510,7 +1532,7 @@ fn AssemblyMemberFields(
                   let mut params = parameters.clone();
                   let hotswap_id = member.id.clone(); let hotswap_draft = draft.clone(); let hotswap_change = on_change.clone();
                   rsx! { label { class: "m1-parts-assembly-toggle", "Hotswap socket"
-                    input { r#type: "checkbox", checked, disabled, onchange: move |event| {
+                    BoardCheckbox { checked, disabled, onchange: move |event: FormEvent| {
                         params.insert("hotswap".into(), serde_json::Value::Bool(event.checked()));
                         params.insert("solder".into(), serde_json::Value::Bool(!event.checked()));
                         update_member(value, assets, hotswap_draft.clone(), hotswap_change.clone(), hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
@@ -1570,7 +1592,7 @@ fn AssemblyMemberFields(
                 p { class: "m1-parts-empty", "No component model defaults are attached." }
             }
             if is_custom {
-                button { r#type: "button", disabled: disabled || options.is_empty(), onclick: move |_| {
+                BoardButton { r#type: "button", disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
                         update_member(value, assets, add_model_draft.clone(), on_change.clone(), add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
                     }
@@ -1582,7 +1604,7 @@ fn AssemblyMemberFields(
             if let Some(message) = import_feedback.read().as_ref() {
                 p { class: "m1-parts-load-error", role: "alert", "{message}" }
             }
-            button { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
+            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
         }
     }
 }
@@ -1613,8 +1635,8 @@ fn AssemblyModelFields(
     let remove_change = on_change.clone();
     let remove_id = member_id.clone();
     rsx! {
-        details { class: "m1-parts-assembly-model", open: true,
-            summary { "Model {index + 1}" }
+        BoardDisclosure { class: "m1-parts-assembly-model", open: true,
+            heading: rsx! { summary { "Model {index + 1}" } },
             label { class: "m1-parts-assembly-field", "Asset"
                 select {
                     value: "{model.asset_id}",
@@ -1626,7 +1648,7 @@ fn AssemblyModelFields(
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change: offset_change }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change: rotation_change }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change: scale_change }
-            button { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change.clone(), remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
+            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change.clone(), remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
         }
     }
 }

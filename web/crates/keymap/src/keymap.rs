@@ -20,7 +20,7 @@ pub use encoder_inputs::use_encoder_inputs;
 pub use layer_controller::{LayerActions, LayerSource, use_layer_operations};
 pub use macro_controller::{MacroActions, use_macro_operations};
 pub use macro_editor::MacroEditor;
-pub use panel::KeymapPanel;
+pub use panel::{KeymapNavigation, KeymapPanel};
 pub use view::{KeymapView, project};
 pub use view_controls::{fit_camera, selected_bounds};
 

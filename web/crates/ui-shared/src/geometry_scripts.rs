@@ -1,4 +1,6 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
+use crate::controls::BoardButton;
+use crate::controls::BoardCheckbox;
 use crate::pending_edit_helpers::PendingEditSignals;
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -346,15 +348,14 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                     }
                 }
                 label { class: "m1-geometry-script-enabled",
-                    input {
-                        r#type: "checkbox",
+                    BoardCheckbox {
                         checked: enabled(),
                         disabled: !can_edit,
-                        onchange: move |event| { let value = event.checked(); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
+                        onchange: move |event: FormEvent| { let value = event.checked(); enabled.set(value); draft.set(encode_script_draft(&name(), &source(), value)); },
                     }
                     "Enable on Apply"
                 }
-                button {
+                BoardButton {
                     r#type: "button",
                     class: "m1-geometry-script-apply",
                     disabled: !can_edit || apply_disabled() || source().trim().is_empty(),

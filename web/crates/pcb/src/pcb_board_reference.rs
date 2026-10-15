@@ -1,6 +1,7 @@
 //! Scoped controls and file-backed editing for routed-board references.
 use boardstudio_core::model::{Asset, BoardReference};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -948,8 +949,8 @@ pub fn Editor(
     let mut error_signal = error;
 
     rsx! {
-        details { class: "m1-case-physical-setup m1-board-reference",
-            summary { "Routed PCB reference" }
+        BoardDisclosure { class: "m1-case-physical-setup m1-board-reference",
+            heading: rsx! { summary { "Routed PCB reference" } },
             p { "Preview a routed KiCad board with the case. Replace this reference after editing routing in KiCad." }
             label {
                 if reference.is_some() { "Replace KiCad board" } else { "Import KiCad board" }
@@ -971,8 +972,7 @@ pub fn Editor(
             }
             if let Some(reference) = reference.as_ref() {
                 label { class: "m1-board-reference-enabled",
-                    input {
-                        r#type: "checkbox",
+                    BoardCheckbox {
                         checked: reference.enabled,
                         disabled,
                         aria_label: "Use routed PCB in assembly",
@@ -1099,7 +1099,7 @@ pub fn Editor(
                         }
                     }
                 }
-                button {
+                BoardButton {
                     r#type: "button",
                     disabled: disabled || busy || removal_disabled(),
                     onclick: move |_| on_action.call(Action::Remove),
@@ -1109,7 +1109,7 @@ pub fn Editor(
 
             if let Some(message) = error() { p { role: "alert", "{message}" } }
             if reference.is_some() && error().is_some() && current_paths.is_empty() {
-                button {
+                BoardButton {
                     r#type: "button",
                     disabled: disabled || busy,
                     onclick: move |_| {

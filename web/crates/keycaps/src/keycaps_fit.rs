@@ -5,6 +5,8 @@ use boardstudio_core::model::{
     Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
+use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -259,15 +261,15 @@ pub fn KeycapsFitInspector(
     }));
 
     rsx! {
-        details { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(),
-            summary {
+        BoardDisclosure { class: "m1-keycaps-disclosure m1-keycaps-fit-disclosure", open: findings_open(),
+            heading: rsx! { summary {
                 onclick: move |_| {
                     findings_open_chosen.set(true);
                     findings_open.set(!findings_open());
                 },
                 span { "Clearance findings" }
                 small { "{title_detail}" }
-            }
+            } },
             section { class: "m1-keycaps-fit", "aria-label": "Clearance findings details",
             if let Some(state) = state.as_ref() {
                 if state.refreshing {
@@ -284,7 +286,7 @@ pub fn KeycapsFitInspector(
                         } else {
                             p { "No current assessment was accepted. Retry after checking the active board and worker." }
                         }
-                        button { class: "m1-keycaps-fit-retry", onclick: move |_| on_retry.call(()), "Retry assessment" }
+                        BoardButton { class: "m1-keycaps-fit-retry", onclick: move |_| on_retry.call(()), "Retry assessment" }
                     }
                 }
             } else {

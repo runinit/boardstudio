@@ -16,6 +16,7 @@ fn composition() -> Element {
             div { class: "m1-editor",
                 div { class: "m1-editor-body",
                     ObjectsPanel { compact_open: open, settings,
+                        header_action: Some(rsx! { button { id: "objects-panel-action-fixture", "Add object" } }),
                         aside { class: "m1-objects", "Objects fixture" }
                     }
                     section { class: "m1-workspace-content", id: "scroll-test-canvas",
@@ -96,6 +97,14 @@ fn scroll_owner(element: &HtmlElement) -> Option<HtmlElement> {
 async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu() {
     let root = mount_fixture(composition);
     gloo_timers::future::TimeoutFuture::new(80).await;
+    let header_action = element("#objects-panel-action-fixture");
+    let header_action_row = element("#m1-objects-panel .m1-panel-header-action");
+    let objects_body = element("#m1-objects-panel .m1-panel-content > .m1-objects");
+    assert!(header_action_row.contains(Some(header_action.as_ref())));
+    assert!(
+        header_action_row.get_bounding_client_rect().bottom()
+            <= objects_body.get_bounding_client_rect().top() + 1.0
+    );
     let last = element("#scroll-test-control-39");
     let owner = scroll_owner(&last).expect("long Inspector content must have a wheel-scrollable ancestor before the clipped editor frame");
     let frame = element(".m1-editor-body");

@@ -4,6 +4,7 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -173,25 +174,28 @@ pub(crate) fn ready_for_export(
 #[component]
 pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> Element {
     rsx! {
-        div { class: "m1-export-row",
+        div { class: "m1-export-row", "data-export-kind": "ZMK firmware",
             span {
                 class: if ready { "m1-export-ready-dot is-ready" } else { "m1-export-ready-dot" },
                 "aria-hidden": "true",
             }
             span { class: "m1-export-row-copy",
                 strong { "ZMK firmware" }
+                span { class: if ready { "m1-handoff-state is-ready" } else { "m1-handoff-state" },
+                    if ready { "Available" } else { "Needs controller wiring" }
+                }
                 small { "ZMK v0.3.0 configuration and editable starter keymap" }
                 if !ready {
                     small { class: "m1-export-reason", "Review the layout and resolve controller wiring in PCB." }
                 }
             }
-            button {
+            BoardButton {
                 class: "m1-export-row-action",
                 r#type: "button",
                 aria_label: "Export ZMK firmware",
                 disabled: !ready,
                 onclick: move |_| on_export.call(()),
-                if ready { "Export" } else { "Needs work" }
+                if ready { "Export firmware" } else { "Needs work" }
             }
         }
     }
@@ -358,7 +362,7 @@ mod tests {
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
-        assert_eq!(button.text_content().as_deref(), Some("Export"));
+        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         button.click();
         let mut effects = None;
         wait_until_step("the ZMK export action dispatches", async || {
@@ -481,6 +485,11 @@ mod tests {
             .unwrap();
         assert!(button.has_attribute("disabled"));
         assert_eq!(button.text_content().as_deref(), Some("Needs work"));
+        assert!(
+            root.text_content()
+                .unwrap()
+                .contains("Needs controller wiring")
+        );
         assert_eq!(
             root.query_selector(".m1-export-reason")
                 .unwrap()
@@ -839,7 +848,7 @@ mod tests {
                 .unwrap()
                 .text_content()
                 .as_deref(),
-            Some("Export")
+            Some("Export firmware")
         );
         assert!(
             ready

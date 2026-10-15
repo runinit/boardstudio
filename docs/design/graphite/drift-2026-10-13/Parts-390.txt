@@ -1,0 +1,66 @@
+Your app is being rebuilt.
+
+A non-hot-reloadable change occurred and we must rebuild.
+
+Corne
+Mechanical fit
+
+Define this part’s fit once so every layout and case uses the same profile.
+
+Define profile
+MX Hotswap
+2D footprint
+3D model
+
+Unapplied generator preview
+
+No closed courtyard is available; the outline uses physical graphics and pad extents.
+
+1
+2
+1
+2
+Layers
+Inspect
+Assemblies
+New assembly
+Customize 3D assembly
+
+No saved assemblies yet.
+
+MX switch
+
+Switch footprint
+
+Definition ID
+generator:ceoloide/switch_mx
+Catalogue source
+Bundled footprint library
+Source detail
+ceoloide/switch_mx · bundled-1
+Pads
+7
+Courtyard
+15.5 × 8.6 mm
+Place key assembly
+Footprint options
+Hotswap
+Include Keycap
+Reversible
+Board side
+Front
+Back
+Solder
+Keycap dimensions
+Keycap Height
+Keycap Width
+Connections
+3D model placement
+Advanced footprint options
+
+Current generator preview is ready to apply.
+
+Apply generator settings
+Apply to selected key
+100%
+Layout findings: 23

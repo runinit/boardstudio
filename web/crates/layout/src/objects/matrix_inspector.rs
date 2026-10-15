@@ -1,6 +1,7 @@
 //! Private form for the real selected-matrix name, size, and pitch fields.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::DiodeDirection;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -446,7 +447,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         p { "Geometry and components can be edited independently." }
                     }
                     if let Some(request) = unlink_request.clone() {
-                        button {
+                        BoardButton {
                             disabled: !props.editable || props.busy,
                             onclick: move |_| props.on_unlink.call(request.clone()),
                             "Unlink halves"
@@ -454,8 +455,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     }
                 }
             }
-            details { class: "m1-matrix-inspector-section",
-                summary { span { "Key assembly" } small { "{definition_label}" } }
+            BoardDisclosure { class: "m1-matrix-inspector-section",
+                heading: rsx! { summary { span { "Key assembly" } small { "{definition_label}" } } },
                 div { class: "m1-matrix-inspector-fields",
                 label { class: "m1-matrix-field",
                     span { "Assembly preset" }
@@ -497,7 +498,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     "Duplicate design as variant"
                 }
                 {rsx! {
-                    MatrixFieldEditor {
+                    { rsx! { MatrixFieldEditor {
                         key: "{switch_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
                         revision: projection.revision, field: MatrixEditField::SwitchDefinition,
                         label: "Switch footprint", value: projection.definition_id.clone(),
@@ -506,10 +507,10 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         request_sequence: props.request_sequence, editable: props.editable,
                         feedback: props.feedback.clone(), view: field_view(MatrixEditField::SwitchDefinition),
                         pending: field_pending(MatrixEditField::SwitchDefinition), on_edit: props.on_edit,
-                    }
+                    } } }
                 }}
                 {rsx! {
-                    MatrixFieldEditor {
+                    { rsx! { MatrixFieldEditor {
                         key: "{diode_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
                         revision: projection.revision, field: MatrixEditField::DiodeDirection,
                         label: "Diode direction", value: diode_direction_value(projection.diode_direction),
@@ -518,18 +519,18 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         request_sequence: props.request_sequence, editable: props.editable,
                         feedback: props.feedback.clone(), view: field_view(MatrixEditField::DiodeDirection),
                         pending: field_pending(MatrixEditField::DiodeDirection), on_edit: props.on_edit,
-                    }
+                    } } }
                 }}
                 if let Some(feedback) = preset_feedback {
                     p { role: "alert", "{feedback.message}" }
                 }
                 }
             }
-            details { class: "m1-matrix-inspector-section",
-                summary { span { "Keycap spacing" } small { "Preview only" } }
+            BoardDisclosure { class: "m1-matrix-inspector-section",
+                heading: rsx! { summary { span { "Keycap spacing" } small { "Preview only" } } },
                 div { class: "m1-matrix-inspector-fields",
                 {rsx! {
-                    MatrixFieldEditor {
+                    { rsx! { MatrixFieldEditor {
                         key: "{edge_gap_x_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
                         revision: projection.revision, field: MatrixEditField::EdgeGapX,
                         label: "Edge gap X", value: projection.edge_gap_x.to_string(),
@@ -538,10 +539,10 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         editable: props.editable, feedback: props.feedback.clone(),
                         view: field_view(MatrixEditField::EdgeGapX),
                         pending: field_pending(MatrixEditField::EdgeGapX), on_edit: props.on_edit,
-                    }
+                    } } }
                 }}
                 {rsx! {
-                    MatrixFieldEditor {
+                    { rsx! { MatrixFieldEditor {
                         key: "{edge_gap_y_key}", owner: projection.owner.clone(), snapshot_token: projection.snapshot_token,
                         revision: projection.revision, field: MatrixEditField::EdgeGapY,
                         label: "Edge gap Y", value: projection.edge_gap_y.to_string(),
@@ -550,14 +551,14 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                         editable: props.editable, feedback: props.feedback.clone(),
                         view: field_view(MatrixEditField::EdgeGapY),
                         pending: field_pending(MatrixEditField::EdgeGapY), on_edit: props.on_edit,
-                    }
+                    } } }
                 }}
             }
                 p { class: "m1-matrix-edit-status", "Keycap preview {(projection.pitch_x - projection.edge_gap_x).max(0.0):.1} × {(projection.pitch_y - projection.edge_gap_y).max(0.0):.1} mm" }
             }
-            details { class: "m1-matrix-inspector-section",
-                summary { "Matrix actions" }
-                button {
+            BoardDisclosure { class: "m1-matrix-inspector-section",
+                heading: rsx! { summary { "Matrix actions" } },
+                BoardButton {
                     class: "m1-matrix-edit-status",
                     disabled: !props.editable || props.busy,
                     onclick: move |_| props.on_delete.call(delete_request.clone()),

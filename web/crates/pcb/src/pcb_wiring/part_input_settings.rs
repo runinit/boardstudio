@@ -1,5 +1,6 @@
 use super::PcbWiringSource;
 use boardstudio_core::model::{Part, PartDefinition, PartKind, PressScanMode, ProjectDoc};
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -177,8 +178,8 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
     rsx! {
         section { class: "m1-pcb-wiring m1-pcb-part-input",
             if let Some(scan_mode) = scan_mode {
-                details { class: "m1-pcb-wiring-section", open: true,
-                    summary { "Press input" }
+                BoardDisclosure { class: "m1-pcb-wiring-section", open: true,
+                    heading: rsx! { summary { "Press input" } },
                     label { class: "m1-pcb-part-input-field",
                         span { "Scan mode" }
                         select {
@@ -203,8 +204,8 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
                         rsx! {}
                     } else {
                         rsx! {
-                            details { class: "m1-pcb-wiring-section m1-pcb-part-bindings", open: true,
-                                summary { "Generator bindings" }
+                            BoardDisclosure { class: "m1-pcb-wiring-section m1-pcb-part-bindings", open: true,
+                                heading: rsx! { summary { "Generator bindings" } },
                                 for (name, kind) in fields {
                                     if kind == "net" {
                                         {

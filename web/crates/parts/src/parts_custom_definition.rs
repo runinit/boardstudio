@@ -97,6 +97,7 @@ pub(crate) mod ui {
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::controls::BoardButton;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
@@ -943,7 +944,7 @@ pub(crate) mod ui {
                     } }
                     label { "Drill", input { aria_label: "Pad {index + 1} drill", r#type: "number", min: "0.01", step: "0.1", placeholder: "None", value: "{drill()}", oninput: move |event| { drill.set(event.value()); drill_dirty.set(true); }, onblur: on_drill_blur, onkeydown: drill_keydown } }
                 }
-                button { class: "m1-definition-remove-pad", r#type: "button", disabled: remove_pending, onclick: on_remove, "Remove pad" }
+                BoardButton { class: "m1-definition-remove-pad", r#type: "button", disabled: remove_pending, onclick: on_remove, "Remove pad" }
             }
         }
     }

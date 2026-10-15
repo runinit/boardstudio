@@ -301,7 +301,10 @@ pub struct MatrixTransformInspectorMount {
     pub on_edit: EventHandler<MatrixTransformRequest>,
     pub splay_affect: Signal<MatrixSplayAffect>,
     pub(super) inspector_mounted: Signal<bool>,
+    pub(super) canvas_mounted: Signal<bool>,
     pub(super) numeric_fields: Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
+    pub(super) canvas_numeric_fields:
+        Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
     one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
 }
 
@@ -424,6 +427,18 @@ pub fn use_workspace_matrix_transform(
         })
         .collect::<Vec<_>>()
     });
+    let canvas_numeric_fields = use_hook(|| {
+        numeric_fields
+            .iter()
+            .map(|(field, _, _)| {
+                (
+                    *field,
+                    Signal::new(String::new()),
+                    Signal::new(None::<String>),
+                )
+            })
+            .collect::<Vec<_>>()
+    });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
     let pending = use_hook(|| PendingEditSignals::<TransformPendingKey>::new());
@@ -444,6 +459,7 @@ pub fn use_workspace_matrix_transform(
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
+    let canvas_mounted = use_signal(|| false);
     use_drop({
         let alive = alive.clone();
         let pending = pending.clone();
@@ -638,7 +654,7 @@ pub fn use_workspace_matrix_transform(
             let inspector_mounted = inspector_mounted;
             move |(_, current_workspace, _, _)| {
                 let owner_is_live = alive.get()
-                    && inspector_mounted()
+                    && (inspector_mounted() || canvas_mounted())
                     && workspace_route_matches(current_workspace, owner_workspace);
                 settle_pending(&runtime, &pending, owner_is_live, &mut feedback);
             }
@@ -888,6 +904,8 @@ pub fn use_workspace_matrix_transform(
         on_edit,
         splay_affect,
         inspector_mounted,
+        canvas_mounted,
+        canvas_numeric_fields,
         numeric_fields,
         one_shot_fields,
     }

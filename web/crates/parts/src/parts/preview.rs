@@ -332,9 +332,7 @@ pub fn PartsPreviewPanel(
         visibility.set(next);
     };
 
-    rsx! {
-        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
+    let view_controls = rsx! {
             div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
                 button {
                     r#type: "button",
@@ -352,6 +350,11 @@ pub fn PartsPreviewPanel(
                     "3D model"
                 }
             }
+    };
+    rsx! {
+        section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
+            h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
+            if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) { {view_controls.clone()} }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
                     GeneratorPreviewStatus::Pending => rsx! { p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" } },
@@ -365,7 +368,7 @@ pub fn PartsPreviewPanel(
                 } else { match matching_sample {
                     None => rsx! { p { class: "m1-parts-loading", role: "status", "Preparing isolated 3D sample…" } },
                     Some(Err(error)) => rsx! { p { class: "m1-parts-load-error", role: "alert", "3D Parts preview failed: {error}" } },
-                    Some(Ok(preview)) => rsx! { PartsSampleViewer { preview } },
+                    Some(Ok(preview)) => rsx! { PartsSampleViewer { preview, view_controls: view_controls.clone() } },
                 }}
             } else {
                 if recipe_pending {
@@ -445,7 +448,10 @@ pub fn PartsPreviewPanel(
 }
 
 #[component]
-fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) -> Element {
+fn PartsSampleViewer(
+    preview: Rc<crate::parts_preview::PartsPreviewSnapshot>,
+    #[props(default = rsx! {})] view_controls: Element,
+) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
     let theme = use_context::<super::super::ResolvedTheme>().0;
     let mut display = use_signal(super::super::case_display::CaseDisplay::default);
@@ -489,6 +495,7 @@ fn PartsSampleViewer(preview: Rc<crate::parts_preview::PartsPreviewSnapshot>) ->
                 }
             }
             super::super::shared_viewer::CaseSharedViewer {
+                toolbar_leading: Some(view_controls),
                 scene: None,
                 preview: None,
                 layout_preview: None,
@@ -1016,7 +1023,7 @@ fn PartsPreviewLayers(
             groups.push((layer.group, vec![layer]));
         }
     }
-    rsx! {
+    let content = rsx! {
         section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Footprint preview layers", onkeydown: keydown,
             button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", "aria-expanded": "{open()}", "aria-controls": "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
                 "Layers"
@@ -1047,7 +1054,8 @@ fn PartsPreviewLayers(
                 }
             }
         }
-    }
+    };
+    boardstudio_web_ui_shared::layer_dock::use_docked_layers(content)
 }
 
 #[cfg(test)]

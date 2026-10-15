@@ -14,6 +14,7 @@ use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -67,6 +68,8 @@ use super::case_display::{ComponentModelSource, component_models_for_source};
 /// The page owner supplies guarded actions and the accepted shared view state.
 #[derive(Props, Clone, PartialEq)]
 pub struct DesignViewToolbarProps {
+    #[props(default)]
+    pub contextual_tools: Option<Element>,
     pub label: String,
     pub detail: String,
     pub assembly_3d: bool,
@@ -84,8 +87,9 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
     rsx! {
         div {
             class: "m1-canvas-toolbar m1-design-canvas-toolbar",
-            role: "toolbar",
+            role: "group",
             aria_label: "{label} commands",
+            if let Some(tools) = props.contextual_tools { {tools} } else {
             div { class: "m1-canvas-context",
                 svg {
                     class: "m1-tab-icon",
@@ -101,6 +105,7 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
                 }
                 strong { "{label}" }
                 span { "{detail}" }
+            }
             }
         }
         div { class: "m1-design-view-group", role: "group", aria_label: "Design view",
@@ -327,6 +332,7 @@ pub fn CaseSharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     #[props(default)] inline_case_controls: bool,
+    #[props(default)] toolbar_leading: Option<Element>,
     #[props(default)] handle_source: Option<Rc<CadScene>>,
     #[props(default)] handles: Vec<ViewerHandle>,
     #[props(default)] handle_preview: Option<Vec<ViewerHandle>>,
@@ -603,6 +609,7 @@ pub fn CaseSharedViewer(
             on_display_change,
             mechanical_settings,
             inline_case_controls,
+            toolbar_leading,
             handle_projection,
             handles,
             handle_preview,
@@ -1558,6 +1565,7 @@ fn SharedViewer(
     on_display_change: EventHandler<ScopedDisplayChange>,
     mechanical_settings: Option<super::MechanicalSettingsProps>,
     inline_case_controls: bool,
+    #[props(default)] toolbar_leading: Option<Element>,
     handle_projection: Option<CaseHandleProjection>,
     handles: Vec<ViewerHandle>,
     handle_preview: Option<Vec<ViewerHandle>>,
@@ -2656,9 +2664,105 @@ fn SharedViewer(
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
     let select_assembly_layer = select_layer.clone();
 
+    let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
+        CaseAssemblyLayers {
+            initially_open: false,
+            assembly: assembly_layers,
+            components: component_layers,
+            selectable_layers: selectable_layers.clone(),
+            selected_layer: selected_layer.clone(),
+            on_select_layer: move |id| select_assembly_layer(id),
+            display: display.clone(),
+            on_display_change: assembly_change_display,
+        }
+    if !inline_case_controls {
+    BoardDisclosure {
+        heading: rsx! { summary { "Case layers and colors" } },
+        div { role: "group", "aria-label": "Case layers",
+        for (id, label) in &projection.layers {
+            {
+            let id = id.clone();
+            let label = label.clone();
+            let ids = preference_ids(&id);
+            let visible = !ids.iter().all(|entry| display.hidden.contains(entry));
+            let color = display.color(&id).unwrap_or("#b0b5bd").to_owned();
+            let has_color = display.has_color(&id);
+            let toggle_next = display.clone();
+            let color_next = display.clone();
+            let reset_next = display.clone();
+            let toggle_display = change_display.clone();
+            let select_layer = select_layer.clone();
+            let set_color = change_display.clone();
+            let reset_color = change_display.clone();
+            let select_id = id.clone();
+            let toggle_id = id.clone();
+            let color_id = id.clone();
+            let reset_id = id.clone();
+            rsx! {
+                div { class: "m1-viewer-layer", key: "{id}",
+                    button {
+                        "aria-pressed": selected_layer == id,
+                        onclick: move |_| select_layer(select_id.clone()),
+                        "Select {label}"
+                    }
+                    button {
+                        "aria-pressed": visible,
+                        "aria-label": "Toggle visibility for {label}",
+                        onclick: move |_| {
+                            let mut next_display = toggle_next.clone();
+                            let aliases = preference_ids(&toggle_id);
+                            let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
+                            if is_hidden {
+                                next_display.hidden.retain(|entry| !aliases.contains(entry));
+                            } else {
+                                for entry in aliases {
+                                    if !next_display.hidden.contains(&entry) { next_display.hidden.push(entry); }
+                                }
+                            }
+                            toggle_display(next_display.clone());
+                        },
+                        if visible { "Visible" } else { "Hidden" }
+                    }
+                    label { "Color for {label}"
+                        input {
+                            r#type: "color", value: "{color}",
+                            oninput: move |event: FormEvent| {
+                                let mut next_display = color_next.clone();
+                                next_display.set_color(&color_id, &event.value());
+                                set_color(next_display.clone());
+                            }
+                        }
+                    }
+                    BoardButton {
+                        disabled: !has_color,
+                        onclick: move |_| {
+                            let mut next_display = reset_next.clone();
+                            next_display.set_color(&reset_id, "");
+                            reset_color(next_display.clone());
+                        },
+                        "Reset color"
+                    }
+                }
+            }
+            }
+        }
+        }
+    }
+    }    });
+
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
             div { class: "m1-case-view-toolbar",
+                {toolbar_leading}
+                if inline_case_controls {
+                    div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
+                        button { onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), "Fit" }
+                        button { onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), "Top" }
+                        button { onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), "Bottom" }
+                        button { onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), "Isometric" }
+                    }
+                }
+
                 if inline_case_controls {
                     div { role: "group", "aria-label": "Display mode",
                         for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
@@ -2736,7 +2840,7 @@ fn SharedViewer(
                 }
                 if editing_gaskets() {
                     if let Some((support_id, pair_id, anchors, identity, mut sequence, on_request, editable)) = unlink_request.clone() {
-                        button {
+                        BoardButton {
                             r#type: "button",
                             disabled: !editable || selected_support.is_some_and(|support| support.unlinked),
                             onclick: move |_| {
@@ -2773,8 +2877,8 @@ fn SharedViewer(
                 }
                 if !inline_case_controls {
                 button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
-                details { class: "m1-case-view-settings",
-                    summary { "View controls" }
+                BoardDisclosure { class: "m1-case-view-settings",
+                    heading: rsx! { summary { "View controls" } },
                     div { class: "m1-case-view-settings-body",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
@@ -2847,13 +2951,13 @@ fn SharedViewer(
                         }
                     }
                 }
-                label { input {
-                    r#type: "checkbox", checked: transient().show_section_plane,
+                label { BoardCheckbox {
+                    checked: transient().show_section_plane,
                     onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
                 } "Show section plane" }
             }
-            label { input {
-                r#type: "checkbox", checked: transient().show_hidden,
+            label { BoardCheckbox {
+                checked: transient().show_hidden,
                 onchange: move |_| transient.with_mut(|state| state.show_hidden = !state.show_hidden),
             } "Show hidden lines" }
                     }
@@ -2897,8 +3001,8 @@ fn SharedViewer(
                             }
                         }
                     }
-                    label { input {
-                        r#type: "checkbox", checked: transient().show_section_plane,
+                    label { BoardCheckbox {
+                        checked: transient().show_section_plane,
                         onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
                     } "Show plane" }
                 }
@@ -2920,102 +3024,13 @@ fn SharedViewer(
                     onkeydown: on_key_down,
                     onwheel: on_wheel,
                 }
-                if inline_case_controls {
-                    div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
-                        button { onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), "Fit" }
-                        button { onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), "Top" }
-                        button { onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), "Bottom" }
-                        button { onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), "Isometric" }
-                    }
-                }
-                CaseAssemblyLayers {
-                    assembly: assembly_layers,
-                    components: component_layers,
-                    selectable_layers: selectable_layers.clone(),
-                    selected_layer: selected_layer.clone(),
-                    on_select_layer: move |id| select_assembly_layer(id),
-                    display: display.clone(),
-                    on_display_change: assembly_change_display,
-                }
                 if let Some(message) = gesture_message.as_deref() {
                     p { class: "m1-case-edit-hint", role: "status", "{message}" }
                 }
                 p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
             }
-            if !inline_case_controls {
-            details {
-                summary { "Case layers and colors" }
-                div { role: "group", "aria-label": "Case layers",
-                for (id, label) in &projection.layers {
-                    {
-                    let id = id.clone();
-                    let label = label.clone();
-                    let ids = preference_ids(&id);
-                    let visible = !ids.iter().all(|entry| display.hidden.contains(entry));
-                    let color = display.color(&id).unwrap_or("#b0b5bd").to_owned();
-                    let has_color = display.has_color(&id);
-                    let toggle_next = display.clone();
-                    let color_next = display.clone();
-                    let reset_next = display.clone();
-                    let toggle_display = change_display.clone();
-                    let select_layer = select_layer.clone();
-                    let set_color = change_display.clone();
-                    let reset_color = change_display.clone();
-                    let select_id = id.clone();
-                    let toggle_id = id.clone();
-                    let color_id = id.clone();
-                    let reset_id = id.clone();
-                    rsx! {
-                        div { class: "m1-viewer-layer", key: "{id}",
-                            button {
-                                "aria-pressed": selected_layer == id,
-                                onclick: move |_| select_layer(select_id.clone()),
-                                "Select {label}"
-                            }
-                            button {
-                                "aria-pressed": visible,
-                                "aria-label": "Toggle visibility for {label}",
-                                onclick: move |_| {
-                                    let mut next_display = toggle_next.clone();
-                                    let aliases = preference_ids(&toggle_id);
-                                    let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
-                                    if is_hidden {
-                                        next_display.hidden.retain(|entry| !aliases.contains(entry));
-                                    } else {
-                                        for entry in aliases {
-                                            if !next_display.hidden.contains(&entry) { next_display.hidden.push(entry); }
-                                        }
-                                    }
-                                    toggle_display(next_display.clone());
-                                },
-                                if visible { "Visible" } else { "Hidden" }
-                            }
-                            label { "Color for {label}"
-                                input {
-                                    r#type: "color", value: "{color}",
-                                    oninput: move |event: FormEvent| {
-                                        let mut next_display = color_next.clone();
-                                        next_display.set_color(&color_id, &event.value());
-                                        set_color(next_display.clone());
-                                    }
-                                }
-                            }
-                            button {
-                                disabled: !has_color,
-                                onclick: move |_| {
-                                    let mut next_display = reset_next.clone();
-                                    next_display.set_color(&reset_id, "");
-                                    reset_color(next_display.clone());
-                                },
-                                "Reset color"
-                            }
-                        }
-                    }
-                    }
-                }
-                }
-            }
-            }
+            {docked_layers}
+
         }
     }
 }

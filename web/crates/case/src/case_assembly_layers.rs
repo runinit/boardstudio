@@ -5,6 +5,7 @@
 
 use super::{case_display::CaseDisplay, model_delivery::ModelDeliveryRows};
 use boardstudio_core::model::PcbModel;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardToggle};
 use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -145,6 +146,7 @@ pub fn physical_component_layers(
 
 #[component]
 pub fn CaseAssemblyLayers(
+    #[props(default)] initially_open: bool,
     assembly: Vec<CaseAssemblyLayer>,
     components: Vec<CaseComponentLayer>,
     selectable_layers: Vec<String>,
@@ -153,7 +155,7 @@ pub fn CaseAssemblyLayers(
     display: CaseDisplay,
     on_display_change: EventHandler<CaseDisplay>,
 ) -> Element {
-    let mut open = use_signal(|| false);
+    let mut open = use_signal(|| initially_open);
     let display_for_toggle = display.clone();
     let toggle = move |id: String| {
         let mut next = display_for_toggle.clone();
@@ -262,12 +264,13 @@ fn CaseLayerButton(
         div {
             class: "m1-case-layer-controls",
             style: "display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; gap: 4px",
-            button {
+            BoardButton {
+                density: boardstudio_web_ui_shared::controls::BoardButtonDensity::Compact,
                 class: "m1-case-assembly-layer-row",
-                "aria-pressed": "{selected}",
-                "aria-label": "{selection_aria_label}",
+                pressed: Some(selected),
+                aria_label: Some(selection_aria_label),
                 disabled: !selectable || unavailable.is_some(),
-                title: "{selection_title}",
+                title: Some(selection_title),
                 style: "grid-template-columns: 18px minmax(0, 1fr) auto; width: 100%",
                 onclick: move |_| {
                     if let Some(id) = selected_id.clone() {
@@ -278,15 +281,14 @@ fn CaseLayerButton(
                 span { class: "m1-case-assembly-layer-label", "{layer.label}" }
                 if let Some(state) = unavailable { small { "{state}" } }
             }
-            button {
-                r#type: "button",
-                class: "m1-case-layer-visibility",
-                "aria-pressed": "{visible}",
-                "aria-label": if visible { "Hide {layer.label}" } else { "Show {layer.label}" },
+            BoardToggle {
+                pressed: visible,
                 disabled: unavailable.is_some(),
-                title: unavailable.unwrap_or(&layer.label),
+                aria_label: if visible { format!("Hide {}", layer.label) } else { format!("Show {}", layer.label) },
+                title: Some(unavailable.unwrap_or(&layer.label).to_owned()),
+                class: "m1-case-layer-visibility",
                 style: "display: grid; place-items: center; width: 32px; min-width: 32px; min-height: 32px; padding: 4px; border: 0; border-radius: 5px; background: transparent; color: inherit",
-                onclick: move |_| on_toggle.call(id.clone()),
+                on_pressed_change: move |_| on_toggle.call(id.clone()),
                 LayerEye { visible }
             }
         }
@@ -327,13 +329,13 @@ fn ComponentLayerButton(
     let id = layer.id.clone();
     let label = layer.label();
     rsx! {
-        button {
-            class: "m1-case-assembly-layer-row is-component",
-            "aria-pressed": "{visible}",
-            "aria-label": if visible { "Hide {label}" } else { "Show {label}" },
+        BoardToggle {
+            pressed: visible,
             disabled: unavailable.is_some(),
-            title: "{tooltip}",
-            onclick: move |_| on_toggle.call(id.clone()),
+            aria_label: if visible { format!("Hide {label}") } else { format!("Show {label}") },
+            title: Some(tooltip),
+            class: "m1-case-assembly-layer-row is-component",
+            on_pressed_change: move |_| on_toggle.call(id.clone()),
             span { class: "m1-case-assembly-layer-swatch is-component", "data-layer": "Components" }
             span { class: "m1-case-assembly-layer-label", "{label}" }
             if let Some(state) = unavailable { small { "{state}" } }

@@ -707,6 +707,20 @@ fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices(
     source.document = std::sync::Arc::new(document.clone());
     let matrix = resolved_plan_with_mode(&document, ElectricalMode::Matrix);
     let rows = super::pins::assignments(&source, &matrix);
+    let groups = super::pins::group_assignments(&rows);
+    assert!(!groups.rows.is_empty());
+    assert!(!groups.columns.is_empty());
+    assert_eq!(
+        groups.rows.len() + groups.columns.len() + groups.other.len(),
+        rows.len()
+    );
+    assert!(groups.rows.iter().all(|row| row.id.starts_with("row/")));
+    assert!(
+        groups
+            .columns
+            .iter()
+            .all(|row| row.id.starts_with("column/"))
+    );
     let row = rows.iter().find(|row| row.id == "row/0").unwrap();
     assert_eq!(row.label, "Row 1");
     assert!(row.locked);
@@ -717,6 +731,10 @@ fn assignment_projection_uses_current_mode_rows_locks_and_only_free_pin_choices(
 
     let direct = resolved_plan_with_mode(&document, ElectricalMode::Direct);
     let direct_rows = super::pins::assignments(&source, &direct);
+    let direct_groups = super::pins::group_assignments(&direct_rows);
+    assert!(direct_groups.rows.is_empty());
+    assert!(direct_groups.columns.is_empty());
+    assert_eq!(direct_groups.other.len(), direct_rows.len());
     assert!(direct_rows.iter().any(|row| row.id == "matrix/m/r0c0"));
     assert!(!direct_rows.iter().any(|row| row.id == "row/0"));
 }

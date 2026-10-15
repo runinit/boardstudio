@@ -6,6 +6,7 @@ use boardstudio_application::{
 use boardstudio_core::model::{EditOperation, HardwareTopology, HardwareTransport, ProjectDoc};
 use boardstudio_web_catalogue::physical_setup::PreparedSetup;
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
+use boardstudio_web_ui_shared::controls::BoardCheckbox;
 use dioxus::prelude::*;
 use std::{cell::Cell, future::Future, pin::Pin, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -362,8 +363,8 @@ pub fn project_setup_controls(mount: PhysicalSetupMount) -> Element {
                 p { class: "m1-project-setup-note", if projection.reversible { "Use the same PCB on both halves, turned over on the right." } else { "Both halves use front-facing assemblies." } }
             }
             label { class: "m1-project-reversible-choice",
-                input {
-                    r#type: "checkbox", checked: projection.reversible, disabled: projection.busy,
+                BoardCheckbox {
+                    checked: projection.reversible, disabled: projection.busy,
                     onchange: move |event: FormEvent| mount.submit(PhysicalSetupIntent::ProjectReversibleLayout(event.checked()))
                 }
                 "Reversible layout"

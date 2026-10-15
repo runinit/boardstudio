@@ -18,6 +18,7 @@ use boardstudio_core::model::{
     MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod, Pose2,
     ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::rc::Rc;
@@ -595,6 +596,8 @@ pub struct MechanicalSettingsProps {
     /// request IDs while retaining the same editor identity.
     pub request_sequence: Signal<u64>,
     pub values: Option<MechanicalSettingsValues>,
+    #[props(default)]
+    pub preview_values: Option<MechanicalSettingsValues>,
     pub profiles: Rc<[MechanicalProfileChoice]>,
     #[props(default)]
     pub extract_profile: Option<MechanicalProfileExtractionPort>,
@@ -816,6 +819,10 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
             h2 { "Case construction" }
+            if let Some(values) = props.values.as_ref().filter(|_| configuration_matches).or(props.preview_values.as_ref()) {
+                StackupPreview { values: values.clone() }
+            }
+            BoardDisclosure { class: "m1-inspector-section", heading: rsx! { summary { "Linked halves" } },
             if let Some(features) = props.pair_features.as_ref().filter(|features| !features.is_empty()) {
                 MechanicalPairControls {
                     identity: props.identity.clone(),
@@ -835,6 +842,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                 }
             }
+            }
             if props.layers.iter().any(|layer| layer.is_previous) {
                 p { role: "status", class: "m1-mechanical-previous-result",
                     "Showing generated layers from a previous accepted revision. Settings below reflect the current accepted configuration."
@@ -852,7 +860,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     {
                         p { role: "alert", "{message}" }
                         if feedback.field_id == "initialize-closures" {
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 disabled: mechanical_action_pending("initialize-closures") || !props.editable,
                                 onclick: {
@@ -887,6 +895,8 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         on_request: props.on_request,
                     }
                 }
+                BoardDisclosure { class: "m1-inspector-section",
+                    heading: rsx! { summary { "Switch fit profiles" } },
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     owner_key: owner_key.clone(),
@@ -900,6 +910,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                }
+                BoardDisclosure { class: "m1-inspector-section", "aria-label": "Manufacturing overrides",
+                    heading: rsx! { summary { "Manufacturing overrides" } },
                 ManufacturingControls {
                     identity: props.identity.clone(),
                     targets: props.process_targets.clone(),
@@ -908,6 +921,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     feedback: props.feedback.clone(),
                     request_sequence,
                     on_request: props.on_request,
+                }
                 }
                 DimensionControls {
                     identity: props.identity.clone(),
@@ -919,15 +933,23 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
+                BoardDisclosure { class: "m1-inspector-section", open: true,
+                    heading: rsx! { summary { "Resolved stack" } },
                 ResolvedStack {
                     layers: props.layers.clone(),
                     selected_layer: props.selected_layer.clone(),
                     on_select_layer: props.on_select_layer,
                 }
+                }
+                BoardDisclosure { class: "m1-inspector-section",
+                    heading: rsx! { summary { "Mechanical diagnostics" } },
                 Diagnostics {
                     findings: props.findings.clone(),
                     on_show_finding: props.on_show_finding,
                 }
+                }
+                BoardDisclosure { class: "m1-inspector-section",
+                    heading: rsx! { summary { "Battery" } },
                 BatteryControls {
                     identity: props.identity.clone(),
                     request_sequence,
@@ -936,6 +958,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     feedback: props.feedback.clone(),
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
+                }
                 }
                 for opening_owner in [format!("{owner_key}:case-openings")] {
                     OpeningControls {
@@ -965,7 +988,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 if values.mount == MechanicalMount::Gasket && values.internal_gasket {
                     section { class: "m1-mechanical-option-group", aria_label: "Gasket supports",
                         h3 { "Gasket supports" }
-                        button {
+                        BoardButton {
                             r#type: "button",
                             class: "m1-mechanical-quiet",
                             disabled: mechanical_action_pending("reset-gasket-placement") || !props.editable,
@@ -1045,6 +1068,10 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     } else if feedback.state == MechanicalSettingsFeedbackState::Failed {
                         if let Some(message) = feedback.message.as_deref() { p { role: "alert", "{message}" } }
                     }
+                }
+                if let Some(values) = props.preview_values.as_ref() {
+                    ConstructionControls { identity: props.identity.clone(), values: values.clone(), editable: false, request_sequence, on_request: props.on_request }
+                    p { class: "m1-mechanical-help", "Suggested stack from this board and its switch profiles. Configure to save these settings; viewing this preview does not change the project." }
                 }
                 p { class: "m1-mechanical-help", "Configure a mechanical stack from the current board and represented switch fit profiles." }
                 if !props.editable {
@@ -1167,7 +1194,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                 p { class: "m1-mechanical-help",
                     "Removes {instance_id} from the project and clears the link. {counterpart} keeps the geometry and settings it shows today as its own local assembly. Your boards, PCBs and parts stay. One Undo restores the assembly and the link."
                 }
-                button {
+                BoardButton {
                     r#type: "button",
                     class: "m1-mechanical-quiet",
                     "aria-label": "Confirm removing assembly {instance_id}",
@@ -1199,7 +1226,7 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                 p { class: "m1-mechanical-help",
                     "Removing this assembly clears the link and removes only it; the other half stays as its own local assembly."
                 }
-                button {
+                BoardButton {
                     r#type: "button",
                     class: "m1-mechanical-quiet",
                     "aria-label": "Remove assembly {instance_id}",
@@ -1482,7 +1509,7 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                     "The complete proposed result is unavailable until you confirm: {note}"
                 }
             }
-            button {
+            BoardButton {
                 r#type: "button",
                 class: "m1-mechanical-quiet",
                 "aria-label": "Link {option.instance_id} with {option.other_instance_id}",
@@ -1637,7 +1664,7 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                     },
                                     "Make local"
                                 }
-                                button {
+                                BoardButton {
                                     r#type: "button",
                                     class: "m1-mechanical-quiet",
                                     "aria-label": "Remove on this half {row.feature_id}",
@@ -1759,8 +1786,8 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        details { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
-            summary { "Closure hardware · {hardware.thread}" }
+        BoardDisclosure { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
+            heading: rsx! { summary { "Closure hardware · {hardware.thread}" } },
             p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
             label { class: "m1-mechanical-field",
                 span { "Insert size" }
@@ -1844,7 +1871,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     }
                 }
             }
-            TextDraftField {
+            { rsx! { TextDraftField {
                 key: "{props.owner_key}:closure-screw-lengths",
                 identity: props.identity.clone(),
                 request_sequence,
@@ -1854,10 +1881,10 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                 value: hardware.screw_lengths.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "),
                 intent: MechanicalTextIntent::ClosureScrewLengths,
                 editable: props.editable,
-            }
-            details { class: "m1-mechanical-group", aria_label: "Advanced closure dimensions",
-                summary { "Advanced closure dimensions · Custom · mm" }
-                TextDraftField {
+            } } }
+            BoardDisclosure { class: "m1-mechanical-group", aria_label: "Advanced closure dimensions",
+                heading: rsx! { summary { "Advanced closure dimensions · Custom · mm" } },
+                { rsx! { TextDraftField {
                     key: "{props.owner_key}:closure-thread",
                     identity: props.identity.clone(),
                     request_sequence,
@@ -1867,7 +1894,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     value: hardware.thread.clone(),
                     intent: MechanicalTextIntent::ClosureThread,
                     editable: props.editable,
-                }
+                } } }
                 label { class: "m1-mechanical-field",
                     span { "Screw head profile" }
                     select {
@@ -1912,7 +1939,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     }
                 }
                 for (field, label, value) in closure_dimension_fields(hardware) {
-                    DimensionField {
+                    { rsx! { DimensionField {
                         key: "{props.owner_key}:{field.field_id()}",
                         identity: props.identity.clone(),
                         request_sequence,
@@ -1922,7 +1949,7 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                         label,
                         value,
                         editable: props.editable,
-                    }
+                    } } }
                 }
                 p { class: "m1-mechanical-help", "Thread changes do not resize the insert. Countersunk lengths include the head. Incompatible dimensions appear in Mechanical diagnostics." }
             }
@@ -2061,12 +2088,12 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
     let identity = props.identity.clone();
     let on_request = props.on_request;
     rsx! {
-        details { class: "m1-mechanical-group", open: !hardware.is_empty() || !fits.is_empty(), aria_label: "Hardware and critical fits",
-            summary { "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" }
+        BoardDisclosure { class: "m1-mechanical-group", open: !hardware.is_empty() || !fits.is_empty(), aria_label: "Hardware and critical fits",
+            heading: rsx! { summary { "Hardware & critical fits · {hardware.len()} hardware · {fits.len()} fits" } },
             div { class: "m1-mechanical-spec-group",
                 header {
                     strong { "Hardware" }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("hardware:add") || !props.editable || mount_choices.is_empty(),
@@ -2091,7 +2118,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:hardware:{item.id}",
                         header {
                             strong { if item.designation.is_empty() { "Hardware item" } else { "{item.designation}" } }
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 class: "m1-mechanical-quiet",
                                 disabled: mechanical_action_pending(&format!("hardware:{}:remove", item.id)) || !props.editable,
@@ -2130,55 +2157,55 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 }
                             }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:designation",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Designation", value: item.designation.clone(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Designation },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:thread",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Thread", value: item.thread.clone(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Thread },
                             editable: props.editable,
-                        }
+                        } } }
                         div { class: "m1-mechanical-fit-points",
-                            DimensionField {
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:length",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                 field: MechanicalDimension::HardwareLength, label: "Length", value: item.length,
                                 editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:hardware:{item.id}:quantity",
                                 identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                 field: MechanicalDimension::HardwareQuantity, label: "Quantity", value: f64::from(item.quantity),
                                 editable: props.editable, hardware_target: Some(HardwareDimensionTarget { hardware_id: item.id.clone() }),
-                            }
+                            } } }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:tolerance",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Tolerance", value: item.tolerance.clone().unwrap_or_default(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Tolerance },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:notes",
                             identity: props.identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                             label: "Notes", value: item.notes.clone().unwrap_or_default(),
                             intent: MechanicalTextIntent::Hardware { hardware_id: item.id.clone(), field: MechanicalHardwareTextField::Notes },
                             editable: props.editable, multiline: true,
-                        }
+                        } } }
                     }
                 }
             }
             div { class: "m1-mechanical-spec-group",
                 header {
                     strong { "Critical fits" }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("critical-fit:add") || !props.editable,
@@ -2196,7 +2223,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                     article { class: "m1-mechanical-spec-card", key: "{props.owner_key}:fit:{fit.id}",
                         header {
                             strong { if fit.label.is_empty() { "Fit dimension" } else { "{fit.label}" } }
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 class: "m1-mechanical-quiet",
                                 disabled: mechanical_action_pending(&format!("critical-fit:{}:remove", fit.id)) || !props.editable,
@@ -2231,7 +2258,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 }
                             }
                         }
-                        TextDraftField {
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:label",
                             identity: props.identity.clone(),
                             request_sequence,
@@ -2241,8 +2268,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             value: fit.label.clone(),
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Label },
                             editable: props.editable,
-                        }
-                        TextDraftField {
+                        } } }
+                        { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:tolerance",
                             identity: props.identity.clone(),
                             request_sequence,
@@ -2252,9 +2279,9 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                             value: fit.tolerance.clone(),
                             intent: MechanicalTextIntent::CriticalFit { fit_id: fit.id.clone(), field: MechanicalCriticalFitTextField::Tolerance },
                             editable: props.editable,
-                        }
+                        } } }
                         div { class: "m1-mechanical-fit-points",
-                            DimensionField {
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-x",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -2266,8 +2293,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} from X", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:from-y",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -2279,8 +2306,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} from Y", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:to-x",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -2292,8 +2319,8 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} to X", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
-                            DimensionField {
+                            } } }
+                            { rsx! { DimensionField {
                                 key: "{props.owner_key}:fit:{fit.id}:to-y",
                                 identity: props.identity.clone(),
                                 request_sequence,
@@ -2305,7 +2332,7 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 editable: props.editable,
                                 accessible_label: Some(format!("Critical fit {} to Y", fit.id)),
                                 critical_fit_target: Some(CriticalFitDimensionTarget { fit_id: fit.id.clone() }),
-                            }
+                            } } }
                         }
                         output { class: "m1-mechanical-fit-result",
                             "Measured {measured_length:.2} mm · {fit.tolerance}"
@@ -2451,8 +2478,8 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                 reserved_mount_ids: reserved_mount_ids.clone(),
                 allow_add: !values.internal_gasket,
             }
-            details { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
-                summary { "Suggested mount locations · {suggestions.len()} candidates" }
+            BoardDisclosure { class: "m1-mechanical-group", aria_label: "Suggested mount locations",
+                heading: rsx! { summary { "Suggested mount locations · {suggestions.len()} candidates" } },
                 if suggestions.is_empty() {
                     p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
@@ -2490,7 +2517,7 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                         },
                         "Adopt suggested mounts"
                     }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("closure-mounts") || !props.editable,
@@ -2527,10 +2554,10 @@ struct MountCollectionControlsProps {
 fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
     let mounts = props.mounts.clone();
     rsx! {
-        details { class: "m1-mechanical-group", aria_label: "{props.label}",
-            summary { "{props.label} · {mounts.len()}" }
+        BoardDisclosure { class: "m1-mechanical-group", aria_label: "{props.label}",
+            heading: rsx! { summary { "{props.label} · {mounts.len()}" } },
             for (index, mount) in mounts.iter().enumerate() {
-                MountRow {
+                { rsx! { MountRow {
                     key: "{mount.id}",
                     identity: props.identity.clone(),
                     request_sequence: props.request_sequence,
@@ -2540,11 +2567,11 @@ fn MountCollectionControls(props: MountCollectionControlsProps) -> Element {
                     collection: props.collection,
                     index: index + 1,
                     mount: mount.clone(),
-                }
+                } } }
             }
             if mounts.is_empty() { p { class: "m1-mechanical-help", "No {props.label.to_lowercase()} configured." } }
             if props.allow_add {
-                button {
+                BoardButton {
                     r#type: "button",
                     class: "m1-mechanical-quiet",
                     disabled: mechanical_action_pending(&format!("{}-mounts", mount_collection_id(props.collection))) || !props.editable,
@@ -2635,7 +2662,7 @@ fn MountRow(props: MountRowProps) -> Element {
                     label: "Boss height", value: mount.height.unwrap_or(5.0), editable: props.editable, mount_target: Some(make_target(&mount.id)),
                 }
             }
-            button {
+            BoardButton {
                 r#type: "button",
                 class: "m1-mechanical-quiet",
                 disabled: mechanical_action_pending(&format!("mount:{}:{}:remove", mount_collection_id(props.collection), mount.id)) || !props.editable,
@@ -2677,8 +2704,7 @@ fn BatteryControls(props: BatteryControlsProps) -> Element {
                     p { class: "m1-mechanical-help", "Included for wireless. Set your cell dimensions; the battery shares the space below the PCB with bottom foam." }
                 } else {
                     label { class: "m1-mechanical-check m1-mechanical-battery-toggle",
-                        input {
-                            r#type: "checkbox",
+                        BoardCheckbox {
                             aria_label: "Include a battery envelope",
                             checked: battery.is_some(),
                             disabled: !props.editable,
@@ -2814,12 +2840,12 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
     let on_request = props.on_request;
     let owner_key = props.owner_key.clone();
     rsx! {
-        details { class: "m1-mechanical-group", aria_label: "Case openings",
-            summary { "Case openings · {openings.len()}" }
+        BoardDisclosure { class: "m1-mechanical-group", aria_label: "Case openings",
+            heading: rsx! { summary { "Case openings · {openings.len()}" } },
             div { class: "m1-mechanical-openings",
                 div { class: "m1-mechanical-opening-title",
                     strong { "Document-coordinate access openings" }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("case-openings") || !props.editable,
@@ -2847,7 +2873,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                             fieldset { class: "m1-mechanical-opening", key: "{owner}:opening:{opening_id}", disabled: !props.editable,
                                 div { class: "m1-mechanical-opening-title",
                                     strong { "Volume {opening_index + 1}" }
-                                    button {
+                                    BoardButton {
                                         r#type: "button",
                                         class: "m1-mechanical-quiet",
                                         disabled: mechanical_action_pending("case-openings") || !props.editable,
@@ -2859,39 +2885,39 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                     }
                                 }
                                 div { class: "m1-mechanical-opening-fields",
-                                    DimensionField {
+                                    { rsx! { DimensionField {
                                         key: "{owner}:opening:{opening_id}:bottom-z",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} bottom Z", opening_index + 1)),
                                         opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
-                                    }
-                                    DimensionField {
+                                    } } }
+                                    { rsx! { DimensionField {
                                         key: "{owner}:opening:{opening_id}:height",
                                         identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                         field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height, editable: props.editable,
                                         accessible_label: Some(format!("Document-coordinate access opening {} height", opening_index + 1)),
                                         opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: None }),
-                                    }
+                                    } } }
                                 }
                                 h4 { "XY footprint" }
                                 for (point_index, vertex) in opening.vertices.iter().enumerate() {
                                     div { class: "m1-mechanical-opening-vertex",
                                         span { "Vertex {point_index + 1}" }
-                                        DimensionField {
+                                        { rsx! { DimensionField {
                                             key: "{owner}:opening:{opening_id}:point:{point_index}:x",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                             field: MechanicalDimension::OpeningPointX, label: "X", value: vertex.point.x, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} X", opening_index + 1, point_index + 1)),
                                             opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
-                                        }
-                                        DimensionField {
+                                        } } }
+                                        { rsx! { DimensionField {
                                             key: "{owner}:opening:{opening_id}:point:{point_index}:y",
                                             identity: identity.clone(), request_sequence, on_request, feedback: props.feedback.clone(),
                                             field: MechanicalDimension::OpeningPointY, label: "Y", value: vertex.point.y, editable: props.editable,
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
                                             opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
-                                        }
+                                        } } }
                                         button {
                                             r#type: "button",
                                             class: "m1-mechanical-quiet",
@@ -2908,7 +2934,7 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                         }
                                     }
                                 }
-                                button {
+                                BoardButton {
                                     r#type: "button",
                                     class: "m1-mechanical-quiet",
                                     disabled: mechanical_action_pending("case-openings") || !props.editable,
@@ -3213,7 +3239,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                     div { class: "m1-mechanical-profile", key: "{target.part_id}",
                         strong { "{target.name}" }
                         if let Some(process) = target.process.as_ref() {
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 class: "m1-mechanical-context-settings",
                                 disabled: mechanical_action_pending(&format!("process:{}:remove", target.part_id)) || !props.editable,
@@ -3290,7 +3316,7 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 }
                             }
                         } else {
-                            button {
+                            BoardButton {
                                 r#type: "button",
                                 class: "m1-mechanical-context-settings",
                                 disabled: mechanical_action_pending(&format!("process:{}:add", target.part_id)) || !props.editable,
@@ -3453,8 +3479,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
                 label { class: "m1-mechanical-check",
-                    input {
-                        r#type: "checkbox",
+                    BoardCheckbox {
                         checked: values.middle_frame,
                         onchange: {
                             let identity = props.identity.clone();
@@ -3467,8 +3492,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                 }
             }
             label { class: "m1-mechanical-check",
-                input {
-                    r#type: "checkbox",
+                BoardCheckbox {
                     disabled: values.mount == MechanicalMount::Gasket,
                     checked: values.integrated_plate_frame,
                     onchange: {
@@ -3551,7 +3575,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     } else {
                         p { role: "status", "Supplier review needed for the supported thickness range." }
                     }
-                    button {
+                    BoardButton {
                         r#type: "button",
                         aria_label: "Remove profile {profile.name}",
                         class: "m1-mechanical-quiet",
@@ -3783,8 +3807,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         for primitive in loaded_geometry.primitives.iter() {
                             div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
                                 label {
-                                    input {
-                                        r#type: "checkbox",
+                                    BoardCheckbox {
                                         checked: selected().contains(&primitive.id),
                                         aria_label: "Select geometry {primitive.id}",
                                         disabled: !props.editable || busy(),
@@ -3827,7 +3850,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                 }
                             }
                         }
-                        button {
+                        BoardButton {
                             r#type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
@@ -3938,7 +3961,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
         section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
-                button {
+                BoardButton {
                     r#type: "button", class: "m1-mechanical-quiet",
                     aria_label: "Add polygon to {props.title}", disabled: !props.editable,
                     onclick: {
@@ -3960,7 +3983,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                 fieldset { class: "m1-mechanical-profile-polygon", key: "{props.title}:{polygon_index}", disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Contour {polygon_index + 1}" }
-                        button {
+                        BoardButton {
                             r#type: "button", class: "m1-mechanical-quiet",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}", disabled: !props.editable,
                             onclick: {
@@ -4006,7 +4029,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                             }
                         }
                     }
-                    button {
+                    BoardButton {
                         r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
@@ -4041,7 +4064,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
         section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
-                button {
+                BoardButton {
                     r#type: "button", class: "m1-mechanical-quiet",
                     aria_label: "Add volume to {props.title}", disabled: !props.editable,
                     onclick: {
@@ -4062,7 +4085,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                 fieldset { class: "m1-mechanical-opening", key: "{props.title}:{opening_index}", disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Volume {opening_index + 1}" }
-                        button {
+                        BoardButton {
                             r#type: "button", class: "m1-mechanical-quiet",
                             aria_label: "Remove {props.title} volume {opening_index + 1}", disabled: !props.editable,
                             onclick: {
@@ -4130,7 +4153,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                             }
                         }
                     }
-                    button {
+                    BoardButton {
                         r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
@@ -6136,6 +6159,9 @@ mod contextual_layer_tests {
             "case-process-thickness-test-root-host",
             ProcessThicknessTestPage,
         );
+        rendered().await;
+        // Follow the native disclosure path before focusing a specialist field.
+        element("#case-process-thickness-test-root details[aria-label='Manufacturing overrides'] > summary").click();
         rendered().await;
         let input =
             element("#case-process-thickness-test-root input[aria-label='Finished thickness']")
@@ -8358,4 +8384,30 @@ mod mounted_settlement_tests {
             dispose(&runtime, root, &project_id).await;
         }
     }
+}
+
+#[component]
+fn StackupPreview(values: MechanicalSettingsValues) -> Element {
+    let rows = vec![
+        ("Plate", values.plate_thickness),
+        ("Plate foam", values.plate_foam_thickness),
+        (
+            "Switch clearance",
+            (values.plate_to_pcb - values.plate_foam_thickness).max(0.0),
+        ),
+        ("PCB", values.pcb_thickness),
+        ("Bottom foam", values.bottom_foam_thickness),
+        ("Bottom", values.bottom_thickness),
+    ];
+    rsx! { figure { class: "m1-stackup-preview",
+        svg { view_box: "0 0 240 156", role: "img", "aria-label": "Mechanical stackup preview",
+            for (index, (name, thickness)) in rows.iter().enumerate().filter(|(_, (_, thickness))| *thickness > 0.0) {
+                g { "data-layer": *name,
+                    rect { x: "8", y: "{8 + index * 24}", width: "64", height: "{(thickness * 4.0).clamp(3.0, 18.0)}", rx: "2" }
+                    text { x: "84", y: "{20 + index * 24}", "{name} · {thickness:.2} mm" }
+                }
+            }
+        }
+        figcaption { "Stackup preview · layer thicknesses labelled" }
+    } }
 }

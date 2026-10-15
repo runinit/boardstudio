@@ -76,7 +76,7 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     document.body().unwrap().append_child(&root).unwrap();
     dioxus_web::launch::launch_virtual_dom(
         VirtualDom::new(composition),
-        dioxus_web::Config::new().rootnode(root.into()),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     rendered().await;
     let initial_heading = focused().tag_name() == "H2";
@@ -119,4 +119,6 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     stage.click();
     rendered().await;
     assert_eq!(focused(), web_sys::Element::from(stage));
+    // Do not leave an outside focus owner for the next mounted browser test.
+    root.remove();
 }

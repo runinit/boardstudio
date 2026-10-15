@@ -12,6 +12,7 @@ mod ui {
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::PartDefinition;
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
+    use boardstudio_web_ui_shared::controls::BoardDisclosure;
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
@@ -191,13 +192,13 @@ mod ui {
         };
 
         rsx! {
-            details {
+            BoardDisclosure {
                 class: "m1-parts-definition-editor",
                 open: section_open(),
-                summary { onclick: on_section_toggle,
+                heading: rsx! { summary { onclick: on_section_toggle,
                     span { "Edit footprint" }
                     small { "Custom geometry" }
-                }
+                } },
                 div { class: "m1-parts-definition-editor-body",
                     section { class: "m1-parts-definition-editor-fields", "aria-label": "Custom component definition editor",
                         label { class: "m1-parts-definition-name",

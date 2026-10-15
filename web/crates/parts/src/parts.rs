@@ -7,6 +7,8 @@ pub use boardstudio_web_catalogue::bundled::{
     prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
+use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 mod component_model_editor;
 mod details;
 mod generator_settings;
@@ -24,6 +26,24 @@ pub use assembly_presets::MatrixPresetId;
 /// Data source for the existing Layout matrix-placement lifecycle. Saved
 /// assembly recipes carry only their source definitions; Core still validates
 /// and commits the matrix plus definition snapshots through SetMatrix.
+#[derive(Clone, Copy)]
+struct AssemblyCreateAction(Signal<Option<(ScopeId, EventHandler<MouseEvent>)>>);
+
+pub fn use_assembly_action_provider() {
+    let action = use_signal(|| None);
+    use_context_provider(|| AssemblyCreateAction(action));
+}
+
+#[component]
+fn AssemblyCreateButton() -> Element {
+    let action = try_consume_context::<AssemblyCreateAction>();
+    let current = action.and_then(|action| action.0.read().as_ref().map(|(_, action)| *action));
+    rsx! { BoardButton { aria_label: "New assembly", title: "New key assembly", disabled: current.is_none(),
+        onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
+        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
+    } }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum MatrixPlacementSource {
     Preset(MatrixPresetId),
@@ -350,8 +370,8 @@ pub fn AddObjectComponentChooser(
             let groups = add_object_groups(&choices);
             rsx! {
                 for (label, items) in groups {
-                    details { key: "{label}", class: "m1-parts-category", open: label == "Components",
-                        summary { "{label}" }
+                    BoardDisclosure { key: "{label}", class: "m1-parts-category", open: label == "Components",
+                        heading: rsx! { summary { "{label}" } },
                         div { class: "m1-add-part-results",
                             for entry in items {
                                 { let definition_id = entry.definition.id.clone();
@@ -431,7 +451,7 @@ pub fn AddObjectComponentChooser(
                 }
             }
             {content}
-            button {
+            BoardButton {
                 class: "m1-add-browse",
                 r#type: "button",
                 onclick: move |_| on_browse.call(()),
@@ -960,8 +980,8 @@ pub fn PartsLibraryPanel(
                     },
                 }
             }
-            details { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", open: true,
-                summary { "Key assemblies" small { "{visible_assemblies.len()}" } }
+            BoardDisclosure { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", open: true,
+                heading: rsx! { summary { span { "Key assemblies" small { "{visible_assemblies.len()}" } } AssemblyCreateButton {} } },
                 if assembly_selection().is_some() {
                     label { class: "m1-parts-search-label", "Switch orientation"
                         select {
@@ -1008,12 +1028,13 @@ pub fn PartsLibraryPanel(
             if entries.is_empty() {
                 p { class: "m1-parts-empty", role: "status", "No component definitions are available." }
             } else if !groups.is_empty() {
-                details { class: "m1-parts-catalogue-scroll", open: true,
-                    summary { "Components" small { "{result_count}" } }
+                BoardDisclosure { class: "m1-parts-catalogue-scroll", open: true,
+                    heading: rsx! { summary { "Components" small { "{result_count}" } } },
                     div { role: "listbox", "aria-label": "Footprint library",
                         for (group, items) in groups {
-                            section { key: "{group.label}", class: "m1-parts-category", "aria-label": "{group.label}",
-                                h3 { "{group.label}" }
+                            BoardDisclosure { key: "{group.label}", class: "m1-parts-category", "aria-label": "{group.label}",
+                                open: !query().trim().is_empty() || items.iter().any(|entry| selected_id.as_deref() == Some(entry.definition.id.as_str())),
+                                heading: rsx! { summary { "{group.label}" } },
                                 for entry in items {
                                     { let is_selected = assembly_selection().is_none() && selected_id.as_deref() == Some(entry.definition.id.as_str());
                                       let id = entry.definition.id.clone();

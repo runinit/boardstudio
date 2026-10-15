@@ -13,24 +13,6 @@ struct ResizeIntent {
     axis: Option<ResizeAxis>,
 }
 
-impl ResizeIntent {
-    fn for_owner(
-        owner: &KeySizeOwner,
-        snapshot_token: boardstudio_application::SnapshotToken,
-        revision: u64,
-        units: boardstudio_core::model::Vec2,
-        axis: ResizeAxis,
-    ) -> Self {
-        Self {
-            owner: owner.clone(),
-            snapshot_token,
-            revision,
-            units,
-            axis: Some(axis),
-        }
-    }
-}
-
 #[derive(Props, Clone, PartialEq)]
 pub struct KeySizeControlsProps {
     pub mount: KeySizeMount,
@@ -166,24 +148,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
         }
     });
 
-    let width_value = draft().x;
-    let height_value = draft().y;
-    let keyboard_commit = use_callback({
-        let generation = keyboard_generation.clone();
-        move |intent: ResizeIntent| {
-            let next = generation.get().wrapping_add(1);
-            generation.set(next);
-            let captured = next;
-            let generation = generation.clone();
-            let submit = submit;
-            spawn(async move {
-                gloo_timers::future::TimeoutFuture::new(150).await;
-                if generation.get() == captured {
-                    submit.call(intent);
-                }
-            });
-        }
-    });
     let current_request_id = (props.mount.request_sequence)();
     let error = feedback
         .as_ref()
@@ -199,99 +163,53 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
 
     rsx! {
         section { class: "m1-key-size", aria_label: "Key size",
-            div { class: "m1-key-size-heading",
-                strong { "Key size" }
-                output { "{value_label}" }
+            { let units = draft();
+              let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
+              let width = units.x * scale;
+              let height = units.y * scale;
+              rsx! { figure { class: "m1-key-size-preview",
+                svg { view_box: "0 0 200 120", role: "img", "aria-label": "Keycap size {value_label}",
+                    rect { x: "{100.0 - width / 2.0}", y: "{60.0 - height / 2.0}", width: "{width}", height: "{height}", rx: "5" }
+                    rect { class: "m1-key-size-preview-top", x: "{104.0 - width / 2.0}", y: "{64.0 - height / 2.0}", width: "{(width - 8.0).max(1.0)}", height: "{(height - 8.0).max(1.0)}", rx: "3" }
+                }
+                figcaption { output { "{value_label}" } }
+              } }
             }
-            label { class: "m1-key-size-axis",
-                "Width"
-                input {
-                    r#type: "range", aria_label: "Key width", min: "1", max: "7", step: "0.25",
-                    value: "{width_value}", aria_valuetext: "{width_value}u", disabled: !props.mount.editable,
-                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft_dirty.set(true); draft.write().x = value; },
-                    onpointerup: {
+            label { class: "board-field", "Size"
+                select { aria_label: "Key size", disabled: !props.mount.editable,
+                    value: if mixed || draft().x.min(draft().y) != 1.0 { "custom".to_owned() } else { draft().x.max(draft().y).to_string() },
+                    onchange: {
                         let owner = event_owner.clone();
                         let generation = timer_generation.clone();
-                        move |_| {
+                        move |event: FormEvent| {
+                            let Ok(size) = event.value().parse::<f64>() else { return; };
                             generation.set(generation.get().wrapping_add(1));
-                            submit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::X));
+                            let rotated = draft().y > draft().x;
+                            let next = if rotated { boardstudio_core::model::Vec2 { x: 1.0, y: size } } else { boardstudio_core::model::Vec2 { x: size, y: 1.0 } };
+                            draft_dirty.set(true); draft.set(next);
+                            submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                         }
                     },
-                    onkeyup: {
-                        let owner = event_owner.clone();
-                        move |_| keyboard_commit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::X))
-                    },
-                    onblur: {
+                    if mixed || draft().x.min(draft().y) != 1.0 { option { value: "custom", "{value_label}" } }
+                    for step in 4..=28 { option { value: "{f64::from(step) / 4.0}", "{f64::from(step) / 4.0}u" } }
+                }
+            }
+            label { class: "m1-key-size-rotate",
+                boardstudio_web_ui_shared::controls::BoardCheckbox { aria_label: "Rotate keycap", checked: !mixed && draft().y > draft().x, disabled: !props.mount.editable,
+                    onchange: {
                         let owner = event_owner.clone();
                         let generation = timer_generation.clone();
-                        move |_| {
+                        move |event: FormEvent| {
                             generation.set(generation.get().wrapping_add(1));
-                            submit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::X));
+                            let current = draft();
+                            let long = current.x.max(current.y); let short = current.x.min(current.y);
+                            let next = if event.checked() { boardstudio_core::model::Vec2 { x: short, y: long } } else { boardstudio_core::model::Vec2 { x: long, y: short } };
+                            draft_dirty.set(true); draft.set(next);
+                            submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                         }
                     },
                 }
-                span { "{width_value}u" }
-            }
-            label { class: "m1-key-size-axis",
-                "Height"
-                input {
-                    r#type: "range", aria_label: "Key height", min: "1", max: "7", step: "0.25",
-                    value: "{height_value}", aria_valuetext: "{height_value}u", disabled: !props.mount.editable,
-                    oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { draft_dirty.set(true); draft.write().y = value; },
-                    onpointerup: {
-                        let owner = event_owner.clone();
-                        let generation = timer_generation.clone();
-                        move |_| {
-                            generation.set(generation.get().wrapping_add(1));
-                            submit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::Y));
-                        }
-                    },
-                    onkeyup: {
-                        let owner = event_owner.clone();
-                        move |_| keyboard_commit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::Y))
-                    },
-                    onblur: {
-                        let owner = event_owner.clone();
-                        let generation = timer_generation.clone();
-                        move |_| {
-                            generation.set(generation.get().wrapping_add(1));
-                            submit.call(ResizeIntent::for_owner(&owner, snapshot_token, revision, draft(), ResizeAxis::Y));
-                        }
-                    },
-                }
-                span { "{height_value}u" }
-            }
-            div { class: "m1-key-size-orientation", role: "group", aria_label: "Key orientation",
-                button { disabled: !props.mount.editable, aria_pressed: !mixed && draft().x >= draft().y,
-                onclick: {
-                    let owner = event_owner.clone();
-                    let generation = timer_generation.clone();
-                    move |_| {
-                        generation.set(generation.get().wrapping_add(1));
-                        let current = draft();
-                        let long = current.x.max(current.y);
-                        let short = current.x.min(current.y);
-                        let next = boardstudio_core::model::Vec2 { x: long, y: short };
-                        draft_dirty.set(true);
-                        draft.set(next);
-                        submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
-                    }
-                }, "Wide" }
-                button { disabled: !props.mount.editable, aria_pressed: !mixed && draft().y > draft().x,
-                onclick: {
-                    let owner = event_owner.clone();
-                    let generation = timer_generation.clone();
-                    move |_| {
-                        generation.set(generation.get().wrapping_add(1));
-                        let current = draft();
-                        let long = current.x.max(current.y);
-                        let short = current.x.min(current.y);
-                        let next = boardstudio_core::model::Vec2 { x: short, y: long };
-                        draft_dirty.set(true);
-                        draft.set(next);
-                        submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
-                    }
-                }, "Tall" }
+                "Rotate 90°"
             }
             if let Some(error) = error { p { role: "alert", class: "m1-key-size-error", "{error}" } }
         }

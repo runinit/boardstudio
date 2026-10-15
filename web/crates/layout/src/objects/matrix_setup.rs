@@ -2,6 +2,7 @@
 use crate::matrix_setup_operation::MatrixSetupPreset;
 pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -207,10 +208,10 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                     p { class: "m1-matrix-setup-status", role: "status", "{message}" }
                 }
                 footer {
-                    button { r#type: "button", disabled: !props.projection.can_cancel,
+                    BoardButton { r#type: "button", disabled: !props.projection.can_cancel,
                         onclick: move |_| on_cancel.call(owner.clone()), "Cancel"
                     }
-                    button { r#type: "submit", disabled: !props.projection.editable,
+                    BoardButton { r#type: "submit", disabled: !props.projection.editable,
                         "Create matrix"
                     }
                 }

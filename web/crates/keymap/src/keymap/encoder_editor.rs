@@ -4,6 +4,7 @@ use super::binding_editor::{
     BindingEditFeedback, BindingEditRequest, BindingEditor, BindingTarget,
 };
 use boardstudio_core::model::EncoderDirection;
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -71,10 +72,10 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                         rsx! {
                             div { key: "{row_key}", class: "m1-keymap-encoder-row",
                                 h4 { "{label}" }
-                                details { key: "{clockwise_key}", open: true,
-                                    summary { "Clockwise" }
+                                BoardDisclosure { key: "{clockwise_key}", open: true,
+                                    heading: rsx! { summary { "Clockwise" } },
                                     for component_key in [clockwise_component_key] {
-                                        BindingEditor {
+                                        { rsx! { BindingEditor {
                                             key: "{component_key}",
                                             scope: input_identity.scope.clone(),
                                             admission_token: input_identity.token,
@@ -91,13 +92,13 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                             enabled,
                                             feedback: feedback.clone(),
                                             on_change,
-                                        }
+                                        } } }
                                     }
                                 }
-                                details { key: "{counterclockwise_key}", open: true,
-                                    summary { "Counterclockwise" }
+                                BoardDisclosure { key: "{counterclockwise_key}", open: true,
+                                    heading: rsx! { summary { "Counterclockwise" } },
                                     for component_key in [counterclockwise_component_key] {
-                                        BindingEditor {
+                                        { rsx! { BindingEditor {
                                             key: "{component_key}",
                                             scope: input_identity.scope.clone(),
                                             admission_token: input_identity.token,
@@ -114,7 +115,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                             enabled,
                                             feedback: feedback.clone(),
                                             on_change,
-                                        }
+                                        } } }
                                     }
                                 }
                                 if let Some((key_id, binding)) = push {
@@ -127,10 +128,10 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                         let component_key = format!("{editor_instance_id}-{target_key}");
                                         let key_label = format!("{label} push button");
                                         rsx! {
-                                            details { key: "{target_key}",
-                                                summary { "Push button" }
+                                            BoardDisclosure { key: "{target_key}",
+                                                heading: rsx! { summary { "Push button" } },
                                                 for component_key in [component_key] {
-                                                    BindingEditor {
+                                                    { rsx! { BindingEditor {
                                                         key: "{component_key}",
                                                         scope: input_identity.scope.clone(),
                                                         admission_token: input_identity.token,
@@ -147,7 +148,7 @@ pub fn EncoderEditor(props: EncoderEditorProps) -> Element {
                                                         enabled,
                                                         feedback: feedback.clone(),
                                                         on_change,
-                                                    }
+                                                    } } }
                                                 }
                                             }
                                         }

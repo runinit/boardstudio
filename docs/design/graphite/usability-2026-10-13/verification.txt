@@ -1,0 +1,29 @@
+Graphite usability verification — 2026-10-13
+
+PASS: 70 live browser assertions in scripts/test-graphite-usability.cjs.
+Includes typed Offset X/Y, Stagger and Splay; four pointer drags; Escape cancellation;
+one-step undo; six workbenches at 1586/1024/390; toolbar centering within 2px;
+Layout dock collapse/resize; visibility independence; narrow Layout numeric fields
+clear the wrapped toolbar; no page overflow or uncaught browser errors.
+
+PASS: 85 native tests (Layout 77, shared 8); one pre-existing ignored Layout test.
+PASS: 53 focused mounted/browser tests:
+  Layout transforms: 21
+  Numeric Inspector: 19
+  Dock callback/lifecycle regression: 1
+  Shared panel scrolling: 1
+  Layout scene/layer integration: 1
+  Case assembly layers: 6
+  PCB scene/layers: 4
+PASS: WASM page cargo check, --no-default-features --features page --locked.
+PASS: independent frontend preview build and HTTP 200 on port 8182.
+PASS: scoped Impeccable layout detector returned [].
+PASS: git diff --check and JavaScript syntax check.
+
+The new live regression failed before changes for the expected usability defects.
+The full repository suite and full legacy stylesheet audit were not run.
+Existing compiler warnings remain. Application source changes preserve the
+pre-existing worktree modifications; no commits, resets or backend rebuilds.
+
+Screenshots: 18 images, six workbenches at three viewport widths.
+The three Layout images were refreshed after the narrow-toolbar clearance fix.

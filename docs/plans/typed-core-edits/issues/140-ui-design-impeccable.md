@@ -1,6 +1,6 @@
 # 140: Refine the BoardStudio workbench with Impeccable
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: none
 
@@ -10,7 +10,7 @@ Deliver a sleeker, compact, clear workbench: coherent Solar iconography, useful 
 
 The execution plan is [UI design lane](../../ui-design/plan.md). Coordinator chat: `01a12c41-1a51-7101-a555-188f1c85edce`. Worktree: `/home/chris/.codex/worktrees/2182/ts-boardstudio2`, branch `codex/ui-impeccable`, starting integration commit `53970a404d2ddfcd07be55c5de682f1a832dcd22`.
 
-The user authorizes this coordinator to ask design questions directly in its own chat, plan bounded children, delegate implementation and one independent acceptance review per coherent unit, and proceed through approved design batches. Root owns integration and shared tracking. Merge later at an explicit integration boundary; never automatically merge to dev or push.
+The user authorizes this coordinator to ask design questions directly in its own chat, plan bounded children, delegate implementation and one independent acceptance review per coherent unit, and proceed through approved design batches. Root owns integration and shared tracking. The reviewed UI branch was merged into dev on 2026-10-15 at the user's request; visual acceptance remains open.
 
 Direct user steering in L7 additionally authorizes a persistent private frontend build/serve loop and adoption of supported Dioxus/Tailwind styling for the redesign. The [workflow exception](../../../agents/agent-workflow.md#standing-lane-authority-and-continuity) defines private output isolation and remaining shared acceptance scheduling. This permits scoped frontend build/config changes; Core/CAD algorithm and unrelated configuration boundaries remain intact.
 
@@ -30,3 +30,5 @@ Frontend presentation, styling, UI-local interactions and tests, reusable icon a
 ## Comments
 
 - Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
+
+- Resumed 2026-10-14; UI work integrated into dev on 2026-10-15. Visual acceptance remains open.
