@@ -8157,35 +8157,40 @@ fn Editor() -> Element {
     let on_dismiss_guide = move |_| {
         setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
     };
-    let guide_statuses = setup_guide::stage_statuses(
-        &document,
-        &model.active_board_id,
-        &snapshot.scene,
-        match &pcb_wiring_mount.resolution {
-            pcb_wiring::PcbWiringResolution::Current { identity, plan }
-                if identity.scope.document_id == document.id
-                    && identity.scope.board_id == model.active_board_id
-                    && identity.scope.instance_id.is_none()
-                    && identity.token == snapshot.token
-                    && identity.revision == document.revision =>
-            {
-                Some(plan.as_ref())
-            }
-            _ => None,
-        },
-    );
-    let guide_stage_index = guide
+    let (guide_stage_readiness, guide_stage_detail) = guide
         .as_ref()
-        .map(|preferences| match preferences.current_stage {
-            SetupGuideStage::Project => 0,
-            SetupGuideStage::Layout => 1,
-            SetupGuideStage::Wiring => 2,
-            SetupGuideStage::Case => 3,
-            SetupGuideStage::Review => 4,
+        .map(|preferences| {
+            let guide_statuses = setup_guide::stage_statuses(
+                &document,
+                &model.active_board_id,
+                &snapshot.scene,
+                match &pcb_wiring_mount.resolution {
+                    pcb_wiring::PcbWiringResolution::Current { identity, plan }
+                        if identity.scope.document_id == document.id
+                            && identity.scope.board_id == model.active_board_id
+                            && identity.scope.instance_id.is_none()
+                            && identity.token == snapshot.token
+                            && identity.revision == document.revision =>
+                    {
+                        Some(plan.as_ref())
+                    }
+                    _ => None,
+                },
+            );
+            let guide_stage_index = match preferences.current_stage {
+                SetupGuideStage::Project => 0,
+                SetupGuideStage::Layout => 1,
+                SetupGuideStage::Wiring => 2,
+                SetupGuideStage::Case => 3,
+                SetupGuideStage::Review => 4,
+            };
+            let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+            (
+                guide_statuses.map(|status| status.ready),
+                guide_stage_detail,
+            )
         })
-        .unwrap_or(0);
-    let guide_stage_readiness = guide_statuses.clone().map(|status| status.ready);
-    let guide_stage_detail = guide_statuses[guide_stage_index].detail.clone();
+        .unwrap_or_default();
     let canvas_transform_menu = match &toolbar_input {
         workspace_composition::WorkspaceToolbarInput::Layout(input) => {
             Some(input.transform.clone())
