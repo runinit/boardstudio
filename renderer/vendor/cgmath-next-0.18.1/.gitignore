@@ -1,0 +1,17 @@
+.DS_Store
+.vs/
+/target
+/bench/bench
+.vscode
+.idea
+*.iml
+
+/vendor/
+/_extract/
+/target/
+/.claude/
+/_upstream-master/
+compat/fixtures/**/target/
+compat/fixtures/**/Cargo.lock
+AGENTS.md
+ROADMAP*.md

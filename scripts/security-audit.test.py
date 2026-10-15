@@ -33,34 +33,57 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
         self.assertEqual(audit.registry_lockfile(result, provenance), result)
 
     def test_unknown_patch_version_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "Unexpected vendored cgmath version"):
+        with self.assertRaisesRegex(ValueError, "Unexpected vendored cgmath-next version"):
             audit.registry_lockfile('[[package]]\nname = "cgmath"\nversion = "0.19.0"',
                                     {"version": "0.18.0"})
 
     def test_tampered_vendor_and_wrong_resolution_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            vendor = root / "vendor/cgmath-0.18.0"
+            vendor = root / "vendor/cgmath-next-0.18.1"
             vendor.mkdir(parents=True)
             manifest = vendor / "Cargo.toml"
-            manifest.write_text("reviewed source")
-            provenance = {"patchedAdvisory": audit.PATCHED_ADVISORY,
-                          "files": {"Cargo.toml": hashlib.sha256(manifest.read_bytes()).hexdigest()}}
-            (vendor.parent / "cgmath-security.json").write_text(json.dumps(provenance))
-            metadata = {"packages": [{"name": "cgmath", "manifest_path": str(manifest)}]}
+            manifest.write_text('[package]\nname = "cgmath"\nversion = "0.18.0"\n\n[lib]\nname = "cgmath"\n')
+            upstream_manifest = vendor / "Cargo.toml.orig"
+            upstream_manifest.write_text('[package]\nname = "cgmath-next"\nversion = "0.18.1"\n')
+            provenance = {
+                "upstreamRepo": audit.UPSTREAM_REPO,
+                "upstreamVersion": "0.18.1",
+                "upstreamRevision": audit.UPSTREAM_REVISION,
+                "version": "0.18.0",
+                "archiveSha256": audit.REGISTRY_ARCHIVE_SHA256,
+                "upstreamArchiveSha256": audit.UPSTREAM_ARCHIVE_SHA256,
+                "files": {
+                    "Cargo.toml": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                    "Cargo.toml.orig": hashlib.sha256(upstream_manifest.read_bytes()).hexdigest(),
+                },
+            }
+            provenance_path = vendor.parent / "cgmath-next-security.json"
+            provenance_path.write_text(json.dumps(provenance))
+            provenance_hash = hashlib.sha256(provenance_path.read_bytes()).hexdigest()
+            metadata = {"packages": [{
+                "name": "cgmath",
+                "version": "0.18.0",
+                "manifest_path": str(manifest),
+                "targets": [{"name": "cgmath", "kind": ["lib"]}],
+            }]}
             with patch.object(audit, "ROOT", root), patch.object(audit, "VENDOR", vendor), \
+                    patch.object(audit, "PROVENANCE", provenance_path), \
+                    patch.object(audit, "PROVENANCE_SHA256", provenance_hash), \
                     patch.object(audit.subprocess, "check_output", return_value=json.dumps(metadata).encode()):
                 self.assertEqual(audit.verify_vendor(), provenance)
                 manifest.write_text("unreviewed change")
                 with self.assertRaisesRegex(ValueError, "differs from the reviewed"):
                     audit.verify_vendor()
-                manifest.write_text("reviewed source")
+                manifest.write_text('[package]\nname = "cgmath"\nversion = "0.18.0"\n\n[lib]\nname = "cgmath"\n')
                 (vendor / "injected.rs").write_text("unreviewed file")
                 with self.assertRaisesRegex(ValueError, "differs from the reviewed"):
                     audit.verify_vendor()
                 (vendor / "injected.rs").unlink()
             metadata["packages"][0]["manifest_path"] = str(root / "registry/cgmath/Cargo.toml")
             with patch.object(audit, "ROOT", root), patch.object(audit, "VENDOR", vendor), \
+                    patch.object(audit, "PROVENANCE", provenance_path), \
+                    patch.object(audit, "PROVENANCE_SHA256", provenance_hash), \
                     patch.object(audit.subprocess, "check_output", return_value=json.dumps(metadata).encode()):
                 with self.assertRaisesRegex(ValueError, "resolve exclusively"):
                     audit.verify_vendor()
