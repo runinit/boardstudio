@@ -1003,6 +1003,7 @@ pub fn resolve_selection(
         };
     let matrix_ordered_members =
         |item: &Matrix, scene: &MatrixScene, filter: Option<(bool, u32)>| -> Vec<String> {
+            let matrix_parts: HashSet<_> = item.part_ids.iter().map(String::as_str).collect();
             let mut coord_for_id: HashMap<String, (u32, u32)> = HashMap::new();
             for cell in scene.cells.iter().filter(|cell| cell.enabled) {
                 let Some(primary) = cell
@@ -1012,7 +1013,7 @@ pub fn resolve_selection(
                 else {
                     continue;
                 };
-                if item.part_ids.iter().any(|id| id == primary) {
+                if matrix_parts.contains(primary) {
                     coord_for_id.insert(primary.to_owned(), (cell.row, cell.column));
                 }
                 if let Some(config) = item
@@ -1022,7 +1023,7 @@ pub fn resolve_selection(
                 {
                     for assembly in &config.assemblies {
                         let id = format!("{primary}/{}", assembly.id);
-                        if live_parts.contains(id.as_str()) && item.part_ids.contains(&id) {
+                        if live_parts.contains(id.as_str()) && matrix_parts.contains(id.as_str()) {
                             // Keep IDs owned by the document; row/column filtering still uses its primary cell.
                             coord_for_id.insert(id, (cell.row, cell.column));
                         }

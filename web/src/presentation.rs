@@ -129,7 +129,7 @@ use dioxus_web::WebEventExt;
 use footprint_graphics::FootprintGraphics;
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     rc::Rc,
 };
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -3674,10 +3674,14 @@ fn Editor() -> Element {
         .boards
         .iter()
         .find(|b| b.id == model.active_board_id);
+    let board_part_ids: HashSet<_> = board
+        .into_iter()
+        .flat_map(|board| board.part_ids.iter().map(String::as_str))
+        .collect();
     let visible: Vec<_> = document
         .parts
         .iter()
-        .filter(|p| board.is_some_and(|b| b.part_ids.contains(&p.id)))
+        .filter(|part| board_part_ids.contains(part.id.as_str()))
         .cloned()
         .collect();
     let definitions: std::collections::BTreeMap<_, _> = document
@@ -3697,7 +3701,7 @@ fn Editor() -> Element {
                     && (matrix
                         .part_ids
                         .iter()
-                        .any(|id| board.is_some_and(|board| board.part_ids.contains(id)))
+                        .any(|id| board_part_ids.contains(id.as_str()))
                         || (matrix.part_ids.is_empty() && document.boards.len() <= 1)))
         })
         .collect();
