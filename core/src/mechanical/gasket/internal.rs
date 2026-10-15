@@ -592,13 +592,23 @@ pub(super) fn generate(
     }
     result.suggested_mounts = closures
         .iter()
-        .map(|(id, c)| Mount {
-            id: id.clone(),
-            at: add(c.at, scale(c.normal, front + closure_radius)),
-            kind: MountKind::Hole,
-            hole_diameter: hardware.hole_diameter,
-            boss_diameter: Some(2. * closure_radius),
-            height: None,
+        .map(|(id, c)| {
+            let at = config
+                .closure_mounts
+                .as_ref()
+                .and_then(|mounts| mounts.iter().find(|mount| mount.id == *id))
+                .map_or_else(
+                    || add(c.at, scale(c.normal, front + closure_radius)),
+                    |mount| mount.at,
+                );
+            Mount {
+                id: id.clone(),
+                at,
+                kind: MountKind::Hole,
+                hole_diameter: hardware.hole_diameter,
+                boss_diameter: Some(2. * closure_radius),
+                height: None,
+            }
         })
         .collect();
     let valid_support = |candidate: &Candidate, length: f64, width: f64| {

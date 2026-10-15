@@ -78,7 +78,6 @@ pub fn ortho<S: BaseFloat>(left: S, right: S, bottom: S, top: S, near: S, far: S
 
 /// A perspective projection based on a vertical field-of-view angle.
 #[derive(Copy, Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "rustc-serialize", derive(RustcEncodable, RustcDecodable))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PerspectiveFov<S> {
     pub fovy: Rad<S>,
