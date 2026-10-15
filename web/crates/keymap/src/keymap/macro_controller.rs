@@ -794,13 +794,10 @@ mod mounted_step_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn a_failed_keycode_restores_unchanged_submitted_text() {
-        failed_step_restores_unchanged_submitted_text("Keycode", "B", "A").await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn a_failed_delay_restores_unchanged_submitted_text() {
-        failed_step_restores_unchanged_submitted_text("Delay (ms)", "250", "100").await;
+    async fn a_failed_step_restores_unchanged_submitted_text_for_each_field() {
+        for (label, submitted, accepted) in [("Keycode", "B", "A"), ("Delay (ms)", "250", "100")] {
+            failed_step_restores_unchanged_submitted_text(label, submitted, accepted).await;
+        }
     }
 
     async fn newer_step_draft_survives_failure(label: &str, submitted: &str, newer: &str) {
@@ -836,13 +833,10 @@ mod mounted_step_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn a_newer_keycode_draft_keeps_the_older_failure_inline() {
-        newer_step_draft_survives_failure("Keycode", "B", "C").await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn a_newer_delay_draft_keeps_the_older_failure_inline() {
-        newer_step_draft_survives_failure("Delay (ms)", "250", "375").await;
+    async fn a_newer_step_draft_keeps_the_older_failure_inline_for_each_field() {
+        for (label, submitted, newer) in [("Keycode", "B", "C"), ("Delay (ms)", "250", "375")] {
+            newer_step_draft_survives_failure(label, submitted, newer).await;
+        }
     }
 
     #[wasm_bindgen_test]
@@ -1003,13 +997,10 @@ mod mounted_step_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn raw_step_keycode_whitespace_stays_pending_and_lands_canonical() {
-        held_raw_step_text_lands_as_accepted_text("Keycode", " B ", "B").await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn raw_step_delay_leading_zeros_stay_pending_and_land_canonical() {
-        held_raw_step_text_lands_as_accepted_text("Delay (ms)", "003", "3").await;
+    async fn raw_step_text_stays_pending_and_lands_canonical_for_each_field() {
+        for (label, raw, accepted) in [("Keycode", " B ", "B"), ("Delay (ms)", "003", "3")] {
+            held_raw_step_text_lands_as_accepted_text(label, raw, accepted).await;
+        }
     }
 
     async fn newer_raw_step_text_survives_older_landing(
@@ -1055,13 +1046,13 @@ mod mounted_step_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn raw_step_newer_keycode_whitespace_survives_older_landing() {
-        newer_raw_step_text_survives_older_landing("Keycode", " B ", " C ", "B").await;
-    }
-
-    #[wasm_bindgen_test]
-    async fn raw_step_newer_delay_leading_zeros_survive_older_landing() {
-        newer_raw_step_text_survives_older_landing("Delay (ms)", "003", "004", "3").await;
+    async fn raw_step_newer_text_survives_older_landing_for_each_field() {
+        for (label, raw, newer, accepted) in [
+            ("Keycode", " B ", " C ", "B"),
+            ("Delay (ms)", "003", "004", "3"),
+        ] {
+            newer_raw_step_text_survives_older_landing(label, raw, newer, accepted).await;
+        }
     }
 
     #[wasm_bindgen_test]

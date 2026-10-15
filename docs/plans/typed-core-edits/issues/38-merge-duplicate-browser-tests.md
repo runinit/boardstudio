@@ -1,16 +1,15 @@
 # 38: Merge the duplicate browser tests the audit named
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [37](37-sleeps-layout-library-ui-page.md)
 Spec: [spec.md](../spec.md) · Map: [map.md](../map.md) · Audit: [test-audit.md](../audit/test-audit.md)
 
 ## Request
 
-Continue ticket [34](34-test-speed-browser.md): replace fixed settle loops with `wait_until` (`web/crates/ui-shared/src/test_wait.rs`) in the suites named below. The keymap
-`queued_edit_tests` pilot took that suite from 37.0 s to about 9.7 s with the assertion count and test names unchanged. Pattern to follow: each wait checks the precondition the next
-assertion needs (including a `rendered_accepted`-style wait for the accepted revision before an action); every wait is bounded; no test depends on elapsed time except that bound; unbounded
-`.await` gates in these tests get a bounded variant.
+Merge only the exact duplicate browser tests identified in audit items M2 and M3. Keep separate
+tests where different owners, mounting paths, failure boundaries, or assertions protect distinct
+behavior; record those dispositions in the audit.
 
 ## What to do
 
@@ -18,9 +17,24 @@ assertion needs (including a `rendered_accepted`-style wait for the accepted rev
 
 ## Acceptance
 
-- [ ] Per-suite before/after table in the Outcome; `browser` three consecutive passing runs; executed test names equal the baseline except deliberate merges (diff the crate `--list` outputs before/after).
-- [ ] Mutation checks: three representative waits per ticket made never-true fail with the helper's message within the bound; the production step each depends on removed makes the test fail fast.
+- [ ] The exact keymap twins are table-driven; non-exact candidates are retained with reasons.
+- [ ] Focused browser suites and full repository gate pass; test names are compared before and after, with only documented merges removed.
 
 ## Verification
 
-`repo lint typecheck browser` (sandbox lifted for wasm-pack and Chrome), run three times. Process: [verification-process.md](../../../agents/verification-process.md). Time box about two hours.
+Run the affected WASM suites, `cargo fmt --all --check`, and `python3 scripts/check.py`.
+
+## Progress (2026-10-14, exact-duplicate review)
+
+The four Keycode/Delay pairs in `macro_controller::mounted_step_tests` share the same helper
+and assertions, differing only in field label and raw/canonical values. They are now four
+table-driven tests. The Macro-name/tap-time newer-draft pair in `queued_edit_tests` shares one
+helper and is now one table-driven test. Layer-name newer-draft/failure tests and the layer-name
+versus macro-number failed-unchanged tests use distinct owner/controller paths, so they are retained.
+
+The two position-draft candidates in `layout_component_inspector_tests` and
+`inspector::tests` use different controls and commit paths: one submits typed edits through the
+Layout component Inspector; the other uses the legacy explicit Apply form and checks pending
+disablement and the clean axis. Their failure cases also inject different failure boundaries.
+They are not exact duplicates and remain separate. Focused Keymap verification passed 35/35 after
+the merges; full-tree verification and final name reconciliation remain open.

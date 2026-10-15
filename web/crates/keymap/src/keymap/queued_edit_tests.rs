@@ -1309,13 +1309,13 @@ async fn newer_macro_draft_with_older_failure(label: &str, first: &str, newer: &
 }
 
 #[wasm_bindgen_test]
-async fn a_newer_macro_text_draft_keeps_an_older_failure_inline_only() {
-    newer_macro_draft_with_older_failure("Macro name Original", "Renamed", "Renamed again").await;
-}
-
-#[wasm_bindgen_test]
-async fn a_newer_macro_number_draft_keeps_an_older_failure_inline_only() {
-    newer_macro_draft_with_older_failure("Original tapMs", "55", "66").await;
+async fn a_newer_macro_field_draft_keeps_an_older_failure_inline_only() {
+    for (label, first, newer) in [
+        ("Macro name Original", "Renamed", "Renamed again"),
+        ("Original tapMs", "55", "66"),
+    ] {
+        newer_macro_draft_with_older_failure(label, first, newer).await;
+    }
 }
 
 #[wasm_bindgen_test]
