@@ -1669,6 +1669,9 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
 
 #[wasm_bindgen_test]
 async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
+    use boardstudio_core::mechanical::change::MechanicalMountCollection;
+    use boardstudio_core::mechanical::{MechanicalChange, MechanicalEdit, MechanicalTarget};
+    use boardstudio_core::model::MechanicalFeatureState;
     use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, MirroredHalfMode};
     use boardstudio_web_ui_shared::test_wait::wait_until;
 
@@ -1680,7 +1683,7 @@ async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
                 "instances":[{"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":"selected-part","mechanical":{
                     "boardId":"board","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
                     "plateThickness":1.5,"plateFoamThickness":0.0,"pcbThickness":1.6,"bottomFoamThickness":0.0,"batteryHeight":0.0,"bottomThickness":2.0,
-                    "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.2,"profiles":[],"mounts":[],"closureMounts":[],"openings":[]
+                    "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.2,"profiles":[],"mounts":[{"id":"mount-1","at":{"x":2.0,"y":3.0},"kind":"hole","holeDiameter":2.2}],"closureMounts":[],"openings":[]
                 }}],
                 "boards":[{"boardId":"board","controllerPartId":"selected-part","mode":"matrix"}],"pairs":[]
             })).expect("synthetic source half is valid"));
@@ -1758,12 +1761,148 @@ async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
         operation_id: probe.runtime.operation(),
     });
     crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .revision
+            > created_revision
+    );
+
+    let edit_mount = |instance_id: &str, change| {
+        let accepted = probe.runtime.model().accepted.unwrap();
+        crate::runtime::project_name_test_support::submit_fixed_command(
+            &probe.runtime,
+            EditCommand {
+                base_revision: accepted.document.revision,
+                transaction_id: format!("{instance_id}-mount-edit"),
+                phase: EditPhase::Commit,
+                target_ids: vec![instance_id.into()],
+                operation: EditOperation::ApplyMechanicalEdit {
+                    edit: Box::new(MechanicalEdit {
+                        target: MechanicalTarget::Instance {
+                            instance_id: instance_id.into(),
+                        },
+                        change,
+                        mounting_hole: None,
+                    }),
+                },
+            },
+        );
+    };
+    let mount_at = |instance_id: &str| {
+        let document = probe.runtime.model().accepted.unwrap().document;
+        boardstudio_core::mechanical::effective_inputs(
+            &document,
+            &[],
+            &MechanicalTarget::Instance {
+                instance_id: instance_id.into(),
+            },
+        )
+        .unwrap()
+        .configuration
+        .mounts
+        .into_iter()
+        .find(|mount| mount.id == "mount-1")
+        .unwrap()
+        .at
+    };
+    edit_mount(
+        "source-instance",
+        MechanicalChange::SetMountPosition {
+            collection: MechanicalMountCollection::Suspension,
+            mount_id: "mount-1".into(),
+            at: Vec2 { x: 4.0, y: 5.0 },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    assert_eq!(mount_at("source-instance"), Vec2 { x: 4.0, y: 5.0 });
+    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -4.0, y: 5.0 });
+    edit_mount(
+        "mirror-instance",
+        MechanicalChange::SetMountPosition {
+            collection: MechanicalMountCollection::Suspension,
+            mount_id: "mount-1".into(),
+            at: Vec2 { x: -7.0, y: 6.0 },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    assert_eq!(mount_at("source-instance"), Vec2 { x: 7.0, y: 6.0 });
+    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -7.0, y: 6.0 });
+
+    edit_mount(
+        "mirror-instance",
+        MechanicalChange::MakeFeatureLocal {
+            feature_id: "mount-1".into(),
+            instance_id: "mirror-instance".into(),
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    let model = probe.runtime.model();
+    let pair = &model
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .pairs[0];
+    assert_eq!(
+        boardstudio_core::mechanical::features::member_state(pair, "mirror-instance", "mount-1"),
+        Some(MechanicalFeatureState::Local)
+    );
+    probe.runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    let model = probe.runtime.model();
+    let pair = &model
+        .accepted
+        .as_ref()
+        .unwrap()
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .pairs[0];
+    assert_eq!(
+        boardstudio_core::mechanical::features::member_state(pair, "mirror-instance", "mount-1"),
+        Some(MechanicalFeatureState::Linked)
+    );
+    probe.runtime.submit(boardstudio_application::Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    edit_mount(
+        "mirror-instance",
+        MechanicalChange::SetMountPosition {
+            collection: MechanicalMountCollection::Suspension,
+            mount_id: "mount-1".into(),
+            at: Vec2 { x: -9.0, y: 8.0 },
+        },
+    );
+    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
+    assert_eq!(mount_at("source-instance"), Vec2 { x: 7.0, y: 6.0 });
+    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -9.0, y: 8.0 });
+
     let final_snapshot = probe.runtime.model().accepted.unwrap();
-    assert!(final_snapshot.document.revision > created_revision);
     assert!(
         final_snapshot.document.hardware.as_ref().unwrap().pairs[0]
             .halves
             .is_some()
+    );
+    assert_eq!(
+        boardstudio_core::mechanical::features::member_state(
+            &final_snapshot.document.hardware.as_ref().unwrap().pairs[0],
+            "mirror-instance",
+            "mount-1"
+        ),
+        Some(MechanicalFeatureState::Local)
     );
     wait_until("the reused-board pair is durable", || {
         matches!(
@@ -1790,6 +1929,28 @@ async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
     crate::runtime::project_name_test_support::open_document(&reopened, saved).await;
     let reopened = reopened.model().accepted.unwrap();
     assert_eq!(reopened.document.boards.len(), 1);
+    assert_eq!(
+        boardstudio_core::mechanical::features::member_state(
+            &reopened.document.hardware.as_ref().unwrap().pairs[0],
+            "mirror-instance",
+            "mount-1"
+        ),
+        Some(MechanicalFeatureState::Local)
+    );
+    let reopened_mirror = boardstudio_core::mechanical::effective_inputs(
+        &reopened.document,
+        &[],
+        &MechanicalTarget::Instance {
+            instance_id: "mirror-instance".into(),
+        },
+    )
+    .unwrap()
+    .configuration
+    .mounts
+    .into_iter()
+    .find(|mount| mount.id == "mount-1")
+    .unwrap();
+    assert_eq!(reopened_mirror.at, Vec2 { x: -9.0, y: 8.0 });
     root.remove();
 }
 

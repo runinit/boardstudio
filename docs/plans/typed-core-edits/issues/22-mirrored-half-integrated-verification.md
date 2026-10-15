@@ -81,32 +81,32 @@ mounted_reused_pcb_pair_undo_redo_and_reopen` — passed (1 test). The existing 
 `mounted_mirrored_half_actions_work_from_either_board_and_undo` test separately exercises
 linked/local/omitted Inspector actions and Undo from both distinct board scopes.
 
-A local per-item exception was not applied to the reused-PCB pair: Core refused it with
-`The exact lifecycle association is unavailable`. Both instances address the same physical part
-on one board, so this fixture has no distinct mirror item to make local. A separate instance-scope
-edit through a reused-board Inspector was not verified; the scenario is represented by Core's
-shared-board identity and tested pair-history/reopen lifecycle. The ticket is resolved as a
-verification record with these semantic and scope limits explicit.
+The shared PCB has no distinct Part correspondence, so a per-Part local exception does not apply
+to it. The reusable half does have independently owned mechanical features: the test edits a
+linked mount from each instance, makes the mirror mount local through `ApplyMechanicalEdit`, checks
+Undo/Redo of that exception, then edits the local feature without changing the source. Save/reopen
+preserves the one-board pair, local feature state and local geometry. The test submits typed Core
+commands through the mounted Runtime; it does not drive the mechanical feature control in the
+Inspector from both instance scopes.
 
 Review fixed point: `d06bef8a61195e9f8dc152ad19ae8472fa8339f9`. Standards review found no documented
 standard breach; one possible duplicated argument list in `create_with_physical_setup` was noted
 as a judgement call. Spec review found no confirmed #21/#40/#41 behavior mismatch. Plan-wide review
-confirmed the related mirror tickets are resolved and their synthetic-only scope is current.
+confirmed the related mirror tickets are resolved and their synthetic-only scope is current. The refreshed Standards and Spec reviews cover the added assertions; no documented-standard breach
+or confirmed spec failure was found. The mounted test uses typed Runtime/Core commands rather than
+clicking the mechanical Inspector control in both instance scopes; this is the remaining evidence
+limit, and the ticket does not require that control path explicitly.
 
 `cargo fmt --all --check` and `git diff --check` passed. The final
-`TMPDIR=/home/chris/.cache/bstmp python3 scripts/check.py` passed all steps in **198.4 s**:
-repo 0.4, tooling 4.0, lint 3.6, build 46.6, native tests 28.7, browser 115.0. The boundary
-transcripts passed; all 1,976 baselined native tests and 99 selected page/case browser tests passed.
+`TMPDIR=/home/chris/.cache/bstmp python3 scripts/check.py` passed all steps in **196.6 s**:
+repo 0.4, tooling 4.0, lint 3.6, build 47.1, native tests 28.5, browser 113.0. Boundary transcript
+checks, 1,976 baselined native tests (+6 new), 15 CAD browser checks and 99 selected page/case
+WASM tests passed.
 
 
-## Progress (2026-10-14, current-tree full gate)
+## Resolution (2026-10-14)
 
-`python3 scripts/check.py` passed all steps in **202.4 s** (repo 0.4, tooling 3.8, lint 4.2, build 53.9, test 29.2, browser 110.8). It executed all 1,976 baselined native tests plus 6 additional tests, 15 CAD browser checks, and 97 selected presentation/case tests. The reused-PCB mounted create/edit/exception/Undo/Redo/save-reopen workflow and Standards, Spec, and plan-wide reviews are still outstanding; acceptance remains open.
-
-## Progress (2026-10-14, current-tree full verification)
-
-After the current test-wait changes, three consecutive `python3 scripts/check.py browser` runs
-passed in **127.5 s**, **106.5 s**, and **105.7 s**. The full `python3 scripts/check.py` then passed
-all steps in **193.9 s**. The synthetic reused-PCB mounted create/edit/exception/Undo/Redo/save-reopen
-workflow and the required Standards, Spec, and plan-wide reviews remain outstanding; acceptance
-stays open.
+The reused-PCB workflow, current full gate and refreshed Standards/Spec reviews satisfy this
+ticket. The remaining evidence limit is that mechanical edits use typed commands through mounted
+Runtime/Core rather than clicking the Inspector control from both instance scopes. The separate
+mounted Inspector test covers linked/local/omitted actions from both distinct-board scopes.
