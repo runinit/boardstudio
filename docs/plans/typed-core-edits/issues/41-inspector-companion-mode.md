@@ -83,3 +83,10 @@ exposed that Editor startup changes the active hardware instance, so the selecti
 post-mount scope. All 8 `layout_key_selection_actions` browser tests passed, including this case.
 The earlier full repository gate and typecheck remain the broad verification; complete selection-
 kind integration, three repeated current-tree browser gates, and required reviews still need closure.
+
+## Progress (2026-10-14, current-tree verification)
+
+Three consecutive `python3 scripts/check.py browser` runs passed in **127.5 s**, **106.5 s**, and
+**105.7 s**. The full `python3 scripts/check.py` passed all steps in **193.9 s**. These gates verify
+the current partial implementation; the mounted Editor coverage for each selection kind, mixed
+selection, refusal, and independent-part exclusion remains incomplete, so acceptance stays open.

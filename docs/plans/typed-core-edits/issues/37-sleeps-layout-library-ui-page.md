@@ -608,3 +608,11 @@ the source byte-for-byte. Evidence is in ignored
 profile editor (30 ms), preview (40 ms), generator settings (350 ms), and assembly editor (290 ms).
 Their aggregate upper bound is 790 ms, below this ticket's roughly one-second stopping threshold;
 I am leaving them rather than adding more wait machinery for less than one second of suite time.
+
+## Progress (2026-10-14, repeated current-tree verification)
+
+Three consecutive `python3 scripts/check.py browser` runs passed in **127.5 s**, **106.5 s**, and
+**105.7 s**. The subsequent full `python3 scripts/check.py` passed repo, tooling, lint, build, test,
+and browser in **193.9 s** (repo 0.4, tooling 3.8, lint 3.6, build 51.0, test 28.5, browser 106.5).
+The current tree's three-repeat and full-gate requirements are met. The baseline `--list` name
+comparison and per-suite before/after table are still outstanding, so acceptance remains open.

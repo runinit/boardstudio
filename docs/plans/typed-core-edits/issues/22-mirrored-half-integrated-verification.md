@@ -73,3 +73,11 @@ remain outstanding.
 ## Progress (2026-10-14, current-tree full gate)
 
 `python3 scripts/check.py` passed all steps in **202.4 s** (repo 0.4, tooling 3.8, lint 4.2, build 53.9, test 29.2, browser 110.8). It executed all 1,976 baselined native tests plus 6 additional tests, 15 CAD browser checks, and 97 selected presentation/case tests. The reused-PCB mounted create/edit/exception/Undo/Redo/save-reopen workflow and Standards, Spec, and plan-wide reviews are still outstanding; acceptance remains open.
+
+## Progress (2026-10-14, current-tree full verification)
+
+After the current test-wait changes, three consecutive `python3 scripts/check.py browser` runs
+passed in **127.5 s**, **106.5 s**, and **105.7 s**. The full `python3 scripts/check.py` then passed
+all steps in **193.9 s**. The synthetic reused-PCB mounted create/edit/exception/Undo/Redo/save-reopen
+workflow and the required Standards, Spec, and plan-wide reviews remain outstanding; acceptance
+stays open.
