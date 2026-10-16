@@ -65,6 +65,26 @@ fn gap_snap_preserves_edge_alignment_for_rotated_envelopes() {
 }
 
 #[test]
+fn gap_edge_alignment_does_not_push_snap_outside_attraction_radius() {
+    let mut document = fixture();
+    document.parts.retain(|part| part.id != "left");
+    document.boards[0].part_ids.retain(|id| id != "left");
+    let moving = Part {
+        pose: boardstudio_core::model::Pose2 {
+            at: Vec2 { x: 9.1, y: 1.9 },
+            rotation: 0.0,
+        },
+        ..document.parts[0].clone()
+    };
+
+    let snap = snap_part_in_board(&document, "main", &moving, 2.0, Some(1.0)).unwrap();
+
+    assert!((snap.at.x - 11.0).abs() < 1e-9);
+    assert!((snap.at.y - 1.9).abs() < 1e-9);
+    assert_eq!(snap.label, "right · envelope gap 1.00 mm");
+}
+
+#[test]
 fn legacy_unindexed_board_and_missing_board_keep_their_distinct_policies() {
     let mut document = fixture();
     let moving = document.parts[0].clone();
