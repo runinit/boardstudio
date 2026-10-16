@@ -3,7 +3,7 @@
 //! This crate deliberately contains no browser handles. A host runs each emitted effect and
 //! returns its completion through [`Session::complete`].
 
-use crate::interactions::{DragSnapOptions, SnapGuide, normalize_drag};
+use crate::interactions::{DragSnapOptions, MagneticSnapState, SnapGuide, normalize_drag};
 use boardstudio_core::{CoreEngine, model::*};
 use std::collections::{HashSet, VecDeque};
 use std::fmt;
@@ -351,11 +351,13 @@ pub enum Event {
         snap_fraction: f64,
         geometry_snap: bool,
         gap: Option<f64>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureSample {
         pointer_id: i64,
         positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureFrame {
@@ -364,6 +366,7 @@ pub enum Event {
     GestureEnd {
         pointer_id: i64,
         final_positions: Vec<Position>,
+        pixels_per_world: Option<f64>,
         alt: bool,
     },
     GestureCancel {
@@ -611,6 +614,8 @@ struct Gesture {
     snap_fraction: f64,
     geometry_snap: bool,
     gap: Option<f64>,
+    pixels_per_world: Option<f64>,
+    snap_state: MagneticSnapState,
     alt: bool,
     frame_pending: bool,
     changed: bool,
@@ -1127,6 +1132,7 @@ impl Session {
                 snap_fraction,
                 geometry_snap,
                 gap,
+                pixels_per_world,
                 alt,
             } => {
                 if self.gesture.is_none() && self.model.lifecycle == Lifecycle::Ready {
@@ -1152,6 +1158,8 @@ impl Session {
                         snap_fraction,
                         geometry_snap,
                         gap,
+                        pixels_per_world,
+                        snap_state: MagneticSnapState::default(),
                         alt,
                         frame_pending: false,
                         changed: false,
@@ -1165,14 +1173,36 @@ impl Session {
             Event::GestureSample {
                 pointer_id,
                 positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, positions, alt, false, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, positions, alt, false, &mut effects)
+            }
             Event::GestureFrame { generation } => self.gesture_frame(generation, &mut effects),
             Event::GestureEnd {
                 pointer_id,
                 final_positions,
+                pixels_per_world,
                 alt,
-            } => self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects),
+            } => {
+                if let Some(pixels_per_world) = pixels_per_world
+                    && let Some(gesture) = self
+                        .gesture
+                        .as_mut()
+                        .filter(|gesture| gesture.pointer_id == pointer_id)
+                {
+                    gesture.pixels_per_world = Some(pixels_per_world);
+                }
+                self.gesture_sample(pointer_id, final_positions, alt, true, &mut effects)
+            }
             Event::GestureCancel { pointer_id } => {
                 if self
                     .gesture
@@ -2220,6 +2250,8 @@ impl Session {
                             gap: g.gap,
                             targets: &g.targets,
                             alt: g.alt,
+                            pixels_per_world: g.pixels_per_world,
+                            state: &mut g.snap_state,
                         },
                     )
                 });

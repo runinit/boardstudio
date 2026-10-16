@@ -1075,6 +1075,7 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
         snap_fraction: 0.0,
         geometry_snap: true,
         gap: Some(1.0),
+        pixels_per_world: None,
         alt: false,
     });
     session.submit(Event::GestureSample {
@@ -1083,6 +1084,7 @@ fn part_drag_uses_gap_geometry_snap_at_the_two_millimeter_tolerance() {
             id: "moving".into(),
             at: Vec2 { x: 19.6, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: false,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -1159,6 +1161,7 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
         snap_fraction: 0.0,
         geometry_snap: true,
         gap: Some(1.0),
+        pixels_per_world: None,
         alt: false,
     });
     session.submit(Event::GestureSample {
@@ -1167,6 +1170,7 @@ fn geometry_snap_ignores_parts_owned_by_another_board() {
             id: "moving".into(),
             at: Vec2 { x: 19.4, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: false,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -1202,6 +1206,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -1210,6 +1215,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 1.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -1232,6 +1238,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 3.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -1240,6 +1247,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 5.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureEnd {
@@ -1248,6 +1256,7 @@ fn drag_coalesces_previews_and_commits_the_pointerup_sample_once() {
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let preview_reply = engine.handle(preview_request);
@@ -1974,6 +1983,7 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -1982,6 +1992,7 @@ fn cancelled_pointer_makes_late_preview_inert_and_releases_capture() {
             id: "key".into(),
             at: Vec2 { x: 4.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let generation = session.read_model().gesture.as_ref().unwrap().generation;
@@ -3016,6 +3027,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
         snap_fraction: 0.0,
         geometry_snap: false,
         gap: None,
+        pixels_per_world: None,
         alt: true,
     });
     session.submit(Event::GestureSample {
@@ -3024,6 +3036,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let effects = session.submit(Event::GestureEnd {
@@ -3032,6 +3045,7 @@ fn a_gesture_commit_ahead_is_not_disturbed_and_the_intent_behind_resolves_on_its
             id: "key".into(),
             at: Vec2 { x: 9.0, y: 0.0 },
         }],
+        pixels_per_world: None,
         alt: true,
     });
     let (commit_id, commit_epoch, commit_request) = core_effect(&effects);
