@@ -435,14 +435,27 @@ fn snap_part_candidates<'a>(
                 }
             }
             if let Some((horizontal, delta)) = alignment {
-                if horizontal {
-                    best_snap.at.y += delta;
-                    best_snap.to.y += delta;
+                let (dx, dy) = if horizontal {
+                    (
+                        best_snap.at.x - moving.pose.at.x,
+                        best_snap.at.y + delta - moving.pose.at.y,
+                    )
                 } else {
-                    best_snap.at.x += delta;
-                    best_snap.to.x += delta;
+                    (
+                        best_snap.at.x + delta - moving.pose.at.x,
+                        best_snap.at.y - moving.pose.at.y,
+                    )
+                };
+                if dx.hypot(dy) <= tolerance {
+                    if horizontal {
+                        best_snap.at.y += delta;
+                        best_snap.to.y += delta;
+                    } else {
+                        best_snap.at.x += delta;
+                        best_snap.to.x += delta;
+                    }
+                    best_snap.label.push_str(" · edges aligned");
                 }
-                best_snap.label.push_str(" · edges aligned");
             }
         }
         let _ = moving_bounds;
