@@ -1,5 +1,7 @@
-use boardstudio_application::interactions::snap_part_in_board;
-use boardstudio_core::model::{Part, ProjectDoc, Vec2};
+use boardstudio_application::interactions::{
+    DragSnapOptions, MagneticSnapState, normalize_drag, snap_part_in_board,
+};
+use boardstudio_core::model::{Part, Position, ProjectDoc, Vec2};
 use serde_json::json;
 
 fn fixture() -> ProjectDoc {
@@ -75,4 +77,201 @@ fn legacy_unindexed_board_and_missing_board_keep_their_distinct_policies() {
         snap_part_in_board(&document, "missing", &moving, 12.0, None),
         legacy
     );
+}
+
+#[test]
+fn component_drag_pulls_smoothly_toward_the_drag_start_grid_anchor() {
+    let document = fixture();
+    let mut state = MagneticSnapState::default();
+    let start = vec![Position {
+        id: "moving".into(),
+        at: Vec2::default(),
+    }];
+    let (positions, guide) = normalize_drag(
+        &document,
+        &start,
+        vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 4.0, y: 0.0 },
+        }],
+        DragSnapOptions {
+            board_id: "main",
+            pitch: Vec2 { x: 40.0, y: 40.0 },
+            fraction: 0.25,
+            geometry_snap: false,
+            gap: None,
+            targets: &["moving".into()],
+            alt: false,
+            pixels_per_world: Some(1.0),
+            state: &mut state,
+        },
+    );
+
+    assert!((positions[0].at.x - 0.416).abs() < 1e-9);
+    assert!(guide.is_none());
+
+    let (zoomed_positions, _) = normalize_drag(
+        &document,
+        &start,
+        vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 2.0, y: 0.0 },
+        }],
+        DragSnapOptions {
+            board_id: "main",
+            pitch: Vec2 { x: 40.0, y: 40.0 },
+            fraction: 0.25,
+            geometry_snap: false,
+            gap: None,
+            targets: &["moving".into()],
+            alt: false,
+            pixels_per_world: Some(2.0),
+            state: &mut state,
+        },
+    );
+    assert!((zoomed_positions[0].at.x * 2.0 - positions[0].at.x).abs() < 1e-9);
+
+    let off_grid_start = vec![Position {
+        id: "moving".into(),
+        at: Vec2 { x: 1.3, y: 0.0 },
+    }];
+    let (anchored, _) = normalize_drag(
+        &document,
+        &off_grid_start,
+        vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 11.3, y: 0.0 },
+        }],
+        DragSnapOptions {
+            board_id: "main",
+            pitch: Vec2 { x: 40.0, y: 40.0 },
+            fraction: 0.25,
+            geometry_snap: false,
+            gap: None,
+            targets: &["moving".into()],
+            alt: false,
+            pixels_per_world: Some(1.0),
+            state: &mut state,
+        },
+    );
+    assert_eq!(anchored[0].at.x, 11.3);
+}
+
+#[test]
+fn component_drag_captures_exactly_and_releases_after_the_wider_hysteresis_radius() {
+    let document = fixture();
+    let start = vec![Position {
+        id: "moving".into(),
+        at: Vec2::default(),
+    }];
+    let targets = vec!["moving".into()];
+    let mut state = MagneticSnapState::default();
+    let sample = |x, alt, state: &mut MagneticSnapState| {
+        normalize_drag(
+            &document,
+            &start,
+            vec![Position {
+                id: "moving".into(),
+                at: Vec2 { x, y: 0.0 },
+            }],
+            DragSnapOptions {
+                board_id: "main",
+                pitch: Vec2 { x: 20.0, y: 20.0 },
+                fraction: 1.0,
+                geometry_snap: false,
+                gap: None,
+                targets: &targets,
+                alt,
+                pixels_per_world: Some(1.0),
+                state,
+            },
+        )
+        .0[0]
+            .at
+    };
+
+    assert_eq!(sample(2.0, false, &mut state).x, 0.0);
+    assert_eq!(sample(13.0, false, &mut state).x, 0.0);
+    assert!((sample(15.0, false, &mut state).x - 18.24).abs() < 1e-9);
+
+    assert_eq!(sample(2.0, false, &mut state).x, 0.0);
+    assert_eq!(sample(4.0, true, &mut state).x, 4.0);
+    assert!(sample(13.0, false, &mut state).x > 13.0);
+}
+
+#[test]
+fn an_eligible_geometry_target_wins_even_when_the_grid_is_closer() {
+    let document = fixture();
+    let mut state = MagneticSnapState::default();
+    let start = vec![Position {
+        id: "moving".into(),
+        at: Vec2 { x: 4.0, y: 0.0 },
+    }];
+    let (positions, guide) = normalize_drag(
+        &document,
+        &start,
+        vec![Position {
+            id: "moving".into(),
+            at: Vec2 { x: 23.5, y: 0.0 },
+        }],
+        DragSnapOptions {
+            board_id: "main",
+            pitch: Vec2 { x: 20.0, y: 20.0 },
+            fraction: 1.0,
+            geometry_snap: true,
+            gap: None,
+            targets: &["moving".into()],
+            alt: false,
+            pixels_per_world: Some(1.0),
+            state: &mut state,
+        },
+    );
+
+    assert_eq!(positions[0].at.x, 21.0);
+    assert!(guide.is_some());
+}
+
+#[test]
+fn multi_component_drag_keeps_its_relative_placement() {
+    let document = fixture();
+    let mut state = MagneticSnapState::default();
+    let start = vec![
+        Position {
+            id: "moving".into(),
+            at: Vec2::default(),
+        },
+        Position {
+            id: "right".into(),
+            at: Vec2 { x: 30.0, y: 0.0 },
+        },
+    ];
+    let (positions, guide) = normalize_drag(
+        &document,
+        &start,
+        vec![
+            Position {
+                id: "moving".into(),
+                at: Vec2 { x: 19.9, y: 0.0 },
+            },
+            Position {
+                id: "right".into(),
+                at: Vec2 { x: 49.9, y: 0.0 },
+            },
+        ],
+        DragSnapOptions {
+            board_id: "main",
+            pitch: Vec2 { x: 20.0, y: 20.0 },
+            fraction: 1.0,
+            geometry_snap: true,
+            gap: None,
+            targets: &["moving".into(), "right".into()],
+            alt: false,
+            pixels_per_world: Some(1.0),
+            state: &mut state,
+        },
+    );
+
+    assert!(guide.is_none());
+    assert_eq!(positions[0].at.x, 20.0);
+    assert_eq!(positions[1].at.x - positions[0].at.x, 30.0);
 }
