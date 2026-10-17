@@ -13,8 +13,8 @@ pub use profile::{
 
 mod step;
 pub use step::{
-    ImportedStep, StepAccuracy, StepFaceOccurrence, StepPrecision, StepSourceFace, StepUncertainty,
-    import_step, mesh_imported_step,
+    ImportedStep, StepAccuracy, StepFaceOccurrence, StepLineOccurrence, StepLinePresentation,
+    StepPrecision, StepSourceFace, StepUncertainty, import_step, mesh_imported_step,
 };
 
 #[cfg(test)]

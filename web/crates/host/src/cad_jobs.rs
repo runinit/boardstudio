@@ -125,9 +125,7 @@ pub fn validate_reply(
                 .result
                 .take()
                 .ok_or_else(|| CadJobError::Failed("CAD worker returned no result".into()))?;
-            if request.operation != CadOperation::ReadStep
-                && result.revision != request.identity.revision
-            {
+            if result.revision != request.identity.revision {
                 return Err(CadJobError::Stale(
                     "CAD result has another document revision".into(),
                 ));
@@ -943,6 +941,54 @@ mod tests {
             validate_reply(&request, reply, &identity),
             Err(CadJobError::Failed(_))
         ));
+    }
+
+    #[test]
+    fn read_step_reply_requires_the_captured_result_revision() {
+        let identity = CadSnapshotIdentity {
+            token: 3,
+            session_epoch: 2,
+            document_id: "doc".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            revision: 7,
+        };
+        let request = CadRequest {
+            request_id: "read-step-request".into(),
+            job_id: "read-step-job".into(),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            prepared: None,
+            input_bytes: vec![],
+        };
+        let mut reply = CadReply {
+            request_id: request.request_id.clone(),
+            job_id: request.job_id.clone(),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            outcome: CadReplyOutcome::Completed,
+            result: Some(CadResult {
+                revision: 7,
+                mesh: Some(CadMesh {
+                    positions: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+                    normals: vec![0., 0., 1., 0., 0., 1., 0., 0., 1.],
+                }),
+                bounds: Some(CadBounds {
+                    min: [0., 0., 0.],
+                    max: [1., 1., 0.],
+                }),
+                ..CadResult::default()
+            }),
+            error: None,
+        };
+        assert!(validate_reply(&request, reply.clone(), &identity).is_ok());
+        for other_revision in [0, 6, 8] {
+            reply.result.as_mut().unwrap().revision = other_revision;
+            assert!(matches!(
+                validate_reply(&request, reply.clone(), &identity),
+                Err(CadJobError::Stale(_))
+            ));
+        }
     }
 
     #[test]

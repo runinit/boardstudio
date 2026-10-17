@@ -23,15 +23,7 @@ type ClosedChartMetadata = Vec<(usize, usize, (f64, f64), Vec<usize>)>;
 /// Certificates are bound to those actual normalized surfaces before meshing.
 /// `mm_per_unit` is the factor resolved for this solid's representation; all
 /// spatial options are millimetres. The caller applies occurrence placement once.
-pub fn triangulate_source_bound_shell(
-    source: &SourceBoundStepShell,
-    mm_per_unit: f64,
-    options: TessellationOptions,
-) -> Result<StepMesh, String> {
-    triangulate_source_bound_shell_report(source, mm_per_unit, options).map(|(mesh, _)| mesh)
-}
-
-/// As [`triangulate_source_bound_shell`], also returning the indices of faces meshed by the
+/// Also returns the indices of faces meshed by the
 /// `options.preview_fallback` route from their shared boundary samples.
 pub fn triangulate_source_bound_shell_report(
     source: &SourceBoundStepShell,
@@ -57,8 +49,11 @@ pub fn triangulate_source_bound_shell_report(
     }
     // Raw tuple metadata exists only here, after exact binding and re-certification.
     let metadata = closed_chart_metadata(source, &normalized, mm_per_unit)?;
-    let (mesh, fallback_faces) =
-        robust_cshell_triangulation_with_closed_axis_metadata_report(&normalized, options, &metadata);
+    let (mesh, fallback_faces) = robust_cshell_triangulation_with_closed_axis_metadata_report(
+        &normalized,
+        options,
+        &metadata,
+    );
     if !mesh.vertices.iter().all(finite)
         || !mesh.edges.iter().all(|e| e.curve.iter().all(finite))
         || !mesh.faces.iter().all(|f| {
@@ -135,7 +130,7 @@ mod collapsed_boundary_tests {
         let shell = &source.shells()[0];
         assert_eq!(shell.source_face_ids(), &[9183]);
         assert_eq!(shell.certified_closed_axes(), &[Some([false, false])]);
-        let mesh = triangulate_source_bound_shell(
+        let (mesh, _) = triangulate_source_bound_shell_report(
             shell,
             1.0,
             TessellationOptions {

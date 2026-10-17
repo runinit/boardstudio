@@ -22,7 +22,80 @@ struct CurveOccurrence {
     _declared_uncertainty_mm: Option<f64>,
 }
 
-/// Internal until the line-capable worker/renderer delivery seam is approved.
+/// Source identity and composed placement for one finite line occurrence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepLineOccurrence {
+    pub line_occurrence_index: usize,
+    pub trimmed_curve_id: u64,
+    pub source_line_id: u64,
+    pub curve_set_id: u64,
+    pub representation_id: u64,
+    pub source_unit_to_mm: f64,
+    /// Column-major occurrence placement, applied after source-unit conversion.
+    pub placement_f64: [f64; 16],
+    pub declared_uncertainty_mm: Option<f64>,
+}
+
+/// Borrowed source-line presentation; endpoints are already placed in world millimetres.
+pub struct StepLinePresentation<'a> {
+    wireframe: &'a Wireframe,
+}
+
+impl StepLinePresentation<'_> {
+    pub fn occurrences(&self) -> impl ExactSizeIterator<Item = StepLineOccurrence> + '_ {
+        self.wireframe
+            .occurrences
+            .iter()
+            .enumerate()
+            .map(|(index, occurrence)| {
+                let placement = occurrence._placement;
+                StepLineOccurrence {
+                    line_occurrence_index: index,
+                    trimmed_curve_id: occurrence._curve_id,
+                    source_line_id: self.wireframe._definitions[&occurrence._curve_id]._basis_id,
+                    curve_set_id: occurrence._set_id,
+                    representation_id: occurrence._representation_id,
+                    source_unit_to_mm: occurrence._mm_per_unit,
+                    placement_f64: [
+                        placement.x.x,
+                        placement.x.y,
+                        placement.x.z,
+                        placement.x.w,
+                        placement.y.x,
+                        placement.y.y,
+                        placement.y.z,
+                        placement.y.w,
+                        placement.z.x,
+                        placement.z.y,
+                        placement.z.z,
+                        placement.z.w,
+                        placement.w.x,
+                        placement.w.y,
+                        placement.w.z,
+                        placement.w.w,
+                    ],
+                    declared_uncertainty_mm: occurrence._declared_uncertainty_mm,
+                }
+            })
+    }
+
+    pub fn segments_mm(&self) -> impl ExactSizeIterator<Item = [[f64; 3]; 2]> + '_ {
+        self.wireframe
+            .segments
+            .iter()
+            .map(|segment| segment.map(|point| [point.x, point.y, point.z]))
+    }
+
+    pub fn render_positions(&self) -> &[[f32; 3]] {
+        &self.wireframe.render_positions
+    }
+
+    pub fn segment_occurrences(&self) -> &[usize] {
+        &self.wireframe._segment_occurrences
+    }
+}
+
+/// Retained source data; delivery borrows a view without exposing its storage.
 #[derive(Default)]
 pub(super) struct Wireframe {
     _definitions: HashMap<u64, SourceLine>,
@@ -34,6 +107,10 @@ pub(super) struct Wireframe {
 }
 
 impl Wireframe {
+    pub(super) fn presentation(&self) -> StepLinePresentation<'_> {
+        StepLinePresentation { wireframe: self }
+    }
+
     pub(super) fn build(
         exchange: &Exchange,
         table: &Table,

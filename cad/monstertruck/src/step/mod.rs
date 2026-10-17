@@ -5,6 +5,7 @@ mod tessellation;
 mod units;
 mod wireframe;
 pub use units::precision::{StepPrecision, StepUncertainty};
+pub use wireframe::{StepLineOccurrence, StepLinePresentation};
 
 use crate::MeshBuffers;
 use monstertruck_io::step::load::step_p21::{
@@ -129,6 +130,11 @@ impl ImportedStep {
     }
     pub fn accuracy(&self) -> &StepAccuracy {
         &self.accuracy
+    }
+
+    /// Retained finite source lines, separate from the surface-only preview mesh.
+    pub fn line_presentation(&self) -> StepLinePresentation<'_> {
+        self.wireframe.presentation()
     }
 }
 
@@ -295,16 +301,17 @@ fn import(bytes: Vec<u8>) -> Result<ImportedStep, String> {
                 .magnitude()
                 .max(placement.y.truncate().magnitude())
                 .max(placement.z.truncate().magnitude());
-            let (triangulation, fallback_faces) = tessellation::triangulate_source_bound_shell_report(
-                source,
-                solid.mm_per_unit,
-                monstertruck_meshing::tessellation::TessellationOptions {
-                    tolerance: TOLERANCE_MM / placement_scale,
-                    edge_angular_tolerance: Some(0.5),
-                    preview_fallback: true,
-                    ..Default::default()
-                },
-            )?;
+            let (triangulation, fallback_faces) =
+                tessellation::triangulate_source_bound_shell_report(
+                    source,
+                    solid.mm_per_unit,
+                    monstertruck_meshing::tessellation::TessellationOptions {
+                        tolerance: TOLERANCE_MM / placement_scale,
+                        edge_angular_tolerance: Some(0.5),
+                        preview_fallback: true,
+                        ..Default::default()
+                    },
+                )?;
             fallback_meshed_faces += fallback_faces.len();
             let mut triangles = Vec::new();
             if triangulation.faces.is_empty() {

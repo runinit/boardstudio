@@ -182,8 +182,8 @@ fn curved_source_honors_independent_deflection_and_angular_limits() {
         );
         let model = import_step(source.into_bytes()).unwrap();
         let mut side_boundary_chords = 0;
-        for triangle in model.mesh().positions.chunks_exact(9) {
-            let points: Vec<_> = triangle.chunks_exact(3).collect();
+        for triangle in model.mesh().positions.as_chunks::<9>().0 {
+            let points = triangle.as_chunks::<3>().0;
             if points.iter().all(|p| (p[2] - points[0][2]).abs() < 1e-8) {
                 continue;
             }
@@ -269,7 +269,9 @@ fn moderate_fractional_translation_preserves_positive_volume_and_a_representable
         model
             .mesh()
             .positions
-            .chunks_exact(9)
+            .as_chunks::<9>()
+            .0
+            .iter()
             .all(|tri| tri[0..3] != tri[3..6] && tri[0..3] != tri[6..9] && tri[3..6] != tri[6..9])
     );
 }
@@ -402,8 +404,8 @@ fn mapped_uniform_scale_keeps_the_absolute_world_mesh_deflection() {
     let model = import_step(source.into_bytes()).unwrap();
     assert_bounds(model.bounds(), [[-20., -20., 0.], [20., 20., 20.]]);
     let mut checked = 0;
-    for triangle in model.mesh().positions.chunks_exact(9) {
-        let points: Vec<_> = triangle.chunks_exact(3).collect();
+    for triangle in model.mesh().positions.as_chunks::<9>().0 {
+        let points = triangle.as_chunks::<3>().0;
         if points.iter().all(|p| (p[2] - points[0][2]).abs() < 1e-6) {
             continue;
         }
@@ -808,6 +810,33 @@ fn finite_line_occurrences_keep_the_native_trim_frame_through_units_and_mapping(
     assert_eq!(model.solid_count(), 1);
     assert_eq!(model.occurrence_count(), 1);
     assert_eq!(model.triangle_faces().len(), 4);
+    let lines = model.line_presentation();
+    let segments: Vec<_> = lines.segments_mm().collect();
+    assert_eq!(segments.len(), 4);
+    assert_eq!(lines.segment_occurrences(), &[0, 1, 2, 3]);
+    let mut identities = Vec::new();
+    for occurrence in lines.occurrences() {
+        let translation = occurrence.placement_f64[12];
+        let expected = match (occurrence.trimmed_curve_id, translation) {
+            (414, 0.) => [[5.5, 0., 0.], [6., 0., 0.]],
+            (419, 0.) => [[0., 10., 0.], [0., 9.25, 0.]],
+            (414, -100.) => [[-111., -100., 0.], [-112., -100., 0.]],
+            (419, -100.) => [[-100., -120., 0.], [-100., -118.5, 0.]],
+            other => panic!("unexpected mapped curve {other:?}"),
+        };
+        assert_eq!(segments[occurrence.line_occurrence_index], expected);
+        if translation == -100. {
+            assert_eq!(
+                occurrence.placement_f64,
+                [
+                    -2., 0., 0., 0., 0., -2., 0., 0., 0., 0., 2., 0., -100., -100., 0., 1.
+                ]
+            );
+        }
+        identities.push((occurrence.trimmed_curve_id, translation as i32));
+    }
+    identities.sort_unstable();
+    assert_eq!(identities, [(414, -100), (414, 0), (419, -100), (419, 0)]);
     let metres = source.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
     let model = import_step(metres.into_bytes()).unwrap();
     assert_bounds(model.bounds(), [[0., 0., 0.], [6000., 10000., 4000.]]);
@@ -869,6 +898,73 @@ fn finite_source_lines_apply_units_before_render_coordinate_limits() {
     let model = import_step(source.into_bytes())
         .expect("render limits apply to normalized world mm, not source units");
     assert_bounds(model.bounds(), [[0., 0., 0.], [6., 10., 4.]]);
+}
+
+#[test]
+fn public_source_line_view_keeps_native_identity_units_and_world_endpoints() {
+    let source = include_str!("fixtures/tetra-and-finite-wires.step");
+    for (text, unit, first, second) in [
+        (
+            source.to_owned(),
+            1.,
+            [[5.5, 0., 0.], [6., 0., 0.]],
+            [[0., 10., 0.], [0., 9.25, 0.]],
+        ),
+        (
+            source.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)"),
+            1000.,
+            [[5500., 0., 0.], [6000., 0., 0.]],
+            [[0., 10000., 0.], [0., 9250., 0.]],
+        ),
+    ] {
+        let model = import_step(text.as_bytes().to_vec()).unwrap();
+        let lines = model.line_presentation();
+        let segments: Vec<_> = lines.segments_mm().collect();
+        let occurrences: Vec<_> = lines.occurrences().collect();
+        assert_eq!(segments.len(), 2);
+        assert_eq!(occurrences.len(), 2);
+        assert_eq!(lines.render_positions().len(), 4);
+        assert_eq!(lines.segment_occurrences(), &[0, 1]);
+        for (index, occurrence) in occurrences.iter().enumerate() {
+            assert_eq!(occurrence.line_occurrence_index, index);
+            assert_eq!(occurrence.curve_set_id, 420);
+            assert_eq!(occurrence.representation_id, 430);
+            assert_eq!(occurrence.source_unit_to_mm, unit);
+            assert_eq!(occurrence.declared_uncertainty_mm, None);
+            assert_eq!(
+                occurrence.placement_f64,
+                [
+                    1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.
+                ]
+            );
+            match occurrence.trimmed_curve_id {
+                414 => {
+                    assert_eq!(occurrence.source_line_id, 413);
+                    assert_eq!(segments[index], first);
+                }
+                419 => {
+                    assert_eq!(occurrence.source_line_id, 418);
+                    assert_eq!(segments[index], second);
+                }
+                other => panic!("unexpected source curve {other}"),
+            }
+            assert_eq!(
+                &lines.render_positions()[index * 2..index * 2 + 2],
+                &segments[index].map(|point| point.map(|coordinate| coordinate as f32))
+            );
+        }
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.triangle_faces().len(), 4);
+        assert!(mesh_imported_step(&model).is_err());
+    }
+
+    let surface_only = import_step(TETRA.to_vec()).unwrap();
+    let lines = surface_only.line_presentation();
+    assert_eq!(lines.segments_mm().len(), 0);
+    assert_eq!(lines.occurrences().len(), 0);
+    assert!(lines.render_positions().is_empty());
+    assert!(lines.segment_occurrences().is_empty());
+    assert!(mesh_imported_step(&surface_only).is_ok());
 }
 
 #[test]
@@ -1010,7 +1106,10 @@ fn boundary_off_its_cylinder_beyond_the_allowance_refuses_with_the_measured_resi
     let error = import_step(off.into_bytes())
         .err()
         .expect("sampling must not accept a boundary off its support");
-    assert!(error.contains("support incidence"), "wrong refusal: {error}");
+    assert!(
+        error.contains("support incidence"),
+        "wrong refusal: {error}"
+    );
     assert!(error.contains("sampled support residual 0.001"), "{error}");
 }
 
@@ -1028,11 +1127,20 @@ fn exactly_certified_geometry_records_no_sampled_checks() {
 fn corpus_faces_without_a_uv_chart_are_meshed_from_shared_samples() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     for (path, minimum) in [
-        ("ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step", 3),
-        ("ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step", 15),
+        (
+            "ergogen/library/vendor/vik/3d_models/Ariamelon-Kiwano/3DP/Trackball Mount Low Profile.step",
+            3,
+        ),
+        (
+            "ergogen/library/vendor/vik/3d_models/george-norton-peacock/case/peacock-low-case-v5.step",
+            15,
+        ),
     ] {
         let bytes = std::fs::read(root.join(path)).expect("corpus file present");
         let imported = import_step(bytes).unwrap_or_else(|e| panic!("{path}: {e}"));
-        assert!(imported.accuracy().fallback_meshed_faces >= minimum, "{path}");
+        assert!(
+            imported.accuracy().fallback_meshed_faces >= minimum,
+            "{path}"
+        );
     }
 }
