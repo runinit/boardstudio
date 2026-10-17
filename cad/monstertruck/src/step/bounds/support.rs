@@ -44,11 +44,7 @@ struct Prepared {
 }
 
 /// None for supports that are not native cylinders or cones.
-fn prepare(
-    surface: &Surface,
-    factor: f64,
-    placement: Matrix4,
-) -> Result<Option<Prepared>, String> {
+fn prepare(surface: &Surface, factor: f64, placement: Matrix4) -> Result<Option<Prepared>, String> {
     let Surface::ElementarySurface(surface) = surface else {
         return Ok(None);
     };

@@ -110,8 +110,11 @@ pub(super) fn validate_support(
             }
             report.sampled_checks += 1;
             report.relaxed_beyond_declared_precision |= sampled > declared;
-            report.max_sampled_residual_mm =
-                Some(report.max_sampled_residual_mm.map_or(sampled, |m| m.max(sampled)));
+            report.max_sampled_residual_mm = Some(
+                report
+                    .max_sampled_residual_mm
+                    .map_or(sampled, |m| m.max(sampled)),
+            );
         }
     }
     report.relaxed_beyond_declared_precision |= attachments
@@ -146,7 +149,10 @@ fn sampled_max(curve: &Curve3D, residual: impl Fn(Point3) -> f64) -> Result<f64,
     }
     let per_span = (64 / (breaks.len() - 1).max(1)).max(16);
     let mut worst = 0f64;
-    for pair in breaks.windows(2).chain((breaks.len() == 1).then_some(&breaks[..])) {
+    for pair in breaks
+        .windows(2)
+        .chain((breaks.len() == 1).then_some(&breaks[..]))
+    {
         for i in 0..=per_span {
             let t = pair[0] + (pair[pair.len() - 1] - pair[0]) * i as f64 / per_span as f64;
             let point = curve.evaluate(t);
@@ -197,9 +203,8 @@ fn support_allowance(
         }
         let end = usize::from(source.is_back_endpoint());
         let (bound, declared) = (attachment.bound_mm(), attachment.declared_bound_mm());
-        ends[end] = Some(ends[end].map_or((bound, declared), |(b, d)| {
-            (b.min(bound), d.min(declared))
-        }));
+        ends[end] =
+            Some(ends[end].map_or((bound, declared), |(b, d)| (b.min(bound), d.min(declared))));
     }
     match ends {
         [None, None] => Ok((TOLERANCE, TOLERANCE)),

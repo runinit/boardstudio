@@ -2,11 +2,16 @@
 use std::time::Instant;
 
 fn main() {
-    let path = std::env::args().nth(1).expect("usage: step_replay <file.step>");
+    let path = std::env::args()
+        .nth(1)
+        .expect("usage: step_replay <file.step>");
     let bytes = match std::fs::read(&path) {
         Ok(b) => b,
         Err(e) => {
-            println!("{}", serde_json::json!({"ok": false, "error": format!("read: {e}"), "ms": 0.0}));
+            println!(
+                "{}",
+                serde_json::json!({"ok": false, "error": format!("read: {e}"), "ms": 0.0})
+            );
             return;
         }
     };

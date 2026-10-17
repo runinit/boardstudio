@@ -44,6 +44,12 @@ cgmath = { path = "renderer/vendor/cgmath-next-0.18.1" }
 # boxing them would change every construction and match site for no measured gain.
 large_enum_variant = "allow"
 
+# Keep DWARF off by default for dev/test builds so direct `cargo test` and `wasm-pack test`
+# match `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`), avoiding 700+ MB
+# debug WASM binaries, browser memory traps, and full-workspace cache invalidations.
+[profile.dev]
+debug = false
+
 [profile.wasm-dev]
 inherits = "dev"
 debug = "line-tables-only"
