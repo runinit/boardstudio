@@ -5,7 +5,7 @@
 //! free because it evaluates during ordinary renders.
 
 use boardstudio_core::mechanical::{MechanicalTarget, effective_inputs};
-use boardstudio_core::model::{ProjectDoc, SceneDelta, Severity};
+use boardstudio_core::model::{ProjectDoc, SceneDelta};
 
 /// Whether the selected target may generate Case output.
 ///
@@ -57,7 +57,8 @@ pub fn default_case_material(document: &ProjectDoc) -> Option<String> {
 mod tests {
     use super::*;
     use boardstudio_core::model::{
-        Board, BoardContours, BoardReadiness, CaseBody, CaseKind, Contour, Finding, Readiness, Vec2,
+        Board, BoardContours, BoardReadiness, CaseBody, CaseKind, Contour, Finding, Readiness,
+        Severity, Vec2,
     };
 
     #[test]
@@ -131,6 +132,7 @@ mod tests {
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         });
 

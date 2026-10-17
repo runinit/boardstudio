@@ -281,7 +281,7 @@ fn is_dimension_field(field_id: &str) -> bool {
     .any(|field| field.field_id() == field_id)
 }
 
-pub trait MechanicalDimensionExt {
+trait MechanicalDimensionExt {
     fn field_id(self) -> &'static str;
     fn rule(self) -> NumberRule;
     fn step(self) -> &'static str;
@@ -1296,12 +1296,6 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
         }
     };
     let construction_from_other_value = construction_from_other();
-    let construction_source = if construction_from_other_value {
-        option.other_instance_id.clone()
-    } else {
-        option.instance_id.clone()
-    };
-
     // The complete proposed result is projected for the choices actually reviewed, from
     // Core through the mount's port. The cache key is the accepted snapshot plus every
     // reviewed choice, so a change reprojects and an unrelated render does not.
