@@ -57,6 +57,8 @@ struct WireRequest {
     operation: CadOperation,
     prepared: Option<boardstudio_core::model::PreparedCaseAssemblyIR>,
     #[serde(default)]
+    source_sha256: Option<String>,
+    #[serde(default)]
     keycaps: Option<KeycapsInput>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
@@ -404,6 +406,9 @@ pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
             },
             operation: CadOperation::ReadStep,
             prepared: None,
+            source_sha256: Some(
+                "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into(),
+            ),
             input_bytes: vec![1],
         })
         .await
@@ -436,6 +441,16 @@ fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
         {
             Err(CadWorkerError(
                 "STEP import requires a non-empty file no larger than 32 MiB".into(),
+            ))
+        }
+        CadOperation::ReadStep
+            if !request
+                .source_sha256
+                .as_deref()
+                .is_some_and(crate::cad_jobs::valid_source_sha256) =>
+        {
+            Err(CadWorkerError(
+                "STEP import requires a canonical source SHA-256".into(),
             ))
         }
         CadOperation::ReadStep => Ok(()),
@@ -1170,11 +1185,7 @@ async fn run_request(
                         "regions": &body.regions,
                     }))
                     .map_err(|error| (request.clone(), error.to_string(), false))?;
-                    let digest = Sha256::digest(cache_input);
-                    let digest = digest
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>();
+                    let digest = sha256_hex(&cache_input);
                     let key = format!(
                         "m1/{}/{}/{}/{}/{digest}",
                         request.identity.session_epoch,
@@ -1249,9 +1260,24 @@ async fn run_request(
                     false,
                 ));
             }
+            let expected = request.source_sha256.as_deref().unwrap_or_default();
+            if !crate::cad_jobs::valid_source_sha256(expected) || sha256_hex(&bytes) != expected {
+                return Err((
+                    request,
+                    "STEP source failed SHA-256 verification".into(),
+                    false,
+                ));
+            }
+            let options = Object::new();
+            Reflect::set(
+                &options,
+                &"sourceSha256".into(),
+                &JsValue::from_str(expected),
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
             invoke(
                 "read_step_model",
-                &[Uint8Array::from(bytes.as_slice()).into()],
+                &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
             )
             .map_err(|error| (request.clone(), error, false))?
         }
@@ -1390,6 +1416,13 @@ fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue
     };
     transfers.push(&buffer);
     Ok(())
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn worker_message(kind: &str, message: &str, _unused: Option<JsValue>) -> JsValue {

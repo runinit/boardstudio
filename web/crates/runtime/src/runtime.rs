@@ -2441,6 +2441,7 @@ impl Runtime {
             identity: prepared.identity.clone(),
             operation: CadOperation::Preview,
             prepared: Some(prepared.prepared.clone()),
+            source_sha256: None,
             input_bytes: vec![],
         };
         let reply = worker
@@ -3220,7 +3221,7 @@ impl Runtime {
 
     async fn read_step_model(
         &self,
-        bytes: Vec<u8>,
+        bytes: crate::model_delivery::VerifiedModelBytes,
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
@@ -3258,7 +3259,8 @@ impl Runtime {
             identity: identity.clone(),
             operation: CadOperation::ReadStep,
             prepared: None,
-            input_bytes: bytes,
+            source_sha256: Some(bytes.sha256().to_owned()),
+            input_bytes: bytes.bytes().to_vec(),
         };
         self.native_model_jobs
             .borrow_mut()
@@ -3434,7 +3436,7 @@ impl Runtime {
                         .upgrade()
                         .ok_or_else(|| "Model runtime was closed".to_owned())?;
                     runtime
-                        .read_step_model(bytes.bytes().to_vec(), scope, token, revision, is_current)
+                        .read_step_model(bytes, scope, token, revision, is_current)
                         .await
                 })
             },
@@ -5388,6 +5390,7 @@ impl Runtime {
                 identity: prepared.identity.clone(),
                 operation,
                 prepared: Some(prepared.prepared.clone()),
+                source_sha256: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -5518,6 +5521,7 @@ impl Runtime {
                 identity: identity.clone(),
                 operation: CadOperation::ExportStep,
                 prepared: Some(prepared),
+                source_sha256: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -6845,6 +6849,7 @@ async fn request_exact_cad(
         identity: identity.clone(),
         operation: CadOperation::Exact,
         prepared: Some(prepared),
+        source_sha256: None,
         input_bytes: Vec::new(),
     };
     let reply = worker

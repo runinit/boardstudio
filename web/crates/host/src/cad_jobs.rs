@@ -38,6 +38,8 @@ pub struct CadRequest {
     pub operation: CadOperation,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepared: Option<PreparedCaseAssemblyIR>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sha256: Option<String>,
     #[serde(skip)]
     pub input_bytes: Vec<u8>,
 }
@@ -207,6 +209,13 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             }
         }
         CadOperation::ReadStep => {
+            if !request
+                .source_sha256
+                .as_deref()
+                .is_some_and(valid_source_sha256)
+            {
+                return Err(bad("STEP import requires a canonical source SHA-256"));
+            }
             if !result.mesh.as_ref().is_some_and(valid_mesh)
                 || !result.bounds.as_ref().is_some_and(valid_bounds)
             {
@@ -215,6 +224,13 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
         }
     }
     Ok(())
+}
+
+pub(super) fn valid_source_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -913,6 +929,7 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::ExportStep,
             prepared: None,
+            source_sha256: None,
             input_bytes: vec![],
         };
         let mut reply = CadReply {
@@ -944,6 +961,57 @@ mod tests {
     }
 
     #[test]
+    fn read_step_reply_requires_canonical_source_identity() {
+        let mut request_json = serde_json::json!({
+            "requestId": "step-source", "jobId": "step-source",
+            "identity": {"token": 1, "sessionEpoch": 1, "documentId": "doc",
+                "boardId": "board", "instanceId": null, "revision": 7},
+            "operation": "read-step", "prepared": null,
+            "sourceSha256": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
+        });
+        let request: CadRequest = serde_json::from_value(request_json.clone()).unwrap();
+        let reply = CadReply {
+            request_id: request.request_id.clone(),
+            job_id: request.job_id.clone(),
+            identity: request.identity.clone(),
+            operation: CadOperation::ReadStep,
+            outcome: CadReplyOutcome::Completed,
+            result: Some(CadResult {
+                revision: 7,
+                mesh: Some(CadMesh {
+                    positions: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+                    normals: vec![0., 0., 1., 0., 0., 1., 0., 0., 1.],
+                }),
+                bounds: Some(CadBounds {
+                    min: [0., 0., 0.],
+                    max: [1., 1., 0.],
+                }),
+                ..CadResult::default()
+            }),
+            error: None,
+        };
+        assert!(validate_reply(&request, reply.clone(), &request.identity).is_ok());
+        for invalid in [
+            serde_json::Value::Null,
+            serde_json::json!(""),
+            serde_json::json!("00"),
+            serde_json::json!("4BF5122F344554C53BDE2EBB8CD2B7E3D1600AD631C385A5D7CCE23C7785459A"),
+            serde_json::json!("gbf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),
+        ] {
+            request_json["sourceSha256"] = invalid;
+            let request: CadRequest = serde_json::from_value(request_json.clone()).unwrap();
+            assert!(
+                matches!(
+                    validate_reply(&request, reply.clone(), &request.identity),
+                    Err(CadJobError::Failed(_))
+                ),
+                "source identity must be canonical: {}",
+                request_json["sourceSha256"]
+            );
+        }
+    }
+
+    #[test]
     fn read_step_reply_requires_the_captured_result_revision() {
         let identity = CadSnapshotIdentity {
             token: 3,
@@ -959,6 +1027,9 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::ReadStep,
             prepared: None,
+            source_sha256: Some(
+                "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into(),
+            ),
             input_bytes: vec![],
         };
         let mut reply = CadReply {
@@ -1007,6 +1078,7 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::Exact,
             prepared: None,
+            source_sha256: None,
             input_bytes: vec![],
         };
         // The public provider's case-result payload contains revision, STEP,
@@ -1049,6 +1121,8 @@ mod tests {
 
         let mut read_request = request;
         read_request.operation = CadOperation::ReadStep;
+        read_request.source_sha256 =
+            Some("4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into());
         let mut read_reply = reply;
         read_reply.operation = CadOperation::ReadStep;
         assert!(matches!(
