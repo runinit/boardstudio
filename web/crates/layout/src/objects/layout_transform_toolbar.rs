@@ -2142,7 +2142,7 @@ pub fn LayoutTransformToolbar(
                     circle { cx: "10", cy: "10", r: "1.2", fill: "currentColor" }
                     circle { cx: "16", cy: "10", r: "1.2", fill: "currentColor" }
                 }
-                span { class: "m1-visually-hidden", "Transform" }
+                span { class: "layout-action-label", "Transform" }
             },
             super::layout_toolbar::LayoutCommandMenuHeader {
                 label: "Transform".to_owned(),

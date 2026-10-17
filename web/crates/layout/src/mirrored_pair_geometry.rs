@@ -228,6 +228,19 @@ mod tests {
     }
 
     #[test]
+    fn projection_keeps_the_requested_forty_millimeter_key_gap() {
+        let mut request = request();
+        request.gap_mm = 40.0;
+        let center = Vec2 { x: 100.0, y: 50.0 };
+        let pair = project_mirrored_pair(matrix(), &ids(), &request, center).unwrap();
+        let edge_gap = pair.matrix.edge_gap.unwrap_or(Vec2 { x: 1.0, y: 1.0 });
+        let key_width = pair.matrix.pitch.x - edge_gap.x;
+        let actual_gap = 2.0 * (center.x - pair.matrix.origin.x) - key_width;
+
+        assert!((actual_gap - 40.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn projection_rejects_invalid_names_gap_point_and_colliding_ids() {
         let mut invalid_request = request();
         invalid_request.right_name = " Left half ".into();

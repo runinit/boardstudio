@@ -119,8 +119,33 @@ pub fn BoardCheckbox(
     }
 }
 
+/// Inline sidebar section using the same keyboard-accessible accordion primitive as setup.
+#[component]
+pub fn BoardAccordionSection(
+    class: String,
+    label: String,
+    id: String,
+    #[props(default)] initially_open: bool,
+    heading: Element,
+    children: Element,
+) -> Element {
+    use dioxus_primitives::accordion::{
+        Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+    };
+    rsx! {
+        Accordion { class: "board-accordion {class}",
+            AccordionItem { index: 0usize, default_open: initially_open,
+                AccordionTrigger { id, class: "board-accordion-trigger", aria_label: label,
+                    {heading}
+                    svg { class: "board-accordion-chevron", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 8 5 5 5-5" } }
+                }
+                AccordionContent { class: "board-accordion-content", {children} }
+            }
+        }
+    }
+}
+
 /// A shared disclosure with native keyboard handling and persistent child drafts.
-/// The caller supplies its summary so controlled headings retain their handlers.
 #[component]
 pub fn BoardDisclosure(
     #[props(default)] open: bool,
@@ -309,6 +334,8 @@ pub fn BoardPopover(
     #[props(default)] root_class: String,
     #[props(default)] menu_kind: Option<String>,
     #[props(default)] trigger_class: String,
+    #[props(default)] toolbar_index: Option<usize>,
+    #[props(default)] pressed: Option<bool>,
     #[props(default)] content_class: String,
     #[props(default)] content_role: String,
     #[props(default)] content_label: Option<String>,
@@ -370,13 +397,34 @@ pub fn BoardPopover(
                 }
                 on_open_change.call(next);
             },
+            if let Some(index) = toolbar_index {
+                ToolbarButton {
+                    index,
+                    id: trigger_id,
+                    class: "board-popover-trigger {trigger_class}",
+                    title: trigger_label.clone(),
+                    aria_label: trigger_label,
+                    aria_pressed: pressed,
+                    aria_expanded: "{open}",
+                    aria_controls: content_id.clone(),
+                    on_click: move |_| {
+                        // Switching toolbar popovers must not restore the previous trigger's focus.
+                        restore_focus_on_close.set(false);
+                        escape_pressed.set(false);
+                        on_open_change.call(!open);
+                    },
+                    {trigger}
+                }
+            } else {
             PopoverTrigger {
                 id: trigger_id,
                 class: "board-popover-trigger {trigger_class}",
+                title: trigger_label.clone(),
                 aria_label: trigger_label,
                 aria_expanded: "{open}",
                 aria_controls: content_id.clone(),
                 {trigger}
+            }
             }
             PopoverContent {
                 id: content_id,

@@ -4,6 +4,15 @@ BoardStudio is an offline-capable keyboard design workbench built with Dioxus an
 Rust. It combines layouts, PCB preparation, keymaps, keycaps, mechanical assemblies
 and portable exports. KiCad and CAD tools handle downstream routing and fabrication.
 
+## Workbench updates
+
+Visibility controls have distinct scopes: Canvas visibility (Layout), PCB layers,
+Keymap layers, Assembly visibility (Case), and Parts preview layers. Canvas, PCB,
+assembly, and parts visibility controls sit at the bottom of Objects; Keymap layers
+remain in the Keymap Objects list. Visibility changes affect the view without adding
+document edits or undo entries. Hold Ctrl when a Stagger drag starts to offset the
+whole column.
+
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
@@ -27,9 +36,14 @@ After changing a worker, bundled example or CAD provider, run
 ## Build and preview
 
 ```sh
-python3 scripts/build-web.py
+# Checked, unoptimized build for local feature testing
+python3 scripts/build-web.py --fast
 python3 scripts/serve-web.py web/target/site 4173
 ```
+
+`--fast` skips `wasm-opt` for runtime providers and builds the Dioxus page without
+release optimization. Use `python3 scripts/build-web.py` for the optimized release
+build.
 
 The build creates `web/target/site/site-subpath/boardstudio`, the `/boardstudio/` route
 GitHub Pages publishes. Add `--routes subpath,root` to also package the root route in
@@ -60,6 +74,8 @@ Two commands, by purpose:
 
 ```sh
 python3 scripts/check.py quick   # the routine loop: only what your changes touch
+python3 scripts/check.py build   # checked web build without wasm-opt
+python3 scripts/check.py browser # mounted browser tests and browser smoke checks
 python3 scripts/check.py         # the full pre-PR check
 ```
 

@@ -403,12 +403,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
         div { class: "m1-layout-toolbar-region",
             div { class: "m1-canvas-toolbar",
-                if input.assembly_3d {
-                    div { class: "m1-canvas-context",
-                        strong { "Layout" }
-                        span { "PCB assembly" }
-                    }
-                } else {
+                if !input.assembly_3d {
                     objects::LayoutCommandPill {
                         command_label: input.command_label,
                         menu_owner_key: input.menu_owner_key,
@@ -436,25 +431,31 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             if input.recovery_required {
                 button { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
             }
-            div { class: "m1-layout-view-group", role: "group", aria_label: "Design view",
+            div { class: "m1-layout-view-group board-tool-pill", role: "group", aria_label: "Design view",
                 button {
                     r#type: "button",
+                    aria_label: "2D", title: "2D layout",
                     aria_pressed: "{!input.assembly_3d}",
                     onclick: move |_| input.on_view_mode.call(false),
-                    "2D"
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } path { d: "M3 8h14M8 3v14" } }
+                    span { class: "m1-visually-hidden", "2D" }
                 }
                 button {
                     r#type: "button",
+                    aria_label: "3D assembly", title: "3D assembly",
                     aria_pressed: "{input.assembly_3d}",
                     onclick: move |_| input.on_view_mode.call(true),
-                    "3D assembly"
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" } }
+                    span { class: "m1-visually-hidden", "3D assembly" }
                 }
                 if !input.assembly_3d {
                     button {
                         r#type: "button",
+                        aria_label: "Footprints", title: "Footprints",
                         aria_pressed: "{input.footprints_pressed}",
                         onclick: move |_| input.on_toggle_footprints.call(()),
-                        "Footprints"
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "5", y: "4", width: "10", height: "12", rx: "1" } path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" } }
+                        span { class: "m1-visually-hidden", "Footprints" }
                     }
                 }
             }

@@ -3366,6 +3366,76 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
     }
 }
 
+/// Compact case choices for the guided setup flow; the full editor stays in Case settings.
+#[component]
+pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
+    let Some(values) = settings
+        .values
+        .as_ref()
+        .or(settings.preview_values.as_ref())
+    else {
+        return rsx! { p { role: "status", "Case settings are loading." } };
+    };
+    rsx! {
+        section { class: "m1-case-setup-basics", aria_label: "Basic case setup",
+            label { class: "m1-case-setup-choice",
+                span { "Mounting style" }
+                select {
+                    aria_label: "Case mounting style",
+                    value: "{mount_id(&values.mount)}",
+                    disabled: !settings.editable,
+                    onchange: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |event: FormEvent| if let Some(mount) = parse_mount(&event.value()) {
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
+                        }
+                    },
+                    option { value: "tray", "Tray mount" }
+                    option { value: "rigid", "Rigid mount" }
+                    option { value: "gasket", "Gasket mount" }
+                }
+            }
+            label { class: "m1-case-setup-choice",
+                BoardCheckbox {
+                    checked: values.battery.is_some(),
+                    disabled: !settings.editable || values.transport != HardwareTransport::Wireless,
+                    aria_label: "Include wireless battery",
+                    onchange: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBatteryEnabled(event.checked()))
+                    },
+                }
+                span { "Include a battery" }
+                small { if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }
+            }
+            label { class: "m1-case-setup-choice",
+                span { "Case process" }
+                select {
+                    aria_label: "Case fabrication process",
+                    value: "{method_id(&values.method)}",
+                    disabled: !settings.editable,
+                    onchange: {
+                        let identity = settings.identity.clone();
+                        let mut sequence = settings.request_sequence;
+                        let on_request = settings.on_request;
+                        move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
+                            send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
+                        }
+                    },
+                    option { value: "printed", "3D printed" }
+                    option { value: "cnc", "CNC machined" }
+                    option { value: "cut-sheet", "Cut sheet" }
+                    option { value: "pcb-fr4", "PCB FR-4" }
+                }
+            }
+        }
+    }
+}
+
 fn process_material_options(part_id: &str, method: &PlateMethod) -> &'static [&'static str] {
     if part_id.ends_with("foam") {
         &["EVA"]

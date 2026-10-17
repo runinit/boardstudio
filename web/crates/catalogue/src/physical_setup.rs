@@ -269,8 +269,54 @@ fn propose_topology(
         HardwareTopology::Unibody
     };
     if old_hardware.is_some() && current_topology == target_topology {
+        if split
+            && let Some(hardware) = old_hardware
+            && !hardware.instances.iter().any(|instance| {
+                hardware
+                    .pairs
+                    .iter()
+                    .any(|pair| pair.members.iter().any(|member| member == &instance.id))
+                    && instance.board_id == board_id
+            })
+            && let Some(primary) = hardware
+                .instances
+                .iter()
+                .find(|instance| instance.board_id == board_id && instance.half == "left")
+            && let Some(secondary) = hardware
+                .instances
+                .iter()
+                .find(|instance| instance.board_id == board_id && instance.half == "right")
+        {
+            let primary_id = primary.id.clone();
+            let secondary_id = secondary.id.clone();
+            let mut proposed = accepted.clone();
+            if let Some(proposed_hardware) = proposed.hardware.as_mut()
+                && let Some(proposed_secondary) = proposed_hardware
+                    .instances
+                    .iter_mut()
+                    .find(|instance| instance.id == secondary_id)
+            {
+                proposed_secondary.flipped = !primary.flipped;
+            }
+            proposed
+                .parameters
+                .insert("reversibleLayout".into(), Value::Bool(true));
+            let mirror_pair = mirror_pair_link(
+                &proposed,
+                &format!("pair/{secondary_id}"),
+                &primary_id,
+                &secondary_id,
+                None,
+                None,
+                None,
+            )?;
+            return Ok((proposed, mirror_pair));
+        }
         return Ok((accepted.clone(), None));
     }
+    // Choosing split creates a mirrored pair by default even when the existing
+    // one-board setup persisted reversibleLayout=false.
+    let reversible = split;
 
     let old_instances = old_hardware
         .map(|hardware| hardware.instances.as_slice())
@@ -343,7 +389,7 @@ fn propose_topology(
             return Err("Physical instance IDs must be distinct".into());
         }
         ensure_fresh_id(new_secondary_id, old_instances)?;
-        let flipped = effective_reversible(accepted);
+        let flipped = reversible;
         // Opposite declared transforms on the target board make the two halves an
         // eligible mirror pair; an already-paired or off-board primary is not. An
         // eligible flipped second half keeps the authored feature clone so the
@@ -377,6 +423,11 @@ fn propose_topology(
 
     let mut proposed = accepted.clone();
     proposed.hardware = Some(hardware);
+    if split {
+        proposed
+            .parameters
+            .insert("reversibleLayout".into(), Value::Bool(true));
+    }
     // The pair travels as typed change data for the Case adapter; the proposed
     // document never carries it, so it cannot be applied twice. A reused-PCB split
     // pairs the two halves only while both remain on the setup's board, and the map
@@ -453,19 +504,6 @@ fn propose_reversible(
         }
     }
     Ok(proposed)
-}
-
-fn effective_reversible(document: &ProjectDoc) -> bool {
-    document
-        .parameters
-        .get("reversibleLayout")
-        .and_then(Value::as_bool)
-        .unwrap_or_else(|| {
-            document
-                .hardware
-                .as_ref()
-                .is_some_and(|hardware| hardware.instances.iter().any(|instance| instance.flipped))
-        })
 }
 
 fn ensure_fresh_id(id: &str, existing: &[PhysicalBoardInstance]) -> Result<(), String> {

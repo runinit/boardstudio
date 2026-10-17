@@ -127,7 +127,7 @@ pub fn CompactPanelScrim() -> Element {
     let objects_visible = objects_compact() && (state.objects_open)();
     let inspector_visible = inspector_compact() && (state.inspector_open)();
     rsx! {
-        if workspace() != "Export" && (objects_visible || inspector_visible) {
+        if workspace() != "Export" && workspace() != "Layout" && (objects_visible || inspector_visible) {
             button {
                 class: "m1-drawer-scrim",
                 aria_label: "Close panels",
@@ -136,6 +136,40 @@ pub fn CompactPanelScrim() -> Element {
                     set_bool(state.objects_open, false);
                     set_bool(state.inspector_open, false);
                 },
+            }
+        }
+    }
+}
+
+/// Layout keeps its canvas interactive above the compact panel sheet.
+#[component]
+pub fn LayoutPanelSheet() -> Element {
+    let state = use_context::<super::CompactPanelState>();
+    let mut expanded = use_signal(|| false);
+    let open = (state.objects_open)() || (state.inspector_open)();
+    rsx! {
+        nav { class: "m1-layout-sheet-controls", aria_label: "Layout panels",
+            "data-expanded": expanded(),
+            "data-open": open,
+            for (side, label) in [(PanelSide::Objects, "Objects"), (PanelSide::Inspector, "Inspector")] {
+                button {
+                    r#type: "button", aria_controls: PanelIds::for_side(side).shell,
+                    aria_pressed: match side { PanelSide::Objects => (state.objects_open)(), PanelSide::Inspector => (state.inspector_open)() },
+                    onclick: move |_| {
+                        let was_open = match side { PanelSide::Objects => (state.objects_open)(), PanelSide::Inspector => (state.inspector_open)() };
+                        set_bool(state.objects_open, side == PanelSide::Objects && !was_open);
+                        set_bool(state.inspector_open, side == PanelSide::Inspector && !was_open);
+                    },
+                    "{label}"
+                }
+            }
+            if open {
+                button { r#type: "button", class: "m1-sheet-expand", aria_label: if expanded() { "Reduce settings sheet" } else { "Expand settings sheet" },
+                    aria_pressed: expanded(), onclick: move |_| expanded.toggle(),
+                    svg { width: "20", height: "20", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
+                        path { d: if expanded() { "m5 7 5 5 5-5" } else { "m5 12 5-5 5 5" } }
+                    }
+                }
             }
         }
     }
@@ -289,7 +323,7 @@ fn panel_frame(
 ) -> Element {
     let workspace = try_use_context::<super::WorkspaceState>().map_or("", |state| (state.0)());
     let title = match (side, workspace) {
-        (PanelSide::Objects, "Keymap") => "Layers",
+        (PanelSide::Objects, "Keymap") => "Keymap",
         (PanelSide::Objects, "Case") => "Assembly",
         (PanelSide::Objects, "Parts") => "Parts library",
         _ => PanelIds::for_side(side).title,
@@ -816,12 +850,25 @@ pub fn focus_panel_toggle(side: PanelSide) {
 }
 
 fn use_compact_viewport(side: PanelSide) -> Signal<bool> {
-    let compact = use_signal(|| media_query(side).is_some_and(|query| query.matches()));
+    let workspace = try_use_context::<super::WorkspaceState>().map_or("", |state| (state.0)());
+    let query_side = if workspace == "Layout" {
+        PanelSide::Objects
+    } else {
+        side
+    };
+    let compact = use_signal(|| media_query(query_side).is_some_and(|query| query.matches()));
     let listener = use_hook(MediaChangeListener::default);
-    use_effect({
+    use_effect(use_reactive((&query_side,), {
         let listener = listener.clone();
-        move || {
-            if let Some(query) = media_query(side) {
+        move |(query_side,)| {
+            if let Some((query, callback)) = listener.borrow_mut().take() {
+                let _ = query.remove_event_listener_with_callback(
+                    "change",
+                    callback.as_ref().unchecked_ref(),
+                );
+            }
+            if let Some(query) = media_query(query_side) {
+                set_bool(compact, query.matches());
                 let observed_query = query.clone();
                 let callback = Closure::wrap(Box::new(move |_event: web_sys::Event| {
                     set_bool(compact, observed_query.matches());
@@ -831,7 +878,7 @@ fn use_compact_viewport(side: PanelSide) -> Signal<bool> {
                 *listener.borrow_mut() = Some((query, callback));
             }
         }
-    });
+    }));
     use_drop({
         let listener = listener.clone();
         move || {

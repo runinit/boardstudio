@@ -130,6 +130,11 @@ async fn switch_visibility_keeps_keycaps_independent() {
         "Layout layers must start collapsed at the persistent bottom edge"
     );
     assert_eq!(
+        count(&root, "#m1-layers-trigger[aria-label='Canvas visibility']"),
+        1,
+        "Layout visibility controls are distinct from authored and PCB layers"
+    );
+    assert_eq!(
         count(&root, ".m1-workspace-content .m1-layers"),
         0,
         "the viewer must not duplicate the docked visibility controls"

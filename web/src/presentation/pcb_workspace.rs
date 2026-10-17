@@ -46,6 +46,7 @@ pub(super) struct ObjectsInput {
 
 pub(super) fn objects(input: ObjectsInput) -> Element {
     rsx! {
+        div { class: "m1-pcb-objects-content",
         objects::Objects {
             selected_context: input.shared.selected_context,
             on_select: input.shared.on_select,
@@ -64,11 +65,13 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
             matrix_inspector: None,
             add_object_menu_open: None,
         }
+        }
     }
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
+        div { class: "m1-layout-toolbar-region m1-pcb-toolbar-region",
         div { class: "m1-canvas-toolbar",
             objects::LayoutCommandPill {
                 command_label: input.command_label,
@@ -84,6 +87,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                 show_relationships: input.show_relationships,
                 on_show_relationships: input.on_show_relationships,
             }
+        }
         }
     }
 }

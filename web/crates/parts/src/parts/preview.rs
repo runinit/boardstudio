@@ -333,21 +333,30 @@ pub fn PartsPreviewPanel(
     };
 
     let view_controls = rsx! {
-            div { class: "m1-design-view-group", role: "group", aria_label: "Part preview view",
+            div { class: "m1-design-view-group board-tool-pill", role: "group", aria_label: "Part preview view",
                 button {
                     r#type: "button",
+                    aria_label: "2D footprint", title: "2D footprint",
                     aria_pressed: "{!show_3d()}",
                     onclick: move |_| {
                         show_3d.set(false);
                         lease_slot.invalidate();
                     },
-                    "2D footprint"
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                        rect { x: "4", y: "4", width: "12", height: "12", rx: "2" }
+                        path { d: "M1 7h3M1 13h3M16 7h3M16 13h3M7 1v3M13 1v3M7 16v3M13 16v3" }
+                    }
+                    span { class: "m1-visually-hidden", "2D footprint" }
                 }
                 button {
                     r#type: "button",
+                    aria_label: "3D model", title: "3D model",
                     aria_pressed: "{show_3d()}",
                     onclick: move |_| show_3d.set(true),
-                    "3D model"
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                        path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
+                    }
+                    span { class: "m1-visually-hidden", "3D model" }
                 }
             }
     };
@@ -508,6 +517,43 @@ fn PartsSampleViewer(
                 on_signal,
                 on_display_change,
                 mechanical_settings: None,
+            }
+        }
+    }
+}
+
+/// The carousel uses the same compiled source geometry as the full Parts preview.
+#[component]
+pub(super) fn ControllerFootprintThumbnail(definition: Rc<PartDefinition>) -> Element {
+    let source = use_resource(use_reactive((&definition,), |(definition,)| async move {
+        let preview = load_single_preview(&definition, &Side::Front).await;
+        (definition, preview)
+    }));
+    let matching = source
+        .read()
+        .clone()
+        .filter(|(owner, _)| owner == &definition);
+    rsx! {
+        div { class: "m1-controller-footprint",
+            match matching {
+                None => rsx! { span { "Loading footprint…" } },
+                Some((_, Err(_))) => rsx! { span { "Footprint preview unavailable" } },
+                Some((_, Ok(content))) => rsx! {
+                    svg { view_box: "{content.view_box}", preserve_aspect_ratio: "xMidYMid meet",
+                        role: "img", "aria-label": "{definition.name} footprint",
+                        g { transform: "scale(1,-1)",
+                            for member in &content.members {
+                                if let Some(outline) = &member.outline {
+                                    polygon { class: "m1-outline", points: polygon_points(&outline.points) }
+                                }
+                                for pad in &member.definition.pads { {render_pad(pad, "F.Cu", false, true)} }
+                                for graphic in member.drawings.iter().filter(|graphic| !matches!(graphic.shape, Shape::Text(..))) {
+                                    GraphicElement { graphic: graphic.clone(), hidden: false }
+                                }
+                            }
+                        }
+                    }
+                },
             }
         }
     }
@@ -1024,9 +1070,9 @@ fn PartsPreviewLayers(
         }
     }
     let content = rsx! {
-        section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Footprint preview layers", onkeydown: keydown,
+        section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Parts preview layers", onkeydown: keydown,
             button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", "aria-expanded": "{open()}", "aria-controls": "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
-                "Layers"
+                aria_label: "Preview layers", "Preview layers"
                 svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
             }
             if open() {

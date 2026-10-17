@@ -24,9 +24,12 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
-- **Built-in/demo boards and their follow-on work are deferred.** User-authorized removal is
-  complete in [138](issues/138-retire-shipped-demos.md). Board-specific refresh, recipes,
-  hardware research and sign-off tickets are marked `wontfix` for this scope: [04](issues/04-refresh-included-keyboards.md),
+- **Curated layout-only library demos are back in scope** per the user on 2026-10-16; see
+  [161](issues/161-curated-library-launchpad-demos.md). They are synthetic editable layout
+  examples with no hardware or fabrication claims. The historical removal in
+  [138](issues/138-retire-shipped-demos.md) remains accurate for the earlier shipped boards.
+  Board-specific refresh, recipes, hardware research and sign-off tickets remain `wontfix`:
+  [04](issues/04-refresh-included-keyboards.md),
   [20](issues/20-recipes-build-one-half.md), [23](issues/23-redo-keyboard-04-on-native-halves.md),
   [25](issues/25-shipped-boards-review.md), [42](issues/42-global-key-spacing-preference.md),
   [43](issues/43-apply-key-spacing-on-creation.md), [45](issues/45-reversible-variant-substitution-decision.md),

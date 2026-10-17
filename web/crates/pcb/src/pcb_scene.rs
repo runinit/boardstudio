@@ -571,6 +571,7 @@ mod mounted_layer_tests {
         assert_eq!(count(".m1-part-pad"), 3);
         assert_eq!(count(".m1-part-drill"), 1);
         assert_eq!(count(".m1-part-label"), 1);
+        assert_eq!(count("#m1-pcb-layers-trigger[aria-label='PCB layers']"), 1);
 
         click("#m1-pcb-layers-trigger");
         settle().await;

@@ -64,6 +64,7 @@ pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
+pub(crate) use boardstudio_web_ui_shared::project_menu;
 pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_key_selection_actions;
 mod layout_matrix_relations;
@@ -628,26 +629,32 @@ pub fn App() -> Element {
                 }
             },
             header { class: "m1-topbar",
-                div { class: "m1-brand", aria_label: "BoardStudio",
-                    svg { view_box: "0 0 24 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
-                        rect { x: "1", y: "2", width: "22", height: "16", rx: "2" }
-                        path { d: "M1 7h22M1 12h22M6 2v10M12 2v10M18 2v10M5 12v6M19 12v6" }
+                div { class: "m1-header-identity",
+                    div { class: "m1-brand", aria_label: "BoardStudio",
+                        svg { view_box: "0 0 24 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
+                            rect { x: "1", y: "2", width: "22", height: "16", rx: "2" }
+                            path { d: "M1 7h22M1 12h22M6 2v10M12 2v10M18 2v10M5 12v6M19 12v6" }
+                        }
+                        span { "BoardStudio" }
                     }
-                    span { "BoardStudio" }
+                    details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
+                        if event.data().key().to_string() == "Escape" {
+                            event.prevent_default();
+                            close_project_menu();
+                        }
+                    },
+                        summary { role: "button", "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
+                            svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
+                            span { class: "m1-project-name", "{project_name}" }
+                            svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
+                        }
+                        Library { project_menu: true, menu_page: Some(project_menu_page) }
+                    }
                 }
-                details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
-                    if event.data().key().to_string() == "Escape" {
-                        event.prevent_default();
-                        close_project_menu();
-                    }
-                },
-                    summary { role: "button", "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
-                        svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
-                        span { class: "m1-project-name", "{project_name}" }
-                        svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
-                    }
-                    Library { project_menu: true, menu_page: Some(project_menu_page) }
+                if runtime.model().accepted.is_some() && !project_browser() {
+                    workspace_navigation::WorkspaceObjectNavigation { workspace }
                 }
+                div { class: "m1-header-actions",
                 details { class: "m1-save-state", "data-state": "{save_state}", onkeydown: move |event: KeyboardEvent| {
                     if event.data().key().to_string() == "Escape" {
                         event.prevent_default();
@@ -692,9 +699,31 @@ pub fn App() -> Element {
                 if runtime.model().accepted.is_some() && workspace() != "Export" {
                     panels::CompactPanelControls {}
                 }
+                details { class: "m1-settings-menu", onkeydown: move |event: KeyboardEvent| {
+                    if event.data().key().to_string() == "Escape" {
+                        event.prevent_default();
+                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
+                            let _ = menu.remove_attribute("open");
+                            if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
+                                let _ = summary.focus();
+                            }
+                        }
+                    }
+                },
+                    summary { role: "button", "aria-label": "Settings", "aria-controls": "m1-settings-popover", title: "Settings",
+                        svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
+                            path { d: "M8.4 2.5h3.2l.5 1.8a6 6 0 0 1 1.2.7l1.8-.6 1.6 2.8-1.3 1.3a6 6 0 0 1 0 1.4l1.3 1.3-1.6 2.8-1.8-.6a6 6 0 0 1-1.2.7l-.5 1.8H8.4l-.5-1.8a6 6 0 0 1-1.2-.7l-1.8.6-1.6-2.8 1.3-1.3a6 6 0 0 1 0-1.4L3.3 7.2l1.6-2.8 1.8.6a6 6 0 0 1 1.2-.7z" }
+                            circle { cx: "10", cy: "9.2", r: "2.3" }
+                        }
+                    }
+                    div { id: "m1-settings-popover", class: "m1-settings-popover", role: "group", aria_label: "Settings",
+                        project_menu::ThemePicker {}
+                    }
+                }
                 button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
                     svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
                     span { "Export" }
+                }
                 }
             }
             if runtime.model().accepted.is_some() {
@@ -753,8 +782,6 @@ fn read_system_theme() -> &'static str {
 fn LibraryLanding() -> Element {
     rsx! {
         section { class: "m1-library-landing",
-            h1 { "Your keyboards" }
-            p { "Choose a demo copy, open a saved project, or import a BoardStudio archive." }
             Library { project_menu: false }
         }
     }
@@ -3219,31 +3246,6 @@ fn Editor() -> Element {
             inspect_open.set(true);
         }
     };
-    let objects_preferences = objects_panel_settings();
-    let inspector_preferences = inspector_panel_settings();
-    let left_track = if objects_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-left-panel-width), calc(45vw - 126px))"
-    } else {
-        "32px"
-    };
-    let right_track = if !has_inspector {
-        "0px"
-    } else if inspector_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-right-panel-width), calc(55vw - 154px))"
-    } else {
-        "32px"
-    };
-    let left_width = objects_preferences
-        .width
-        .map(|width| format!("--m1-left-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let right_width = inspector_preferences
-        .width
-        .map(|width| format!("--m1-right-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let panel_layout_style = format!(
-        "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
-    );
     let model = runtime.model();
     let current_scope = runtime.scope();
     let accepted_token = model.accepted.as_ref().map(|snapshot| snapshot.token);
@@ -8036,16 +8038,174 @@ fn Editor() -> Element {
     let guide = guide_preferences().filter(|preferences| {
         preferences.project_id == document.id
             && preferences.open
-            // Opening Matrix Setup from the guide temporarily reveals the normal Layout
-            // Objects panel; the guide preference remains intact and returns on cancel.
+            // Keep the guide visible while matrix setup overlays the Layout canvas.
             && !(active_workspace == "Layout"
-                && (matrix_setup.projection.is_some()
-                    || matrix_placement.placement.is_some()
+                && (matrix_placement.placement.is_some()
                     || matrix_placement.busy
                     || mirrored_pair.form.is_some()
                     || mirrored_pair.placement.is_some()))
             && !controller_guide_hidden
     });
+    let has_matrix = !matrices.is_empty();
+    let setup_guide_active = guide.is_some();
+    let mut setup_wiring_error = use_signal(|| None::<String>);
+    use_effect(use_reactive(
+        (&guide_preferences(), &pcb_wiring_mount.resolution),
+        {
+            let runtime = runtime.clone();
+            move |(guide, resolution)| {
+                if !guide.as_ref().is_some_and(|guide| {
+                    guide.open && guide.current_stage == SetupGuideStage::Wiring
+                }) {
+                    return;
+                }
+                let pcb_wiring::PcbWiringResolution::Current { identity, plan } = resolution else {
+                    return;
+                };
+                let Some(accepted) = runtime.model().accepted else {
+                    return;
+                };
+                if identity.token != accepted.token
+                    || plan.controller_part_id.is_none()
+                    || plan
+                        .diagnostics
+                        .iter()
+                        .any(|finding| finding.severity == "error")
+                {
+                    return;
+                }
+                let mut proposal = (*accepted.document).clone();
+                if let Err(error) = boardstudio_core::electrical::materialize(&mut proposal, &plan)
+                {
+                    setup_wiring_error.set(Some(error));
+                    return;
+                }
+                setup_wiring_error.set(None);
+                if proposal == *accepted.document {
+                    return;
+                }
+                runtime.submit(boardstudio_application::Event::ResolveEdit {
+                    operation_id: runtime.operation(),
+                    label: "Setup wiring".into(),
+                    resolver: boardstudio_application::EditResolver::new(
+                        "setup-wiring",
+                        move |current| {
+                            if current.token != identity.token {
+                                return boardstudio_application::Resolution::Retire(
+                                    "The board changed while wiring was being prepared.".into(),
+                                );
+                            }
+                            boardstudio_application::Resolution::submit(
+                                vec![identity.scope.board_id.clone()],
+                                EditOperation::ReplaceDocument {
+                                    document: Box::new(proposal.clone()),
+                                },
+                            )
+                        },
+                    ),
+                });
+            }
+        },
+    ));
+    let matrix_count = matrices.len();
+    let placing_matrix = matrix_placement.placement.is_some() || matrix_placement.busy;
+    let auto_open_matrix = use_reactive(
+        (
+            &guide_preferences(),
+            &workspace(),
+            &matrix_setup.can_open,
+            &matrix_count,
+            &placing_matrix,
+        ),
+        {
+            let project_id = document.id.clone();
+            let on_open = matrix_setup.on_open;
+            move |(preferences, active_workspace, can_open, matrix_count, placing)| {
+                if active_workspace == "Layout"
+                    && can_open
+                    && matrix_count == 0
+                    && !placing
+                    && preferences.as_ref().is_some_and(|preferences| {
+                        preferences.project_id == project_id
+                            && preferences.open
+                            && preferences.current_stage == SetupGuideStage::Layout
+                    })
+                {
+                    on_open.call(());
+                }
+            }
+        },
+    );
+    use_effect(auto_open_matrix);
+    let inline_matrix_setup = if guide.is_some() {
+        matrix_setup.projection.clone().map(|mut projection| {
+            projection.can_cancel &= has_matrix;
+            rsx! {
+                objects::MatrixSetup {
+                    projection,
+                    on_cancel: matrix_setup.on_cancel,
+                    on_create: matrix_setup.on_create,
+                }
+            }
+        })
+    } else {
+        None
+    };
+    let inline_case_basics = guide
+        .as_ref()
+        .and_then(|_| mechanical_settings.props.clone())
+        .map(|settings| {
+            rsx! {
+                boardstudio_web_case::mechanical_settings::MechanicalSetupBasics { settings }
+            }
+        });
+    let inline_controller_picker = guide
+        .as_ref()
+        .filter(|preferences| {
+            preferences.current_stage == SetupGuideStage::Wiring
+        })
+        .map(|_| {
+            rsx! {
+                div { class: "m1-setup-controller-picker",
+                    parts::ControllerSetupPicker {
+                        snapshot: snapshot.clone(),
+                        scope: current_scope.clone(),
+                        selected: parts_selection,
+                        on_place: part_placement.on_place_controller,
+                        enabled: part_placement.controller_placement_enabled,
+                        busy: part_placement.busy || matrix_placement.busy,
+                        error: setup_wiring_error().or_else(|| matrix_placement.error.clone()).or_else(|| part_placement.error.clone()),
+                    }
+                }
+            }
+        });
+    let objects_preferences = objects_panel_settings();
+    let inspector_preferences = inspector_panel_settings();
+    let left_track = if guide.is_some() {
+        "min(380px, calc(100vw - 32px))"
+    } else if objects_preferences.mode == PanelMode::Pinned {
+        "min(var(--m1-left-panel-width), calc(45vw - 126px))"
+    } else {
+        "32px"
+    };
+    let right_track = if !has_inspector || guide.is_some() {
+        "0px"
+    } else if inspector_preferences.mode == PanelMode::Pinned {
+        "min(var(--m1-right-panel-width), calc(55vw - 154px))"
+    } else {
+        "32px"
+    };
+    let left_width = objects_preferences
+        .width
+        .map(|width| format!("--m1-left-panel-width:{width}px;"))
+        .unwrap_or_default();
+    let right_width = inspector_preferences
+        .width
+        .map(|width| format!("--m1-right-panel-width:{width}px;"))
+        .unwrap_or_default();
+    let panel_layout_style = format!(
+        "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
+    );
     let show_empty_board = guide.is_none()
         && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
         && !layout_assembly_3d()
@@ -8122,7 +8282,13 @@ fn Editor() -> Element {
     let mut guide_adapter_for_action = adapter.clone();
     let guide_runtime_for_action = runtime.clone();
     let settings_project_id = document.id.clone();
+    let mut full_case_settings = use_signal(|| false);
     let on_open_workspace = move |target: &'static str| {
+        if target == "Case" {
+            full_case_settings.set(true);
+            guide_workspace_for_action.set("Case");
+            return;
+        }
         guide_workspace_for_action.set(target);
         setup_guide::reveal_panels(
             crate::setup_guide_state::GuideReveal::Settings,
@@ -8158,6 +8324,13 @@ fn Editor() -> Element {
     let guide_project_id_for_dismiss = document.id.clone();
     let on_dismiss_guide = move |_| {
         setup_state_for_dismiss.dismiss_guide(&guide_project_id_for_dismiss);
+    };
+    let setup_state_for_finish = setup_state;
+    let guide_project_id_for_finish = document.id.clone();
+    let mut guide_workspace_for_finish = workspace;
+    let on_finish_guide = move |_| {
+        guide_workspace_for_finish.set("Layout");
+        setup_state_for_finish.dismiss_guide(&guide_project_id_for_finish);
     };
     let (guide_stage_readiness, guide_stage_detail) = guide
         .as_ref()
@@ -8555,9 +8728,31 @@ fn Editor() -> Element {
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
             panels::CompactPanelScrim {}
-            div { class: "m1-editor-body", style: "{panel_layout_style}",
+            div { class: if setup_guide_active { "m1-editor-body m1-editor-body--guided-setup" } else if active_workspace == "Layout" { "m1-editor-body m1-editor-body--layout" } else { "m1-editor-body" }, style: "{panel_layout_style}",
+                if active_workspace == "Layout" && !setup_guide_active {
+                    panels::LayoutPanelSheet {}
+                }
                 if guide.is_some() {
-                    section { class: "m1-setup-surface", aria_label: "Keyboard setup",
+                    section { class: "m1-setup-drawer", aria_label: "Keyboard setup",
+                    if full_case_settings() && active_workspace == "Case" {
+                        aside { class: "m1-setup-case-settings", aria_label: "Full case settings",
+                            header {
+                                BoardButton {
+                                    aria_label: "Back to setup guide",
+                                    onclick: move |_| full_case_settings.set(false),
+                                    svg { width: "20", height: "20", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "1.8", "aria-hidden": "true",
+                                        path { d: "M19 12H5m7-7-7 7 7 7" }
+                                    }
+                                }
+                                h2 { "Case settings" }
+                            }
+                            div { class: "m1-setup-case-settings__content",
+                                if let Some(settings) = mechanical_settings.props.clone() {
+                                    boardstudio_web_case::mechanical_settings::MechanicalSettings { ..settings }
+                                }
+                            }
+                        }
+                    } else {
                     if let Some(preferences) = guide.clone() {
                         if let Some(message) = guide_name_failure() { p { role: "alert", "{message}" } }
                         setup_guide::ProjectSetupGuide {
@@ -8570,8 +8765,13 @@ fn Editor() -> Element {
                             on_stage_change,
                             on_open_workspace,
                             on_open_matrix_setup: Some(matrix_setup.on_open),
+                            matrix_setup: inline_matrix_setup,
+                            case_basics: inline_case_basics,
+                            controller_picker: inline_controller_picker,
+                            has_matrix,
                             on_choose_controller: Some(part_placement.on_choose_controller),
                             on_dismiss: on_dismiss_guide,
+                            on_finish: on_finish_guide,
                             project_controls: if preferences.current_stage
                                 == SetupGuideStage::Project
                             {
@@ -8582,21 +8782,21 @@ fn Editor() -> Element {
                         }
                     }
                     }
+                    }
                 }
+                if guide.is_none() {
                 ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    header_action: if active_workspace == "Layout" && guide.is_none() {
+                    header_action: if active_workspace == "Layout" {
                         Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
                     } else { None },
-                    if guide.is_none() {
-                        workspace_navigation::WorkspaceObjectNavigation { workspace }
-                    }
                     div { class: "m1-object-scroll-content",
-                    if guide.is_none() { {workspace_composition::objects(objects_input)} }
+                    {workspace_composition::objects(objects_input)}
                     }
                     div { class: "m1-object-layer-dock",
                         if active_workspace == "Layout" && !layout_assembly_3d() {
                             CanvasLayers {
                                 initially_open: false,
+                                trigger_label: "Canvas visibility".to_owned(),
                                 trigger_id: String::from("m1-layers-trigger"),
                                 list_id: String::from("m1-layers-list"),
                                 groups: canvas_layers::layout_groups(),
@@ -8615,6 +8815,7 @@ fn Editor() -> Element {
                         }
                     }
                 }
+                }
                 section { class: "m1-workspace-content", role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
                     onfocusin: move |_| {
                         let compact = web_sys::window()
@@ -8630,6 +8831,15 @@ fn Editor() -> Element {
                             }
                         }
                     },
+                    if guide.is_none() && active_workspace == "Layout"
+                        && let Some(projection) = matrix_setup.projection.clone()
+                    {
+                        objects::MatrixSetup {
+                            projection,
+                            on_cancel: matrix_setup.on_cancel,
+                            on_create: matrix_setup.on_create,
+                        }
+                    }
                     {workspace_composition::toolbar(toolbar_input)}
                     if active_workspace == "Layout"
                         && let Some(projection) = mirrored_pair.form.clone()
@@ -8931,7 +9141,7 @@ fn Editor() -> Element {
                         }
                     }
                 }
-                if has_inspector {
+                if has_inspector && guide.is_none() {
                     InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
                         if active_workspace != "Layout" && (layout_findings.open)() {
                             layout_findings::LayoutFindingsInspector {

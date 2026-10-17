@@ -63,6 +63,8 @@ are parts of one workflow.
   imported parts. Preserve previously saved supported parameters.
 - Project files use the `boardstudio/v2` format. There is no v1
   project importer or conversion path.
+- The library includes three synthetic, editable layout examples. They demonstrate
+  geometry only and do not claim electrical or fabrication readiness.
 - Bundled Ergogen generators are trusted inputs. User-supplied JavaScript
   generators are not executed. Footprint import supports a documented subset.
 - Preview availability, export validity, and fabrication readiness are distinct.
@@ -79,7 +81,8 @@ matrices, outlines, keycaps, and keymaps.
 
 - [The v2 overview](README.md) records capabilities, limitations, commands, and
   package boundaries.
-- The starter keyboard (`core/examples/demo_projects/review.rs`, retired) provides a working layout example.
+- The retired starter keyboard (`core/examples/demo_projects/review.rs`) is historical
+  evidence only; current library examples are synthetic layout-only projects.
 - [The bundled library](ergogen/library/) contains real generator sources,
   model assets, and vendor provenance. Preserve their attribution and terms.
 - [Core tests](core/tests/), [KiCad integration tests](core/tests/kicad_integration.rs),

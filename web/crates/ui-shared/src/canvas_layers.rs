@@ -1,8 +1,6 @@
 //! Shared layer control presentation backed by the editor-owned visibility state.
 use super::LayerVisibility;
 use dioxus::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayerTarget {
@@ -72,6 +70,7 @@ impl CanvasLayerGroup {
 pub struct CanvasLayersProps {
     #[props(default)]
     pub initially_open: bool,
+    pub trigger_label: String,
     pub trigger_id: String,
     pub list_id: String,
     pub groups: Vec<CanvasLayerGroup>,
@@ -80,12 +79,10 @@ pub struct CanvasLayersProps {
 #[component]
 pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
     let layers = use_context::<LayerVisibility>();
-    let mut open = use_signal(|| props.initially_open);
     let hidden = (layers.hidden)();
     let modules_hidden = (layers.modules_hidden)();
     let footprints = (layers.footprints)();
     let trigger_id = props.trigger_id.clone();
-    let close_trigger_id = trigger_id.clone();
     let toggle = move |target: LayerTarget| match target {
         LayerTarget::Hidden(id) => {
             let mut hidden = layers.hidden;
@@ -108,24 +105,14 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
             hidden.set(next);
         }
     };
+    let trigger_label = props.trigger_label.clone();
     let list_id = props.list_id.clone();
     rsx! {
-        super::controls::BoardPopover {
-            open: open(), on_open_change: move |next| open.set(next),
-            trigger_id: trigger_id.clone(), content_id: format!("{list_id}-popover"), trigger_label: "Layers",
-            root_class: "m1-layers", trigger_class: "m1-layers-trigger", content_class: "m1-layer-popup", content_role: "region", content_label: "Canvas layers",
-            trigger: rsx! { "Layers" svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5-5" } } } },
-            if open() {
-                button {
-                    class: "m1-layers-close",
-                    onclick: move |_| {
-                        open.set(false);
-                        focus_trigger(&close_trigger_id);
-                    },
-                    "Close"
-                }
-            }
-            div { id: "{list_id}", class: "m1-layer-list", hidden: !open(),
+        super::controls::BoardAccordionSection {
+            id: trigger_id, label: trigger_label.clone(), class: "m1-layers",
+            initially_open: props.initially_open,
+            heading: rsx! { span { "{trigger_label}" } },
+            div { id: "{list_id}", class: "m1-layer-list",
                 for (group_index, group) in props.groups.iter().enumerate() {
                     {
                         let group_title = group.title.clone();
@@ -180,16 +167,6 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                 }
             }
         }
-    }
-}
-
-fn focus_trigger(id: &str) {
-    if let Some(trigger) = web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| document.get_element_by_id(id))
-        .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-    {
-        let _ = trigger.focus();
     }
 }
 

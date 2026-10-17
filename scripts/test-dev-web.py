@@ -77,9 +77,10 @@ class DevWebTests(unittest.TestCase):
                 path.write_bytes(body)
             class AppHandler(BaseHTTPRequestHandler):
                 def do_GET(self):
-                    body = b"dioxus-dev-page"
+                    generated = self.path == "/assets/focus-trap-dx123.js"
+                    body = b"export const focusTrap = true;" if generated else b"dioxus-dev-page"
                     self.send_response(200)
-                    self.send_header("Content-Type", "text/html")
+                    self.send_header("Content-Type", "text/javascript" if generated else "text/html")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
@@ -105,6 +106,9 @@ class DevWebTests(unittest.TestCase):
                 with urlopen(f"http://127.0.0.1:{server.server_port}/") as response:
                     self.assertEqual(response.read(), b"dioxus-dev-page")
                     self.assertEqual(response.headers["Cross-Origin-Embedder-Policy"], "require-corp")
+                with urlopen(f"http://127.0.0.1:{server.server_port}/assets/focus-trap-dx123.js") as response:
+                    self.assertEqual(response.headers.get_content_type(), "text/javascript")
+                    self.assertEqual(response.read(), b"export const focusTrap = true;")
                 css = root / "m1.css"
                 changed = samples["m1.css"][0] + b"\n/* live edit */"
                 css.write_bytes(changed)

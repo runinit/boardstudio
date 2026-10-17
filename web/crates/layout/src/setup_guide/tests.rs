@@ -33,7 +33,7 @@ fn panel_composition() -> Element {
                             activate_stage(next, workspace, requested, objects_open, inspector_open, objects_settings, inspector_settings);
                         },
                         on_open_workspace: move |_| reveal_panels(crate::setup_guide_state::GuideReveal::Settings, objects_open, inspector_open, objects_settings, inspector_settings),
-                        on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, project_controls: None,
+                        on_open_matrix_setup: None, on_choose_controller: None, on_dismiss: |_| {}, on_finish: |_| {}, project_controls: None,
                     }
                 }
                 section { class: "m1-workspace-content", "{workspace()}" }
@@ -105,7 +105,7 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("collapsed")
     );
-    click(".m1-setup-guide__steps button:nth-child(4)");
+    click(".m1-setup-stage-accordion > div:nth-child(4) > button");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
@@ -121,12 +121,11 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     );
     let copy = element(".m1-setup-guide").text_content().unwrap();
     assert_eq!(
-        copy.matches("Optional: configure a case or continue without one.")
+        copy.matches("Optional. Set the basics here, then refine your case in the full editor.")
             .count(),
         1,
         "Case readiness detail must appear once"
     );
-    assert!(copy.contains("Configure construction and clearances, then generate geometry when you are ready. PCB and firmware exports are available separately."));
     click(".m1-setup-guide__secondary");
     rendered().await;
     assert_panels(true, true);
