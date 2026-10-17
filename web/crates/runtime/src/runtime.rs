@@ -318,6 +318,8 @@ pub struct Runtime {
     in_process_adapters: RefCell<Option<Rc<crate::runtime::in_process_support::InProcessAdapters>>>,
     #[cfg(any(test, feature = "test-support"))]
     held_effects: RefCell<Vec<Effect>>,
+    #[cfg(any(test, feature = "test-support"))]
+    in_process_drives: RefCell<Vec<futures_channel::oneshot::Receiver<()>>>,
 }
 
 struct ProjectDeletionLease {
@@ -396,6 +398,8 @@ impl Runtime {
             in_process_adapters: RefCell::new(None),
             #[cfg(any(test, feature = "test-support"))]
             held_effects: RefCell::new(Vec::new()),
+            #[cfg(any(test, feature = "test-support"))]
+            in_process_drives: RefCell::new(Vec::new()),
         });
         // Storage cleanup finishes before any editor, import, or restored history can use assets.
         if restore_active_project {
@@ -1731,6 +1735,12 @@ impl Runtime {
     }
     fn drive(self: &Rc<Self>, effects: Vec<Effect>) {
         let this = self.clone();
+        #[cfg(any(test, feature = "test-support"))]
+        let finished = self.in_process_adapters.borrow().as_ref().map(|_| {
+            let (finished, receive) = futures_channel::oneshot::channel();
+            self.in_process_drives.borrow_mut().push(receive);
+            finished
+        });
         spawn_local(async move {
             let mut effects = VecDeque::from(effects);
             while let Some(effect) = effects.pop_front() {
@@ -1746,6 +1756,10 @@ impl Runtime {
                     worker.close();
                 }
                 this.core.borrow().close();
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            if let Some(finished) = finished {
+                let _ = finished.send(());
             }
         });
     }
@@ -7124,6 +7138,10 @@ pub mod project_name_test_support {
         installed(runtime).observe_next_open()
     }
 
+    pub fn track_next_persist_target(runtime: &Runtime) -> futures_channel::oneshot::Receiver<()> {
+        installed(runtime).persistence().observe_next_target()
+    }
+
     pub fn replace_session(runtime: &Runtime, session: Session) {
         *runtime.session.borrow_mut() = session;
         runtime.changed();
@@ -7201,9 +7219,21 @@ pub mod project_name_test_support {
     }
 
     pub async fn run_pending(runtime: &Rc<Runtime>) {
-        let mut pending = VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
-        while let Some(effect) = pending.pop_front() {
-            pending.extend(runtime.run(effect).await);
+        loop {
+            let mut pending =
+                VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
+            while let Some(effect) = pending.pop_front() {
+                pending.extend(runtime.run(effect).await);
+            }
+            let drives = std::mem::take(&mut *runtime.in_process_drives.borrow_mut());
+            if drives.is_empty() {
+                break;
+            }
+            for finished in drives {
+                finished
+                    .await
+                    .expect("in-process effect driver was dropped");
+            }
         }
     }
 

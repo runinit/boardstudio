@@ -57,18 +57,22 @@ async fn pending_store_save_keeps_its_target_while_future_saves_switch_to_memory
         boardstudio_core::CoreEngine::new(),
     );
     let stored_id = new_project_id().unwrap();
+    let mut target_captured = Box::pin(support::track_next_persist_target(&runtime));
     runtime.submit(Event::Open {
         operation_id: runtime.operation(),
         document: ProjectDoc::empty(&stored_id, "Captured store save"),
     });
     let mut pending = Box::pin(support::run_pending(&runtime));
-    // Core is in-process; the first suspension is the real IndexedDB save.
-    assert!(matches!(
-        pending
-            .as_mut()
-            .poll(&mut Context::from_waker(Waker::noop())),
-        Poll::Pending
-    ));
+    // Switch only after the save captures its store, regardless of earlier Core waits.
+    std::future::poll_fn(|cx| {
+        assert!(pending.as_mut().poll(cx).is_pending());
+        match target_captured.as_mut().poll(cx) {
+            Poll::Ready(Ok(())) => Poll::Ready(()),
+            Poll::Ready(Err(_)) => panic!("persistence target notification was dropped"),
+            Poll::Pending => Poll::Pending,
+        }
+    })
+    .await;
     support::install_memory_persistence(&runtime);
     pending.await;
     assert_eq!(runtime.model().accepted.unwrap().document.id, stored_id);

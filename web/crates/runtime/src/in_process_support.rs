@@ -30,8 +30,8 @@ struct MemorySave {
 /// The in-process Core executor: one `CoreEngine`, always ready, closable, with an optional
 /// one-shot behavior that fails or holds the next Core reply.
 pub struct InProcessCore {
-    engine: RefCell<boardstudio_core::CoreEngine>,
-    closed: Cell<bool>,
+    engine: Rc<RefCell<boardstudio_core::CoreEngine>>,
+    closed: Rc<Cell<bool>>,
     behavior: GateDriver,
     fail_after_hold: RefCell<Option<String>>,
     gate: RefCell<Option<AsyncGate>>,
@@ -45,8 +45,8 @@ pub struct InProcessCore {
 impl InProcessCore {
     pub fn new(engine: boardstudio_core::CoreEngine) -> Self {
         Self {
-            engine: RefCell::new(engine),
-            closed: Cell::new(false),
+            engine: Rc::new(RefCell::new(engine)),
+            closed: Rc::new(Cell::new(false)),
             behavior: GateDriver::default(),
             fail_after_hold: RefCell::new(None),
             gate: RefCell::new(None),
@@ -175,11 +175,25 @@ impl CoreExecutor for InProcessCore {
             if self.closed.get() {
                 return Err(HostError("core worker is closed".into()));
             }
-            let reply = self
-                .scripted_reply
-                .get()
-                .and_then(|reply| reply(request))
-                .unwrap_or_else(|| self.engine.borrow_mut().handle(request.clone()));
+            let engine = self.engine.clone();
+            let closed = self.closed.clone();
+            let scripted_reply = self.scripted_reply.get();
+            let request = request.clone();
+            let (send, receive) = oneshot::channel();
+            // Match the worker boundary: Core must not run on the mounted test's poll stack.
+            spawn_local(async move {
+                let reply = if closed.get() {
+                    Err(HostError("core worker is closed".into()))
+                } else {
+                    Ok(scripted_reply
+                        .and_then(|reply| reply(&request))
+                        .unwrap_or_else(|| engine.borrow_mut().handle(request)))
+                };
+                let _ = send.send(reply);
+            });
+            let reply = receive
+                .await
+                .map_err(|_| HostError("in-process core reply was dropped".into()))??;
             let value = serde_json::to_value(&reply)
                 .map_err(|error| HostError(format!("invalid core reply: {error}")))?;
             if value.get("id").and_then(serde_json::Value::as_str) != Some(request_id) {
@@ -298,6 +312,7 @@ impl CoreExecutor for InProcessCore {
 /// that fails or holds the next save.
 pub struct TestPersistence {
     target: RefCell<PersistTarget>,
+    target_observer: RefCell<Option<oneshot::Sender<()>>>,
     behavior: GateDriver,
     gate: RefCell<Option<AsyncGate>>,
 }
@@ -306,6 +321,7 @@ impl TestPersistence {
     fn through_store(store: BrowserStore) -> Self {
         Self {
             target: RefCell::new(PersistTarget::Store(store)),
+            target_observer: RefCell::new(None),
             behavior: GateDriver::default(),
             gate: RefCell::new(None),
         }
@@ -313,6 +329,12 @@ impl TestPersistence {
 
     pub fn use_memory_saves(&self) {
         *self.target.borrow_mut() = PersistTarget::Memory(Rc::new(RefCell::new(BTreeMap::new())));
+    }
+
+    pub(super) fn observe_next_target(&self) -> oneshot::Receiver<()> {
+        let (entered, receive) = oneshot::channel();
+        *self.target_observer.borrow_mut() = Some(entered);
+        receive
     }
 
     pub fn fail_next_save(&self, reason: impl Into<String>) {
@@ -377,6 +399,9 @@ impl DocumentPersistence for TestPersistence {
                 }
             }
             let target = self.target.borrow().clone();
+            if let Some(entered) = self.target_observer.borrow_mut().take() {
+                let _ = entered.send(());
+            }
             match target {
                 PersistTarget::Store(store) => {
                     store
