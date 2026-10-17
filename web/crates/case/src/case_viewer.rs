@@ -123,10 +123,11 @@ impl CaseSelection {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+type EmitHandleGesture = Rc<dyn Fn(HandleGesturePhase, String, Option<[f32; 3]>)>;
+
+#[cfg(all(test, target_arch = "wasm32"))]
 #[derive(Clone, Default)]
-struct CaseViewerGestureProbe(
-    Rc<RefCell<Option<Rc<dyn Fn(HandleGesturePhase, String, Option<[f32; 3]>)>>>>,
-);
+struct CaseViewerGestureProbe(Rc<RefCell<Option<EmitHandleGesture>>>);
 
 #[cfg(all(test, target_arch = "wasm32"))]
 impl CaseViewerGestureProbe {
@@ -519,7 +520,6 @@ pub fn CaseViewer(
     let on_signal = EventHandler::new(on_signal);
     #[cfg(all(test, target_arch = "wasm32"))]
     if let Some(probe) = gesture_probe {
-        let on_signal = on_signal;
         let identity = ViewerIdentity {
             scope: scene.scope.clone(),
             snapshot_token: scene.token,
@@ -1915,7 +1915,7 @@ mod keycap_consumer_tests {
         super::super::use_test_case_generation_state();
         let mut mounted = use_signal(|| true);
         let mut cad = use_signal(|| false);
-        let mut instance = use_context::<InstanceSelection>();
+        let instance = use_context::<InstanceSelection>();
         let other = runtime.clone();
         let restore = runtime.clone();
         let use_cad = runtime.clone();
@@ -2205,16 +2205,17 @@ mod keycap_consumer_tests {
         }
         release.send(()).unwrap();
         TimeoutFuture::new(50).await;
-        let packets = packets.borrow();
-        let (id, packet) = packets.last().unwrap();
-        assert_eq!(id.scope.instance_id.as_deref(), Some("primary"));
-        let body = cap(packet).expect("late flipped CAD must not replace current keycaps");
-        let mesh = Reflect::get(&body, &"mesh".into()).unwrap();
-        assert_eq!(
-            Float32Array::new(&Reflect::get(&mesh, &"positions".into()).unwrap()).to_vec()[0],
-            20.0
-        );
-        drop(packets);
+        {
+            let packets = packets.borrow();
+            let (id, packet) = packets.last().unwrap();
+            assert_eq!(id.scope.instance_id.as_deref(), Some("primary"));
+            let body = cap(packet).expect("late flipped CAD must not replace current keycaps");
+            let mesh = Reflect::get(&body, &"mesh".into()).unwrap();
+            assert_eq!(
+                Float32Array::new(&Reflect::get(&mesh, &"positions".into()).unwrap()).to_vec()[0],
+                20.0
+            );
+        }
         assert_eq!(runtime.model().accepted.as_ref(), Some(&accepted));
         assert_eq!(
             runtime
@@ -2286,6 +2287,7 @@ mod gesture_cancellation_tests {
             wall_height: Some(20.0),
             wall_thickness: Some(3.0),
             mounts: Some(vec![mount.clone()]),
+            pcb_source: None,
             gasket: None,
         };
         let mut document = ProjectDoc::empty("case-gesture-cancel", "Gesture cancellation");
@@ -2476,7 +2478,7 @@ mod gesture_cancellation_tests {
         let navigate = runtime.clone();
         let away_source = original.clone();
         let restore = runtime.clone();
-        let mut instance = use_context::<InstanceSelection>();
+        let instance = use_context::<InstanceSelection>();
         rsx! {
             style { {include_str!("../../../assets/m1.css")} }
             button { id: "case-gesture-scope", onclick: move |_| {

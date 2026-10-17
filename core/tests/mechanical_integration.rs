@@ -1463,6 +1463,7 @@ fn with_board_outline(document: &mut ProjectDoc) {
         wall_height: None,
         wall_thickness: Some(2.0),
         mounts: None,
+        pcb_source: None,
         gasket: None,
     });
 }

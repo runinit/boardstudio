@@ -385,7 +385,7 @@ pub(super) fn SelectedKeysActions() -> Element {
                 button { r#type: "button", aria_label: "Disable selected keys", onclick: move |_| on_action.call(Action::Disable), "Disable" }
                 BoardButton { r#type: "button", aria_label: "Delete selected keys", disabled: delete_pending(), onclick: move |_| on_action.call(Action::Delete), "Delete keys" }
             }
-            if let Some(message) = enabled_failure().or_else(|| failure()) { p { role: "alert", "{message}" } }
+            if let Some(message) = enabled_failure().or_else(&*failure) { p { role: "alert", "{message}" } }
         }
     }
 }

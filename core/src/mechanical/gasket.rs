@@ -164,6 +164,7 @@ fn make_body(
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
             openings: None,
         },

@@ -196,7 +196,7 @@ pub(super) fn import(
         max.x = max.x.max(p.x);
         max.y = max.y.max(p.y);
     }
-    let center = if min.x.is_finite() {
+    let polygon_center = if min.x.is_finite() {
         Vec2 {
             x: (min.x + max.x) / 2.0,
             y: (min.y + max.y) / 2.0,
@@ -204,13 +204,28 @@ pub(super) fn import(
     } else {
         Vec2::default()
     };
+    let center = polygon_center;
+    let source_geometry = match mechanical_extract::extract_board_source(raw, center) {
+        Ok(source_geometry) => Some(source_geometry),
+        Err(error) => {
+            gates.push(gate(
+                HardwareOutput::Mechanical,
+                "board-source-profile",
+                &format!(
+                    "Exact authored PCB source geometry is unavailable: {}",
+                    error.message
+                ),
+            ));
+            None
+        }
+    };
     for polygon in &mut polygons {
         for p in polygon {
             p.x -= center.x;
             p.y -= center.y;
         }
     }
-    let contours = polygons
+    let mut contours = polygons
         .into_iter()
         .map(|points| Contour {
             points,
@@ -218,18 +233,37 @@ pub(super) fn import(
         })
         .collect();
     let holes = match super::preview::board(raw, 0) {
-        Ok(preview) => preview
-            .holes
-            .into_iter()
-            .map(|hole| {
-                hole.into_iter()
-                    .map(|p| Vec2 {
-                        x: p.x - center.x,
-                        y: p.y - center.y,
+        Ok(preview) => {
+            if source_geometry
+                .as_ref()
+                .is_some_and(|(source, _)| source.contours.len() > 1)
+            {
+                // Multi-loop compatibility needs the same hole parity as the source profile.
+                contours = preview
+                    .contours
+                    .into_iter()
+                    .map(|mut contour| {
+                        for p in &mut contour.points {
+                            p.x -= center.x;
+                            p.y -= center.y;
+                        }
+                        contour
                     })
-                    .collect()
-            })
-            .collect(),
+                    .collect();
+            }
+            preview
+                .holes
+                .into_iter()
+                .map(|hole| {
+                    hole.into_iter()
+                        .map(|p| Vec2 {
+                            x: p.x - center.x,
+                            y: p.y - center.y,
+                        })
+                        .collect()
+                })
+                .collect()
+        }
         Err(error) => {
             gates.push(gate(
                 HardwareOutput::Mechanical,
@@ -443,6 +477,10 @@ pub(super) fn import(
             contours,
             thickness,
             holes,
+            pcb_source: source_geometry.as_ref().map(|(profile, _)| profile.clone()),
+            round_drills: source_geometry
+                .map(|(_, round_drills)| round_drills)
+                .unwrap_or_default(),
         },
         mounts,
         volumes: vec![],

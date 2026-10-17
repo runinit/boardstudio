@@ -11,9 +11,44 @@ mod source_geometry;
 
 use crate::model::{
     ArtifactDiagnostic, ArtifactDiagnosticKind, ArtifactReply, ArtifactRequest, CompiledFootprint,
-    FootprintCompileJob, PartDefinition,
+    FootprintCompileJob, PartDefinition, Vec2,
 };
 pub use crate::model::{ArtifactError, ArtifactErrorCode};
+
+// Legacy KiCad uses start=center and end=radius point, with a Y-down sweep.
+fn legacy_arc_parameters(start: Vec2, end: Vec2, degrees: f64) -> Option<(Vec2, f64, f64, f64)> {
+    let radius = (end.x - start.x).hypot(end.y - start.y);
+    if radius <= 0.0 {
+        return None;
+    }
+    let first = (end.y - start.y).atan2(end.x - start.x);
+    Some((start, first, -degrees.to_radians(), radius))
+}
+
+fn read_board_source(
+    source: &str,
+    placement: crate::model::Pose2,
+    flipped: bool,
+) -> Result<crate::model::ModuleBoard, ArtifactError> {
+    if !placement.at.x.is_finite() || !placement.at.y.is_finite() || !placement.rotation.is_finite()
+    {
+        return Err(ArtifactError::new(
+            ArtifactErrorCode::Validation,
+            "PCB source placement must be finite",
+        ));
+    }
+    let (preview, thickness) = preview::board_source(source, 0)?;
+    let (profile, round_drills) =
+        mechanical_extract::extract_board_source(source, Vec2::default())?;
+    Ok(crate::model::ModuleBoard {
+        contours: preview.contours,
+        holes: preview.holes,
+        thickness,
+        pcb_source: Some(profile),
+        round_drills,
+    }
+    .placed(placement, flipped))
+}
 
 /// Parse source-owned footprint graphics for module preview without widening the parser helpers.
 pub(crate) fn preview_footprint_surfaces(
@@ -57,6 +92,15 @@ pub fn request(json: &str) -> String {
 
 fn handle(request: ArtifactRequest) -> ArtifactReply {
     match request {
+        ArtifactRequest::ReadBoardSource {
+            id,
+            source,
+            placement,
+            flipped,
+        } => match read_board_source(&source, placement, flipped) {
+            Ok(result) => ArtifactReply::ReadBoardSource { id, result },
+            Err(error) => ArtifactReply::Error { id, error },
+        },
         ArtifactRequest::ImportModuleBoard {
             id,
             definition_id,

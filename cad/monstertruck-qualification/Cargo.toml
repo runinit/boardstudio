@@ -1,0 +1,40 @@
+[package]
+name = "monstertruck-qualification"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+members = [
+    "vendor/monstertruck-io",
+    "vendor/monstertruck-meshing",
+    "vendor/monstertruck-mesh",
+    "vendor/monstertruck-traits",
+    "vendor/monstertruck-solid",
+]
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+monstertruck-geometry = { version = "=0.4.1", default-features = false }
+monstertruck-modeling = { version = "=0.4.1", default-features = false }
+monstertruck-solid = { version = "=0.4.1", default-features = false, features = ["marching-ssi"] }
+monstertruck-meshing = { version = "=0.4.1", default-features = false, features = ["tessellation", "analyzers"] }
+monstertruck-io = { version = "=0.4.1", default-features = false, features = ["step"] }
+i_overlay = "=9.0.0"
+monstertruck-topology = "=0.4.1"
+serde_json = "=1.0.154"
+ttf-parser = "=0.25.1"
+num-rational = "=0.4.2"
+
+[patch.crates-io]
+monstertruck-core = { path = "vendor/monstertruck-core" }
+monstertruck-modeling = { path = "vendor/monstertruck-modeling" }
+monstertruck-io = { path = "vendor/monstertruck-io" }
+monstertruck-meshing = { path = "vendor/monstertruck-meshing" }
+monstertruck-mesh = { path = "vendor/monstertruck-mesh" }
+monstertruck-traits = { path = "vendor/monstertruck-traits" }
+monstertruck-solid = { path = "vendor/monstertruck-solid" }
+monstertruck-geometry = { path = "vendor/monstertruck-geometry" }
+monstertruck-derive = { path = "vendor/monstertruck-derive" }

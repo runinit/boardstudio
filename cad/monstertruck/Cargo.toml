@@ -1,0 +1,35 @@
+[package]
+name = "boardstudio-cad"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+cavalier_contours = "=0.9.0"
+monstertruck-assembly = "=0.4.1"
+boardstudio-contracts = { path = "../../contracts/rust" }
+monstertruck-io = { version = "=0.4.1", default-features = false, features = ["step"] }
+monstertruck-meshing = { version = "=0.4.1", default-features = false, features = ["tessellation", "analyzers"] }
+monstertruck-modeling = { version = "=0.4.1", default-features = false }
+monstertruck-topology = "=0.4.1"
+
+[dev-dependencies]
+num-rational = { version = "=0.4.2", features = ["num-bigint"] }
+num-traits = "=0.2.19"
+step-p21 = "=0.1.1"
+serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
+
+[patch.crates-io]
+monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
+monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }
+monstertruck-geometry = { path = "../monstertruck-qualification/vendor/monstertruck-geometry" }
+monstertruck-io = { path = "../monstertruck-qualification/vendor/monstertruck-io" }
+monstertruck-mesh = { path = "../monstertruck-qualification/vendor/monstertruck-mesh" }
+monstertruck-meshing = { path = "../monstertruck-qualification/vendor/monstertruck-meshing" }
+monstertruck-modeling = { path = "../monstertruck-qualification/vendor/monstertruck-modeling" }
+monstertruck-traits = { path = "../monstertruck-qualification/vendor/monstertruck-traits" }

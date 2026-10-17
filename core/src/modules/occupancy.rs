@@ -546,6 +546,7 @@ pub(crate) fn attach_board_supports(
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                 },
             });
@@ -582,6 +583,7 @@ fn module_board_material(revision: u64, board_id: &str, module: &ResolvedModule)
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         },
     })
@@ -736,6 +738,7 @@ fn occupied(volume: &CaseOpening, holes: &[Contour], clearance: f64) -> Result<S
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                 },
             }],

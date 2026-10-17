@@ -16,7 +16,11 @@ pub(crate) fn prepare_preview(
         .find(|board| board.id == board_id)
         .ok_or("Module preview host PCB is missing")?;
     let mut bodies = Vec::new();
+    let mut source_unavailable = false;
     for module in &result.modules {
+        source_unavailable |= module.gates.iter().any(|gate| {
+            gate.output == HardwareOutput::Mechanical && gate.code == "board-source-profile"
+        });
         for (index, solid) in module
             .board
             .iter()
@@ -24,10 +28,24 @@ pub(crate) fn prepare_preview(
             .enumerate()
         {
             let is_board = index < module.board.len();
-            let mut contours = vec![Contour {
-                points: solid.points.clone(),
-                hole: false,
-            }];
+            if is_board && module.pcb_source.is_some() && index != 0 {
+                continue;
+            }
+            let mut contours = if is_board && module.pcb_source.is_some() {
+                module
+                    .board
+                    .iter()
+                    .map(|board| Contour {
+                        points: board.points.clone(),
+                        hole: false,
+                    })
+                    .collect()
+            } else {
+                vec![Contour {
+                    points: solid.points.clone(),
+                    hole: false,
+                }]
+            };
             if is_board {
                 contours.extend(module.board_holes.clone())
             }
@@ -54,7 +72,16 @@ pub(crate) fn prepare_preview(
                     material_id: None,
                     wall_height: None,
                     wall_thickness: None,
-                    mounts: None,
+                    mounts: if is_board && !module.round_drills.is_empty() {
+                        Some(module.round_drills.clone())
+                    } else {
+                        None
+                    },
+                    pcb_source: if is_board {
+                        module.pcb_source.clone()
+                    } else {
+                        None
+                    },
                     gasket: None,
                 },
             });
@@ -104,6 +131,7 @@ pub(crate) fn prepare_preview(
                         wall_height: None,
                         wall_thickness: None,
                         mounts: None,
+                        pcb_source: None,
                         gasket: None,
                     },
                 });
@@ -117,11 +145,23 @@ pub(crate) fn prepare_preview(
             });
         }
     }
-    if !bodies.is_empty() {
-        result.preview = Some(crate::case::prepare(&CaseAssemblyIR {
+    if source_unavailable {
+        result.preview = None;
+    } else if !bodies.is_empty() {
+        let mut prepared = crate::case::prepare(&CaseAssemblyIR {
             revision: doc.revision,
             bodies,
-        })?)
+        })?;
+        // The current CAD reader needs polygon voids; exact PCB reads body source/mounts.
+        // source_backed_preview_retains_legacy_voids_without_duplicate_mount_cuts pins both views.
+        for body in &mut prepared.bodies {
+            if body.body.pcb_source.is_some() {
+                for region in &mut body.regions {
+                    region.mounts.clear();
+                }
+            }
+        }
+        result.preview = Some(prepared)
     }
     Ok(())
 }

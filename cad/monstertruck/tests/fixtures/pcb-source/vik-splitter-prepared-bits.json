@@ -1,0 +1,992 @@
+{
+  "fixture_sha256": "749aed6fb465921b567610d855cea93a5a63aaa41ded979f53af00d7d75dda88",
+  "method": "Independent offline Decimal(raw JSON literal) -> correctly rounded binary64; native tests consume fixed strings only.",
+  "arc_supports": [
+    {
+      "id": "27b78401-6b85-44f4-8964-f7598e32b812",
+      "fields": [
+        "center.x",
+        "center.y",
+        "radiusMm",
+        "startDirection.x",
+        "startDirection.y",
+        "sweepRadians"
+      ],
+      "values": [
+        {
+          "decimal": "8.55995999224234",
+          "binary64_hex": "40211eb3137b7fa0"
+        },
+        {
+          "decimal": "8.574959992242071",
+          "binary64_hex": "4021266127f66050"
+        },
+        {
+          "decimal": "3.9400400079610516",
+          "binary64_hex": "400f8533b218fe8f"
+        },
+        {
+          "decimal": "0.00001015415004030646",
+          "binary64_hex": "3ee54b77c1439399"
+        },
+        {
+          "decimal": "0.9999999999484466",
+          "binary64_hex": "3feffffffff8ea20"
+        },
+        {
+          "decimal": "-1.5707760184946822",
+          "binary64_hex": "bff921e608cc697a"
+        }
+      ]
+    },
+    {
+      "id": "9a6824ea-6e49-4639-95c5-2947c661fd19",
+      "fields": [
+        "center.x",
+        "center.y",
+        "radiusMm",
+        "startDirection.x",
+        "startDirection.y",
+        "sweepRadians"
+      ],
+      "values": [
+        {
+          "decimal": "8.560045347386875",
+          "binary64_hex": "40211ebe43869b70"
+        },
+        {
+          "decimal": "-8.575045347387132",
+          "binary64_hex": "c021266c58017d48"
+        },
+        {
+          "decimal": "3.9399546528738343",
+          "binary64_hex": "400f8506f1ee877a"
+        },
+        {
+          "decimal": "0.9999999999337643",
+          "binary64_hex": "3feffffffff6e58a"
+        },
+        {
+          "decimal": "0.000011509621588115653",
+          "binary64_hex": "3ee8232e588ed37e"
+        },
+        {
+          "decimal": "-1.5708193460380735",
+          "binary64_hex": "bff92213777285aa"
+        }
+      ]
+    },
+    {
+      "id": "4672d7b6-4705-4e17-b80e-34fcb55a5e76",
+      "fields": [
+        "center.x",
+        "center.y",
+        "radiusMm",
+        "startDirection.x",
+        "startDirection.y",
+        "sweepRadians"
+      ],
+      "values": [
+        {
+          "decimal": "-8.56004022625136",
+          "binary64_hex": "c0211ebd97b06358"
+        },
+        {
+          "decimal": "-8.575040226251204",
+          "binary64_hex": "c021266bac2b4448"
+        },
+        {
+          "decimal": "3.939959773954148",
+          "binary64_hex": "400f8509a145824a"
+        },
+        {
+          "decimal": "0.0000102098126401175",
+          "binary64_hex": "3ee56959f6e31c8c"
+        },
+        {
+          "decimal": "-0.9999999999478798",
+          "binary64_hex": "bfeffffffff8d62f"
+        },
+        {
+          "decimal": "-1.5708167464202027",
+          "binary64_hex": "bff92210bd9e2470"
+        }
+      ]
+    },
+    {
+      "id": "b35d8b8f-4c0e-43b3-b23c-4faf45230fee",
+      "fields": [
+        "center.x",
+        "center.y",
+        "radiusMm",
+        "startDirection.x",
+        "startDirection.y",
+        "sweepRadians"
+      ],
+      "values": [
+        {
+          "decimal": "-8.559999256128108",
+          "binary64_hex": "c0211eb838f5b588"
+        },
+        {
+          "decimal": "8.574999256127853",
+          "binary64_hex": "402126664d709640"
+        },
+        {
+          "decimal": "3.9400007438722175",
+          "binary64_hex": "400f851f1c292cbe"
+        },
+        {
+          "decimal": "-0.9999999999999822",
+          "binary64_hex": "bfefffffffffff60"
+        },
+        {
+          "decimal": "1.8880000233818987E-7",
+          "binary64_hex": "3e89571e6216c2d4"
+        },
+        {
+          "decimal": "-1.570795949194892",
+          "binary64_hex": "bff921faeee7b390"
+        }
+      ]
+    }
+  ],
+  "round_drills": [
+    {
+      "id": "0ab4a4d1-f3b1-47b4-9f16-66b3d8c8bca3",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "3.044999999999746",
+          "binary64_hex": "40085c28f5c28d20"
+        },
+        {
+          "decimal": "-3.405000000000001",
+          "binary64_hex": "c00b3d70a3d70a40"
+        },
+        {
+          "decimal": "0.4",
+          "binary64_hex": "3fd999999999999a"
+        }
+      ]
+    },
+    {
+      "id": "0d168d74-7668-4b54-8d9d-8b6f6ff893f5",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-2.97500000000025",
+          "binary64_hex": "c007cccccccccf00"
+        },
+        {
+          "decimal": "2.9450000000000074",
+          "binary64_hex": "40078f5c28f5c2a0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "25929ff3-e240-47ab-ac1b-d723ad9f5184",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-3.6350000000002467",
+          "binary64_hex": "c00d147ae147b040"
+        },
+        {
+          "decimal": "3.655000000000001",
+          "binary64_hex": "400d3d70a3d70a40"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "25954770-a8cf-42ad-b0f9-7a5ac310ffd8",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-4.375000000000256",
+          "binary64_hex": "c011800000000120"
+        },
+        {
+          "decimal": "4.305000000000007",
+          "binary64_hex": "40113851eb851ec0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "269d73a0-5f78-4e49-b927-ad8f03050e2b",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-2.905000000000257",
+          "binary64_hex": "c0073d70a3d70c80"
+        },
+        {
+          "decimal": "-4.814999999999998",
+          "binary64_hex": "c013428f5c28f5c0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "332dbbd5-cf3f-4e3e-aa21-651a28fcfaa3",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "2.1849999999997465",
+          "binary64_hex": "40017ae147ae1240"
+        },
+        {
+          "decimal": "-5.364999999999995",
+          "binary64_hex": "c01575c28f5c28f0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "33ed0c4d-b61b-4a0e-94b3-a01066ff23ff",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-2.1350000000002467",
+          "binary64_hex": "c001147ae147b040"
+        },
+        {
+          "decimal": "-4.7450000000000045",
+          "binary64_hex": "c012fae147ae1480"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "36255074-9eee-4c27-a4dd-d702559ba1aa",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-0.5350000000002524",
+          "binary64_hex": "bfe11eb851eb8e00"
+        },
+        {
+          "decimal": "-4.724999999999994",
+          "binary64_hex": "c012e66666666660"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "40723f07-8171-4894-8ef0-7e3f6ae298e8/1ea5e9aa-fef2-46a1-a665-379475e338a3",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-8.936194000000256",
+          "binary64_hex": "c021df54d1e96cd0"
+        },
+        {
+          "decimal": "10.545271999999997",
+          "binary64_hex": "4025172de43ed958"
+        },
+        {
+          "decimal": "2.2",
+          "binary64_hex": "400199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "444fa31b-f6a0-4db2-bf3c-c6cccd25b47b",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "0.8549999999997482",
+          "binary64_hex": "3feb5c28f5c28680"
+        },
+        {
+          "decimal": "-1.3850000000000051",
+          "binary64_hex": "bff628f5c28f5c40"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "45833d0d-4532-4043-b6a5-7ab03292ac07",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-1.3050000000002484",
+          "binary64_hex": "bff4e147ae147f40"
+        },
+        {
+          "decimal": "-4.765000000000001",
+          "binary64_hex": "c0130f5c28f5c290"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/108226af-7cec-4b47-9653-a11238b8ea75",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "4.284999999999741",
+          "binary64_hex": "401123d70a3d6f80"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/2b1dfbd3-2a91-4730-ab2f-befb70bc3f26",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-5.875000000000256",
+          "binary64_hex": "c017800000000120"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/33073498-5249-4095-ad8d-5f4865443d42",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "6.824999999999747",
+          "binary64_hex": "401b4ccccccccbb0"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/612b5882-2b68-411f-9e45-bb9fef927f40",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-3.3350000000002495",
+          "binary64_hex": "c00aae147ae149e0"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/7f7712a1-bb0f-4f6b-9a39-87dbe5791450",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "1.7449999999997488",
+          "binary64_hex": "3ffbeb851eb84d80"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/a4a02478-f44d-4f30-a0ef-20e35ead06e4",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "6.824999999999747",
+          "binary64_hex": "401b4ccccccccbb0"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/b4cda18e-b7a3-47dc-8388-74df74f568b9",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "1.7449999999997488",
+          "binary64_hex": "3ffbeb851eb84d80"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/d1bfd54c-16fb-4202-ac9f-cfbe0073e342",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "4.284999999999741",
+          "binary64_hex": "401123d70a3d6f80"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/d7e39bfa-bf75-4532-a6e1-161662dfd8c6",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-3.3350000000002495",
+          "binary64_hex": "c00aae147ae149e0"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/e16a77ba-583c-4abd-9581-c8fbf6bf1868",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-0.7950000000002575",
+          "binary64_hex": "bfe970a3d70a4680"
+        },
+        {
+          "decimal": "7.665000000000006",
+          "binary64_hex": "401ea8f5c28f5c30"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/eaee234c-600c-4a3d-853c-55d65eda924b",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-0.7950000000002575",
+          "binary64_hex": "bfe970a3d70a4680"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "4690b89e-adf7-4528-b470-b7df740e0673/f0b5fd79-15ec-488c-9dc4-881550065461",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-5.875000000000256",
+          "binary64_hex": "c017800000000120"
+        },
+        {
+          "decimal": "10.204999999999998",
+          "binary64_hex": "402468f5c28f5c28"
+        },
+        {
+          "decimal": "1.1",
+          "binary64_hex": "3ff199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "53594949-3747-49cc-82cd-cddfeedbf05c",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "3.064999999999742",
+          "binary64_hex": "4008851eb851e940"
+        },
+        {
+          "decimal": "-5.694999999999993",
+          "binary64_hex": "c016c7ae147ae140"
+        },
+        {
+          "decimal": "0.4",
+          "binary64_hex": "3fd999999999999a"
+        }
+      ]
+    },
+    {
+      "id": "5ba92da9-7934-4e4c-bc9c-d49eab9f2ae4",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "0.8749999999997442",
+          "binary64_hex": "3febfffffffff700"
+        },
+        {
+          "decimal": "-4.7450000000000045",
+          "binary64_hex": "c012fae147ae1480"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "61f47e33-9f5c-4457-bc35-39727b30a043",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "1.5249999999997499",
+          "binary64_hex": "3ff8666666666200"
+        },
+        {
+          "decimal": "-2.075000000000003",
+          "binary64_hex": "c0009999999999a0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "92d29ed5-e4c1-4604-8f8f-3bc71cd0d3a4",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-0.5650000000002535",
+          "binary64_hex": "bfe2147ae147b700"
+        },
+        {
+          "decimal": "0.7150000000000034",
+          "binary64_hex": "3fe6e147ae147b00"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "9db87ed7-814f-49bb-8fae-d98bc6e77232",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "0.16499999999975046",
+          "binary64_hex": "3fc51eb851eb6200"
+        },
+        {
+          "decimal": "-4.7450000000000045",
+          "binary64_hex": "c012fae147ae1480"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "aa575501-53a6-49be-93ee-5c2a411d9d24",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "3.6649999999997505",
+          "binary64_hex": "400d51eb851eb620"
+        },
+        {
+          "decimal": "-6.334999999999994",
+          "binary64_hex": "c019570a3d70a3d0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "b62440ac-909a-4879-9ad5-114ca0115a68/84ba4bd9-8f9b-42b0-b87d-58e979d9632b",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "9.053805999999753",
+          "binary64_hex": "40221b8c75c4a7b0"
+        },
+        {
+          "decimal": "-10.444727999999998",
+          "binary64_hex": "c024e3b3636f3b20"
+        },
+        {
+          "decimal": "2.2",
+          "binary64_hex": "400199999999999a"
+        }
+      ]
+    },
+    {
+      "id": "c08d6d87-94a6-43ae-a36f-8d2887362c66",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-2.215000000000259",
+          "binary64_hex": "c001b851eb852100"
+        },
+        {
+          "decimal": "2.2150000000000034",
+          "binary64_hex": "4001b851eb851ec0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "ce48b6e3-29b0-4423-90fe-e65ff0fb1eb5",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "3.874999999999744",
+          "binary64_hex": "400efffffffffdc0"
+        },
+        {
+          "decimal": "-4.194999999999993",
+          "binary64_hex": "c010c7ae147ae140"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "d4b259fe-3bd4-42aa-9235-9fb965597325",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "0.1149999999997533",
+          "binary64_hex": "3fbd70a3d709f800"
+        },
+        {
+          "decimal": "-0.7249999999999943",
+          "binary64_hex": "bfe7333333333300"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "dc022b8d-7bd4-4a2d-994f-79d41eb34f08",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-3.655000000000257",
+          "binary64_hex": "c00d3d70a3d70c80"
+        },
+        {
+          "decimal": "-4.765000000000001",
+          "binary64_hex": "c0130f5c28f5c290"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "e08eb6df-d5e3-45d1-a608-c540fa6536c8",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-3.995000000000246",
+          "binary64_hex": "c00ff5c28f5c2b20"
+        },
+        {
+          "decimal": "-6.0249999999999915",
+          "binary64_hex": "c018199999999990"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "e15aacbe-d8d5-43c5-a694-5230844c4ee2",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "-1.3750000000002558",
+          "binary64_hex": "bff6000000000480"
+        },
+        {
+          "decimal": "1.4950000000000045",
+          "binary64_hex": "3ff7eb851eb85200"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "e2869789-b2d0-4444-acd6-008ecf41f2be",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "2.1349999999997493",
+          "binary64_hex": "4001147ae147abe0"
+        },
+        {
+          "decimal": "-2.7249999999999943",
+          "binary64_hex": "c005ccccccccccc0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    },
+    {
+      "id": "ed560cb2-ffed-47bd-8956-43a728fde470",
+      "fields": [
+        "at.x",
+        "at.y",
+        "holeDiameter"
+      ],
+      "values": [
+        {
+          "decimal": "1.544999999999746",
+          "binary64_hex": "3ff8b851eb851a40"
+        },
+        {
+          "decimal": "-5.075000000000003",
+          "binary64_hex": "c0144cccccccccd0"
+        },
+        {
+          "decimal": "0.3",
+          "binary64_hex": "3fd3333333333333"
+        }
+      ]
+    }
+  ]
+}

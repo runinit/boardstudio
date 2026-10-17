@@ -53,6 +53,10 @@ pub struct ModuleBoard {
     pub holes: Vec<Vec<Vec2>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thickness: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcb_source: Option<CasePcbSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub round_drills: Vec<Mount>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -260,6 +264,10 @@ pub struct ResolvedModule {
     pub board: Vec<CaseOpening>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub board_holes: Vec<Contour>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pcb_source: Option<CasePcbSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub round_drills: Vec<Mount>,
     pub volumes: Vec<ModuleVolume>,
     pub openings: Vec<ModuleVolume>,
     pub mounts: Vec<MechanicalPcbHole>,

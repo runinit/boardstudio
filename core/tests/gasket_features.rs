@@ -24,6 +24,101 @@ fn assembly(features: Value) -> CaseAssemblyIR {
     .unwrap()
 }
 
+fn support_owner_contour(hole: bool, points: &[[f64; 2]]) -> Value {
+    json!({"hole":hole,"points":points.iter().map(|[x,y]| json!({"x":x,"y":y})).collect::<Vec<_>>()})
+}
+
+fn support_owner_case(points: &[[f64; 2]], contours: Vec<Value>) -> CaseAssemblyIR {
+    let support = points
+        .iter()
+        .map(|[x, y]| json!({"x":x,"y":y}))
+        .collect::<Vec<_>>();
+    serde_json::from_value(json!({"revision":1,"bodies":[{
+        "revision":1,"contours":contours,"body":{"id":"owner-case","name":"Owner case","boardId":"board","kind":"plate",
+            "thickness":1.0,"clearance":0.0,"features":[{"kind":"support-prism","id":"owner-support","points":support,"z":0.0,"height":1.0}]}
+    }]})).unwrap()
+}
+
+#[test]
+fn support_owner_cutoff_is_exact_and_strict_for_prepared_inputs() {
+    let exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
+    for edge in [1e-8, f64::from_bits(1e-8_f64.to_bits() + 1)] {
+        let support = [[-1.0, 2.0], [edge, 2.0], [edge, 3.0], [-1.0, 3.0]];
+        let error = prepare(support_owner_case(
+            &support,
+            vec![support_owner_contour(false, &exterior)],
+        ))
+        .unwrap_err();
+        assert!(error.contains("owner-support"), "{error}");
+        assert!(error.contains("one case exterior"), "{error}");
+    }
+
+    let below = [[-1.0, 2.0], [5e-9, 2.0], [5e-9, 3.0], [-1.0, 3.0]];
+    assert!(
+        prepare(support_owner_case(
+            &below,
+            vec![support_owner_contour(false, &exterior)]
+        ))
+        .is_ok()
+    );
+    let touching = [[-1.0, 2.0], [0.0, 2.0], [0.0, 3.0], [-1.0, 3.0]];
+    assert!(
+        prepare(support_owner_case(
+            &touching,
+            vec![support_owner_contour(false, &exterior)]
+        ))
+        .is_ok()
+    );
+}
+
+#[test]
+fn support_owner_keeps_concavity_multiple_owners_and_hole_contract() {
+    let concave = [
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 3.0],
+        [3.0, 3.0],
+        [3.0, 10.0],
+        [0.0, 10.0],
+    ];
+    let crossing_notch = [[2.5, 2.5], [3.5, 2.5], [3.5, 3.5], [2.5, 3.5]];
+    assert!(
+        prepare(support_owner_case(
+            &crossing_notch,
+            vec![support_owner_contour(false, &concave)]
+        ))
+        .is_err()
+    );
+
+    let overlap_support = [[6.0, 2.0], [7.0, 2.0], [7.0, 3.0], [6.0, 3.0]];
+    let left = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]];
+    let right = [[5.0, 0.0], [15.0, 0.0], [15.0, 10.0], [5.0, 10.0]];
+    assert!(
+        prepare(support_owner_case(
+            &overlap_support,
+            vec![
+                support_owner_contour(false, &left),
+                support_owner_contour(false, &right)
+            ]
+        ))
+        .is_err()
+    );
+
+    let hole_exterior = [[-2.0, 0.0], [0.0, 0.0], [0.0, 10.0], [-2.0, 10.0]];
+    let hole = [[-0.75, 4.0], [-0.25, 4.0], [-0.25, 6.0], [-0.75, 6.0]];
+    let in_hole = [[-0.6, 4.5], [-0.4, 4.5], [-0.4, 5.5], [-0.6, 5.5]];
+    assert!(
+        prepare(support_owner_case(
+            &in_hole,
+            vec![
+                support_owner_contour(false, &hole_exterior),
+                support_owner_contour(true, &hole)
+            ]
+        ))
+        .is_ok()
+    );
+}
+
 #[test]
 fn wall_supports_and_blind_seats_survive_preparation() {
     let features = json!([
@@ -36,6 +131,122 @@ fn wall_supports_and_blind_seats_survive_preparation() {
     let prepared = prepare(assembly(features.clone())).unwrap();
     let encoded = serde_json::to_value(prepared).unwrap();
     assert_eq!(encoded["bodies"][0]["body"]["features"], features);
+}
+
+#[test]
+fn support_prism_rejects_self_crossing_polygon_at_prepare_boundary() {
+    let points = (0..5)
+        .map(|i| {
+            let angle =
+                std::f64::consts::TAU * ((i * 2) % 5) as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    let error = prepare(assembly(json!([{
+        "kind":"support-prism","id":"crossed-support","points":points,"z":1.0,"height":1.0
+    }])))
+    .unwrap_err();
+    assert!(error.contains("crossed-support"), "{error}");
+    assert!(
+        error.contains("cross") || error.contains("intersect"),
+        "{error}"
+    );
+}
+
+#[test]
+fn support_prism_keeps_existing_finite_and_height_errors_before_topology() {
+    let crossed = (0..5)
+        .map(|i| {
+            let angle =
+                std::f64::consts::TAU * ((i * 2) % 5) as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+            boardstudio_core::model::Vec2 {
+                x: 10.0 + 8.0 * angle.cos(),
+                y: 10.0 + 8.0 * angle.sin(),
+            }
+        })
+        .collect::<Vec<_>>();
+    let invalid_height = serde_json::from_value::<CaseAssemblyIR>(json!({
+        "revision":1,
+        "bodies":[{
+            "revision":1,
+            "contours":[{"hole":false,"points":[{"x":0.0,"y":0.0},{"x":30.0,"y":0.0},{"x":30.0,"y":20.0},{"x":0.0,"y":20.0}]}],
+            "body":{"id":"bottom","name":"Tray","boardId":"board","kind":"tray","thickness":2.0,"clearance":0.0,"z":0.0,"wallHeight":8.0,"wallThickness":2.0,
+                "features":[{"kind":"support-prism","id":"bad-height-support","points":crossed,"z":1.0,"height":0.0}]}
+        }]
+    })).unwrap();
+    let height_error = match CoreEngine::new().handle(CoreRequest::PrepareCase {
+        id: "features".into(),
+        ir: invalid_height,
+    }) {
+        CoreReply::Error { message, .. } => message,
+        other => panic!("invalid support height was accepted: {other:?}"),
+    };
+    assert!(
+        height_error.contains("bad-height-support"),
+        "{height_error}"
+    );
+    assert!(
+        height_error.contains("finite positive geometry"),
+        "{height_error}"
+    );
+
+    let mut invalid_coordinate = assembly(json!([{
+        "kind":"support-prism","id":"bad-coordinate-support","points":[
+            {"x":1.0,"y":1.0},{"x":6.0,"y":1.0},{"x":6.0,"y":6.0},{"x":1.0,"y":6.0}
+        ],"z":1.0,"height":1.0
+    }]));
+    if let CaseFeature::SupportPrism { points, .. } =
+        &mut invalid_coordinate.bodies[0].body.features.as_mut().unwrap()[0]
+    {
+        points[0].x = f64::NAN;
+    }
+    let coordinate_error = prepare(invalid_coordinate).unwrap_err();
+    assert!(
+        coordinate_error.contains("bad-coordinate-support"),
+        "{coordinate_error}"
+    );
+    assert!(
+        coordinate_error.contains("finite positive geometry"),
+        "{coordinate_error}"
+    );
+}
+
+#[test]
+fn support_prism_preserves_exact_duplicates_large_rings_and_nearby_edges() {
+    let duplicates = json!([{
+        "kind":"support-prism","id":"duplicate-support","points":[
+            {"x":1.0,"y":1.0},{"x":1.0,"y":1.0},{"x":6.0,"y":1.0},
+            {"x":6.0,"y":6.0},{"x":1.0,"y":6.0},{"x":1.0,"y":1.0}
+        ],"z":1.0,"height":1.0
+    }]);
+    let prepared_duplicates = prepare(assembly(duplicates.clone())).unwrap();
+    let encoded = serde_json::to_value(prepared_duplicates).unwrap();
+    assert_eq!(
+        encoded["bodies"][0]["body"]["features"][0]["points"],
+        duplicates[0]["points"]
+    );
+
+    let nearby = json!([{
+        "kind":"support-prism","id":"nearby-support","points":[
+            {"x":1.0,"y":1.0},{"x":20.0,"y":1.0},{"x":20.0,"y":19.0},
+            {"x":1.0000000001,"y":19.0},{"x":1.0000000001,"y":10.0},
+            {"x":1.0,"y":10.0}
+        ],"z":1.0,"height":1.0
+    }]);
+    assert!(prepare(assembly(nearby)).is_ok());
+
+    let points = (0..1025)
+        .map(|i| {
+            let angle = std::f64::consts::TAU * i as f64 / 1025.0;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        prepare(assembly(json!([{
+            "kind":"support-prism","id":"large-support","points":points,"z":1.0,"height":1.0
+        }])))
+        .is_ok()
+    );
 }
 
 #[test]

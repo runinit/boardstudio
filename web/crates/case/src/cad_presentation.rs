@@ -271,8 +271,7 @@ mod mounted_tests {
         Completion, Effect, Event as AppEvent, GenerationStatus, JobId, Scope,
     };
     use boardstudio_core::model::{
-        Board, EditCommand, EditOperation, EditPhase, MechanicalAssembly, Operation,
-        OutlineFeature, ProjectDoc, Vec2,
+        Board, EditOperation, MechanicalAssembly, Operation, OutlineFeature, ProjectDoc, Vec2,
     };
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
@@ -575,7 +574,7 @@ mod mounted_tests {
         settle().await;
         let effects = support::take_held_effects(&runtime);
         assert_eq!(job_effects(&effects), ["run-export"]);
-        assert_eq!(started_exports(&effects), [scope.clone()]);
+        assert_eq!(started_exports(&effects), std::slice::from_ref(&scope));
 
         // A preview-quality generation replaces the exact one and drops the exact geometry.
         finish_generation(&runtime, &scope, false);
@@ -704,7 +703,7 @@ mod mounted_tests {
         );
         assert_eq!(
             started_generations(&support::take_held_effects(&runtime)),
-            [scope.clone()],
+            std::slice::from_ref(&scope),
             "Update preview retries generation for the current owner"
         );
         remove_case_root(root_id);

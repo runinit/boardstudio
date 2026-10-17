@@ -1143,8 +1143,7 @@ fn mounted_component_inspector_host() -> Element {
             &action_adapter,
             &layout_owner,
             &action_lifetime,
-            action_workspace,
-            inspect_open,
+            (action_workspace, inspect_open),
             action_pending_edits,
             action,
         )
@@ -2116,7 +2115,7 @@ fn accepted_revision(probe: &MountedProbe) -> u64 {
 async fn accept_pending(probe: &MountedProbe) {
     crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
     probe.refresh();
-    settle_mounted_component_inspector(&probe).await;
+    settle_mounted_component_inspector(probe).await;
 }
 
 #[wasm_bindgen_test]

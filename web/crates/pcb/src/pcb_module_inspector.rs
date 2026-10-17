@@ -1267,6 +1267,8 @@ mod mounted_save_replacement_tests {
                 contours: Vec::new(),
                 holes: Vec::new(),
                 thickness: Some(1.6),
+                pcb_source: None,
+                round_drills: Vec::new(),
             },
             mounts: Vec::new(),
             volumes: Vec::new(),

@@ -22,6 +22,10 @@ use web_sys::{
 
 const MAX_STEP_BYTES: usize = 32 * 1024 * 1024;
 const KEYCAPS_PREVIEW_BATCH_SIZE: usize = 8;
+// Keep batching within cad/wasm's whole-request keycap limit.
+const MAX_KEYCAPS_PER_REQUEST: usize = 4096;
+const KEYCAP_STEP_UNSUPPORTED: &str =
+    "Keycap STEP export is unsupported; build_keycaps returns preview meshes only";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CadWorkerError(pub String);
@@ -168,37 +172,6 @@ impl CadWorker {
             .await
     }
 
-    /// Export Core-resolved KeycapSpecs through this library's existing CAD worker.
-    /// The page binary is a separate crate, while its request wire remains private here.
-    pub async fn request_keycaps_step(
-        &self,
-        request_id: String,
-        job_id: String,
-        identity: CadSnapshotIdentity,
-        specs: Vec<KeycapSpec>,
-    ) -> Result<CadReply, CadWorkerError> {
-        if request_id.is_empty()
-            || job_id.is_empty()
-            || identity.revision > crate::cad_jobs::MAX_CAD_REVISION
-            || specs.is_empty()
-        {
-            return Err(CadWorkerError(
-                "Keycap STEP input does not match its accepted snapshot".into(),
-            ));
-        }
-        self.ready().await?;
-        let revision = identity.revision;
-        let frame = serde_json::to_string(&KeycapsCadRequest {
-            request_id: request_id.clone(),
-            job_id: job_id.clone(),
-            identity: identity.clone(),
-            operation: CadOperation::ExportStep,
-            keycaps: KeycapsInput { revision, specs },
-        })
-        .map_err(|error| CadWorkerError(error.to_string()))?;
-        self.request_frame(&request_id, &frame, &[]).await
-    }
-
     /// Build preview meshes from Core-resolved KeycapSpecs in this worker.
     /// This remains a feature-specific wire adapter; public case CAD requests stay unchanged.
     pub async fn request_keycaps_preview(
@@ -208,21 +181,44 @@ impl CadWorker {
         identity: CadSnapshotIdentity,
         specs: Vec<KeycapSpec>,
     ) -> Result<CadResult, CadWorkerError> {
+        self.request_keycaps(request_id, job_id, identity, specs, CadOperation::Preview)
+            .await
+    }
+
+    async fn request_keycaps(
+        &self,
+        request_id: String,
+        job_id: String,
+        identity: CadSnapshotIdentity,
+        specs: Vec<KeycapSpec>,
+        operation: CadOperation,
+    ) -> Result<CadResult, CadWorkerError> {
+        let printable = operation == CadOperation::PrintKeycaps;
+        let kind = if printable { "print" } else { "preview" };
         if request_id.is_empty()
             || job_id.is_empty()
             || identity.revision > crate::cad_jobs::MAX_CAD_REVISION
             || specs.is_empty()
+            || specs.len() > MAX_KEYCAPS_PER_REQUEST
+            || (printable
+                && (specs.iter().any(|spec| spec.id.trim().is_empty())
+                    || specs
+                        .iter()
+                        .map(|spec| &spec.id)
+                        .collect::<BTreeSet<_>>()
+                        .len()
+                        != specs.len()))
         {
-            return Err(CadWorkerError(
-                "Keycap preview input does not match its accepted snapshot".into(),
-            ));
+            return Err(CadWorkerError(format!(
+                "Keycap {kind} input does not match its accepted snapshot"
+            )));
         }
         self.ready().await?;
         let expected = specs
             .iter()
             .flat_map(|spec| {
                 let mut ids = vec![format!("keycap:{}", spec.id)];
-                if !spec.legend.trim().is_empty() {
+                if !printable && !spec.legend.trim().is_empty() {
                     ids.push(format!("keycap-legend:{}", spec.id));
                 }
                 ids
@@ -233,7 +229,7 @@ impl CadWorker {
             request_id: request_id.clone(),
             job_id: job_id.clone(),
             identity: identity.clone(),
-            operation: CadOperation::Preview,
+            operation,
             keycaps: KeycapsInput { revision, specs },
         })
         .map_err(|error| CadWorkerError(error.to_string()))?;
@@ -241,21 +237,21 @@ impl CadWorker {
         if reply.request_id != request_id
             || reply.job_id != job_id
             || reply.identity != identity
-            || reply.operation != CadOperation::Preview
+            || reply.operation != operation
         {
-            return Err(CadWorkerError(
-                "CAD preview result belongs to another keycap request".into(),
-            ));
+            return Err(CadWorkerError(format!(
+                "CAD {kind} result belongs to another keycap request"
+            )));
         }
         match reply.outcome {
             CadReplyOutcome::Cancelled => {
-                return Err(CadWorkerError("Keycap CAD preview was cancelled".into()));
+                return Err(CadWorkerError(format!("Keycap CAD {kind} was cancelled")));
             }
             CadReplyOutcome::Failed => {
                 return Err(CadWorkerError(
                     reply
                         .error
-                        .unwrap_or_else(|| "Keycap CAD preview failed".into()),
+                        .unwrap_or_else(|| format!("Keycap CAD {kind} failed")),
                 ));
             }
             CadReplyOutcome::Completed => {}
@@ -267,7 +263,10 @@ impl CadWorker {
             !body.id.is_empty()
                 && !body.name.is_empty()
                 && !body.positions.is_empty()
-                && body.positions.len().is_multiple_of(3)
+                && body
+                    .positions
+                    .len()
+                    .is_multiple_of(if printable { 9 } else { 3 })
                 && body.positions.len() == body.normals.len()
                 && body
                     .positions
@@ -276,6 +275,7 @@ impl CadWorker {
                     .all(|value| value.is_finite())
         };
         if result.revision != identity.revision
+            || (printable && !result.step.is_empty())
             || result.bodies.len() != expected.len()
             || result
                 .bodies
@@ -283,11 +283,28 @@ impl CadWorker {
                 .zip(expected)
                 .any(|(body, expected_id)| body.id != expected_id || !valid_mesh(body))
         {
-            return Err(CadWorkerError(
-                "Keycap CAD preview meshes are missing, malformed, or stale".into(),
-            ));
+            return Err(CadWorkerError(format!(
+                "Keycap CAD {kind} meshes are missing, malformed, or stale"
+            )));
         }
         Ok(result)
+    }
+
+    pub async fn request_keycaps_print(
+        &self,
+        request_id: String,
+        job_id: String,
+        identity: CadSnapshotIdentity,
+        specs: Vec<KeycapSpec>,
+    ) -> Result<CadResult, CadWorkerError> {
+        self.request_keycaps(
+            request_id,
+            job_id,
+            identity,
+            specs,
+            CadOperation::PrintKeycaps,
+        )
+        .await
     }
 
     async fn request_frame(
@@ -409,6 +426,9 @@ fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
         ));
     }
     match request.operation {
+        CadOperation::PrintKeycaps => Err(CadWorkerError(
+            "Printable keycaps require the keycap request adapter".into(),
+        )),
         CadOperation::ReadStep
             if request.prepared.is_some()
                 || request.input_bytes.is_empty()
@@ -608,7 +628,6 @@ fn fail_all(state: &Rc<RefCell<ClientState>>, error: CadWorkerError) {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod keycaps_worker_tests {
     use super::*;
-    use crate::cad_jobs::validate_reply;
     use boardstudio_core::model::{KeycapMount, KeycapProfile, Pose2, Side, Vec2};
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Blob, BlobPropertyBag, Url};
@@ -661,7 +680,68 @@ mod keycaps_worker_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn keycaps_worker_failure_late_reply_step_errors_and_retry_are_correlated() {
+    async fn keycaps_print_uses_a_distinct_operation_and_one_fused_body() {
+        let source = WorkerSource::new(
+            r#"
+          self.postMessage({kind:'ready'});
+          self.onmessage = event => {
+            const input = JSON.parse(event.data.frame);
+            const correct = input.operation === 'print-keycaps';
+            const replyOperation = input.requestId === 'print-stale' ? 'preview' : input.operation;
+            const frame = JSON.stringify({requestId:input.requestId,jobId:input.jobId,
+              identity:input.identity,operation:replyOperation,outcome:correct?'completed':'failed',
+              error:correct?null:'Print must not use preview identity'});
+            const result = {revision:input.identity.revision,step:new Uint8Array(),mesh:null,
+              bodies:[{id:'keycap:key-1',name:'A1',positions:new Float32Array([0,0,0,1,0,0,0,1,0]),
+                normals:new Float32Array([0,0,1,0,0,1,0,0,1])}],bounds:null};
+            if(input.requestId === 'print-truncated') {
+              result.bodies[0].positions = new Float32Array([0,0,0]);
+              result.bodies[0].normals = new Float32Array([0,0,1]);
+            }
+            self.postMessage({kind:'reply',frame,result});
+          };
+        "#,
+        );
+        let worker = CadWorker::new(&source.0).unwrap();
+        let identity = CadSnapshotIdentity {
+            token: 1,
+            session_epoch: 1,
+            document_id: "print".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            revision: 1,
+        };
+        let mut cap = spec();
+        cap.legend = "O".into();
+        let result = worker
+            .request_keycaps_print(
+                "print-1".into(),
+                "print-job".into(),
+                identity.clone(),
+                vec![cap.clone()],
+            )
+            .await
+            .expect("print operation must not share preview identity or separate legend IDs");
+        assert_eq!(result.bodies.len(), 1);
+        for request in ["print-stale", "print-truncated"] {
+            assert!(
+                worker
+                    .request_keycaps_print(
+                        request.into(),
+                        request.into(),
+                        identity.clone(),
+                        vec![cap.clone()]
+                    )
+                    .await
+                    .is_err(),
+                "stale or incomplete print results must refuse"
+            );
+        }
+        worker.close();
+    }
+
+    #[wasm_bindgen_test]
+    async fn keycaps_worker_failure_late_reply_stale_revision_and_retry_are_correlated() {
         let source = WorkerSource::new(
             r#"
             self.postMessage({ kind: "ready" });
@@ -692,9 +772,7 @@ mod keycaps_worker_tests {
                 setTimeout(() => respond("completed", null, "keycap:late-old"), 25);
               } else if (input.requestId === "keycaps-preview-current") {
                 setTimeout(() => respond("completed", null, "keycap:key-1"), 60);
-              } else if (input.requestId === "keycaps-step-failed") {
-                respond("failed", "injected STEP provider failure", "");
-              } else if (input.requestId === "keycaps-step-stale") {
+              } else if (input.requestId === "keycaps-preview-stale") {
                 respond("completed", null, "", input.identity.revision + 1);
               }
             };
@@ -735,51 +813,27 @@ mod keycaps_worker_tests {
         assert_eq!(current_preview.revision, identity.revision);
         assert_eq!(current_preview.bodies[0].id, "keycap:key-1");
 
-        let failed_step = worker
-            .request_keycaps_step(
-                "keycaps-step-failed".into(),
-                "step-failed-job".into(),
-                identity.clone(),
-                vec![keycap.clone()],
-            )
-            .await
-            .unwrap();
-        let failed_step_request = CadRequest {
-            request_id: "keycaps-step-failed".into(),
-            job_id: "step-failed-job".into(),
-            identity: identity.clone(),
-            operation: CadOperation::ExportStep,
-            prepared: None,
-            input_bytes: Vec::new(),
-        };
-        assert!(matches!(
-            validate_reply(&failed_step_request, failed_step, &identity),
-            Err(crate::cad_jobs::CadJobError::Failed(message))
-                if message == "injected STEP provider failure"
-        ));
-
-        let stale_step = worker
-            .request_keycaps_step(
-                "keycaps-step-stale".into(),
-                "step-stale-job".into(),
+        let stale_preview = worker
+            .request_keycaps_preview(
+                "keycaps-preview-stale".into(),
+                "preview-stale-job".into(),
                 identity.clone(),
                 vec![keycap],
             )
             .await
-            .unwrap();
-        let stale_step_request = CadRequest {
-            request_id: "keycaps-step-stale".into(),
-            job_id: "step-stale-job".into(),
-            identity: identity.clone(),
-            operation: CadOperation::ExportStep,
-            prepared: None,
-            input_bytes: Vec::new(),
-        };
-        assert!(matches!(
-            validate_reply(&stale_step_request, stale_step, &identity),
-            Err(crate::cad_jobs::CadJobError::Stale(message))
-                if message == "CAD result has another document revision"
-        ));
+            .unwrap_err();
+        assert_eq!(
+            stale_preview.0,
+            "Keycap CAD preview meshes are missing, malformed, or stale"
+        );
+        assert_eq!(
+            keycap_operation_error(&CadOperation::ExportStep, true),
+            Some(KEYCAP_STEP_UNSUPPORTED)
+        );
+        assert_eq!(
+            keycap_operation_error(&CadOperation::ExportStep, false),
+            None
+        );
         worker.close();
     }
 }
@@ -880,20 +934,27 @@ fn receive_worker_message(
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
     let mut request = serde_json::from_str::<WireRequest>(&frame)
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    if request.keycaps.is_some()
-        && !matches!(
-            request.operation,
-            CadOperation::Preview | CadOperation::ExportStep
-        )
-    {
-        return Err(JsValue::from_str(
-            "Keycap CAD input is only valid for preview or STEP export",
-        ));
+    if let Some(message) = keycap_operation_error(&request.operation, request.keycaps.is_some()) {
+        return post_reply(
+            scope,
+            WireReply {
+                request_id: request.request_id,
+                job_id: request.job_id,
+                identity: request.identity,
+                operation: request.operation,
+                outcome: CadReplyOutcome::Failed,
+                error: Some(message.into()),
+            }
+            .into(),
+            None,
+            Array::new(),
+        );
     }
     if let Some(keycaps) = request.keycaps.as_ref()
         && (request.prepared.is_some()
             || keycaps.revision != request.identity.revision
-            || keycaps.specs.is_empty())
+            || keycaps.specs.is_empty()
+            || keycaps.specs.len() > MAX_KEYCAPS_PER_REQUEST)
     {
         return Err(JsValue::from_str(
             "Keycap CAD input does not match its captured revision",
@@ -915,18 +976,6 @@ fn receive_worker_message(
             Array::new(),
         );
     }
-    if request.operation == CadOperation::ExportStep
-        && let Some(keycaps) = request.keycaps.as_ref()
-        && (request.prepared.is_some()
-            || !request.input_bytes.is_empty()
-            || keycaps.revision != request.identity.revision
-            || keycaps.specs.is_empty()
-            || keycaps.specs.len() > 4096)
-    {
-        return Err(JsValue::from_str(
-            "Keycap STEP input does not match its accepted snapshot",
-        ));
-    }
     if let Some(buffer) = Reflect::get(&data, &"inputBytes".into())
         .ok()
         .filter(|value| !value.is_undefined())
@@ -947,6 +996,20 @@ fn receive_worker_message(
     }
     pump_worker(queue.clone(), scope.clone(), module.clone());
     Ok(())
+}
+
+fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option<&'static str> {
+    if !has_keycaps {
+        return (operation == &CadOperation::PrintKeycaps)
+            .then_some("Printable keycaps require keycap input");
+    }
+    match operation {
+        CadOperation::Preview | CadOperation::PrintKeycaps => None,
+        CadOperation::ExportStep => Some(KEYCAP_STEP_UNSUPPORTED),
+        CadOperation::Exact | CadOperation::ReadStep => {
+            Some("Keycap CAD input is only valid for preview")
+        }
+    }
 }
 
 fn pump_worker(
@@ -1030,19 +1093,25 @@ async fn run_request(
         js_sys::JSON::parse(&text).map_err(js_message)
     };
     let result = match request.operation {
-        CadOperation::Preview => {
+        CadOperation::Preview | CadOperation::PrintKeycaps => {
             if let Some(keycaps) = request.keycaps.as_ref() {
                 // Match React's buildKeycaps adapter: yield between groups so the
                 // dedicated worker can receive cancellation before starting more CAD.
                 let bodies = Array::new();
-                for specs in keycaps.specs.chunks(KEYCAPS_PREVIEW_BATCH_SIZE) {
+                let printable = request.operation == CadOperation::PrintKeycaps;
+                let batch_size = if printable {
+                    1
+                } else {
+                    KEYCAPS_PREVIEW_BATCH_SIZE
+                };
+                for specs in keycaps.specs.chunks(batch_size) {
                     if canceled() {
                         return Err((request, "CAD job cancelled".into(), true));
                     }
                     let input = serde_json::to_string(&serde_json::json!({
                         "revision": keycaps.revision,
                         "specs": specs,
-                        "export": false,
+                        "printable": printable,
                     }))
                     .map_err(|error| (request.clone(), error.to_string(), false))?;
                     let input = js_sys::JSON::parse(&input)
@@ -1155,40 +1224,22 @@ async fn run_request(
         )
         .map_err(|error| (request.clone(), error, false))?,
         CadOperation::ExportStep => {
-            if let Some(keycaps) = request.keycaps.as_ref() {
-                let input = serde_json::to_string(&serde_json::json!({
-                    "revision": keycaps.revision,
-                    "specs": keycaps.specs,
-                    "export": true,
-                }))
-                .map_err(|error| (request.clone(), error.to_string(), false))?;
-                let input = js_sys::JSON::parse(&input)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                let result = invoke("build_keycaps", &[input])
-                    .map_err(|error| (request.clone(), error, false))?;
-                // This action downloads only STEP. Avoid cloning the unused
-                // preview meshes back to the page as structured data.
-                Reflect::set(&result, &"bodies".into(), &Array::new())
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                result
-            } else {
-                let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
-                Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
-                    .map_err(|error| (request.clone(), js_message(error), false))?;
-                let bodies = Array::from(
-                    &Reflect::get(&prepared, &"bodies".into())
-                        .map_err(|error| (request.clone(), js_message(error), false))?,
-                );
-                // This worker owns a fresh module/cache. Empty keys intentionally
-                // miss preview meshes while the provider rebuilds exact solids
-                // from the same prepared regions without allocating triangulations.
-                let keys = Array::new_with_length(bodies.length());
-                for index in 0..bodies.length() {
-                    keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
-                }
-                invoke("export_cached_assembly", &[prepared, keys.into()])
-                    .map_err(|error| (request.clone(), error, false))?
+            let prepared = prepared_value().map_err(|error| (request.clone(), error, false))?;
+            Reflect::set(&prepared, &"stepOnly".into(), &JsValue::TRUE)
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            let bodies = Array::from(
+                &Reflect::get(&prepared, &"bodies".into())
+                    .map_err(|error| (request.clone(), js_message(error), false))?,
+            );
+            // This worker owns a fresh module/cache. Empty keys intentionally
+            // miss preview meshes while the provider rebuilds exact solids
+            // from the same prepared regions without allocating triangulations.
+            let keys = Array::new_with_length(bodies.length());
+            for index in 0..bodies.length() {
+                keys.set(index, JsValue::from_str("m1-independent-step-cache-miss"));
             }
+            invoke("export_cached_assembly", &[prepared, keys.into()])
+                .map_err(|error| (request.clone(), error, false))?
         }
         CadOperation::ReadStep => {
             if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES {
@@ -1300,7 +1351,7 @@ fn post_reply(
 fn result_transfers(operation: &CadOperation, result: &JsValue) -> Result<Array, JsValue> {
     let transfers = Array::new();
     match operation {
-        CadOperation::Preview => {
+        CadOperation::Preview | CadOperation::PrintKeycaps => {
             let bodies = Array::from(&Reflect::get(result, &"bodies".into())?);
             for body in bodies.iter() {
                 add_mesh_transfers(&transfers, &body)?;

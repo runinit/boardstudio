@@ -89,26 +89,41 @@ fn round_rect(size: Vec2, radius: f64) -> Vec<Vec2> {
 }
 fn arc(n: &Node) -> Result<Vec<Vec2>, ArtifactError> {
     let a = xy(n, "start")?;
-    let b = xy(n, "mid")?;
     let c = xy(n, "end")?;
-    let d = 2. * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-    if d.abs() < 1e-10 {
-        return Err(error("Degenerate board arc"));
-    }
-    let aa = a.x * a.x + a.y * a.y;
-    let bb = b.x * b.x + b.y * b.y;
-    let cc = c.x * c.x + c.y * c.y;
-    let o = Vec2 {
-        x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
-        y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
+    let (o, start, sweep, radius) = if let Some(legacy) = child(n, "angle") {
+        if child(n, "mid").is_some() {
+            return Err(error("Arc needs either a midpoint or a legacy angle"));
+        }
+        let degrees = number(legacy, 1, 0.)?;
+        if degrees == 0. || degrees.abs() > 360. {
+            return Err(error("Invalid legacy board arc"));
+        }
+        super::legacy_arc_parameters(a, c, degrees)
+            .ok_or_else(|| error("Invalid legacy board arc"))?
+    } else {
+        let b = child(n, "mid")
+            .map(point)
+            .ok_or_else(|| error("Arc needs either a midpoint or a legacy angle"))??;
+        let d = 2. * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+        if d.abs() < 1e-10 {
+            return Err(error("Degenerate board arc"));
+        }
+        let aa = a.x * a.x + a.y * a.y;
+        let bb = b.x * b.x + b.y * b.y;
+        let cc = c.x * c.x + c.y * c.y;
+        let o = Vec2 {
+            x: (aa * (b.y - c.y) + bb * (c.y - a.y) + cc * (a.y - b.y)) / d,
+            y: (aa * (c.x - b.x) + bb * (a.x - c.x) + cc * (b.x - a.x)) / d,
+        };
+        let start = (a.y - o.y).atan2(a.x - o.x);
+        let middle = ((b.y - o.y).atan2(b.x - o.x) - start).rem_euclid(TAU);
+        let mut sweep = ((c.y - o.y).atan2(c.x - o.x) - start).rem_euclid(TAU);
+        if middle > sweep {
+            sweep -= TAU;
+        }
+        let radius = (a.x - o.x).hypot(a.y - o.y);
+        (o, start, sweep, radius)
     };
-    let start = (a.y - o.y).atan2(a.x - o.x);
-    let middle = ((b.y - o.y).atan2(b.x - o.x) - start).rem_euclid(TAU);
-    let mut sweep = ((c.y - o.y).atan2(c.x - o.x) - start).rem_euclid(TAU);
-    if middle > sweep {
-        sweep -= TAU;
-    }
-    let radius = (a.x - o.x).hypot(a.y - o.y);
     let steps = ((radius * sweep.abs() / 0.1).ceil() as usize).clamp(8, 2048);
     Ok((0..=steps)
         .map(|i| {
@@ -381,6 +396,13 @@ fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
         .collect())
 }
 pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactError> {
+    board_source(source, revision).map(|(preview, _)| preview)
+}
+
+pub(super) fn board_source(
+    source: &str,
+    revision: u64,
+) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
     if source.len() > 32 * 1024 * 1024 {
         return Err(error("Board exceeds the 32 MiB preview limit"));
     }
@@ -395,6 +417,10 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     if thickness <= 0. || thickness > 100. {
         return Err(error("Invalid PCB thickness"));
     }
+    let source_thickness = child(root, "general")
+        .and_then(|general| child(general, "thickness"))
+        .filter(|node| !value(node, 1).is_empty())
+        .map(|_| thickness);
     let mut out = PcbPreview {
         revision,
         thickness,
@@ -494,7 +520,7 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     }
     out.diagnostics.sort();
     out.diagnostics.dedup();
-    Ok(out)
+    Ok((out, source_thickness))
 }
 
 /// Project only source-local front/back silkscreen and fabrication artwork from a footprint.

@@ -5,6 +5,19 @@ use boardstudio_web_ui_shared::controls::BoardDisclosure;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
+type TransformToolOwner = (
+    Option<boardstudio_application::Scope>,
+    u64,
+    Option<String>,
+    &'static str,
+    bool,
+);
+type InspectorFieldFailures = (
+    Signal<Option<String>>,
+    Signal<Option<String>>,
+    Signal<Option<String>>,
+);
+
 pub(super) struct ObjectsInput {
     pub(super) shared: SharedObjectsInput,
     pub(super) matrix_setup: objects::MatrixSetupMount,
@@ -112,15 +125,7 @@ pub(super) struct LayoutWorkspaceState {
     inspector_tab: Signal<LayoutInspectorTab>,
     command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
-    transform_tool_owner: Signal<
-        Option<(
-            Option<boardstudio_application::Scope>,
-            u64,
-            Option<String>,
-            &'static str,
-            bool,
-        )>,
-    >,
+    transform_tool_owner: Signal<Option<TransformToolOwner>>,
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
@@ -274,13 +279,7 @@ impl LayoutWorkspaceState {
         )
     }
 
-    pub(super) fn component_inspector_field_failures(
-        self,
-    ) -> (
-        Signal<Option<String>>,
-        Signal<Option<String>>,
-        Signal<Option<String>>,
-    ) {
+    pub(super) fn component_inspector_field_failures(self) -> InspectorFieldFailures {
         (
             self.component_inspector_x_failure,
             self.component_inspector_y_failure,
@@ -301,16 +300,7 @@ impl LayoutWorkspaceState {
         }
     }
 
-    pub(super) fn observe_transform_tool_owner(
-        self,
-        owner: (
-            Option<boardstudio_application::Scope>,
-            u64,
-            Option<String>,
-            &'static str,
-            bool,
-        ),
-    ) {
+    pub(super) fn observe_transform_tool_owner(self, owner: TransformToolOwner) {
         let mut state = self;
         let owner = owner.clone();
         use_effect(use_reactive!(|owner| {
@@ -998,7 +988,7 @@ fn matrix_relationship_escape_return_request(
         context: objects::TreeContext::Board {
             board_id: target.scope.board_id.clone(),
         },
-        mode: target.mode.clone(),
+        mode: target.mode,
         outline_action: None,
     })
 }

@@ -2094,7 +2094,6 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                         onclick: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
-                            let on_request = on_request;
                             let choice = mount_choices.first().cloned();
                             move |_| if let Some(choice) = choice.as_ref() {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::AddHardware {
@@ -3750,8 +3749,8 @@ struct ProfileGeometryEditorProps {
 #[component]
 fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
     let geometry_state = use_signal(|| None::<MechanicalGeometry>);
-    let selected = use_signal(|| Vec::<String>::new());
-    let purposes = use_signal(|| Vec::<MechanicalPurposeMapping>::new());
+    let selected = use_signal(Vec::<String>::new);
+    let purposes = use_signal(Vec::<MechanicalPurposeMapping>::new);
     let busy = use_signal(|| false);
     let error = use_signal(String::new);
     let extraction_port = props.extract_profile.clone();
@@ -3851,9 +3850,6 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                             onclick: {
                                 let definition_id = props.profile.definition_id.clone();
                                 let port = port.clone();
-                                let geometry_state = geometry_state;
-                                let purposes = purposes;
-                                let selected = selected;
                                 let profile = props.profile.clone();
                                 let identity = props.identity.clone();
                                 let sequence = props.request_sequence;
@@ -4508,7 +4504,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
             }
         }
     });
-    let error_text = error().or_else(|| failure());
+    let error_text = error().or_else(&*failure);
     let status_text = pending.then_some("Saving…");
     rsx! {
         label { class: "m1-mechanical-dimension",
@@ -4660,7 +4656,7 @@ fn TextDraftField(props: TextDraftFieldProps) -> Element {
             }
         }
     });
-    let error_text = error().or_else(|| failure());
+    let error_text = error().or_else(&*failure);
     let status_text = pending.then_some("Saving…");
     rsx! {
         label { class: "m1-mechanical-field",
@@ -5359,7 +5355,7 @@ mod contextual_layer_tests {
             ]];
             choice
         });
-        let mut extracted_definition_ids = use_signal(Vec::<String>::new);
+        let extracted_definition_ids = use_signal(Vec::<String>::new);
         let mut owner_key = use_signal(|| "test-owner-a".to_owned());
         let extraction =
             MechanicalProfileExtractionPort(Rc::new(move |definition_id, mappings| {
@@ -6184,7 +6180,7 @@ mod contextual_layer_tests {
         input.focus().unwrap();
         dispatch_input(&input, "2.5");
         dispatch_key(&input, "Escape");
-        input.blur();
+        input.blur().unwrap();
         let change = web_sys::EventInit::new();
         change.set_bubbles(true);
         input
@@ -6203,7 +6199,7 @@ mod contextual_layer_tests {
         input.focus().unwrap();
         dispatch_input(&input, "2.0");
         dispatch_key(&input, "Enter");
-        input.blur();
+        input.blur().unwrap();
         let change = web_sys::EventInit::new();
         change.set_bubbles(true);
         input
@@ -6220,7 +6216,7 @@ mod contextual_layer_tests {
 
         input.focus().unwrap();
         dispatch_input(&input, "0.05");
-        input.blur();
+        input.blur().unwrap();
         rendered().await;
         assert_eq!(
             element("#case-process-thickness-request-count")
@@ -8382,7 +8378,7 @@ mod mounted_settlement_tests {
 
 #[component]
 fn StackupPreview(values: MechanicalSettingsValues) -> Element {
-    let rows = vec![
+    let rows = [
         ("Plate", values.plate_thickness),
         ("Plate foam", values.plate_foam_thickness),
         (

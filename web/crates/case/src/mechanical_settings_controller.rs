@@ -801,7 +801,7 @@ mod adapter_tests {
     use crate::runtime::{Runtime, project_name_test_support as support};
     use boardstudio_application::{
         AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, OperationId, Resolution,
-        Scope, SnapshotToken,
+        Scope,
     };
     use boardstudio_core::model::{EditOperation, ProjectDoc};
     use boardstudio_web_runtime::edit_ticket::EditTicketPort;
@@ -842,8 +842,10 @@ mod adapter_tests {
     }
 
     /// A queue of catalogue replies; an empty queue resolves immediately.
+    type CatalogueReply = oneshot::Receiver<Result<(), String>>;
+
     #[derive(Clone, Default)]
-    struct TestCatalogue(Rc<RefCell<VecDeque<oneshot::Receiver<Result<(), String>>>>>);
+    struct TestCatalogue(Rc<RefCell<VecDeque<CatalogueReply>>>);
 
     /// The normalized mounting-hole definition Core validates on every supplied
     /// template: the `ceoloide/mounting_hole_npth` source with a drilled pad.
@@ -1245,16 +1247,18 @@ mod adapter_tests {
         )));
         loaded().await;
 
-        let resolutions = reviewed_port.resolutions.borrow();
-        assert_eq!(resolutions.len(), 1);
-        let resolution = resolutions[0].resolve(&changed);
-        let Resolution::Retire(reason) = resolution else {
-            panic!(
-                "a review produced before a relevant change must retire rather than apply \
-                 state the user never reviewed, got {resolution:?}"
-            );
-        };
-        assert!(reason.contains("reviewed inputs changed"), "{reason}");
+        {
+            let resolutions = reviewed_port.resolutions.borrow();
+            assert_eq!(resolutions.len(), 1);
+            let resolution = resolutions[0].resolve(&changed);
+            let Resolution::Retire(reason) = resolution else {
+                panic!(
+                    "a review produced before a relevant change must retire rather than apply \
+                     state the user never reviewed, got {resolution:?}"
+                );
+            };
+            assert!(reason.contains("reviewed inputs changed"), "{reason}");
+        }
 
         // Edits outside the reviewed inputs leave the reviewed result valid.
         let current_fingerprint = crate::mechanical_pair::reviewed_fingerprint(

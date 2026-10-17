@@ -1,0 +1,76 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "source-circle-tracer",
+    "name": "Authored circle",
+    "boardId": "source-board",
+    "kind": "plate",
+    "thickness": 2.0,
+    "clearance": 0.0,
+    "pcb_source": {
+      "contours": [
+        {
+          "id": "outline",
+          "outerId": null,
+          "primitives": [
+            {
+              "sourceId": "authored-circle",
+              "segmentIndex": 0,
+              "geometry": {
+                "kind": "circle",
+                "center": {
+                  "x": 10.0,
+                  "y": 8.0
+                },
+                "end": {
+                  "x": 12.0,
+                  "y": 8.0
+                },
+                "width": null
+              },
+              "curveSupport": {
+                "center": {
+                  "x": 10.0,
+                  "y": 8.0
+                },
+                "radiusMm": 2.0,
+                "startDirection": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
+                "sweepRadians": 6.283185307179586
+              }
+            }
+          ]
+        }
+      ],
+      "slots": []
+    }
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 12.0,
+          "y": 8.0
+        },
+        {
+          "x": 10.0,
+          "y": 10.0
+        },
+        {
+          "x": 8.0,
+          "y": 8.0
+        },
+        {
+          "x": 10.0,
+          "y": 6.0
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

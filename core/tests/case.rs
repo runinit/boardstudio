@@ -47,6 +47,7 @@ fn case_ir(assembly_revision: u64, body_revision: u64) -> CaseAssemblyIR {
                 wall_height: None,
                 wall_thickness: None,
                 mounts: None,
+                pcb_source: None,
                 gasket: None,
             },
             contours: vec![Contour {
@@ -140,4 +141,70 @@ fn case_preparation_uses_request_revision_and_preserves_document_and_history() {
         CoreReply::Scene { scene, .. } => assert_eq!(scene.revision, before.revision + 2),
         other => panic!("preparation changed redo history: {other:?}"),
     }
+}
+
+#[test]
+fn prepared_case_schema_roundtrips_through_the_existing_model_path() {
+    let prepared = PreparedCaseIR {
+        revision: 8,
+        body: CaseBody {
+            features: Some(vec![CaseFeature::ConicalSeat {
+                id: "seat".into(),
+                at: Vec2 { x: 3.0, y: 4.0 },
+                z: 2.0,
+                height: 5.0,
+                diameter: 7.0,
+                end_diameter: 4.0,
+            }]),
+            openings: Some(vec![CaseOpening {
+                points: vec![Vec2 { x: 1.0, y: 2.0 }, Vec2 { x: 3.0, y: 4.0 }],
+                z: 1.0,
+                height: 2.0,
+            }]),
+            id: "tray".into(),
+            name: "Tray".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Tray,
+            thickness: 2.0,
+            clearance: 0.25,
+            material_id: Some("aluminum".into()),
+            z: Some(-1.0),
+            wall_height: Some(12.0),
+            wall_thickness: Some(1.5),
+            mounts: Some(vec![Mount {
+                id: "mount".into(),
+                at: Vec2 { x: 5.0, y: 6.0 },
+                kind: MountKind::Boss,
+                hole_diameter: 2.0,
+                boss_diameter: Some(5.0),
+                height: Some(3.0),
+            }]),
+            pcb_source: None,
+            gasket: Some(Gasket {
+                inset: 1.0,
+                width: 2.0,
+                depth: 0.5,
+            }),
+        },
+        regions: vec![PreparedCaseRegion {
+            outer: vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 10.0, y: 0.0 }],
+            holes: vec![],
+            cavities: vec![],
+            gaskets: vec![PreparedGasketRegion {
+                outer: vec![Vec2 { x: 1.0, y: 1.0 }, Vec2 { x: 9.0, y: 1.0 }],
+                holes: vec![],
+            }],
+            mounts: vec![],
+        }],
+    };
+
+    let value = serde_json::to_value(&prepared).unwrap();
+    assert!(value["body"].get("pcb_source").is_none());
+    assert_eq!(value["body"]["boardId"], "board");
+    assert_eq!(value["body"]["kind"], "tray");
+    assert_eq!(value["body"]["features"][0]["kind"], "conical-seat");
+    assert_eq!(value["body"]["features"][0]["endDiameter"], 4.0);
+    assert_eq!(value["body"]["mounts"][0]["kind"], "boss");
+    let decoded: PreparedCaseIR = serde_json::from_value(value).unwrap();
+    assert_eq!(decoded, prepared);
 }

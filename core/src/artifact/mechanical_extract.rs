@@ -12,6 +12,8 @@ pub use crate::model::{
 };
 use kiutils_sexpr::Node;
 use sha2::{Digest, Sha256};
+mod board_source;
+pub(super) use board_source::extract_board_source;
 
 const CONTOUR_ENDPOINT_TOLERANCE_MM: f64 = 0.01;
 
@@ -409,13 +411,12 @@ fn tessellate_drill(
     Ok(points)
 }
 
-fn tessellate_arc(
+fn circular_arc_parameters(
     start: Vec2,
     mid: Option<Vec2>,
     end: Vec2,
     legacy_sweep_degrees: Option<f64>,
-    deviation: f64,
-) -> Result<Vec<Vec2>, ArtifactError> {
+) -> Result<(Vec2, f64, f64, f64), ArtifactError> {
     let (center, first, sweep, radius) = if let (Some(mid), None) = (mid, legacy_sweep_degrees) {
         let (center, radius) = circumcenter(start, mid, end)
             .ok_or_else(|| validation("Degenerate plate-cutout arc"))?;
@@ -432,18 +433,25 @@ fn tessellate_arc(
         };
         (center, a0, sweep, radius)
     } else if let (None, Some(degrees)) = (mid, legacy_sweep_degrees) {
-        // In legacy KiCad syntax `start` is the center and `end` lies on it.
-        let radius = (end.x - start.x).hypot(end.y - start.y);
-        if radius <= 0.0 {
-            return Err(validation("Degenerate legacy plate-cutout arc"));
-        }
-        let first = (end.y - start.y).atan2(end.x - start.x);
-        (start, first, -degrees.to_radians(), radius)
+        super::legacy_arc_parameters(start, end, degrees)
+            .ok_or_else(|| validation("Degenerate legacy plate-cutout arc"))?
     } else {
         return Err(validation(
             "Arc must have either a midpoint or legacy sweep",
         ));
     };
+    Ok((center, first, sweep, radius))
+}
+
+fn tessellate_arc(
+    start: Vec2,
+    mid: Option<Vec2>,
+    end: Vec2,
+    legacy_sweep_degrees: Option<f64>,
+    deviation: f64,
+) -> Result<Vec<Vec2>, ArtifactError> {
+    let (center, first, sweep, radius) =
+        circular_arc_parameters(start, mid, end, legacy_sweep_degrees)?;
     let max_step = 2.0
         * (1.0 - deviation.min(radius) / radius)
             .clamp(-1.0, 1.0)

@@ -236,6 +236,8 @@ mod tests {
                 contours: vec![],
                 holes: vec![],
                 thickness: None,
+                pcb_source: None,
+                round_drills: Vec::new(),
             },
             mounts: vec![],
             volumes: vec![],

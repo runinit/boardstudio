@@ -1,0 +1,66 @@
+# 004: Construct valid bounded keycap dish cutters
+
+Status: wontfix
+Type: research
+Blocked by: None
+Related: 009: Mesh keycaps
+
+## What to build
+
+No further exact keycap cutter implementation. Preserve the frozen constructor, subtraction and numerical evidence for reference. Keycap dishes are now top-surface mesh displacement in009; exact cutters and exact keycap STEP are outside the approved delivery scope. This ticket is retired from the critical path, not certified complete.
+
+## Acceptance criteria
+
+- [x] Preserve frozen constructor/subtraction checks and unresolved REDs without relabelling them as full acceptance.
+- [x] Remove004 from009/012 dependencies; stop new exact-cutter assignments and builds.
+- [x] Assign reuse of applicable dimensions, presets, analytic dish expectations and negative controls to009's acceptance. Actual fixture migration is verified there; it is not unfinished implementation owned by this retired ticket.
+
+## Existing work
+
+Historical evidence remains in [initial work](../../../../.evidence/monstertruck-qualification/sol-keycap-dish-v1/), [frozen constructor](../../../../.evidence/monstertruck-qualification/astra-keycap-cutter-v1/REPORT.md), [integrated bounded module](../../../../.evidence/monstertruck-qualification/vendor-integration/identity-dish-v32/REPORT.md) and [actual DSA replay](../../../../.evidence/monstertruck-qualification/bounded-dish-module-current-dsa-v1/REPORT.md). Earlier ownership and continued-work instructions below are historical, superseded by the scope decision. Import/source work formerly owned under this ticket may continue only where007 needs it.
+
+## Comments
+
+2026-10-17 scope reconciliation: `wontfix` records the retired exact-cutter delivery, not a failed completed gate. Root stood down export-only/general-intersection continuation and retained the same IO owner for007 import necessities. No frozen source or integrated fix was removed.
+
+2026-10-17: User decision: keycaps are display and optional 3D-print geometry only; exact keycap STEP is no longer required. Exact bounded dish cutters are therefore off the critical path. Freeze current evidence and stop new work unless the chief of staff reassigns it to the mesh keycap path (dishes become vertex displacement of the top surface rather than a Boolean).
+
+2026-10-17: Exact source/domain-preserving Cut kernel v1 is frozen for two-axis review, with paired STEP writer/parser work required. Independent Spec review found trimmed nearest search can miss an interior closest point when the whole source has a closer out-of-trim branch, and exact search can miss a duplicate active endpoint. Owner is fixing these in a successor; v1 is not integration-ready despite its passing bounded native/WASM tests. No feature-refusal shortcut or tolerance relaxation is accepted.
+
+2026-10-17: Current-module DSA replay passes on the exact identity-dish-v32 runtime. Actual subtraction is closed/consistent, coarse and fine meshes have zero invalid/degenerate incidence, all 24 material queries pass, and fine volume error is 0.045266589963 mm³ against the independent analytic oracle (limit 0.1 mm³). Root verified the 23-entry output ledger. This qualifies the one untilted spherical DSA fixture; OEM/general cuts, STEP round-trip and ticket completion remain open. See `.evidence/monstertruck-qualification/bounded-dish-module-current-dsa-v1/REPORT.md`.
+
+2026-10-17: Reviewed bounded-dish module v2 is integrated as identity-dish-v32. Actual module tests preserve the 12 primitive, 10 transformed, 324 support and invalid-scale/zero-depth controls; public API has no diagnostic environment bypasses or constructor output. Fresh combined native279/2 inherited ignores and WASM pass. A private current-source actual DSA subtraction/material replay now calls this module instead of its duplicate constructor; no subtraction or STEP claim is inferred from constructor tests. See `.evidence/monstertruck-qualification/vendor-integration/identity-dish-v32/REPORT.md`.
+
+2026-10-17: Revised mesher-v2 clears the exact transformed-cylinder counterexample and independent Spec/Standards review. Source-v4 + mesher-v2 are integrated as dish-v28:516 combined shared native passes/18 inherited ignores,46 solid passes after equivalent helper reuse, final WASM pass. Owner12/10/324 constructor and actual DSA volume/material/incidence receipts remain source-bound and explicitly reused. Reusable constructor extraction is active; complete ticket acceptance, other profiles and generic Cut semantics remain open. See `.evidence/monstertruck-qualification/vendor-integration/dish-v28/REPORT.md`.
+
+2026-10-17: Fresh exact cone-v26 + source-v4 + mesher-v1 DSA passes fine volume/material/incidence gates, but the broader required transformed-cutter gate finds an extra triangle and three invalid incidence keys on tilted narrow+12 cylindrical geometry. This new counterexample supersedes mesher-v1 bounded integration approval; source/mesher integration remains held while the owner minimizes and fixes the admission rule. Separate fresh OEM pre-dish reproduction is closed but fails intersection-curve containment consistency; its isolated root-cause lane is active. Neither result completes this ticket.
+
+2026-10-17: Forced fresh B5 rebuild resolves the binary-cache ambiguity: source-v4 with baseline mesher still has 34 invalid mesh edges (12,904 triangles, zero degenerate), so source-only integration is not selected. The independently reviewed constrained-wedge mesher remains necessary for the demonstrated DSA pass. Exact cone-v26 combined replay is active; earlier B4 source-only attribution is superseded.
+
+2026-10-17: Source-event v4 corrects shared-contact loop selection and passes a valid tapered public Boolean regression. Independent reviews and an exact cone-v26 DSA replay are active. Initial B4/C4 binaries unexpectedly had the same hash despite different mesher sources, so the claimed source-only attribution is withdrawn pending a forced fresh baseline-mesher rebuild. Preserve the successful proposed-mesher result and this provenance correction separately; integration remains held.
+
+2026-10-17: Source-event v3 and constrained-wedge mesher have bounded independent approval, but integration is held on the matched current-v25 DSA matrix: baseline returns with38invalid mesh keys, while source-only and source-plus-mesher both fail `NotClosedShell` before output meshing. Frozen older source/cached mesh results do not override this gate. Source face partition/classification diagnosis continues; see `.evidence/monstertruck-qualification/dish-shared-events-v1/matrix-current-v25-v1/REPORT.md`.
+
+2026-10-17: Reviewed conservative broadphase and sphere/actual-curve containment repairs are integrated through shared projection-v23; 289 combined native tests and WASM compilation pass. The [integration receipt](../../../../.evidence/monstertruck-qualification/vendor-integration/projection-v23/REPORT.md) records exact source and limitations. Sol XHigh now owns residual shared-event/topology repair; separate Sol High lanes address active-domain containment and near-pole inverse accuracy. The frozen Astra constructor work remains preserved. Full subtraction, independent material accuracy and ticket acceptance remain open.
+
+2026-10-17: Broad-phase v1 review requires existing bounds-helper reuse and unknown-bounds fallback for invalid position indices; Luna owns isolated v2. Separate face-division diagnosis reproduces a sphere inverse-search mismatch between squared-distance and linear tolerance. Its private correction clears face division but exposes a subsequent output-consistency check; full subtraction is not yet qualified.
+
+2026-10-17: Matched baseline and optimized Option traces both locate failure at `divide_face::divide_faces` for operand1 (the cutter), after loop creation. `/root/sol_dish_numerics_v2` owns an isolated source-bound regression/fix in `dish-face-division-v1`; Luna retains the separate collision broad-phase patch. The stage match is stronger than the coarse error but does not establish correct output or general optimization equivalence.
+
+2026-10-17: Matched corrected-v3 DSA baseline completes naturally in38.926s with the same coarse `EmptyOutputShell` error seen in17.769s with face-pair broad-phase rejection. These single-run observations establish neither successful subtraction nor identical internal failure. Root traced the error to multiple Option-return paths; stage-specific diagnosis is active. Earlier million-triangle counts came from v1, so they must not be attributed to the broad-phase patch.
+
+2026-10-17: V2 numerical repair has bounded Spec approval; v3 removes duplicated cylinder construction and passes targeted Standards review. STEP round-trip gate passes 12 primitive and 10 transformed cutters plus eight explicit invalid-scale refusals; native/WASM compile/format and source/output ledgers verify. Independent closed-form volume comparisons use a 1% mesh-error threshold at 0.005 mm tessellation, not exact B-rep volume or external STEP conformance. Actual DSA timeout diagnosis attributes cost to 1,054,957 cutter triangles and repeated empty face-pair collision checks; an isolated conservative broad-phase repair is underway. Full subtraction/runtime qualification remains open. Evidence: `.evidence/monstertruck-qualification/dish-step-roundtrip-v1/` and `dish-timeout-diagnosis-v1/`.
+
+2026-10-17: [Spec review](../../../../.evidence/monstertruck-qualification/dish-v1-spec-review/REPORT.md) requests changes: the tiny-depth sphere panics, and the cylinder returns inconsistent geometry with a cutoff inside the loft. Existing cylinder preflight rejects it, so no successful wrong Boolean is claimed. `/root/sol_dish_numerics_v2` owns stable-coordinate construction, actual-plane support certification and fallible error propagation in isolation. Standards review found no hard repo-standard breach and separately identified the panic/error-path concern.
+
+2026-10-17: `/root/luna_dish_timeout_diagnosis` owns an isolated timing diagnosis of the retained normal DSA timeout, separating operand meshing, intersection loops, face division and classification at unchanged inputs/tolerance. Spec review has also identified a tiny-positive-depth cancellation counterexample that can move the closing plane inside the loft; its source-material witness is being finalized. Constructor integration remains blocked on that numerical defect, independently of the normal DSA timeout.
+
+2026-10-17: [Frozen constructor candidate](../../../../.evidence/monstertruck-qualification/astra-keycap-cutter-v1/REPORT.md) reports 12 primitive, 10 transformed-cutter and 324 loft-support cases passing, with native Clippy/formatting and WASM compilation. `/root/luna_dish_standards_v1` and `/root/sol_dish_spec_v1` own independent review. DSA subtraction still times out; OEM cavity fails geometric consistency before dish subtraction. Numerical transform/representation bounds and production error handling remain review concerns; no integration or ticket completion is claimed.
+
+2026-10-17: User approved this slice. Existing ownership and evidence carried forward; no implementation was moved, discarded or overwritten.
+
+2026-10-17: Frozen kernel-v1 Spec review independently reproduces three blockers: retained-segment nearest search, duplicate active-endpoint exact search, and analytic-plane containment inspecting discarded source geometry. Review `.evidence/monstertruck-qualification/intersection-cut-representation-review/KERNEL-SPEC-REVIEW-v1.md` withholds approval; Standards review records no documented violation but does not override those behavioral findings. A separate transformed-cutter analytic-volume supplement is in progress to close the constructor evidence gap without broadening ticket scope.
+
+- 2026-10-17 root: Integrated independently reviewed transformed-volume supplement as shared v36. Focused release test passes all ten transformed sphere/cylinder cases against independent closed-form volumes; all 420 source hashes verify. Production remains unchanged from circle-v34. The scale mutation demonstrates the new assertion catches dimension errors missed by prior structural checks. Receipt: `.evidence/monstertruck-qualification/vendor-integration/transformed-volume-v36/REPORT.md`. Placement, general subtraction, faithful STEP and full replacement acceptance remain separate open requirements.
+
+- 2026-10-17 root integration decision: retaining authored Plane coordinates plus their affine transform intentionally evaluates the authored plane before applying that transform. This corrects the independently reproduced shared-plane defect caused by flattening and rounding three world corners; the user's API/legacy-fix authorization covers this specific behavior change. It does not relax the repository's saved-arithmetic rule generally. Before promotion, require an exact distinguishing pin for the new transformed evaluation, an exact legacy serialized/no-transform arithmetic pin (including relevant signed-zero behavior), explicit serialization compatibility bounds, a separate frozen successor and final source-bound reviews. Prior approximate geometry assertions alone are insufficient; source remains private.

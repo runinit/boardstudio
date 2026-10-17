@@ -49,18 +49,16 @@ try {
   check('compound STEP imports back with the stacked height', near(read_step_model(assembly.step).bounds.max, [20, 20, 10], 1e-4));
   check('invalid input is rejected, not trapped', /Invalid CAD input/.test(rejection(() => build_case({ revision: 1 })) ?? ''));
 
-  const preview = build_keycaps({ revision: 5, specs: [spec], export: false });
+  const preview = build_keycaps({ revision: 5, specs: [spec] });
   check('keycap preview has cap and legend bodies and no STEP', preview.step.length === 0 && preview.bodies.length === 2
     && preview.bodies[1].id === 'keycap-legend:key-a');
   const firstX = preview.bodies[0].positions[0];
   structuredClone(preview.bodies[0].positions, { transfer: [preview.bodies[0].positions.buffer] });
   check('transferring a result buffer detaches only that copy', preview.bodies[0].positions.byteLength === 0);
-  const again = build_keycaps({ revision: 6, specs: [spec], export: false });
+  const again = build_keycaps({ revision: 6, specs: [spec] });
   check('cached keycap geometry survives a transfer', again.bodies[0].positions[0] === firstX, again.bodies[0].positions[0]);
-  const exported = build_keycaps({ revision: 6, specs: [spec], export: true });
-  const keycap = read_step_model(exported.step);
-  check('keycap STEP exports and re-imports in place', exported.step.length > 1000 && keycap.bounds.min[0] > 15 && keycap.bounds.max[0] < 45,
-    JSON.stringify(keycap.bounds));
+  check('stale keycap STEP request is refused explicitly',
+    /Keycap STEP export is unsupported/.test(rejection(() => build_keycaps({ revision: 6, specs: [spec], export: true })) ?? ''));
 } catch (caught) {
   error = String(caught?.stack ?? caught);
 }

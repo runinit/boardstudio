@@ -193,7 +193,7 @@ pub fn CaseBodyInspector(on_show_configured_board: EventHandler<String>) -> Elem
         fields: use_hook(|| Rc::new(std::cell::RefCell::new(Vec::new()))),
     };
     use_context_provider(|| edits_context.clone());
-    let feedback = use_signal(|| Vec::<CaseBodyEditFeedback>::new());
+    let feedback = use_signal(Vec::<CaseBodyEditFeedback>::new);
     let body_edit_dispatch = use_hook({
         let runtime = runtime.clone();
         let edits_context = edits_context.clone();
@@ -625,6 +625,7 @@ fn new_case_body(
         wall_height: Some(14.0),
         wall_thickness: Some(2.0),
         mounts: Some(vec![]),
+        pcb_source: None,
         gasket: None,
     })
 }

@@ -6,6 +6,9 @@ use crate::model::{
     CaseAssemblyIR, CaseIR, CaseKind, Contour, PreparedCaseAssemblyIR, PreparedCaseIR,
     PreparedCaseRegion, PreparedGasketRegion, Vec2,
 };
+use boardstudio_contracts::{
+    support_polygon_has_self_intersection, support_polygon_outside_area_below_owner_cutoff,
+};
 use i_overlay::i_float::int::{angle::Angle, point::IntPoint};
 use i_overlay::mesh::{
     int::{
@@ -72,20 +75,19 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
 
     for feature in ir.body.features.iter().flatten() {
         if let crate::model::CaseFeature::SupportPrism { id, points, .. } = feature {
-            use i_overlay::{
-                core::{fill_rule::FillRule, overlay_rule::OverlayRule},
-                float::single::SingleFloatOverlay,
-            };
             let footprint: Vec<[f64; 2]> = points.iter().map(|p| [p.x, p.y]).collect();
-            let owners = regions
-                .iter()
-                .filter(|(outer, _)| {
+            let owners = regions.iter().enumerate().try_fold(
+                0,
+                |owners, (region_index, (outer, _))| -> Result<usize, String> {
                     let boundary: Vec<[f64; 2]> = outer.iter().map(|p| [p.x, p.y]).collect();
-                    footprint
-                        .overlay(&boundary, OverlayRule::Difference, FillRule::EvenOdd)
-                        .is_empty()
-                })
-                .count();
+                    let inside = support_polygon_outside_area_below_owner_cutoff(&footprint, &boundary)
+                        .map_err(|error| format!(
+                            "Case body '{}' support feature '{id}' region {region_index} has invalid owner geometry: {error}",
+                            ir.body.id
+                        ))?;
+                    Ok(owners + usize::from(inside))
+                },
+            )?;
             if owners != 1 {
                 return Err(format!(
                     "Support feature '{id}' must remain inside one case exterior"
@@ -320,6 +322,17 @@ fn validate_body(ir: &CaseIR) -> Result<(), String> {
             return Err(format!(
                 "Case body '{id}' feature '{feature_id}' requires a unique ID and finite positive geometry"
             ));
+        }
+        if let CaseFeature::SupportPrism { points, .. } = feature {
+            let coordinates = points
+                .iter()
+                .map(|point| [point.x, point.y])
+                .collect::<Vec<_>>();
+            if support_polygon_has_self_intersection(&coordinates) {
+                return Err(format!(
+                    "Case body '{id}' support feature '{feature_id}' polygon must not self-intersect or self-touch"
+                ));
+            }
         }
     }
     for opening in body.openings.as_deref().unwrap_or_default() {
@@ -598,6 +611,7 @@ mod tests {
                 wall_height: Some(10.0),
                 wall_thickness: Some(2.0),
                 mounts: None,
+                pcb_source: None,
                 gasket: None,
             },
             contours,

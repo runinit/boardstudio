@@ -81,7 +81,6 @@ pub(crate) use boardstudio_web_ui_shared::panels;
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
 mod setup_workspace;
-pub(crate) use boardstudio_web_pcb::pcb_board_reference;
 pub(crate) use boardstudio_web_pcb::pcb_layers;
 pub(crate) use boardstudio_web_pcb::pcb_module_footprints;
 pub(crate) use boardstudio_web_pcb::pcb_module_inspector;
@@ -1628,22 +1627,22 @@ fn companion_placement_projection(
                     });
                 }
             }
-            if let (Some(matrix_id), Some(row), Some(column)) = (matrix_id, row, column) {
-                if targets.is_empty() {
-                    let (cell_links, cell_reason) = companion_links_for_selection(
-                        document,
-                        pair,
-                        matrix_id,
-                        Some(row),
-                        Some(column),
-                    );
-                    eligible = cell_links;
-                    targets.extend(eligible.iter().map(|link| CompanionPlacementTarget::Item {
-                        item_kind: MirroredItemKind::Part,
-                        mirror_id: link.mirror_id.clone(),
-                    }));
-                    disabled_reason = disabled_reason.or(cell_reason);
-                }
+            if let (Some(matrix_id), Some(row), Some(column)) = (matrix_id, row, column)
+                && targets.is_empty()
+            {
+                let (cell_links, cell_reason) = companion_links_for_selection(
+                    document,
+                    pair,
+                    matrix_id,
+                    Some(row),
+                    Some(column),
+                );
+                eligible = cell_links;
+                targets.extend(eligible.iter().map(|link| CompanionPlacementTarget::Item {
+                    item_kind: MirroredItemKind::Part,
+                    mirror_id: link.mirror_id.clone(),
+                }));
+                disabled_reason = disabled_reason.or(cell_reason);
             }
             if !targets.is_empty() || disabled_reason.is_some() {
                 matches.push((pair, targets, eligible, disabled_reason));
@@ -2102,8 +2101,7 @@ fn dispatch_layout_component_inspector_action(
     adapter: &SelectionAdapter,
     layout_owner: &LayoutOwnerIdentity,
     lifetime: &inspector::LayoutComponentInspectorLifetime,
-    mut workspace: Signal<&'static str>,
-    mut inspect_open: Signal<bool>,
+    (mut workspace, mut inspect_open): (Signal<&'static str>, Signal<bool>),
     pending_edits: Signal<layout_component_edits::LayoutComponentInspectorEdits>,
     action: inspector::LayoutComponentInspectorAction,
 ) {
@@ -4227,7 +4225,6 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let parts_state = parts_state;
         let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
@@ -5104,7 +5101,6 @@ fn Editor() -> Element {
     let navigate = {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let setup_state = setup_state;
         let mut navigate_scoped = navigate_scoped.clone();
         let generation = render_generation;
         move |(captured_scope, board_id, requested_instance): (Scope, String, Option<String>)| {
@@ -5311,7 +5307,6 @@ fn Editor() -> Element {
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
         let mut findings_open = layout_findings.open;
-        let setup_state = setup_state;
         move |()| {
             if !findings_owner_is_current(&runtime, workspace, &adapter, &owner) {
                 return;
@@ -5629,7 +5624,6 @@ fn Editor() -> Element {
             let revision = snapshot.document.revision;
             let generation = render_generation;
             let drag = drag.clone();
-            let physical_setup_busy = physical_setup_busy;
             let mut navigate_scoped = navigate_scoped.clone();
             move |_| {
                 let model = runtime.model();
@@ -6596,7 +6590,6 @@ fn Editor() -> Element {
                         &transform_inspector,
                         point,
                     );
-                    return;
                 }
             }
         },
@@ -6917,7 +6910,6 @@ fn Editor() -> Element {
         let mut workspace = workspace;
         let mut objects_open = objects_open;
         let mut inspect_open = inspect_open;
-        let setup_state = setup_state;
         let inspector_settings = inspector_panel_settings;
         EventHandler::new(move |_| {
             workspace.set("Layout");
@@ -7238,7 +7230,6 @@ fn Editor() -> Element {
         },
         layout_assembly_3d,
         {
-            let layout_state = layout_state;
             move |assembly_3d| {
                 layout_state.set_assembly_3d(assembly_3d);
             }
@@ -7666,8 +7657,7 @@ fn Editor() -> Element {
                 &adapter,
                 &owner,
                 &lifetime,
-                workspace,
-                inspect_open,
+                (workspace, inspect_open),
                 component_inspector_pending_edits,
                 action,
             )
@@ -7876,10 +7866,6 @@ fn Editor() -> Element {
                     mechanical_layer_ids,
                     fit_retry: keycaps_fit_state.on_retry,
                     fit_navigate: keycaps_finding,
-                    on_export: {
-                        let runtime = runtime.clone();
-                        EventHandler::new(move |_: ()| runtime.export_keycaps_step())
-                    },
                 },
             ))
         }
@@ -8273,21 +8259,21 @@ fn Editor() -> Element {
             if pointer.button() != 0 || space_down.get() {
                 return;
             }
-            if pending_splay_pick.peek().is_some() {
-                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    pointer.prevent_default();
-                    pointer.stop_propagation();
-                    apply_pending_splay_origin_pick(
-                        &runtime,
-                        workspace,
-                        &adapter,
-                        &owner,
-                        &mut pending_splay_pick,
-                        &transform_inspector,
-                        point,
-                    );
-                    return;
-                }
+            if pending_splay_pick.peek().is_some()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+            {
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                apply_pending_splay_origin_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    &mut pending_splay_pick,
+                    &transform_inspector,
+                    point,
+                );
+                return;
             }
             pointer.prevent_default();
             pointer.stop_propagation();
@@ -8397,19 +8383,19 @@ fn Editor() -> Element {
             }
             pointer.prevent_default();
             pointer.stop_propagation();
-            if pending_splay_pick.peek().is_some() {
-                if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    apply_pending_splay_origin_pick(
-                        &runtime,
-                        workspace,
-                        &adapter,
-                        &owner,
-                        &mut pending_splay_pick,
-                        &transform_inspector,
-                        point,
-                    );
-                    return;
-                }
+            if pending_splay_pick.peek().is_some()
+                && let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height)
+            {
+                apply_pending_splay_origin_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    &mut pending_splay_pick,
+                    &transform_inspector,
+                    point,
+                );
+                return;
             }
             if space_down.get() {
                 if let Some(svg) = svg.borrow().as_ref() {

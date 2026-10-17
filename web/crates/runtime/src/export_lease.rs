@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 pub(crate) enum ExportKind {
     ProjectCopy,
     Step,
-    KeycapsStep,
+    KeycapsStl,
     Firmware,
     Footprints,
     PcbHandoff { draft: bool },
@@ -192,7 +192,7 @@ mod tests {
         for kind in [
             ExportKind::ProjectCopy,
             ExportKind::Step,
-            ExportKind::KeycapsStep,
+            ExportKind::KeycapsStl,
             ExportKind::Firmware,
             ExportKind::Footprints,
             ExportKind::PcbHandoff { draft: false },

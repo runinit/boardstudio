@@ -18,8 +18,11 @@ js-sys = "=0.3.106"
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "=0.6.5"
 wasm-bindgen = "=0.2.129"
+lyon_path = "=1.0.19"
+lyon_tessellation = "=1.0.22"
 
 ttf-parser = "=0.25.1"
+manifold-rust = { version = "=0.16.0", default-features = false }
 
 [dev-dependencies]
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }

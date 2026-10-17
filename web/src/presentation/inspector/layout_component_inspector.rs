@@ -1392,9 +1392,9 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 }
                 }
                 if let Some(message) = x_failure()
-                    .or_else(|| y_failure())
-                    .or_else(|| margin_failure())
-                    .or_else(|| error())
+                    .or_else(&*y_failure)
+                    .or_else(&*margin_failure)
+                    .or_else(&*error)
                 { p { role: "alert", "{message}" } }
                 button { class: "m1-layout-component-electrical", r#type: "button", onclick: {
                     let latest_capture = latest_capture; let action = props.on_action;

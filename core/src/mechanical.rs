@@ -1482,6 +1482,7 @@ fn construct_bodies(
                 } else {
                     vec![]
                 }),
+                pcb_source: None,
                 gasket: None,
             },
         });
@@ -1567,6 +1568,7 @@ fn construct_bodies(
                     wall_height: None,
                     wall_thickness: None,
                     mounts: None,
+                    pcb_source: None,
                     gasket: None,
                     openings: None,
                 },
@@ -2094,6 +2096,7 @@ pub fn resolve(document: &ProjectDoc, contours: &[Contour]) -> MechanicalAssembl
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
             openings: None,
         },
@@ -2228,6 +2231,7 @@ pub(crate) fn expanded_outline(
         wall_height: None,
         wall_thickness: None,
         mounts: None,
+        pcb_source: None,
         gasket: None,
         openings: None,
     };

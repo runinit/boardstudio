@@ -23,6 +23,7 @@ pub struct CadSnapshotIdentity {
 #[serde(rename_all = "kebab-case")]
 pub enum CadOperation {
     Preview,
+    PrintKeycaps,
     Exact,
     ExportStep,
     ReadStep,
@@ -158,6 +159,9 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             && (0..3).all(|axis| bounds.min[axis] <= bounds.max[axis])
     };
     match request.operation {
+        CadOperation::PrintKeycaps => {
+            return Err(bad("printable keycaps require the keycap request adapter"));
+        }
         CadOperation::Preview => {
             let expected = request
                 .prepared
@@ -254,6 +258,103 @@ pub fn captured_case_document(
     scope: &Scope,
 ) -> Result<ProjectDoc, CadJobError> {
     captured_case_inputs(snapshot, scope).map(|(document, _)| document)
+}
+
+#[cfg(feature = "page")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct CapturedPcbSource {
+    pub reference: BoardReference,
+    pub asset: Asset,
+    pub placement: Pose2,
+    pub flipped: bool,
+}
+
+/// Capture raw PCB ownership before the Case display projection disables mirrored references.
+#[cfg(feature = "page")]
+pub fn captured_pcb_source(
+    snapshot: &AcceptedSnapshot,
+    scope: &Scope,
+) -> Result<Option<CapturedPcbSource>, CadJobError> {
+    let document = snapshot.document.as_ref();
+    if snapshot.session_epoch != scope.session_epoch
+        || document.id != scope.document_id
+        || snapshot.scene.revision != document.revision
+    {
+        return Err(CadJobError::Stale("PCB source scope changed".into()));
+    }
+    if document
+        .boards
+        .iter()
+        .filter(|board| board.id == scope.board_id)
+        .count()
+        != 1
+    {
+        return Err(CadJobError::Blocked(
+            "PCB source board is missing or ambiguous".into(),
+        ));
+    }
+    let flipped = if let Some(id) = &scope.instance_id {
+        let instances = document
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| &hardware.instances)
+            .filter(|instance| instance.id == *id && instance.board_id == scope.board_id)
+            .collect::<Vec<_>>();
+        if instances.len() != 1 {
+            return Err(CadJobError::Blocked(
+                "PCB source physical instance is missing or ambiguous".into(),
+            ));
+        }
+        instances[0].flipped
+    } else {
+        false
+    };
+    let references = document
+        .board_references
+        .iter()
+        .filter(|reference| reference.board_id == scope.board_id && reference.enabled)
+        .collect::<Vec<_>>();
+    if references.is_empty() {
+        return Ok(None);
+    }
+    if references.len() != 1 {
+        return Err(CadJobError::Blocked(
+            "PCB source reference is ambiguous".into(),
+        ));
+    }
+    let reference = references[0];
+    if !reference.elevation.is_finite()
+        || !reference.pose.at.x.is_finite()
+        || !reference.pose.at.y.is_finite()
+        || !reference.pose.rotation.is_finite()
+    {
+        return Err(CadJobError::Blocked(
+            "PCB source placement must be finite".into(),
+        ));
+    }
+    let assets = document
+        .assets
+        .iter()
+        .filter(|asset| asset.id == reference.asset_id)
+        .collect::<Vec<_>>();
+    if assets.len() != 1 || assets[0].sha256.is_empty() {
+        return Err(CadJobError::Blocked(
+            "PCB source asset is missing or ambiguous".into(),
+        ));
+    }
+    let mut placement = reference.pose;
+    if flipped {
+        // World-X reflection after placement equals reflected local X at (-tx, ty, -angle).
+        placement.at.x = -placement.at.x;
+        placement.rotation = -placement.rotation;
+    }
+    Ok(Some(CapturedPcbSource {
+        reference: reference.clone(),
+        asset: assets[0].clone(),
+        placement,
+        flipped,
+    }))
 }
 
 #[cfg(feature = "page")]
@@ -371,6 +472,7 @@ async fn prepare_captured_case_for_step(
                         wall_height: None,
                         wall_thickness: None,
                         mounts: None,
+                        pcb_source: None,
                         gasket: None,
                         openings: None,
                         features: None,
@@ -682,6 +784,115 @@ mod tests {
     };
 
     #[test]
+    fn pcb_source_capture_keeps_original_reference_and_composes_physical_reflection_once() {
+        let mut document = ProjectDoc::empty("source-doc", "PCB source");
+        document.boards.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"board", "name":"Board", "outlineIds":[],"partIds":[],"netIds":[],
+                "thickness":1.6,"traces":[],"vias":[]
+            }))
+            .unwrap(),
+        );
+        document.assets.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"raw", "name":"routed.kicad_pcb", "mediaType":"application/vnd.kicad.pcb",
+                "sha256":"0".repeat(64)
+            }))
+            .unwrap(),
+        );
+        document.board_references.push(BoardReference {
+            id: "reference".into(),
+            board_id: "board".into(),
+            asset_id: "raw".into(),
+            enabled: true,
+            pose: Pose2 {
+                at: Vec2 { x: 100., y: 200. },
+                rotation: 90.,
+            },
+            elevation: 3.,
+            model_assets: Default::default(),
+        });
+        document.hardware = Some(
+            serde_json::from_value(serde_json::json!({
+                "topology":"unibody","transport":"none","boards":[],"instances":[{
+                    "id":"right","name":"Right","boardId":"board","half":"right","role":"central",
+                    "flipped":true,"controllerPartId":null,"mechanical":null
+                }]
+            }))
+            .unwrap(),
+        );
+        let CoreReply::Scene {
+            document, scene, ..
+        } = CoreEngine::new().handle(CoreRequest::Open {
+            id: "open".into(),
+            document,
+        })
+        else {
+            panic!("source fixture must open");
+        };
+        let snapshot = AcceptedSnapshot {
+            token: SnapshotToken(1),
+            session_epoch: SessionEpoch(1),
+            document: std::sync::Arc::new(*document),
+            scene: std::sync::Arc::new(scene),
+        };
+        let scope = Scope {
+            session_epoch: SessionEpoch(1),
+            document_id: "source-doc".into(),
+            board_id: "board".into(),
+            instance_id: Some("right".into()),
+        };
+        let before = snapshot.document.clone();
+        let captured = captured_pcb_source(&snapshot, &scope).unwrap().unwrap();
+        assert!(captured.flipped);
+        assert_eq!(
+            captured.placement,
+            Pose2 {
+                at: Vec2 { x: -100., y: 200. },
+                rotation: -90.
+            }
+        );
+        assert_eq!(captured.reference.pose.at.x, 100.);
+        assert_eq!(captured.reference.elevation, 3.);
+        assert_eq!(captured.asset.id, "raw");
+        assert_eq!(
+            snapshot.document, before,
+            "capture must not disable or mutate the source"
+        );
+
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.document)
+            .board_references
+            .push(BoardReference {
+                id: "second-reference".into(),
+                ..captured.reference.clone()
+            });
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Blocked(_))
+        ));
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.document)
+            .assets
+            .clear();
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Blocked(_))
+        ));
+        let mut invalid = snapshot.clone();
+        std::sync::Arc::make_mut(&mut invalid.scene).revision += 1;
+        assert!(matches!(
+            captured_pcb_source(&invalid, &scope),
+            Err(CadJobError::Stale(_))
+        ));
+        let mut authored = snapshot;
+        std::sync::Arc::make_mut(&mut authored.document)
+            .board_references
+            .clear();
+        assert!(captured_pcb_source(&authored, &scope).unwrap().is_none());
+    }
+
+    #[test]
     fn cad_revision_boundary_rejects_values_that_would_lose_integer_identity() {
         assert!(revision_supported_by_cad_boundary(MAX_CAD_REVISION));
         assert!(!revision_supported_by_cad_boundary(MAX_CAD_REVISION + 1));
@@ -983,6 +1194,7 @@ mod tests {
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         });
         let contour = Contour {
@@ -1191,6 +1403,7 @@ mod tests {
             wall_height: None,
             wall_thickness: None,
             mounts: None,
+            pcb_source: None,
             gasket: None,
         });
         let left = instance("left", vec![mount("mount-1", 2.0, 3.0)]);

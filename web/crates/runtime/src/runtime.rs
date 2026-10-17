@@ -34,13 +34,15 @@ use boardstudio_web_host::host::{
 use boardstudio_web_host::{
     cad_jobs::{
         CadJobError, CadOperation, CadRequest, CadResult, CadSnapshotIdentity,
-        captured_case_document, captured_case_scene, prepare_captured_case,
+        captured_case_document, captured_case_scene, captured_pcb_source, prepare_captured_case,
         prepare_captured_step_assembly, validate_reply,
     },
     cad_worker::CadWorker,
 };
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
+
+type CoreExecutorFactory = dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>;
 
 #[cfg(any(test, feature = "test-support"))]
 type CaseGesturePreviewTestExecutor = dyn Fn(AcceptedSnapshot, Scope) -> Result<CadScene, String>;
@@ -109,7 +111,6 @@ struct Artifact {
     scope: Scope,
     token: SnapshotToken,
     firmware: bool,
-    keycaps_step: bool,
     board_outline: bool,
 }
 
@@ -266,7 +267,7 @@ pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
     core: RefCell<Rc<dyn CoreExecutor>>,
-    core_executor_factory: RefCell<Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>>>,
+    core_executor_factory: RefCell<Rc<CoreExecutorFactory>>,
     pub store: BrowserStore,
     persistence: RefCell<Rc<dyn DocumentPersistence>>,
     storage_session: RefCell<Option<StorageSession>>,
@@ -337,12 +338,11 @@ impl Runtime {
 
     fn new_with_restoration(restore_active_project: bool) -> Result<Rc<Self>, String> {
         let prefix = deployment_prefix()?;
-        let core_executor_factory: Rc<dyn Fn() -> Result<Rc<dyn CoreExecutor>, String>> =
-            Rc::new(|| {
-                resource_url("assets/core-worker/entry.js")
-                    .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
-                    .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
-            });
+        let core_executor_factory: Rc<CoreExecutorFactory> = Rc::new(|| {
+            resource_url("assets/core-worker/entry.js")
+                .and_then(|url| CoreWorker::new(&url).map_err(|e| e.to_string()))
+                .map(|worker| Rc::new(worker) as Rc<dyn CoreExecutor>)
+        });
         let store = BrowserStore::scoped(if prefix == "/" { "root" } else { "boardstudio" })
             .map_err(|e| e.to_string())?;
         let runtime = Rc::new(Self {
@@ -1455,7 +1455,9 @@ impl Runtime {
             revision: accepted.document.revision,
         };
         #[cfg(any(test, feature = "test-support"))]
-        if let Some(executor) = self.keycaps_preview_test_executor.borrow().clone() {
+        let test_executor = self.keycaps_preview_test_executor.borrow().clone();
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(executor) = test_executor {
             let bodies = executor(input.clone()).await?;
             self.ensure_keycaps_source_current(&accepted, &input.scope)?;
             if self.keycaps_preview_generation.get() != generation {
@@ -1850,7 +1852,6 @@ impl Runtime {
                 );
                 let lease = self.export_leases.borrow_mut().finish(operation_id);
                 let kind = lease.as_ref().map(|lease| lease.kind().clone());
-                let is_keycaps_step_export = kind == Some(ExportKind::KeycapsStep);
                 let is_board_outline_export =
                     matches!(kind.as_ref(), Some(ExportKind::BoardOutline { .. }));
                 let firmware_capture = (kind == Some(ExportKind::Firmware))
@@ -1873,23 +1874,6 @@ impl Runtime {
                         delivery_error,
                     ) {
                         self.apply_report(report);
-                    }
-                } else if is_keycaps_step_export {
-                    match outcome {
-                        TerminalOutcome::Completed => {}
-                        TerminalOutcome::Rejected(reason)
-                        | TerminalOutcome::PersistenceFailed(reason)
-                        | TerminalOutcome::BlockedByRecovery(reason)
-                        | TerminalOutcome::ExecutorFailed(reason) => {
-                            self.apply_report(RuntimeReport::alert(reason));
-                        }
-                        TerminalOutcome::Cancelled => self.report("Cancelled."),
-                        TerminalOutcome::Closed => self.report("Editor closed."),
-                        TerminalOutcome::Superseded => {
-                            if observed {
-                                self.changed();
-                            }
-                        }
                     }
                 } else if is_board_outline_export {
                     let lease_is_current = lease
@@ -1998,11 +1982,8 @@ impl Runtime {
                     .borrow()
                     .get(operation_id)
                     .map(|lease| lease.kind().clone());
-                let is_keycaps_step_export = kind == Some(ExportKind::KeycapsStep);
-                let is_step_export = matches!(
-                    kind.as_ref(),
-                    Some(ExportKind::Step | ExportKind::KeycapsStep)
-                );
+                let is_step_export = matches!(kind.as_ref(), Some(ExportKind::Step));
+                let is_keycaps_export = kind == Some(ExportKind::KeycapsStl);
                 let is_firmware_export = kind == Some(ExportKind::Firmware);
                 let is_footprint_export = kind == Some(ExportKind::Footprints);
                 let is_pcb_handoff_export =
@@ -2014,6 +1995,10 @@ impl Runtime {
                 let result = if let Some(ExportKind::BoardOutline { dxf }) = kind.as_ref() {
                     self.board_outline_bytes(operation_id, &snapshot, &scope, *dxf)
                         .await
+                } else if is_keycaps_export {
+                    self.keycaps_stl_bytes(operation_id, &snapshot, &scope)
+                        .await
+                        .map(|bytes| (bytes, snapshot.token))
                 } else if is_pcb_handoff_export {
                     let draft =
                         matches!(kind.as_ref(), Some(ExportKind::PcbHandoff { draft: true }));
@@ -2034,15 +2019,7 @@ impl Runtime {
                             is_step_export,
                             is_firmware_export,
                             || -> ArchiveWorkFuture<'_> {
-                                if is_keycaps_step_export {
-                                    Box::pin(self.keycaps_step_bytes(
-                                        operation_id,
-                                        &snapshot,
-                                        &scope,
-                                    ))
-                                } else {
-                                    Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
-                                }
+                                Box::pin(self.step_bytes(operation_id, &snapshot, &scope))
                             },
                             |embed_used_models| -> ArchiveWorkFuture<'_> {
                                 Box::pin(self.pack_archive(
@@ -2086,10 +2063,10 @@ impl Runtime {
                                 format!("{}-zmk.zip", snapshot.document.name),
                                 Some("application/zip".to_owned()),
                             )
-                        } else if is_keycaps_step_export {
+                        } else if is_keycaps_export {
                             (
-                                format!("{}-keycaps.step", snapshot.document.name),
-                                Some("model/step".to_owned()),
+                                format!("{}-keycaps.zip", snapshot.document.name),
+                                Some("application/zip".to_owned()),
                             )
                         } else if is_step_export {
                             (
@@ -2148,7 +2125,6 @@ impl Runtime {
                                 scope: scope.clone(),
                                 token: delivery_token,
                                 firmware: is_firmware_export,
-                                keycaps_step: is_keycaps_step_export,
                                 board_outline: is_board_outline_export,
                             },
                         );
@@ -2189,9 +2165,6 @@ impl Runtime {
                             self.firmware_export_delivery_errors
                                 .borrow_mut()
                                 .insert(artifact.operation_id, error);
-                        }
-                        Err(error) if artifact.keycaps_step => {
-                            self.apply_report(RuntimeReport::alert(error));
                         }
                         Err(error) => self.report(error),
                     }
@@ -3951,7 +3924,30 @@ impl Runtime {
         }
         self.clear_alert();
         let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::Step, &snapshot, &scope);
+        self.begin_export_lease(operation_id, ExportKind::Step, snapshot, &scope);
+        self.submit(Event::StartExport {
+            operation_id,
+            scope,
+        });
+    }
+
+    pub fn export_keycaps_stl(self: &Rc<Self>) {
+        let Some(scope) = self.scope() else {
+            self.apply_report(RuntimeReport::alert(
+                "Select a board before exporting keycaps.",
+            ));
+            return;
+        };
+        let Some(snapshot) = self.model().accepted else {
+            return;
+        };
+        if let Err(error) = self.ensure_keycaps_source_current(&snapshot, &scope) {
+            self.apply_report(RuntimeReport::alert(error));
+            return;
+        }
+        self.clear_alert();
+        let operation_id = self.operation();
+        self.begin_export_lease(operation_id, ExportKind::KeycapsStl, &snapshot, &scope);
         self.submit(Event::StartExport {
             operation_id,
             scope,
@@ -4080,34 +4076,6 @@ impl Runtime {
         });
     }
 
-    pub fn export_keycaps_step(self: &Rc<Self>) {
-        let Some(scope) = self.scope() else {
-            self.apply_report(RuntimeReport::alert("Select a board before export"));
-            return;
-        };
-        let model = self.model();
-        let Some(snapshot) = model.accepted else {
-            self.apply_report(RuntimeReport::alert("The project is still opening"));
-            return;
-        };
-        if model.active_board_id != scope.board_id
-            || !snapshot
-                .document
-                .boards
-                .iter()
-                .any(|board| board.id == scope.board_id)
-        {
-            self.apply_report(RuntimeReport::alert("Select a board before export"));
-            return;
-        }
-        self.clear_alert();
-        let operation_id = self.operation();
-        self.begin_export_lease(operation_id, ExportKind::KeycapsStep, &snapshot, &scope);
-        self.submit(Event::StartExport {
-            operation_id,
-            scope,
-        });
-    }
     pub fn export_firmware(self: &Rc<Self>) {
         let Some(scope) = self.scope() else {
             self.report("Select a board before exporting ZMK source.");
@@ -4427,7 +4395,7 @@ impl Runtime {
             .map(|item| item.contours.clone())
             .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
         let executor_epoch = capture.executor_epoch().0.to_string();
-        let prepared = prepare_captured_step_assembly(
+        let mut prepared = prepare_captured_step_assembly(
             core.as_ref(),
             &executor_epoch,
             &format!("mechanical-export-{}", operation_id.0),
@@ -4437,6 +4405,141 @@ impl Runtime {
         .await
         .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
         ensure_current()?;
+        let pcb_source = captured_pcb_source(initial_snapshot, scope)
+            .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
+        let mut pcb_source_thickness = None;
+        if let Some(source) = &pcb_source {
+            let source_is_current = {
+                let runtime = self.clone();
+                let capture = capture.clone();
+                let core = core.clone();
+                Rc::new(move || runtime.export_lease_is_current(operation_id, &capture, &core))
+            };
+            let bytes = self
+                .load_preview_document_asset(&source.asset, source_is_current)
+                .await?;
+            ensure_current()?;
+            let request_id = format!("mechanical-export-{}-pcb-source", operation_id.0);
+            let request = ArtifactRequest::ReadBoardSource {
+                id: request_id.clone(),
+                source: String::from_utf8(bytes)
+                    .map_err(|error| format!("PCB source is not valid UTF-8: {error}"))?,
+                placement: source.placement,
+                flipped: source.flipped,
+            };
+            let reply = core
+                .artifact(&request_id, &executor_epoch, &request)
+                .await
+                .map_err(|error| format!("Could not read complete PCB source: {error}"))?;
+            ensure_current()?;
+            let board = match reply {
+                ArtifactReply::ReadBoardSource { id, result } if id == request_id => result,
+                ArtifactReply::Error { id, error } if id == request_id => return Err(error.message),
+                _ => return Err("Core returned PCB source for another request.".into()),
+            };
+            let indices = prepared
+                .prepared
+                .bodies
+                .iter()
+                .enumerate()
+                .filter(|(_, body)| body.body.id == "pcb-reference")
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            if indices.len() != 1 {
+                return Err("Prepared PCB reference is missing or ambiguous.".into());
+            }
+            let mut body = prepared.prepared.bodies[indices[0]].body.clone();
+            pcb_source_thickness = board.thickness;
+            if board
+                .thickness
+                .is_some_and(|thickness| thickness != body.thickness)
+            {
+                return Err(
+                    "Imported PCB thickness does not match the mechanical PCB thickness.".into(),
+                );
+            }
+            if board
+                .pcb_source
+                .as_ref()
+                .is_none_or(|profile| profile.contours.is_empty())
+                || board.contours.is_empty()
+            {
+                return Err("Core returned incomplete PCB source geometry.".into());
+            }
+            if body
+                .features
+                .as_ref()
+                .is_some_and(|features| !features.is_empty())
+                || body
+                    .openings
+                    .as_ref()
+                    .is_some_and(|openings| !openings.is_empty())
+                || body
+                    .mounts
+                    .as_ref()
+                    .is_some_and(|mounts| !mounts.is_empty())
+                || body.gasket.is_some()
+                || body.pcb_source.is_some()
+            {
+                return Err(
+                    "Imported source cannot replace a modified nominal PCB reference.".into(),
+                );
+            }
+            body.z = Some(body.z.unwrap_or(0.0) + source.reference.elevation);
+            body.pcb_source = board.pcb_source;
+            body.mounts = (!board.round_drills.is_empty()).then_some(board.round_drills);
+            let mut contours = board.contours;
+            contours.extend(
+                board
+                    .holes
+                    .into_iter()
+                    .map(|points| boardstudio_core::model::Contour { points, hole: true }),
+            );
+            let source_ir = CaseIR {
+                revision: prepared.identity.revision,
+                body,
+                contours,
+            };
+            let request_id = format!("mechanical-export-{}-pcb-prepare", operation_id.0);
+            let request = CoreRequest::PrepareCase {
+                id: request_id.clone(),
+                ir: CaseAssemblyIR {
+                    revision: source_ir.revision,
+                    bodies: vec![source_ir.clone()],
+                },
+            };
+            let reply = core
+                .request(&request_id, &executor_epoch, &request)
+                .await
+                .map_err(|error| format!("PCB source preparation failed: {error}"))?;
+            ensure_current()?;
+            let mut ir = match reply {
+                CoreReply::CasePrepared { id, ir } if id == request_id => ir,
+                CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
+                _ => return Err("Core returned an unexpected source PCB preparation.".into()),
+            };
+            if ir.revision != prepared.identity.revision
+                || ir.bodies.len() != 1
+                || ir.bodies[0].revision != ir.revision
+                || ir.bodies[0].body != source_ir.body
+            {
+                return Err("Core returned an incomplete or stale source PCB preparation.".into());
+            }
+            let mut pcb = ir.bodies.pop().expect("one source PCB body checked");
+            // Compatibility polygons already contain these voids; exact CAD uses body mounts.
+            for region in &mut pcb.regions {
+                region.mounts.clear();
+            }
+            prepared.prepared.bodies[indices[0]] = pcb;
+            if let Some(assembly) = &mut prepared.mechanical_assembly {
+                assembly.pcb_reference = Some(source_ir);
+                for layer in &mut assembly.stack {
+                    if layer.id == "pcb" {
+                        layer.z += source.reference.elevation;
+                    }
+                }
+            }
+        }
         let assembly = prepared
             .mechanical_assembly
             .as_ref()
@@ -4659,7 +4762,15 @@ impl Runtime {
         )?;
         let assembly_json = serde_json::json!({
             "revision": capture.snapshot().document.revision,
-            "pcbReference": "Nominal unpopulated PCB only; component solids are not included",
+            "pcbReference": if pcb_source.is_some() {
+                "Source-backed unpopulated PCB; component solids are not included"
+            } else { "Nominal unpopulated PCB only; component solids are not included" },
+            "pcbSource": pcb_source.as_ref().map(|source| serde_json::json!({
+                "referenceId": source.reference.id,
+                "assetId": source.asset.id,
+                "sha256": source.asset.sha256,
+                "declaredThicknessMm": pcb_source_thickness,
+            })),
             "stack": assembly.stack,
             "diagnostics": assembly.diagnostics,
         });
@@ -5410,49 +5521,19 @@ impl Runtime {
         result
     }
 
-    async fn keycaps_step_bytes(
+    async fn keycaps_stl_bytes(
         &self,
         operation_id: OperationId,
         snapshot: &AcceptedSnapshot,
         scope: &Scope,
     ) -> Result<Vec<u8>, String> {
-        let guard = || {
-            if !self.export_current(operation_id, snapshot.token, scope) {
-                return Err("Keycap STEP export was cancelled or superseded.".to_owned());
-            }
-            self.ensure_keycaps_source_current(snapshot, scope)
-        };
-        guard()?;
         let core = self.core.borrow().clone();
-        let executor_epoch = self.session.borrow().core_executor_epoch();
-        let request_id = format!("keycaps-step-resolve-{}", operation_id.0);
-        let request = CoreRequest::ResolveKeycaps {
-            id: request_id.clone(),
-            document: (*snapshot.document).clone(),
-            board_id: scope.board_id.clone(),
-            cases: None,
-        };
-        let reply = core
-            .request(&request_id, &executor_epoch.0.to_string(), &request)
-            .await
-            .map_err(|error| format!("Keycap STEP resolution failed: {error}"))?;
+        let guard = || self.require_export_current(operation_id, snapshot, scope, Some(&core));
         guard()?;
-        if self.session.borrow().core_executor_epoch() != executor_epoch
-            || !Rc::ptr_eq(&core, &self.core.borrow())
-        {
-            return Err("The Core worker changed during keycap STEP resolution.".into());
-        }
-        let resolution = match reply {
-            CoreReply::KeycapsResolved { id, result } if id == request_id => result,
-            CoreReply::Error { id, message, .. } if id == request_id => return Err(message),
-            CoreReply::KeycapsResolved { .. } | CoreReply::Error { .. } => {
-                return Err("Core returned a stale keycap STEP resolution reply.".into());
-            }
-            _ => return Err("Core returned an unexpected keycap STEP resolution reply.".into()),
-        };
-        if resolution.revision != snapshot.document.revision {
-            return Err("Core resolved keycaps for another document revision.".into());
-        }
+        let resolution = self
+            .resolve_case_keycaps_preview(scope.clone(), snapshot.token, snapshot.document.revision)
+            .await?;
+        guard()?;
         let errors = resolution
             .findings
             .iter()
@@ -5463,9 +5544,8 @@ impl Runtime {
             return Err(errors.join("\n"));
         }
         if resolution.specs.is_empty() {
-            return Err("Choose a keycap profile in Keymap before export".into());
+            return Err("Choose a keycap profile before exporting keycap STLs.".into());
         }
-        guard()?;
         let identity = CadSnapshotIdentity {
             token: snapshot.token.0,
             session_epoch: snapshot.session_epoch.0,
@@ -5481,36 +5561,60 @@ impl Runtime {
         self.export_workers
             .borrow_mut()
             .insert(operation_id, worker.clone());
-        let request_id = format!("keycaps-step-cad-{}", operation_id.0);
         let result = async {
             worker.ready().await.map_err(|error| error.to_string())?;
             guard()?;
-            let reply = worker
-                .request_keycaps_step(
-                    request_id.clone(),
-                    format!("keycaps-step-{}", operation_id.0),
-                    identity.clone(),
+            let result = worker
+                .request_keycaps_print(
+                    format!("keycaps-stl-{}", operation_id.0),
+                    format!("keycaps-print-{}", operation_id.0),
+                    identity,
                     resolution.specs,
                 )
                 .await
                 .map_err(|error| error.to_string())?;
             guard()?;
-            let request = CadRequest {
-                request_id,
-                job_id: format!("keycaps-step-{}", operation_id.0),
-                identity: identity.clone(),
-                operation: CadOperation::ExportStep,
-                prepared: None,
-                input_bytes: vec![],
-            };
-            validate_reply(&request, reply, &identity)
-                .map(|result| result.step)
-                .map_err(|error| format!("{error:?}"))
+            crate::keycap_package::files(result)
         }
         .await;
         worker.close();
         self.export_workers.borrow_mut().remove(&operation_id);
-        result
+        let files = result?;
+        let entries = files
+            .iter()
+            .enumerate()
+            .map(|(index, (path, _))| {
+                Ok(ArchiveEntry {
+                    path: path.clone(),
+                    buffer_index: u32::try_from(index)
+                        .map_err(|_| "Too many keycap STL files.".to_owned())?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let metadata = serde_json::to_string(&ArchiveRequest::PackFiles { entries })
+            .map_err(|error| error.to_string())?;
+        let buffers = files
+            .iter()
+            .map(|(_, bytes)| Uint8Array::from(bytes.as_slice()))
+            .collect();
+        guard()?;
+        let epoch = self.session.borrow().core_executor_epoch().0.to_string();
+        let packed = core
+            .archive(
+                &format!("keycaps-stl-archive-{}", operation_id.0),
+                &epoch,
+                &metadata,
+                buffers,
+            )
+            .await
+            .map_err(|error| format!("Keycap STL packaging failed: {error}"))?;
+        guard()?;
+        match serde_json::from_str::<ArchiveReply>(&packed.metadata)
+            .map_err(|error| error.to_string())?
+        {
+            ArchiveReply::Packed if packed.buffers.len() == 1 => Ok(packed.buffers[0].to_vec()),
+            _ => Err("Core returned an incomplete keycap STL archive.".into()),
+        }
     }
 
     async fn firmware_bytes(
@@ -6370,6 +6474,14 @@ impl Drop for Runtime {
 #[path = "in_process_support.rs"]
 pub mod in_process_support;
 
+#[cfg(test)]
+#[path = "source_pcb_export_tests.rs"]
+mod source_pcb_export_tests;
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "cad_runtime_borrow_tests.rs"]
+mod cad_runtime_borrow_tests;
+
 #[cfg(any(test, feature = "test-support"))]
 pub mod firmware_export_test_support {
     use super::*;
@@ -6779,24 +6891,6 @@ pub fn resource_url(path: &str) -> Result<String, String> {
         .origin()
         .map_err(|e| format!("{e:?}"))?;
     Ok(format!("{origin}{}{path}", deployment_prefix()?))
-}
-async fn fetch_bytes(path: &str) -> Result<Vec<u8>, String> {
-    let window = web_sys::window().ok_or("window unavailable")?;
-    let response = JsFuture::from(window.fetch_with_str(&resource_url(path)?))
-        .await
-        .map_err(|e| format!("{e:?}"))?
-        .dyn_into::<web_sys::Response>()
-        .map_err(|e| format!("{e:?}"))?;
-    if !response.ok() {
-        return Err(format!(
-            "Required asset unavailable: {path} ({})",
-            response.status()
-        ));
-    }
-    let buffer = JsFuture::from(response.array_buffer().map_err(|e| format!("{e:?}"))?)
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(Uint8Array::new(&buffer).to_vec())
 }
 fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(), String> {
     let parts = Array::new();

@@ -674,3 +674,34 @@ fn benchmark_import_stages() {
         }
     }
 }
+
+#[test]
+#[ignore = "Run explicitly with CAD_013_WORKLOAD set to an exact v3 workload"]
+fn comparable_case_build_workload() {
+    let workload_path =
+        std::path::PathBuf::from(std::env::var("CAD_013_WORKLOAD").expect("CAD_013_WORKLOAD path"));
+    let (id, expected_volume_mm3) = match workload_path.file_stem().and_then(|stem| stem.to_str()) {
+        Some("verified-4652745834261390918") => ("006-round-chain", 1143.921239199482),
+        Some("verified-4653344314980564992") => ("touching-round-seat", 1280.0),
+        _ => panic!("expected one of the exact v3 round-seat PreparedCaseIR workload files"),
+    };
+    let text = std::fs::read_to_string(&workload_path).expect("workload JSON");
+    // The authored contract fields not consumed by Cadrum are ignored by its existing
+    // PreparedCase deserializer; this keeps both kernels on the same PreparedCaseIR bytes.
+    let ir: PreparedCase = serde_json::from_str(&text).expect("PreparedCaseIR workload");
+
+    eprintln!("CAD_013_BUILD_BEGIN id={id}");
+    let started = std::time::Instant::now();
+    let build = build_body(&ir);
+    let elapsed_ns = started.elapsed().as_nanos();
+
+    let solids = build.unwrap_or_else(|error| panic!("Cadrum build failed for {id}: {error}"));
+    assert_eq!(solids.len(), 1, "{id}: expected one connected solid");
+    let actual_volume_mm3 = solids.iter().map(|solid| solid.volume()).sum::<f64>();
+    assert!(
+        (actual_volume_mm3 - expected_volume_mm3).abs() <= 0.002,
+        "{id}: Cadrum volume {actual_volume_mm3} != independent {expected_volume_mm3} mm3"
+    );
+    // Print END only after the independent output check succeeds; failed baselines have no row.
+    eprintln!("CAD_013_BUILD_END id={id} elapsed_ns={elapsed_ns}");
+}

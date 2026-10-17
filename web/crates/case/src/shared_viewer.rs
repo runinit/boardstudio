@@ -1533,8 +1533,11 @@ impl PointerOwner {
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
+type ArmHandleCapture = Rc<dyn Fn(String)>;
+
+#[cfg(all(test, target_arch = "wasm32"))]
 #[derive(Clone, Default)]
-pub struct SharedViewerEscapeProbe(Rc<RefCell<Option<Rc<dyn Fn(String)>>>>);
+pub struct SharedViewerEscapeProbe(Rc<RefCell<Option<ArmHandleCapture>>>);
 
 #[cfg(all(test, target_arch = "wasm32"))]
 impl SharedViewerEscapeProbe {
@@ -2671,7 +2674,7 @@ fn SharedViewer(
             components: component_layers,
             selectable_layers: selectable_layers.clone(),
             selected_layer: selected_layer.clone(),
-            on_select_layer: move |id| select_assembly_layer(id),
+            on_select_layer: select_assembly_layer,
             display: display.clone(),
             on_display_change: assembly_change_display,
         }
@@ -3299,6 +3302,8 @@ mod tests {
                 z: 0.0,
                 height: 1.2,
             }],
+            pcb_source: None,
+            round_drills: vec![],
             board_holes: vec![boardstudio_core::model::Contour {
                 points: vec![
                     Vec2 { x: 0.5, y: 0.5 },

@@ -683,7 +683,7 @@ async fn apply_and_undo_editor_companion_mode(
         .correspondences
         .iter()
         .filter(|link| link.source_id.ends_with("/led"))
-        .map(|link| (link.source_id.clone(), link.companion_mode.clone()))
+        .map(|link| (link.source_id.clone(), link.companion_mode))
         .collect::<Vec<_>>();
     apply.click();
     wait_until_step(
@@ -711,13 +711,9 @@ async fn apply_and_undo_editor_companion_mode(
                         original_modes
                             .iter()
                             .find(|(id, _)| id == &link.source_id)
-                            .and_then(|(_, mode)| mode.clone())
+                            .and_then(|(_, mode)| *mode)
                     };
-                    (
-                        link.source_id.clone(),
-                        link.companion_mode.clone(),
-                        expected,
-                    )
+                    (link.source_id.clone(), link.companion_mode, expected)
                 })
                 .all(|(_, actual, expected)| actual == expected);
             landed && unchanged || error.is_some()

@@ -12,7 +12,10 @@ use boardstudio_web_host::host::{ArchiveResult, CoreExecutorFuture, HostError};
 use futures_channel::oneshot;
 
 type AsyncGate = (oneshot::Sender<()>, oneshot::Receiver<()>);
+type RequestFilter = fn(&CoreRequest) -> bool;
+type ScriptedReply = fn(&CoreRequest) -> Option<CoreReply>;
 
+#[derive(Clone)]
 enum PersistTarget {
     Store(BrowserStore),
     Memory(Rc<RefCell<BTreeMap<String, MemorySave>>>),
@@ -32,8 +35,8 @@ pub struct InProcessCore {
     behavior: GateDriver,
     fail_after_hold: RefCell<Option<String>>,
     gate: RefCell<Option<AsyncGate>>,
-    request_filter: Cell<Option<fn(&CoreRequest) -> bool>>,
-    scripted_reply: Cell<Option<fn(&CoreRequest) -> Option<CoreReply>>>,
+    request_filter: Cell<Option<RequestFilter>>,
+    scripted_reply: Cell<Option<ScriptedReply>>,
     archive_behavior: GateDriver,
     archive_gate: RefCell<Option<AsyncGate>>,
     archive_reply: RefCell<Option<ArchiveResult>>,
@@ -373,7 +376,8 @@ impl DocumentPersistence for TestPersistence {
                     }
                 }
             }
-            match &*self.target.borrow() {
+            let target = self.target.borrow().clone();
+            match target {
                 PersistTarget::Store(store) => {
                     store
                         .save_document_expected(document, assets, expected)

@@ -656,7 +656,9 @@ mod lifecycle_tests {
         canvas
     }
 
-    fn status_log() -> (Rc<dyn Fn(String)>, Rc<RefCell<Vec<String>>>) {
+    type StatusLog = (Rc<dyn Fn(String)>, Rc<RefCell<Vec<String>>>);
+
+    fn status_log() -> StatusLog {
         let log = Rc::new(RefCell::new(Vec::new()));
         let sink = log.clone();
         (Rc::new(move |message| sink.borrow_mut().push(message)), log)

@@ -289,6 +289,22 @@ fn export_rows(
     let dxf_runtime = runtime.clone();
     let dxf_export =
         EventHandler::new(move |()| dxf_runtime.export_board_outline(OutlineExportFormat::Dxf));
+    let keycaps_runtime = runtime.clone();
+    let keycaps_ready = scene.revision == document.revision
+        && document.boards.iter().any(|board| board.id == board_id);
+    let keycaps_scope = runtime.scope();
+    let keycaps_token = snapshot.token;
+    let keycaps_export = EventHandler::new(move |()| {
+        if keycaps_runtime.scope() == keycaps_scope
+            && keycaps_runtime
+                .model()
+                .accepted
+                .as_ref()
+                .is_some_and(|accepted| accepted.token == keycaps_token)
+        {
+            keycaps_runtime.export_keycaps_stl();
+        }
+    });
     let footprints_runtime = runtime.clone();
     let footprints_export = EventHandler::new(move |()| footprints_runtime.export_footprints());
     let kicad_runtime = runtime.clone();
@@ -332,6 +348,21 @@ fn export_rows(
             available: true,
             reason: pcb_blocker,
             on_export: Some(draft_kicad_export),
+        },
+        ExportRow {
+            label: "Keycap STLs",
+            detail: "One fused mesh per keycap, with a millimetre manifest in a ZIP",
+            status: if keycaps_ready {
+                "Available"
+            } else {
+                "Needs board"
+            },
+            action: "Export keycap STLs",
+            ready: keycaps_ready,
+            available: true,
+            reason: (!keycaps_ready)
+                .then_some("Select a board with a current design before exporting keycaps."),
+            on_export: Some(keycaps_export),
         },
         ExportRow {
             label: "ZMK firmware",
@@ -596,10 +627,7 @@ mod tests {
             );
             let reason = root.query_selector(".m1-export-reason").unwrap();
             assert_eq!(
-                reason
-                    .map(|element| element.text_content())
-                    .flatten()
-                    .as_deref(),
+                reason.and_then(|element| element.text_content()).as_deref(),
                 expected_reason
             );
             root.remove();

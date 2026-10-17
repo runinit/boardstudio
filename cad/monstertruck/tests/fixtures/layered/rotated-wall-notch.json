@@ -1,0 +1,50 @@
+{
+  "revision": 1,
+  "body": {
+    "features": [
+      {
+        "kind": "round-seat",
+        "id": "rotated-wall-notch",
+        "at": {
+          "x": 9.55336489125606,
+          "y": 2.9552020666133956
+        },
+        "z": 1.0,
+        "height": 2.0,
+        "diameter": 2.0
+      }
+    ],
+    "id": "plate",
+    "name": "Plate",
+    "boardId": "board",
+    "kind": "plate",
+    "thickness": 4.0,
+    "clearance": 0.0
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 0.0,
+          "y": 0.0
+        },
+        {
+          "x": 19.10672978251212,
+          "y": 5.910404133226791
+        },
+        {
+          "x": 14.378406475930685,
+          "y": 21.195787959236487
+        },
+        {
+          "x": -4.728323306581433,
+          "y": 15.285383826009696
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

@@ -10,6 +10,8 @@ use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 
+type BoundField<K> = (K, Signal<String>, Signal<Option<String>>);
+
 pub(crate) struct OwnedEdits<K: PartialEq + Clone + 'static> {
     pub helper: PendingEditSignals<K>,
     owner: Option<(Option<Scope>, u64)>,
@@ -17,7 +19,7 @@ pub(crate) struct OwnedEdits<K: PartialEq + Clone + 'static> {
     /// The bound field Signals of mounted components, kept so a replacement helper is
     /// bound the same way and the first edit after an owner change still restores its
     /// draft and places its failure.
-    fields: RefCell<Vec<(K, Signal<String>, Signal<Option<String>>)>>,
+    fields: RefCell<Vec<BoundField<K>>>,
 }
 
 impl<K: PartialEq + Clone + 'static> Default for OwnedEdits<K> {

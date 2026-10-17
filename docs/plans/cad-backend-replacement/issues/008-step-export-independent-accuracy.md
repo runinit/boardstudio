@@ -1,0 +1,38 @@
+# 008: Export exact cases and PCBs and replace their oracle coverage
+
+Status: claimed
+Owner: /root/sol_frame_serde_spec
+Type: build
+Blocked by: None
+Related: 013: Layered construction; 006: Production case and PCB adoption
+
+## What to build
+
+Export single and multiple exact case and PCB bodies as STEP and replace their required OCCT oracle with independent Rust/analytic/reference coverage. Continue the integrated writer and bounded oracle work; certify013's direct planes, cylinders and cones and their trim topology. No exact keycap STEP or general B-rep Boolean export is required. Existing005 solids permit independent progress; final combined acceptance uses013/006 output.
+
+## Acceptance criteria
+
+- [ ] Export actual exact case/PCB solids with correct units, body identity/counts, placements and complete trim geometry, including outline plus drilled holes and round/conical seats. Preserve exact rational representations where STEP uses them; do not replace cones/circles with facets.
+- [ ] Verify bounds, volume, material, topology and source completeness against analytic or independently sourced expectations; same-kernel roundtrips alone are insufficient.
+- [ ] Preserve applicable case/PCB acceptance fixtures, tolerances and negative controls while replacing their OCCT-dependent role. Explicitly map former keycap exact tests to009 mesh/print checks rather than retaining an obsolete exact gate or deleting intended feature coverage.
+- [ ] Pass native/WASM checks and Standards/Spec review on the actual013/006 exports; independent reference checks establish interoperability beyond internal roundtrips. Keycap export uses009's mesh format, not this writer.
+
+## Comments
+
+2026-10-17 root countersink integration: [Exact reviewed v9 postimages](../../../../.evidence/production-step-export-008/root-integration-v9/REPORT.md) now pass47 actual shared native tests (45 unit+2 integration), retaining all44 prior root tests and all43 private v9 unit names; WASM library/tests, formatting and scoped test Clippy pass. Runtime/API/Cargo/vendor unchanged. The actual013 countersink export has independent analytic volume, complete cone/trim/source and material/topology coverage. Full008 case/PCB coverage and production adoption remain open.
+
+2026-10-17 root integration: The reviewed circular/annular oracle successor through v8 is now in shared production-crate tests. Actual locked44 native tests pass (42 library+2 integration), retaining all33 prior root tests and all40 private-v8 tests; WASM library/tests, formatting and scoped test Clippy pass with the existing005 lint exception. Only seven owned test/fixture postimages and two direct development edges changed; runtime/API, dependency versions and local overrides are preserved. See [integration](../../../../.evidence/production-step-export-008/root-integration-v8/REPORT.md). Full008 remains open; the same owner continues the actual013 countersink certificate through an additive successor.
+
+2026-10-17 scope reconciliation: Keep the integrated v5 writer/checker and current v7/v8 case-cylinder/annulus accuracy handoffs. Stop expanding exact keycap/general-intersection coverage. Historical broader references below do not add a new delivery requirement.
+
+2026-10-17: User decision: exact STEP export scope is cases and PCBs only. Keycaps export as mesh (STL/3MF) and need no exact writer coverage.
+
+2026-10-17: Root integrated the reviewed bounded exact writer plus independent raw-Part21 checker through oracle-v5. Fresh actual shared33 native tests, WASM library/test compilation, strict library Clippy and formatting pass. See [integration](../../../../.evidence/production-step-export-008/root-integration-v1/REPORT.md). This preserves the v5 unsupported-assembly refusal and independent unit/placement/Plane checks; curved-family and full reference/placement coverage remain open. The separate v6 curved certificate is private and under review; no OCCT required test is removed.
+
+2026-10-17: Prerequisite005 is integrated and resolved. The private exact writer/oracle continues; full independent accuracy, curved-family and reference coverage remain open. Rejecting unsupported external assembly graphs prevents oracle source loss but does not qualify positive imported-placement coverage.
+
+2026-10-17: User approved this follow-on slice and its blocking edges. Existing 001–004 assignments and evidence continue unchanged. Qualification milestones do not establish production acceptance.
+
+2026-10-17: Private implementation assigned against the agreed opaque exact-model contract. Integration remains blocked by reviewed005 acceptance; existing application and unrelated changes are preserved.
+
+2026-10-17 root integration: The independently reviewed rational-circle checker, retracing/unique-vertex fix and helper-reuse delta are applied to six exact test/fixture postimages. Fresh52 affected native tests, all168 registrations, full library/tests WASM compilation, scoped Clippy and formatting pass with509 unchanged inputs. See [root report](../../../../.evidence/production-step-export-008/root-integration-v10/REPORT.md). Runtime exporter/API/vendor/dependencies remain unchanged; broader PCB/case reference coverage remains open.

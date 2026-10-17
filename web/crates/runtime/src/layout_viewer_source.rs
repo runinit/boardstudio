@@ -1191,6 +1191,8 @@ mod tests {
                 height: 1.0,
             }],
             board_holes: vec![],
+            pcb_source: None,
+            round_drills: vec![],
             volumes: vec![],
             openings: vec![],
             mounts: vec![],

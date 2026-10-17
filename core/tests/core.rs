@@ -959,6 +959,7 @@ fn duplicate_pad_nets_and_invalid_case_block_readiness() {
         wall_height: Some(5.0),
         wall_thickness: Some(2.0),
         mounts: None,
+        pcb_source: None,
         gasket: None,
     });
     let (bad, _) = scene(engine.handle(CoreRequest::Open {
@@ -1114,6 +1115,7 @@ fn case_readiness_uses_its_board() {
         wall_height: None,
         wall_thickness: None,
         mounts: None,
+        pcb_source: None,
         gasket: None,
     });
     let (valid_scene, doc) = scene(engine.handle(CoreRequest::Open {
@@ -1197,6 +1199,7 @@ fn authored_case_geometry_ignores_missing_material_metadata() {
         wall_height: Some(14.0),
         wall_thickness: Some(2.0),
         mounts: Some(vec![]),
+        pcb_source: None,
         gasket: None,
     });
     let mut engine = CoreEngine::new();
@@ -1266,6 +1269,7 @@ fn case_mounts_walls_and_gasket_are_validated() {
             boss_diameter: Some(2.0),
             height: None,
         }]),
+        pcb_source: None,
         gasket: Some(Gasket {
             inset: 1.0,
             width: 2.0,

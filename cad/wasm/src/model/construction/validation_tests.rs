@@ -12,6 +12,136 @@ use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 use std::{fs, path::PathBuf, process::Command};
 
+fn support_region(outer: &[[f64; 2]], holes: &[Vec<[f64; 2]>]) -> Value {
+    json!({
+        "outer":outer.iter().map(|[x,y]| json!({"x":x,"y":y})).collect::<Vec<_>>(),
+        "holes":holes.iter().map(|ring| ring.iter().map(|[x,y]| json!({"x":x,"y":y})).collect::<Vec<_>>()).collect::<Vec<_>>()
+    })
+}
+
+fn prepared_owner_case(points: &[[f64; 2]], regions: Vec<Value>) -> PreparedCase {
+    let points = points.iter().map(|[x,y]| json!({"x":x,"y":y})).collect::<Vec<_>>();
+    serde_json::from_value(json!({
+        "revision":1,
+        "body":{"id":"prepared-owner","name":"Prepared owner","kind":"plate","thickness":2.0,
+            "features":[{"kind":"support-prism","id":"owner-support","points":points,"z":1.0,"height":1.0}]},
+        "regions":regions
+    })).unwrap()
+}
+
+#[test]
+fn prepared_support_owner_cutoff_is_exact_and_strict() {
+    let exterior = [[-2.0,0.0],[0.0,0.0],[0.0,10.0],[-2.0,10.0]];
+    for edge in [1e-8, f64::from_bits(1e-8_f64.to_bits()+1)] {
+        let support = [[-1.0,2.0],[edge,2.0],[edge,3.0],[-1.0,3.0]];
+        let error = validate_feature_regions(&prepared_owner_case(&support,vec![support_region(&exterior,&[])])).unwrap_err();
+        assert!(error.contains("owner-support"), "{error}");
+        assert!(error.contains("exactly one case exterior"), "{error}");
+    }
+    let below = [[-1.0,2.0],[5e-9,2.0],[5e-9,3.0],[-1.0,3.0]];
+    validate_feature_regions(&prepared_owner_case(&below,vec![support_region(&exterior,&[])])).unwrap();
+    let touching = [[-1.0,2.0],[0.0,2.0],[0.0,3.0],[-1.0,3.0]];
+    validate_feature_regions(&prepared_owner_case(&touching,vec![support_region(&exterior,&[])])).unwrap();
+}
+
+#[test]
+fn prepared_support_owner_preserves_concavity_multiple_owners_and_ignored_holes() {
+    let concave = [[0.0,0.0],[10.0,0.0],[10.0,3.0],[3.0,3.0],[3.0,10.0],[0.0,10.0]];
+    let crossing_notch = [[2.5,2.5],[3.5,2.5],[3.5,3.5],[2.5,3.5]];
+    assert!(validate_feature_regions(&prepared_owner_case(&crossing_notch,vec![support_region(&concave,&[])])).is_err());
+
+    let overlap_support = [[6.0,2.0],[7.0,2.0],[7.0,3.0],[6.0,3.0]];
+    let left = [[0.0,0.0],[10.0,0.0],[10.0,10.0],[0.0,10.0]];
+    let right = [[5.0,0.0],[15.0,0.0],[15.0,10.0],[5.0,10.0]];
+    let error = validate_feature_regions(&prepared_owner_case(&overlap_support,vec![support_region(&left,&[]),support_region(&right,&[])])).unwrap_err();
+    assert!(error.contains("exactly one case exterior"), "{error}");
+
+    let outer = [[-2.0,0.0],[0.0,0.0],[0.0,10.0],[-2.0,10.0]];
+    let hole = vec![[-0.75,4.0],[-0.25,4.0],[-0.25,6.0],[-0.75,6.0]];
+    let in_hole = [[-0.6,4.5],[-0.4,4.5],[-0.4,5.5],[-0.6,5.5]];
+    validate_feature_regions(&prepared_owner_case(&in_hole,vec![support_region(&outer,&[hole])])).unwrap();
+}
+
+#[test]
+fn prepared_support_rejects_invalid_exterior_with_region_context() {
+    let outer = [[10.0,10.0],[18.0,18.0],[10.0,18.0],[18.0,10.0],[14.0,14.0]];
+    let support = [[13.0,12.0],[15.0,12.0],[15.0,13.0],[13.0,13.0]];
+    let error = validate_feature_regions(&prepared_owner_case(&support,vec![support_region(&outer,&[])])).unwrap_err();
+    assert!(error.contains("region 0"), "{error}");
+    assert!(error.contains("exterior"), "{error}");
+}
+
+#[test]
+fn prepared_support_keeps_duplicate_and_1025_point_native_acceptance() {
+    let duplicates = json!([
+        {"x":2.0,"y":2.0},{"x":2.0,"y":2.0},{"x":8.0,"y":2.0},
+        {"x":8.0,"y":8.0},{"x":2.0,"y":8.0},{"x":2.0,"y":2.0}
+    ]);
+    let large = (0..1025)
+        .map(|i| {
+            let angle = std::f64::consts::TAU * i as f64 / 1025.0;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    let prepared: PreparedCase = serde_json::from_value(json!({
+        "revision":1,
+        "body":{"id":"prepared-controls","name":"Prepared controls","kind":"plate","thickness":2.0,
+            "features":[
+                {"kind":"support-prism","id":"duplicate-support","points":duplicates,"z":1.0,"height":1.0},
+                {"kind":"support-prism","id":"large-support","points":large,"z":1.0,"height":1.0}
+            ]},
+        "regions":[{"outer":[{"x":0.0,"y":0.0},{"x":20.0,"y":0.0},{"x":20.0,"y":20.0},{"x":0.0,"y":20.0}]}]
+    })).unwrap();
+    validate_feature_regions(&prepared).unwrap();
+}
+
+#[test]
+fn prepared_support_self_crossing_is_rejected_at_cad_trust_boundary() {
+    let points = (0..5)
+        .map(|i| {
+            let angle = std::f64::consts::TAU * ((i * 2) % 5) as f64 / 5.0
+                - std::f64::consts::FRAC_PI_2;
+            json!({"x": 10.0 + 8.0 * angle.cos(), "y": 10.0 + 8.0 * angle.sin()})
+        })
+        .collect::<Vec<_>>();
+    let mut prepared: PreparedCase = serde_json::from_value(json!({
+        "revision":1,
+        "body":{"id":"prepared-star","name":"Prepared star","kind":"plate","thickness":2.0,
+            "features":[{"kind":"support-prism","id":"prepared-crossed-support","points":points,"z":1.0,"height":1.0}]},
+        "regions":[{"outer":[{"x":0.0,"y":0.0},{"x":20.0,"y":0.0},{"x":20.0,"y":20.0},{"x":0.0,"y":20.0}]}]
+    })).unwrap();
+    let error = validate_feature_regions(&prepared).unwrap_err();
+    assert!(error.contains("prepared-crossed-support"), "{error}");
+    assert!(error.contains("cross") || error.contains("intersect"), "{error}");
+
+    if let CaseFeature::SupportPrism { height, .. } = &mut prepared.body.features[0] {
+        *height = 0.0;
+    }
+    assert_eq!(
+        validate_feature_regions(&prepared).unwrap_err(),
+        "Support 'prepared-crossed-support' has invalid elevation or height"
+    );
+}
+
+#[test]
+fn prepared_support_nonfinite_coordinate_keeps_existing_cad_error() {
+    let mut prepared: PreparedCase = serde_json::from_value(json!({
+        "revision":1,
+        "body":{"id":"prepared-nonfinite","name":"Prepared nonfinite","kind":"plate","thickness":2.0,
+            "features":[{"kind":"support-prism","id":"nonfinite-support","points":[
+                {"x":2.0,"y":2.0},{"x":8.0,"y":2.0},{"x":8.0,"y":8.0},{"x":2.0,"y":8.0}
+            ],"z":1.0,"height":1.0}]},
+        "regions":[{"outer":[{"x":0.0,"y":0.0},{"x":20.0,"y":0.0},{"x":20.0,"y":20.0},{"x":0.0,"y":20.0}]}]
+    })).unwrap();
+    if let CaseFeature::SupportPrism { points, .. } = &mut prepared.body.features[0] {
+        points[0].x = f64::NAN;
+    }
+    assert_eq!(
+        validate_feature_regions(&prepared).unwrap_err(),
+        "Case feature contains a non-finite coordinate"
+    );
+}
+
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()

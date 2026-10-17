@@ -344,13 +344,172 @@ pub(crate) fn remove(doc: &mut ProjectDoc, id: &str) -> Result<Vec<String>, Stri
     Ok(vec![removed.id, removed.host_board_id])
 }
 
+impl ModuleBoard {
+    pub(crate) fn placed(mut self, placement: Pose2, flipped: bool) -> Self {
+        for contour in &mut self.contours {
+            for p in &mut contour.points {
+                *p = placed_point(placement, flipped, *p);
+            }
+        }
+        for hole in &mut self.holes {
+            for p in hole {
+                *p = placed_point(placement, flipped, *p);
+            }
+        }
+        self.pcb_source = self
+            .pcb_source
+            .as_ref()
+            .map(|source| source_profile(placement, flipped, source));
+        for mount in &mut self.round_drills {
+            mount.at = placed_point(placement, flipped, mount.at);
+        }
+        self
+    }
+}
+
 fn xy(instance: &MountedModule, flipped: bool, p: Vec2) -> Vec2 {
-    let (sin, cos) = instance.rotation.to_radians().sin_cos();
+    placed_point(
+        Pose2 {
+            at: instance.at,
+            rotation: instance.rotation,
+        },
+        flipped,
+        p,
+    )
+}
+
+fn placed_point(placement: Pose2, flipped: bool, p: Vec2) -> Vec2 {
+    let (sin, cos) = placement.rotation.to_radians().sin_cos();
     let x = if flipped { -p.x } else { p.x };
     Vec2 {
-        x: instance.at.x + x * cos - p.y * sin,
-        y: instance.at.y + x * sin + p.y * cos,
+        x: placement.at.x + x * cos - p.y * sin,
+        y: placement.at.y + x * sin + p.y * cos,
     }
+}
+
+fn xy_vector(placement: Pose2, flipped: bool, vector: Vec2) -> Vec2 {
+    let reflected = Vec2 {
+        x: if flipped { -vector.x } else { vector.x },
+        y: vector.y,
+    };
+    crate::matrix::splay::rotate(reflected, placement.rotation, Vec2::default())
+}
+
+fn source_profile(placement: Pose2, flipped: bool, source: &CasePcbSource) -> CasePcbSource {
+    let mut source = source.clone();
+    for contour in &mut source.contours {
+        for primitive in &mut contour.primitives {
+            primitive.geometry = match primitive.geometry.clone() {
+                MechanicalShape::Line { start, end, width } => MechanicalShape::Line {
+                    start: placed_point(placement, flipped, start),
+                    end: placed_point(placement, flipped, end),
+                    width,
+                },
+                MechanicalShape::Arc {
+                    start,
+                    mid,
+                    end,
+                    angle_degrees,
+                    width,
+                } => MechanicalShape::Arc {
+                    start: placed_point(placement, flipped, start),
+                    mid: mid.map(|point| placed_point(placement, flipped, point)),
+                    end: placed_point(placement, flipped, end),
+                    angle_degrees: angle_degrees.map(
+                        |degrees| {
+                            if flipped { -degrees } else { degrees }
+                        },
+                    ),
+                    width,
+                },
+                MechanicalShape::Circle { center, end, width } => MechanicalShape::Circle {
+                    center: placed_point(placement, flipped, center),
+                    end: placed_point(placement, flipped, end),
+                    width,
+                },
+                MechanicalShape::Rectangle { start, end, width } => MechanicalShape::Rectangle {
+                    start: placed_point(placement, flipped, start),
+                    end: placed_point(placement, flipped, end),
+                    width,
+                },
+                MechanicalShape::Polygon { points, width } => MechanicalShape::Polygon {
+                    points: points
+                        .into_iter()
+                        .map(|point| placed_point(placement, flipped, point))
+                        .collect(),
+                    width,
+                },
+                MechanicalShape::Drill {
+                    at,
+                    size,
+                    offset,
+                    rotation_degrees,
+                    shape,
+                    plated,
+                } => MechanicalShape::Drill {
+                    at: placed_point(placement, flipped, at),
+                    size,
+                    offset: if flipped {
+                        Vec2 {
+                            x: -offset.x,
+                            y: offset.y,
+                        }
+                    } else {
+                        offset
+                    },
+                    rotation_degrees: placement.rotation
+                        + if flipped {
+                            -rotation_degrees
+                        } else {
+                            rotation_degrees
+                        },
+                    shape,
+                    plated,
+                },
+            };
+            if let Some(support) = &mut primitive.curve_support {
+                support.center = placed_point(placement, flipped, support.center);
+                support.start_direction = xy_vector(placement, flipped, support.start_direction);
+                if flipped {
+                    support.sweep_radians = -support.sweep_radians;
+                }
+            }
+        }
+    }
+    for slot in &mut source.slots {
+        let MechanicalShape::Drill {
+            at,
+            size,
+            offset,
+            rotation_degrees,
+            shape,
+            plated,
+        } = slot.geometry.clone()
+        else {
+            continue;
+        };
+        slot.geometry = MechanicalShape::Drill {
+            at: placed_point(placement, flipped, at),
+            size,
+            offset: if flipped {
+                Vec2 {
+                    x: -offset.x,
+                    y: offset.y,
+                }
+            } else {
+                offset
+            },
+            rotation_degrees: placement.rotation
+                + if flipped {
+                    -rotation_degrees
+                } else {
+                    rotation_degrees
+                },
+            shape,
+            plated,
+        };
+    }
+    source
 }
 
 fn resolved_footprints(
@@ -685,6 +844,25 @@ pub(crate) fn resolve(doc: &ProjectDoc, board_id: &str) -> ModuleResolution {
             flipped,
             board,
             board_holes: board_holes(def, instance, flipped),
+            pcb_source: def.board.pcb_source.as_ref().map(|source| {
+                source_profile(
+                    Pose2 {
+                        at: instance.at,
+                        rotation: instance.rotation,
+                    },
+                    flipped,
+                    source,
+                )
+            }),
+            round_drills: def
+                .board
+                .round_drills
+                .iter()
+                .map(|mount| Mount {
+                    at: xy(instance, flipped, mount.at),
+                    ..mount.clone()
+                })
+                .collect(),
             volumes: def.volumes.iter().map(transform).collect(),
             openings: def.openings.iter().map(transform).collect(),
             mounts: def

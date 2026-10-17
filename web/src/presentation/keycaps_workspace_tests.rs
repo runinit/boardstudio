@@ -106,7 +106,6 @@ fn mounted_inspector() -> Element {
             mechanical_layer_ids: Rc::from([]),
             fit_retry: EventHandler::new(|()| {}),
             fit_navigate: EventHandler::new(|_| {}),
-            on_export: EventHandler::new(|()| {}),
         })}
     }
 }
@@ -126,6 +125,13 @@ async fn inspector_header_shows_accepted_assigned_and_total_key_count() {
             .text_content()
             .as_deref(),
         Some("Keycaps")
+    );
+    assert!(
+        !element(".m1-keycaps-inspector")
+            .unwrap()
+            .text_content()
+            .unwrap_or_default()
+            .contains("Export keycap STEP")
     );
     assert_eq!(
         element(".m1-keycaps-inspector-assigned-count")

@@ -12,9 +12,16 @@ pub use crate::modules::{
     ResolvedModulePad, VikSignal,
 };
 pub use boardstudio_contracts::{
+    CaseAssemblyIR, CaseBody, CaseFeature, CaseIR, CaseKind, CaseOpening, CasePcbCircularSupport,
+    CasePcbSlot, CasePcbSource, CasePcbSourceContour, CasePcbSourcePrimitive, Contour, Gasket,
+    Mount, MountKind, PreparedCaseAssemblyIR, PreparedCaseIR, PreparedCaseRegion,
+    PreparedGasketRegion,
+};
+pub use boardstudio_contracts::{
     KeycapBoardSettings, KeycapConfiguration, KeycapKeySettings, KeycapMatrixSettings, KeycapMount,
     KeycapProfile, KeycapSpec, Pose2, Side, Vec2,
 };
+pub use boardstudio_contracts::{MechanicalDrillShape, MechanicalShape};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -627,91 +634,6 @@ pub struct CopperVia {
     pub drill: f64,
     #[serde(rename = "netId", skip_serializing_if = "Option::is_none")]
     pub net_id: Option<String>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseBody {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub features: Option<Vec<CaseFeature>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub openings: Option<Vec<CaseOpening>>,
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "boardId")]
-    pub board_id: String,
-    pub kind: CaseKind,
-    pub thickness: f64,
-    pub clearance: f64,
-    #[serde(rename = "materialId", skip_serializing_if = "Option::is_none")]
-    pub material_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub z: Option<f64>,
-    #[serde(rename = "wallHeight", skip_serializing_if = "Option::is_none")]
-    pub wall_height: Option<f64>,
-    #[serde(rename = "wallThickness", skip_serializing_if = "Option::is_none")]
-    pub wall_thickness: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mounts: Option<Vec<Mount>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub gasket: Option<Gasket>,
-}
-/// Exact additions and seats, evaluated after shell cavities and before access openings.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum CaseFeature {
-    SupportPrism {
-        id: String,
-        points: Vec<Vec2>,
-        z: f64,
-        height: f64,
-    },
-    RoundSeat {
-        id: String,
-        at: Vec2,
-        z: f64,
-        height: f64,
-        diameter: f64,
-    },
-    ConicalSeat {
-        id: String,
-        at: Vec2,
-        z: f64,
-        height: f64,
-        diameter: f64,
-        #[serde(rename = "endDiameter")]
-        end_diameter: f64,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Mount {
-    pub id: String,
-    pub at: Vec2,
-    pub kind: MountKind,
-    #[serde(rename = "holeDiameter")]
-    pub hole_diameter: f64,
-    #[serde(rename = "bossDiameter", skip_serializing_if = "Option::is_none")]
-    pub boss_diameter: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub height: Option<f64>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MountKind {
-    Hole,
-    Boss,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Gasket {
-    pub inset: f64,
-    pub width: f64,
-    pub depth: f64,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum CaseKind {
-    Plate,
-    Tray,
-    Lid,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
@@ -1919,46 +1841,6 @@ pub struct EditCommand {
     pub operation: EditOperation,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Contour {
-    pub points: Vec<Vec2>,
-    pub hole: bool,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseIR {
-    pub revision: u64,
-    pub body: CaseBody,
-    pub contours: Vec<Contour>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseAssemblyIR {
-    pub revision: u64,
-    pub bodies: Vec<CaseIR>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseIR {
-    pub revision: u64,
-    pub body: CaseBody,
-    pub regions: Vec<PreparedCaseRegion>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseRegion {
-    pub outer: Vec<Vec2>,
-    pub holes: Vec<Vec<Vec2>>,
-    pub cavities: Vec<Vec<Vec2>>,
-    pub gaskets: Vec<PreparedGasketRegion>,
-    pub mounts: Vec<Mount>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedGasketRegion {
-    pub outer: Vec<Vec2>,
-    pub holes: Vec<Vec<Vec2>>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PreparedCaseAssemblyIR {
-    pub revision: u64,
-    pub bodies: Vec<PreparedCaseIR>,
-}
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
@@ -2512,6 +2394,12 @@ pub struct OutlineExportRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactRequest {
+    ReadBoardSource {
+        id: String,
+        source: String,
+        placement: Pose2,
+        flipped: bool,
+    },
     ImportModuleBoard {
         id: String,
         #[serde(rename = "definitionId")]
@@ -2569,6 +2457,10 @@ pub enum ArtifactRequest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 #[serde(rename_all_fields = "camelCase")]
 pub enum ArtifactReply {
+    ReadBoardSource {
+        id: String,
+        result: ModuleBoard,
+    },
     ImportModuleBoard {
         id: String,
         result: Box<ModuleDefinition>,
@@ -2637,53 +2529,6 @@ pub struct MechanicalPurposeMapping {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub layer: Option<String>,
     pub purpose: MechanicalPurpose,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum MechanicalDrillShape {
-    Circle,
-    Oval,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-#[serde(rename_all_fields = "camelCase")]
-pub enum MechanicalShape {
-    Line {
-        start: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Arc {
-        start: Vec2,
-        mid: Option<Vec2>,
-        end: Vec2,
-        angle_degrees: Option<f64>,
-        width: Option<f64>,
-    },
-    Circle {
-        center: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Rectangle {
-        start: Vec2,
-        end: Vec2,
-        width: Option<f64>,
-    },
-    Polygon {
-        points: Vec<Vec2>,
-        width: Option<f64>,
-    },
-    Drill {
-        at: Vec2,
-        size: Vec2,
-        offset: Vec2,
-        rotation_degrees: f64,
-        shape: MechanicalDrillShape,
-        plated: Option<bool>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -3083,13 +2928,6 @@ pub struct MechanicalStabilizerOverride {
     pub units: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rotation: Option<f64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct CaseOpening {
-    pub points: Vec<Vec2>,
-    pub z: f64,
-    pub height: f64,
 }
 
 /// An authored mechanical opening with stable identity for edit targeting.

@@ -75,7 +75,6 @@ pub(super) fn Inspector() -> Element {
         }
     });
     use_drop({
-        let pending = pending;
         move || {
             pending.peek().unbind_field(&());
             pending.peek().unbind_one_shot(&());
@@ -104,10 +103,8 @@ pub(super) fn Inspector() -> Element {
                         .map(|(_, px, py)| (px.to_string(), py.to_string()))
                         .unwrap_or_default()
                 });
-                if !pending.peek().is_pending(&()) {
-                    if pending_owner.peek().is_some() {
-                        pending_owner.set(None);
-                    }
+                if !pending.peek().is_pending(&()) && pending_owner.peek().is_some() {
+                    pending_owner.set(None);
                 }
                 let (draft_id, x_dirty, y_dirty) = dirty_axes.peek().clone();
                 let selected_id = key.as_ref().map(|(id, _, _)| id);
@@ -115,18 +112,18 @@ pub(super) fn Inspector() -> Element {
                 if !same_target {
                     dirty_axes.set((selected_id.cloned(), false, false));
                 }
-                if let Some((_, px, py)) = key.as_ref() {
-                    if !pending.peek().is_pending(&()) {
-                        let mut projected = draft.peek().clone();
-                        if !same_target || !x_dirty {
-                            projected.0 = px.to_string();
-                        }
-                        if !same_target || !y_dirty {
-                            projected.1 = py.to_string();
-                        }
-                        if *draft.peek() != projected {
-                            draft.set(projected);
-                        }
+                if let Some((_, px, py)) = key.as_ref()
+                    && !pending.peek().is_pending(&())
+                {
+                    let mut projected = draft.peek().clone();
+                    if !same_target || !x_dirty {
+                        projected.0 = px.to_string();
+                    }
+                    if !same_target || !y_dirty {
+                        projected.1 = py.to_string();
+                    }
+                    if *draft.peek() != projected {
+                        draft.set(projected);
                     }
                 }
                 let changed_target = numeric_edit
@@ -141,7 +138,6 @@ pub(super) fn Inspector() -> Element {
         },
     ));
     let submit = {
-        let pending = pending;
         let mut pending_owner = pending_owner;
         let mut dirty_axes = dirty_axes;
         let runtime = runtime.clone();

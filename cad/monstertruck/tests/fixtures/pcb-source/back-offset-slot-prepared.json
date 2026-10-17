@@ -1,0 +1,135 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "back-offset-slot",
+    "name": "Back offset slot",
+    "boardId": "fixture-board",
+    "kind": "plate",
+    "thickness": 1.6,
+    "clearance": 0.0,
+    "z": 0.0,
+    "pcb_source": {
+      "contours": [
+        {
+          "id": "outline/11111111-1111-4111-8111-111111111111",
+          "outerId": null,
+          "primitives": [
+            {
+              "sourceId": "11111111-1111-4111-8111-111111111111",
+              "segmentIndex": 0,
+              "geometry": {
+                "kind": "line",
+                "start": {
+                  "x": -10.0,
+                  "y": 10.0
+                },
+                "end": {
+                  "x": 10.0,
+                  "y": 10.0
+                },
+                "width": 0.05
+              }
+            },
+            {
+              "sourceId": "11111111-1111-4111-8111-111111111111",
+              "segmentIndex": 1,
+              "geometry": {
+                "kind": "line",
+                "start": {
+                  "x": 10.0,
+                  "y": 10.0
+                },
+                "end": {
+                  "x": 10.0,
+                  "y": -10.0
+                },
+                "width": 0.05
+              }
+            },
+            {
+              "sourceId": "11111111-1111-4111-8111-111111111111",
+              "segmentIndex": 2,
+              "geometry": {
+                "kind": "line",
+                "start": {
+                  "x": 10.0,
+                  "y": -10.0
+                },
+                "end": {
+                  "x": -10.0,
+                  "y": -10.0
+                },
+                "width": 0.05
+              }
+            },
+            {
+              "sourceId": "11111111-1111-4111-8111-111111111111",
+              "segmentIndex": 3,
+              "geometry": {
+                "kind": "line",
+                "start": {
+                  "x": -10.0,
+                  "y": -10.0
+                },
+                "end": {
+                  "x": -10.0,
+                  "y": 10.0
+                },
+                "width": 0.05
+              }
+            }
+          ]
+        }
+      ],
+      "slots": [
+        {
+          "id": "22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333",
+          "geometry": {
+            "kind": "drill",
+            "at": {
+              "x": 2.5601853694216103,
+              "y": -6.083269619744623
+            },
+            "size": {
+              "x": 1.2,
+              "y": 0.8
+            },
+            "offset": {
+              "x": -0.3,
+              "y": 0.2
+            },
+            "rotationDegrees": 14.0,
+            "shape": "oval",
+            "plated": false
+          }
+        }
+      ]
+    }
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": -10.0,
+          "y": -10.0
+        },
+        {
+          "x": 10.0,
+          "y": -10.0
+        },
+        {
+          "x": 10.0,
+          "y": 10.0
+        },
+        {
+          "x": -10.0,
+          "y": 10.0
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

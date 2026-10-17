@@ -1,0 +1,22 @@
+{
+  "source": "Monstertruck qualification retained resources/step/occt-cube.step; header declares FreeCAD Model",
+  "sha256": "1a1d1db351974ca8f34732c3aee32256c5eab108946ee40ebd48b5568b283f57",
+  "generated_by_this_candidate": false,
+  "units": "mm",
+  "solids": 1,
+  "bounds": [
+    [
+      0,
+      0,
+      0
+    ],
+    [
+      10,
+      10,
+      10
+    ]
+  ],
+  "volume_mm3": 1000,
+  "volume_tolerance_mm3": 0.1,
+  "bounds_tolerance_mm": 0.01
+}

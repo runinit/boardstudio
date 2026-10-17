@@ -80,16 +80,28 @@ fn validate_feature_regions(ir: &PreparedCase) -> Result<(), String> {
             if !z.is_finite() || !height.is_finite() || *height <= 0. {
                 return Err(format!("Support '{id}' has invalid elevation or height"));
             }
-            let footprint = make_prism(points, 0., 1.)?;
+            let coordinates = points.iter().map(|point| [point.x, point.y]).collect::<Vec<_>>();
+            if boardstudio_contracts::support_polygon_has_self_intersection(&coordinates) {
+                return Err(format!(
+                    "Support '{id}' polygon must not self-intersect or self-touch"
+                ));
+            }
+            // Keep the existing prism checks here so CAD-invalid input still fails before
+            // ownership is accepted. The ownership measurement itself is exact planar area.
+            let _footprint = make_prism(points, 0., 1.)?;
             let mut owners = 0;
-            for region in &ir.regions {
-                let exterior = make_prism(&region.outer, 0., 1.)?;
-                let outside = (Boolean::from(&footprint.clone()) - &exterior)
-                    .build_vec()
-                    .map_err(cadrum_error)?;
-                if outside.iter().map(Solid::volume).sum::<f64>() < 1e-8 {
-                    owners += 1;
-                }
+            for (region_index, region) in ir.regions.iter().enumerate() {
+                let exterior = region.outer.iter().map(|point| [point.x, point.y]).collect::<Vec<_>>();
+                let inside = boardstudio_contracts::support_polygon_outside_area_below_owner_cutoff(
+                    &coordinates,
+                    &exterior,
+                )
+                .map_err(|error| format!(
+                    "Support '{id}' region {region_index} has invalid owner geometry: {error}"
+                ))?;
+                // Retain the existing CAD prism validity check after exact ring validation.
+                let _exterior = make_prism(&region.outer, 0., 1.)?;
+                owners += usize::from(inside);
             }
             if owners != 1 {
                 return Err(format!(
