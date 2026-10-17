@@ -48,7 +48,8 @@ directory and keep Cargo artifacts there:
 ```sh
 mkdir -p .evidence/monstertruck-qualification/candidate-build \
   .evidence/monstertruck-qualification/vendor-integration
-export CARGO_TARGET_DIR="$PWD/.evidence/monstertruck-qualification/target"
+# Use the crate's standard target directory (never place Cargo target dirs inside .evidence/)
+export CARGO_TARGET_DIR="$PWD/cad/monstertruck-qualification/target"
 set -o pipefail
 timeout 30m cargo build --manifest-path cad/monstertruck-qualification/Cargo.toml --lib \
   --locked 2>&1 | tee .evidence/monstertruck-qualification/candidate-build/native-build.log
@@ -216,7 +217,7 @@ for further fixes, not production qualification.
 Reproduce the integration checks with a private artifact directory:
 
 ```sh
-export CARGO_TARGET_DIR="$PWD/.evidence/monstertruck-qualification/vendor-integration/target"
+export CARGO_TARGET_DIR="$PWD/cad/monstertruck-qualification/target"
 cargo test --locked --offline --manifest-path cad/monstertruck-qualification/Cargo.toml \
   -p monstertruck-meshing --lib -- --test-threads=1
 cargo test --locked --offline --manifest-path cad/monstertruck-qualification/Cargo.toml \
