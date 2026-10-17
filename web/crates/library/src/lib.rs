@@ -26,6 +26,8 @@ pub(crate) mod setup_guide {
 }
 
 #[cfg(target_arch = "wasm32")]
+pub(crate) mod demo_projects;
+#[cfg(target_arch = "wasm32")]
 pub mod library;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod project_name;

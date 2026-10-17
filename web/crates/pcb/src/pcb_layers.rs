@@ -39,6 +39,7 @@ pub fn PcbLayerControls(props: PcbLayerControlsProps) -> Element {
     rsx! {
         CanvasLayers {
             initially_open: props.initially_open,
+            trigger_label: "PCB layers".to_owned(),
             trigger_id: String::from("m1-pcb-layers-trigger"),
             list_id: String::from("m1-pcb-layers-list"),
             groups,

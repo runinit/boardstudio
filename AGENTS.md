@@ -10,12 +10,14 @@
 - Inventory: to find every use of a field or type you change, remove it and read the `cargo check` errors.
 - Scripted edits: replace one exact, unique string and assert the match count. Read the diff before running tests. Checkpoint with a WIP commit on your branch before a large scripted edit.
 - Verification: mutation checks use `scripts/mutation-check.py`; `check.py test` guards native test counts by test name.
-- Evidence: logs, hashes and mutation results go in the gitignored `.evidence/`; redirect long check output there and report only its result and relevant failures.
+- Evidence: redirect long check output and mutation logs to the gitignored `.evidence/` directory and report only the result and relevant failures. Never create Cargo `target` directories or copy crate source trees inside `.evidence/`. Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git already tracks source state.
 
-## Environment
+## Environment & Build Guardrails
 
 - `$TMPDIR` changes when the sandbox is lifted; write anything that must survive to an absolute path.
 - Cargo: lift the sandbox unless `.claude/settings.json` allowlists the directory `readlink -f target` prints (it differs per worktree: lane worktrees point into `~/.cache/boardstudio-target`, session worktrees share the main checkout's `target`). `.worktreeinclude` carries that file into new worktrees.
+- Build flags: let `.cargo/config.toml` (`jobs = 12`) and `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`) govern concurrency and debuginfo. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`.
+- Single build per target: do not launch concurrent `cargo` or `wasm-pack` commands against the same `target` directory or busy-poll background commands in a tight loop.
 
 Historical workflow documents are not operating instructions.
 

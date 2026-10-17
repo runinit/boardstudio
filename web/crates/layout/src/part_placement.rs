@@ -516,7 +516,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 scope: owner.scope.clone(),
                 generation: owner.generation,
             }));
-            workspace.set("Parts");
+            workspace.set(if guided { "Layout" } else { "Parts" });
             query.set("controller".into());
             selected.set(None);
             selected_context.set(None);
@@ -551,10 +551,16 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                   source_definition: Option<(String, PartDefinition)>,
                   intent: PlacementIntent| {
                 let source_workspace = workspace();
+                let guided_wiring = workflow == PlacementWorkflow::WiringController
+                    && guide_preferences().as_ref().is_some_and(|preferences| {
+                        preferences.open && preferences.current_stage == SetupGuideStage::Wiring
+                    });
                 if match workflow {
-                    PlacementWorkflow::WiringController | PlacementWorkflow::PcbController => {
+                    PlacementWorkflow::WiringController => {
                         source_workspace != "Parts"
+                            && !(source_workspace == "Layout" && guided_wiring)
                     }
+                    PlacementWorkflow::PcbController => source_workspace != "Parts",
                     PlacementWorkflow::GeneralComponent => {
                         !matches!(source_workspace, "Parts" | "Layout" | "PCB")
                     }
@@ -1240,7 +1246,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                             };
                         selected_context.set(next_context);
                         anchor_scope.set(None);
-                        workspace.set(if owner.workflow.is_controller() {
+                        workspace.set(if owner.workflow == PlacementWorkflow::WiringController {
+                            "Layout"
+                        } else if owner.workflow.is_controller() {
                             "PCB"
                         } else {
                             "Layout"
@@ -1262,11 +1270,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         });
                     }
                     PendingEditResult::Failed { message, .. } => {
-                        workspace.set(if owner.workflow.is_controller() {
-                            "Parts"
-                        } else {
-                            "Layout"
-                        });
+                        workspace.set(owner.source_workspace);
                         error.set(Some(message));
                     }
                     PendingEditResult::Retired { .. } => {}
@@ -2491,6 +2495,12 @@ mod tests {
             .find(|part| part.id == association.mirror_id)
             .expect("the linked mirror part exists");
         assert_eq!(mirror_part.definition_id, source_part.definition_id);
+        let mirror_map_x = accepted.document.hardware.as_ref().unwrap().pairs[0]
+            .mapping
+            .at
+            .x;
+        assert!((source_part.pose.at.x + mirror_part.pose.at.x - mirror_map_x).abs() < 1e-6);
+        assert!((source_part.pose.at.y - mirror_part.pose.at.y).abs() < 1e-6);
         assert!(
             accepted.document.boards[0]
                 .part_ids

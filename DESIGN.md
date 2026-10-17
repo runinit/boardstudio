@@ -5,9 +5,9 @@ colors:
   light-field: '#f7f8fa'
   light-toolbar: '#edf0f8'
   light-toolbar-rule: '#c1cad6'
-  dark-field: '#171A20'
-  dark-toolbar: '#2D323B'
-  dark-toolbar-rule: '#454C57'
+  dark-field: '#20242D'
+  dark-toolbar: '#2C323D'
+  dark-toolbar-rule: '#454E5E'
   light-accent: '#3858D6'
   light-accent-dark: '#2945b6'
   light-on-accent: '#FFFFFF'
@@ -54,11 +54,11 @@ colors:
   dark-accent-dark: '#b6c4ff'
   dark-on-accent: '#101725'
   dark-accent-secondary: '#B98CD1'
-  dark-paper: '#171A20'
-  dark-canvas: '#15171B'
-  dark-panel: '#202329'
-  dark-raised: '#3A3F48'
-  dark-surface-soft: '#282D36'
+  dark-paper: '#1B1E25'
+  dark-canvas: '#181B21'
+  dark-panel: '#242831'
+  dark-raised: '#373E4B'
+  dark-surface-soft: '#2C323D'
   dark-surface-strong: '#343B48'
   dark-ink: '#EDF1F7'
   dark-muted: '#AFBCCB'
@@ -67,7 +67,7 @@ colors:
   dark-rule-strong: '#66717F'
   dark-rule-control: '#626D7B'
   dark-selection-surface: '#303B56'
-  dark-selection-ink: '#CDD6FF'
+  dark-selection-ink: '#D5DDFF'
   dark-topbar: '#1A1D22'
   dark-topbar-ink: '#EDF1F7'
   dark-status-success: '#6ab99d'
@@ -144,9 +144,10 @@ typography:
     fontSize: 12px
     fontWeight: 400
 rounded:
-  field: 5px
-  control: 5px
-  toolbar: 6px
+  field: 8px
+  control: 8px
+  toolbar: 12px
+  tool-pill: 16px
   menu: 5px
   flyout: 8px
 spacing:
@@ -269,7 +270,7 @@ components:
 
 **Creative North Star: "The Keyboard Lab"**
 
-The Keyboard Lab is a precise workspace for exploring and refining keyboard designs. Compact neutral panels frame a dominant drawing surface. Color identifies actions, geometry, and state; labels and measurements carry the detail.
+The Keyboard Lab is a precise workspace for exploring and refining keyboard designs. Neutral panels frame a dominant drawing surface. Color identifies actions, geometry, and state; labels and measurements carry the detail. The optional dark palette uses closely related charcoal-blue surfaces, a clearer field and toolbar separation, and softer rounded controls.
 
 The working character is calm, precise, and restrained: compact controls, aligned values, modest corners, and short state transitions. Catalog, canvas, and inspector share one workspace, with optional properties organized into disclosures. These descriptions record the approved unified workspace now implemented locally.
 
@@ -280,17 +281,16 @@ focus, selection, validation and CAD geometry keep their distinct visible states
 
 **Key Characteristics:**
 
-- Graphite charcoal dark surfaces and neutral light surfaces around a dominant canvas.
+- BoardStudio's light slate surfaces and white panels around a dominant canvas; dark role tokens remain available as an optional theme.
 - Action blue, Board teal, Pad violet, and dashed key boundaries.
 - Compact fields and rule-separated inspector disclosures.
 - Fixed canvas controls and independently scrolling side panels.
 - Light and dark palettes with a persisted System option.
 
-The October 2026 Graphite migration extends the unified workbench shell with a single header, labeled contextual tools and semantic shared controls. Dioxus shell, panel, Inspector and geometry styles use semantic `--wb-*` roles in [Tailwind source](web/tailwind.css) and [the base stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
-Approved Graphite comps are preserved in [the durable reference packet](docs/design/graphite/approved-suite/). Current source supplies the implemented layout and token values.
+The current workbench uses one header, docked Objects and Inspector panels, solid contextual toolbars, and shared semantic controls. The OpenDesign Application prototype follows BoardStudio's light theme and guides control grouping; current Rust/Dioxus code remains the source for supported behavior and edit ownership. Older Graphite explorations are archived in [the reference packet](docs/design/graphite/approved-suite/) and are not the target for this prototype. Shell, panel, Inspector and geometry styles use semantic `--wb-*` roles in [Tailwind source](web/tailwind.css) and [the base stylesheet](web/assets/m1.css); workspace components live in [presentation](web/src/presentation/).
 
 The same dock vocabulary now covers PCB Placement/Wiring, Case assembly and
-construction disclosures, Keymap Layers/keys, Keycaps board appearance and
+construction disclosures, Keymap layer and key editing, Keycaps board appearance and
 selected-key overrides, and the Parts catalogue. Contextual shortcuts reveal and
 focus existing Inspector editors; they do not own document edits. Hidden PCB
 panes and collapsed disclosures retain their mounted draft owners.
@@ -318,7 +318,8 @@ sidecar together when the implementation's palette changes.
 - **Action hover:** `accent-dark` is the existing hover token. Its name is legacy:
   it becomes lighter in the dark theme.
 - **Selection surface:** `selection-surface` marks selected catalog and tree rows.
-  Selection also has a border, heavier outline, or active navigation rule.
+  Selected buttons and toggles use the filled surface without a persistent outline;
+  keyboard focus keeps its 2px Action blue ring.
 
 ### Secondary
 
@@ -419,23 +420,34 @@ and keep precise values available alongside direct manipulation.
 The application fills the viewport. On desktop, a 64px single-row header and
 48px footer frame the independently scrolling Objects dock, canvas, and
 Inspector. At 760px and below, the header becomes 56px. The center expands to
-absorb available width.
+absorb available width. At 980px and below, Layout replaces side panels with a
+bottom settings sheet and Objects/Inspector tabs. Expand and reduce controls set
+ordinary sheet height to 42% and expanded height to 62%, capped to retain 340px
+for the canvas area and tabs. The canvas remains visible and interactive above
+it. The Objects sheet uses one scroll region for the tree, inline Snap, and Canvas
+visibility; other workspaces keep their existing panels.
 
 | Width | Implemented arrangement |
 | --- | --- |
 | Above 1150px | Resizable Objects and Inspector docks, flexible center; default widths are clamp-based |
 | 981–1150px | Dock defaults narrow to 220px Objects and 300px Inspector; persisted widths remain bounded |
-| 821–980px | Objects opens as a drawer; Inspector remains docked |
-| 761–820px | Objects and Inspector open as separate drawers |
-| 760px and below | Layout offers full-workspace Objects and Inspector views; other workspaces retain their compact panel behavior |
+| 980px and below, Layout | Bottom settings sheet with Objects and Inspector tabs; interactive canvas remains visible above |
+| 980px and below, other workspaces | Existing panel and drawer behavior |
 
-Workspace links stay in the Objects dock at every width; the header has no
-duplicate workspace tabs or selector. The wide header keeps project identity,
-save status, history actions, and Export. History buttons move into the footer
+Workspace links use flat tabs in the header, outside the Objects dock, with an
+accent underline for the active workspace. The rounded pill design is reserved
+for canvas toolbars. The
+wide header keeps project identity, workspace navigation, save status, history
+actions, and Export. At 1100px and below, workspace links use icons with accessible
+names and titles; at 760px and below, navigation occupies a second header row so all
+six workspaces remain visible without horizontal scrolling. History buttons move into the footer
 at 1100px and below; brand text and save labels hide at 1240px and below, while
 the save status itself hides on narrow mobile screens.
-The Layout toolbar wraps within 680px of container width, and coarse-pointer
-controls use 44px targets.
+Layout uses two fixed horizontal strips above the canvas. The upper strip
+selects Matrix, Row, Column, Key, or Part with an icon and short label. The lower
+contextual action bar shows Position, Stagger, Offset, and Splay as relevant,
+followed by Align and a secondary Transform menu. The strips do not switch density
+or horizontally scroll; coarse-pointer controls use 44px targets.
 
 Both desktop panels support pinned, collapsed, and opt-in auto-hide modes.
 Widths (navigator 200–420px, inspector 280–480px) and modes persist locally;
@@ -463,15 +475,19 @@ than nested cards. On narrow widths it follows the same left drawer and scrim
 behavior as Objects.
 
 The guide opens automatically after a new project is saved successfully. Its
-steps are Project & hardware, Layout & assemblies, Controller & wiring, optional
-Case, and Review & export. Project → Setup guide and Back to objects
-provide explicit entry and exit paths. The open state and selected step are browser
-preferences scoped to the project; completion comes from the current document,
-selected board, wiring, and geometry. Steps remain freely navigable. Existing
-projects retain the ordinary workbench and each exporter remains authoritative.
-Returning from a temporary Parts or Export task returns to the prior design view;
-the guide can be resumed from its current step, and Back to objects returns to
-the contextual object tree.
+four accordion sections are Project, Layout, Wiring, and Case. A new project opens
+in the Layout workspace while the guide starts at Project. In Case, Full settings
+shows the existing MechanicalSettings in the left setup drawer; its back arrow
+returns to the guide without opening the Inspector or dismissing the guide.
+Continuing from Case returns to Layout and dismisses the guide. Project → Setup
+guide and Back to objects provide explicit entry and exit paths. The guide
+open state and selected section are browser preferences scoped to the project;
+completion comes from the current document, selected board, wiring, and
+geometry. Sections remain freely navigable.
+The legacy Review stage exists only in persisted state; saved Review selections
+map to Case. Existing projects retain the ordinary workbench and each exporter
+remains authoritative. Returning from a temporary Parts or Export task returns to
+the prior design view; Back to objects returns to the contextual object tree.
 
 Recurring spacing uses compact 4px gaps, 8px inline separation, 12px field gaps,
 16px inspector insets, and 20px section endings. These are extracted repeated
@@ -503,17 +519,17 @@ custom cutouts and clearances, and imported KiCad geometry can be reviewed befor
 saving. Opening or cancelling the editor does not change the document. Existing
 Case-specific profile overrides remain under Advanced source geometry.
 
-Layout, PCB, Parts, and assembly previews share a floating Layers pill in the
-lower-right corner. It starts collapsed. Expanding the bounded list never changes
-the drawing dimensions or camera. Below 640px of drawing width it has a Close
-control and 44px targets; Escape closes it and returns focus to the trigger.
+Layout's Canvas visibility and Snap are inline accordions at the bottom of
+Objects. PCB, Case, and Parts keep their workspace-specific layer controls.
+Expanding a bounded visibility list never changes drawing dimensions or camera.
 Availability is separate from visibility preference: generated solids show
 Not generated, while unavailable component assets show Missing model. Preferences
 remain view-only, survive generation, and assembly preferences are scoped to the
 project and board. Long labels wrap; lists scroll inside.
 
 Assembly display and assembled/exploded/section controls occupy a wrapping rail
-above the drawing. Camera controls remain outside the Layers pill.
+above the drawing. Camera controls remain with the viewport; assembly visibility
+stays in Objects.
 Compact Case settings has a visible label, and compact generation, layer, and
 settings controls use 44px touch targets. Passive canvas hints do not intercept
 geometry selection or gasket dragging.
@@ -529,7 +545,7 @@ shadows. Save/live dots use the success foreground and have no halo in the unifi
 - Panel options, Add menu, matrix setup, and toolbar popovers: `0 8px 22px rgb(0 0 0 / 20%)`.
 - Save-status popover: `0 8px 24px rgb(0 0 0 / 20%)`.
 - Command menus and case view settings: `0 8px 24px #0005`.
-- Layers pill: `0 10px 28px rgb(0 0 0 / 22%)`.
+- Bottom-dock popovers: `0 10px 28px rgb(0 0 0 / 22%)`.
 - Mobile drawers: `±8px 0 24px rgb(0 0 0 / 16%)` toward the canvas.
 - Canvas toolbar: `0 4px 16px #18233120`; view groups: `0 3px 10px rgb(0 0 0 / 10%)`.
 - Canvas hint: `0 4px 14px #24373312`.
@@ -553,11 +569,11 @@ consistent outline strokes; geometry uses actual editable and compiled shapes.
 ### Actions
 
 Shared `BoardButton` primary actions use Action blue with the paired foreground,
-5px corners, 12px horizontal padding, and a 40px minimum height (34px compact;
+8px corners, 12px horizontal padding, and a 40px minimum height (34px compact;
 44px for coarse-pointer controls). The Parts placement action fills the
 Inspector width. Hover uses Action hover for primary buttons and a soft surface
-with an Action border for ordinary buttons. Secondary buttons are outlined on
-the panel surface; quiet actions are transparent.
+for ordinary buttons. Secondary buttons use the quiet surface fill without an
+outline; quiet actions are transparent.
 
 Keyboard focus is a 2px Action blue ring with 2px offset. Shared buttons dim to
 0.58 opacity when disabled; some legacy inspector actions use their own muted
@@ -579,8 +595,11 @@ surface; workspace navigation is not duplicated in the header. Export remains
 a dedicated header action and page with its own artifact, readiness, and review
 context. Save status sits beside project identity. Undo and Redo remain in the
 header on wide screens and move to the footer at 1100px and below. The Parts
-preview uses outlined controls with pressed state to switch between 2D footprint
-and 3D model.
+preview uses a compact icon pill with accessible names and a tinted pressed state
+to switch between 2D footprint and 3D model. Camera and render controls use the
+same pill treatment in a reserved row above the 3D canvas so they do not cover
+the model. In Layout, 2D, 3D, and Footprints remain anchored at the canvas
+bottom-left, with zoom and fit in the footer.
 
 Add groups Layouts, contextual matrix actions, Parts, and Board geometry into
 named sections. Components prioritizes power/reset hardware; Controllers, Displays,
@@ -621,6 +640,20 @@ rule, and an optional trailing detail. Summary rows have a 46px minimum height
 
 **The Disclosure Rule.** Separate inspector sections with quiet rules and reveal optional settings in place, preserving the selected object as the editing context.
 
+### Workspace grouping and layer names
+
+The header owns project actions and flat workspace navigation tabs. The Objects dock holds
+the active workspace's object tree; contextual tools sit beside the canvas, and
+the Inspector begins with the selected object and its common edits. Group
+specialist controls by task and use clearly named, single-level disclosures for
+optional settings.
+
+Use distinct names for distinct meanings: Canvas visibility, PCB layers,
+Keymap layers, Case assembly visibility, and Parts preview layers. In Keymap, the
+Objects dock is titled **Keymap**, its list is **Keymap layers**, and the Inspector
+is the **Keymap editor**. Keep visibility controls view-only, and preserve each
+workspace's existing state owner and edit path.
+
 ### Parts catalog
 
 New placements use one preferred entry per supported key part: Ceoloide MX,
@@ -646,17 +679,16 @@ guides in the Parts preview remain dashed. The Layout canvas offers a separate
 keycap overlay with a rounded outer envelope and inset top face, using the
 resolved key dimensions and existing geometry/selection tokens. Matrix membership
 identifies keys even when their definition is a socket; pitch minus edge gap
-supplies missing key dimensions. A Relations reference hover or focus marks its parts with a dashed `accent-secondary` (violet) outline, never the selection surface or accent stroke, and clears on leave, blur, selection change or removal. The Layout Layers control has independent Keys, Components, Keycaps, Footprints,
+supplies missing key dimensions. A Relations reference hover or focus marks its parts with a dashed `accent-secondary` (violet) outline, never the selection surface or accent stroke, and clears on leave, blur, selection change or removal. The Layout canvas-visibility control has independent Keys, Components, Keycaps, Footprints,
 and Board switches; all start visible except Footprints. The toolbar Footprints
 switch shares that view-only state. Visibility survives workspace changes without
-creating document revisions or history entries. The control overlays the canvas
-without changing its bounds or camera. Compact canvas widths use 44px targets and
-a Close action; Escape closes the list and restores focus to the trigger.
+creating document revisions or history entries. The accordion does not change
+canvas bounds or camera and retains keyboard focus behavior.
 Layer swatches distinguish
 Action blue keys, amber components, neutral keycaps, violet footprints, and
 teal boards using the existing theme tokens.
 Selection types have direct icon shortcuts. Stagger, Offset, Splay, and Origin activate
-explicit canvas tools; Shift held at pointer-down turns a Stagger drag into a quick
+explicit canvas tools; Ctrl held at pointer-down turns a Stagger drag into a quick
 Offset of its column; handles remain hidden outside those tools. Origin snapping
 uses component origins, corners, midpoints, and physical edges before the grid. PCB draws pad
 shapes and drills at their authored positions and rotations, plus supported
@@ -676,11 +708,11 @@ loading state.
 
 Motion tokens are `motion-feedback` (120ms), `motion-reveal` (180ms), and
 `motion-panel` (220ms), with the shared decelerating curve
-(`cubic-bezier(.16, 1, .3, 1)`). Panel transforms use the panel duration; the
-Layout command chevron uses the reveal duration. Hover, selection, and geometry
-color feedback are immediate. A reduced-motion rule disables transitions on
-shared buttons, toggles, and Layout command controls. The older panel transform
-rules still animate, so reduced-motion behavior is only partial.
+(`cubic-bezier(.16, 1, .3, 1)`). Setup steps unfold in place; compact panels
+travel from their opening edge; buttons and switches acknowledge input with
+short color, checkmark, and press feedback. Canvas geometry remains still.
+Reduced motion removes spatial travel and accordion animation while retaining
+brief color feedback.
 
 ## Do's and Don'ts
 
@@ -713,26 +745,31 @@ names expose their full text on hover. Browser zoom remains available.
 
 ### Workbench motion
 
-The Layout command chevron rotates over 180ms; the popover surface is placed
-beside its trigger. Side panes slide over 220ms and become hidden once off-screen.
-Menu dismissal, hover and selection color changes, and canvas geometry changes
-remain immediate. No loops, page-load choreography, layout-size animation,
-keyframes, or animation dependency is used.
+The centered Layout and PCB pill uses the selected anchored-popover study:
+scope buttons open their real contextual actions from the clicked control, with
+an 8px rise and .96-to-1 scale over 180ms. The selected scope highlight slides
+between fixed slots over 240ms; the contextual row reveals below over 220ms.
+The Layout command chevron rotates over 180ms;
+side panes slide and fade over 220ms, with the compact Inspector entering as a
+bottom sheet. Setup steps unfold in place. Shared controls acknowledge presses
+and checkbox changes within 120ms. Canvas geometry stays immediate so drag and
+placement remain precise. No loops, page-load choreography, or motion dependency
+is used.
 
-Reduced-motion handling currently covers shared button, toggle, and Layout
-command transitions; panel travel still needs a matching override before it can
-be described as fully reduced-motion compliant.
+Reduced motion removes panel travel, drawer entrances, and accordion movement;
+brief color feedback remains so state changes are still clear.
 
 ### Workbench controls and review
 
-Layout exposes Matrix, Row, Column, Key and Part as direct selection buttons with
-the pinned toolbar primitive's arrow-key navigation. Compact toolbar mode hides
-visible action labels while retaining accessible names and pressed states; its
-preference persists locally. Transform subfunctions use a small selection-aware
-popover with visible labels even in compact mode. Align retains its existing
-menu, and snapping stays in the Objects dock. Workspace switching lives in the shared navigation group in every
-editor Objects dock, including onboarding; the header has no duplicate tabs or
-compact workspace selector. This group links Layout, PCB, Keymap, Keycaps, Case and Parts and marks
+Layout presents Matrix, Row, Column, Key, and Part in a centered horizontal
+icon-and-short-label pill above the canvas, with Align and Transform sharing its
+borderless surface. A contextual pill below offers Position, Stagger, Offset,
+and Splay as relevant. PCB reuses the same shell and anchored control menus.
+Narrow canvases retain the scope icons and hide their short labels. There is no compact-density toggle or
+horizontal toolbar scrolling. Transform subfunctions use a small
+selection-aware popover with visible labels. Snap and Canvas visibility appear
+inline in the Objects sheet. Workspace switching uses flat header tabs, separate
+from the canvas toolbar pills. This group links Layout, PCB, Keymap, Keycaps, Case and Parts and marks
 the current workspace. Domain-specific tree contents and visibility owners stay
 with each workspace. Other workspaces retain their existing selection selector. The
 2D/3D switch occupies a separate control so view changes are distinct from editing. Rows/Columns tree grouping belongs in
@@ -744,12 +781,14 @@ styles in `web/tailwind.css`. Use `BoardButton` variants for form and task actio
 pass `type="submit"` explicitly for submission. Keep bespoke canvas, tree and
 navigation affordances in their owning workspace.
 
-`BoardCheckbox` retains native checkbox and switch form events and label
-activation. `BoardDisclosure` retains native details/summary keyboard behavior
+`BoardCheckbox` keeps native checkbox and switch form events and label
+activation while its shared CSS supplies the themed control rendering. `BoardDisclosure` retains native details/summary keyboard behavior
 and keeps child drafts mounted while collapsed; controlled headings keep their
 existing handlers. Layout transform groups and key assembly groups collapse
-independently, starting open. Use this mounted disclosure for draft-owning fields:
-the pinned Dioxus AccordionContent currently unmounts closed content.
+independently, starting open. `BoardAccordionSection` uses the Dioxus inline
+accordion primitive for compact workspace sections. Use the mounted native
+disclosure for draft-owning fields: the pinned Dioxus AccordionContent currently
+unmounts closed content.
 `BoardDialog` provides native modal confirmation or an inline,
 non-modal task surface. Pending actions control whether dismissal is permitted.
 Browser file pickers remain native. Dioxus Components primitives own popovers
@@ -766,17 +805,21 @@ outline reports, and offer navigation when the target still exists. Corner-fit
 warnings describe the resulting smaller corners without making fabrication
 claims. Unresolved targets retain the diagnostic without a dead action.
 
-Fit board and Fit selection sit beside zoom. Fitting includes transformed part
-and keycap bounds, reserves room for canvas controls, and uses empty default
-bounds only when no geometry exists. Selecting a half in the tree selects its
+Fit board and Fit selection remain in the footer beside zoom. Fitting includes
+transformed part and keycap bounds, reserves room for canvas controls, and uses
+empty default bounds only when no geometry exists. Selecting a half in the tree selects its
 matrices and components for inspection with Fit selection.
 
 
 ### Wiring and physical assemblies
 
 The PCB inspector identifies the selected part and its named terminal assignments.
-Key switches inherit wiring from the board plan; the Wiring section owns controller
-selection, explicit matrix/direct mode, automatic resolution, pin locks and manual
+The controller chooser uses a horizontal carousel of source-backed, trimmed 2D
+MCU footprints to compare package outlines and pads. Search smoothly centers a
+matching controller and narrows the carousel; arrow buttons and native scrolling
+remain available. Browsing changes preview state only; Place controller retains
+the existing placement action. Key switches inherit wiring from the board plan; the Wiring section owns
+controller selection, explicit matrix/direct mode, automatic resolution, pin locks and manual
 assignments. Mechanical holes never appear as electrical terminals. Peripheral pins
 are allocated before scan pins. Missing profiles, diode polarity, capacity conflicts,
 and manual-net conflicts remain explicit findings rather than guessed connections.

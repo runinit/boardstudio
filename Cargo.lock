@@ -393,6 +393,7 @@ dependencies = [
  "boardstudio-web-ui-shared",
  "boardstudio_core",
  "dioxus",
+ "dioxus-primitives",
  "dioxus-web",
  "futures-channel",
  "gloo-timers",

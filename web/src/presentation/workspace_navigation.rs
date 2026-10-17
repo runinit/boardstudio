@@ -1,4 +1,4 @@
-//! Shared workspace navigation; document trees keep their own selection and visibility owners.
+//! Header workspace navigation; document trees keep their own selection and visibility owners.
 use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
 
@@ -21,8 +21,9 @@ pub(super) fn WorkspaceObjectNavigation(mut workspace: Signal<&'static str>) -> 
                 ("Parts", "M2 5h12v9H2zM5 5V2h6v3M6 9h4"),
             ] {
                 BoardButton {
-                    key: "{name}", "id": "m1-object-workspace-{name}",
+                    key: "{name}", "id": "m1-workspace-{name}",
                     class: "m1-workspace-tree-link", aria_label: "Open {name} workspace",
+                    title: "{name}",
                     "aria-controls": "m1-workspace-panel",
                     "aria-current": if workspace() == name { "page" },
                     onclick: move |_| workspace.set(name),

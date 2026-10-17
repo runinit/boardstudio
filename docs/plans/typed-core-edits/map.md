@@ -24,9 +24,12 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
-- **Built-in/demo boards and their follow-on work are deferred.** User-authorized removal is
-  complete in [138](issues/138-retire-shipped-demos.md). Board-specific refresh, recipes,
-  hardware research and sign-off tickets are marked `wontfix` for this scope: [04](issues/04-refresh-included-keyboards.md),
+- **Curated layout-only library demos are back in scope** per the user on 2026-10-16; see
+  [161](issues/161-curated-library-launchpad-demos.md). They are synthetic editable layout
+  examples with no hardware or fabrication claims. The historical removal in
+  [138](issues/138-retire-shipped-demos.md) remains accurate for the earlier shipped boards.
+  Board-specific refresh, recipes, hardware research and sign-off tickets remain `wontfix`:
+  [04](issues/04-refresh-included-keyboards.md),
   [20](issues/20-recipes-build-one-half.md), [23](issues/23-redo-keyboard-04-on-native-halves.md),
   [25](issues/25-shipped-boards-review.md), [42](issues/42-global-key-spacing-preference.md),
   [43](issues/43-apply-key-spacing-on-creation.md), [45](issues/45-reversible-variant-substitution-decision.md),
@@ -97,13 +100,7 @@ and for any bulk action a recorded decision permits.
 
   Tickets [21](issues/21-mirrored-half-web-adapter.md), [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md) and [41](issues/41-inspector-companion-mode.md) are resolved. Ticket 22 verifies shared-board mechanical feature exceptions through save/reopen.
 
-Accepted bounded106 membership unit: source0fc21ca5e, integrated465137ee5; fresh Sol medium PASS, shifted-compaction expectedRED→45GREEN, affected95.1sPASS and ONEnew-wrapper cleanup mutationRED→restored45GREEN. Full106/19OPEN; independent Parts/Layout, whole-matrix removal and combined acceptance remain.
-
-Approved extension: [139](issues/139-generalized-mirrored-constraint-model.md) separately scopes the general constraint model for slanted axes and linked/Local endpoint relations; planning first, consumed by114, full19 scope retained.
-
-User-reported mirrored outline gap controls: [141](issues/141-mirrored-outline-gap-controls.md), L3/E diagnosis and minimal synthetic reproduction; coordinate any confirmed reconciliation defect with B108. Two toggles are reported, but duplicate rendering, propagation and generated geometry are not yet distinguished by runtime evidence.
-
-Current progress: [107](issues/107-reconcile-mirrored-hosted-electrical-items.md) resolved after SAME independent Sol medium acceptance, all3intended assertion mutations/restoredGREEN and final70/70. Source1a3c377a merged0bcc292412; root exact indexed/staged/reviewed hash, complete70symbol1fileCRITICAL48flow delta. Initial139 private math source4e55187d merged5f6e9a1298; later139solver/lifecycle/111 remain OPEN. Root coherent107/139 integration batchPASS859.9s plus explicittypecheck25.5s,72presentationtests/0failures;108fivecase source draft ready after safe B sync. E141 connected-perimeter probes preserve candidate-suppression counterexamples, actual user reproduction/root cause unproved. L7 formal acceptance next.106/138/142 resolved; full19/browser delivery OPEN.
+  All mirrored-half Core reconciliation tickets ([19](issues/19-reconcile-mirrored-halves.md), [105](issues/105-mirrored-half-derivation-kernel.md), [106](issues/106-reconcile-mirrored-matrices-layouts-parts.md), [107](issues/107-reconcile-mirrored-hosted-electrical-items.md), 108–110, [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md), [111](issues/111-integrate-mirrored-half-reconciliation.md), 112, [113](issues/113-inverse-map-reviewed-outline-edits.md), [114](issues/114-mirrored-edit-compatibility-constraints.md), [115](issues/115-prepare-mirrored-edit-transaction.md), [116](issues/116-prepare-mirrored-open-repair.md), [117](issues/117-prepare-mirrored-preview-history-performance.md), [139](issues/139-generalized-mirrored-constraint-model.md)) are resolved and merged on `dev`.
 
 Companion placement: a column splay now carries authored companions with their keys (`30903fe4b`). [143](issues/143-part-offset-constraint.md) adds a `part-offset` constraint kind that holds a companion along its key's axes (design settled in [ADR-0011](../../adr/0011-part-offset-is-its-own-constraint-kind.md), ready to build), and [144](issues/144-set-matrix-carries-authored-companions.md) carries authored companions through whole-matrix edits. [143b](issues/143b-part-offset-review-fixes.md) closes the review findings on 143's series.
 
@@ -113,11 +110,7 @@ Follow-ups from the 145/112 review, all blocking 111: [146](issues/146-mirror-si
 
 Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) resolved. Optional Binaryen setting now forwards into CAD containers; defaults and Cargo caps are preserved. Source55caa3f2/integration2335fa65f2, fresh Sol medium PASS, focused1/class17 and root repo/tooling4.0s PASS.
 
-Integration checkpoint:138resolved. Its cfg(test) nonempty-gap correction6bad928a was accepted by SAMEreviewer and integratede3eeb1be5; exact sourcee776d169 and complete2/2symbol MEDIUM graph. Original repo/tooling/lint/build plus resumed test/typecheck/browser424.2s and final affected Core Clippy all PASS;72main-app presentation tests/0failures. Rebuilt subpath output excludes51retired asset identities. Full binding: `demo-retirement-plan/root-final-capture/integration-cohort-result.json` in the baseline cache.106resolved;107 and isolated139source work proceed. No full19 or UI completion claim.
-
-Progress2026-10-11: [106](issues/106-reconcile-mirrored-matrices-layouts-parts.md) resolved on the SAME independent Sol6.1 medium final crosswalk: six behavioral rows and all three original mutation guarantees satisfied. Final mode/tweak producer mutation compiled intended RED, exact817040restoration passed focused1/1. Source16b3234d/integration6c2fd1a525; root combined B106/F138 batch running.107 source implementation advances; full19/111/browser acceptance remains open.
-
-Current app progress:137delivered; bounded106membership and independentPart/fixedLayout units accepted/integrated465137ee5/9d6439eeb. Combined106source16b3234d independentlyaccepted/integrated6c2fd1a525 after3compiledcollisionREDs and samewriterfix;106row/guaranteeclosure beingrecorded from existingevidence. Full19/111OPEN. F138acceptedsourcecbe6c792/integratede6ce90b389;51exacthash generatedassets removed. Historicalretiredlinkcleanup107links/61files complete; rootrepo/fullbatch/outputabsence/trackingcommit pending.139designaccepted, implementationfollows106. E21/41wait acceptedCoreoperations; L7focusedUIacceptanceHEAVYactive, latermerge. Laptop4build/4test/1suite; rootintegration/index/goldens; pollingPAUSED.
+- [138](issues/138-retire-shipped-demos.md) and [106](issues/106-reconcile-mirrored-matrices-layouts-parts.md) are resolved and integrated on `dev`.
 
 <!-- one line per resolved build ticket -->
 
@@ -311,11 +304,7 @@ Current app progress:137delivered; bounded106membership and independentPart/fixe
 
 ## Ready for implementation
 
-Parallel scheduling decision: [parallel streams](parallel-streams-review.md). The user approved B+A+F with audited
-leases and sequential commands. B remains serial; A/F have isolated active slices after exact audits and the original 105
-verification window ended. Full parent acceptance is not waived by partial slices.
-
-- Native mirrored halves:17,18,26–32,39,105,132 and134 integrated. Bounded106membership accepted/integrated465137ee5 with45GREEN/affected95.1s and independentwrappermutationproof; full106/19OPEN. Next independentParts/Layout unit released; generalizedremoval/wholematrix/combinedacceptance remain. Selective independent-part/companion exceptions leave the rest linked;40placementcontrols companion-only.111activation and full19acceptance remain;139approvedgeneralconstraintmodeldesign is separate. Currentownership/evidence: [lane registry](lane-registry.md#coordinators).
+- Open tickets in this plan: 140 (UI design refinement), [141](issues/141-mirrored-outline-gap-controls.md) (single-outline mirrored gap control diagnosis), and (on `dev`) `161-curated-library-launchpad-demos.md`. Historical parallel scheduling notes: [parallel streams](parallel-streams-review.md), [lane registry](lane-registry.md#coordinators).
 - Board artifact implementation/reintroduction is deferred under 138. Board-specific tickets
   04, 20, 23, 25, 42, 43, 45, 46, 56, 57, 79, 104 and 118 are `wontfix` for this scope;
   their source evidence remains historical. Generic mirror/Core and saved-user-project behavior

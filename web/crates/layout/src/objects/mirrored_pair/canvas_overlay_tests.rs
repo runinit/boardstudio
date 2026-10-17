@@ -307,7 +307,7 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     assert!(assembly_options.contains("MX Hotswap"));
     assert!(assembly_options.contains("MX Hotswap RGB"));
     assert_eq!(preview_owner, "1:11:19");
-    assert_eq!(preview_values, "Kept left draft|4|6|24");
+    assert_eq!(preview_values, "Kept left draft|4|6|40");
     assert_eq!(
         (retained_left.as_str(), retained_rows.as_str()),
         ("Kept left draft", "4")

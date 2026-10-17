@@ -814,6 +814,23 @@ impl Runtime {
         self.create_new_keyboard_inner(false)
     }
 
+    /// Open a fresh, locally persisted copy of a shipped demo project.
+    pub fn open_demo_copy(self: &Rc<Self>, mut document: ProjectDoc) -> Result<(), String> {
+        if self.storage_initializing.get() {
+            return Err("Storage is still initializing; try again shortly.".into());
+        }
+        if self.project_deletion_pending.get() {
+            return Err("A saved keyboard deletion is in progress.".into());
+        }
+        document.id = browser_uuid()?;
+        document.revision = 0;
+        self.submit(Event::Open {
+            operation_id: self.operation(),
+            document,
+        });
+        Ok(())
+    }
+
     fn create_new_keyboard_inner(
         self: &Rc<Self>,
         allow_project_deletion: bool,
@@ -6779,24 +6796,6 @@ pub fn resource_url(path: &str) -> Result<String, String> {
         .origin()
         .map_err(|e| format!("{e:?}"))?;
     Ok(format!("{origin}{}{path}", deployment_prefix()?))
-}
-async fn fetch_bytes(path: &str) -> Result<Vec<u8>, String> {
-    let window = web_sys::window().ok_or("window unavailable")?;
-    let response = JsFuture::from(window.fetch_with_str(&resource_url(path)?))
-        .await
-        .map_err(|e| format!("{e:?}"))?
-        .dyn_into::<web_sys::Response>()
-        .map_err(|e| format!("{e:?}"))?;
-    if !response.ok() {
-        return Err(format!(
-            "Required asset unavailable: {path} ({})",
-            response.status()
-        ));
-    }
-    let buffer = JsFuture::from(response.array_buffer().map_err(|e| format!("{e:?}"))?)
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(Uint8Array::new(&buffer).to_vec())
 }
 fn deliver(bytes: &[u8], filename: &str, media_type: Option<&str>) -> Result<(), String> {
     let parts = Array::new();

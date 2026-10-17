@@ -1111,6 +1111,132 @@ pub fn PartsLibraryPanel(
     }
 }
 
+/// Focused setup picker; uses the same catalogue and source-backed preview as Parts.
+#[component]
+pub fn ControllerSetupPicker(
+    snapshot: AcceptedSnapshot,
+    scope: Option<Scope>,
+    mut selected: PartsSelection,
+    on_place: EventHandler<String>,
+    busy: bool,
+    enabled: bool,
+    error: Option<String>,
+) -> Element {
+    let catalogue = use_catalogue(&snapshot, &scope);
+    let mut generation = use_context::<PartsSelectionGeneration>().0;
+    let mut activation = use_context::<PartsPreviewActivation>().0;
+    let mut assembly = use_context::<PartsAssemblySelection>().0;
+    let mut search = use_signal(String::new);
+    let loaded = catalogue.entries.is_some();
+    let entries = catalogue.entries.unwrap_or_default();
+    let controllers = catalogue_choices(&entries)
+        .into_iter()
+        .filter(|entry| entry.definition.kind == boardstudio_core::model::PartKind::Controller)
+        .collect::<Vec<_>>();
+    let selection = selected().filter(|(owner, _)| owner == &scope);
+    let needle = search().trim().to_lowercase();
+    let matches = controllers
+        .iter()
+        .copied()
+        .filter(|entry| {
+            preferred_label(&entry.definition)
+                .to_lowercase()
+                .contains(&needle)
+        })
+        .collect::<Vec<_>>();
+    let chosen = matches
+        .iter()
+        .copied()
+        .find(|entry| {
+            selection
+                .as_ref()
+                .is_some_and(|(_, id)| id == &entry.definition.id)
+        })
+        .or_else(|| matches.first().copied());
+    let chosen_id = chosen.map(|entry| entry.definition.id.clone());
+    let position = matches
+        .iter()
+        .position(|entry| Some(&entry.definition.id) == chosen_id.as_ref())
+        .unwrap_or(0);
+    let previous = (!matches.is_empty()).then(|| {
+        matches[(position + matches.len() - 1) % matches.len()]
+            .definition
+            .id
+            .clone()
+    });
+    let next = (!matches.is_empty()).then(|| {
+        matches[(position + 1) % matches.len()]
+            .definition
+            .id
+            .clone()
+    });
+    let owner = scope.clone();
+    let choose = EventHandler::new(move |id: String| {
+        selected.set(Some((owner.clone(), id)));
+        assembly.set(None);
+        generation.with_mut(|value| *value = value.wrapping_add(1));
+        activation.with_mut(|value| *value = value.wrapping_add(1));
+    });
+    use_effect(use_reactive((&loaded, &needle, &chosen_id), move |_| {
+        let _ = document::eval(
+            r#"
+            const rail = document.querySelector('.m1-controller-choices');
+            const card = rail?.querySelector('[aria-pressed="true"]');
+            if (rail && card) rail.scrollTo({left: card.offsetLeft - rail.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2,
+                behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+        "#,
+        );
+    }));
+    rsx! {
+        section { class: "m1-controller-picker", aria_label: "Controller selection", aria_roledescription: "carousel",
+            input { r#type: "search", aria_label: "Search controllers", placeholder: "Find a controller…", value: "{search()}", oninput: move |event| search.set(event.value()) }
+            div { class: "m1-controller-carousel-navigation",
+                span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }
+                button { r#type: "button", aria_label: "Previous controller", title: "Previous controller", disabled: matches.len() < 2,
+                    onclick: move |_| { if let Some(id) = previous.clone() { choose.call(id); } },
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m12 5-5 5 5 5" } }
+                }
+                button { r#type: "button", aria_label: "Next controller", title: "Next controller", disabled: matches.len() < 2,
+                    onclick: move |_| { if let Some(id) = next.clone() { choose.call(id); } },
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m8 5 5 5-5 5" } }
+                }
+            }
+            div { class: "m1-controller-choices", role: "group", aria_label: "Controllers",
+                for entry in &controllers {
+                    {
+                        let id = entry.definition.id.clone();
+                        let active = chosen_id.as_ref() == Some(&id);
+                        let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
+                        rsx! { button {
+                            key: "{id}", class: "m1-controller-card", r#type: "button", aria_pressed: active,
+                            "data-match": matching, aria_hidden: (!matching).then_some("true"), disabled: !matching,
+                            onclick: move |_| choose.call(id.clone()),
+                            preview::ControllerFootprintThumbnail { definition: entry.definition.clone() }
+                            strong { "{preferred_label(&entry.definition)}" }
+                        } }
+                    }
+                }
+            }
+            if let Some(entry) = chosen {
+                {
+                    let id = entry.definition.id.clone();
+                    rsx! { BoardButton {
+                        variant: boardstudio_web_ui_shared::controls::BoardButtonVariant::Primary,
+                        disabled: busy || !enabled, onclick: move |_| { choose.call(id.clone()); on_place.call(id.clone()); },
+                        if busy { "Preparing controller…" } else { "Place controller" }
+                    } }
+                }
+            } else {
+                p { class: "m1-controller-hint", role: "status",
+                    if !loaded { "{catalogue.error.as_deref().unwrap_or(\"Loading controllers…\")}" }
+                    else { "No controllers match this search." }
+                }
+            }
+            if let Some(error) = error { p { role: "alert", "{error}" } }
+        }
+    }
+}
+
 /// Place inside the existing Inspector panel when Parts is active.
 #[component]
 pub fn PartsInspectorPanel(

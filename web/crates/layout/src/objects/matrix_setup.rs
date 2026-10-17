@@ -4,6 +4,12 @@ pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_ui_shared::controls::BoardButton;
 use dioxus::prelude::*;
+use dioxus_primitives::{
+    slider::{Slider, SliderRange, SliderThumb, SliderTrack},
+    toggle_group::{ToggleGroup, ToggleItem},
+};
+use std::collections::HashSet;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MatrixSetupOwner {
@@ -99,9 +105,14 @@ pub struct MatrixSetupProps {
 
 #[component]
 pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
-    let mut rows = use_signal(String::new);
-    let mut columns = use_signal(String::new);
-    let mut preset = use_signal(|| MatrixSetupPreset::MxSolder);
+    let mut rows = use_signal(|| "5".to_owned());
+    let mut columns = use_signal(|| "6".to_owned());
+    let mut row_slider = use_signal(|| Some(5.0));
+    let mut column_slider = use_signal(|| Some(6.0));
+    let mut family = use_signal(|| Some(HashSet::from([0usize])));
+    let mut mounting = use_signal(|| Some(HashSet::from([0usize])));
+    let mut lighting = use_signal(|| Some(HashSet::from([0usize])));
+    let return_focus = use_signal(|| None::<web_sys::HtmlElement>);
     let rows_value = rows();
     let columns_value = columns();
     let preview = rows_value
@@ -115,7 +126,19 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                     .checked_mul(*columns)
                     .is_some_and(|cells| cells <= 4096)
         });
-    let selected_preset = preset();
+    let choc = family().is_some_and(|choice| choice.contains(&1));
+    let hotswap = mounting().is_some_and(|choice| choice.contains(&1));
+    let rgb = lighting().is_some_and(|choice| choice.contains(&1));
+    let selected_preset = match (choc, hotswap, rgb) {
+        (false, false, false) => MatrixSetupPreset::MxSolder,
+        (false, true, false) => MatrixSetupPreset::MxHotswap,
+        (true, false, false) => MatrixSetupPreset::ChocSolder,
+        (true, true, false) => MatrixSetupPreset::ChocHotswap,
+        (false, false, true) => MatrixSetupPreset::MxRgb,
+        (true, false, true) => MatrixSetupPreset::ChocRgb,
+        (false, true, true) => MatrixSetupPreset::MxHotswapRgb,
+        (true, true, true) => MatrixSetupPreset::ChocHotswapRgb,
+    };
     let owner = props.projection.owner.clone();
     let feedback_error = props.projection.error.clone();
     let feedback_status = props.projection.status.clone();
@@ -138,48 +161,118 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
             preset: selected_preset,
         });
     };
-    let on_cancel = props.on_cancel;
+    let cancel_handler = props.on_cancel;
+    let cancel_owner = owner.clone();
+    let on_cancel = move |_| {
+        cancel_handler.call(cancel_owner.clone());
+        let return_focus = return_focus();
+        wasm_bindgen_futures::spawn_local(async move {
+            gloo_timers::future::TimeoutFuture::new(0).await;
+            let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+                return;
+            };
+            if let Some(target) = return_focus.filter(|target| target.is_connected()) {
+                let _ = target.focus();
+            } else if let Some(target) = document
+                .get_element_by_id("m1-setup-guide-heading")
+                .and_then(|target| target.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = target.focus();
+            }
+        });
+    };
+    let mut return_focus_on_mount = return_focus;
 
     rsx! {
         section { class: "m1-matrix-setup", aria_label: "New matrix",
             header { class: "m1-matrix-setup-heading",
                 h2 { "New matrix" }
-                span { "{owner.board_id}" }
             }
             form { onsubmit: on_submit,
-                label { "Rows"
-                    input {
-                        aria_label: "New matrix rows",
-                        onmounted: move |event| async move { let _ = event.set_focus(true).await; },
-                        r#type: "number", min: "1", max: "4096", step: "1", required: true,
-                        value: "{rows_value}", disabled: !props.projection.editable,
-                        oninput: move |event| rows.set(event.value()),
-                    }
-                }
-                label { "Columns"
-                    input {
-                        aria_label: "New matrix columns",
-                        r#type: "number", min: "1", max: "4096", step: "1", required: true,
-                        value: "{columns_value}", disabled: !props.projection.editable,
-                        oninput: move |event| columns.set(event.value()),
-                    }
-                }
-                label { "Key assembly"
-                    select {
-                        aria_label: "New matrix assembly",
-                        value: selected_preset.as_str(),
-                        disabled: !props.projection.editable,
-                        onchange: move |event| {
-                            preset.set(MatrixSetupPreset::from_str(event.value().as_str()).unwrap_or(MatrixSetupPreset::MxSolder));
+                div { class: "m1-matrix-dimension",
+                    label { "Rows" strong { "{rows_value}" } }
+                    div {
+                        id: "m1-matrix-rows-focus",
+                        onmounted: move |_| async move {
+                            if let Some(target) = web_sys::window()
+                                .and_then(|window| window.document())
+                                .and_then(|document| document.active_element())
+                                .and_then(|target| target.dyn_into::<web_sys::HtmlElement>().ok())
+                            {
+                                return_focus_on_mount.set(Some(target));
+                            }
+                            if let Some(target) = web_sys::window()
+                                .and_then(|window| window.document())
+                                .and_then(|document| document.query_selector("#m1-matrix-rows-focus [role='slider'][aria-label='Rows']").ok().flatten())
+                                .and_then(|target| target.dyn_into::<web_sys::HtmlElement>().ok())
+                            {
+                                let _ = target.focus();
+                            }
                         },
-                        option { value: "mx-solder", "MX solder" }
-                        option { value: "mx-hotswap", "MX hotswap" }
-                        option { value: "choc-solder", "Choc V1 Solder" }
-                        option { value: "choc-hotswap", "Choc V1 Hotswap" }
-                        option { value: "mx-rgb", "MX RGB" }
-                        option { value: "choc-rgb", "Choc V1 RGB" }
-                        option { value: "mx-hotswap-rgb", "MX hotswap + RGB" }
-                        option { value: "choc-hotswap-rgb", "Choc V1 Hotswap RGB" }
+                    Slider {
+                        label: "Rows", value: row_slider, min: 1.0, max: 12.0, step: 1.0,
+                        disabled: !props.projection.editable,
+                        on_value_change: move |value: f64| {
+                            let value = value.round().clamp(1.0, 12.0);
+                            row_slider.set(Some(value)); rows.set(format!("{value:.0}"));
+                        },
+                        SliderTrack { class: "m1-matrix-slider-track",
+                            SliderRange { class: "m1-matrix-slider-range" }
+                            SliderThumb { class: "m1-matrix-slider-thumb" }
+                        }
+                    }
+                    }
+                }
+                div { class: "m1-matrix-dimension",
+                    label { "Columns" strong { "{columns_value}" } }
+                    Slider {
+                        label: "Columns", value: column_slider, min: 1.0, max: 18.0, step: 1.0,
+                        disabled: !props.projection.editable,
+                        on_value_change: move |value: f64| {
+                            let value = value.round().clamp(1.0, 18.0);
+                            column_slider.set(Some(value)); columns.set(format!("{value:.0}"));
+                        },
+                        SliderTrack { class: "m1-matrix-slider-track",
+                            SliderRange { class: "m1-matrix-slider-range" }
+                            SliderThumb { class: "m1-matrix-slider-thumb" }
+                        }
+                    }
+                }
+                div { class: "m1-matrix-assembly-picker",
+                    h3 { "Key assembly" }
+                    ToggleGroup {
+                        aria_label: "New matrix assembly",
+                        pressed: family,
+                        allow_multiple_pressed: false,
+                        disabled: !props.projection.editable,
+                        on_pressed_change: move |pressed: HashSet<usize>| {
+                            if !pressed.is_empty() { family.set(Some(pressed)); }
+                        },
+                        for (index, label) in ["MX", "Choc"].iter().enumerate() {
+                            ToggleItem { index, class: "m1-matrix-assembly-choice",
+                                svg { view_box: "0 0 32 32", "aria-hidden": "true",
+                                    rect { x: "4", y: if index == 0 { "5" } else { "12" }, width: "24", height: if index == 0 { "16" } else { "9" }, rx: "3" }
+                                    path { d: "M8 25h16M12 21v4m8-4v4" }
+                                }
+                                span { strong { "{label}" } small { if index == 0 { "Full height" } else { "Low profile" } } }
+                            }
+                        }
+                    }
+                    h3 { "Mounting" }
+                    ToggleGroup {
+                        aria_label: "Switch mounting", pressed: mounting, allow_multiple_pressed: false,
+                        disabled: !props.projection.editable,
+                        on_pressed_change: move |choice: HashSet<usize>| if !choice.is_empty() { mounting.set(Some(choice)); },
+                        ToggleItem { index: 0usize, "Solder" }
+                        ToggleItem { index: 1usize, "Hotswap" }
+                    }
+                    h3 { "Lighting" }
+                    ToggleGroup {
+                        aria_label: "Key lighting", pressed: lighting, allow_multiple_pressed: false,
+                        disabled: !props.projection.editable,
+                        on_pressed_change: move |choice: HashSet<usize>| if !choice.is_empty() { lighting.set(Some(choice)); },
+                        ToggleItem { index: 0usize, "None" }
+                        ToggleItem { index: 1usize, "Per-key RGB" }
                     }
                 }
                 if let Some((preview_rows, preview_columns)) = preview {
@@ -200,7 +293,6 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                         figcaption { "{preview_rows * preview_columns} keys · {preview_rows} × {preview_columns}" }
                     }
                 }
-                p { "Starts at X 0, Y 0. Move and edit it on the canvas." }
                 if let Some(message) = feedback_error {
                     p { class: "m1-matrix-setup-error", role: "alert", "{message}" }
                 }
@@ -208,8 +300,8 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                     p { class: "m1-matrix-setup-status", role: "status", "{message}" }
                 }
                 footer {
-                    BoardButton { r#type: "button", disabled: !props.projection.can_cancel,
-                        onclick: move |_| on_cancel.call(owner.clone()), "Cancel"
+                    if props.projection.can_cancel {
+                        BoardButton { r#type: "button", onclick: move |_| on_cancel(owner.clone()), "Cancel" }
                     }
                     BoardButton { r#type: "submit", disabled: !props.projection.editable,
                         "Create matrix"

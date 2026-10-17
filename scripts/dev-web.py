@@ -70,9 +70,11 @@ def dev_handler(upstream_port: int, asset_root: Path | None = None, *,
 
         def _static(self) -> None:
             path = self._asset_path()
-            if path is None or not path.is_file():
+            if path is None or path.name == "__not_found__":
                 self.send_error(404)
                 return
+            if not path.is_file():
+                return self._proxy()
             body = path.read_bytes()
             content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             self.send_response(200)

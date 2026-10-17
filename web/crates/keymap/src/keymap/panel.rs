@@ -79,12 +79,12 @@ pub fn KeymapPanel(
     rsx! {
         section { class: "m1-keymap-panel", "aria-label": "Keymap",
             header { class: "m1-keymap-heading",
-                h2 { "Keymap" }
+                h2 { "Keymap editor" }
                 span { "{layer_count} layers · {key_count} keys" }
             }
             if show_navigation {
             BoardDisclosure { class: "m1-keymap-layers", open: true,
-                heading: rsx! { summary { span { "Layers" } } },
+                heading: rsx! { summary { span { "Keymap layers" } } },
                 div { class: "m1-keymap-layers-content",
                     div { role: "group", "aria-label": "Keymap layers",
                         for (index, layer) in view.layers.iter().enumerate() {
@@ -271,9 +271,9 @@ pub fn KeymapNavigation(
     let layer_count = view.layers.len();
     let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
     rsx! {
-        section { class: "m1-keymap-navigation", aria_label: "Layers and keys",
+        section { class: "m1-keymap-navigation", aria_label: "Keymap layers and keys",
             BoardDisclosure { class: "m1-keymap-layers", open: true,
-                heading: rsx! { summary { span { "Layers" } } },
+                heading: rsx! { summary { span { "Keymap layers" } } },
                 div { class: "m1-keymap-layers-content",
                     div { role: "group", "aria-label": "Keymap layers",
                         for (index, layer) in view.layers.iter().enumerate() {
@@ -562,9 +562,12 @@ mod disclosure_mounted_tests {
         rendered().await;
 
         let disclosure = layers(&root);
-        assert!(disclosure.has_attribute("open"), "Layers starts expanded");
+        assert!(
+            disclosure.has_attribute("open"),
+            "Keymap layers starts expanded"
+        );
         let summary = disclosure.query_selector("summary").unwrap().unwrap();
-        assert_eq!(summary.text_content().unwrap().trim(), "Layers");
+        assert_eq!(summary.text_content().unwrap().trim(), "Keymap layers");
         assert!(!contains_button(&disclosure, "Remove layer"));
         assert!(
             disclosure

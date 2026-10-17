@@ -58,7 +58,7 @@ impl Default for MirroredPairFormValues {
             rows: "3".into(),
             columns: "5".into(),
             preset: MatrixSetupPreset::MxSolder,
-            gap_mm: "24".into(),
+            gap_mm: "40".into(),
         }
     }
 }

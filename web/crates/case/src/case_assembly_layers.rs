@@ -176,16 +176,17 @@ pub fn CaseAssemblyLayers(
     rsx! {
         section {
             class: "m1-case-assembly-layers",
-            "aria-label": "Assembly layers",
+            "aria-label": "Assembly visibility",
             "data-open": "{open()}",
             onkeydown: keydown,
             button {
                 id: "m1-case-assembly-layers-trigger",
                 class: "m1-case-assembly-layers-trigger",
+                aria_label: "Assembly visibility",
                 "aria-expanded": "{open()}",
                 "aria-controls": "m1-case-assembly-layers-list",
                 onclick: move |_| open.set(!open()),
-                "Layers",
+                "Assembly visibility",
                 svg { view_box: "0 0 20 20", "aria-hidden": "true",
                     path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } }
                 }
@@ -567,6 +568,19 @@ mod tests {
         assert!(list.has_attribute("hidden"));
         assert_eq!(computed_display(&list), "none");
         assert_eq!(list.get_bounding_client_rect().height(), 0.0);
+        assert_eq!(
+            element("#m1-case-assembly-layers-trigger")
+                .get_attribute("aria-label")
+                .as_deref(),
+            Some("Assembly visibility")
+        );
+        assert_eq!(
+            element("#m1-case-assembly-layers-trigger")
+                .text_content()
+                .unwrap()
+                .trim(),
+            "Assembly visibility"
+        );
         let battery = element("#m1-case-assembly-layers-list [aria-label='Show battery']");
         assert!(battery.has_attribute("disabled"));
         assert_eq!(

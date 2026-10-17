@@ -2752,14 +2752,14 @@ fn SharedViewer(
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
-            div { class: "m1-case-view-toolbar",
+            div { class: "m1-case-view-toolbar board-tool-pill",
                 {toolbar_leading}
                 if inline_case_controls {
                     div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
-                        button { onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), "Fit" }
-                        button { onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), "Top" }
-                        button { onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), "Bottom" }
-                        button { onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), "Isometric" }
+                        button { aria_label: "Fit", title: "Fit model", onclick: move |_| run_host(&case_fit, |host| host.fit(), &mut status), {viewer_control_icon("Fit")} }
+                        button { aria_label: "Top", title: "Top view", onclick: move |_| run_host(&case_top, |host| host.view("top"), &mut status), {viewer_control_icon("Top")} }
+                        button { aria_label: "Bottom", title: "Bottom view", onclick: move |_| run_host(&case_bottom, |host| host.view("bottom"), &mut status), {viewer_control_icon("Bottom")} }
+                        button { aria_label: "Isometric", title: "Isometric view", onclick: move |_| run_host(&case_iso, |host| host.view("isometric"), &mut status), {viewer_control_icon("Isometric")} }
                     }
                 }
 
@@ -2774,9 +2774,10 @@ fn SharedViewer(
                                     RenderMode::Hybrid => "Hybrid",
                                 };
                                 rsx! { button {
+                                    aria_label: label, title: label,
                                     "aria-pressed": transient().mode == mode,
                                     onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                                    "{label}"
+                                    {viewer_control_icon(label)}
                                 } }
                             }
                         }
@@ -2802,9 +2803,10 @@ fn SharedViewer(
                                         AssemblyView::Section => "Section",
                                     };
                                     rsx! { button {
+                                        aria_label: label, title: label,
                                         "aria-pressed": transient().assembly == view,
                                         onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                                        "{label}"
+                                        {viewer_control_icon(label)}
                                     } }
                                 }
                             }
@@ -2814,6 +2816,7 @@ fn SharedViewer(
                 if can_edit_gaskets {
                     button {
                         r#type: "button",
+                        aria_label: "Edit gaskets", title: "Edit gaskets",
                         aria_pressed: editing_gaskets(),
                         disabled: mechanical_settings.as_ref().is_none_or(|settings| !settings.editable),
                         onclick: move |_| {
@@ -2822,12 +2825,13 @@ fn SharedViewer(
                             editing_mounts.set(false);
                             if enable { run_host(&top_for_gaskets, |host| host.view("top"), &mut status); }
                         },
-                        "Edit gaskets"
+                        {viewer_control_icon("Edit gaskets")}
                     }
                 }
                 if can_edit_mounts {
                     button {
                         r#type: "button",
+                        aria_label: "Edit mounts", title: "Edit mounts",
                         aria_pressed: editing_mounts(),
                         onclick: move |_| {
                             let enable = !editing_mounts();
@@ -2835,7 +2839,7 @@ fn SharedViewer(
                             editing_gaskets.set(false);
                             if enable { run_host(&top_for_mounts, |host| host.view("top"), &mut status); }
                         },
-                        "Edit mounts"
+                        {viewer_control_icon("Edit mounts")}
                     }
                 }
                 if editing_gaskets() {
@@ -2876,9 +2880,9 @@ fn SharedViewer(
                     }
                 }
                 if !inline_case_controls {
-                button { onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), "{canvas_context.fit_label()}" }
+                button { aria_label: canvas_context.fit_label(), title: canvas_context.fit_label(), onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), {viewer_control_icon("Fit")} }
                 BoardDisclosure { class: "m1-case-view-settings",
-                    heading: rsx! { summary { "View controls" } },
+                    heading: rsx! { summary { title: "View controls", aria_label: "View controls", {viewer_control_icon("View controls")} } },
                     div { class: "m1-case-view-settings-body",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
@@ -3027,11 +3031,37 @@ fn SharedViewer(
                 if let Some(message) = gesture_message.as_deref() {
                     p { class: "m1-case-edit-hint", role: "status", "{message}" }
                 }
-                p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
+                if !status().is_empty() && !matches!(status().as_str(), "3D preview updated." | "3D preview ready." | "Starting the 3D renderer…" | "A stale 3D scene update was ignored.") {
+                    p { class: "m1-case-view-status", role: if status().to_ascii_lowercase().contains("unavailable") || status().contains("failed") { "alert" } else { "status" }, "aria-live": "polite", "{status()}" }
+                }
             }
             {docked_layers}
 
         }
+    }
+}
+
+fn viewer_control_icon(label: &str) -> Element {
+    let path = match label {
+        "Fit" => "M7 2H2v5M13 2h5v5M2 13v5h5M18 13v5h-5M6 6h8v8H6z",
+        "Top" => "M3 5h14v11H3zM3 5l7-3 7 3M7 8h6",
+        "Bottom" => "M3 4h14v11H3zM3 15l7 3 7-3M7 12h6",
+        "Shaded" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8",
+        "Wireframe" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M10 2v8M3 14l7-4 7 4",
+        "Hybrid" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M13 8v8",
+        "Assembled" => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8M3 10l7 4 7-4",
+        "Exploded" => "m3 5 7-3 7 3-7 3ZM3 10l7 3 7-3M3 15l7 3 7-3",
+        "Section" => "M3 3h14v14H3zM10 1v18M12 5l3 3M12 10l3 3",
+        "Edit gaskets" => "M5 3h10l3 4v6l-3 4H5l-3-4V7ZM6 7h8v6H6z",
+        "Edit mounts" => {
+            "M10 2v4M10 14v4M2 10h4M14 10h4M15 10a5 5 0 1 1-10 0 5 5 0 0 1 10 0ZM12 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
+        }
+        "View controls" => "M2 5h16M2 10h16M2 15h16M6 3v4M14 8v4M8 13v4",
+        _ => "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8",
+    };
+    rsx! {
+        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: path } }
+        span { class: "m1-visually-hidden", "{label}" }
     }
 }
 

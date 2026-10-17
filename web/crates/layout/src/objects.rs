@@ -793,15 +793,6 @@ fn AddObjectEntry(
                 }
             }
         }
-        if let Some(mount) = matrix_setup.as_ref() {
-          if let Some(projection) = mount.projection.clone() {
-            MatrixSetup {
-                projection,
-                on_cancel: mount.on_cancel,
-                on_create: mount.on_create,
-            }
-          }
-        }
         if let Some(projection) = existing_half.projection.clone() {
             ExistingHalfSetup {
                 projection,

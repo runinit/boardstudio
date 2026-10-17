@@ -1,3 +1,4 @@
+use super::demo_projects::DEMO_PROJECTS;
 use super::setup_guide::{PendingNewKeyboard, SetupGuideRequest};
 use crate::project_name::{
     ProjectNameKey, ProjectNameOwner, ProjectNameRejection, project_name_resolver,
@@ -400,6 +401,59 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
 }
 
 #[component]
+fn DemoActionCard() -> Element {
+    let runtime = use_context::<Rc<Runtime>>();
+    let browser = try_use_context::<ProjectBrowserState>();
+    rsx! {
+        article { class: "m1-library-start-card",
+            div { class: "m1-library-start-icon m1-library-start-icon--demo",
+                svg { view_box: "0 0 96 56", "aria-hidden": "true",
+                    rect { x: "4", y: "7", width: "88", height: "42", rx: "4" }
+                    for (x, y) in [(10, 13), (20, 13), (30, 13), (40, 13), (50, 13), (60, 13), (70, 13), (80, 13), (14, 24), (24, 24), (34, 24), (44, 24), (54, 24), (64, 24), (74, 24), (20, 35), (30, 35), (40, 35), (50, 35), (60, 35), (70, 35)] {
+                        rect { x: "{x}", y: "{y}", width: "6", height: "6", rx: "1" }
+                    }
+                }
+            }
+            h2 { "Try a demo" }
+            p { "Explore a sample keyboard to see BoardStudio in action." }
+            details { class: "m1-demo-picker",
+                summary { class: "board-button board-button--primary board-button--comfortable", "Open demo" }
+                div { class: "m1-demo-options", aria_label: "Demo keyboards",
+                    for demo in DEMO_PROJECTS {
+                        {
+                            let document = demo.document();
+                            let demo_preview = preview(&document).ok();
+                            let runtime = runtime.clone();
+                            let browser = browser;
+                            rsx! {
+                                article { class: "m1-demo-option",
+                                    LibraryPreview { preview: demo_preview, fallback: demo.name.to_owned() }
+                                    div { class: "m1-demo-option-copy",
+                                        h3 { "{demo.name}" }
+                                        p { "{demo.summary}" }
+                                        small { "Editable layout example" }
+                                    }
+                                    BoardButton { variant: BoardButtonVariant::Primary, onclick: move |_| {
+                                        match runtime.open_demo_copy(document.clone()) {
+                                            Ok(()) => {
+                                                super::close_project_menu();
+                                                if let Some(mut browser) = browser { browser.0.set(false); }
+                                            }
+                                            Err(error) => runtime.report(error),
+                                        }
+                                    }, "Open demo copy" }
+                                }
+                            }
+                        }
+                    }
+                    p { class: "m1-demo-note", "These examples demonstrate layout only. Add and verify hardware before fabrication." }
+                }
+            }
+        }
+    }
+}
+
+#[component]
 pub fn Library(
     project_menu: bool,
     #[props(default)] menu_page: Option<Signal<super::ProjectMenuPage>>,
@@ -642,6 +696,7 @@ pub fn Library(
     let delete_runtime = runtime.clone();
     let delete_mounted = mounted.clone();
     let is_settings_page = project_menu && menu_page() == super::ProjectMenuPage::Settings;
+    let no_saved_projects = cards.is_empty();
     rsx! {
         section { id: if project_menu { "m1-project-menu-dropdown" } else { "m1-library-landing-content" }, class: if project_menu { "m1-library m1-project-menu-library" } else { "m1-library" }, "aria-label": if project_menu { "Project menu" } else { "Your keyboards" }, "data-page": if project_menu && menu_page() == super::ProjectMenuPage::Settings { "settings" } else { "project" },
             if project_menu {
@@ -745,6 +800,12 @@ pub fn Library(
                     }
                 }
             div { class: if project_menu { "m1-library-content m1-library-scroll" } else { "m1-library-content" },
+                if !project_menu {
+                    header { class: "m1-library-intro",
+                        h1 { "Your keyboards" }
+                        p { "Create, customize and manage your keyboard projects." }
+                    }
+                }
                 header { class: "m1-library-heading",
                     if project_menu {
                         h2 { "Your keyboards" if status() == ListStatus::Ready { span { "{saved_count}" } } }
@@ -752,18 +813,55 @@ pub fn Library(
                     } else {
                         span { class: "m1-library-count", "{saved_count} saved keyboards" }
                     }
-                    if !project_menu {
-                        BoardButton {
-                            class: "m1-library-new-action",
-                            variant: BoardButtonVariant::Primary,
-                            r#type: "button",
-                            aria_label: "Create new keyboard",
-                            disabled: pending_new().is_some(),
-                            onclick: move |_| start_new(),
-                            "New keyboard"
+                }
+                if !project_menu {
+                    div { class: "m1-library-start-actions", aria_label: "Start a keyboard project",
+                        DemoActionCard {}
+                        article { class: "m1-library-start-card",
+                            div { class: "m1-library-start-icon",
+                                svg { view_box: "0 0 96 56", "aria-hidden": "true",
+                                    rect { x: "25", y: "5", width: "46", height: "46", rx: "5" }
+                                    path { d: "M48 16v24M36 28h24" }
+                                }
+                            }
+                            h2 { "New keyboard" }
+                            p { "Start from a blank canvas and build your keyboard." }
+                            BoardButton {
+                                variant: BoardButtonVariant::Primary,
+                                r#type: "button",
+                                aria_label: "Create new keyboard",
+                                disabled: pending_new().is_some(),
+                                onclick: move |_| start_new(),
+                                "Create new"
+                            }
+                        }
+                        article { class: "m1-library-start-card",
+                            div { class: "m1-library-start-icon",
+                                svg { view_box: "0 0 96 56", "aria-hidden": "true",
+                                    path { d: "M25 5h33l14 14v32H25z" }
+                                    path { d: "M58 5v14h14M48 41V24m-8 8 8-8 8 8" }
+                                }
+                            }
+                            h2 { "Import project" }
+                            p { "Bring in a keyboard file from your computer." }
+                            label { class: "board-button board-button--primary board-button--comfortable m1-library-import-action",
+                                "Import project"
+                                input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
+                                    let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
+                                    let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
+                                    super::close_project_menu();
+                                    import.import_file(file);
+                                    if let Some(mut browser) = browser { browser.0.set(false); }
+                                    input.set_value("");
+                                }}
+                            }
                         }
                     }
                 }
+                div { class: "m1-library-shelf-heading",
+                    h2 { if project_menu { "Saved keyboards" } else { "Your saved keyboards" } }
+                }
+                if project_menu || saved_count > 0 {
                 div { class: "m1-keyboard-search",
                     svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M13.5 13.5 18 18M15 8.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" } }
                     input {
@@ -776,6 +874,7 @@ pub fn Library(
                     if !query.is_empty() {
                         BoardButton { r#type: "button", onclick: move |_| search_query.set(String::new()), "Clear search" }
                     }
+                }
                 }
                 if status() == ListStatus::Loading {
                     p { role: "status", "Loading saved keyboards…" }
@@ -803,6 +902,7 @@ pub fn Library(
                         }, "Try again" }
                     }
                 }
+                if !no_saved_projects || project_menu {
                 div { class: "m1-keyboard-grid",
                     for (document, is_current) in cards {
                         KeyboardCard { key: "{document.id}", selected: selected_project().as_ref().is_some_and(|selected| selected.id == document.id),
@@ -822,6 +922,16 @@ pub fn Library(
                                 });
                             })),
                         }
+                    }
+                }
+                }
+                if !project_menu && no_saved_projects && status() == ListStatus::Ready && query.trim().is_empty() {
+                    div { class: "m1-library-empty-state",
+                        svg { view_box: "0 0 48 48", "aria-hidden": "true",
+                            path { d: "M5 19h10l4 7h10l4-7h10M5 19l3 20h32l3-20" }
+                        }
+                        h2 { "No keyboards yet" }
+                        p { "Get started by trying a demo, creating a new keyboard or importing a project." }
                     }
                 }
                 for record in unreadable() {
@@ -869,21 +979,11 @@ pub fn Library(
                                 super::close_project_menu();
                             }, "Setup guide" }
                         }
-                        label { "Import .boardstudio"
-                            input { r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
-                                let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
-                                let Some(file) = input.files().and_then(|files| files.get(0)) else { return; };
-                                super::close_project_menu();
-                                import.import_file(file);
-                                if let Some(mut browser) = browser { browser.0.set(false); }
-                                input.set_value("");
-                            }}
-                        }
                     }
                 }
             }
             if !project_menu {
-                aside { class: "m1-library-selection", aria_label: "Selected keyboard",
+                aside { class: "m1-library-selection", aria_label: "Keyboard details and starting guidance",
                     if let Some(document) = selected_document {
                         h2 { "{project_display_name(&document)}" }
                         if current_project_id.as_deref() == Some(document.id.as_str()) {
@@ -941,8 +1041,14 @@ pub fn Library(
                             }, "Delete keyboard" }
                         }
                     } else {
-                        h2 { "Select a keyboard" }
-                        p { "Choose a saved keyboard to preview it, then open it to continue editing." }
+                        h2 { "Start here" }
+                        p { "Choose an option to get started with BoardStudio." }
+                        ol { class: "m1-library-start-guide",
+                            li { strong { "Try a demo" } p { "Open a sample keyboard to explore features and get familiar with the editor." } }
+                            li { strong { "Create a new keyboard" } p { "Start from a blank canvas and bring your ideas to life." } }
+                            li { strong { "Import a project" } p { "Load a .boardstudio file from your computer to continue working." } }
+                        }
+                        p { class: "m1-library-guide-note", "Demo layouts are starting points; add and verify hardware before fabrication." }
                     }
                     p { class: "m1-library-storage-note", "Projects are saved in this browser. Download a .boardstudio copy to move or back them up." }
                 }
