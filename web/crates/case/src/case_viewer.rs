@@ -568,11 +568,11 @@ pub fn CaseViewer(
         CaseSharedViewer {
             scene: Some(display_scene),
             handle_source: Some(scene.clone()),
-            preview,
+            preview: preview.clone(),
             layout_preview: None,
             keycaps_preview,
             parts_preview: None,
-            model_rows,
+            model_rows: model_rows.clone(),
             selected_layer,
             selected_reference,
             display,
@@ -587,6 +587,7 @@ pub fn CaseViewer(
             focus_request,
         }
         {keycaps_feedback}
+        super::case_collision::CaseCollisionChecks { scene, preview, model_rows }
     }
 }
 

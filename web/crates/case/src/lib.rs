@@ -64,6 +64,8 @@ pub mod case_assembly_layers;
 #[cfg(target_arch = "wasm32")]
 pub mod case_bodies;
 #[cfg(target_arch = "wasm32")]
+mod case_collision;
+#[cfg(target_arch = "wasm32")]
 pub mod case_controller;
 #[cfg(target_arch = "wasm32")]
 pub mod case_preview_lifecycle;

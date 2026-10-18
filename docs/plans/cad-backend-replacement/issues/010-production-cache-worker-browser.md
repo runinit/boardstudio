@@ -7,6 +7,8 @@ Blocked by: 006: Layered case and PCB adoption; 007: Complete vendor STEP asset 
 
 ## What to build
 
+Generated analysis producer and consumer share the authoritative [wire contract](../../../../cad/wasm/src/model/generated/ANALYSIS_CONTRACT.md) and its single linked fixture. Host's `generated_analysis_shared_contract_decodes_and_rejects_mutated_identity_provenance_and_buffers` materializes that fixture's f64/u32 buffers and exercises decoding plus request/reply validation; producer coverage remains owned by014.
+
 Run all CAD operations through the production Monstertruck backend while preserving cache ownership, browser delivery and worker lifecycle behavior.
 
 ## Acceptance criteria
@@ -18,6 +20,8 @@ Run all CAD operations through the production Monstertruck backend while preserv
 - [ ] Pass required affected native/WASM/browser checks and both reviews; keep the application working throughout the switch and leave no final runtime fallback.
 
 ## Comments
+
+2026-10-17 010 isolated lane continuation: Case now explicitly requests collision checks for delivered vendor parts and on-demand generated Case/PCB body analysis through the existing CAD worker. Default checks and the opt-in0.01 mm check keep physical clearance separate; findings retain raw witnesses and remain uncertain without source/query/containment qualification. Generated identity/provenance stays separate from STEP SHA/entity IDs; the bounded snapshot/geometry/refinement cache retains returned deflection, and cancelled/stale work cannot publish or enter it. Tight vendor checks re-read authenticated original bytes with the requested deflection; failed refinement does not substitute a coarse success. All33 Host Chrome tests pass, including the three shared-fixture/worker/transfer checks and original-buffer-transfer regression (genuine RED then GREEN). Two focused Runtime Chrome tests pass cache accuracy isolation, cancellation/recovery and late-result rejection with controlled worker replies; the mounted Case control test passes explicit/tight checks and retired-source findings. Native Host22 and Runtime116 pass. Strict all-target WASM Clippy for Host/Runtime/Case passes with `--no-deps`; dependency-inclusive Clippy remains blocked by four unchanged `ui-shared` diagnostics (`geometry_scripts.rs:116`, `panels.rs:227,598,746`). Scoped formatting and diff checks pass. Layout's preserved inspector-harness subscription fix reuses its recorded181-pass result. The actual combined CAD-provider/page build, broader affected browser gates and independent review remain parent-owned and open; this is not full010 acceptance.
 
 2026-10-17 Layout continuation: after the gated-navigation and guided-cancel fixes, all nine focused placement regressions pass, and full Layout reaches 179 passes plus two failures. The current first failure is `outline::browser_tests::product_context::mounted_refine_outline_creates_a_linked_refinement_with_one_undo` (linked presentation expected; `Generated` observed), followed by a panic-hook symptom. The latest result supersedes the earlier placement timeout/routing failure in `.evidence/layout-navigation-full.log`. Layout native tests pass (79, one ignored), formatting passes, and strict all-target WASM Clippy remains blocked by 53 test-build diagnostics (`.evidence/layout-fixes-clippy.log`); none are suppressed. Full browser/CAD acceptance remains open.
 

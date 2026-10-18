@@ -27,6 +27,7 @@ pub enum CadOperation {
     Exact,
     ExportStep,
     ReadStep,
+    AnalyzeGeneratedBody,
     CollisionQuery,
 }
 
@@ -35,10 +36,18 @@ pub enum CadOperation {
 pub struct CadStepImportOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_repair_budget_mm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_deflection_mm: Option<f64>,
 }
 
 impl CadStepImportOptions {
     pub fn validate(self) -> Result<Self, String> {
+        if self
+            .target_deflection_mm
+            .is_some_and(|value| !value.is_finite() || value <= 0.0)
+        {
+            return Err("STEP targetDeflectionMm must be finite and positive".into());
+        }
         if let Some(budget) = self.preview_repair_budget_mm
             && (!budget.is_finite() || budget <= 0.0)
         {
@@ -48,6 +57,13 @@ impl CadStepImportOptions {
     }
 
     pub fn same_identity(self, other: Self) -> bool {
+        if self.target_deflection_mm.map(f64::to_bits)
+            != other.target_deflection_mm.map(f64::to_bits)
+            || self.validate().is_err()
+            || other.validate().is_err()
+        {
+            return false;
+        }
         match (
             self.preview_repair_budget_mm,
             other.preview_repair_budget_mm,
@@ -77,7 +93,10 @@ pub struct CadCollisionQuery {
 #[serde(rename_all = "camelCase")]
 pub struct CadCollisionOperand {
     pub model_id: String,
-    pub source_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_geometry_identity: Option<String>,
     #[serde(default)]
     pub import_options: CadStepImportOptions,
     pub row_transform_f64: [f64; 16],
@@ -220,6 +239,8 @@ pub struct CadStepAccuracy {
     pub preview_deflection_mm: f64,
     pub preview_angular_rad: f64,
     pub analysis_error_bound_mm: Option<f64>,
+    pub selected_repair_budget_mm: Option<f64>,
+    pub max_repair_displacement_mm: Option<f64>,
     pub bounds_from_source_geometry: bool,
     pub mesh_closed_oriented: bool,
     pub preview_floor_mm: f64,
@@ -245,6 +266,8 @@ pub struct CadRequest {
     pub step_import_options: Option<CadStepImportOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collision_query: Option<CadCollisionQuery>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_analysis_request: Option<CadGeneratedAnalysisRequest>,
     #[serde(skip)]
     pub collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
@@ -286,6 +309,48 @@ pub struct CadResult {
     pub vendor_step: Option<CadVendorStep>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collision: Option<CadCollisionObservation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_analysis: Option<CadGeneratedAnalysis>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedAnalysisRequest {
+    pub body_id: String,
+    pub geometry_identity: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_deflection_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedAnalysis {
+    pub body_id: String,
+    pub revision: u64,
+    pub geometry_identity: String,
+    pub surface_positions_mm_f64: Vec<f64>,
+    pub triangle_face_occurrence_indices: Vec<u32>,
+    pub source_faces: Vec<CadGeneratedSourceFace>,
+    pub face_occurrences: Vec<CadGeneratedFaceOccurrence>,
+    pub analysis_error_bound_mm: Option<f64>,
+    pub mesh_closed_oriented: bool,
+    pub deflection_mm: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedSourceFace {
+    pub solid_index: u32,
+    pub shell_index: u32,
+    pub face_index: u32,
+    pub support_kind: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadGeneratedFaceOccurrence {
+    pub source_face_index: u32,
+    pub solid_occurrence_index: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -370,6 +435,24 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             && (0..3).all(|axis| bounds.min[axis] <= bounds.max[axis])
     };
     match request.operation {
+        CadOperation::AnalyzeGeneratedBody => {
+            let metadata = request
+                .generated_analysis_request
+                .as_ref()
+                .ok_or_else(|| bad("generated analysis omitted request metadata"))?;
+            validate_generated_analysis_request(
+                request.prepared.as_ref(),
+                request.identity.revision,
+                metadata,
+            )
+            .map_err(|reason| bad(&reason))?;
+            let analysis = result
+                .generated_analysis
+                .as_ref()
+                .ok_or_else(|| bad("generated analysis omitted payload"))?;
+            validate_generated_analysis(metadata, request.identity.revision, analysis)
+                .map_err(|reason| bad(&reason))?;
+        }
         CadOperation::PrintKeycaps => {
             return Err(bad("printable keycaps require the keycap request adapter"));
         }
@@ -467,6 +550,97 @@ pub fn valid_source_sha256(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Shares the production generated geometry cache's m1 revision. Include the
+/// complete prepared body, rather than presentation meshes or a STEP source hash.
+pub fn generated_geometry_identity(body: &PreparedCaseIR) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let bytes = serde_json::to_vec(body).map_err(|error| error.to_string())?;
+    let digest = Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    Ok(format!("m1/generated-analysis-v1/{digest}"))
+}
+
+pub fn validate_generated_analysis_request<'a>(
+    prepared: Option<&'a PreparedCaseAssemblyIR>,
+    revision: u64,
+    metadata: &CadGeneratedAnalysisRequest,
+) -> Result<&'a PreparedCaseIR, String> {
+    let assembly = prepared
+        .filter(|assembly| assembly.revision == revision)
+        .ok_or("generated analysis requires the captured prepared assembly")?;
+    let bodies = assembly
+        .bodies
+        .iter()
+        .filter(|body| body.body.id == metadata.body_id)
+        .collect::<Vec<_>>();
+    if bodies.len() != 1 || bodies[0].revision != revision {
+        return Err("generated analysis requires exactly one body at the captured revision".into());
+    }
+    if metadata
+        .target_deflection_mm
+        .is_some_and(|value| !value.is_finite() || value <= 0.0)
+    {
+        return Err("generated targetDeflectionMm must be finite and positive".into());
+    }
+    if generated_geometry_identity(bodies[0])? != metadata.geometry_identity {
+        return Err("generated geometry identity does not match prepared body".into());
+    }
+    Ok(bodies[0])
+}
+
+pub fn validate_generated_analysis(
+    metadata: &CadGeneratedAnalysisRequest,
+    revision: u64,
+    analysis: &CadGeneratedAnalysis,
+) -> Result<(), String> {
+    if analysis.body_id != metadata.body_id
+        || analysis.revision != revision
+        || analysis.geometry_identity != metadata.geometry_identity
+    {
+        return Err("generated analysis belongs to another body, geometry or revision".into());
+    }
+    if !analysis.deflection_mm.is_finite()
+        || analysis.deflection_mm <= 0.0
+        || metadata
+            .target_deflection_mm
+            .is_some_and(|target| analysis.deflection_mm > target)
+        || analysis
+            .analysis_error_bound_mm
+            .is_some_and(|bound| !bound.is_finite() || bound < 0.0)
+    {
+        return Err("generated analysis has invalid or insufficient accuracy settings".into());
+    }
+    let positions = &analysis.surface_positions_mm_f64;
+    if positions.is_empty()
+        || !positions.len().is_multiple_of(9)
+        || positions.len().saturating_mul(8).saturating_add(
+            analysis
+                .triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        ) > MAX_COLLISION_QUERY_BYTES
+        || positions.iter().any(|value| !value.is_finite())
+        || analysis.triangle_face_occurrence_indices.len() != positions.len() / 9
+        || analysis
+            .triangle_face_occurrence_indices
+            .iter()
+            .any(|&index| index as usize >= analysis.face_occurrences.len())
+        || analysis
+            .face_occurrences
+            .iter()
+            .any(|occurrence| occurrence.source_face_index as usize >= analysis.source_faces.len())
+        || analysis
+            .source_faces
+            .iter()
+            .any(|face| face.support_kind.trim().is_empty())
+    {
+        return Err("generated analysis mesh or retained face occurrences are invalid".into());
+    }
+    Ok(())
 }
 
 pub fn valid_step_entity_id(value: &str) -> bool {
@@ -606,6 +780,15 @@ pub fn validate_vendor_step(
         || accuracy
             .analysis_error_bound_mm
             .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || accuracy
+            .selected_repair_budget_mm
+            .is_some_and(|value| !value.is_finite() || value <= 0.0)
+        || accuracy
+            .max_repair_displacement_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || expected_options
+            .target_deflection_mm
+            .is_some_and(|target| accuracy.preview_deflection_mm > target)
         || !accuracy.preview_floor_mm.is_finite()
         || accuracy.preview_floor_mm < 0.0
         || !accuracy.preview_declared_multiplier.is_finite()
@@ -669,8 +852,17 @@ pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String>
         if operand.model_id.trim().is_empty() {
             return Err("collision operand modelId must not be empty".into());
         }
-        if !valid_source_sha256(&operand.source_sha256) {
-            return Err("collision operand sourceSha256 must be canonical".into());
+        match (&operand.source_sha256, &operand.generated_geometry_identity) {
+            (Some(sha), None) if valid_source_sha256(sha) => {}
+            (None, Some(identity))
+                if !identity.trim().is_empty()
+                    && operand.import_options == CadStepImportOptions::default() => {}
+            _ => {
+                return Err(
+                    "collision operand requires exactly one valid STEP or generated identity"
+                        .into(),
+                );
+            }
         }
         operand.import_options.validate()?;
         validate_affine_row_transform(&operand.row_transform_f64)?;
@@ -1484,6 +1676,7 @@ mod tests {
             source_sha256: None,
             step_import_options: None,
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![],
         };
@@ -1561,6 +1754,8 @@ mod tests {
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
                 fallback_meshed_faces: 0,
+                selected_repair_budget_mm: None,
+                max_repair_displacement_mm: None,
             },
         }
     }
@@ -1657,6 +1852,7 @@ mod tests {
             source_sha256: Some(sha.into()),
             step_import_options: None,
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![],
         };
@@ -1710,6 +1906,7 @@ mod tests {
             source_sha256: None,
             step_import_options: None,
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![],
         };
@@ -2267,5 +2464,101 @@ mod tests {
             preparation_request(&snapshot, &scope(Some("right")), "fixture"),
             Err(CadJobError::Blocked(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod generated_collision_identity_tests {
+    use super::*;
+
+    #[test]
+    fn generated_analysis_checks_body_geometry_revision_accuracy_and_retained_tags() {
+        let body: PreparedCaseIR = serde_json::from_value(serde_json::json!({
+            "revision": 7, "body": {"id":"plate","name":"Plate","boardId":"board","kind":"plate","thickness":2.0,"clearance":0.0},
+            "regions": [{"outer":[{"x":0,"y":0},{"x":1,"y":0},{"x":0,"y":1}],"holes":[],"cavities":[],"gaskets":[],"mounts":[]}]
+        })).unwrap();
+        let prepared = PreparedCaseAssemblyIR {
+            revision: 7,
+            bodies: vec![body.clone()],
+        };
+        let metadata = CadGeneratedAnalysisRequest {
+            body_id: "plate".into(),
+            geometry_identity: generated_geometry_identity(&body).unwrap(),
+            target_deflection_mm: Some(0.01),
+        };
+        assert!(validate_generated_analysis_request(Some(&prepared), 7, &metadata).is_ok());
+        let mut changed = prepared.clone();
+        changed.bodies[0].body.thickness += 0.1;
+        assert!(validate_generated_analysis_request(Some(&changed), 7, &metadata).is_err());
+        assert!(validate_generated_analysis_request(Some(&prepared), 8, &metadata).is_err());
+        let mut duplicate = prepared.clone();
+        duplicate.bodies.push(body);
+        assert!(validate_generated_analysis_request(Some(&duplicate), 7, &metadata).is_err());
+        let analysis = CadGeneratedAnalysis {
+            body_id: "plate".into(),
+            revision: 7,
+            geometry_identity: metadata.geometry_identity.clone(),
+            surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+            triangle_face_occurrence_indices: vec![0],
+            source_faces: vec![CadGeneratedSourceFace {
+                solid_index: 0,
+                shell_index: 0,
+                face_index: 4,
+                support_kind: "plane".into(),
+            }],
+            face_occurrences: vec![CadGeneratedFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+            }],
+            analysis_error_bound_mm: None,
+            mesh_closed_oriented: true,
+            deflection_mm: 0.01,
+        };
+        assert!(validate_generated_analysis(&metadata, 7, &analysis).is_ok());
+        let mut bad = analysis.clone();
+        bad.deflection_mm = 0.1;
+        assert!(
+            validate_generated_analysis(&metadata, 7, &bad).is_err(),
+            "coarse mesh cannot satisfy a tighter request"
+        );
+        let mut bad = analysis.clone();
+        bad.triangle_face_occurrence_indices[0] = 1;
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+        let mut bad = analysis.clone();
+        bad.geometry_identity.push('x');
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+        let mut bad = analysis;
+        bad.analysis_error_bound_mm = Some(f64::NAN);
+        assert!(validate_generated_analysis(&metadata, 7, &bad).is_err());
+    }
+
+    #[test]
+    fn collision_operand_accepts_generated_identity_without_a_step_hash_and_rejects_ambiguity() {
+        let mut operand = serde_json::json!({
+            "modelId": "case", "generatedGeometryIdentity": "generated-v1:body",
+            "rowTransformF64": [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
+        });
+        let query = |operand: serde_json::Value| -> Result<(), String> {
+            let query: CadCollisionQuery = serde_json::from_value(serde_json::json!({
+                "left": operand, "right": operand, "clearanceThresholdMm": 0.0
+            }))
+            .map_err(|error| error.to_string())?;
+            validate_collision_query(&query)
+        };
+        assert!(
+            query(operand.clone()).is_ok(),
+            "generated identity must not require a fake STEP SHA"
+        );
+        operand["sourceSha256"] = "a".repeat(64).into();
+        assert!(
+            query(operand.clone()).is_err(),
+            "two identities are ambiguous"
+        );
+        operand.as_object_mut().unwrap().remove("sourceSha256");
+        operand["importOptions"] = serde_json::json!({"previewRepairBudgetMm": 0.1});
+        assert!(
+            query(operand).is_err(),
+            "generated geometry cannot carry STEP repair settings"
+        );
     }
 }

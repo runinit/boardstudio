@@ -68,6 +68,8 @@ struct WireRequest {
     #[serde(default)]
     collision_query: Option<CadCollisionQuery>,
     #[serde(default)]
+    generated_analysis_request: Option<crate::cad_jobs::CadGeneratedAnalysisRequest>,
+    #[serde(default)]
     keycaps: Option<KeycapsInput>,
     #[serde(skip)]
     collision_meshes: Option<CadCollisionMeshPair>,
@@ -455,6 +457,7 @@ pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
             ),
             step_import_options: None,
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![1],
         })
@@ -467,6 +470,32 @@ pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
 }
 
 fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
+    if request.operation == CadOperation::AnalyzeGeneratedBody {
+        if !request.input_bytes.is_empty()
+            || request.source_sha256.is_some()
+            || request.step_import_options.is_some()
+            || request.collision_query.is_some()
+            || request.collision_meshes.is_some()
+        {
+            return Err(CadWorkerError(
+                "generated analysis cannot include STEP or collision payloads".into(),
+            ));
+        }
+        let metadata = request
+            .generated_analysis_request
+            .as_ref()
+            .ok_or_else(|| CadWorkerError("generated analysis omitted request metadata".into()))?;
+        crate::cad_jobs::validate_generated_analysis_request(
+            request.prepared.as_ref(),
+            request.identity.revision,
+            metadata,
+        )
+        .map_err(CadWorkerError)?;
+    } else if request.generated_analysis_request.is_some() {
+        return Err(CadWorkerError(
+            "unexpected generated analysis metadata".into(),
+        ));
+    }
     if request.request_id.is_empty() || request.job_id.is_empty() {
         return Err(CadWorkerError(
             "CAD request and job identities must not be empty".into(),
@@ -682,7 +711,103 @@ fn decode_result(value: JsValue) -> Result<CadResult, String> {
         bounds,
         vendor_step,
         collision,
+        generated_analysis: {
+            let analysis = Reflect::get(&value, &"generatedAnalysis".into()).map_err(js_message)?;
+            if analysis.is_null() || analysis.is_undefined() {
+                None
+            } else {
+                Some(decode_generated_analysis(analysis)?)
+            }
+        },
     })
+}
+
+fn decode_generated_analysis(
+    value: JsValue,
+) -> Result<crate::cad_jobs::CadGeneratedAnalysis, String> {
+    validate_generated_payload_fields(&value, true)?;
+    let positions_value =
+        Reflect::get(&value, &"surfacePositionsMmF64".into()).map_err(js_message)?;
+    let tags_value =
+        Reflect::get(&value, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?;
+    if !positions_value.is_instance_of::<Float64Array>()
+        || !tags_value.is_instance_of::<Uint32Array>()
+    {
+        return Err(
+            "generated analysis requires Float64Array positions and Uint32Array tags".into(),
+        );
+    }
+    let positions = positions_value.unchecked_into::<Float64Array>();
+    let tags = tags_value.unchecked_into::<Uint32Array>();
+    if (positions.byte_length() as usize).saturating_add(tags.byte_length() as usize)
+        > MAX_COLLISION_QUERY_BYTES
+    {
+        return Err("generated analysis exceeds the 64 MiB mesh limit".into());
+    }
+    // Deserialize metadata separately so large typed arrays retain their transfer path.
+    let metadata = Object::new();
+    for field in [
+        "bodyId",
+        "revision",
+        "geometryIdentity",
+        "sourceFaces",
+        "faceOccurrences",
+        "analysisErrorBoundMm",
+        "meshClosedOriented",
+        "deflectionMm",
+    ] {
+        Reflect::set(
+            &metadata,
+            &field.into(),
+            &Reflect::get(&value, &field.into()).map_err(js_message)?,
+        )
+        .map_err(js_message)?;
+    }
+    Reflect::set(&metadata, &"surfacePositionsMmF64".into(), &Array::new()).map_err(js_message)?;
+    Reflect::set(
+        &metadata,
+        &"triangleFaceOccurrenceIndices".into(),
+        &Array::new(),
+    )
+    .map_err(js_message)?;
+    let mut analysis: crate::cad_jobs::CadGeneratedAnalysis =
+        serde_wasm_bindgen::from_value(metadata.into()).map_err(|error| error.to_string())?;
+    analysis.surface_positions_mm_f64 = positions.to_vec();
+    analysis.triangle_face_occurrence_indices = tags.to_vec();
+    Ok(analysis)
+}
+
+fn validate_generated_payload_fields(value: &JsValue, has_identity: bool) -> Result<(), String> {
+    let mut fields = vec![
+        "bodyId",
+        "revision",
+        "surfacePositionsMmF64",
+        "triangleFaceOccurrenceIndices",
+        "sourceFaces",
+        "faceOccurrences",
+        "analysisErrorBoundMm",
+        "meshClosedOriented",
+        "deflectionMm",
+    ];
+    if has_identity {
+        fields.push("geometryIdentity");
+    }
+    let object = value
+        .dyn_ref::<Object>()
+        .ok_or("generated analysis must be an object")?;
+    let keys = Object::keys(object);
+    if keys.length() as usize != fields.len()
+        || fields
+            .iter()
+            .any(|field| !Reflect::has(value, &(*field).into()).unwrap_or(false))
+        || keys.iter().any(|key| {
+            key.as_string()
+                .is_none_or(|key| !fields.contains(&key.as_str()))
+        })
+    {
+        return Err("generated analysis has missing or unexpected fields".into());
+    }
+    Ok(())
 }
 
 fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
@@ -1196,6 +1321,7 @@ mod keycaps_worker_tests {
             source_sha256: Some(sha_a.into()),
             step_import_options: Some(CadStepImportOptions::default()),
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![1],
         };
@@ -1223,19 +1349,22 @@ mod keycaps_worker_tests {
             collision_query: Some(CadCollisionQuery {
                 left: CadCollisionOperand {
                     model_id: "m1".into(),
-                    source_sha256: sha_a.into(),
+                    source_sha256: Some(sha_a.into()),
+                    generated_geometry_identity: None,
                     import_options: CadStepImportOptions::default(),
                     row_transform_f64: id_mat,
                 },
                 right: CadCollisionOperand {
                     model_id: "m2".into(),
-                    source_sha256: sha_a.into(),
+                    source_sha256: Some(sha_a.into()),
+                    generated_geometry_identity: None,
                     import_options: CadStepImportOptions::default(),
                     row_transform_f64: id_mat,
                 },
                 clearance_threshold_mm: 0.5,
                 requested_accuracy_mm: None,
             }),
+            generated_analysis_request: None,
             collision_meshes: Some(CadCollisionMeshPair {
                 left_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
                 left_triangle_face_occurrence_indices: vec![7],
@@ -1458,9 +1587,10 @@ fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option
     match operation {
         CadOperation::Preview | CadOperation::PrintKeycaps => None,
         CadOperation::ExportStep => Some(KEYCAP_STEP_UNSUPPORTED),
-        CadOperation::Exact | CadOperation::ReadStep | CadOperation::CollisionQuery => {
-            Some("Keycap CAD input is only valid for preview")
-        }
+        CadOperation::Exact
+        | CadOperation::ReadStep
+        | CadOperation::CollisionQuery
+        | CadOperation::AnalyzeGeneratedBody => Some("Keycap CAD input is only valid for preview"),
     }
 }
 
@@ -1545,6 +1675,71 @@ async fn run_request(
         js_sys::JSON::parse(&text).map_err(js_message)
     };
     let result = match request.operation {
+        CadOperation::AnalyzeGeneratedBody => {
+            let metadata = request.generated_analysis_request.as_ref().ok_or_else(|| {
+                (
+                    request.clone(),
+                    "generated analysis omitted metadata".into(),
+                    false,
+                )
+            })?;
+            let body = crate::cad_jobs::validate_generated_analysis_request(
+                request.prepared.as_ref(),
+                request.identity.revision,
+                metadata,
+            )
+            .map_err(|error| (request.clone(), error, false))?;
+            let body_value = js_sys::JSON::parse(
+                &serde_json::to_string(body)
+                    .map_err(|error| (request.clone(), error.to_string(), false))?,
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
+            let options = Object::new();
+            if let Some(target) = metadata.target_deflection_mm {
+                Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+            }
+            let analysis = invoke("analyze_generated_body", &[body_value, options.into()])
+                .map_err(|error| (request.clone(), error, false))?;
+            validate_generated_payload_fields(&analysis, false)
+                .map_err(|error| (request.clone(), error, false))?;
+            if string_field(&analysis, "bodyId").ok().as_deref() != Some(metadata.body_id.as_str())
+                || Reflect::get(&analysis, &"revision".into())
+                    .ok()
+                    .and_then(|v| v.as_f64())
+                    != Some(request.identity.revision as f64)
+            {
+                return Err((
+                    request.clone(),
+                    "generated provider returned another body or revision".into(),
+                    false,
+                ));
+            }
+            Reflect::set(
+                &analysis,
+                &"geometryIdentity".into(),
+                &metadata.geometry_identity.clone().into(),
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
+            let decoded = decode_generated_analysis(analysis.clone())
+                .map_err(|error| (request.clone(), error, false))?;
+            crate::cad_jobs::validate_generated_analysis(
+                metadata,
+                request.identity.revision,
+                &decoded,
+            )
+            .map_err(|error| (request.clone(), error, false))?;
+            let wrapper = Object::new();
+            Reflect::set(
+                &wrapper,
+                &"revision".into(),
+                &(request.identity.revision as f64).into(),
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
+            Reflect::set(&wrapper, &"generatedAnalysis".into(), &analysis)
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            wrapper.into()
+        }
         CadOperation::Preview | CadOperation::PrintKeycaps => {
             if let Some(keycaps) = request.keycaps.as_ref() {
                 // Match React's buildKeycaps adapter: yield between groups so the
@@ -1725,6 +1920,10 @@ async fn run_request(
                 )
                 .map_err(|error| (request.clone(), js_message(error), false))?;
             }
+            if let Some(target) = step_options.target_deflection_mm {
+                Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+            }
             invoke(
                 "read_step_model",
                 &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
@@ -1876,6 +2075,12 @@ fn post_reply(
 fn result_transfers(operation: &CadOperation, result: &JsValue) -> Result<Array, JsValue> {
     let transfers = Array::new();
     match operation {
+        CadOperation::AnalyzeGeneratedBody => {
+            let analysis = Reflect::get(result, &"generatedAnalysis".into())?;
+            for field in ["surfacePositionsMmF64", "triangleFaceOccurrenceIndices"] {
+                add_buffer_transfer(&transfers, &Reflect::get(&analysis, &field.into())?)?;
+            }
+        }
         CadOperation::Preview | CadOperation::PrintKeycaps => {
             let bodies = Array::from(&Reflect::get(result, &"bodies".into())?);
             for body in bodies.iter() {
@@ -1930,13 +2135,17 @@ fn add_mesh_transfers(transfers: &Array, mesh: &JsValue) -> Result<(), JsValue> 
 }
 fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue> {
     let buffer = if value.is_instance_of::<Uint8Array>() {
-        Uint8Array::new(value).buffer()
+        value.unchecked_ref::<Uint8Array>().buffer()
     } else if value.is_instance_of::<Float64Array>() {
-        Float64Array::new(value).buffer()
+        value.unchecked_ref::<Float64Array>().buffer()
     } else if value.is_instance_of::<Uint32Array>() {
-        Uint32Array::new(value).buffer()
+        value.unchecked_ref::<Uint32Array>().buffer()
+    } else if value.is_instance_of::<Float32Array>() {
+        value.unchecked_ref::<Float32Array>().buffer()
     } else {
-        Float32Array::new(value).buffer()
+        return Err(JsValue::from_str(
+            "CAD result transfer requires a typed array",
+        ));
     };
     transfers.push(&buffer);
     Ok(())
@@ -1959,4 +2168,253 @@ fn js_message(value: JsValue) -> String {
     value
         .as_string()
         .unwrap_or_else(|| "JavaScript CAD provider failed".into())
+}
+
+#[cfg(test)]
+mod generated_analysis_tests {
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn generated_analysis_shared_contract_decodes_and_rejects_mutated_identity_provenance_and_buffers()
+     {
+        use crate::cad_jobs::*;
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap();
+        let body: boardstudio_core::model::PreparedCaseIR =
+            serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
+        let geometry_identity = generated_geometry_identity(&body).unwrap();
+        assert!(
+            geometry_identity
+                .starts_with(fixture["workerGeometryIdentityPrefix"].as_str().unwrap())
+        );
+        let metadata = CadGeneratedAnalysisRequest {
+            body_id: body.body.id.clone(),
+            geometry_identity: geometry_identity.clone(),
+            target_deflection_mm: None,
+        };
+        let identity = CadSnapshotIdentity {
+            token: 1,
+            session_epoch: 2,
+            document_id: "fixture".into(),
+            board_id: body.body.board_id.clone(),
+            instance_id: None,
+            revision: body.revision,
+        };
+        let request = CadRequest {
+            request_id: "fixture-analysis".into(),
+            job_id: "fixture-analysis".into(),
+            identity: identity.clone(),
+            operation: CadOperation::AnalyzeGeneratedBody,
+            prepared: Some(boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision: body.revision,
+                bodies: vec![body],
+            }),
+            generated_analysis_request: Some(metadata),
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
+            input_bytes: vec![],
+        };
+        let decode =
+            |payload: &serde_json::Value, hash: &str, typed: bool| -> Result<CadResult, String> {
+                let direct = js_sys::JSON::parse(&payload.to_string()).map_err(js_message)?;
+                validate_generated_payload_fields(&direct, false)?;
+                if typed {
+                    Reflect::set(
+                        &direct,
+                        &"surfacePositionsMmF64".into(),
+                        &Float64Array::new(
+                            &Reflect::get(&direct, &"surfacePositionsMmF64".into())
+                                .map_err(js_message)?,
+                        ),
+                    )
+                    .map_err(js_message)?;
+                    Reflect::set(
+                        &direct,
+                        &"triangleFaceOccurrenceIndices".into(),
+                        &Uint32Array::new(
+                            &Reflect::get(&direct, &"triangleFaceOccurrenceIndices".into())
+                                .map_err(js_message)?,
+                        ),
+                    )
+                    .map_err(js_message)?;
+                }
+                Reflect::set(&direct, &"geometryIdentity".into(), &hash.into())
+                    .map_err(js_message)?;
+                let wrapper = Object::new();
+                Reflect::set(
+                    &wrapper,
+                    &"revision".into(),
+                    &(identity.revision as f64).into(),
+                )
+                .map_err(js_message)?;
+                Reflect::set(&wrapper, &"generatedAnalysis".into(), &direct).map_err(js_message)?;
+                let result = decode_result(wrapper.into())?;
+                validate_reply(
+                    &request,
+                    CadReply {
+                        request_id: request.request_id.clone(),
+                        job_id: request.job_id.clone(),
+                        identity: identity.clone(),
+                        operation: request.operation,
+                        outcome: CadReplyOutcome::Completed,
+                        result: Some(result),
+                        error: None,
+                    },
+                    &identity,
+                )
+                .map_err(|error| format!("{error:?}"))
+            };
+        let payload = &fixture["directPayload"];
+        let result = decode(payload, &geometry_identity, true).unwrap();
+        assert!(result.vendor_step.is_none() && result.mesh.is_none() && result.bodies.is_empty());
+        let analysis = result.generated_analysis.unwrap();
+        assert_eq!(
+            analysis.analysis_error_bound_mm, None,
+            "deflection and closed topology are not certificates"
+        );
+        assert_eq!(
+            analysis.deflection_mm,
+            payload["deflectionMm"].as_f64().unwrap()
+        );
+        for field in [
+            "bodyId",
+            "revision",
+            "triangleFaceOccurrenceIndices",
+            "faceOccurrences",
+            "surfacePositionsMmF64",
+        ] {
+            let mut bad = payload.clone();
+            match field {
+                "bodyId" => bad[field] = "another-body".into(),
+                "revision" => bad[field] = (identity.revision + 1).into(),
+                "triangleFaceOccurrenceIndices" => bad[field][0] = u32::MAX.into(),
+                "faceOccurrences" => bad[field][0]["sourceFaceIndex"] = u32::MAX.into(),
+                _ => {
+                    bad[field].as_array_mut().unwrap().pop();
+                }
+            }
+            assert!(
+                decode(&bad, &geometry_identity, true).is_err(),
+                "reject mutated {field}"
+            );
+        }
+        assert!(decode(payload, "another-geometry", true).is_err());
+        assert!(
+            decode(payload, &geometry_identity, false).is_err(),
+            "ordinary JSON buffers cannot cross the worker boundary"
+        );
+        let mut bad = payload.clone();
+        bad["sourceSha256"] = "a".repeat(64).into();
+        assert!(
+            decode(&bad, &geometry_identity, true).is_err(),
+            "generated output is separate from STEP identity"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    fn generated_analysis_transfers_the_original_typed_buffers() {
+        let positions = Float64Array::from(&[0.0, 0.0, 0.0][..]);
+        let tags = Uint32Array::from(&[0][..]);
+        let analysis = Object::new();
+        Reflect::set(&analysis, &"surfacePositionsMmF64".into(), &positions).unwrap();
+        Reflect::set(&analysis, &"triangleFaceOccurrenceIndices".into(), &tags).unwrap();
+        let result = Object::new();
+        Reflect::set(&result, &"generatedAnalysis".into(), &analysis).unwrap();
+        let transfers = result_transfers(&CadOperation::AnalyzeGeneratedBody, &result).unwrap();
+        assert_eq!(transfers.length(), 2);
+        assert!(
+            Object::is(&transfers.get(0), &positions.buffer()),
+            "transfer the actual result buffer"
+        );
+        assert!(
+            Object::is(&transfers.get(1), &tags.buffer()),
+            "transfer the actual provenance buffer"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn generated_analysis_worker_selects_one_body_checks_identity_and_recovers_after_failure()
+    {
+        let body: boardstudio_core::model::PreparedCaseIR = serde_json::from_value(serde_json::json!({
+            "revision":7,"body":{"id":"plate","name":"Plate","boardId":"board","kind":"plate","thickness":2,"clearance":0},"regions":[]
+        })).unwrap();
+        let metadata = crate::cad_jobs::CadGeneratedAnalysisRequest {
+            body_id: "plate".into(),
+            geometry_identity: crate::cad_jobs::generated_geometry_identity(&body).unwrap(),
+            target_deflection_mm: Some(0.01),
+        };
+        let mut request = WireRequest {
+            request_id: "analysis-1".into(),
+            job_id: "analysis-1".into(),
+            identity: CadSnapshotIdentity {
+                token: 3,
+                session_epoch: 1,
+                document_id: "doc".into(),
+                board_id: "board".into(),
+                instance_id: None,
+                revision: 7,
+            },
+            operation: CadOperation::AnalyzeGeneratedBody,
+            prepared: Some(boardstudio_core::model::PreparedCaseAssemblyIR {
+                revision: 7,
+                bodies: vec![body],
+            }),
+            generated_analysis_request: Some(metadata.clone()),
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
+            keycaps: None,
+            input_bytes: vec![],
+        };
+        let queue = Rc::new(RefCell::new(WorkerQueue::default()));
+        let module = Object::new();
+        let provider = Function::new_with_args(
+            "body, options",
+            r#"
+            if (body.body.id !== 'plate') throw new Error('selected body required');
+            return {bodyId: body.body.id, revision:body.revision,
+                surfacePositionsMmF64:new Float64Array([0,0,0,1,0,0,0,1,0]),
+                triangleFaceOccurrenceIndices:new Uint32Array([0]),
+                sourceFaces:[{solidIndex:0,shellIndex:0,faceIndex:4,supportKind:'plane'}],
+                faceOccurrences:[{sourceFaceIndex:0,solidOccurrenceIndex:0}],
+                analysisErrorBoundMm:null,meshClosedOriented:true,deflectionMm:options.targetDeflectionMm};
+        "#,
+        );
+        Reflect::set(&module, &"analyze_generated_body".into(), &provider).unwrap();
+        let module: JsValue = module.into();
+        let (_, result) = run_request(&queue, &module, request.clone(), vec![])
+            .await
+            .unwrap_or_else(|(_, error, _)| panic!("{error}"));
+        let decoded = decode_result(result).unwrap();
+        let analysis = decoded.generated_analysis.unwrap();
+        assert_eq!(analysis.geometry_identity, metadata.geometry_identity);
+        assert_eq!(analysis.deflection_mm, 0.01);
+        assert_eq!(analysis.analysis_error_bound_mm, None);
+        assert_eq!(analysis.source_faces[0].face_index, 4);
+        request
+            .generated_analysis_request
+            .as_mut()
+            .unwrap()
+            .geometry_identity
+            .push('x');
+        let failed = run_request(&queue, &module, request.clone(), vec![]).await;
+        assert!(matches!(failed, Err((_, reason, false)) if reason.contains("identity")));
+        request.generated_analysis_request = Some(metadata);
+        queue.borrow_mut().cancelled.insert(request.job_id.clone());
+        assert!(matches!(
+            run_request(&queue, &module, request.clone(), vec![]).await,
+            Err((_, _, true))
+        ));
+        queue.borrow_mut().cancelled.clear();
+        assert!(
+            run_request(&queue, &module, request, vec![]).await.is_ok(),
+            "failed/cancelled work must not poison the worker"
+        );
+    }
 }

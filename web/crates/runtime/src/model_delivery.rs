@@ -483,10 +483,14 @@ pub fn derived_step_cache_key(
         return Err("STEP cache key requires a canonical 64-hex SHA-256".into());
     }
     let options = options.validate()?;
-    Ok(match options.preview_repair_budget_mm {
+    let mut key = match options.preview_repair_budget_mm {
         None => sha256.to_owned(),
         Some(budget) => format!("{sha256}:repair={:016x}", budget.to_bits()),
-    })
+    };
+    if let Some(target) = options.target_deflection_mm {
+        key.push_str(&format!(":deflection={:016x}", target.to_bits()));
+    }
+    Ok(key)
 }
 
 #[derive(Clone)]
@@ -1224,6 +1228,8 @@ pub enum CadCollisionSubject {
     GeneratedCaseBody {
         id: String,
         name: String,
+        row_transform_f64: [f64; 16],
+        analysis: Option<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>,
     },
 }
 
@@ -1241,24 +1247,55 @@ impl CadCollisionSubject {
         }
     }
 
-    pub fn from_generated_body(
-        body: &boardstudio_web_host::cad_jobs::CadBodyMesh,
-    ) -> Result<Self, String> {
-        if body.id.trim().is_empty()
-            || body.positions.is_empty()
-            || !body.positions.len().is_multiple_of(9)
-            || body.positions.iter().any(|value| !value.is_finite())
-        {
-            return Err(format!("generated case body {} has invalid mesh buffers", body.id));
+    pub fn operand(&self) -> Result<boardstudio_web_host::cad_jobs::CadCollisionOperand, String> {
+        use boardstudio_web_host::cad_jobs::{CadCollisionOperand, CadStepImportOptions};
+        match self {
+            Self::VendorModel {
+                id,
+                row_transform_f64,
+                vendor_step: Some(asset),
+                ..
+            } => Ok(CadCollisionOperand {
+                model_id: id.clone(),
+                source_sha256: Some(asset.source_sha256.clone()),
+                generated_geometry_identity: None,
+                import_options: asset.import_options,
+                row_transform_f64: *row_transform_f64,
+            }),
+            Self::GeneratedCaseBody {
+                id,
+                row_transform_f64,
+                analysis: Some(asset),
+                ..
+            } => Ok(CadCollisionOperand {
+                model_id: id.clone(),
+                source_sha256: None,
+                generated_geometry_identity: Some(asset.geometry_identity.clone()),
+                import_options: CadStepImportOptions::default(),
+                row_transform_f64: *row_transform_f64,
+            }),
+            _ => Err(format!("{} has no source analysis mesh", self.label())),
         }
-        Ok(Self::GeneratedCaseBody {
-            id: body.id.clone(),
-            name: if body.name.trim().is_empty() {
-                body.id.clone()
-            } else {
-                body.name.clone()
-            },
-        })
+    }
+
+    pub fn mesh(&self) -> Option<(&[f64], &[u32])> {
+        match self {
+            Self::VendorModel {
+                vendor_step: Some(asset),
+                ..
+            } => Some((
+                &asset.surface_positions_mm_f64,
+                &asset.triangle_face_occurrence_indices,
+            )),
+            Self::GeneratedCaseBody {
+                analysis: Some(asset),
+                ..
+            } => Some((
+                &asset.surface_positions_mm_f64,
+                &asset.triangle_face_occurrence_indices,
+            )),
+            _ => None,
+        }
     }
 }
 
@@ -1325,7 +1362,7 @@ impl CadCollisionPairFinding {
                 refinement_requested,
             } => {
                 let refine = if *refinement_requested {
-                    "; on-demand refinement required"
+                    "; requested accuracy remains unqualified"
                 } else {
                     ""
                 };
@@ -1463,10 +1500,22 @@ pub struct CadResolvedFaceProvenance {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum CadSubjectFaceProvenance {
+    Vendor(CadResolvedFaceProvenance),
+    Generated {
+        body_id: String,
+        triangle_index: u32,
+        face_occurrence_index: u32,
+        solid_occurrence_index: u32,
+        source: boardstudio_web_host::cad_jobs::CadGeneratedSourceFace,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct CadCollisionResult {
     pub observation: Option<boardstudio_web_host::cad_jobs::CadCollisionObservation>,
-    pub left_provenance: Option<CadResolvedFaceProvenance>,
-    pub right_provenance: Option<CadResolvedFaceProvenance>,
+    pub left_provenance: Option<CadSubjectFaceProvenance>,
+    pub right_provenance: Option<CadSubjectFaceProvenance>,
     pub assessment: CadCollisionAssessment,
 }
 
@@ -1520,12 +1569,35 @@ pub fn resolve_physical_model_row_transform(
 pub fn resolve_subject_face_provenance(
     subject: &CadCollisionSubject,
     provenance: &boardstudio_web_host::cad_jobs::CadTriangleProvenance,
-) -> Option<CadResolvedFaceProvenance> {
+) -> Option<CadSubjectFaceProvenance> {
     match subject {
         CadCollisionSubject::VendorModel { vendor_step, .. } => {
             resolve_face_provenance(vendor_step.as_deref()?, provenance)
+                .map(CadSubjectFaceProvenance::Vendor)
         }
-        CadCollisionSubject::GeneratedCaseBody { .. } => None,
+        CadCollisionSubject::GeneratedCaseBody { id, analysis, .. } => {
+            let asset = analysis.as_ref()?;
+            if *asset
+                .triangle_face_occurrence_indices
+                .get(provenance.triangle_index as usize)?
+                != provenance.face_occurrence_index
+            {
+                return None;
+            }
+            let occurrence = asset
+                .face_occurrences
+                .get(provenance.face_occurrence_index as usize)?;
+            Some(CadSubjectFaceProvenance::Generated {
+                body_id: id.clone(),
+                triangle_index: provenance.triangle_index,
+                face_occurrence_index: provenance.face_occurrence_index,
+                solid_occurrence_index: occurrence.solid_occurrence_index,
+                source: asset
+                    .source_faces
+                    .get(occurrence.source_face_index as usize)?
+                    .clone(),
+            })
+        }
     }
 }
 
@@ -1560,24 +1632,35 @@ pub fn assess_subject_collision_observation(
     if let CadCollisionObservation::Uncertain { reason, .. } = &observation {
         reasons.push(format!("raw mesh observation is uncertain: {reason}"));
     }
-    let subject_bound = |subject: &CadCollisionSubject, side: &str, reasons: &mut Vec<String>| -> Option<f64> {
-        match subject {
-            CadCollisionSubject::VendorModel { vendor_step, .. } => {
-                let bound = vendor_step
-                    .as_ref()
-                    .and_then(|step| step.accuracy.analysis_error_bound_mm)
-                    .filter(|v| v.is_finite() && *v >= 0.0);
-                if bound.is_none() {
-                    reasons.push(format!("{side} asset has no certified analysisErrorBoundMm"));
+    let subject_bound =
+        |subject: &CadCollisionSubject, side: &str, reasons: &mut Vec<String>| -> Option<f64> {
+            match subject {
+                CadCollisionSubject::VendorModel { vendor_step, .. } => {
+                    let bound = vendor_step
+                        .as_ref()
+                        .and_then(|step| step.accuracy.analysis_error_bound_mm)
+                        .filter(|v| v.is_finite() && *v >= 0.0);
+                    if bound.is_none() {
+                        reasons.push(format!(
+                            "{side} asset has no certified analysisErrorBoundMm"
+                        ));
+                    }
+                    bound
                 }
-                bound
+                CadCollisionSubject::GeneratedCaseBody { analysis, .. } => {
+                    let bound = analysis
+                        .as_ref()
+                        .and_then(|asset| asset.analysis_error_bound_mm)
+                        .filter(|value| value.is_finite() && *value >= 0.0);
+                    if bound.is_none() {
+                        reasons.push(format!(
+                            "{side} generated body has no certified analysisErrorBoundMm"
+                        ));
+                    }
+                    bound
+                }
             }
-            CadCollisionSubject::GeneratedCaseBody { .. } => {
-                reasons.push(format!("{side} generated body has no source analysis mesh"));
-                None
-            }
-        }
-    };
+        };
     let left_bound = subject_bound(left, "left", &mut reasons);
     let right_bound = subject_bound(right, "right", &mut reasons);
     let query_bound = query_numerical_error_bound_mm.filter(|v| v.is_finite() && *v >= 0.0);
@@ -2239,9 +2322,11 @@ mod tests {
         let default_opts = CadStepImportOptions::default();
         let repair_a = CadStepImportOptions {
             preview_repair_budget_mm: Some(0.003),
+            ..Default::default()
         };
         let repair_b = CadStepImportOptions {
             preview_repair_budget_mm: Some(0.005),
+            ..Default::default()
         };
         assert_ne!(
             derived_step_cache_key(&sha, default_opts).unwrap(),
@@ -2257,6 +2342,7 @@ mod tests {
                     &sha,
                     CadStepImportOptions {
                         preview_repair_budget_mm: Some(bad),
+                        ..Default::default()
                     }
                 )
                 .is_err()
@@ -2319,6 +2405,8 @@ mod tests {
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
                 fallback_meshed_faces: 0,
+                selected_repair_budget_mm: None,
+                max_repair_displacement_mm: None,
             },
         });
         let validated = Rc::new(
@@ -2403,6 +2491,8 @@ mod tests {
                 sampled_support_checks: 0,
                 max_sampled_support_residual_mm: None,
                 fallback_meshed_faces: 0,
+                selected_repair_budget_mm: None,
+                max_repair_displacement_mm: None,
             },
         };
 
@@ -2525,6 +2615,152 @@ mod tests {
             resolve_physical_model_row_transform(&row, None).is_err(),
             "PCB row with matrix: None must never substitute identity"
         );
+    }
+
+    #[test]
+    fn generated_collision_preserves_numeric_face_provenance_and_unknown_accuracy() {
+        use boardstudio_web_host::cad_jobs::*;
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap();
+        let body: boardstudio_core::model::PreparedCaseIR =
+            serde_json::from_value(fixture["preparedBody"].clone()).unwrap();
+        let mut payload = fixture["directPayload"].clone();
+        payload["geometryIdentity"] = generated_geometry_identity(&body).unwrap().into();
+        let analysis: CadGeneratedAnalysis = serde_json::from_value(payload).unwrap();
+        let left = CadCollisionSubject::GeneratedCaseBody {
+            id: body.body.id.clone(),
+            name: body.body.name.clone(),
+            row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+            analysis: Some(Rc::new(analysis)),
+        };
+        let mut right = left.clone();
+        if let CadCollisionSubject::GeneratedCaseBody {
+            id,
+            row_transform_f64,
+            ..
+        } = &mut right
+        {
+            *id = "other".into();
+            row_transform_f64[12] = 21.0;
+        }
+        let operand = right.operand().unwrap();
+        assert!(operand.source_sha256.is_none() && operand.generated_geometry_identity.is_some());
+        assert_eq!(operand.row_transform_f64[12], 21.0);
+        let result = assess_subject_collision_observation(
+            &left,
+            &right,
+            0.1,
+            Some(0.01),
+            None,
+            false,
+            CadCollisionObservation::SurfaceSeparated {
+                surface_distance_mm: 1.0,
+                closest_points: CadClosestPointsWitness {
+                    triangles: CadTrianglePairProvenance {
+                        left: CadTriangleProvenance {
+                            triangle_index: 0,
+                            face_occurrence_index: 0,
+                        },
+                        right: CadTriangleProvenance {
+                            triangle_index: 0,
+                            face_occurrence_index: 0,
+                        },
+                    },
+                    point1_mm: [20., 0., 0.],
+                    point2_mm: [21., 0., 0.],
+                },
+            },
+        );
+        assert!(
+            matches!(result.left_provenance, Some(CadSubjectFaceProvenance::Generated { ref source, .. }) if source.face_index == 0)
+        );
+        assert!(matches!(
+            result.assessment,
+            CadCollisionAssessment::Unknown {
+                refinement_requested: true,
+                ..
+            }
+        ));
+        let summary = CadCollisionPairFinding {
+            left_id: left.id().into(),
+            left_label: left.label().into(),
+            right_id: right.id().into(),
+            right_label: right.label().into(),
+            result,
+        }
+        .summary(0.1);
+        assert!(summary.contains("Uncertain") && summary.contains("surface separation 1.000 mm"));
+        assert!(
+            summary.contains("20.00, 0.00, 0.00")
+                && summary.contains("requested accuracy remains unqualified")
+        );
+    }
+
+    #[test]
+    fn collision_physical_pcb_transform_composes_reference_side_and_offsets_once() {
+        let model: PcbModel = serde_json::from_value(serde_json::json!({
+            "id":"part", "reference":"U1", "path":"part.step", "pose":{"at":{"x":10,"y":20},"rotation":90}, "side":"front",
+            "offset":{"x":1,"y":2,"z":3}, "rotation":{"x":0,"y":0,"z":0}, "scale":{"x":2,"y":1,"z":1}
+        })).unwrap();
+        let reference: BoardReference = serde_json::from_value(serde_json::json!({
+            "id":"ref","boardId":"board","assetId":"pcb","enabled":true,"pose":{"at":{"x":100,"y":200},"rotation":90},"elevation":5,"modelAssets":{}
+        })).unwrap();
+        let point = |matrix: [f64; 16]| {
+            [
+                matrix[0] + matrix[12],
+                matrix[1] + matrix[13],
+                matrix[2] + matrix[14],
+            ]
+        };
+        for (side, expected) in [
+            (Side::Front, [77., 208., 8.]),
+            (Side::Back, [77., 212., 0.4]),
+        ] {
+            let model = PcbModel {
+                side,
+                ..model.clone()
+            };
+            let actual = point(
+                physical_pcb_model_row_transform_f64(&model, 1.6, Some(&reference), true).unwrap(),
+            );
+            for axis in 0..3 {
+                assert!((actual[axis] - expected[axis]).abs() < 1e-10);
+            }
+        }
+    }
+
+    #[test]
+    fn collision_step_refinement_identity_keeps_repair_and_target_separate() {
+        use boardstudio_web_host::cad_jobs::CadStepImportOptions;
+        let sha = "a".repeat(64);
+        let base = CadStepImportOptions {
+            preview_repair_budget_mm: Some(0.02),
+            ..Default::default()
+        };
+        let refined = CadStepImportOptions {
+            target_deflection_mm: Some(0.01),
+            ..base
+        };
+        assert!(!base.same_identity(refined));
+        assert_ne!(
+            derived_step_cache_key(&sha, base).unwrap(),
+            derived_step_cache_key(&sha, refined).unwrap()
+        );
+        assert!(refined.same_identity(refined));
+        for target in [0., -1., f64::NAN, f64::INFINITY] {
+            assert!(
+                derived_step_cache_key(
+                    &sha,
+                    CadStepImportOptions {
+                        target_deflection_mm: Some(target),
+                        ..base
+                    }
+                )
+                .is_err()
+            );
+        }
     }
 
     fn block_on<F: Future>(future: F) -> F::Output {

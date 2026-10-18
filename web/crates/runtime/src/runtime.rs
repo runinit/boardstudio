@@ -309,6 +309,8 @@ pub struct Runtime {
     >,
     layout_model_batch_generation: Cell<u64>,
     native_model_jobs: RefCell<BTreeSet<String>>,
+    generated_analysis_cache:
+        RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
     archive_export_options: ArchiveExportOptions,
     #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
@@ -389,6 +391,7 @@ impl Runtime {
             layout_model_rows: RefCell::new(None),
             layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
+            generated_analysis_cache: RefCell::new(BTreeMap::new()),
             archive_export_options: ArchiveExportOptions::default(),
             #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
@@ -2461,6 +2464,7 @@ impl Runtime {
             source_sha256: None,
             step_import_options: None,
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: vec![],
         };
@@ -3242,6 +3246,7 @@ impl Runtime {
     async fn read_step_model(
         &self,
         bytes: crate::model_delivery::VerifiedModelBytes,
+        import_options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
         scope: Scope,
         token: SnapshotToken,
         revision: u64,
@@ -3273,15 +3278,21 @@ impl Runtime {
             instance_id: scope.instance_id.clone(),
             revision,
         };
+        let prefix = if import_options.target_deflection_mm.is_some() {
+            "case-model-refine-step"
+        } else {
+            "case-model-step"
+        };
         let request = CadRequest {
-            request_id: format!("case-model-step-{revision}-{operation}"),
-            job_id: format!("case-model-step-{revision}-{operation}"),
+            request_id: format!("{prefix}-{revision}-{operation}"),
+            job_id: format!("{prefix}-{revision}-{operation}"),
             identity: identity.clone(),
             operation: CadOperation::ReadStep,
             prepared: None,
             source_sha256: Some(bytes.sha256().to_owned()),
-            step_import_options: None,
+            step_import_options: Some(import_options),
             collision_query: None,
+            generated_analysis_request: None,
             collision_meshes: None,
             input_bytes: bytes.bytes().to_vec(),
         };
@@ -3322,62 +3333,77 @@ impl Runtime {
         revision: u64,
         is_current: Rc<dyn Fn() -> bool>,
     ) -> Result<crate::model_delivery::CadCollisionResult, String> {
+        use crate::model_delivery::{CadCollisionSubject, resolve_physical_model_row_transform};
+        let left = CadCollisionSubject::VendorModel {
+            id: left.id.clone(),
+            reference: left.id.clone(),
+            row_transform_f64: resolve_physical_model_row_transform(
+                left,
+                left_explicit_pcb_transform,
+            )?,
+            vendor_step: left.mesh.vendor_step.clone(),
+        };
+        let right = CadCollisionSubject::VendorModel {
+            id: right.id.clone(),
+            reference: right.id.clone(),
+            row_transform_f64: resolve_physical_model_row_transform(
+                right,
+                right_explicit_pcb_transform,
+            )?,
+            vendor_step: right.mesh.vendor_step.clone(),
+        };
+        self.query_collision_subjects(
+            &left,
+            &right,
+            clearance_threshold_mm,
+            requested_accuracy_mm,
+            scope,
+            token,
+            revision,
+            is_current,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn query_collision_subjects(
+        &self,
+        left: &crate::model_delivery::CadCollisionSubject,
+        right: &crate::model_delivery::CadCollisionSubject,
+        clearance_threshold_mm: f64,
+        requested_accuracy_mm: Option<f64>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
         use crate::model_delivery::{
-            CadCollisionAssessment, CadCollisionResult, assess_collision_observation,
-            resolve_physical_model_row_transform,
+            CadCollisionAssessment, CadCollisionResult, assess_subject_collision_observation,
         };
-        use boardstudio_web_host::cad_jobs::{
-            CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery,
-        };
-
-        if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("STEP collision request became stale before worker setup".into());
+        use boardstudio_web_host::cad_jobs::{CadCollisionMeshPair, CadCollisionQuery};
+        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+            return Err("collision request became stale before worker setup".into());
         }
-        let (Some(left_step), Some(right_step)) = (&left.mesh.vendor_step, &right.mesh.vendor_step)
-        else {
-            return Ok(CadCollisionResult {
-                observation: None,
-                left_provenance: None,
-                right_provenance: None,
-                assessment: CadCollisionAssessment::Unknown {
-                    reasons: vec![
-                        "collision query requires retained vendor STEP source assets".into(),
-                    ],
-                    refinement_requested: requested_accuracy_mm.is_some(),
-                },
-            });
+        let operands = left
+            .operand()
+            .and_then(|left| right.operand().map(|right| (left, right)));
+        let (left_operand, right_operand) = match operands {
+            Ok(operands) => operands,
+            Err(reason) => {
+                return Ok(CadCollisionResult {
+                    observation: None,
+                    left_provenance: None,
+                    right_provenance: None,
+                    assessment: CadCollisionAssessment::Unknown {
+                        reasons: vec![reason],
+                        refinement_requested: requested_accuracy_mm.is_some(),
+                    },
+                });
+            }
         };
-        let left_transform =
-            match resolve_physical_model_row_transform(left, left_explicit_pcb_transform) {
-                Ok(matrix) => matrix,
-                Err(reason) => {
-                    return Ok(CadCollisionResult {
-                        observation: None,
-                        left_provenance: None,
-                        right_provenance: None,
-                        assessment: CadCollisionAssessment::Unknown {
-                            reasons: vec![reason],
-                            refinement_requested: requested_accuracy_mm.is_some(),
-                        },
-                    });
-                }
-            };
-        let right_transform =
-            match resolve_physical_model_row_transform(right, right_explicit_pcb_transform) {
-                Ok(matrix) => matrix,
-                Err(reason) => {
-                    return Ok(CadCollisionResult {
-                        observation: None,
-                        left_provenance: None,
-                        right_provenance: None,
-                        assessment: CadCollisionAssessment::Unknown {
-                            reasons: vec![reason],
-                            refinement_requested: requested_accuracy_mm.is_some(),
-                        },
-                    });
-                }
-            };
-
+        let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
+        let (right_positions, right_tags) =
+            right.mesh().ok_or("right analysis mesh is unavailable")?;
         let worker = crate::case_model_lifecycle::case_model_worker(
             &self.cad_worker,
             &scope,
@@ -3389,8 +3415,8 @@ impl Runtime {
             },
         )?;
         worker.ready().await.map_err(|error| error.to_string())?;
-        if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("STEP collision request became stale before dispatch".into());
+        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+            return Err("collision request became stale before dispatch".into());
         }
         let operation = self.operation().0;
         let identity = CadSnapshotIdentity {
@@ -3409,31 +3435,18 @@ impl Runtime {
             prepared: None,
             source_sha256: None,
             step_import_options: None,
+            generated_analysis_request: None,
             collision_query: Some(CadCollisionQuery {
-                left: CadCollisionOperand {
-                    model_id: left.id.clone(),
-                    source_sha256: left_step.source_sha256.clone(),
-                    import_options: left_step.import_options,
-                    row_transform_f64: left_transform,
-                },
-                right: CadCollisionOperand {
-                    model_id: right.id.clone(),
-                    source_sha256: right_step.source_sha256.clone(),
-                    import_options: right_step.import_options,
-                    row_transform_f64: right_transform,
-                },
+                left: left_operand,
+                right: right_operand,
                 clearance_threshold_mm,
                 requested_accuracy_mm,
             }),
             collision_meshes: Some(CadCollisionMeshPair {
-                left_positions_mm_f64: left_step.surface_positions_mm_f64.clone(),
-                left_triangle_face_occurrence_indices: left_step
-                    .triangle_face_occurrence_indices
-                    .clone(),
-                right_positions_mm_f64: right_step.surface_positions_mm_f64.clone(),
-                right_triangle_face_occurrence_indices: right_step
-                    .triangle_face_occurrence_indices
-                    .clone(),
+                left_positions_mm_f64: left_positions.to_vec(),
+                left_triangle_face_occurrence_indices: left_tags.to_vec(),
+                right_positions_mm_f64: right_positions.to_vec(),
+                right_triangle_face_occurrence_indices: right_tags.to_vec(),
             }),
             input_bytes: Vec::new(),
         };
@@ -3443,23 +3456,237 @@ impl Runtime {
         let reply = worker.request(request.clone()).await;
         self.native_model_jobs.borrow_mut().remove(&request.job_id);
         let reply = reply.map_err(|error| error.to_string())?;
-        if !is_current() || self.scope().as_ref() != Some(&scope) {
-            return Err("STEP collision request became stale after parsing".into());
+        if !is_current() || !self.collision_snapshot_is_current(&scope, token, revision) {
+            return Err("collision request became stale after parsing".into());
         }
         let result =
             validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
-        let observation = result
-            .collision
-            .ok_or_else(|| "STEP collision query returned no observation".to_owned())?;
-        Ok(assess_collision_observation(
-            left_step,
-            right_step,
+        Ok(assess_subject_collision_observation(
+            left,
+            right,
             clearance_threshold_mm,
             requested_accuracy_mm,
             None,
             false,
-            observation,
+            result
+                .collision
+                .ok_or("collision query returned no observation")?,
         ))
+    }
+
+    pub fn cancel_collision_checks(&self) {
+        let jobs = self
+            .native_model_jobs
+            .borrow()
+            .iter()
+            .filter(|job| {
+                job.starts_with("case-model-collision-")
+                    || job.starts_with("case-model-analysis-")
+                    || job.starts_with("case-model-refine-step-")
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for job in jobs {
+            self.native_model_jobs.borrow_mut().remove(&job);
+            if let Some((_, worker)) = self.cad_worker.borrow().as_ref() {
+                let _ = worker.cancel(&job);
+            }
+        }
+    }
+
+    fn collision_snapshot_is_current(
+        &self,
+        scope: &Scope,
+        token: SnapshotToken,
+        revision: u64,
+    ) -> bool {
+        self.scope().as_ref() == Some(scope)
+            && self.model().accepted.is_some_and(|accepted| {
+                accepted.token == token
+                    && accepted.document.revision == revision
+                    && accepted.session_epoch == scope.session_epoch
+                    && accepted.document.id == scope.document_id
+            })
+    }
+
+    pub async fn refine_collision_vendor(
+        &self,
+        scene: &CadScene,
+        subject: &crate::model_delivery::CadCollisionSubject,
+        target_deflection_mm: f64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionSubject, String> {
+        use crate::model_delivery::{CadCollisionSubject, VerifiedModelBytes};
+        let CadCollisionSubject::VendorModel {
+            id,
+            reference,
+            row_transform_f64,
+            vendor_step: Some(asset),
+        } = subject
+        else {
+            return Err(format!(
+                "{} has no retained vendor STEP source for refinement",
+                subject.label()
+            ));
+        };
+        if !is_current() {
+            return Err("vendor refinement became stale".into());
+        }
+        let cached = self.assets.borrow().get(&asset.source_sha256).cloned();
+        let bytes = match cached {
+            Some(bytes) => bytes,
+            None => self
+                .store
+                .load_asset(asset.source_sha256.clone())
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or("original vendor STEP bytes are unavailable")?
+                .to_vec(),
+        };
+        let bytes = VerifiedModelBytes::verify(bytes, &asset.source_sha256)?;
+        let options = boardstudio_web_host::cad_jobs::CadStepImportOptions {
+            target_deflection_mm: Some(target_deflection_mm),
+            ..asset.import_options
+        };
+        options.validate()?;
+        let arrays = self
+            .read_step_model(
+                bytes,
+                options,
+                scene.scope.clone(),
+                scene.token,
+                scene.snapshot.document.revision,
+                is_current,
+            )
+            .await?;
+        Ok(CadCollisionSubject::VendorModel {
+            id: id.clone(),
+            reference: reference.clone(),
+            row_transform_f64: *row_transform_f64,
+            vendor_step: arrays.vendor_step,
+        })
+    }
+
+    pub async fn analyze_generated_case_body(
+        &self,
+        scene: &CadScene,
+        body_id: &str,
+        target_deflection_mm: Option<f64>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String> {
+        use boardstudio_web_host::cad_jobs::{
+            CadGeneratedAnalysisRequest, generated_geometry_identity,
+        };
+        let revision = scene.snapshot.document.revision;
+        if !is_current()
+            || !scene.exact
+            || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            || !self
+                .cad_scene()
+                .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
+        {
+            return Err("generated analysis requires the current exact scene".into());
+        }
+        let body = scene
+            .prepared
+            .bodies
+            .iter()
+            .find(|body| body.body.id == body_id)
+            .ok_or("generated analysis body is not in the prepared scene")?;
+        let metadata = CadGeneratedAnalysisRequest {
+            body_id: body_id.into(),
+            geometry_identity: generated_geometry_identity(body)?,
+            target_deflection_mm,
+        };
+        boardstudio_web_host::cad_jobs::validate_generated_analysis_request(
+            Some(&scene.prepared),
+            revision,
+            &metadata,
+        )?;
+        let cache_key = format!(
+            "{:?}/{}/{}/{:?}",
+            scene.scope,
+            scene.token.0,
+            metadata.geometry_identity,
+            target_deflection_mm.map(f64::to_bits)
+        );
+        if let Some(cached) = self.generated_analysis_cache.borrow().get(&cache_key) {
+            boardstudio_web_host::cad_jobs::validate_generated_analysis(
+                &metadata, revision, cached,
+            )?;
+            return Ok(cached.clone());
+        }
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            &scene.scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if !is_current() || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+        {
+            return Err("generated analysis became stale before dispatch".into());
+        }
+        let operation = self.operation().0;
+        let identity = CadSnapshotIdentity {
+            token: scene.token.0,
+            session_epoch: scene.scope.session_epoch.0,
+            document_id: scene.scope.document_id.clone(),
+            board_id: scene.scope.board_id.clone(),
+            instance_id: scene.scope.instance_id.clone(),
+            revision,
+        };
+        let request = CadRequest {
+            request_id: format!("case-model-analysis-{revision}-{operation}"),
+            job_id: format!("case-model-analysis-{revision}-{operation}"),
+            identity: identity.clone(),
+            operation: CadOperation::AnalyzeGeneratedBody,
+            prepared: Some(scene.prepared.clone()),
+            generated_analysis_request: Some(metadata),
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
+            input_bytes: Vec::new(),
+        };
+        self.native_model_jobs
+            .borrow_mut()
+            .insert(request.job_id.clone());
+        let reply = worker.request(request.clone()).await;
+        self.native_model_jobs.borrow_mut().remove(&request.job_id);
+        let reply = reply.map_err(|error| error.to_string())?;
+        if !is_current()
+            || !self.collision_snapshot_is_current(&scene.scope, scene.token, revision)
+            || !self
+                .cad_scene()
+                .is_some_and(|current| std::ptr::eq(current.as_ref(), scene))
+        {
+            return Err("generated analysis became stale after dispatch".into());
+        }
+        let result =
+            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let analysis = Rc::new(
+            result
+                .generated_analysis
+                .ok_or("generated analysis returned no payload")?,
+        );
+        let mut cache = self.generated_analysis_cache.borrow_mut();
+        let bytes = |asset: &boardstudio_web_host::cad_jobs::CadGeneratedAnalysis| {
+            asset.surface_positions_mm_f64.len() * 8
+                + asset.triangle_face_occurrence_indices.len() * 4
+        };
+        if cache.len() >= 64
+            || cache.values().map(|asset| bytes(asset)).sum::<usize>() + bytes(&analysis)
+                > 64 * 1024 * 1024
+        {
+            cache.clear();
+        }
+        cache.insert(cache_key, analysis.clone());
+        Ok(analysis)
     }
 
     fn native_model_delivery_ports(
@@ -3615,7 +3842,14 @@ impl Runtime {
                         .upgrade()
                         .ok_or_else(|| "Model runtime was closed".to_owned())?;
                     runtime
-                        .read_step_model(bytes, scope, token, revision, is_current)
+                        .read_step_model(
+                            bytes,
+                            Default::default(),
+                            scope,
+                            token,
+                            revision,
+                            is_current,
+                        )
                         .await
                 })
             },
@@ -5572,6 +5806,7 @@ impl Runtime {
                 source_sha256: None,
                 step_import_options: None,
                 collision_query: None,
+                generated_analysis_request: None,
                 collision_meshes: None,
                 input_bytes: vec![],
             };
@@ -5706,6 +5941,7 @@ impl Runtime {
                 source_sha256: None,
                 step_import_options: None,
                 collision_query: None,
+                generated_analysis_request: None,
                 collision_meshes: None,
                 input_bytes: vec![],
             };
@@ -6677,6 +6913,10 @@ impl Drop for Runtime {
 #[path = "in_process_support.rs"]
 pub mod in_process_support;
 
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "runtime_collision_browser_tests.rs"]
+mod collision_browser_tests;
+
 #[cfg(test)]
 #[path = "source_pcb_export_tests.rs"]
 mod source_pcb_export_tests;
@@ -7037,6 +7277,7 @@ async fn request_exact_cad(
         source_sha256: None,
         step_import_options: None,
         collision_query: None,
+        generated_analysis_request: None,
         collision_meshes: None,
         input_bytes: Vec::new(),
     };
