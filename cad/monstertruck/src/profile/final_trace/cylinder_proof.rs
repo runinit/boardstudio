@@ -224,12 +224,27 @@ struct Circle {
     z: [Q; 2],
     source_error: Q,
     source_edges: Vec<HashSet<monstertruck_modeling::EdgeId>>,
+    source_levels: Vec<Q>,
     mesh_rings: Vec<Vec<P>>,
+    mesh_levels: Vec<Q>,
+    mesh_height: Q,
 }
 
-fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)> {
+struct TrimEnclosure {
+    radial: Q,
+    height: Q,
+    sign: i32,
+}
+impl TrimEnclosure {
+    fn total(&self) -> Q {
+        &self.radial + &self.height
+    }
+}
+
+fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<TrimEnclosure> {
     let mut endpoints = Vec::new();
     let mut error = n(0);
+    let mut height = n(0);
     let mut angular_sign = 0;
     for edge in wire.edge_iter() {
         // Native inversion reflects knots in f64 and can change the locus.
@@ -267,8 +282,8 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
             .iter()
             .map(|p| Ok([q(p.x)?, q(p.y)?, q(p.z)?, q(p.w)?]))
             .collect::<Proof<Vec<_>>>()?;
-        if control.iter().any(|p| p[3] <= n(0) || p[2] != z * &p[3]) {
-            return Err("nonplanar or nonpositive circular trim");
+        if control.iter().any(|p| p[3] <= n(0)) {
+            return Err("nonpositive circular trim denominator");
         }
         let first = spline_value(&knots, &control, &knots[0]);
         let last = spline_value(&knots, &control, &knots[knots.len() - 1]);
@@ -350,6 +365,14 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
                 .ok_or("empty radial polynomial")?;
             let minw = w.iter().min().ok_or("empty weights")?;
             error = error.max(residual / (minw * minw * radius));
+            // |Z/W-z| <= max |Z_i-z W_i| / min W_i on the entire span.
+            height = height.max(
+                span.iter()
+                    .map(|p| (&p[2] - z * &p[3]).abs())
+                    .max()
+                    .ok_or("empty height polynomial")?
+                    / minw,
+            );
             let p = dehom(&span[0]);
             if endpoints.last().is_some_and(|previous| previous != &p) {
                 return Err("discontinuous source trim span");
@@ -368,7 +391,11 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
     if turn(&endpoints, center)? != angular_sign {
         return Err("source circle winding");
     }
-    Ok((error, angular_sign))
+    Ok(TrimEnclosure {
+        radial: error,
+        height,
+        sign: angular_sign,
+    })
 }
 
 fn wire_ids(wire: &Wire) -> HashSet<monstertruck_modeling::EdgeId> {
@@ -414,12 +441,17 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
         z,
         source_error: n(0),
         source_edges: vec![],
+        source_levels: vec![],
         mesh_rings: boundary(tris)?,
+        mesh_levels: vec![],
+        mesh_height: n(0),
     };
     if circle.mesh_rings.len() != 2 {
         return Err("cylinder seam or missing patch");
     }
     let mut levels = BTreeSet::new();
+    let mut source_height = n(0);
+    let mut source_signs = BTreeSet::new();
     for wire in &face.boundaries {
         let level = point(wire.front_vertex().ok_or("empty circular trim")?.point())?[2].clone();
         // Line is an affine carrier: actual trim parameters may extend beyond
@@ -427,30 +459,48 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
         if !levels.insert(level.clone()) {
             return Err("cylinder source trim height");
         }
-        circle.source_error = circle
-            .source_error
-            .clone()
-            .max(curve_ring(wire, &circle.center, &circle.radius, &level)?.0);
+        let trim = curve_ring(wire, &circle.center, &circle.radius, &level)?;
+        circle.source_error = circle.source_error.clone().max(trim.total());
+        source_height = source_height.max(trim.height);
+        source_signs.insert(trim.sign);
         circle.source_edges.push(wire_ids(wire));
+        circle.source_levels.push(level);
     }
     circle.z = [
         levels.first().ok_or("missing lower source trim")?.clone(),
         levels.last().ok_or("missing upper source trim")?.clone(),
     ];
+    let gap = &circle.z[1] - &circle.z[0];
+    if n(2) * source_height >= gap || source_signs.len() != 2 {
+        return Err("source cylinder height graphs are not separated/oriented");
+    }
     levels.clear();
     for ring in &circle.mesh_rings {
-        if ring.iter().any(|p| p[2] != ring[0][2])
-            || !circle.z.contains(&ring[0][2])
-            || !levels.insert(ring[0][2].clone())
-        {
+        let midpoint = (&circle.z[0] + &circle.z[1]) / n(2);
+        let level = if ring.iter().all(|p| p[2] < midpoint) {
+            &circle.z[0]
+        } else if ring.iter().all(|p| p[2] > midpoint) {
+            &circle.z[1]
+        } else {
+            return Err("final cylinder height graphs are not separated");
+        };
+        if !levels.insert(level.clone()) {
             return Err("incomplete cylinder end rings");
         }
+        let height = ring.iter().map(|p| (&p[2] - level).abs()).max().unwrap();
+        if n(2) * &height >= gap {
+            return Err("final cylinder height enclosure exceeds half interval");
+        }
+        circle.mesh_height = circle.mesh_height.clone().max(height);
+        circle.mesh_levels.push(level.clone());
         turn(ring, &circle.center)?;
     }
     let mut error = n(0);
     let mut orientation = 0;
     for tri in tris {
-        if tri.iter().any(|p| p[2] < circle.z[0] || p[2] > circle.z[1]) {
+        if tri.iter().any(|p| {
+            p[2] < &circle.z[0] - &circle.mesh_height || p[2] > &circle.z[1] + &circle.mesh_height
+        }) {
             return Err("cylinder height overshoot");
         }
         let normal = cross(&sub(&tri[1], &tri[0]), &sub(&tri[2], &tri[0]));
@@ -524,7 +574,7 @@ fn plane_frame(plane: &monstertruck_modeling::Plane) -> Proof<(usize, Q, P)> {
     Ok((axis, transformed[0][axis].clone(), normal))
 }
 
-fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
+fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<(Vec<P>, Q)> {
     if wire.len() < 4 || wire.len() > 128 {
         return Err("unsupported noncircular trim");
     }
@@ -540,12 +590,7 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
         };
         let a = point(front)?;
         let b = point(back)?;
-        if a == b
-            || a != point(edge.front().point())?
-            || b != point(edge.back().point())?
-            || a[axis] != *level
-            || b[axis] != *level
-        {
+        if a == b || a != point(edge.front().point())? || b != point(edge.back().point())? {
             return Err("line trim/support mismatch");
         }
         if points.last().is_some_and(|p| p != &a) {
@@ -560,6 +605,17 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
         return Err("open rectangle");
     }
     points.pop();
+    // A retained line's normal coordinate is affine. Its endpoint maximum
+    // encloses the entire source-to-plane discrepancy, including placement.
+    let height = points
+        .iter()
+        .map(|p| (&p[axis] - level).abs())
+        .max()
+        .unwrap();
+    let mut points = points
+        .iter()
+        .map(|p| project(p, axis, level))
+        .collect::<Vec<_>>();
     loop {
         let count = points.len();
         let removable = (0..count).find(|&i| {
@@ -592,7 +648,7 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
             return Err("diagonal rectangle trim");
         }
     }
-    Ok(points)
+    Ok((points, height))
 }
 fn rectangle_matches(source: &[P], actual: &[P]) -> Proof<()> {
     let mut intervals = vec![Vec::<(Q, Q)>::new(); 4];
@@ -644,6 +700,11 @@ enum CapRing {
     Rectangle(Vec<P>),
     Circular(usize),
 }
+fn project(p: &P, axis: usize, level: &Q) -> P {
+    let mut out = p.clone();
+    out[axis] = level.clone();
+    out
+}
 fn planar(
     face: &RetainedFace,
     tris: &[[P; 3]],
@@ -659,10 +720,9 @@ fn planar(
         normal = normal.map(|v| -v);
     }
     let mut tri_sign = 0;
+    let mut mesh_height = n(0);
     for tri in tris {
-        if tri.iter().any(|p| p[axis] != level) {
-            return Err("nonplanar final triangle");
-        }
+        mesh_height = mesh_height.max(tri.iter().map(|p| (&p[axis] - &level).abs()).max().unwrap());
         let nn = cross(&sub(&tri[1], &tri[0]), &sub(&tri[2], &tri[0]));
         if &nn[axis] * &normal[axis] <= n(0) {
             return Err("plane triangle orientation/degeneracy");
@@ -678,6 +738,32 @@ fn planar(
     if rings.len() != face.boundaries.len() {
         return Err("incomplete cap holes/domain");
     }
+    // The same delivered triangles project affinely; positivity above excludes
+    // collapsed/folded projections. Authenticate their complete projected chain.
+    let projected = tris
+        .iter()
+        .map(|tri| tri.each_ref().map(|p| project(p, axis, &level)))
+        .collect::<Vec<_>>();
+    let projected_rings = boundary(&projected)?;
+    let expected_rings = rings
+        .iter()
+        .map(|ring| {
+            edge_set(
+                &ring
+                    .iter()
+                    .map(|p| project(p, axis, &level))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    if projected_rings
+        .iter()
+        .map(|r| edge_set(r))
+        .collect::<BTreeSet<_>>()
+        != expected_rings
+    {
+        return Err("projection changed cap boundary census");
+    }
     let mut specs = Vec::new();
     let mut source_error = cylinder_source_error.clone();
     for (index, wire) in face.boundaries.iter().enumerate() {
@@ -688,15 +774,22 @@ fn planar(
                 return Err("nonhorizontal circular cap");
             }
             let c = &circles[ci];
-            let (trim_error, source_sign) = curve_ring(wire, &c.center, &c.radius, &level)?;
-            source_error = source_error.max(trim_error);
-            if source_sign != if index == 0 { tri_sign } else { -tri_sign } {
+            let source_end = c
+                .source_edges
+                .iter()
+                .position(|edges| edges == &ids)
+                .unwrap();
+            let trim = curve_ring(wire, &c.center, &c.radius, &level)?;
+            source_error = source_error.max(trim.total());
+            if trim.sign != if index == 0 { tri_sign } else { -tri_sign } {
                 return Err("source cap circular material orientation");
             }
             let expected = c
                 .mesh_rings
                 .iter()
-                .find(|r| r[0][2] == level)
+                .zip(&c.mesh_levels)
+                .find(|(_, z)| **z == c.source_levels[source_end])
+                .map(|(ring, _)| ring)
                 .ok_or("missing cap/cylinder join")?;
             let pos = rings
                 .iter()
@@ -704,7 +797,8 @@ fn planar(
                 .ok_or("cap/cylinder boundary mismatch")?;
             (pos, CapRing::Circular(ci))
         } else {
-            let source = rectangle_wire(wire, axis, &level)?;
+            let (source, height) = rectangle_wire(wire, axis, &level)?;
+            source_error = source_error.max(height);
             let source_sign = if ring_area(&source, axis) > n(0) {
                 1
             } else {
@@ -715,7 +809,15 @@ fn planar(
             }
             let pos = rings
                 .iter()
-                .position(|r| rectangle_matches(&source, r).is_ok())
+                .position(|r| {
+                    rectangle_matches(
+                        &source,
+                        &r.iter()
+                            .map(|p| project(p, axis, &level))
+                            .collect::<Vec<_>>(),
+                    )
+                    .is_ok()
+                })
                 .ok_or("uncovered rectangular cap")?;
             (pos, CapRing::Rectangle(source))
         };
@@ -731,7 +833,7 @@ fn planar(
     }
     // Every cap authenticates its own raw trims. Carrier identity does not
     // authorize discarding their error, even if the cylinder was checked first.
-    let band = mesh_error + source_error;
+    let band = mesh_error + source_error + mesh_height;
     for spec in &specs {
         if let CapRing::Circular(ci) = spec
             && band >= circles[*ci].radius
@@ -886,10 +988,12 @@ fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace
     let mut circles = Vec::new();
     let mut mesh_error = n(0);
     let mut source_error = n(0);
+    let mut mesh_height = n(0);
     for (face, tris) in trace.faces.iter().zip(&groups) {
         if matches!(face.surface, Surface::RevolutionSurface(_)) {
             let (circle, error) = cylinder(face, tris)?;
             source_error = source_error.max(circle.source_error.clone());
+            mesh_height = mesh_height.max(circle.mesh_height.clone());
             mesh_error = mesh_error.max(error);
             circles.push(circle);
         }
@@ -897,7 +1001,7 @@ fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace
     if circles.is_empty() {
         return Err("no supported cylinder");
     }
-    let mut band = &mesh_error + &source_error;
+    let mut band = &mesh_error + &source_error + mesh_height;
     for c in &circles {
         if band >= c.radius {
             return Err("radial band reaches axis");
@@ -1043,18 +1147,356 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
         let model = crate::build_case(&input).unwrap();
         let (mesh, trace) = checked_trace(&model, Some(0.01));
         assert!(bind(&model, &mesh, &trace).is_ok());
-        for face in &trace.faces {
-            let z = face.polygon.positions().iter().map(|p| p.z).fold(
-                (f64::INFINITY, f64::NEG_INFINITY),
-                |(lo, hi), z| (lo.min(z), hi.max(z)),
-            );
-            eprintln!("1.6 support={} final-z={z:?}", face.source.support_kind);
-        }
         assert_eq!(mesh.bounds[0][2], 0.);
         let error = bound(&model, &mesh, &trace);
         assert!(error < 0.04);
         assert!((q(mesh.bounds[1][2]).unwrap() - q(1.6).unwrap()).abs() <= q(error).unwrap());
+        let expected_xy = if input.body.pcb_source.is_some() {
+            [[8., 6.], [12., 10.]] // Authored center (10,8), radius 2.
+        } else {
+            [[0., 0.], [20., 10.]]
+        };
+        for (actual, expected) in mesh.bounds.iter().zip(expected_xy) {
+            for axis in 0..2 {
+                assert!(
+                    (q(actual[axis]).unwrap() - q(expected[axis]).unwrap()).abs()
+                        <= q(error).unwrap()
+                );
+            }
+        }
+        let groups = bind(&model, &mesh, &trace).unwrap();
+        let mut radii = BTreeSet::new();
+        for (face, tris) in trace.faces.iter().zip(&groups) {
+            if matches!(face.surface, Surface::RevolutionSurface(_)) {
+                let (c, _) = cylinder(face, tris).unwrap();
+                assert_eq!(c.z, [n(0), q(1.6).unwrap()]);
+                assert_eq!(
+                    c.center,
+                    if input.body.pcb_source.is_some() {
+                        [n(10), n(8)]
+                    } else {
+                        [n(10), n(5)]
+                    }
+                );
+                radii.insert(c.radius);
+            }
+        }
+        assert_eq!(
+            radii,
+            if input.body.pcb_source.is_some() {
+                BTreeSet::from([n(2), n(1) / n(2)])
+            } else {
+                BTreeSet::from([n(1)])
+            }
+        );
+        let (ci, wi) = upper_circular_trim(&trace);
+        let (circle, _) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
+        let trim = curve_ring(
+            &trace.faces[ci].boundaries[wi],
+            &circle.center,
+            &circle.radius,
+            &q(1.6).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            trim.height > n(0),
+            "exercise the real retained nonplanarity"
+        );
+        assert!(
+            circle.mesh_height > n(0),
+            "exercise final evaluation rounding"
+        );
+        let (coarse, coarse_trace) = checked_trace(&model, None);
+        let coarse_error = bound(&model, &coarse, &coarse_trace);
+        assert!(coarse_error > error && coarse_error < 0.2);
+        eprintln!(
+            "1.6 source-backed={}: default={coarse_error:.17} tight={error:.17}",
+            input.body.pcb_source.is_some()
+        );
         assert_eq!(mesh.analysis_error_bound_mm, None);
+    }
+}
+
+fn upper_circular_trim(trace: &AnalysisTrace) -> (usize, usize) {
+    let (fi, face) = trace
+        .faces
+        .iter()
+        .enumerate()
+        .find(|(_, face)| matches!(face.surface, Surface::RevolutionSurface(_)))
+        .unwrap();
+    let (wi, _) = face
+        .boundaries
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| {
+            a.front_vertex()
+                .unwrap()
+                .point()
+                .z
+                .total_cmp(&b.front_vertex().unwrap().point().z)
+        })
+        .unwrap();
+    (fi, wi)
+}
+
+#[test]
+fn cylinder_proof_height_distortion_grows_and_encloses_an_independent_source_witness() {
+    let mut previous = n(0);
+    for delta in [0., 0.03125, 0.125, 0.25, 1.] {
+        let model = crate::build_case(&drilled_input(1., 1.6)).unwrap();
+        let (mesh, trace) = checked_trace(&model, Some(0.01));
+        let (ci, wi) = upper_circular_trim(&trace);
+        let edge = trace.faces[ci].boundaries[wi].edge_iter().next().unwrap();
+        let Curve::NurbsCurve(mut raw) = edge.curve() else {
+            unreachable!()
+        };
+        raw.control_point_mut(1).z += delta;
+        // Independent closed-form B-spline basis at t=1/8 in the actual first
+        // span [0,1/4]: (N0,N1,N2)=(2,5,1)/8. No extraction/evaluation helper.
+        assert_eq!(&raw.knot_vector()[..5], &[0., 0., 0., 0.25, 0.5]);
+        let mut zz = n(0);
+        let mut ww = n(0);
+        for (i, weight) in [2, 5, 1].into_iter().enumerate() {
+            zz += n(weight) * q(raw.control_point(i).z).unwrap();
+            ww += n(weight) * q(raw.control_point(i).w).unwrap();
+        }
+        let witness_z = zz / ww;
+        let final_max_z = mesh
+            .positions_mm_f64
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .map(|p| q(p[2]).unwrap())
+            .max()
+            .unwrap();
+        edge.set_curve(Curve::NurbsCurve(raw));
+        assert!(bind(&model, &mesh, &trace).is_ok());
+        if delta == 1. {
+            unknown(&model, &mesh, &trace); // height slabs no longer separated
+            continue;
+        }
+        let error = q(bound(&model, &mesh, &trace)).unwrap();
+        assert!(error > previous);
+        assert!(
+            error >= &witness_z - final_max_z,
+            "retained upper source point lies above every final triangle"
+        );
+        previous = error;
+        let groups = bind(&model, &mesh, &trace).unwrap();
+        let (circle, radial) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
+        let ids = wire_ids(&trace.faces[ci].boundaries[wi]);
+        let cap = trace
+            .faces
+            .iter()
+            .position(|face| {
+                matches!(face.surface, Surface::Plane(_))
+                    && face.boundaries.iter().any(|w| wire_ids(w) == ids)
+            })
+            .unwrap();
+        let local_cap = planar(&trace.faces[cap], &groups[cap], &[circle], &radial, &n(0)).unwrap();
+        assert!(
+            local_cap >= (&witness_z - q(1.6).unwrap()).abs(),
+            "cap cannot discard its own trim height contribution"
+        );
+        eprintln!(
+            "height coefficient delta={delta}: bound={:.17}",
+            previous.to_f64().unwrap()
+        );
+    }
+}
+
+#[test]
+fn cylinder_proof_1_6_malformed_trim_domains_and_denominators_are_unknown() {
+    use monstertruck_modeling::{BsplineCurve, NurbsCurve};
+    for mutation in 0..4 {
+        let model = crate::build_case(&drilled_input(1., 1.6)).unwrap();
+        let (mesh, trace) = checked_trace(&model, Some(0.01));
+        let (ci, wi) = upper_circular_trim(&trace);
+        let edge = trace.faces[ci].boundaries[wi].edge_iter().next().unwrap();
+        let Curve::NurbsCurve(mut raw) = edge.curve() else {
+            unreachable!()
+        };
+        match mutation {
+            0 => raw.control_point_mut(1).w = 0.,
+            1 => raw.control_point_mut(1).w = -0.25,
+            2 => {
+                // Retain only a first subarc, with the real end vertex intact.
+                assert!(raw.control_points().len() > 3);
+                raw = NurbsCurve::new(BsplineCurve::new(
+                    vec![0., 0., 0., 1., 1., 1.].into(),
+                    raw.control_points()[..3].to_vec(),
+                ));
+            }
+            _ => {
+                let mut knots = raw.knot_vector().iter().copied().collect::<Vec<_>>();
+                let mut controls = raw.control_points().clone();
+                knots.insert(4, 0.5);
+                knots.insert(4, 0.5);
+                controls.insert(3, controls[3]);
+                controls.insert(3, controls[3]);
+                raw = NurbsCurve::new(BsplineCurve::new(knots.into(), controls));
+            }
+        }
+        edge.set_curve(Curve::NurbsCurve(raw));
+        assert!(bind(&model, &mesh, &trace).is_ok());
+        unknown(&model, &mesh, &trace);
+    }
+}
+
+#[test]
+fn cylinder_proof_1_6_height_bands_enter_narrow_hole_separation() {
+    let mut input = drilled_input(1., 1.6);
+    input.regions[0].mounts[0].at.x = 1.03125;
+    let model = crate::build_case(&input).unwrap();
+    let (mesh, trace) = checked_trace(&model, Some(0.01));
+    assert!(bound(&model, &mesh, &trace) < 0.03125);
+    let (ci, wi) = upper_circular_trim(&trace);
+    let edge = trace.faces[ci].boundaries[wi].edge_iter().next().unwrap();
+    let Curve::NurbsCurve(mut raw) = edge.curve() else {
+        unreachable!()
+    };
+    raw.control_point_mut(1).z += 0.03125;
+    edge.set_curve(Curve::NurbsCurve(raw));
+    assert!(bind(&model, &mesh, &trace).is_ok());
+    match qualify(&model, &mesh, &trace) {
+        GeneratedQualification::Unknown { reasons } => assert!(
+            reasons[0].contains("trim band reaches exterior"),
+            "{reasons:?}"
+        ),
+        other => panic!("narrow domain must refuse inflated trim slab: {other:?}"),
+    }
+}
+
+#[test]
+fn cylinder_proof_1_6_source_plane_displacement_is_charged() {
+    let model = crate::build_case(&drilled_input(1., 1.6)).unwrap();
+    let (mesh, mut trace) = checked_trace(&model, Some(0.01));
+    let original = q(bound(&model, &mesh, &trace)).unwrap();
+    let cap = trace.faces.iter().position(|face| {
+        matches!(&face.surface, Surface::Plane(plane) if plane_frame(plane).unwrap().0 == 2 && plane_frame(plane).unwrap().1 > n(0))
+    }).unwrap();
+    let Surface::Plane(plane) = &trace.faces[cap].surface else {
+        unreachable!()
+    };
+    let mut value = serde_json::to_value(plane).unwrap();
+    value["transform"]["w"]["z"] = serde_json::json!(0.125);
+    let surface = Surface::Plane(serde_json::from_value(value).unwrap());
+    model.solids[0].boundaries()[0]
+        .face_iter()
+        .nth(cap)
+        .unwrap()
+        .set_surface(surface.clone());
+    trace.faces[cap].surface = surface;
+    assert!(bind(&model, &mesh, &trace).is_ok());
+    let displaced = q(bound(&model, &mesh, &trace)).unwrap();
+    assert!(displaced > original && displaced >= n(1) / n(8));
+}
+
+#[test]
+fn cylinder_proof_1_6_final_cap_and_end_height_displacement_is_charged() {
+    for delta in [0.125, 2.] {
+        let model = crate::build_case(&drilled_input(1., 1.6)).unwrap();
+        let (mut mesh, mut trace) = checked_trace(&model, Some(0.01));
+        let original = q(bound(&model, &mesh, &trace)).unwrap();
+        // An independent raw positive-weight hull bounds every source trim Z.
+        let mut source_max_z = q(1.6).unwrap();
+        for face in &trace.faces {
+            for wire in &face.boundaries {
+                for edge in wire.edge_iter() {
+                    if let Curve::NurbsCurve(raw) = edge.curve() {
+                        for p in raw.control_points() {
+                            source_max_z = source_max_z.max(q(p.z).unwrap() / q(p.w).unwrap());
+                        }
+                    }
+                }
+            }
+        }
+        // Move the actual shared hole boundary on cap and cylinder; outer
+        // rectangle/side boundaries stay put. This leaves a sloping final cap.
+        for face in &mut trace.faces {
+            for p in face.polygon.positions_mut() {
+                let dx = q(p.x).unwrap() - n(10);
+                let dy = q(p.y).unwrap() - n(5);
+                if p.z > 0. && &dx * &dx + &dy * &dy < n(2) {
+                    p.z += delta;
+                }
+            }
+        }
+        for (i, tri) in trace.triangles.iter_mut().enumerate() {
+            for (j, vertex) in tri.vertices.iter().enumerate() {
+                let p = trace.faces[tri.occurrence_index].polygon.positions()[vertex.pos];
+                for (axis, coordinate) in [p.x, p.y, p.z].into_iter().enumerate() {
+                    tri.positions_mm_f64[j * 3 + axis] = coordinate;
+                    tri.rendered_positions_f32[j * 3 + axis] = coordinate as f32;
+                    mesh.positions_mm_f64[i * 9 + j * 3 + axis] = coordinate;
+                    mesh.mesh.positions[i * 9 + j * 3 + axis] = coordinate as f32;
+                }
+            }
+        }
+        assert!(bind(&model, &mesh, &trace).is_ok());
+        if delta == 2. {
+            unknown(&model, &mesh, &trace);
+        } else {
+            let error = q(bound(&model, &mesh, &trace)).unwrap();
+            let final_max_z = mesh
+                .positions_mm_f64
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .map(|p| q(p[2]).unwrap())
+                .max()
+                .unwrap();
+            assert!(error > original && error >= final_max_z - source_max_z);
+        }
+    }
+}
+
+#[test]
+fn cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once() {
+    use monstertruck_modeling::Matrix4;
+    for thickness in [1.6, 2.] {
+        let mut input = drilled_input(1., thickness);
+        input.body.z = Some(7.);
+        let model = crate::build_case(&input).unwrap();
+        let translated = ExactModel {
+            solids: model
+                .solids
+                .iter()
+                .map(|s| builder::translated(s, Vector3::new(32., -16., 8.)))
+                .collect(),
+        };
+        let (mesh, trace) = checked_trace(&translated, Some(0.01));
+        let error = q(bound(&translated, &mesh, &trace)).unwrap();
+        assert!(error < n(1) / n(25));
+        let expected = [[32., -16., 15.], [52., -6., 15. + thickness]];
+        for (actual, expected) in mesh.bounds.iter().zip(expected) {
+            for axis in 0..3 {
+                assert!((q(actual[axis]).unwrap() - q(expected[axis]).unwrap()).abs() <= error);
+            }
+        }
+        let reflected = ExactModel {
+            solids: translated
+                .solids
+                .iter()
+                .map(|s| {
+                    let mut s =
+                        builder::transformed(s, Matrix4::from_nonuniform_scale(-1., 1., 1.));
+                    s.not();
+                    s
+                })
+                .collect(),
+        };
+        let (mesh, trace) = checked_trace(&reflected, Some(0.01));
+        assert_eq!(mesh.bounds[0][0], -52.);
+        assert_eq!(mesh.bounds[1][0], -32.);
+        assert!(bind(&reflected, &mesh, &trace).is_ok());
+        // Reflected native processors are outside this canonical-carrier class.
+        match qualify(&reflected, &mesh, &trace) {
+            GeneratedQualification::Unknown { reasons } => {
+                assert!(reasons[0].contains("affine transform"), "{reasons:?}")
+            }
+            other => panic!("unqualified reflected carrier must refuse: {other:?}"),
+        }
     }
 }
 
@@ -1223,11 +1665,8 @@ fn cylinder_proof_rejects_bad_span_retrace_and_normalization() {
 }
 
 #[test]
-fn cylinder_proof_nonplanar_trim_and_cone_remain_unknown() {
+fn cylinder_proof_cone_remains_unknown() {
     use boardstudio_contracts::CaseFeature;
-    let model = crate::build_case(&drilled_input(1., 1.6)).unwrap();
-    let (mesh, trace) = checked_trace(&model, None);
-    unknown(&model, &mesh, &trace);
     let mut input = drilled_input(1., 4.);
     input.regions[0].mounts.clear();
     input.body.features = Some(vec![CaseFeature::ConicalSeat {
@@ -1295,7 +1734,9 @@ fn cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution() {
     };
     curve.control_point_mut(1).z += 0.25;
     edge.set_curve(Curve::NurbsCurve(curve));
-    unknown(&model, &mesh, &trace);
+    let (height_changed, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
+    assert!(height_changed.source_error > changed.source_error);
+    assert!(prove(&model, &mesh, &trace).unwrap() > n(1) / n(4));
 }
 
 #[test]
@@ -1350,7 +1791,14 @@ fn generated_cylinder_proof_actual_wasm() {
     cylinder_proof_missing_duplicate_and_seam_sliver_fail_after_binding();
     cylinder_proof_missing_uv_face_and_occurrence_are_unknown();
     cylinder_proof_rejects_bad_span_retrace_and_normalization();
-    cylinder_proof_nonplanar_trim_and_cone_remain_unknown();
+    cylinder_proof_cone_remains_unknown();
+    cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure();
+    cylinder_proof_height_distortion_grows_and_encloses_an_independent_source_witness();
+    cylinder_proof_1_6_malformed_trim_domains_and_denominators_are_unknown();
+    cylinder_proof_1_6_height_bands_enter_narrow_hole_separation();
+    cylinder_proof_1_6_source_plane_displacement_is_charged();
+    cylinder_proof_1_6_final_cap_and_end_height_displacement_is_charged();
+    cylinder_proof_1_6_elevation_translation_and_reflection_are_applied_once();
     cylinder_proof_source_translation_and_large_coordinate_controls();
     cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution();
     cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown();
@@ -1601,7 +2049,7 @@ fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
         &p[2],
     )
     .unwrap()
-    .0;
+    .total();
     let rho = n(1) / n(32);
     assert!(cap_error > n(1) / n(4));
     assert!(cap_wire > 0, "witness winding is in a source hole");
@@ -1686,12 +2134,13 @@ fn p1_raw_orientation_preserves_locus_when_reflected_knots_collide() {
     let reversed: Wire = wire.edge_iter().rev().map(|edge| edge.inverse()).collect();
     let forward = curve_ring(wire, &[n(10), n(5)], &n(1), &case.witness[2]).unwrap();
     let backward = curve_ring(&reversed, &[n(10), n(5)], &n(1), &case.witness[2]).unwrap();
-    assert!(forward.0 > n(1) / n(4));
+    assert!(forward.total() > n(1) / n(4));
     assert_eq!(
-        forward.0, backward.0,
+        forward.total(),
+        backward.total(),
         "raw source enclosure must be orientation invariant"
     );
-    assert_eq!(forward.1, -backward.1);
+    assert_eq!(forward.sign, -backward.sign);
 }
 
 #[test]
@@ -1708,7 +2157,7 @@ fn p1_cap_trim_error_is_returned_without_a_cylinder_error_allowance() {
         &case.witness[2],
     )
     .unwrap()
-    .0;
+    .total();
     // Authenticate the cap independently, with no allowance inherited from a
     // cylinder pass. Its own raw trim error must still enter the returned band.
     let cap_band = planar(cap, &groups[case.cap.0], &[circle], &mesh_error, &n(0)).unwrap();
