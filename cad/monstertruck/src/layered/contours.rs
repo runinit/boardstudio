@@ -383,7 +383,7 @@ fn complement(p: &Profile, frame: &Ring) -> Result<Profile, String> {
 }
 pub(super) fn difference(p: &Profile, cutter: &Ring) -> Result<Profile, String> {
     let mut result = Vec::new();
-    for r in p {
+    'regions: for r in p {
         let mut voids = r.holes.clone();
         voids.push(ccw(cutter.clone()));
         let mut merged: Vec<Ring> = vec![];
@@ -391,9 +391,18 @@ pub(super) fn difference(p: &Profile, cutter: &Ring) -> Result<Profile, String> 
             let mut i = 0;
             while i < merged.len() {
                 let (pos, neg, info) = pair(&pending, &merged[i], BooleanOp::Or)?;
-                // shortcut: void unions enclosing new material need a proved multi-ring adapter.
                 if !neg.is_empty() {
-                    return Err("unsupported void union creates a material island".into());
+                    let void = from_rings(
+                        pos.into_iter()
+                            .map(|ring| (ring, true))
+                            .chain(neg.into_iter().map(|ring| (ring, false)))
+                            .collect(),
+                    )?;
+                    // This union contains only old voids and possibly the cutter.
+                    // Keep its inner rings as material, then apply the complete cutter.
+                    let remaining = subtract_profile(&vec![r.clone()], &void, &r.outer)?;
+                    result.extend(difference(&remaining, cutter)?);
+                    continue 'regions;
                 }
                 if matches!(info, BooleanResultInfo::Disjoint) {
                     i += 1;

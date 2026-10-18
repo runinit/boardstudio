@@ -223,7 +223,7 @@
         "inside": false
       }
     ],
-    "expectedRefusal": "material island",
+    "expectedRefusal": null,
     "coneFaces": 0
   },
   {

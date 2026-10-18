@@ -430,6 +430,117 @@ fn adoption_ring_island_blind_cut_preserves_connected_floor() {
     );
 }
 
+#[test]
+fn adoption_ring_island_product_removes_only_the_authored_blind_union() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../core/tests/fixtures/adoption-reachability.json"
+    ))
+    .unwrap();
+    let baseline: PreparedCaseIR =
+        serde_json::from_value(fixture["baselinePreparedBottom"].clone()).unwrap();
+    let product: PreparedCaseIR = serde_json::from_value(
+        fixture["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|case| case["prototypeId"] == "opening-ring-island")
+            .unwrap()["preparedBody"]
+            .clone(),
+    )
+    .unwrap();
+    let baseline = crate::build_case(&baseline).unwrap();
+    assert_eq!(baseline.solids.len(), 1);
+    let baseline = shell_to_polygon_strict(&baseline.solids[0].boundaries()[0], 1e-4).unwrap();
+    verify(
+        &product,
+        baseline.volume() - 164., // Unchanged independent cutter union: 82 mm² * 2 mm.
+        [[-7.502, -7.502, -4.25], [107.502, 77.502, 8.2]],
+        &[
+            ([10., 8., -2.75], true),
+            ([5., 8., -2.75], false),
+            ([5., 8., -4.], true),
+            ([1., 1., -2.75], true),
+        ],
+        8,
+        0,
+    );
+}
+
+#[test]
+fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/opening-ring-island.json"
+    ))
+    .unwrap();
+    for opening in input.body.openings.as_mut().unwrap() {
+        opening.z = 0.;
+        opening.height = 4.;
+    }
+    let model = crate::build_case(&input).expect("legitimate post-opening material split");
+    assert_eq!(
+        model.solids.len(),
+        2,
+        "through cut disconnects the 32 mm² island"
+    );
+    let mut volumes = Vec::new();
+    for solid in &model.solids {
+        assert_eq!(solid.boundaries().len(), 1);
+        Solid::try_new(solid.boundaries().clone()).unwrap();
+        assert!(solid.is_geometric_consistent());
+        volumes.push(
+            shell_to_polygon_strict(&solid.boundaries()[0], 1e-4)
+                .unwrap()
+                .volume(),
+        );
+    }
+    volumes.sort_by(f64::total_cmp);
+    for (actual, expected) in volumes.into_iter().zip([128., 824.]) {
+        assert!((actual - expected).abs() < 1e-8);
+    }
+    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 2);
+    assert_eq!(step.matches("CLOSED_SHELL(").count(), 2);
+    assert!(!step.contains("B_SPLINE_SURFACE"));
+    let facts = crate::step_accuracy::inspect(&step).unwrap();
+    assert_eq!(
+        facts
+            .iter()
+            .filter(|solid| solid.contains([10., 8., 2.]))
+            .count(),
+        1
+    );
+    assert!(facts.iter().all(|solid| !solid.contains([5., 8., 2.])));
+}
+
+#[test]
+fn adoption_ring_island_retains_another_owned_cut_in_either_authoring_order() {
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/opening-ring-island.json"
+    ))
+    .unwrap();
+    input.body.openings.as_mut().unwrap().push(CaseOpening {
+        points: rectangle(8., 7., 4., 2.),
+        z: 2.,
+        height: 2.,
+    });
+    for _ in 0..2 {
+        verify(
+            &input,
+            1100., // Original 164 mm³ cut plus an independent 8 mm² * 2 mm island pocket.
+            [[0., 0., 0.], [20., 16., 4.]],
+            &[
+                ([10., 8., 3.], false),
+                ([7., 8., 3.], true),
+                ([5., 8., 3.], false),
+                ([10., 8., 1.], true),
+            ],
+            0,
+            0,
+        );
+        input.body.openings.as_mut().unwrap().reverse();
+    }
+}
+
 fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64, r1: f64) {
     use std::collections::BTreeMap;
     use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};

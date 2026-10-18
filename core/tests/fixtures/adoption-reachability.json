@@ -2791,10 +2791,18 @@
         ]
       },
       "expectedBackend": {
-        "state": "named-refusal",
-        "reason": "unsupported void union creates a material island",
-        "featureId": "opening-1",
-        "removedVolumeMm3": 164
+        "state": "supported",
+        "removedVolumeMm3": 164,
+        "solidCount": 1,
+        "shellCount": 1,
+        "cylindricalFaces": 8,
+        "conicalFaces": 0,
+        "boundsMm": [[-7.502, -7.502, -4.25], [107.502, 77.502, 8.2]],
+        "materialProbes": [
+          {"pointMm": [10, 8, -2.75], "inside": true},
+          {"pointMm": [5, 8, -2.75], "inside": false},
+          {"pointMm": [5, 8, -4], "inside": true}
+        ]
       }
     }
   ]

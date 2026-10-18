@@ -1,5 +1,7 @@
 # Four mechanical prototypes: executed reachability, 2026-10-18
 
+Current successor: the bounded [ring-island implementation](ring-island-implementation-2026-10-18.md) fixes the reproduced U+cap case. The report below preserves `a5571b508`'s reachability/RED checkpoint; its literal requests, emitted bodies and the other three prototype dispositions remain intact.
+
 Bounded continuation after `2b16087a7` and `0c15db5d5`. Beam's `cc2804935acb3a733fb619321917d33d3f2934da` was read with `git show`, not applied or rewritten here. This note adds executed producer evidence to that static inventory. No production geometry, existing oracle, public API, dependency, ticket status or accepted refusal contract changes.
 
 **Result:** the sealed polygon opening and U+cap blind opening are reachable through a real mechanical configuration. The latter is a reproduced approved-feature gap; the former reaches the sealed-void refusal expressly permitted by013. The wall-crossing cone and entirely enclosed round seat are **not** reproduced by the bounded hardware probes; their literal direct-IR counterexamples remain distinct from these supported product outputs. No reopened regression is established.
