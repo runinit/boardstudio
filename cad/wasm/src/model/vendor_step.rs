@@ -30,6 +30,8 @@ struct ImportOptionsDto {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReadStepAsset {
+    #[serde(skip)]
+    analysis: boardstudio_cad::qualification::PreparedAnalysisMesh,
     mesh: MeshDto,
     bounds: BoundsDto,
     vendor_step: VendorStepDto,
@@ -194,7 +196,13 @@ impl ReadStepAsset {
             },
         )?;
         let mesh = imported.mesh();
-        let preview = imported.preview_positions_f64();
+        let analysis = boardstudio_cad::qualification::prepare_vendor_analysis(&imported)?;
+        let boardstudio_cad::qualification::PreparedAnalysisView::Vendor(view) =
+            analysis.export_view()
+        else {
+            unreachable!()
+        };
+        let preview = view.positions_mm_f64;
         if mesh.positions.is_empty()
             || !mesh.positions.len().is_multiple_of(9)
             || mesh.normals.len() != mesh.positions.len()
@@ -215,13 +223,13 @@ impl ReadStepAsset {
             return Err("STEP importer returned inconsistent surface buffers".into());
         }
 
-        let source_faces = imported
-            .source_faces()
+        let source_faces = view
+            .source_faces
             .iter()
             .map(source_face_dto)
             .collect::<Result<Vec<_>, _>>()?;
-        let face_occurrences = imported
-            .face_occurrences()
+        let face_occurrences = view
+            .face_occurrences
             .iter()
             .map(face_occurrence_dto)
             .collect::<Result<Vec<_>, _>>()?;
@@ -231,8 +239,8 @@ impl ReadStepAsset {
         {
             return Err("STEP importer returned an invalid source face reference".into());
         }
-        let triangle_face_occurrence_indices = imported
-            .triangle_faces()
+        let triangle_face_occurrence_indices = view
+            .triangle_face_occurrence_indices
             .iter()
             .map(|index| index_u32(*index, "triangle face occurrence"))
             .collect::<Result<Vec<_>, _>>()?;
@@ -308,7 +316,10 @@ impl ReadStepAsset {
             return Err("STEP importer returned bounds that omit asset coordinates".into());
         }
 
+        let mut accuracy = accuracy_dto(imported.accuracy())?;
+        accuracy.analysis_error_bound_mm = analysis.source_qualification().total_bound_mm();
         Ok(Self {
+            analysis,
             mesh: MeshDto {
                 positions: mesh.positions.clone(),
                 normals: mesh.normals.clone(),
@@ -326,7 +337,7 @@ impl ReadStepAsset {
                 source_faces,
                 face_occurrences,
                 precision: imported.precision().iter().map(precision_dto).collect(),
-                accuracy: accuracy_dto(imported.accuracy())?,
+                accuracy,
                 surface_positions_mm_f64,
                 triangle_face_occurrence_indices,
                 line_segments_mm_f64,
@@ -337,7 +348,7 @@ impl ReadStepAsset {
         })
     }
 
-    fn to_js_value(&self) -> Result<JsValue, JsValue> {
+    fn into_js_value(self) -> Result<JsValue, JsValue> {
         use super::set;
         let result = Object::new();
         let mesh = Object::new();
@@ -396,6 +407,9 @@ impl ReadStepAsset {
             "segmentLineOccurrenceIndices",
             &Uint32Array::from(self.vendor_step.segment_line_occurrence_indices.as_slice()).into(),
         )?;
+        super::qualified::add_reports(&vendor_step, &self.analysis)?;
+        let handle = super::qualified::vendor_handle(self.analysis, self.vendor_step.source_sha256);
+        set(&vendor_step, "analysisHandle", &handle.into())?;
         set(&result, "vendorStep", &vendor_step.into())?;
         Ok(result.into())
     }
@@ -411,7 +425,7 @@ fn to_js(value: &impl Serialize) -> Result<JsValue, JsValue> {
 pub fn read_step_model(bytes: Uint8Array, options: Option<JsValue>) -> Result<JsValue, JsValue> {
     ReadStepAsset::import(bytes, options)
         .map_err(super::js_error)?
-        .to_js_value()
+        .into_js_value()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

@@ -259,6 +259,15 @@ impl TriangleSoupMesh {
         transform: &[f64; 16],
         side: &str,
     ) -> Result<Self, String> {
+        Self::from_soup(positions_mm, face_occurrence_indices, Some(transform), side)
+    }
+
+    fn from_soup(
+        positions_mm: &[f64],
+        face_occurrence_indices: &[u32],
+        transform: Option<&[f64; 16]>,
+        side: &str,
+    ) -> Result<Self, String> {
         validate_soup_lengths(positions_mm.len(), face_occurrence_indices.len(), side)?;
         let vertex_count = positions_mm.len() / 3;
         let triangle_count = positions_mm.len() / 9;
@@ -269,18 +278,23 @@ impl TriangleSoupMesh {
                     "Invalid collision input: {side} vertex {vertex_index} contains a non-finite coordinate"
                 ));
             }
-            let x = transform[0] * point[0]
-                + transform[4] * point[1]
-                + transform[8] * point[2]
-                + transform[12];
-            let y = transform[1] * point[0]
-                + transform[5] * point[1]
-                + transform[9] * point[2]
-                + transform[13];
-            let z = transform[2] * point[0]
-                + transform[6] * point[1]
-                + transform[10] * point[2]
-                + transform[14];
+            let [x, y, z] = if let Some(transform) = transform {
+                let x = transform[0] * point[0]
+                    + transform[4] * point[1]
+                    + transform[8] * point[2]
+                    + transform[12];
+                let y = transform[1] * point[0]
+                    + transform[5] * point[1]
+                    + transform[9] * point[2]
+                    + transform[13];
+                let z = transform[2] * point[0]
+                    + transform[6] * point[1]
+                    + transform[10] * point[2]
+                    + transform[14];
+                [x, y, z]
+            } else {
+                *point
+            };
             for (axis, coord) in [x, y, z].into_iter().enumerate() {
                 if !coord.is_finite() || coord.abs() > MAX_SAFE_COORD_MM {
                     return Err(format!(
@@ -566,6 +580,21 @@ pub fn query_collision_mesh_pair(
     observation
         .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
         .map_err(super::js_error)
+}
+
+// New owner-side wrappers preserve the existing private mesh implementation.
+pub(super) fn validate_qualified_request(query: &CadCollisionQuery) -> Result<(), String> {
+    query.validate()
+}
+pub(super) fn observe_qualified_world(
+    left_positions: &[f64],
+    left_tags: &[u32],
+    right_positions: &[f64],
+    right_tags: &[u32],
+) -> Result<MeshObservation, String> {
+    let left = TriangleSoupMesh::from_soup(left_positions, left_tags, None, "left")?;
+    let right = TriangleSoupMesh::from_soup(right_positions, right_tags, None, "right")?;
+    Ok(observe_mesh_pair(&left, &right))
 }
 
 #[cfg(test)]

@@ -443,6 +443,7 @@ pub(super) fn slab(a: &QualifiedSurface, b: &QualifiedSurface) -> Check<Containm
     ))
 }
 
+#[cfg(test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn rounded_interval_width_cannot_meet_a_tighter_exact_cap() {

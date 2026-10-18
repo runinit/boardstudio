@@ -195,19 +195,20 @@ struct GeneratedBodyAnalysisOptions {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GeneratedSourceFaceDto {
-    solid_index: usize,
-    shell_index: usize,
-    face_index: usize,
+    solid_index: u32,
+    shell_index: u32,
+    face_index: u32,
     support_kind: String,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GeneratedFaceOccurrenceDto {
-    source_face_index: usize,
-    solid_occurrence_index: usize,
+    source_face_index: u32,
+    solid_occurrence_index: u32,
 }
 
+#[cfg(test)]
 fn generated_body_analysis_data(
     ir: &PreparedCaseIR,
     options: GeneratedBodyAnalysisOptions,
@@ -239,26 +240,46 @@ pub fn analyze_generated_body(input: JsValue, options: JsValue) -> Result<JsValu
     }
     let options: GeneratedBodyAnalysisOptions = serde_wasm_bindgen::from_value(options)
         .map_err(|error| js_error(format!("Invalid generated analysis options: {error}")))?;
-    let analysis = generated_body_analysis_data(&ir, options).map_err(js_error)?;
+    if ir.revision > MAX_REVISION || ir.body.id.trim().is_empty() {
+        return Err(js_error(
+            "Invalid generated analysis body identity or revision",
+        ));
+    }
+    let entry = cache::body(&ir, "", false, &mut |_| Ok(())).map_err(js_error)?;
+    let prepared = boardstudio_cad::qualification::prepare_generated_analysis(
+        &entry.model,
+        options.target_deflection_mm,
+    )
+    .map_err(js_error)?;
+    let boardstudio_cad::qualification::PreparedAnalysisView::Generated(view) =
+        prepared.export_view()
+    else {
+        unreachable!()
+    };
+    let analysis = view.emission;
     let source_faces: Vec<_> = analysis
         .source_faces
         .iter()
-        .map(|face| GeneratedSourceFaceDto {
-            solid_index: face.solid_index,
-            shell_index: face.shell_index,
-            face_index: face.face_index,
-            support_kind: face.support_kind.clone(),
+        .map(|face| {
+            Ok(GeneratedSourceFaceDto {
+                solid_index: u32::try_from(face.solid_index).map_err(js_error)?,
+                shell_index: u32::try_from(face.shell_index).map_err(js_error)?,
+                face_index: u32::try_from(face.face_index).map_err(js_error)?,
+                support_kind: face.support_kind.clone(),
+            })
         })
-        .collect();
-    let face_occurrences: Vec<_> = analysis
-        .source_faces
+        .collect::<Result<Vec<_>, JsValue>>()?;
+    let face_occurrences: Vec<_> = view
+        .face_occurrences
         .iter()
-        .enumerate()
-        .map(|(index, face)| GeneratedFaceOccurrenceDto {
-            source_face_index: index,
-            solid_occurrence_index: face.solid_index,
+        .map(|face| {
+            Ok(GeneratedFaceOccurrenceDto {
+                source_face_index: u32::try_from(face.source_face_index).map_err(js_error)?,
+                solid_occurrence_index: u32::try_from(face.solid_occurrence_index)
+                    .map_err(js_error)?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, JsValue>>()?;
     let tags = analysis
         .triangle_face_occurrence_indices
         .iter()
@@ -292,8 +313,9 @@ pub fn analyze_generated_body(input: JsValue, options: JsValue) -> Result<JsValu
     set(
         &result,
         "analysisErrorBoundMm",
-        &analysis
-            .analysis_error_bound_mm
+        &prepared
+            .source_qualification()
+            .total_bound_mm()
             .map(JsValue::from_f64)
             .unwrap_or(JsValue::NULL),
     )?;
@@ -306,6 +328,12 @@ pub fn analyze_generated_body(input: JsValue, options: JsValue) -> Result<JsValu
         &result,
         "deflectionMm",
         &JsValue::from_f64(analysis.deflection_mm),
+    )?;
+    super::qualified::add_reports(&result, &prepared)?;
+    set(
+        &result,
+        "analysisHandle",
+        &super::qualified::generated_handle(prepared, ir.body.id, ir.revision).into(),
     )?;
     Ok(result.into())
 }

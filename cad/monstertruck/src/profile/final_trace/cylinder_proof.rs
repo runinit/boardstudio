@@ -526,35 +526,18 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
     Ok((circle, error))
 }
 
-fn serialized_vector(v: &serde_json::Value, count: usize) -> Proof<Vec<Q>> {
-    (0..count)
-        .map(|i| {
-            q(v.get(["x", "y", "z", "w"][i])
-                .or_else(|| v.get(i))
-                .and_then(serde_json::Value::as_f64)
-                .ok_or("unreadable retained plane data")?)
-        })
-        .collect()
-}
 fn plane_frame(plane: &monstertruck_modeling::Plane) -> Proof<(usize, Q, P)> {
-    // Read the retained affine coefficients, not rounded origin/normalized-normal
-    // accessors. Serde is already part of this pinned native geometry's API.
-    let value = serde_json::to_value(plane).map_err(|_| "invalid retained plane")?;
-    let columns = (0..4)
-        .map(|i| {
-            serialized_vector(
-                value["transform"]
-                    .get(["x", "y", "z", "w"][i])
-                    .or_else(|| value["transform"].get(i))
-                    .ok_or("plane transform schema")?,
-                4,
-            )
-        })
+    let coefficients = super::retained::plane_coefficients(plane)?;
+    let columns = coefficients[3..]
+        .iter()
+        .map(|v| v.iter().copied().map(q).collect::<Proof<Vec<_>>>())
         .collect::<Proof<Vec<_>>>()?;
     if (0..3).any(|i| columns[i][3] != n(0)) || columns[3][3] != n(1) {
         return Err("nonaffine plane");
     }
-    let points = ["o", "p", "q"].map(|key| serialized_vector(&value[key], 3));
+    let points = coefficients[..3]
+        .iter()
+        .map(|v| v[..3].iter().copied().map(q).collect::<Proof<Vec<_>>>());
     let mut transformed = Vec::new();
     for p in points {
         let p = p?;
@@ -963,8 +946,7 @@ fn bind(
         let source = &face.source;
         if (source.solid_index, source.shell_index, source.face_index) != (0, 0, i)
             || source != &mesh.source_faces[i]
-            || serde_json::to_value(&face.surface).map_err(|_| "source serialization")?
-                != serde_json::to_value(native.surface()).map_err(|_| "source serialization")?
+            || !super::retained::same_surface(&face.surface, &native.surface())?
             || face.boundaries != native.boundaries()
             || face.mesh_orientation != native.orientation()
             || next[i] != face.polygon.faces().triangle_iter().count()
@@ -1039,6 +1021,15 @@ fn qualify(
         },
     }
 }
+pub(super) fn qualified_bound(
+    model: &ExactModel,
+    mesh: &GeneratedAnalysisMesh,
+    trace: &AnalysisTrace,
+) -> GeneratedQualification {
+    qualify(model, mesh, trace)
+}
+
+#[cfg(test)]
 fn bound(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) -> f64 {
     match qualify(model, mesh, trace) {
         GeneratedQualification::Bounded {
@@ -1065,6 +1056,7 @@ fn drilled_plate_has_a_complete_symmetric_source_bound() {
     assert!(bound > 0. && bound < 0.2, "{bound}");
 }
 
+#[cfg(test)]
 fn drilled_input(radius: f64, thickness: f64) -> boardstudio_contracts::PreparedCaseIR {
     let mut input = prepared_plate();
     input.body.thickness = thickness;
@@ -1122,6 +1114,7 @@ fn cylinder_proof_authored_circle_pcb_with_real_drill_is_bounded() {
     assert!(bound(&model, &mesh, &trace) < 0.04);
 }
 
+#[cfg(test)]
 fn circular_drilled_input(thickness: f64, elevation: f64) -> boardstudio_contracts::PreparedCaseIR {
     use boardstudio_contracts::{Mount, MountKind};
     let mut input: boardstudio_contracts::PreparedCaseIR = serde_json::from_str(include_str!(
@@ -1217,6 +1210,7 @@ fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
     }
 }
 
+#[cfg(test)]
 fn upper_circular_trim(trace: &AnalysisTrace) -> (usize, usize) {
     let (fi, face) = trace
         .faces
@@ -1536,6 +1530,7 @@ fn cylinder_proof_clearance_is_independent_of_requested_deflection() {
     assert!(bound(&model, &fine, &trace) < 0.03125);
 }
 
+#[cfg(test)]
 fn unknown(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) {
     match qualify(model, mesh, trace) {
         GeneratedQualification::Unknown { reasons } => assert!(!reasons.is_empty()),
@@ -1545,6 +1540,7 @@ fn unknown(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTra
 
 // Mutation-only helper: keep malformed delivered buffers/trace consistently
 // bound, so coverage tests must fail the proof rather than a stale-data check.
+#[cfg(test)]
 fn mutate_face_triangle(
     mesh: &mut GeneratedAnalysisMesh,
     trace: &mut AnalysisTrace,
@@ -1780,8 +1776,9 @@ fn cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown()
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(test, target_arch = "wasm32"))]
 #[wasm_bindgen_test::wasm_bindgen_test]
+#[cfg(test)]
 fn generated_cylinder_proof_actual_wasm() {
     drilled_plate_has_a_complete_symmetric_source_bound();
     cylinder_proof_authored_radius_height_and_actual_refinement_controls();
@@ -1846,6 +1843,7 @@ fn cylinder_proof_discontinuous_trim_knots_are_unknown() {
 // replace one actual shared native trim used backward on its cylinder and
 // forward on its cap. The retained source, not a newly meshed replacement, is
 // what a source/final certificate must bound.
+#[cfg(test)]
 struct AsymmetricTrim {
     model: ExactModel,
     mesh: GeneratedAnalysisMesh,
@@ -1855,10 +1853,12 @@ struct AsymmetricTrim {
     witness: P,
 }
 
+#[cfg(test)]
 fn asymmetric_shared_trim() -> AsymmetricTrim {
     asymmetric_shared_trim_with_left(0.)
 }
 
+#[cfg(test)]
 fn asymmetric_shared_trim_with_left(left: f64) -> AsymmetricTrim {
     use monstertruck_modeling::{BsplineCurve, NurbsCurve, Vector4};
     let mut input = drilled_input(1., 2.);
@@ -1935,6 +1935,7 @@ fn asymmetric_shared_trim_with_left(left: f64) -> AsymmetricTrim {
 // Positive homogeneous control hulls provide an independent continuous oracle:
 // each dyadic subcurve and its endpoint chord stay outside the witness ball.
 // Their homotopy therefore preserves winding about that witness.
+#[cfg(test)]
 fn trim_distance_and_winding(wire: &Wire, witness: &P, rho: &Q) -> i32 {
     let mut polygon = Vec::new();
     for edge in wire.edge_iter() {

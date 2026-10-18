@@ -18,10 +18,12 @@ monstertruck-meshing = { version = "=0.4.1", default-features = false, features 
 monstertruck-modeling = { version = "=0.4.1", default-features = false }
 monstertruck-topology = "=0.4.1"
 
-[dev-dependencies]
 num-rational = { version = "=0.4.2", features = ["num-bigint"] }
 num-traits = "=0.2.19"
 step-p21 = "=0.1.1"
+serde = { version = "=1.0.229", features = ["derive"] }
+
+[dev-dependencies]
 serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]

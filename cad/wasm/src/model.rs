@@ -1,4 +1,6 @@
 mod collision;
+mod qualified;
+pub use qualified::{query_qualified_collision_mesh_pair, AnalysisHandle};
 mod generated;
 mod keycaps;
 mod metrics;

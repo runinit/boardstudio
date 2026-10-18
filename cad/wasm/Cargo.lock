@@ -110,6 +110,10 @@ dependencies = [
  "monstertruck-meshing",
  "monstertruck-modeling",
  "monstertruck-topology",
+ "num-rational",
+ "num-traits",
+ "serde",
+ "step-p21",
 ]
 
 [[package]]

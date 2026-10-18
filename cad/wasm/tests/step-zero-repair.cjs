@@ -23,7 +23,7 @@ function imported(bytes, options = {}) {
     assert.deepEqual(bytes, original, 'caller source bytes remain immutable, including refusal');
   }
   assert.equal(result.vendorStep.sourceSha256, digest);
-  assert.equal(result.vendorStep.accuracy.analysisErrorBoundMm, null);
+  assert.equal(result.vendorStep.accuracy.analysisErrorBoundMm, result.vendorStep.sourceQualification.state === 'bounded' ? result.vendorStep.sourceQualification.totalBoundMm : null);
   assert(result.mesh.positions instanceof Float32Array);
   assert(result.mesh.normals instanceof Float32Array);
   const asset = result.vendorStep;
@@ -53,6 +53,9 @@ test('actual WASM integer cuboid reports complete zero and unchanged default/pro
   assert.equal(sourceFaces.length, 6);
   assert.equal(faceOccurrences.length, 6);
   assert.equal(accuracy.maxRepairDisplacementMm, 0);
+  assert.equal(accuracy.analysisErrorBoundMm, null, 'zero repair is not a source certificate');
+  assert.equal(result.vendorStep.sourceQualification.state, 'unknown');
+  assert(result.vendorStep.sourceQualification.reasons.includes('missing source precision'));
   assert.equal(accuracy.previewDeflectionMm, 0.1);
   assert.equal(accuracy.previewFloorMm, 0.02);
   assert.equal(accuracy.previewDeclaredMultiplier, 2);
@@ -73,6 +76,11 @@ test('explicit precision, budget and refinement remain separate from zero moveme
   const result = imported(declared, { previewRepairBudgetMm: 0.03, targetDeflectionMm: 0.01 });
   assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, 0);
   assert.equal(result.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
+  assert.equal(result.vendorStep.sourceQualification.state, 'bounded', 'complete independent LINE/plane proof');
+  assert.equal(result.vendorStep.sourceQualification.directBoundMm, 0);
+  assert.equal(result.vendorStep.sourceQualification.sourcePrecisionMm, 0.001);
+  assert.equal(result.vendorStep.sourceQualification.totalBoundMm, 0.001);
+  assert.equal(result.vendorStep.accuracy.analysisErrorBoundMm, 0.001);
   assert.equal(result.vendorStep.accuracy.previewDeflectionMm, 0.01);
   assert.equal(result.vendorStep.importOptions.targetDeflectionMm, 0.01);
   assert(result.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));

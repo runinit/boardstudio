@@ -1,4 +1,4 @@
-use crate::{MeshBuffers, mesh::mesh_buffers};
+use crate::{MeshBuffers, mesh::mesh_buffers, qualification::SourceBoundResult};
 use boardstudio_contracts::Vec2;
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
@@ -141,18 +141,13 @@ pub fn mesh_profile_for_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
 ) -> Result<GeneratedAnalysisMesh, String> {
-    mesh_profile_for_analysis_impl(
-        model,
-        target_deflection_mm,
-        #[cfg(test)]
-        None,
-    )
+    mesh_profile_for_analysis_impl(model, target_deflection_mm, None)
 }
 
 fn mesh_profile_for_analysis_impl(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
-    #[cfg(test)] mut trace: Option<&mut final_trace::AnalysisTrace>,
+    mut trace: Option<&mut final_trace::AnalysisTrace>,
 ) -> Result<GeneratedAnalysisMesh, String> {
     if model.solids.is_empty() {
         return Err("Case analysis mesh requires at least one exact solid".into());
@@ -211,7 +206,6 @@ fn mesh_profile_for_analysis_impl(
                     face_index,
                     support_kind: support_kind.into(),
                 });
-                #[cfg(test)]
                 if let Some(trace) = trace.as_deref_mut() {
                     trace.record_face(
                         &source_faces[occurrence_index],
@@ -240,7 +234,6 @@ fn mesh_profile_for_analysis_impl(
                     triangle_face_occurrence_indices.push(occurrence_index);
                     // Observe only the accepted, oriented fan triangle, using the final
                     // f64 coordinates and the f32 conversion that push_triangle emitted.
-                    #[cfg(test)]
                     if let Some(trace) = trace.as_deref_mut() {
                         trace.record_triangle(
                             occurrence_index,
@@ -343,11 +336,48 @@ fn validate_region(region: ProfileRegion) -> Result<(Vec<Vec2>, Vec<Vec<Vec2>>),
     Ok((convert(outer), holes.into_iter().map(convert).collect()))
 }
 
-#[cfg(test)]
 mod final_trace;
 
-#[cfg(test)]
 mod generated_qualification;
+
+// Owner-side wrapper keeps the native AST and retained trace private.
+pub(crate) fn prepare_qualified_emission(
+    model: &ExactModel,
+    target: Option<f64>,
+) -> Result<(GeneratedAnalysisMesh, SourceBoundResult), String> {
+    let mut trace = final_trace::AnalysisTrace::default();
+    let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
+    let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
+        && mesh
+            .positions_mm_f64
+            .iter()
+            .all(|x| x.is_finite() && (*x == 0. || (1e-100..=1e12).contains(&x.abs())));
+    let result = if within_profile {
+        let planar = generated_qualification::qualify_generated(model, &mesh);
+        if matches!(
+            planar,
+            generated_qualification::GeneratedQualification::Unknown { .. }
+        ) {
+            final_trace::qualified_bound(model, &mesh, &trace)
+        } else {
+            planar
+        }
+    } else {
+        generated_qualification::GeneratedQualification::Unknown {
+            reasons: vec!["generated source profile cap".into()],
+        }
+    };
+    let bound = match result {
+        generated_qualification::GeneratedQualification::Bounded {
+            direct_bound_mm,
+            source_precision_mm,
+            total_bound_mm,
+            ..
+        } => Ok([direct_bound_mm, source_precision_mm, total_bound_mm]),
+        generated_qualification::GeneratedQualification::Unknown { reasons } => Err(reasons),
+    };
+    Ok((mesh, bound))
+}
 
 #[cfg(test)]
 mod analysis_tests {

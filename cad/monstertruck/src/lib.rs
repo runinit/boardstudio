@@ -28,8 +28,10 @@ mod export_tests;
 #[cfg(test)]
 mod step_accuracy;
 
-#[cfg(test)]
 mod collision_qualification;
+
+/// Immutable final-mesh qualification and bounded exact queries.
+pub mod qualification;
 
 mod layered;
 

@@ -99,6 +99,7 @@ dependencies = [
  "monstertruck-topology",
  "num-rational",
  "num-traits",
+ "serde",
  "serde_json",
  "step-p21",
  "wasm-bindgen-test",

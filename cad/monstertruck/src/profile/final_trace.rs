@@ -13,6 +13,16 @@ use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_modeling::{EuclideanSpace, Face};
 
 mod cylinder_proof;
+mod retained;
+
+// New owner-side wrapper; no trace or native geometry leaves this module.
+pub(super) fn qualified_bound(
+    model: &ExactModel,
+    mesh: &GeneratedAnalysisMesh,
+    trace: &AnalysisTrace,
+) -> super::generated_qualification::GeneratedQualification {
+    cylinder_proof::qualified_bound(model, mesh, trace)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UvUnknown {
@@ -22,6 +32,7 @@ enum UvUnknown {
     DegenerateOrPlaceholder,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ChartObservation {
     NonperiodicPlane,
@@ -29,6 +40,7 @@ enum ChartObservation {
     UnknownUnsupportedSupport,
 }
 
+#[cfg(test)]
 fn chart_observation(surface: &Surface) -> ChartObservation {
     match surface {
         Surface::Plane(_) => ChartObservation::NonperiodicPlane,
@@ -66,6 +78,7 @@ struct RetainedFace {
     surface: Surface,
     boundaries: Vec<Wire>,
     mesh_orientation: bool,
+    #[cfg(test)]
     chart: ChartObservation,
     polygon: PolygonMesh,
 }
@@ -95,6 +108,7 @@ impl AnalysisTrace {
         let surface = face.surface();
         self.faces.push(RetainedFace {
             source: source.clone(),
+            #[cfg(test)]
             chart: chart_observation(&surface),
             surface,
             boundaries: face.boundaries(),
@@ -121,6 +135,7 @@ impl AnalysisTrace {
     }
 }
 
+#[cfg(test)]
 fn plate() -> ExactModel {
     build_profile(ProfileInput {
         kind: ProfileKind::Plate,
@@ -139,6 +154,7 @@ fn plate() -> ExactModel {
 
 // The oracle is the public entry point and final buffers from the SAME emission
 // routine, plus independent authored bounds/census. No shadow mesher or UV search.
+#[cfg(test)]
 fn checked_trace(
     model: &ExactModel,
     target: Option<f64>,
@@ -333,6 +349,7 @@ fn final_trace_retains_authored_pcb_circle_and_drill_trims() {
     }
 }
 
+#[cfg(test)]
 fn prepared_plate() -> boardstudio_contracts::PreparedCaseIR {
     serde_json::from_str(include_str!("../../tests/fixtures/layered/pcb-simple.json")).unwrap()
 }

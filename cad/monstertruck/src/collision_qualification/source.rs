@@ -533,7 +533,15 @@ pub(super) fn read(bytes: &[u8]) -> Check<Source> {
             }
         }
         let context = reference(&a[2])?;
-        let uncertainty = d.record(context, "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT", 1)?;
+        let uncertainty = d
+            .record(context, "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT", 1)
+            .map_err(|reason| {
+                if reason == "unsupported source class" {
+                    "missing source precision"
+                } else {
+                    reason
+                }
+            })?;
         let uncertainty = refs(&uncertainty[0])?;
         if uncertainty.is_empty() {
             return Err("missing source precision");

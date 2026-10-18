@@ -8,14 +8,15 @@ const fieldSet = value => Object.keys(value).sort();
 const isU32 = value => Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
 function checkContract(payload, deflectionMm) {
   const example = contract.directPayload;
-  assert.deepEqual(fieldSet(payload), fieldSet(example), 'backend owns only the direct payload fields');
+  const qualified = payload.analysisHandle instanceof cad.AnalysisHandle;
+  assert.deepEqual(fieldSet(payload), qualified ? [...contract.qualificationV2.activation.directGeneratedRecipe.expectedProviderKeys].sort() : fieldSet(example), 'backend owns only the direct payload fields');
   assert.equal(payload.bodyId, contract.preparedBody.body.id);
   assert.equal(payload.revision, contract.preparedBody.revision);
   assert(payload.surfacePositionsMmF64 instanceof Float64Array);
   assert(payload.triangleFaceOccurrenceIndices instanceof Uint32Array);
   assert(payload.surfacePositionsMmF64.length > 0);
   assert.equal(payload.surfacePositionsMmF64.length, payload.triangleFaceOccurrenceIndices.length * 9);
-  assert.equal(payload.analysisErrorBoundMm, null, 'a meshing setting is never an accuracy certificate');
+  assert.equal(payload.analysisErrorBoundMm, payload.sourceQualification?.state === 'bounded' ? payload.sourceQualification.totalBoundMm : null, 'only the sealed source proof supplies the bound');
   assert.equal(payload.deflectionMm, deflectionMm);
   assert.equal(typeof payload.meshClosedOriented, typeof example.meshClosedOriented);
   assert.equal(payload.meshClosedOriented, example.meshClosedOriented);
@@ -77,7 +78,7 @@ const pcb = JSON.parse(fs.readFileSync(path.join(__dirname, '../../monstertruck/
 const pcbDefault = cad.analyze_generated_body(pcb, {});
 const pcbRefined = cad.analyze_generated_body(pcb, {targetDeflectionMm: 0.01});
 assert.equal(pcbRefined.bodyId, pcb.body.id);
-assert.equal(pcbRefined.analysisErrorBoundMm, null);
+assert.equal(pcbRefined.analysisErrorBoundMm, pcbRefined.sourceQualification.state === 'bounded' ? pcbRefined.sourceQualification.totalBoundMm : null);
 assert(pcbRefined.surfacePositionsMmF64.length > pcbDefault.surfacePositionsMmF64.length);
 assert(pcbRefined.sourceFaces.some(face => face.supportKind === 'REVOLUTION_SURFACE'));
 assert.equal(result.bodyId, body.body.id);
@@ -88,7 +89,7 @@ assert.equal(result.geometryIdentity, undefined);
 assert(result.surfacePositionsMmF64 instanceof Float64Array);
 assert(result.triangleFaceOccurrenceIndices instanceof Uint32Array);
 assert.equal(result.surfacePositionsMmF64.length, result.triangleFaceOccurrenceIndices.length * 9);
-assert.equal(result.analysisErrorBoundMm, null);
+assert.equal(result.analysisErrorBoundMm, result.sourceQualification.state === 'bounded' ? result.sourceQualification.totalBoundMm : null);
 assert.equal(result.deflectionMm, 0.1);
 assert.equal(cad.analyze_generated_body(body, {targetDeflectionMm: 0.01}).deflectionMm, 0.01);
 for (const targetDeflectionMm of [0, -1, NaN, Infinity]) {

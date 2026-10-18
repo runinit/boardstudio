@@ -1,8 +1,9 @@
-//! Private proof checkpoint. See CONTRACT.md; no production qualification is published.
+//! Private exact verifier; production access is owned by the qualification facade.
 
 mod exact;
 mod query;
 mod source;
+#[cfg(test)]
 mod tests;
 
 use crate::ImportedStep;
@@ -23,10 +24,13 @@ struct SurfaceBound {
 }
 struct QualifiedSurface {
     triangles: Vec<FTriangle>,
+    #[cfg(test)]
     tags: Vec<usize>,
     bound: SurfaceBound,
     source_hull: [Point; 2],
+    #[cfg(test)]
     transform_rounding_mm: f64,
+    #[cfg(test)]
     repair_displacement_mm: Option<f64>,
 }
 fn transform(p: &Point, m: &[Q; 16]) -> Point {
@@ -182,6 +186,7 @@ fn qualify(
     }
     Ok(QualifiedSurface {
         triangles: transformed.as_chunks::<3>().0.to_vec(),
+        #[cfg(test)]
         tags: tags.to_vec(),
         bound: SurfaceBound {
             direct_mm: direct,
@@ -189,7 +194,237 @@ fn qualify(
             total_mm: upper(&(Q::from_float(direct).unwrap() + Q::from_float(precision).unwrap()))?,
         },
         source_hull: hull,
+        #[cfg(test)]
         transform_rounding_mm: sqrt_bounds(&rounding)?[1],
+        #[cfg(test)]
         repair_displacement_mm: None,
     })
+}
+
+// New narrow owner-side functions keep the exact verifier and source AST private.
+pub(crate) fn asset_bound(model: &ImportedStep) -> Result<[f64; 3], Vec<String>> {
+    qualify(
+        model,
+        model.preview_positions_f64(),
+        model.triangle_faces(),
+        IDENTITY,
+    )
+    .map(|s| [s.bound.direct_mm, s.bound.precision_mm, s.bound.total_mm])
+    .map_err(|reason| vec![reason.into()])
+}
+
+fn owned_positions(owner: &crate::qualification::PreparedAnalysisMesh) -> Vec<FPoint> {
+    use crate::qualification::PreparedAnalysisView;
+    match owner.export_view() {
+        PreparedAnalysisView::Generated(view) => {
+            view.emission.positions_mm_f64.as_chunks::<3>().0.to_vec()
+        }
+        PreparedAnalysisView::Vendor(view) => view.positions_mm_f64.to_vec(),
+    }
+}
+fn world_surface(
+    owner: &crate::qualification::PreparedAnalysisMesh,
+    row: [f64; 16],
+    world: &[FPoint],
+) -> Check<(
+    crate::qualification::WorldSourceBound,
+    Option<QualifiedSurface>,
+)> {
+    use crate::qualification::{SourceQualification, WorldSourceBound};
+    let (matrix, norm_squared) = affine(row)?;
+    let norm_upper = sqrt_bounds(&norm_squared)?[1];
+    let norm = Q::from_float(norm_upper).ok_or("row norm overflow")?;
+    let local = owned_positions(owner);
+    let mut rounding = Q::zero();
+    for (p, actual) in local.iter().zip(world) {
+        let exact = transform(&point(*p)?, &matrix);
+        rounding = rounding.max(norm2(&sub(&point(*actual)?, &exact)));
+    }
+    let triangles = world.as_chunks::<3>().0.to_vec();
+    let transform_rounding_mm = sqrt_bounds(&rounding)?[1];
+    let SourceQualification::Bounded {
+        direct_bound_mm,
+        source_precision_mm,
+        total_bound_mm,
+        ..
+    } = owner.source_qualification()
+    else {
+        return Ok((
+            WorldSourceBound::Unknown {
+                reasons: vec!["source-proof-unavailable".into()],
+            },
+            None,
+        ));
+    };
+    let direct = upper(&(Q::from_float(*direct_bound_mm).unwrap() * &norm))?;
+    let precision = upper(&(Q::from_float(*source_precision_mm).unwrap() * &norm))?;
+    let round = Q::from_float(transform_rounding_mm).unwrap();
+    let total = upper(
+        &((Q::from_float(direct).unwrap() + Q::from_float(precision).unwrap() + &round)
+            .max(Q::from_float(*total_bound_mm).unwrap() * &norm + round)),
+    )?;
+    // A symmetric bound contains the complete nominal source surface in the
+    // emitted surface's expanded AABB. Every bounded solid lies in its surface
+    // AABB; this supports slabs, never parity/global correspondence.
+    let mut hull: [Point; 2] = std::array::from_fn(|_| std::array::from_fn(|_| Q::zero()));
+    for axis in 0..3 {
+        let lo = world.iter().map(|p| p[axis]).fold(f64::INFINITY, f64::min);
+        let hi = world
+            .iter()
+            .map(|p| p[axis])
+            .fold(f64::NEG_INFINITY, f64::max);
+        hull[0][axis] = Q::from_float(lo).ok_or("empty final surface")?;
+        hull[1][axis] = Q::from_float(hi).ok_or("empty final surface")?;
+    }
+    let source = QualifiedSurface {
+        triangles: triangles.clone(),
+        #[cfg(test)]
+        tags: Vec::new(),
+        bound: SurfaceBound {
+            direct_mm: direct,
+            precision_mm: precision,
+            total_mm: total,
+        },
+        source_hull: hull,
+        #[cfg(test)]
+        transform_rounding_mm,
+        #[cfg(test)]
+        repair_displacement_mm: None,
+    };
+    let report = WorldSourceBound::Bounded {
+        mesh_identity: owner.analysis_mesh().mesh_identity.clone(),
+        method: "scaled-local-plus-row-rounding".into(),
+        norm_upper,
+        direct_bound_mm: direct,
+        source_precision_mm: precision,
+        transform_rounding_mm,
+        total_bound_mm: total,
+    };
+    Ok((report, Some(source)))
+}
+pub(crate) fn prepared_pair(
+    owners: [&crate::qualification::PreparedAnalysisMesh; 2],
+    rows: [[f64; 16]; 2],
+    limits: crate::qualification::Limits,
+) -> crate::qualification::QueryEvidence {
+    use crate::qualification::{
+        ContactBoxPair, ContactRegion, Containment, MeshDistance, QueryEvidence, WorldSourceBound,
+    };
+    let unknown = |reason: &str| QueryEvidence {
+        limits,
+        mesh_distance: MeshDistance::Unknown {
+            reasons: vec![reason.into()],
+        },
+        source_bounds: std::array::from_fn(|_| WorldSourceBound::Unknown {
+            reasons: vec![reason.into()],
+        }),
+        contact_region: ContactRegion::Unknown {
+            reasons: vec![reason.into()],
+        },
+        containment: Containment::Unknown {
+            reasons: vec![reason.into()],
+        },
+        world_positions: std::array::from_fn(|_| Vec::new()),
+        counters: [0, 0],
+    };
+    let world: [Vec<FPoint>; 2] = std::array::from_fn(|side| {
+        owned_positions(owners[side])
+            .into_iter()
+            .map(|p| float_transform(p, &rows[side]))
+            .collect()
+    });
+    let mut report = unknown("query-proof-unavailable");
+    report.world_positions = world.each_ref().map(|ps| ps.as_flattened().to_vec());
+    if let Err(reason) = limits.validate() {
+        report.mesh_distance = MeshDistance::Unknown {
+            reasons: vec![reason],
+        };
+        return report;
+    }
+    let [(bound_a, source_a), (bound_b, source_b)] = std::array::from_fn(|side| {
+        world_surface(owners[side], rows[side], &world[side]).unwrap_or_else(|reason| {
+            (
+                WorldSourceBound::Unknown {
+                    reasons: vec![reason.into()],
+                },
+                None,
+            )
+        })
+    });
+    let [a, b] = world.map(|p| p.as_chunks::<3>().0.to_vec());
+    report.source_bounds = [bound_a, bound_b];
+    let cap_min = 2f64.powi(limits.minimum_exponent);
+    let cap_max = 2f64.powi(limits.maximum_exponent);
+    if a.iter()
+        .chain(&b)
+        .flatten()
+        .flatten()
+        .any(|x| *x != 0. && !(cap_min..=cap_max).contains(&x.abs()))
+    {
+        report.mesh_distance = MeshDistance::Unknown {
+            reasons: vec!["exponent cap".into()],
+        };
+        return report;
+    }
+    let sources = source_a
+        .as_ref()
+        .zip(source_b.as_ref())
+        .map(|(a, b)| [a, b]);
+    if let Some([a, b]) = sources {
+        if let Ok(query::Containment::RuledOutSlab {
+            axis,
+            left_upper,
+            right_lower,
+        }) = query::slab(a, b)
+        {
+            report.containment = Containment::Slab {
+                method: "slab".into(),
+                axis: axis as u32,
+                left_upper_mm: left_upper,
+                right_lower_mm: right_lower,
+            };
+        } else {
+            report.containment = Containment::Unknown {
+                reasons: vec!["no separating slab; parity is unqualified".into()],
+            };
+        }
+    }
+    let effective = query::Limits {
+        max_triangles: limits.max_triangles as usize,
+        max_node_pairs: limits.max_node_pairs as usize,
+        max_exact_pairs: limits.max_exact_pairs as usize,
+        max_contact_boxes: limits.max_contact_boxes as usize,
+        numerical_width_mm: limits.requested_numerical_width_mm,
+    };
+    // The exact verifier validates and recomputes this feasible triangle seed;
+    // producer order is free and no fixture report participates in the proof.
+    match query::distance(&a, &b, [0, 0], sources, effective) {
+        Ok(distance) => {
+            report.counters = [distance.exact_pairs, distance.node_pairs];
+            debug_assert_eq!(distance.limits.max_exact_pairs, effective.max_exact_pairs);
+            report.mesh_distance = MeshDistance::Bounded {
+                lower_mm: distance.mm[0],
+                upper_mm: distance.mm[1],
+                witness_triangles: distance.witness.map(|i| i as u32),
+            };
+            report.contact_region = match distance.contact {
+                query::ContactRegion::Unknown(reason) => ContactRegion::Unknown {
+                    reasons: vec![reason.into()],
+                },
+                query::ContactRegion::Boxes(boxes) => ContactRegion::Boxes {
+                    source_inflation_mm: sources.unwrap().map(|s| s.bound.total_mm),
+                    pairs: boxes
+                        .into_iter()
+                        .map(|[left_mm, right_mm]| ContactBoxPair { left_mm, right_mm })
+                        .collect(),
+                },
+            };
+        }
+        Err(reason) => {
+            report.mesh_distance = MeshDistance::Unknown {
+                reasons: vec![reason.into()],
+            }
+        }
+    }
+    report
 }

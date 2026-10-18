@@ -524,7 +524,7 @@ fn missing_source_precision_and_extreme_decimal_exponents_refuse() {
     let bytes = include_str!(
         "../../../../ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step"
     );
-    assert!(
+    assert_eq!(
         source::read(
             bytes
                 .replace(
@@ -533,8 +533,24 @@ fn missing_source_precision_and_extreme_decimal_exponents_refuse() {
                 )
                 .as_bytes()
         )
-        .is_err()
+        .err(),
+        Some("missing source precision")
     );
+    for (replacement, expected) in [
+        ("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT()", "source arity"),
+        ("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT(#852)", "source list"),
+        (
+            "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#999999))",
+            "missing source record",
+        ),
+    ] {
+        let original = "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#852))";
+        assert_eq!(bytes.matches(original).count(), 1);
+        assert_eq!(
+            source::read(bytes.replace(original, replacement).as_bytes()).err(),
+            Some(expected)
+        );
+    }
     assert!(
         source::read(
             bytes

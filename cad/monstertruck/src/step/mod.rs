@@ -98,6 +98,7 @@ pub struct StepAccuracy {
 /// Completeness gates are separate from topology and analysis qualification.
 pub struct ImportedStep {
     original_bytes: Vec<u8>,
+    analysis_options: StepImportOptions,
     _original_source: Exchange,
     _repair_ledger: repair::Ledger,
     solids: HashMap<u64, SourceSolid>,
@@ -111,6 +112,15 @@ pub struct ImportedStep {
     precision: Vec<StepPrecision>,
     accuracy: StepAccuracy,
     wireframe: wireframe::Wireframe,
+}
+
+pub(crate) fn analysis_import_settings(model: &ImportedStep) -> crate::qualification::MeshSettings {
+    crate::qualification::MeshSettings {
+        target_deflection_mm: model.analysis_options.target_deflection_mm,
+        selected_deflection_mm: model.accuracy.preview_deflection_mm,
+        angular_rad: model.accuracy.preview_angular_rad,
+        preview_repair_budget_mm: model.analysis_options.preview_repair_budget_mm,
+    }
 }
 
 impl ImportedStep {
@@ -593,6 +603,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     };
     Ok(ImportedStep {
         original_bytes: bytes,
+        analysis_options: options,
         _original_source: original_source,
         _repair_ledger: repair_ledger,
         solids,

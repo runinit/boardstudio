@@ -1,10 +1,9 @@
-//! Private generated analytic qualification checkpoint.
-//!
-//! This module is test-only. It does not publish a production certificate,
-//! change `analysisErrorBoundMm`, or alter the active v1 wire contract.
+//! Private generated analytic verifier, consumed by the sealed qualification owner.
 
 use super::*;
-use monstertruck_modeling::{Curve, InnerSpace, Plane, Point3, Solid, Surface};
+use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface};
+#[cfg(test)]
+use monstertruck_modeling::{Plane, Solid};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq)]
