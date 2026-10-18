@@ -13,6 +13,25 @@ const stable = value => Array.isArray(value)
     : value;
 const startedAt = new Date().toISOString();
 
+// Case collision findings read `<left> [id] ↔ <right> [id]: <status> (<observation>; <reasons>)`. A pair only
+// proves the physical PCB reached a real Parry query when the witness is a raw surface observation: an
+// unavailable PCB renders the same pair label with "no mesh observation".
+const CASE_BODY_PCB_PAIR = /\[(?:plate|bottom)[^\]]*\] ↔ PCB \[pcb-reference\]/;
+const RAW_SURFACE_OBSERVATION = /\((?:surface intersection (?:near|observed)|surface separation \d)/;
+const observedCasePcbPair = text => CASE_BODY_PCB_PAIR.test(text) && RAW_SURFACE_OBSERVATION.test(text);
+
+// The exact summaries Runtime renders for an unavailable PCB or an uncertain raw observation never count.
+function assertUnavailablePcbPairsDoNotCount() {
+  for (const text of [
+    'plate [plate] ↔ PCB [pcb-reference]: Uncertain (no mesh observation; left generated body has no certified analysisErrorBoundMm, right generated body has no certified analysisErrorBoundMm, Parry query has no certified numerical error bound)',
+    'bottom [bottom] ↔ PCB [pcb-reference]: Uncertain (uncertain observation (query unsupported); raw mesh observation is uncertain: query unsupported)',
+    'SW1 [SW1:0] ↔ PCB [pcb-reference]: Uncertain (surface intersection near (2.33, 5.08, 2.00) mm; left asset has no certified analysisErrorBoundMm)',
+    'plate [plate] ↔ bottom [bottom]: Uncertain (surface separation 3.500 mm between (0.00, 0.00, 0.00) and (0.00, 0.00, 3.50) mm)',
+  ]) assert.ok(!observedCasePcbPair(text), `not a PCB observation: ${text}`);
+  assert.ok(observedCasePcbPair('plate [plate] ↔ PCB [pcb-reference]: Uncertain (surface separation 3.500 mm between (-12.40, -13.00, 3.50) and (-12.40, -13.00, 0.00) mm)'));
+  assert.ok(observedCasePcbPair('bottom [bottom] ↔ PCB [pcb-reference]: Uncertain (surface intersection near (24.68, 28.75, -0.65) mm)'));
+}
+
 async function setSlider(page, name, target) {
   const slider = page.getByRole('slider', { name, exact: true });
   const initial = Number(await slider.getAttribute('aria-valuenow'));
@@ -271,8 +290,10 @@ async function setSlider(page, name, target) {
   }
 
   // The default collision check runs the real page, worker and Monstertruck provider on a 2 x 2 rigid-mount
-  // case: the physical PCB must pair with a generated case body, and the findings must not collapse the viewer.
+  // case. The physical PCB must reach a real query against a generated case body, no collision error may be
+  // reported, and the findings panel must scroll internally while the Case viewer stays visible beside it.
   async function collisionScenario(context) {
+    assertUnavailablePcbPairsDoNotCount();
     const scenarioStartedMs = Date.now();
     const collisionPage = await context.newPage();
     collisionPage.on('pageerror', error => pageErrors.push(error.message));
@@ -287,28 +308,53 @@ async function setSlider(page, name, target) {
     await collisionPage.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor({ timeout: 120000 });
     const startedMs = Date.now();
     await collisionPage.getByRole('button', { name: 'Check collisions', exact: true }).click();
-    const pcbPair = /\[(?:plate|bottom)[^\]]*\] ↔ PCB \[pcb-reference\]/;
-    await collisionPage.waitForFunction(source => {
-      const pairs = [...document.querySelectorAll('.m1-case-collision-checks p')]
-        .filter(element => element.textContent.includes('↔'));
-      return pairs.some(element => new RegExp(source).test(element.textContent));
-    }, pcbPair.source, { timeout: 120000 });
+    // Finished means the pending status is gone and the check produced findings or errors.
+    await collisionPage.waitForFunction(() => {
+      const panel = document.querySelector('.m1-case-collision-checks');
+      return panel && !panel.querySelector('[role="status"]')
+        && [...panel.querySelectorAll('p')].some(element => element.textContent.includes('↔') || element.getAttribute('role') === 'alert');
+    }, null, { timeout: 120000 });
     const collisionMs = Date.now() - startedMs;
     const layout = await collisionPage.evaluate(() => {
       const panel = document.querySelector('.m1-case-collision-checks');
-      const viewer = document.querySelector('[aria-label^="Interactive 3D Case preview"]').getBoundingClientRect();
+      const container = panel.closest('.m1-case-panel');
+      const viewer = document.querySelector('[aria-label^="Interactive 3D Case preview"]');
+      const box = element => { const { x, y, width, height } = element.getBoundingClientRect(); return { x, y, width, height }; };
+      const outside = element => !element.closest('.m1-case-collision-provenance');
       return {
-        pairs: [...panel.querySelectorAll('p')].map(element => element.textContent).filter(text => text.includes('↔')),
-        viewerHeight: Math.round(viewer.height),
+        alerts: [...panel.querySelectorAll('p[role="alert"]')].map(element => element.textContent),
+        findings: [...panel.querySelectorAll('p:not([role="alert"])')]
+          .filter(element => outside(element) && element.textContent.includes('↔')).map(element => element.textContent),
+        panel: { ...box(panel), scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
+          overflowY: getComputedStyle(panel).overflowY },
+        container: container && box(container),
+        viewer: { ...box(viewer), display: getComputedStyle(viewer).display, visibility: getComputedStyle(viewer).visibility },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
       };
     });
-    assert.ok(layout.pairs.some(text => pcbPair.test(text)), 'a case body pairs with the physical PCB');
-    result('Default collision PCB pair', { pairs: layout.pairs.length, pcbPairs: layout.pairs.filter(text => pcbPair.test(text)).length,
-      collisionMs });
-    assert.ok(layout.pairs.length >= 20, `enough collision findings render to overflow the panel (${layout.pairs.length})`);
-    assert.ok(layout.viewerHeight >= 300, `Case viewer stays visible beside collision findings (${layout.viewerHeight}px)`);
-    result('Case viewer with overflowing collision findings', { viewerHeight: layout.viewerHeight });
-    console.log(`drag-smoke: default collision check paired the PCB in ${collisionMs} ms (scenario ${Date.now() - scenarioStartedMs} ms); viewer ${layout.viewerHeight}px`);
+    assert.deepEqual(layout.alerts, [], 'the default collision check reported no collision error, including PCB unavailable');
+    const pcbPairs = layout.findings.filter(observedCasePcbPair);
+    assert.ok(pcbPairs.length > 0, `a generated case body has a raw mesh observation against the physical PCB (${layout.findings.length} findings)`);
+    result('Default collision PCB pair', { findings: layout.findings.length, observedPcbPairs: pcbPairs.length, alerts: 0, collisionMs });
+
+    const { panel, viewer, container, viewport } = layout;
+    assert.ok(['auto', 'scroll'].includes(panel.overflowY), `collision findings scroll inside their panel (overflow-y ${panel.overflowY})`);
+    assert.ok(panel.scrollHeight > panel.clientHeight && panel.clientHeight > 0,
+      `collision findings overflow their panel (scrollHeight ${panel.scrollHeight}, clientHeight ${panel.clientHeight})`);
+    assert.ok(viewer.display !== 'none' && viewer.visibility === 'visible' && viewer.width > 0 && viewer.height > 0,
+      `the Case viewer has a visible, nonzero rectangle (${viewer.width} x ${viewer.height})`);
+    assert.ok(viewer.x >= 0 && viewer.y >= 0 && viewer.x + viewer.width <= viewport.width && viewer.y + viewer.height <= viewport.height,
+      'the Case viewer lies inside the desktop viewport');
+    assert.ok(container && panel.y >= container.y && panel.y + panel.height <= container.y + container.height,
+      'the findings panel stays inside the Case panel instead of pushing past it');
+    assert.ok(viewer.y + viewer.height <= panel.y + 1 || panel.y + panel.height <= viewer.y + 1,
+      'the findings panel and the Case viewer do not overlap');
+    result('Case viewer with overflowing collision findings', {
+      scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight, overflowY: panel.overflowY,
+      viewer: [Math.round(viewer.width), Math.round(viewer.height)], panelHeight: Math.round(panel.height),
+    });
+    console.log(`drag-smoke: default collision check observed ${pcbPairs.length} PCB pairs in ${collisionMs} ms (scenario ${Date.now() - scenarioStartedMs} ms); `
+      + `findings scroll ${panel.clientHeight}/${panel.scrollHeight} px beside a ${Math.round(viewer.width)} x ${Math.round(viewer.height)} px viewer`);
   }
 
   try {
