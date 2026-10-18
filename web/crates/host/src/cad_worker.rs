@@ -904,6 +904,12 @@ fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
     }
     let source_sha256 = string_field(&value, "sourceSha256")?;
     let options_value = Reflect::get(&value, &"importOptions".into()).map_err(js_message)?;
+    if v2 && !options_value.is_null() && !options_value.is_undefined() {
+        allowed_fields(
+            &options_value,
+            &["previewRepairBudgetMm", "targetDeflectionMm"],
+        )?;
+    }
     let import_options = if options_value.is_null() || options_value.is_undefined() {
         CadStepImportOptions::default()
     } else {
@@ -936,6 +942,21 @@ fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
     let line_occurrences_array = Array::from(&line_occurrences_value);
     let mut line_occurrences = Vec::with_capacity(line_occurrences_array.length() as usize);
     for item in line_occurrences_array.iter() {
+        if v2 {
+            exact_fields(
+                &item,
+                &[
+                    "lineOccurrenceIndex",
+                    "trimmedCurveId",
+                    "sourceLineId",
+                    "curveSetId",
+                    "representationId",
+                    "sourceUnitToMm",
+                    "placementF64",
+                    "declaredUncertaintyMm",
+                ],
+            )?;
+        }
         let placement_vec =
             read_f64_buffer(Reflect::get(&item, &"placementF64".into()).map_err(js_message)?)?;
         let placement_f64: [f64; 16] = placement_vec
@@ -1078,6 +1099,19 @@ fn exact_fields(value: &JsValue, fields: &[&str]) -> Result<(), String> {
             .any(|field| !Object::has_own(object, &(*field).into()))
     {
         return Err("missing or unexpected metadata fields".into());
+    }
+    Ok(())
+}
+
+fn allowed_fields(value: &JsValue, fields: &[&str]) -> Result<(), String> {
+    let object = value
+        .dyn_ref::<Object>()
+        .ok_or("metadata object required")?;
+    if Object::keys(object).iter().any(|key| {
+        !key.as_string()
+            .is_some_and(|key| fields.contains(&key.as_str()))
+    }) {
+        return Err("unexpected metadata field".into());
     }
     Ok(())
 }

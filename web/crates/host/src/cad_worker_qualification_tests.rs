@@ -554,6 +554,20 @@ async fn authenticated_step_bytes_bind_owned_unknown_evidence_and_immutable_sour
     let (_, result) = run_request(&queue, &module, request.clone(), vec![1])
         .await
         .unwrap_or_else(|(_, e, _)| panic!("{e}"));
+    let payload = Reflect::get(&result, &"vendorStep".into()).unwrap();
+    let options = Reflect::get(&payload, &"importOptions".into()).unwrap();
+    Reflect::set(&options, &"callerCertificate".into(), &true.into()).unwrap();
+    assert!(decode_result(result.clone()).is_err());
+    Reflect::delete_property(
+        options.unchecked_ref::<Object>(),
+        &"callerCertificate".into(),
+    )
+    .unwrap();
+    let bad_lines = Function::new_no_args("return [{lineOccurrenceIndex:0,trimmedCurveId:'1',sourceLineId:'2',curveSetId:'3',representationId:'4',sourceUnitToMm:1,placementF64:new Float64Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]),declaredUncertaintyMm:null,callerCertificate:true}]")
+        .call0(&JsValue::NULL).unwrap();
+    Reflect::set(&payload, &"lineOccurrences".into(), &bad_lines).unwrap();
+    assert!(decode_result(result.clone()).is_err());
+    Reflect::set(&payload, &"lineOccurrences".into(), &Array::new()).unwrap();
     let asset = decode_result(result).unwrap().vendor_step.unwrap();
     assert_eq!(asset.source_sha256, sha256_hex(&[1]));
     assert_eq!(asset.import_options, request.step_import_options.unwrap());
