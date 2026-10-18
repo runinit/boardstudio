@@ -778,24 +778,57 @@ mod tests {
     fn tiny_off_plane_parametric_component_is_unknown() {
         let original = plate_model();
         let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
+
+        // Select the native bottom face by its exact z=0 corners, not by ordinal.
+        let mut bottom_keys = Vec::new();
+        let mut native_keys = BTreeSet::new();
+        for (solid_index, solid) in original.solids.iter().enumerate() {
+            for (shell_index, shell) in solid.boundaries().iter().enumerate() {
+                for (face_index, _) in shell.face_iter().enumerate() {
+                    native_keys.insert(NativeFaceKey {
+                        solid_index,
+                        shell_index,
+                        face_index,
+                    });
+                }
+            }
+        }
+        for key in &native_keys {
+            if let Some(corners) = exact_plane_rectangle_corners(&original, *key) {
+                if corners.iter().all(|point| point.z == 0.0) {
+                    bottom_keys.push(*key);
+                }
+            }
+        }
+        assert_eq!(bottom_keys.len(), 1);
+        let bottom_key = bottom_keys[0];
+
+        // A plane whose normalized normal rounds to +Z, but whose retained
+        // parametric axis has a tiny, nonzero out-of-plane component.
+        let mutated_surface = Surface::Plane(Plane::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0_f64.powi(-100), 0.0, 0.0),
+            Point3::new(0.0, 2.0_f64.powi(100), 5e-324),
+        ));
+
         let mut model = original;
         let mut solids = Vec::new();
-        for solid in model.solids {
+        for (solid_index, solid) in model.solids.into_iter().enumerate() {
             let mut shells = solid.into_boundaries();
-            for shell in &mut shells {
-                for face in shell.face_iter_mut() {
-                    // Keep the same rectangular corners, but make one retained
-                    // parametric axis carry a tiny out-of-plane component.
-                    face.set_surface(Surface::Plane(Plane::new(
-                        Point3::new(0.0, 0.0, 0.0),
-                        Point3::new(1.0, 0.0, 0.0),
-                        Point3::new(0.0, 1.0, 1e-12),
-                    )));
+            for (shell_index, shell) in shells.iter_mut().enumerate() {
+                for (face_index, face) in shell.face_iter_mut().enumerate() {
+                    if solid_index == bottom_key.solid_index
+                        && shell_index == bottom_key.shell_index
+                        && face_index == bottom_key.face_index
+                    {
+                        face.set_surface(mutated_surface.clone());
+                    }
                 }
             }
             solids.push(Solid::new_unchecked(shells));
         }
         model.solids = solids;
+
         let result = qualify_generated(&model, &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
