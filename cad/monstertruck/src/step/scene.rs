@@ -101,7 +101,7 @@ impl<'a> Scene<'a> {
         &self,
         representation: u64,
         placement: Matrix4,
-        seen_mappings: &mut HashSet<u64>,
+        budget: &mut super::OccurrenceBudget,
     ) -> Result<Vec<(u64, Matrix4, u64)>, String> {
         let mut result = Vec::new();
         self.walk(
@@ -109,7 +109,7 @@ impl<'a> Scene<'a> {
             placement,
             &mut HashSet::new(),
             &mut result,
-            seen_mappings,
+            budget,
         )?;
         Ok(result)
     }
@@ -119,8 +119,9 @@ impl<'a> Scene<'a> {
         placement: Matrix4,
         path: &mut HashSet<u64>,
         result: &mut Vec<(u64, Matrix4, u64)>,
-        seen_mappings: &mut HashSet<u64>,
+        budget: &mut super::OccurrenceBudget,
     ) -> Result<(), String> {
+        budget.traverse()?;
         if path.len() >= MAX_MAPPING_DEPTH || !path.insert(representation) {
             return Err("cyclic or excessively deep mapped representation graph".into());
         }
@@ -129,18 +130,23 @@ impl<'a> Scene<'a> {
             .get(&representation)
             .ok_or_else(|| format!("missing shape representation #{representation}"))?;
         for id in items {
+            budget.traverse()?;
             if self.solids.contains(id) {
+                budget.emit()?;
                 result.push((*id, placement, representation));
                 continue;
             }
             let record = self.simple(*id)?;
             match record.name.as_str() {
-                "GEOMETRIC_CURVE_SET" => result.push((*id, placement, representation)),
+                "GEOMETRIC_CURVE_SET" => {
+                    budget.emit()?;
+                    result.push((*id, placement, representation));
+                }
                 "AXIS2_PLACEMENT_3D" => {
                     self.frame(*id, self.factor(representation)?)?;
                 }
                 "MAPPED_ITEM" => {
-                    seen_mappings.insert(*id);
+                    budget.seen_mappings.insert(*id);
                     let mapped = parameters(record, 3)?;
                     if !matches!(mapped[0], Parameter::String(_)) {
                         return Err("malformed mapped item name".into());
@@ -160,7 +166,7 @@ impl<'a> Scene<'a> {
                     let target = self.operator(reference(&mapped[2])?, parent_factor)?;
                     let next = target * origin.invert().ok_or("singular mapping origin")?;
                     super::units::validate_placement_matrix(next)?;
-                    self.walk(child, placement * next, path, result, seen_mappings)?;
+                    self.walk(child, placement * next, path, result, budget)?;
                 }
                 kind => {
                     return Err(format!(
@@ -170,7 +176,7 @@ impl<'a> Scene<'a> {
             }
         }
         for child in self.related(representation)? {
-            self.walk(child, placement, path, result, seen_mappings)?;
+            self.walk(child, placement, path, result, budget)?;
         }
         path.remove(&representation);
         Ok(())

@@ -16,7 +16,8 @@ import urllib.error
 import urllib.request
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
-PAGE = "cad/scripts/browser-smoke/smoke.html"
+PAGE = ("cad/scripts/browser-smoke/occurrence-budget.html" if "--occurrence-budget" in sys.argv
+        else "cad/scripts/browser-smoke/smoke.html")
 
 
 def chromium():

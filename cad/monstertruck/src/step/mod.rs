@@ -998,6 +998,41 @@ fn source_face_catalogue(
     Ok(catalogue)
 }
 
+// Admission limits per import, shared across all roots and assembly paths.
+// A traversal step is one representation visit, item visit, assembly path or edge.
+// Occurrences count both solids and curve sets, before geometry is materialized.
+const MAX_OCCURRENCE_TRAVERSAL_STEPS: usize = 16_384;
+const MAX_STEP_OCCURRENCES: usize = 1_024;
+
+#[derive(Default)]
+struct OccurrenceBudget {
+    traversal_steps: usize,
+    occurrences: usize,
+    seen_mappings: HashSet<u64>,
+}
+
+impl OccurrenceBudget {
+    fn traverse(&mut self) -> Result<(), String> {
+        if self.traversal_steps == MAX_OCCURRENCE_TRAVERSAL_STEPS {
+            return Err(format!(
+                "STEP traversal limit exceeded ({MAX_OCCURRENCE_TRAVERSAL_STEPS} steps)"
+            ));
+        }
+        self.traversal_steps += 1;
+        Ok(())
+    }
+
+    fn emit(&mut self) -> Result<(), String> {
+        if self.occurrences == MAX_STEP_OCCURRENCES {
+            return Err(format!(
+                "STEP occurrence limit exceeded ({MAX_STEP_OCCURRENCES} occurrences)"
+            ));
+        }
+        self.occurrences += 1;
+        Ok(())
+    }
+}
+
 fn occurrences(
     table: &Table,
     scene: &scene::Scene<'_>,
@@ -1023,20 +1058,22 @@ fn occurrences(
     )?;
     let mut instances = Vec::new();
     let mut traversed = HashSet::new();
-    let mut seen_mappings = HashSet::new();
+    let mut budget = OccurrenceBudget::default();
     if standalone {
         for root in scene.roots()? {
-            instances.extend(scene.instances(root, Matrix4::identity(), &mut seen_mappings)?);
+            instances.extend(scene.instances(root, Matrix4::identity(), &mut budget)?);
         }
     } else {
         for top in assembly.top_nodes() {
             for path in assembly.paths_iter(top.index()) {
+                budget.traverse()?;
                 let nodes = path.nodes();
                 if nodes.len() != path.edges().len() + 1 {
                     return Err("assembly path node/edge sequence is inconsistent".into());
                 }
                 let mut transform = Matrix4::identity();
                 for (index, edge) in path.edges().iter().enumerate() {
+                    budget.traverse()?;
                     traversed.insert(std::ptr::from_ref(edge.entity()) as usize);
                     let factor = |index: usize| -> Result<f64, String> {
                         let representation = table
@@ -1059,7 +1096,7 @@ fn occurrences(
                 let representation = table
                     .shape_representation_of_node(path.terminal_node().entity())
                     .ok_or("assembly node lacks a shape representation")?;
-                instances.extend(scene.instances(representation, transform, &mut seen_mappings)?);
+                instances.extend(scene.instances(representation, transform, &mut budget)?);
             }
         }
     }
@@ -1068,7 +1105,7 @@ fn occurrences(
         .map(|index| assembly.node(index).edges().count())
         .sum();
     validate_assembly_completeness(source_ids.len(), edges, traversed.len())?;
-    scene.require_complete_mappings(&seen_mappings)?;
+    scene.require_complete_mappings(&budget.seen_mappings)?;
     Ok(instances)
 }
 

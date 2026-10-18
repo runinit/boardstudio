@@ -1,5 +1,5 @@
 // Real Host worker + real web-target CAD provider. Expected fixture reports never mint evidence.
-export async function checkWorkerQualification(check, contract) {
+export async function checkWorkerQualification(check, contract, occurrenceBudgetOnly = false) {
   const a = contract.qualificationV2.activation;
   const clone = value => structuredClone(value);
   const equal = (x, y) => JSON.stringify(x) === JSON.stringify(y);
@@ -112,6 +112,20 @@ export async function checkWorkerQualification(check, contract) {
   }
   try {
     await start();
+    const response = await fetch(new URL('../../monstertruck/tests/fixtures/mapped-over-budget.step', location.href));
+    require('over-budget fixture is available', response.ok);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const sha = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
+    const refused = await request('read-step', { sourceSha256: sha, stepImportOptions: {} }, { inputBytes: bytes.buffer });
+    require('actual worker refuses occurrence expansion through normal error reply',
+      refused.frame.outcome === 'failed' && /STEP occurrence limit exceeded \(1024 occurrences\)/.test(refused.frame.error)
+      && refused.result == null, refused.frame.error);
+    require('refusal preserves captured worker identity', equal(refused.frame.identity, identity));
+    const mappedRecovery = await vendor('cad/monstertruck/tests/fixtures/mapped-occurrence.step');
+    require('same actual worker imports mapped asset after refusal', mappedRecovery.faceOccurrences.length === 8
+      && mappedRecovery.surfacePositionsMmF64.length === 72 && mappedRecovery.sourceFaces.length === 4
+      && mappedRecovery.sourceQualification.state === 'unknown' && mappedRecovery.accuracy.analysisErrorBoundMm === null);
+    if (occurrenceBudgetOnly) return;
     const plate = await generated();
     require('actual worker generated plate has authenticated exact source bound', plate.sourceQualification.state === 'bounded' && plate.analysisErrorBoundMm === 0);
     const planeQ = metadata(a.generatedPlaneQuery, plate, plate);
