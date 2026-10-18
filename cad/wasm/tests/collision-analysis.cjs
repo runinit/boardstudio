@@ -3,6 +3,64 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const cad = require(path.resolve(process.argv[2]));
+const contract = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/generated-analysis-contract.json')));
+const fieldSet = value => Object.keys(value).sort();
+const isU32 = value => Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
+function checkContract(payload, deflectionMm) {
+  const example = contract.directPayload;
+  assert.deepEqual(fieldSet(payload), fieldSet(example), 'backend owns only the direct payload fields');
+  assert.equal(payload.bodyId, contract.preparedBody.body.id);
+  assert.equal(payload.revision, contract.preparedBody.revision);
+  assert(payload.surfacePositionsMmF64 instanceof Float64Array);
+  assert(payload.triangleFaceOccurrenceIndices instanceof Uint32Array);
+  assert(payload.surfacePositionsMmF64.length > 0);
+  assert.equal(payload.surfacePositionsMmF64.length, payload.triangleFaceOccurrenceIndices.length * 9);
+  assert.equal(payload.analysisErrorBoundMm, null, 'a meshing setting is never an accuracy certificate');
+  assert.equal(payload.deflectionMm, deflectionMm);
+  assert.equal(typeof payload.meshClosedOriented, typeof example.meshClosedOriented);
+  assert.equal(payload.meshClosedOriented, example.meshClosedOriented);
+  assert(Array.isArray(payload.sourceFaces) && payload.sourceFaces.length > 0);
+  assert(Array.isArray(payload.faceOccurrences) && payload.faceOccurrences.length > 0);
+  const bounds = {min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity]};
+  payload.surfacePositionsMmF64.forEach((value, index) => {
+    assert(Number.isFinite(value));
+    bounds.min[index % 3] = Math.min(bounds.min[index % 3], value === 0 ? 0 : value);
+    bounds.max[index % 3] = Math.max(bounds.max[index % 3], value === 0 ? 0 : value);
+  });
+  assert.deepEqual(bounds, contract.expectedBoundsMm);
+  for (const face of payload.sourceFaces) {
+    assert.deepEqual(fieldSet(face), fieldSet(example.sourceFaces[0]));
+    assert([face.solidIndex, face.shellIndex, face.faceIndex].every(isU32));
+    assert.equal(typeof face.supportKind, 'string');
+    assert(face.supportKind.trim().length > 0);
+  }
+  const referencedFaces = new Set();
+  const referencedOccurrences = new Set(payload.triangleFaceOccurrenceIndices);
+  payload.faceOccurrences.forEach((occurrence, index) => {
+    assert.deepEqual(fieldSet(occurrence), fieldSet(example.faceOccurrences[0]));
+    assert(isU32(occurrence.sourceFaceIndex) && occurrence.sourceFaceIndex < payload.sourceFaces.length);
+    assert(isU32(occurrence.solidOccurrenceIndex));
+    assert.equal(occurrence.solidOccurrenceIndex, payload.sourceFaces[occurrence.sourceFaceIndex].solidIndex);
+    assert(referencedOccurrences.has(index), 'every retained face occurrence has triangles');
+    referencedFaces.add(occurrence.sourceFaceIndex);
+  });
+  assert.equal(referencedFaces.size, payload.sourceFaces.length);
+  assert([...referencedOccurrences].every(index => index < payload.faceOccurrences.length));
+}
+// The same JSON example is consumed by Host; arrays are transport syntax only.
+checkContract({...contract.directPayload,
+  surfacePositionsMmF64: new Float64Array(contract.directPayload.surfacePositionsMmF64),
+  triangleFaceOccurrenceIndices: new Uint32Array(contract.directPayload.triangleFaceOccurrenceIndices),
+}, contract.directPayload.deflectionMm);
+checkContract(cad.analyze_generated_body(contract.preparedBody, contract.options), contract.directPayload.deflectionMm);
+checkContract(cad.analyze_generated_body(contract.preparedBody, contract.refinementOptions), contract.refinementOptions.targetDeflectionMm);
+checkContract(cad.analyze_generated_body(contract.preparedBody, {targetDeflectionMm: null}), contract.directPayload.deflectionMm);
+for (const key of ['geometryIdentity', 'sourceSha256', 'generatedAnalysis', 'vendorStep']) {
+  assert.throws(() => cad.analyze_generated_body(contract.preparedBody, {[key]: contract.workerGeometryIdentityPrefix}));
+}
+for (const invalid of [null, undefined, [], 0, 'options', true, () => {}]) {
+  assert.throws(() => cad.analyze_generated_body(contract.preparedBody, invalid));
+}
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '../../test/fixtures/holed-plate.json')));
 const selected = fixture.bodies[0];
 const body = {
@@ -94,4 +152,4 @@ assert.equal(imported.vendorStep.accuracy.maxRepairDisplacementMm, null);
 assert.equal(imported.vendorStep.accuracy.analysisErrorBoundMm, null);
 assert.equal(imported.vendorStep.importOptions.targetDeflectionMm, 0.01);
 assert(imported.vendorStep.faceOccurrences.every(face => face.repairDisplacementMm === null));
-console.log('WASM generated analysis, vendor options, typed buffers, provenance and identity validation passed');
+console.log('WASM shared generated-analysis contract, vendor options, analytical collision fixtures and validation passed');

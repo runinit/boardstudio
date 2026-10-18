@@ -223,6 +223,20 @@ fn generated_body_analysis_data(
 #[wasm_bindgen]
 pub fn analyze_generated_body(input: JsValue, options: JsValue) -> Result<JsValue, JsValue> {
     let ir: PreparedCaseIR = deserialize(input)?;
+    // serde-wasm-bindgen's struct access does not enumerate unknown JS keys.
+    let object = options
+        .dyn_ref::<Object>()
+        .ok_or_else(|| js_error("Invalid generated analysis options: expected object"))?;
+    if !options.is_object()
+        || js_sys::Array::is_array(&options)
+        || Object::keys(object)
+            .iter()
+            .any(|key| key.as_string().as_deref() != Some("targetDeflectionMm"))
+    {
+        return Err(js_error(
+            "Invalid generated analysis options: unknown option",
+        ));
+    }
     let options: GeneratedBodyAnalysisOptions = serde_wasm_bindgen::from_value(options)
         .map_err(|error| js_error(format!("Invalid generated analysis options: {error}")))?;
     let analysis = generated_body_analysis_data(&ir, options).map_err(js_error)?;
