@@ -16,11 +16,11 @@ use std::f64::consts::TAU;
 /// must contain a 2D curve variant that comes through the conversion.
 #[test]
 fn pcurve_load_path_populates_trim_curves() -> anyhow::Result<()> {
-    let step_string = include_str!(concat!(
+    let step_string = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../resources/step/occt-cylinder.step",
-    ));
-    let table = crate::step::load::Table::from_step(step_string)?;
+    ))?;
+    let table = crate::step::load::Table::from_step(&step_string)?;
     let step_shell = table
         .shell
         .values()

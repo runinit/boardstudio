@@ -162,7 +162,7 @@ def test_cad():
         env=wasm_env,
     )
     owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
-    # Filter legacy suites; IO's private sink control needs the pinned cylinder resource.
+    # Filter legacy suites; external fixtures are read only by the tests that use them.
     for package, *selection in OWNER_TESTS:
         try:
             result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
