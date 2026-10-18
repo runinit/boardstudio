@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
-PAGE = "scripts/browser-smoke/smoke.html"
+PAGE = "cad/scripts/browser-smoke/smoke.html"
 
 
 def chromium():
@@ -42,7 +42,7 @@ def serve():
             pass
 
     server = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), functools.partial(Quiet, directory=str(CAD_ROOT)))
+        ("127.0.0.1", 0), functools.partial(Quiet, directory=str(CAD_ROOT.parent)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 

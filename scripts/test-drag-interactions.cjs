@@ -30,6 +30,7 @@ function assertUnavailablePcbPairsDoNotCount() {
   ]) assert.ok(!observedCasePcbPair(text), `not a PCB observation: ${text}`);
   assert.ok(observedCasePcbPair('plate [plate] ↔ PCB [pcb-reference]: Uncertain (surface separation 3.500 mm between (-12.40, -13.00, 3.50) and (-12.40, -13.00, 0.00) mm)'));
   assert.ok(observedCasePcbPair('bottom [bottom] ↔ PCB [pcb-reference]: Uncertain (surface intersection near (24.68, 28.75, -0.65) mm)'));
+  assert.ok(observedCasePcbPair('bottom [bottom] ↔ PCB [pcb-reference]: Clear [0.400, 0.400] mm vs 0.000 mm (surface separation 0.400 mm between (0, 0, -2) and (0, 0, -1.6) mm)'));
 }
 
 async function setSlider(page, name, target) {
@@ -411,6 +412,15 @@ async function setSlider(page, name, target) {
       label: 'Drag to offset column', control: true }, columnRead, ['offset'], { matrixId, row, column });
 
     await collisionScenario(await browser.newContext({ viewport: { width: 1513, height: 1043 } }));
+
+    const qualified = await require('./qualification-page-fixture.cjs')(
+      await browser.newContext({ viewport: { width: 1513, height: 1043 } }), process.env.BOARDSTUDIO_PREVIEW_URL);
+    result('Qualified collision product fixture', { defaultPairs: qualified.defaults.summaries.length,
+      supportedClear: qualified.defaults.summaries.filter(text => text.includes(': Clear')).length,
+      tightPairs: qualified.tight.summaries.length, vendorTightUnknown: true, realProviderWorkerRuntime: true });
+    const unavailable = await require('./qualification-page-fixture.cjs')(
+      await browser.newContext({ viewport: { width: 1513, height: 1043 } }), process.env.BOARDSTUDIO_PREVIEW_URL, true);
+    result('Unavailable physical PCB stays uncertain', { alerts: unavailable.alerts.length, pairs: unavailable.pcbPairs.length });
 
     const browserVersion = browser.version();
     assert.ok(checks.length >= 11, 'smoke completed all drag, cancellation, Undo and collision checks');

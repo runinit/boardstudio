@@ -5,7 +5,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const {performance} = require('node:perf_hooks');
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const webBinding = process.argv.includes('--web');
+const packagePath = path.resolve(process.argv[2]);
+const cad = webBinding ? await import(require('node:url').pathToFileURL(packagePath)) : require(packagePath);
+if (webBinding) await cad.default({module_or_path: fs.readFileSync(packagePath.replace(/\.js$/, '_bg.wasm'))});
+const capSelection = process.argv.slice(3).find(arg => arg === 'triangle' || arg === 'exponent');
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/generated-analysis-contract.json')));
 const v2 = fixture.qualificationV2, activation = v2.activation;
 const clone = x => JSON.parse(JSON.stringify(x));
@@ -74,7 +79,7 @@ const queryMs=performance.now()-queryAt;
 assert.equal(plane.observation.kind,'surface-separated');
 assert.equal(plane.observation.surfaceDistanceMm,1);
 const planeEvidence=plane.queryQualification;
-for(const [override,reason] of [[{maxTriangles:1},'triangle cap'],[{maximumExponent:0},'exponent cap']].filter(([,reason])=>!process.argv[3]||reason.startsWith(process.argv[3]))) {
+for(const [override,reason] of [[{maxTriangles:1},'triangle cap'],[{maximumExponent:0},'exponent cap']].filter(([,reason])=>!capSelection||reason.startsWith(capSelection))) {
   const capped=clone(planeQuery);Object.assign(capped.qualificationLimits,override);
   const response=checked(plate,plate,capped),q=response.queryQualification;
   assert.equal(response.observation.kind,'surface-separated');assert.equal(response.observation.surfaceDistanceMm,1);
@@ -269,6 +274,8 @@ for(const name of ['cylinderDefault','cylinderRefined']) {
  cylinderTimes.push({name,prepareAndQueryMs:performance.now()-at,triangles:cylinder.triangleFaceOccurrenceIndices.length,retainedBytes:cylinder.analysisHandle.retainedStorageBytes(),meshDistance:pair.meshDistance.state,accuracyBudgetMm:accuracy(pair)});
  cylinder.analysisHandle.free();
 }
-console.log(JSON.stringify({profile:'release,no wasm-opt,nodejs',preparedMs,queryMs,vendorPrepareMs,vendorQueryMs,plateRetainedBytes:retained,vendorRetainedBytes:vendor.analysisHandle.retainedStorageBytes(),plateTriangles:plateCopy.triangleFaceOccurrenceIndices.length,vendorTriangles:vendor.triangleFaceOccurrenceIndices.length,limits:activation.queryLimits,cylinderTimes,totalMs:performance.now()-started,memoryBefore,memoryAfter:process.memoryUsage()}));
+console.log(JSON.stringify({profile:webBinding?'release,no wasm-opt,web binding in Node':'release,no wasm-opt,nodejs',preparedMs,queryMs,vendorPrepareMs,vendorQueryMs,plateRetainedBytes:retained,vendorRetainedBytes:vendor.analysisHandle.retainedStorageBytes(),plateTriangles:plateCopy.triangleFaceOccurrenceIndices.length,vendorTriangles:vendor.triangleFaceOccurrenceIndices.length,limits:activation.queryLimits,cylinderTimes,totalMs:performance.now()-started,memoryBefore,memoryAfter:process.memoryUsage()}));
 plate.analysisHandle.free();plateCopy.analysisHandle.free();vendor.analysisHandle.free();
 console.log('qualified analysis: actual handles, SAME fixture activation, pair bands, caps, binding, copies and detachment passed');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

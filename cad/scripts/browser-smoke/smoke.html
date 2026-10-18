@@ -16,6 +16,8 @@ import init, {
   read_step_model,
 } from '../../wasm/pkg/boardstudio_cad_wasm.js';
 
+import { checkWorkerQualification } from './qualification.mjs';
+
 const checks = [];
 const check = (name, ok, detail = '') => checks.push({ name, ok: Boolean(ok), detail: String(detail) });
 const square = (min, max) => [{ x: min, y: min }, { x: max, y: min }, { x: max, y: max }, { x: min, y: max }];
@@ -45,7 +47,9 @@ try {
   const contract = await contractResponse.json();
   const analysis = analyze_generated_body(contract.preparedBody, contract.options);
   const sameKeys = (actual, expected) => JSON.stringify(Object.keys(actual).sort()) === JSON.stringify(Object.keys(expected).sort());
-  check('generated analysis keeps the shared direct field contract', sameKeys(analysis, contract.directPayload)
+  const activation = contract.qualificationV2.activation;
+  check('generated analysis keeps the shared v2 direct field contract',
+    sameKeys(analysis, Object.fromEntries(activation.directGeneratedRecipe.expectedProviderKeys.map(key => [key, true])))
     && analysis.bodyId === contract.preparedBody.body.id && analysis.revision === contract.preparedBody.revision);
   const positions = analysis.surfacePositionsMmF64;
   const tags = analysis.triangleFaceOccurrenceIndices;
@@ -69,10 +73,12 @@ try {
     && new Set(Array.from(tags, tag => analysis.faceOccurrences[tag]?.sourceFaceIndex)).size === analysis.sourceFaces.length);
   const refinedAnalysis = analyze_generated_body(contract.preparedBody, contract.refinementOptions);
   check('generated analysis settings remain separate from accuracy certificates',
-    analysis.deflectionMm === contract.directPayload.deflectionMm && analysis.analysisErrorBoundMm === null
+    analysis.deflectionMm === contract.directPayload.deflectionMm && analysis.analysisErrorBoundMm === 0
+    && analysis.sourceQualification.state === 'bounded' && analysis.analysisHandle.retainedStorageBytes() > positions.byteLength
     && analysis.meshClosedOriented === contract.directPayload.meshClosedOriented
     && refinedAnalysis.deflectionMm === contract.refinementOptions.targetDeflectionMm
-    && refinedAnalysis.analysisErrorBoundMm === null);
+    && refinedAnalysis.analysisErrorBoundMm === 0 && refinedAnalysis.sourceQualification.state === 'bounded'
+    && refinedAnalysis.analysisMesh.meshIdentity !== analysis.analysisMesh.meshIdentity);
   check('generated analysis refuses worker identity in backend options',
     rejection(() => analyze_generated_body(contract.preparedBody, { geometryIdentity: 'untrusted' })) !== null);
 
@@ -152,6 +158,9 @@ try {
     collision.kind === 'surface-separated' && Math.abs(collision.surfaceDistanceMm - 3.0) < 1e-6
     && typeof collision.closestPoints?.triangles?.left?.faceOccurrenceIndex === 'number',
     JSON.stringify(collision));
+  analysis.analysisHandle.free();
+  refinedAnalysis.analysisHandle.free();
+  await checkWorkerQualification(check, contract);
 } catch (caught) {
   error = String(caught?.stack ?? caught);
 }
