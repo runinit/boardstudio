@@ -8,6 +8,8 @@ mod mesh_template;
 mod print_legend_tests;
 mod printing;
 mod request;
+#[cfg(test)]
+mod test_support;
 
 use request::Request;
 

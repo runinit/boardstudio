@@ -1,6 +1,11 @@
 //! Print regressions for legends: the union must stay one closed body that keeps the roof, its
 //! thickness and the legend relief, and must still refuse genuinely separate material.
-use super::{mesh_template::build_keycap_mesh_template, printing, MeshData};
+use super::{
+    mesh_template::build_keycap_mesh_template,
+    printing,
+    test_support::{contains, cross, dot},
+    MeshData,
+};
 use boardstudio_contracts::KeycapSpec;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,33 +43,6 @@ fn triangles(mesh: &MeshData) -> Vec<[[f64; 3]; 3]> {
         .iter()
         .map(|t| [0, 1, 2].map(|i| [0, 1, 2].map(|a| f64::from(t[3 * i + a]))))
         .collect()
-}
-
-fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-/// Winding-number membership, independent of how the mesh was built.
-fn contains(mesh: &MeshData, point: [f64; 3]) -> bool {
-    let mut angle = 0.0;
-    for triangle in triangles(mesh) {
-        let [a, b, c] = triangle.map(|p| [p[0] - point[0], p[1] - point[1], p[2] - point[2]]);
-        let length = |p: [f64; 3]| dot(p, p).sqrt();
-        let denominator = length(a) * length(b) * length(c)
-            + dot(a, b) * length(c)
-            + dot(b, c) * length(a)
-            + dot(c, a) * length(b);
-        angle += 2.0 * dot(a, cross(b, c)).atan2(denominator);
-    }
-    angle.abs() > std::f64::consts::TAU
 }
 
 /// Closed, consistently oriented, one connected surface of positive volume; returns the volume.

@@ -9,8 +9,8 @@ use manifold_rust::{
     types::{BooleanEngine, Error, MeshGL64, Polygons},
 };
 
-/// Edges and collinear vertices within 10 nm are merged. This is far below print resolution and
-/// f32 render precision, and removes zero-area triangles where a thin legend grazes a dished roof.
+/// A 10 nm simplification tolerance removes the measured near-collinear union slivers where
+/// legends graze the dish; retained material and relief are checked for the regression fixtures.
 const SIMPLIFY_TOLERANCE_MM: f64 = 1e-5;
 
 const LEGEND_EDGE_MM: f64 = 0.4;
