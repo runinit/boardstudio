@@ -959,23 +959,44 @@ mod numerical_underflow_tests {
     use super::*;
 
     #[test]
-    fn tiny_cross_product_is_retained_not_filtered() {
+    fn tiny_cross_product_retains_real_fallback_append() {
+        let mut buffers = crate::mesh::MeshBuffers::default();
         let a = Point3::new(0.0, 0.0, 0.0);
         let b = Point3::new(1e-100, 0.0, 0.0);
         let c = Point3::new(0.0, 1e-100, 0.0);
+        // Real production append path: must succeed despite the squared magnitude
+        // underflowing to zero, and must emit a finite unit normal along +Z.
+        push_render_degraded_triangle(&mut buffers, [a, b, c])
+            .expect("representably nonzero fallback triangle must not be refused");
+        assert_eq!(buffers.positions.len(), 9);
+        assert_eq!(buffers.normals.len(), 9);
+        for value in buffers.positions.iter().chain(&buffers.normals) {
+            assert!(value.is_finite(), "all emitted coordinates must be finite");
+        }
+        // Positions are the f32 casts of the (subnormal) inputs.
+        for (index, coordinate) in [a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z]
+            .iter()
+            .enumerate()
+        {
+            assert_eq!(buffers.positions[index], *coordinate as f32);
+        }
+        // Unit normal points along +Z.
+        for vertex in 0..3 {
+            assert!((buffers.normals[vertex * 3] - 0.0).abs() < 1e-6);
+            assert!((buffers.normals[vertex * 3 + 1] - 0.0).abs() < 1e-6);
+            assert!((buffers.normals[vertex * 3 + 2] - 1.0).abs() < 1e-6);
+        }
+        // The predicate remains a useful filter guard.
         assert!(fallback_triangle_has_representable_area([a, b, c]));
-        let normal = (b - a).cross(c - a);
-        let length = normal.x.hypot(normal.y).hypot(normal.z);
-        assert!(length != 0.0 && length.is_finite());
-        let unit = Point3::new(normal.x / length, normal.y / length, normal.z / length);
-        assert!(unit.x.is_finite() && unit.y.is_finite() && unit.z.is_finite());
     }
 
     #[test]
     fn genuinely_degenerate_triangle_is_refused() {
+        let mut buffers = crate::mesh::MeshBuffers::default();
         let a = Point3::new(0.0, 0.0, 0.0);
         let b = Point3::new(1.0, 0.0, 0.0);
         let c = Point3::new(2.0, 0.0, 0.0);
         assert!(!fallback_triangle_has_representable_area([a, b, c]));
+        assert!(push_render_degraded_triangle(&mut buffers, [a, b, c]).is_err());
     }
 }
