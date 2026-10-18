@@ -19,6 +19,8 @@ Import vendor STEP into the production Monstertruck backend for display, alignme
 - [ ] Supply014 with per-occurrence geometry/provenance and supported source/mesh/repair error bounds, explicitly marking unknown bounds. Ordinary checks report supported tolerance bands; refine only on demand, with0.01 mm reserved for an explicit tighter check. Insufficient accuracy remains uncertain; a display mesh alone does not certify an error bound.
 - [ ] Verify corpus, malformed/oversized/unit/assembly cases with independent references and both reviews. Apply 001+002 to this asset contract, preserve strict completeness and retain exact generated-CAD gates separately.
 
+Acceptance coverage follows the [2026-10-18 user decision](../map.md#collision-acceptance-2026-10-18-user): qualify named vendor geometry classes for supported collision bands while retaining explicit unknown bounds for unsupported geometry. The qualification record must identify the classes and restrictions; 014 owns pair assessment.
+
 ## Comments
 
 2026-10-17 additional user decision: Explicit per-file preview repair budgets are approved. Declared precision remains the default; a selected larger limit is recorded separately with actual movement, original bytes/source geometry remain immutable, and incomplete or over-budget repairs refuse. [THQ local feasibility](../../../../.evidence/production-step-007/admission-root-v11/feasibility-thq-v1/REPORT.md) proves why the strict0.001 mm default cannot repair every original constraint; it does not qualify a complete repaired import. Carry settings through worker/request/derived-cache identity and keep collision bands independent.

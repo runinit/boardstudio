@@ -18,6 +18,10 @@ The [qualification record](../../research/cad/monstertruck-qualification-2026-10
 - **General 3D Booleans:** no longer on the critical path. [006](issues/006-complete-case-features.md) adopts [013](issues/013-layered-case-construction.md) and closes only demonstrated case/PCB gaps.
 - **OCCT/C++ removal ([012](issues/012-final-cutover-remove-cadrum.md)):** unchanged.
 
+## Collision acceptance (2026-10-18, user)
+
+Migration acceptance requires supported tolerance bands for generated case/PCB bodies and qualified vendor geometry classes. The qualification record must name the supported classes, restrictions and supporting fixtures, including positive vendor-pair results. An implementation leaving every vendor pair uncertain does not satisfy this coverage requirement. Unsupported vendor geometry, ineligible containment queries and requested accuracies that cannot be justified remain explicitly uncertain; this decision does not certify unknown bounds or require every vendor geometry class to be qualified.
+
 ## Workflow & Execution Guardrails
 
 Follow the [existing tracker conventions](../../agents/issue-tracker.md) and [AGENTS.md](../../../AGENTS.md):
