@@ -44,3 +44,34 @@ through the board thickness.
 
 Created from audit finding 2 at the user's request. The smallest delivery is an
 explicit refusal for unsupported depth, with ordinary through-holes preserved.
+
+### CURRENT — 2026-10-18 implementation complete; parent verification pending
+
+- Public Core now refuses blind/buried (`blind`), micro and unknown via types, and
+  partial, missing, unknown, wildcard or ambiguous layer spans, naming the via and
+  reason. Physical drills require an omitted via type and exactly one F.Cu/B.Cu
+  endpoint pair (either order); legacy `locked` flags remain supported. Via identity
+  retains `tstamp` or `uuid`. No public API/member visibility or pad/slot parser changed.
+- Public reads/module imports cover refusal, transformed through-via centre/diameter,
+  retained slots, source provenance and independent layout/circuit availability.
+  Existing mechanical gates suppress exact module geometry. Runtime browser tests
+  prove physical preparation refuses a collision operand and exact export refuses
+  without nominal fallback. Source bytes and Unknown thickness policy are unchanged.
+- RED: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock cargo test -p boardstudio_core --release --test integration direct_board_source_refuses_unsupported_via_depths`
+  failed as expected: blind via returned `read-board-source` with an invented round
+  drill (`red-core.log`). The same command then passed (`green-core-via-types.log`).
+- GREEN: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock cargo test -p boardstudio_core --release --test integration module_import::`
+  passed all 22 tests (`green-core-module-import-final.log`). The initial group run
+  exposed a new test's incorrect assumption that an empty `roundDrills` field was
+  serialized; asserting the returned typed definition fixed that test assumption.
+- GREEN: `cargo test --manifest-path cad/monstertruck/Cargo.toml --release --lib layered::pcb_tests`
+  passed all 14 native physical-PCB tests (`green-cad-pcb.log`).
+- GREEN: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock env CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target wasm-pack test --headless --chrome web/crates/runtime --lib -- source_pcb_export_tests::`
+  passed both browser tests (`green-runtime-source-pcb.log`). Targets were inspected
+  before builds; native targets are worktree-local, browser compilation used the
+  shared root target under the shared lock. Logs live in `.evidence/ticket-163/`.
+- `rustfmt --check --edition 2024 core/src/artifact/mechanical_extract/board_source.rs core/tests/module_import.rs web/crates/runtime/src/source_pcb_export_tests.rs`
+  and `git diff --check` passed. Three native test names added; none removed/renamed.
+- Pending parent gates: integrate the commit, run the final full native suite and
+  combined Standards+Spec geometry review, then determine ticket resolution.
+  No independent reviewer was spawned and acceptance boxes remain open.

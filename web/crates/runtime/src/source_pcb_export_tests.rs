@@ -67,6 +67,9 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             "does not match",
         ),
         (incomplete, false, "Unsupported PCB Edge.Cuts"),
+        (format!(r#"{} (via blind (at 5 5) (size 0.8) (drill 0.4) (layers "F.Cu" "In1.Cu") (uuid blind-via)))"#, valid.strip_suffix(')').unwrap()).into_bytes(), false, "blind-via"),
+        (format!(r#"{} (via micro (at 5 5) (size 0.8) (drill 0.4) (layers "F.Cu" "In1.Cu") (tstamp micro-via)))"#, valid.strip_suffix(')').unwrap()).into_bytes(), false, "micro-via"),
+        (format!(r#"{} (via blind (at 5 5) (size 0.8) (drill 0.4) (layers "In1.Cu" "In2.Cu") (uuid buried-via)))"#, valid.strip_suffix(')').unwrap()).into_bytes(), false, "buried-via"),
     ] {
         let runtime = support::new_runtime();
         let mut document = in_process_support::board_document();
@@ -152,6 +155,20 @@ async fn mechanical_export_refuses_unverified_or_incomplete_pcb_sources_without_
             exact: true,
             contours,
         });
+        let core = runtime.core.borrow().clone();
+        let error = runtime
+            .prepare_physical_step_assembly(
+                core.as_ref(),
+                &runtime.electrical_preview_executor_epoch().to_string(),
+                "refused-source-operand",
+                &accepted,
+                &scope,
+                Rc::new(|| true),
+            )
+            .await
+            .err()
+            .expect("invalid source must not become a physical collision operand");
+        assert!(error.contains(expected), "expected {expected}: {error}");
         runtime.submit(Event::StartGeneration {
             operation_id: runtime.operation(),
             scope: scope.clone(),

@@ -670,13 +670,39 @@ fn extract_drills(
         }
     }
     for (via_index, via) in sexpr::children(root, "via").enumerate() {
-        let id = sexpr::child(via, "tstamp")
-            .and_then(scalar)
-            .filter(|id| !id.trim().is_empty())
+        let id = ["tstamp", "uuid"]
+            .into_iter()
+            .filter_map(|key| sexpr::child(via, key).and_then(scalar))
+            .find(|id| !id.trim().is_empty())
             .map(str::to_owned)
             .unwrap_or_else(|| format!("via-{via_index}"));
         if !ids.insert(id.clone()) {
             return Err(validation("PCB source has duplicate drilled feature IDs"));
+        }
+        // KiCad omits the through-via type; locked is an independent legacy flag.
+        if let Some(kind) = sexpr::items(via)
+            .into_iter()
+            .flatten()
+            .skip(1)
+            .filter_map(sexpr::atom)
+            .find(|kind| *kind != "locked")
+        {
+            return Err(validation(format!(
+                "Unsupported PCB via '{id}' type '{kind}': partial or unknown depth cannot be represented as a through-hole"
+            )));
+        }
+        let mut spans = sexpr::children(via, "layers");
+        let through_span = spans.next().and_then(sexpr::items).is_some_and(|items| {
+            items.len() == 3
+                && matches!(
+                    (sexpr::atom(&items[1]), sexpr::atom(&items[2])),
+                    (Some("F.Cu"), Some("B.Cu")) | (Some("B.Cu"), Some("F.Cu"))
+                )
+        });
+        if !through_span || spans.next().is_some() {
+            return Err(validation(format!(
+                "Unsupported PCB via '{id}' layer span: only a resolved F.Cu/B.Cu through-hole can be represented"
+            )));
         }
         let drill = sexpr::child(via, "drill")
             .and_then(scalar)

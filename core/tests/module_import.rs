@@ -10,6 +10,145 @@ fn import(source: String, id: &str) -> Value {
 }
 
 #[test]
+fn direct_board_source_refuses_unsupported_via_depths() {
+    for (kind, layers, reason) in [
+        ("blind", "(layers \"F.Cu\" \"In1.Cu\")", "type 'blind'"),
+        ("blind", "(layers \"In1.Cu\" \"In2.Cu\")", "type 'blind'"),
+        ("micro", "(layers \"F.Cu\" \"In1.Cu\")", "type 'micro'"),
+        ("micro", "(layers \"F.Cu\" \"B.Cu\")", "type 'micro'"),
+        ("future", "(layers \"F.Cu\" \"B.Cu\")", "type 'future'"),
+        ("", "(layers \"F.Cu\" \"In1.Cu\")", "layer span"),
+        ("", "(layers \"In1.Cu\" \"In2.Cu\")", "layer span"),
+        ("", "", "layer span"),
+        ("", "(layers \"*.Cu\")", "layer span"),
+        ("", "(layers \"F.Cu\" \"unknown\")", "layer span"),
+        ("", "(layers \"F.Cu\" \"B.Cu\" \"In1.Cu\")", "layer span"),
+        (
+            "",
+            "(layers \"F.Cu\" \"B.Cu\") (layers \"F.Cu\" \"In1.Cu\")",
+            "layer span",
+        ),
+    ] {
+        let source = source_board_with(&format!(
+            "(via {kind} (at 10 10) (size 0.8) (drill 0.4) {layers} (uuid via-depth))"
+        ));
+        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"via-depth", "kind":"read-board-source", "source":source,
+                "placement":{"at":{"x":100,"y":200},"rotation":90},"flipped":true})
+            .to_string(),
+        ))
+        .unwrap();
+        assert_eq!(
+            reply["kind"], "error",
+            "{kind} must refuse physical drilling: {reply}"
+        );
+        let message = reply["error"]["message"].as_str().unwrap();
+        assert!(
+            message.contains("via-depth") && message.contains(reason),
+            "{message}"
+        );
+    }
+}
+
+#[test]
+fn through_vias_keep_uuid_centres_and_diameters_with_slots_and_source_placement() {
+    for (flag, layers, identity) in [
+        ("", r#""F.Cu" "B.Cu""#, "tstamp"),
+        ("locked", r#""B.Cu" "F.Cu""#, "uuid"),
+        ("(locked yes)", r#""F.Cu" "B.Cu""#, "uuid"),
+    ] {
+        let source = source_board_with(&format!(
+            "(via {flag} (at 8 6) (size 0.8) (drill 0.4) (layers {layers}) ({identity} through-via))"
+        ));
+        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"through", "kind":"read-board-source", "source":source,
+                "placement":{"at":{"x":100,"y":200},"rotation":90},"flipped":true})
+            .to_string(),
+        ))
+        .unwrap();
+        assert_eq!(reply["kind"], "read-board-source", "{reply}");
+        assert_eq!(
+            reply["result"]["roundDrills"],
+            json!([{
+                "id":"through-via", "at":{"x":106.,"y":192.}, "kind":"hole", "holeDiameter":0.4
+            }])
+        );
+        assert_eq!(
+            reply["result"]["pcbSource"]["slots"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        let imported = import(source, "fixture:through-via");
+        assert_eq!(
+            imported["result"]["board"]["roundDrills"][0]["id"],
+            "through-via"
+        );
+        assert!(
+            !imported["result"]["gates"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|gate| gate["code"] == "board-source-profile")
+        );
+    }
+}
+
+#[test]
+fn unsupported_via_depth_gates_module_exact_geometry_and_retains_source_provenance() {
+    for (kind, layers) in [
+        ("blind", r#""F.Cu" "In1.Cu""#),
+        ("blind", r#""In1.Cu" "In2.Cu""#),
+        ("micro", r#""F.Cu" "In1.Cu""#),
+        ("", r#""F.Cu" "unknown""#),
+    ] {
+        let source = source_board_with(&format!(
+            "(via {kind} (at 10 10) (size 0.8) (drill 0.4) (layers {layers}) (uuid refused-via))"
+        ));
+        let imported = import(source, "fixture:refused-via");
+        assert_source_gate(&imported, "refused-via");
+        let definition = &imported["result"];
+        assert_eq!(
+            definition["source"]["repository"],
+            "https://example.invalid/repo"
+        );
+        assert_eq!(definition["source"]["revision"], "abc");
+        assert_eq!(definition["source"]["path"], "board.kicad_pcb");
+        assert_eq!(definition["source"]["sha256"].as_str().unwrap().len(), 64);
+        assert!(
+            !definition["board"]["contours"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let typed: boardstudio_core::model::ModuleDefinition =
+            serde_json::from_value(definition.clone()).unwrap();
+        assert!(typed.board.round_drills.is_empty());
+        assert!(
+            !definition["circuit"]["parts"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let resolved = resolve_source_modules(vec![definition.clone()]);
+        assert_eq!(resolved["kind"], "modules-resolved", "{resolved}");
+        assert!(resolved["result"]["preview"].is_null(), "{resolved}");
+        assert_eq!(resolved["result"]["modules"].as_array().unwrap().len(), 1);
+        assert!(
+            resolved["result"]["findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|finding| finding["id"]
+                    .as_str()
+                    .unwrap()
+                    .contains("board-source-profile"))
+        );
+    }
+}
+
+#[test]
 fn direct_board_source_preserves_a_circular_outline_hole_without_refitting() {
     let result: Value = serde_json::from_str(&boardstudio_core::artifact::request(
         &json!({
