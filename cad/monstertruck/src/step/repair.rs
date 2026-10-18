@@ -769,6 +769,46 @@ mod tests {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn projected_native_line_has_actual_nonzero_attachment_movement() {
+        let text = projected_line_tetra("0.015625");
+        let model = import_step(text.as_bytes().to_vec()).unwrap();
+        let source = model.solids[&101].source[&104].source();
+        let shell = &source.shells()[0];
+        let attachment = shell.connectivity_attachments().iter().find(|a| a.edge_id() == 23).unwrap();
+        let Curve3D::Line(line) = &shell.shell().edges[attachment.edge_index()].curve else {
+            panic!("actual native LINE route");
+        };
+        assert_eq!([line.0.y, line.1.y], [0.015625; 2]);
+        let movement = model._repair_ledger.1.iter().filter_map(|op| op.as_ref().ok()).find(|op| op.edge == 23)
+            .expect("actual same-call finite projected attachment must be accounted");
+        assert_eq!(movement.bound_mm, 0.015625);
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.face_occurrences().len(), 4);
+        assert_eq!(model._repair_ledger.complete_bound_mm(), None);
+    }
+
+    fn projected_line_tetra(offset: &str) -> String {
+        let source = include_str!("../../tests/fixtures/repair-finite-domain.step");
+        let old = "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));";
+        assert_eq!(source.matches(old).count(), 1);
+        let source = source.replace(old,
+            "#105=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.000001),#102,'distance_accuracy_value','');#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#105))REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));");
+        assert_eq!(source.matches("0.03125").count(), 1);
+        source.replace("0.03125", offset)
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn projected_native_line_exact_default_boundary_refuses_over_budget() {
+        let text = projected_line_tetra("0.020000000000000001");
+        let result = import_step(text.into_bytes());
+        assert!(result.is_err(), "actual projected attachment above exact default .02 must refuse");
+        let error = result.err().unwrap();
+        assert!(error.contains("finite LINE repair"), "{error}");
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn finite_line_repair_exceeding_preview_budget_refuses_without_attachment_metadata() {
         let text = include_str!("../../tests/fixtures/repair-finite-domain.step");
         let result = import_step(text.as_bytes().to_vec());
