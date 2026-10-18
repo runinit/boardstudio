@@ -423,8 +423,23 @@ mod tests {
 /// points, knot multiplicity pattern and the full `[0, 1]` extent. Binary64
 /// rounding of the normalized knots is a separate numerical term.
 pub(super) fn raw_spline_bound(raw: StepRepairRawSplineChange<'_>) -> Result<f64, &'static str> {
-    let (degree, knots, controls) = (raw.degree(), raw.knots(), raw.controls());
-    let ((first, last), normalized) = raw.domains();
+    raw_spline_identity(
+        raw.degree(),
+        raw.knots(),
+        raw.controls(),
+        raw.domains(),
+        raw.after(),
+    )
+}
+
+fn raw_spline_identity(
+    degree: usize,
+    knots: &[f64],
+    controls: &[monstertruck_modeling::Point3],
+    domains: ((f64, f64), (f64, f64)),
+    after: &Curve3D,
+) -> Result<f64, &'static str> {
+    let ((first, last), normalized) = domains;
     if degree == 0
         || degree > 16
         || controls.len() > 8192
@@ -443,7 +458,7 @@ pub(super) fn raw_spline_bound(raw: StepRepairRawSplineChange<'_>) -> Result<f64
     {
         return Err("raw spline is not a clamped full-extent carrier");
     }
-    let Curve3D::BsplineCurve(after) = raw.after() else {
+    let Curve3D::BsplineCurve(after) = after else {
         return Err("normalized intermediate is not a non-rational spline");
     };
     let after_knots = after.knot_vector();
@@ -451,19 +466,67 @@ pub(super) fn raw_spline_bound(raw: StepRepairRawSplineChange<'_>) -> Result<f64
         || after.degree() != degree
         || after.control_points().as_slice() != controls
         || after_knots.len() != knots.len()
-        || after_knots[0] != 0.
-        || after_knots[knots.len() - 1] != 1.
     {
         return Err("normalized intermediate changed degree, controls or extent");
     }
-    // Same multiplicity pattern and order: equal raw labels stay equal and the
-    // map stays strictly increasing between distinct labels.
-    for i in 1..knots.len() {
-        if (knots[i] == knots[i - 1]) != (after_knots[i] == after_knots[i - 1])
-            || after_knots[i] < after_knots[i - 1]
-        {
-            return Err("normalized intermediate changed the knot multiplicity pattern");
-        }
+    // Every label must be exactly the saved `(k - first) / (last - first)` recipe,
+    // in that arithmetic order. Order or multiplicity alone would admit an interior
+    // label shift, which is a different parametrisation and image-preserving only
+    // by accident. The recipe is the ideal positive affine map up to binary64
+    // rounding, which stays a separate numerical term.
+    let span = last - first;
+    if !(span.is_finite() && span > 0.0)
+        || knots
+            .iter()
+            .zip(after_knots.iter())
+            .any(|(raw, normalized)| (raw - first) / span != *normalized)
+    {
+        return Err("normalized intermediate is not the saved positive affine knot recipe");
     }
     Ok(0.0)
+}
+
+#[cfg(test)]
+mod raw_spline_tests {
+    use super::*;
+    use monstertruck_modeling::{BsplineCurve, KnotVector, Point3};
+
+    fn controls() -> Vec<Point3> {
+        (0..3)
+            .map(|i| Point3::new(f64::from(i), f64::from(i * i), 0.))
+            .collect()
+    }
+    fn raw_knots() -> Vec<f64> {
+        vec![3., 3., 3. + 3e-8, 3. + 8e-8, 3. + 8e-8]
+    }
+    fn recipe(knots: &[f64]) -> Vec<f64> {
+        let span = knots[knots.len() - 1] - knots[0];
+        knots.iter().map(|k| (k - knots[0]) / span).collect()
+    }
+    fn after(knots: Vec<f64>) -> Curve3D {
+        Curve3D::BsplineCurve(BsplineCurve::new_unchecked(
+            KnotVector::from(knots),
+            controls(),
+        ))
+    }
+    fn check(after: &Curve3D) -> Result<f64, &'static str> {
+        raw_spline_identity(
+            1,
+            &raw_knots(),
+            &controls(),
+            ((3., 3. + 8e-8), (0., 1.)),
+            after,
+        )
+    }
+
+    #[test]
+    fn interior_knot_must_match_the_saved_affine_recipe() {
+        assert_eq!(check(&after(recipe(&raw_knots()))), Ok(0.0));
+        // Same order, multiplicity, ends, degree and controls: only the interior
+        // label moved, which changes the parametrisation of both spans.
+        let mut shifted = recipe(&raw_knots());
+        shifted[2] += 0.125;
+        assert!(shifted[1] < shifted[2] && shifted[2] < shifted[3]);
+        assert!(check(&after(shifted)).is_err());
+    }
 }

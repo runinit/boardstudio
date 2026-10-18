@@ -1236,8 +1236,18 @@ mod tests {
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn raw_spline_normalization_is_a_certified_identity_stage_and_keeps_asset_unknown() {
-        let text = include_str!("../../tests/fixtures/repair-raw-spline.step");
-        for reversed in [false, true] {
+        let single = include_str!("../../tests/fixtures/repair-raw-spline.step");
+        let spline = "#22=B_SPLINE_CURVE_WITH_KNOTS('',1,(#1,#2),.POLYLINE_FORM.,.F.,.F.,(2,2),(3.,3.00000008),.UNSPECIFIED.);";
+        assert_eq!(single.matches(spline).count(), 1);
+        // A real multispan carrier: the interior label must follow the same recipe.
+        let multispan = single.replace(
+            spline,
+            "#320=CARTESIAN_POINT('',(1.,0.,0.));#22=B_SPLINE_CURVE_WITH_KNOTS('',1,(#1,#320,#2),.POLYLINE_FORM.,.F.,.F.,(2,1,2),(3.,3.00000004,3.00000008),.UNSPECIFIED.);",
+        );
+        for (text, reversed) in [single, multispan.as_str()]
+            .into_iter()
+            .flat_map(|text| [(text, false), (text, true)])
+        {
             let text = if reversed {
                 text.replace(
                     "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
