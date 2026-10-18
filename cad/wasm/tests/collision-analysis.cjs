@@ -41,6 +41,7 @@ const query = {left: operand(identity), right: operand(moved), clearanceThreshol
 const observe = () => cad.query_collision_mesh_pair(result.surfacePositionsMmF64, result.triangleFaceOccurrenceIndices,
   result.surfacePositionsMmF64, result.triangleFaceOccurrenceIndices, query);
 assert.equal(observe().kind, 'surface-separated');
+assert.equal(observe().surfaceDistanceMm, 80); // Authored 120 mm plate, translated once by 200 mm.
 query.left.sourceSha256 = 'a'.repeat(64);
 assert.throws(observe);
 delete query.left.sourceSha256;
@@ -73,6 +74,11 @@ for (const x of [2, 1.25]) {
 const nested = pair(cube([0,0,0], [10,10,10]), cube([3,3,3], [7,7,7]));
 assert.equal(nested.kind, 'surface-separated');
 assert.equal(nested.surfaceDistanceMm, 3);
+for (const positions of [new Float64Array(9), new Float64Array([0,0,0,1,1,1,2,2,2])]) {
+  assert.throws(() => pair({positions, tags: new Uint32Array([0])}, unit), /degenerate triangle/);
+}
+const open = {positions: unit.positions.slice(18), tags: unit.tags.slice(2)};
+assert.equal(pair(open, cube([3,0,0], [5,2,2])).surfaceDistanceMm, 1);
 
 const tetra = fs.readFileSync(path.join(__dirname, '../../monstertruck/tests/fixtures/tetra-mm.step'));
 const imported = cad.read_step_model(new Uint8Array(tetra), {sourceSha256: 'a'.repeat(64), previewRepairBudgetMm: 0.03, targetDeflectionMm: 0.01});

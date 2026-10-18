@@ -290,6 +290,26 @@ impl TriangleSoupMesh {
             }
             vertices.push(Vector::new(x, y, z));
         }
+        for (index, triangle) in vertices.as_chunks::<3>().0.iter().enumerate() {
+            let ab = triangle[1] - triangle[0];
+            let ac = triangle[2] - triangle[0];
+            let scale = [ab.x, ab.y, ab.z, ac.x, ac.y, ac.z]
+                .into_iter()
+                .map(f64::abs)
+                .fold(0.0_f64, f64::max);
+            // Normalize before the cross product to avoid area overflow/underflow.
+            // This rejects computed degeneracy; it is not a numerical error certificate.
+            let cross = if scale > 0.0 {
+                (ab / scale).cross(ac / scale)
+            } else {
+                Vector::ZERO
+            };
+            if !vector_is_finite(cross) || cross == Vector::ZERO {
+                return Err(format!(
+                    "Invalid collision input: {side} degenerate triangle {index}"
+                ));
+            }
+        }
         let indices = (0..triangle_count as u32)
             .map(|tri| [tri * 3, tri * 3 + 1, tri * 3 + 2])
             .collect::<Vec<_>>();
@@ -859,6 +879,61 @@ mod tests {
         for target in [0.0, -0.01, f64::NAN, f64::INFINITY] {
             q.left.import_options.target_deflection_mm = Some(target);
             assert!(q.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn public_query_rejects_degenerate_surface_triangles() {
+        let (right, right_tags) = cube_soup([3.0, 0.0, 0.0], [5.0, 2.0, 2.0], 0);
+        for left in [
+            vec![0.0; 9],
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0],
+        ] {
+            let error = query_collision_mesh_pair_data(
+                &left,
+                &[0],
+                &right,
+                &right_tags,
+                &query(IDENTITY, IDENTITY),
+            )
+            .expect_err("degenerate surfaces cannot support a mesh query");
+            assert!(error.contains("degenerate triangle"), "{error}");
+        }
+    }
+
+    #[test]
+    fn open_and_nonmanifold_inputs_remain_surface_observations_with_provenance() {
+        let (positions, tags) = cube_soup([0.0, 0.0, 0.0], [2.0, 2.0, 2.0], 10);
+        let (right, right_tags) = cube_soup([3.0, 0.0, 0.0], [5.0, 2.0, 2.0], 30);
+        let mut nonmanifold = positions.clone();
+        nonmanifold.extend_from_slice(&positions[..9]);
+        let mut duplicate_tags = tags.clone();
+        duplicate_tags.push(123);
+        for (left, left_tags) in [
+            (&positions[18..], &tags[2..]),
+            (nonmanifold.as_slice(), duplicate_tags.as_slice()),
+        ] {
+            match query_collision_mesh_pair_data(
+                left,
+                left_tags,
+                &right,
+                &right_tags,
+                &query(IDENTITY, IDENTITY),
+            )
+            .unwrap()
+            {
+                MeshObservation::SurfaceSeparated {
+                    surface_distance_mm,
+                    closest_points,
+                } => {
+                    assert_eq!(surface_distance_mm, 1.0);
+                    assert_eq!(
+                        closest_points.triangles.left.face_occurrence_index,
+                        left_tags[closest_points.triangles.left.triangle_index as usize]
+                    );
+                }
+                other => panic!("expected raw surface observation: {other:?}"),
+            }
         }
     }
 }
