@@ -113,10 +113,9 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
                     record.name.as_str(),
                     "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
                 )
+                && let Some(values) = numeric_values(&input[..input.len() - rest.len()])
             {
-                if let Some(values) = numeric_values(&input[..input.len() - rest.len()]) {
-                    result.insert(id, values);
-                }
+                result.insert(id, values);
             }
             input = rest;
         } else {
