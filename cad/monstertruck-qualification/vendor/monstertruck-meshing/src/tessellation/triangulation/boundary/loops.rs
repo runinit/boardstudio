@@ -487,11 +487,41 @@ impl PolyBoundary {
     /// Lifts a proven source vertex at an active analytic pole to its incoming
     /// and outgoing chart limits without changing any original XYZ sample.
     pub(in crate::tessellation::triangulation) fn new_with_source_vertices(
-        mut pieces: Vec<PolyBoundaryPiece>,
+        pieces: Vec<PolyBoundaryPiece>,
         surface: &impl PreMeshableSurface,
         tolerance: f64,
         endpoints: impl IntoIterator<Item = (Point3, usize, Point3)>,
     ) -> Self {
+        Self::new_with_source_vertices_and_repair(pieces, surface, tolerance, endpoints, None)
+    }
+
+    pub(in crate::tessellation::triangulation) fn new_with_source_vertices_and_repair(
+        mut pieces: Vec<PolyBoundaryPiece>,
+        surface: &impl PreMeshableSurface,
+        tolerance: f64,
+        endpoints: impl IntoIterator<Item = (Point3, usize, Point3)>,
+        repair: Option<repair::FaceCapture<'_>>,
+    ) -> Self {
+        let mut pending = Vec::new();
+        if let Some(trace) = repair {
+            let size = pieces.len().checked_mul(size_of::<Option<repair::Pending<'_>>>());
+            if size.is_some_and(|n| trace.reserve_auxiliary(n))
+                && pending.try_reserve_exact(pieces.len()).is_ok()
+            {
+                for piece in &pieces {
+                    pending.push(trace.before(
+                        repair::Stage::Loop,
+                        piece.0.iter().map(|p| p.uv),
+                        piece.0.iter().map(|p| p.point),
+                    ));
+                }
+            } else {
+                trace.unsupported(
+                    repair::Stage::Loop,
+                    "original finite loop capture unavailable",
+                );
+            }
+        }
         let key = |point: Point3| {
             [point.x, point.y, point.z].map(|value| if value == 0.0 { 0 } else { value.to_bits() })
         };
@@ -611,6 +641,39 @@ impl PolyBoundary {
                 .into_iter()
                 .flat_map(|(sample, source, canonical)| [(sample, source), (canonical, source)]),
         );
+        if let Some(trace) = repair {
+            if pending.len() == 1 && boundary.loops.len() == 1 {
+                if let Some(before) = pending.pop().flatten() {
+                    let after = &boundary.loops[0];
+                    // PolyBoundary loops include their implicit last->first
+                    // segment. Expose that actual finite closure explicitly.
+                    before.finish(
+                        after.iter().chain(after.first()).map(|p| p.uv),
+                        after.iter().chain(after.first()).map(|p| p.point),
+                    );
+                }
+            } else {
+                trace.unsupported(
+                    repair::Stage::Loop,
+                    "multiple finite pieces/loops have no authenticated correspondence",
+                );
+                for before in pending.into_iter().flatten() {
+                    before.finish(std::iter::empty(), std::iter::empty());
+                }
+                for after in &boundary.loops {
+                    if let Some(before) = trace.before(
+                        repair::Stage::Loop,
+                        std::iter::empty(),
+                        std::iter::empty(),
+                    ) {
+                        before.finish(
+                            after.iter().chain(after.first()).map(|p| p.uv),
+                            after.iter().chain(after.first()).map(|p| p.point),
+                        );
+                    }
+                }
+            }
+        }
         boundary
     }
 
@@ -1036,9 +1099,12 @@ impl PolyBoundary {
         };
         let mut sources = HashMap::<_, Option<usize>>::default();
         for (point, source) in endpoints {
-            sources.entry(key(point))
+            sources
+                .entry(key(point))
                 .and_modify(|prior| {
-                    if *prior != Some(source) { *prior = None; }
+                    if *prior != Some(source) {
+                        *prior = None;
+                    }
                 })
                 .or_insert(Some(source));
         }
@@ -1063,11 +1129,16 @@ impl PolyBoundary {
                 match triangulation.insert(SPoint2::from(p)) {
                     Err(_) => None,
                     Ok(idx) => {
-                        boundary_map.entry(idx).and_modify(|prior| {
-                            let same_source = prior.source_vertex == pt.source_vertex;
-                            *prior = *pt;
-                            if !same_source { prior.source_vertex = None; }
-                        }).or_insert(*pt);
+                        boundary_map
+                            .entry(idx)
+                            .and_modify(|prior| {
+                                let same_source = prior.source_vertex == pt.source_vertex;
+                                *prior = *pt;
+                                if !same_source {
+                                    prior.source_vertex = None;
+                                }
+                            })
+                            .or_insert(*pt);
                         Some(idx)
                     }
                 }

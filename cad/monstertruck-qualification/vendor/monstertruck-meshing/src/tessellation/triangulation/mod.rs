@@ -911,6 +911,34 @@ where
     C: PolylineableCurve + ParameterBoundary2D<S> + 'a,
     S: PreMeshableSurface + 'a,
 {
+    cshell_tessellation_with_closed_axis_metadata_and_repair(
+        shell,
+        tolerance,
+        sp,
+        primitive_config,
+        edge_angular_tolerance,
+        closed_axis_metadata,
+        fallback_from_inferred_chart,
+        preview_fallback,
+        None,
+    )
+}
+
+pub(super) fn cshell_tessellation_with_closed_axis_metadata_and_repair<'a, C, S>(
+    shell: &CompressedShell<Point3, C, S>,
+    tolerance: f64,
+    sp: impl SP<S>,
+    primitive_config: TessellationPrimitiveOptions,
+    edge_angular_tolerance: Option<f64>,
+    closed_axis_metadata: &[(usize, usize, (f64, f64), Vec<usize>)],
+    fallback_from_inferred_chart: bool,
+    preview_fallback: bool,
+    repair: Option<&repair::Capture>,
+) -> (MeshedCompressedShell, Vec<usize>)
+where
+    C: PolylineableCurve + ParameterBoundary2D<S> + 'a,
+    S: PreMeshableSurface + 'a,
+{
     let vertices = shell.vertices.clone();
     let tessellate_edge = |edge: &CompressedEdge<C>| {
         let curve = &edge.curve;
@@ -930,6 +958,22 @@ where
     #[cfg(target_arch = "wasm32")]
     let (edges, edge_failures): (Vec<_>, Vec<_>) = shell.edges.iter().map(tessellate_edge).unzip();
     let tessellate_face = |(face_idx, face): (usize, &CompressedFace<S>)| {
+        let repair = repair.and_then(|capture| capture.face(face_idx));
+        if let Some(trace) = repair {
+            trace.unsupported(
+                repair::Stage::SourceDomain,
+                "generic native finite trim correspondence is unsupported",
+            );
+            trace.unsupported(
+                repair::Stage::Approximation,
+                "ordinary tessellation approximation is separate from repair",
+            );
+            trace.unsupported(
+                repair::Stage::Numerical,
+                "numerical evaluation error is separate from repair",
+            );
+        }
+        let repair_mark = repair.map(|trace| trace.mark());
         let face_start = Instant::now();
         let boundaries = face.boundaries.clone();
         let surface = &face.surface;
@@ -1028,7 +1072,7 @@ where
                     // An existing aligned trim retains the caller's raw shared
                     // representatives. Use the inferred chart only to recover
                     // a boundary whose alignment actually failed.
-                    let aligned = PolyBoundaryPiece::try_new_from_aligned_exact(
+                    let aligned = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
                         surface,
                         sampled_edges.iter().map(|(_, _, _, boundary, polyline)| {
                             (boundary.clone(), polyline.clone())
@@ -1036,6 +1080,7 @@ where
                         &sp,
                         tolerance,
                         edge_angular_tolerance.is_some(),
+                        repair,
                     );
                     if let Some(aligned) = aligned.filter(|piece| {
                         if edge_angular_tolerance.is_some() {
@@ -1120,8 +1165,8 @@ where
                         };
                         (boundary, polyline)
                     });
-                return PolyBoundaryPiece::try_new_from_aligned_exact(
-                    surface, aligned, &sp, tolerance, true,
+                return PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+                    surface, aligned, &sp, tolerance, true, repair,
                 )
                 .filter(PolyBoundaryPiece::is_cdt_compatible)
                 .or_else(|| {
@@ -1142,7 +1187,7 @@ where
                         .map(|(_, orientation, curve, _, _)| (*orientation, *curve)),
                     boundary_tolerance,
                 );
-                let aligned_piece = PolyBoundaryPiece::try_new_from_aligned_exact(
+                let aligned_piece = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
                     surface,
                     exact_edges
                         .into_iter()
@@ -1150,6 +1195,7 @@ where
                     &sp,
                     boundary_tolerance,
                     false,
+                    repair,
                 );
                 aligned_piece
                     .filter(|piece| piece.0.len() >= 3)
@@ -1203,7 +1249,7 @@ where
         let mut metric_failure = None;
         let polygon: Option<PolygonMesh> = preboundary.and_then(|preboundary| {
             let close_start = Instant::now();
-            let boundary = PolyBoundary::new_with_source_vertices(
+            let boundary = PolyBoundary::new_with_source_vertices_and_repair(
                 preboundary,
                 &surface,
                 tolerance,
@@ -1221,6 +1267,7 @@ where
                             ]
                         })
                 }),
+                repair,
             );
 
             if !boundary.is_valid() {
@@ -1288,6 +1335,13 @@ where
                 match preview_boundary_triangulation(surface, &loops, tolerance, &sp) {
                     Some(mesh) => {
                         used_fallback = true;
+                        if let (Some(trace), Some(mark)) = (repair, repair_mark) {
+                            trace.discard_since(mark);
+                            trace.unsupported(
+                                repair::Stage::Fallback,
+                                "fallback native finite-domain correspondence is unsupported",
+                            );
+                        }
                         log_mesh_trace(
                             face_idx,
                             "preview-fallback",
@@ -1336,12 +1390,8 @@ where
         .map(tessellate_face)
         .unzip();
     #[cfg(target_arch = "wasm32")]
-    let (faces, fallback): (Vec<_>, Vec<_>) = shell
-        .faces
-        .iter()
-        .enumerate()
-        .map(tessellate_face)
-        .unzip();
+    let (faces, fallback): (Vec<_>, Vec<_>) =
+        shell.faces.iter().enumerate().map(tessellate_face).unzip();
     let fallback_faces = fallback
         .into_iter()
         .enumerate()
@@ -1862,9 +1912,18 @@ fn shell_create_polygon<S: PreMeshableSurface>(
             for wire in &wires {
                 for edge in wire.iter() {
                     let curve = edge.curve();
-                    for (point, vertex) in curve.first().zip(curve.last()).into_iter().flat_map(|(front, back)| {
-                        [(*front, edge.absolute_front()), (*back, edge.absolute_back())]
-                    }) {
+                    for (point, vertex) in
+                        curve
+                            .first()
+                            .zip(curve.last())
+                            .into_iter()
+                            .flat_map(|(front, back)| {
+                                [
+                                    (*front, edge.absolute_front()),
+                                    (*back, edge.absolute_back()),
+                                ]
+                            })
+                    {
                         let next = source_ids.len();
                         let id = *source_ids.entry(vertex.id()).or_insert(next);
                         endpoints.push((point, id, vertex.point()));

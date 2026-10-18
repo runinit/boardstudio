@@ -293,6 +293,9 @@ pub struct ShellLoadReport {
     reasons: BTreeMap<(LossCategory, LossReason), LossTally>,
     attachments: Vec<ConnectivityAttachment>,
     alternate_masters: LossTally,
+    repair_curves: Vec<(u64, FiniteCurveRepair)>,
+    repair_bytes: usize,
+    repair_failed: bool,
 }
 
 /// A directly checked source incidence. This is a diagnostic, not authority for
@@ -394,6 +397,9 @@ impl ConnectivityAttachment {
 }
 
 impl ShellLoadReport {
+    pub(in crate::step::load) fn take_repair_curves(&mut self) -> (Vec<(u64, FiniteCurveRepair)>, bool) {
+        (std::mem::take(&mut self.repair_curves), self.repair_failed)
+    }
     /// Direct source discrepancies, separate from losses and tessellation error.
     pub fn connectivity_attachments(&self) -> &[ConnectivityAttachment] {
         &self.attachments
@@ -682,9 +688,23 @@ impl fmt::Display for EntityLoadReport {
 /// escapes the conversion call and is never held across a call into user code,
 /// so no borrow can overlap.
 #[derive(Debug, Default)]
-pub(crate) struct LossSink(std::cell::RefCell<ShellLoadReport>);
+pub(crate) struct LossSink(std::cell::RefCell<ShellLoadReport>, bool);
 
 impl LossSink {
+    pub(crate) fn with_repair(enabled: bool) -> Self { Self(std::cell::RefCell::default(), enabled) }
+    pub(crate) fn wants_repair(&self) -> bool { self.1 }
+    pub(crate) fn repair_curve(&self, id: u64, capture: Option<FiniteCurveRepair>) {
+        let Some(capture) = capture else { return; };
+        let mut report = self.0.borrow_mut();
+        let bytes = capture.storage_bound();
+        let next = bytes.and_then(|bytes| report.repair_bytes.checked_add(bytes));
+        if report.repair_curves.len() >= 1_000_000 || next.is_none_or(|n| n > 256 * 1024 * 1024)
+            || report.repair_curves.try_reserve_exact(1).is_err() {
+            report.repair_failed = true; return;
+        }
+        report.repair_bytes = next.unwrap();
+        report.repair_curves.push((id, capture));
+    }
     pub(crate) fn listed(&self, category: LossCategory, n: usize) {
         self.0.borrow_mut().note_listed(category, n);
     }

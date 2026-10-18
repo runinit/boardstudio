@@ -281,7 +281,7 @@ fn original_panasonic_preserves_every_face_and_boundary_line() {
     let records = source_records(&original);
     let retained = source_records(&model._original_source);
     assert_eq!(
-        model.solids[&15].source[&10].shells()[0]
+        model.solids[&15].source[&10].source().shells()[0]
             .shell()
             .edges
             .len(),

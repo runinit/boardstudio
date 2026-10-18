@@ -1172,10 +1172,20 @@ impl PolyBoundaryPiece {
     /// in the bounded surface domain and still evaluates to the paired 3D samples.
     /// Trying every cyclic start lets a closed wire establish its branch from a
     /// neighboring piece without asserting that the surface is periodic.
+    #[cfg(test)]
     fn reconcile_closed_piece_branches<S: PreMeshableSurface>(
         surface: &S,
         pieces: Vec<Vec<SurfacePoint>>,
         tolerance: f64,
+    ) -> Option<(Vec<Vec<SurfacePoint>>, bool)> {
+        Self::reconcile_closed_piece_branches_with_repair(surface, pieces, tolerance, None)
+    }
+
+    fn reconcile_closed_piece_branches_with_repair<S: PreMeshableSurface>(
+        surface: &S,
+        pieces: Vec<Vec<SurfacePoint>>,
+        tolerance: f64,
+        repair: Option<repair::FaceCapture<'_>>,
     ) -> Option<(Vec<Vec<SurfacePoint>>, bool)> {
         if pieces.is_empty() || pieces.iter().any(Vec::is_empty) {
             return None;
@@ -1282,7 +1292,30 @@ impl PolyBoundaryPiece {
                 }
             }
         }
-        best.map(|(_, pieces)| (pieces, true))
+        best.map(|(_, selected)| {
+            if let Some(trace) = repair {
+                if pieces.len() != selected.len() {
+                    trace.unsupported(
+                        repair::Stage::Branch,
+                        "branch piece correspondence changed",
+                    );
+                } else {
+                    // The selection above restores original piece order; retain
+                    // each whole piece separately, including its direction.
+                    for (before, after) in pieces.iter().zip(&selected) {
+                        if let Some(pending) = trace.before(
+                            repair::Stage::Branch,
+                            before.iter().map(|p| p.uv),
+                            before.iter().map(|p| p.point),
+                        ) {
+                            pending
+                                .finish(after.iter().map(|p| p.uv), after.iter().map(|p| p.point));
+                        }
+                    }
+                }
+            }
+            (selected, true)
+        })
     }
 
     fn aligned_boundary_piece<S: PreMeshableSurface>(
@@ -1291,6 +1324,7 @@ impl PolyBoundaryPiece {
         polyline: &PolylineCurve,
         previous: Option<SurfacePoint>,
         tolerance: f64,
+        repair: Option<repair::FaceCapture<'_>>,
     ) -> Option<(Vec<SurfacePoint>, Option<SurfacePoint>)> {
         let mut next_previous = previous;
         // Equal lengths do not by themselves establish that independently
@@ -1300,6 +1334,14 @@ impl PolyBoundaryPiece {
         let paired_boundary =
             Self::boundary_samples_match_surface(surface, boundary, polyline, tolerance)
                 .then(|| boundary.to_vec());
+        let resampled = paired_boundary.is_none();
+        let before = repair.and_then(|trace| {
+            trace.before(
+                repair::Stage::BoundaryRemap,
+                boundary.iter().copied(),
+                std::iter::empty(),
+            )
+        });
         let piece = paired_boundary
             .or_else(|| resample_boundary(boundary, polyline.len()))?
             .into_iter()
@@ -1315,6 +1357,18 @@ impl PolyBoundaryPiece {
                 Some(surface_point)
             })
             .collect::<Option<Vec<_>>>()?;
+        if let Some(pending) = before {
+            // The original UV piece has no authenticated XYZ/parameter pairing
+            // with independently sampled edge points. Keep its spatial side
+            // empty; a different point count must never be justified by zip.
+            pending.finish(piece.iter().map(|p| p.uv), piece.iter().map(|p| p.point));
+        }
+        if resampled && let Some(trace) = repair {
+            trace.unsupported(
+                repair::Stage::BoundaryRemap,
+                "independent UV/XYZ sampling lacks native-domain correspondence",
+            );
+        }
         Some((piece, next_previous))
     }
 
@@ -1377,6 +1431,7 @@ impl PolyBoundaryPiece {
         Some((prefix.into_iter().chain(suffix).collect(), next_previous))
     }
 
+    #[cfg(test)]
     pub(in crate::tessellation::triangulation) fn try_new_from_aligned_exact<
         S: PreMeshableSurface,
     >(
@@ -1386,95 +1441,127 @@ impl PolyBoundaryPiece {
         tolerance: f64,
         preserve_shared_samples: bool,
     ) -> Option<Self> {
-        let pieces = wire.collect::<Vec<_>>();
-        if pieces.is_empty() {
-            None
-        } else {
-            let piece_count = pieces.len();
-            let start = pieces
-                .iter()
-                .position(|(boundary, _)| boundary.is_some())
-                .unwrap_or(0);
-            let mut previous = None::<SurfacePoint>;
-            let periodic_surface = surface.period_u().is_some() || surface.period_v().is_some();
-            pieces
-                .into_iter()
-                .cycle()
-                .skip(start)
-                .take(piece_count)
-                .map(|(boundary, polyline)| {
-                    let boundary_piece = || {
-                        boundary.as_ref().and_then(|boundary| {
-                            Self::aligned_boundary_piece(
-                                surface, boundary, &polyline, previous, tolerance,
-                            )
-                            .filter(|(piece, _)| {
-                                !preserve_shared_samples
-                                    || piece.iter().all(|sample| {
-                                        let distance = surface
-                                            .evaluate(sample.x, sample.y)
-                                            .distance(sample.point);
-                                        distance.is_finite() && distance <= tolerance.min(TOLERANCE)
-                                    })
-                            })
-                        })
-                    };
-                    let projected_piece = || {
-                        Self::projected_polyline_piece(
-                            surface,
-                            &polyline,
-                            sp,
-                            previous,
-                            preserve_shared_samples,
-                        )
-                    };
-                    let piece = if periodic_surface {
-                        projected_piece().or_else(boundary_piece)
-                    } else {
-                        boundary_piece().or_else(projected_piece)
-                    };
-                    piece
-                        .map(|(piece, next_previous)| {
-                            previous = next_previous;
-                            piece
-                        })
-                        .or_else(|| {
-                            if preserve_shared_samples {
-                                return None;
-                            }
-                            boundary.and_then(|boundary| {
-                                Self::from_parameter_boundary(surface, boundary).map(|piece| {
-                                    previous = piece.0.last().copied();
-                                    piece.0
+        Self::try_new_from_aligned_exact_with_repair(
+            surface,
+            wire,
+            sp,
+            tolerance,
+            preserve_shared_samples,
+            None,
+        )
+    }
+
+    pub(in crate::tessellation::triangulation) fn try_new_from_aligned_exact_with_repair<
+        S: PreMeshableSurface,
+    >(
+        surface: &S,
+        wire: impl Iterator<Item = (Option<Vec<Point2>>, PolylineCurve)>,
+        sp: &impl SP<S>,
+        tolerance: f64,
+        preserve_shared_samples: bool,
+        repair: Option<repair::FaceCapture<'_>>,
+    ) -> Option<Self> {
+        let mark = repair.map(|trace| trace.mark());
+        let result = (|| {
+            let pieces = wire.collect::<Vec<_>>();
+            if pieces.is_empty() {
+                None
+            } else {
+                let piece_count = pieces.len();
+                let start = pieces
+                    .iter()
+                    .position(|(boundary, _)| boundary.is_some())
+                    .unwrap_or(0);
+                let mut previous = None::<SurfacePoint>;
+                let periodic_surface = surface.period_u().is_some() || surface.period_v().is_some();
+                pieces
+                    .into_iter()
+                    .cycle()
+                    .skip(start)
+                    .take(piece_count)
+                    .map(|(boundary, polyline)| {
+                        let boundary_piece = || {
+                            boundary.as_ref().and_then(|boundary| {
+                                Self::aligned_boundary_piece(
+                                    surface, boundary, &polyline, previous, tolerance, repair,
+                                )
+                                .filter(|(piece, _)| {
+                                    !preserve_shared_samples
+                                        || piece.iter().all(|sample| {
+                                            let distance = surface
+                                                .evaluate(sample.x, sample.y)
+                                                .distance(sample.point);
+                                            distance.is_finite()
+                                                && distance <= tolerance.min(TOLERANCE)
+                                        })
                                 })
                             })
-                        })
-                })
-                .collect::<Option<Vec<Vec<SurfacePoint>>>>()
-                .and_then(|pieces| {
-                    Self::reconcile_closed_piece_branches(surface, pieces, tolerance)
-                })
-                .and_then(|(pieces, branch_adjusted)| {
-                    let concatenated = pieces.into_iter().try_fold(
-                        Vec::<SurfacePoint>::new(),
-                        |mut acc, mut piece| {
-                            if !acc.is_empty() && !piece.is_empty() {
-                                let gap = acc.last().unwrap().uv.distance(piece[0].uv);
-                                if branch_adjusted && gap > 1.0e-7 {
+                        };
+                        let projected_piece = || {
+                            Self::projected_polyline_piece(
+                                surface,
+                                &polyline,
+                                sp,
+                                previous,
+                                preserve_shared_samples,
+                            )
+                        };
+                        let piece = if periodic_surface {
+                            projected_piece().or_else(boundary_piece)
+                        } else {
+                            boundary_piece().or_else(projected_piece)
+                        };
+                        piece
+                            .map(|(piece, next_previous)| {
+                                previous = next_previous;
+                                piece
+                            })
+                            .or_else(|| {
+                                if preserve_shared_samples {
                                     return None;
                                 }
-                                piece.remove(0);
-                            }
-                            acc.extend(piece);
-                            Some(acc)
-                        },
-                    )?;
-                    Self::from_surface_points_with_shared_samples(
-                        concatenated,
-                        preserve_shared_samples,
-                    )
-                })
+                                boundary.and_then(|boundary| {
+                                    Self::from_parameter_boundary(surface, boundary).map(|piece| {
+                                        previous = piece.0.last().copied();
+                                        piece.0
+                                    })
+                                })
+                            })
+                    })
+                    .collect::<Option<Vec<Vec<SurfacePoint>>>>()
+                    .and_then(|pieces| {
+                        Self::reconcile_closed_piece_branches_with_repair(
+                            surface, pieces, tolerance, repair,
+                        )
+                    })
+                    .and_then(|(pieces, branch_adjusted)| {
+                        let concatenated = pieces.into_iter().try_fold(
+                            Vec::<SurfacePoint>::new(),
+                            |mut acc, mut piece| {
+                                if !acc.is_empty() && !piece.is_empty() {
+                                    let gap = acc.last().unwrap().uv.distance(piece[0].uv);
+                                    if branch_adjusted && gap > 1.0e-7 {
+                                        return None;
+                                    }
+                                    piece.remove(0);
+                                }
+                                acc.extend(piece);
+                                Some(acc)
+                            },
+                        )?;
+                        Self::from_surface_points_with_shared_samples(
+                            concatenated,
+                            preserve_shared_samples,
+                        )
+                    })
+            }
+        })();
+        if result.is_none()
+            && let (Some(trace), Some(mark)) = (repair, mark)
+        {
+            trace.discard_since(mark);
         }
+        result
     }
 
     pub(super) fn normalize_axis(
@@ -1568,55 +1655,57 @@ impl PolyBoundaryPiece {
                     FiniteBoundaryProjection::Footpoint(uv) => Some(uv),
                     FiniteBoundaryProjection::Refused => None,
                     FiniteBoundaryProjection::Unproved => initial_uv
-                    .take()
-                    .or_else(|| sp(surface, pt, *previous))
-                    .or_else(|| {
-                        // Supported finite source carriers require a certified
-                        // point boundary; sampled analytic guesses supply no proof.
-                        if collapsed.is_some() { return None; }
-                        // Revolve-pole fallback. At the revolution axis the surface
-                        // is singular -- every v maps to the same 3D point -- so the
-                        // parameter search (both exact and nearest) can fail to
-                        // converge there and return `None`. The pole nonetheless
-                        // coincides with a u-endpoint for EVERY v, so reuse the
-                        // adjacent vertex's v and let the singular-bridge below
-                        // carry the loop across the pole, instead of dropping the
-                        // entire face's mesh (the corner-100 in-cube polar cap).
-                        //
-                        // Gate on v-invariance of the u-endpoint (the exact,
-                        // scale-free signature of a revolution pole) so this fires
-                        // only at a genuine axis point, never masking a real
-                        // projection failure; the vertex only has to sit within a
-                        // coarse mesh chord of that pole (a boundary polyline sample
-                        // near the pole is a fraction off the exact axis point).
-                        let (_, v_prev) = (*previous)?;
-                        let (u0, u1) = surface.try_range_tuple().0?;
-                        [u0, u1].into_iter().find_map(|u_end| {
-                            let pole = surface.subs(u_end, v_prev);
-                            let is_pole = pole.near(&surface.subs(u_end, v_prev + 1.0));
-                            let at_pole = (pole - pt).magnitude2() < 1.0e-6;
-                            (is_pole && at_pole).then_some((u_end, v_prev))
+                        .take()
+                        .or_else(|| sp(surface, pt, *previous))
+                        .or_else(|| {
+                            // Supported finite source carriers require a certified
+                            // point boundary; sampled analytic guesses supply no proof.
+                            if collapsed.is_some() {
+                                return None;
+                            }
+                            // Revolve-pole fallback. At the revolution axis the surface
+                            // is singular -- every v maps to the same 3D point -- so the
+                            // parameter search (both exact and nearest) can fail to
+                            // converge there and return `None`. The pole nonetheless
+                            // coincides with a u-endpoint for EVERY v, so reuse the
+                            // adjacent vertex's v and let the singular-bridge below
+                            // carry the loop across the pole, instead of dropping the
+                            // entire face's mesh (the corner-100 in-cube polar cap).
+                            //
+                            // Gate on v-invariance of the u-endpoint (the exact,
+                            // scale-free signature of a revolution pole) so this fires
+                            // only at a genuine axis point, never masking a real
+                            // projection failure; the vertex only has to sit within a
+                            // coarse mesh chord of that pole (a boundary polyline sample
+                            // near the pole is a fraction off the exact axis point).
+                            let (_, v_prev) = (*previous)?;
+                            let (u0, u1) = surface.try_range_tuple().0?;
+                            [u0, u1].into_iter().find_map(|u_end| {
+                                let pole = surface.subs(u_end, v_prev);
+                                let is_pole = pole.near(&surface.subs(u_end, v_prev + 1.0));
+                                let at_pole = (pole - pt).magnitude2() < 1.0e-6;
+                                (is_pole && at_pole).then_some((u_end, v_prev))
+                            })
                         })
-                    })
-                    .or_else(|| {
-                        let uv = verified_footpoint(surface, pt, (*previous)?, tolerance)?;
-                        if projection_debug_enabled() {
-                            eprintln!(
-                                "BPROJ_RESCUE face={} attempt={attempt} vertex={}/{total} \
+                        .or_else(|| {
+                            let uv = verified_footpoint(surface, pt, (*previous)?, tolerance)?;
+                            if projection_debug_enabled() {
+                                eprintln!(
+                                    "BPROJ_RESCUE face={} attempt={attempt} vertex={}/{total} \
                                  uv=({:.9},{:.9}) residual={:.9} tolerance={tolerance:.9}",
-                                projection_debug_face(),
-                                if total == 0 {
-                                    0
-                                } else {
-                                    (start + offset) % total
-                                },
-                                uv.0,
-                                uv.1,
-                                surface.subs(uv.0, uv.1).distance(pt),
-                            );
-                        }
-                        Some(uv)
-                    }),
+                                    projection_debug_face(),
+                                    if total == 0 {
+                                        0
+                                    } else {
+                                        (start + offset) % total
+                                    },
+                                    uv.0,
+                                    uv.1,
+                                    surface.subs(uv.0, uv.1).distance(pt),
+                                );
+                            }
+                            Some(uv)
+                        }),
                 };
                 let uv = raw
                     .and_then(|uv| Self::normalize_uv(surface, uv, *previous))
@@ -1638,7 +1727,10 @@ impl PolyBoundaryPiece {
                                     Point2::new(u, v0)
                                 };
                                 let bridge_point = previous_point?;
-                                if !surface.evaluate(bridge_uv.x, bridge_uv.y).near(&bridge_point) {
+                                if !surface
+                                    .evaluate(bridge_uv.x, bridge_uv.y)
+                                    .near(&bridge_point)
+                                {
                                     return None;
                                 }
                                 let mut points = Vec::with_capacity(2);
@@ -1648,13 +1740,17 @@ impl PolyBoundaryPiece {
                                 points.push(SurfacePoint::from((current_uv, pt)));
                                 points
                             } else if !u0.near(&u) && surface.derivative_u(u0, v0).so_small() {
-                                if collapsed.is_some() { return None; }
+                                if collapsed.is_some() {
+                                    return None;
+                                }
                                 vec![
                                     SurfacePoint::from((Point2::new(u, v0), pt)),
                                     SurfacePoint::from((current_uv, pt)),
                                 ]
                             } else if !v0.near(&v) && surface.derivative_v(u0, v0).so_small() {
-                                if collapsed.is_some() { return None; }
+                                if collapsed.is_some() {
+                                    return None;
+                                }
                                 vec![
                                     SurfacePoint::from((Point2::new(u0, v), pt)),
                                     SurfacePoint::from((current_uv, pt)),
@@ -2968,5 +3064,4 @@ mod finite_collapsed_boundary_tests {
             "two source boundaries with the same physical anchor need an explicit trim role"
         );
     }
-
 }

@@ -204,7 +204,9 @@ impl Ledger {
                         let Curve3D::Line(line) = &edge.curve else {
                             return Err("native LINE was replaced by another curve family");
                         };
-                        let parsed = original.lines.get(&id)
+                        let parsed = original
+                            .lines
+                            .get(&id)
                             .ok_or("original parsed LINE attachments are unavailable")?;
                         raw.movement(line, parsed.points, factor, placement, occurrence, id)
                     }),
@@ -299,7 +301,10 @@ impl Ledger {
                 match movement {
                     Ok(movement) => eprintln!(
                         "STEP finite LINE repair occurrence={} edge={} whole_domain_bound_mm={} numeric_bound_mm={}",
-                        movement.occurrence, movement.edge, movement.bound_mm, movement.numeric_bound_mm
+                        movement.occurrence,
+                        movement.edge,
+                        movement.bound_mm,
+                        movement.numeric_bound_mm
                     ),
                     Err(reason) => eprintln!("STEP finite LINE repair unsupported={reason}"),
                 }
@@ -422,6 +427,126 @@ fn placed_translation_bound(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires the existing authoritative34 manifest and original corpus bytes"]
+    fn approved_corpus_operation_census() {
+        use monstertruck_io::step::load::step_geometry::{ElementarySurface, Surface};
+        let manifest = std::env::var("BOARDSTUDIO_CAD_CORPUS_MANIFEST").unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(manifest).unwrap()).unwrap();
+        let rows = manifest["authoritative_imports"].as_array().unwrap();
+        assert_eq!(rows.len(), 34);
+        for row in rows {
+            let path = row["source_path"].as_str().unwrap();
+            let bytes = std::fs::read(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../..")
+                    .join(path),
+            )
+            .unwrap();
+            assert_eq!(bytes.len() as u64, row["source_bytes"].as_u64().unwrap());
+            let model =
+                import_step(bytes.clone()).unwrap_or_else(|error| panic!("{path}: {error}"));
+            assert_eq!(model.original_bytes(), bytes);
+            let raw = Table::from_data_section(&model._original_source.data[0]);
+            let original = OriginalGeometry::capture(&raw, &bytes);
+            let mut counts = std::collections::BTreeMap::<&str, usize>::new();
+            let mut note = |name| {
+                *counts.entry(name).or_default() += 1;
+            };
+            for (solid, _, representation) in &model.occurrences {
+                for source in model.solids[solid].source[representation].source().shells() {
+                    let ids = original
+                        .bind_edges(source)
+                        .expect("original edge identities remain complete");
+                    for (edge, id) in source.shell().edges.iter().zip(ids) {
+                        let input = raw.edge_curve[&id].clone().into_owned(&raw).unwrap();
+                        match &input.edge_geometry {
+                            CurveAny::Line(_) => {
+                                let p = Point3::from(&input.edge_start.vertex_geometry);
+                                let q = Point3::from(&input.edge_end.vertex_geometry);
+                                match &edge.curve {
+                                    Curve3D::Line(line) if [line.0, line.1] == [p, q] => {
+                                        note("native_LINE_vertex_chord")
+                                    }
+                                    Curve3D::Line(_) => note("native_LINE_projected_interval"),
+                                    _ => note("native_LINE_changed_family"),
+                                }
+                            }
+                            CurveAny::BoundedCurve(_) => {
+                                match Curve3D::try_from(&input.edge_geometry) {
+                                    Ok(curve) if curve == edge.curve => {
+                                        note("bounded_full_carrier_and_domain_identical")
+                                    }
+                                    Ok(_) => note("bounded_trim_or_relabel_requires_witness"),
+                                    Err(_) => {
+                                        note("bounded_normalization_requires_raw_basis_witness")
+                                    }
+                                }
+                            }
+                            CurveAny::Conic(_) => note("native_conic_finite_interval"),
+                            CurveAny::Pcurve(_) => note("native_PCurve_lifted_interval"),
+                            CurveAny::SurfaceCurve(_) => {
+                                if let Curve3D::SurfaceCurve(actual) = &edge.curve {
+                                    match Curve3D::try_from(&input.edge_geometry) {
+                                        Ok(Curve3D::SurfaceCurve(raw)) if raw.master_representation() == actual.master_representation() => note("surface_curve_selected_master_retained"),
+                                        Ok(Curve3D::SurfaceCurve(_)) => note("surface_curve_alternate_master_SELECTED"),
+                                        _ => note("surface_curve_original_master_construction_UNSUPPORTED"),
+                                    }
+                                } else {
+                                    note("surface_curve_changed_family");
+                                }
+                            }
+                        }
+                    }
+                    for face in &source.shell().faces {
+                        note(match &face.surface {
+                            Surface::ElementarySurface(ElementarySurface::Plane(_)) => {
+                                "plane_support"
+                            }
+                            Surface::ElementarySurface(ElementarySurface::CylindricalSurface(
+                                _,
+                            )) => "cylinder_support",
+                            Surface::ElementarySurface(ElementarySurface::ConicalSurface(_)) => {
+                                "cone_support"
+                            }
+                            Surface::ElementarySurface(ElementarySurface::Sphere(_)) => {
+                                "sphere_support"
+                            }
+                            Surface::ElementarySurface(ElementarySurface::ToroidalSurface(_)) => {
+                                "torus_support"
+                            }
+                            Surface::BsplineSurface(_) => "polynomial_spline_support",
+                            Surface::NurbsSurface(_) => "rational_spline_support",
+                            Surface::SweepSurface(_) => "sweep_support",
+                        });
+                    }
+                }
+            }
+            let movements: Vec<_> = model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().ok())
+                .collect();
+            let covered = model
+                .triangle_faces()
+                .iter()
+                .copied()
+                .collect::<HashSet<_>>();
+            assert_eq!(covered.len(), model.face_occurrences().len());
+            println!(
+                "REPAIR_CENSUS {}",
+                serde_json::json!({"path":path,"routes":counts,
+                "sourceFaces":model.source_faces().len(),"faceOccurrences":model.face_occurrences().len(),
+                "lineOccurrences":model.line_presentation().occurrences().len(),
+                "finiteLineOperations":movements.len(),"nonzeroFiniteLineOperations":movements.iter().filter(|op| op.bound_mm>0.0).count(),
+                "unknownFiniteLineOperations":model._repair_ledger.1.iter().filter(|op|op.is_err()).count(),
+                "fallbackFaces":model.accuracy().fallback_meshed_faces,"bounds":model.bounds()})
+            );
+        }
+    }
 
     fn shifted_line_tetra() -> String {
         include_str!("../../tests/fixtures/repair-finite-domain.step")
@@ -687,7 +812,7 @@ mod tests {
             altered.as_bytes(),
         );
         assert!(
-            raw.bind_edges(&model.solids[&101].source[&104].shells()[0])
+            raw.bind_edges(&model.solids[&101].source[&104].source().shells()[0])
                 .is_none()
         );
     }

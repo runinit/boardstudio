@@ -1,5 +1,10 @@
 use crate::*;
 use monstertruck_topology::{compress::*, *};
+mod repair;
+pub use repair::{
+    MeshRepairDomainChange, MeshRepairOperation, ShellRepairMesh,
+    robust_cshell_triangulation_with_repair_report,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;

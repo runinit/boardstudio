@@ -26,7 +26,7 @@ const PREVIEW_FLOOR_MM: f64 = 0.02;
 const PREVIEW_DECLARED_MULTIPLIER: f64 = 2.0;
 
 struct SourceSolid {
-    source: HashMap<u64, SourceBoundStepSolid>,
+    source: HashMap<u64, StepRepairConversion>,
     mm_per_unit: f64,
 }
 
@@ -229,6 +229,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let shape_items = units::shape_representation_items(&text)?;
     let exchange = units::normalize_conical_angles(&text)?;
     let mut table = Table::from_data_section(&exchange.data[0]);
+    let repair_source = StepRepairSource::from_step_bytes(&bytes)
+        .map_err(|error| format!("repair source capture: {error}"))?;
     let repair_original = if exchange == original_source {
         repair::OriginalGeometry::capture(&table, &bytes)
     } else {
@@ -310,23 +312,15 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         floor_mm: budget / max_scale,
                         declared_multiplier: 0.0,
                     });
-                    rep_table.to_source_bound_solid_in_representation_checked(
-                        &rep_table.manifold_solid_brep[id],
-                        *representation,
-                    )
+                    rep_table.to_source_bound_solid_with_repair_checked(*id, Some(*representation), &repair_source)
                 } else {
-                    table.to_source_bound_solid_in_representation_checked(
-                        &table.manifold_solid_brep[id],
-                        *representation,
-                    )
+                    table.to_source_bound_solid_with_repair_checked(*id, Some(*representation), &repair_source)
                 }
             } else {
-                table.to_source_bound_solid_without_connectivity_checked(
-                    &table.manifold_solid_brep[id],
-                )
+                table.to_source_bound_solid_with_repair_checked(*id, None, &repair_source)
             }
             .map_err(|error| format!("solid #{id} representation #{representation}: {error}"))?;
-            if source.shells().is_empty() {
+            if source.source().shells().is_empty() {
                 return Err(format!("solid #{id} has no shells"));
             }
             solid.source.insert(*representation, source);
@@ -348,7 +342,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             .map(|(_, _, representation)| *representation),
     );
     for solid in solids.values() {
-        for source in solid.source.values().flat_map(|source| source.shells()) {
+        for source in solid.source.values().flat_map(|source| source.source().shells()) {
             retained.extend(repair_original.retained_edge_ids(source));
         }
     }
@@ -370,7 +364,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         && exchange == original_source
     {
         let (id, placement, representation) = occurrences[0];
-        match solids[&id].source[&representation].shells() {
+        match solids[&id].source[&representation].source().shells() {
             [source]
                 if placement == Matrix4::identity()
                     && solids[&id].mm_per_unit == 1.0
@@ -412,7 +406,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         units::validate_placement_matrix(*placement)?;
         let solid = &solids[id];
         let mut signed_volume = 0.0;
-        for (shell_index, source) in solid.source[representation].shells().iter().enumerate() {
+        for (shell_index, source) in solid.source[representation].source().shells().iter().enumerate() {
             source_two_use &= require_complete_source_shell(source)? == SourceShellTopology::TwoUse;
             repair_ledger.conversion(
                 &repair_original,
@@ -839,7 +833,7 @@ fn source_face_catalogue(
             .keys()
             .min()
             .ok_or("source definition has no owner")?;
-        for (shell_index, shell) in solids[&solid_id].source[owner].shells().iter().enumerate() {
+        for (shell_index, shell) in solids[&solid_id].source[owner].source().shells().iter().enumerate() {
             for face_id in shell.source_face_ids() {
                 let parts = records
                     .get(face_id)

@@ -51,7 +51,7 @@ fn decimal(literal: &str) -> Option<Q> {
 
 // Part21's own parsers delimit instances/tokens; strings/comments/references never
 // become coordinate authority. Keep the original numeric spelling, not AST f64.
-fn numbers(bytes: &[u8]) -> Option<HashMap<u64, Vec<Q>>> {
+fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> {
     let text = units::decode_step_bytes(bytes);
     let mut input = text.as_str();
     let mut result = HashMap::new();
@@ -63,6 +63,7 @@ fn numbers(bytes: &[u8]) -> Option<HashMap<u64, Vec<Q>>> {
         } else if input.starts_with('#') {
             let (rest, instance) = parser::exchange::entity_instance(input).ok()?;
             if let EntityInstance::Simple { id, record } = instance
+                && needed.contains(&id)
                 && matches!(
                     record.name.as_str(),
                     "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
@@ -105,7 +106,22 @@ fn numbers(bytes: &[u8]) -> Option<HashMap<u64, Vec<Q>>> {
 }
 
 pub(super) fn capture(table: &Table, bytes: &[u8]) -> HashMap<u64, Source> {
-    let Some(numbers) = numbers(bytes) else {
+    let mut needed = HashSet::new();
+    for edge in table.edge_curve.values() {
+        let Some(line) = entity_id(&edge.edge_geometry).and_then(|id| table.line.get(&id)) else { continue; };
+        if let Some(id) = entity_id(&line.pnt) { needed.insert(id); }
+        if let Some(id) = entity_id(&line.dir) {
+            needed.insert(id);
+            if let Some(vector) = table.vector.get(&id)
+                && let Some(id) = entity_id(&vector.orientation) { needed.insert(id); }
+        }
+        for vertex in [&edge.edge_start, &edge.edge_end] {
+            if let Some(vertex) = entity_id(vertex).and_then(|id| table.vertex_point.get(&id))
+                && let Some(id) = entity_id(&vertex.vertex_geometry) { needed.insert(id); }
+        }
+    }
+    if needed.is_empty() { return HashMap::new(); }
+    let Some(numbers) = numbers(bytes, &needed) else {
         return HashMap::new();
     };
     let point = |id| -> Option<Point> { numbers.get(&id)?.clone().try_into().ok() };
@@ -163,8 +179,10 @@ impl Source {
         edge: u64,
     ) -> Result<Movement, &'static str> {
         if !(0..4).all(|col| (0..4).all(|row| placement[col][row].is_finite()))
-            || placement.x.w != 0.0 || placement.y.w != 0.0
-            || placement.z.w != 0.0 || placement.w.w != 1.0
+            || placement.x.w != 0.0
+            || placement.y.w != 0.0
+            || placement.z.w != 0.0
+            || placement.w.w != 1.0
         {
             return Err("nonfinite or non-affine finite LINE occurrence");
         }
@@ -205,12 +223,28 @@ impl Source {
         // The actual chord uses these source vertices. Its ideal geometric
         // operation keeps their original decimal values; decoding/evaluation
         // error to the actual emitted binary64 controls is a separate stage.
-        let squared = original.iter().zip(&self.points)
+        let squared = original
+            .iter()
+            .zip(&self.points)
             .map(|(before, after)| world_square(before, after))
-            .collect::<Result<Vec<_>, _>>()?.into_iter().max().unwrap();
-        let numeric_squared = self.points.iter().zip([line.0, line.1])
-            .map(|(before, after)| world_square(before, &rational_point(after).ok_or("nonfinite repaired LINE")?))
-            .collect::<Result<Vec<_>, _>>()?.into_iter().max().unwrap();
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .max()
+            .unwrap();
+        let numeric_squared = self
+            .points
+            .iter()
+            .zip([line.0, line.1])
+            .map(|(before, after)| {
+                world_square(
+                    before,
+                    &rational_point(after).ok_or("nonfinite repaired LINE")?,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .max()
+            .unwrap();
         // Both finite carriers are affine images of the SAME closed [0,1].
         // The norm of their affine difference is convex, so the exact two
         // Bernstein controls bound EVERY point in both directions, including
@@ -226,18 +260,18 @@ impl Source {
 }
 
 fn sqrt_upper(squared: &Q) -> Result<f64, &'static str> {
-        let mut bound = squared.to_f64().ok_or("finite LINE movement range")?.sqrt();
-        if squared.is_positive() && bound == 0.0 {
-            bound = f64::MIN_POSITIVE.sqrt();
-        }
-        if !bound.is_finite() {
-            return Err("finite LINE movement range");
-        }
-        while Q::from_float(bound).map(|value| &value * &value).as_ref() < Some(squared) {
-            bound = bound.next_up();
-        }
-        if !bound.is_finite() {
-            return Err("finite LINE movement range");
-        }
-        Ok(bound)
+    let mut bound = squared.to_f64().ok_or("finite LINE movement range")?.sqrt();
+    if squared.is_positive() && bound == 0.0 {
+        bound = f64::MIN_POSITIVE.sqrt();
+    }
+    if !bound.is_finite() {
+        return Err("finite LINE movement range");
+    }
+    while Q::from_float(bound).map(|value| &value * &value).as_ref() < Some(squared) {
+        bound = bound.next_up();
+    }
+    if !bound.is_finite() {
+        return Err("finite LINE movement range");
+    }
+    Ok(bound)
 }

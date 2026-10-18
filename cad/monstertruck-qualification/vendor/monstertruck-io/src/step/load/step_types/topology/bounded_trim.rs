@@ -7,7 +7,7 @@ pub(super) fn trim_edge_curve(
     q: Point3,
     accuracy: f64,
 ) -> Result<Curve3D, StepConvertingError> {
-    trim_edge_curve_impl(curve, p, q, accuracy, None)
+    trim_edge_curve_impl(curve, p, q, accuracy, None, None)
 }
 
 pub(super) fn trim_edge_curve_in_native_frame(
@@ -23,7 +23,15 @@ pub(super) fn trim_edge_curve_in_native_frame(
         q,
         accuracy,
         Some((source, same_sense)),
+        None,
     )
+}
+
+pub(super) fn trim_edge_curve_in_native_frame_recorded(
+    source: &BoundedCurveAny, p: Point3, q: Point3, accuracy: f64, same_sense: bool,
+    repair: &mut Option<FiniteCurveRepair>,
+) -> Result<Curve3D, StepConvertingError> {
+    trim_edge_curve_impl(source.try_into()?, p, q, accuracy, Some((source, same_sense)), Some(repair))
 }
 
 fn trim_edge_curve_impl(
@@ -32,6 +40,7 @@ fn trim_edge_curve_impl(
     q: Point3,
     accuracy: f64,
     native_frame: Option<(&BoundedCurveAny, bool)>,
+    repair: Option<&mut Option<FiniteCurveRepair>>,
 ) -> Result<Curve3D, StepConvertingError> {
     if !accuracy.is_finite()
         || accuracy <= 0.0
@@ -93,6 +102,14 @@ fn trim_edge_curve_impl(
     let matches = |t, point| curve.subs(t).distance2(point) <= accuracy * accuracy;
     // The source domain already identifies the intended full interval, including closed curves.
     if matches(a, p) && matches(b, q) {
+        if let Some(repair) = repair {
+            let bytes = controls.len().checked_mul(4 * std::mem::size_of::<Point3>())
+                .and_then(|n| knots.len().checked_mul(4 * std::mem::size_of::<f64>()).and_then(|m| n.checked_add(m)));
+            if bytes.is_some_and(|n| n <= 256 * 1024 * 1024) {
+                *repair = Some(FiniteCurveRepair { before: curve.clone(), before_domain: (a, b),
+                    after: curve.clone(), after_domain: (a, b) });
+            }
+        }
         return Ok(curve);
     }
     if knots[..=degree].iter().any(|knot| *knot != a)
@@ -175,6 +192,17 @@ fn trim_edge_curve_impl(
     };
     if u >= v {
         return Err("B-spline edge vertices contradict the geometry sense".into());
+    }
+    // Retain the actual selected native interval BEFORE restriction/relabeling.
+    // Selection itself remains a separate unsupported source-domain stage.
+    // Guard witness clones independently of the existing geometry admission.
+    if let Some(repair) = repair {
+        let bytes = controls.len().checked_mul(4 * std::mem::size_of::<Point3>())
+            .and_then(|n| knots.len().checked_mul(4 * std::mem::size_of::<f64>()).and_then(|m| n.checked_add(m)));
+        if bytes.is_some_and(|n| n <= 256 * 1024 * 1024) {
+            *repair = Some(FiniteCurveRepair { before: curve.clone(), before_domain: (u, v),
+                after: curve.clone(), after_domain: (u, v) });
+        }
     }
     let trimmed = match &curve {
         Curve3D::BsplineCurve(spline) => {

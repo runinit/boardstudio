@@ -7,6 +7,29 @@ use super::*;
 
 mod bounded_trim;
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::step::load) struct FiniteCurveRepair {
+    pub(in crate::step::load) before: Curve3D,
+    pub(in crate::step::load) before_domain: (f64, f64),
+    pub(in crate::step::load) after: Curve3D,
+    pub(in crate::step::load) after_domain: (f64, f64),
+}
+impl FiniteCurveRepair {
+    pub(in crate::step::load) fn storage_bound(&self) -> Option<usize> {
+        let size = |curve: &Curve3D| match curve {
+            Curve3D::BsplineCurve(curve) => curve.control_points().capacity()
+                .checked_mul(2 * std::mem::size_of::<Point3>())?
+                .checked_add(curve.knot_vector().len().checked_mul(2 * std::mem::size_of::<f64>())?),
+            Curve3D::NurbsCurve(curve) => curve.control_points().capacity()
+                .checked_mul(2 * std::mem::size_of::<Vector4>())?
+                .checked_add(curve.knot_vector().len().checked_mul(2 * std::mem::size_of::<f64>())?),
+            _ => None,
+        };
+        size(&self.before)?.checked_add(size(&self.after)?)?
+            .checked_add(2 * std::mem::size_of::<Self>())
+    }
+}
+
 /// `vertex_point`
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Holder)]
 #[holder(table = Table)]
@@ -214,6 +237,13 @@ impl EdgeCurve {
         bound: Option<f64>,
         preview: bool,
     ) -> Result<Curve3D, StepConvertingError> {
+        self.parse_curve3d_with_bound_recorded(bound, preview, None)
+    }
+
+    fn parse_curve3d_with_bound_recorded(
+        &self, bound: Option<f64>, preview: bool,
+        mut repair: Option<&mut Option<FiniteCurveRepair>>,
+    ) -> Result<Curve3D, StepConvertingError> {
         let p = Point3::from(&self.edge_start.vertex_geometry);
         let q = Point3::from(&self.edge_end.vertex_geometry);
         let (p, q) = match self.same_sense {
@@ -226,7 +256,55 @@ impl EdgeCurve {
             }
             return Ok(curve);
         }
-        Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview)
+        let curve = match (&self.edge_geometry, repair.as_deref_mut()) {
+            (CurveAny::BoundedCurve(source), Some(capture)) => {
+                let mut curve = bounded_trim::trim_edge_curve_in_native_frame_recorded(
+                    source, p, q, bound.unwrap_or(TOLERANCE), self.same_sense, capture,
+                )?;
+                if !self.same_sense {
+                    curve.invert();
+                    if let Some(capture) = capture {
+                        capture.before_domain = (capture.before_domain.1, capture.before_domain.0);
+                    }
+                }
+                curve
+            }
+            _ => Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview)?,
+        };
+        if let Some(Some(capture)) = repair {
+            capture.after_domain = curve.range_tuple();
+            capture.after = curve.clone();
+        }
+        Ok(curve)
+    }
+
+    pub(in crate::step::load) fn parse_curve3d_for_repair(
+        &self, bound: Option<f64>, preview: bool,
+    ) -> Result<(Curve3D, Option<FiniteCurveRepair>), StepConvertingError> {
+        let mut capture = None;
+        let curve = match bound {
+            None => self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture))?,
+            Some(bound) => {
+                if !bound.is_finite() || bound <= 0.0 || !bound.powi(2).is_finite() || bound.powi(2) == 0.0 {
+                    return Err("invalid source connectivity bound".into());
+                }
+                let p = Point3::from(&self.edge_start.vertex_geometry);
+                let q = Point3::from(&self.edge_end.vertex_geometry);
+                let strict = matches!(&self.edge_geometry, CurveAny::BoundedCurve(_))
+                    .then(|| self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture)).ok())
+                    .flatten()
+                    .filter(|curve| curve.front().distance(p) <= bound && curve.back().distance(q) <= bound);
+                let curve = match strict {
+                    Some(curve) => curve,
+                    None => { capture = None; self.parse_curve3d_with_bound_recorded(Some(bound), preview, Some(&mut capture))? }
+                };
+                if [curve.front().distance(p), curve.back().distance(q)].into_iter().any(|d| !d.is_finite() || d > bound) {
+                    return Err("EDGE_CURVE attachment exceeds its source connectivity bound".into());
+                }
+                curve
+            }
+        };
+        Ok((curve, capture))
     }
     fn sub_parse_curve3d(
         curve: &CurveAny,

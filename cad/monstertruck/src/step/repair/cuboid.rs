@@ -633,7 +633,7 @@ mod tests {
         let original =
             OriginalGeometry::capture(&Table::from_data_section(&exchange.data[0]), bytes);
         let candidate = Cuboid::from_original(bytes, &exchange, &original, 301, 304).unwrap();
-        let source = &model.solids[&301].source[&304].shells()[0];
+        let source = &model.solids[&301].source[&304].source().shells()[0];
         let mut normalized = source.shell().clone();
         units::normalize_shell_to_mm(&mut normalized, 1.0).unwrap();
         let (mesh, fallback) = tessellation::triangulate_source_bound_shell_report(
