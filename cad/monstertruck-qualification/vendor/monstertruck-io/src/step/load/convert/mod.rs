@@ -7,6 +7,8 @@ use super::step_geometry::{
 use super::*;
 use monstertruck_topology::compress::*;
 use std::collections::HashSet;
+mod repair;
+pub use repair::{StepRepairConversion, StepRepairOperation, StepRepairSource};
 
 /// A compressed shell in the STEP loader's concrete geometry types.
 ///

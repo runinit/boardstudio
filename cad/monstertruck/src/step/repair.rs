@@ -1,5 +1,6 @@
 //! Internal operation accounting. A support translation is not whole-asset movement.
 mod cuboid;
+mod finite_line;
 use super::*;
 pub(super) use cuboid::Cuboid;
 use monstertruck_io::step::load::step_geometry::Curve3D;
@@ -16,6 +17,7 @@ struct NativeLineSource {
 pub(super) struct OriginalGeometry {
     lines: HashMap<u64, NativeLineSource>,
     boundaries: HashMap<u64, Vec<SourceBoundary>>,
+    finite_lines: HashMap<u64, finite_line::Source>,
 }
 
 struct SourceBoundary {
@@ -57,7 +59,7 @@ fn source_boundaries(table: &Table, face: &FaceSurfaceHolder) -> Option<Vec<Sour
 }
 
 impl OriginalGeometry {
-    pub(super) fn capture(table: &Table) -> Self {
+    pub(super) fn capture(table: &Table, bytes: &[u8]) -> Self {
         let mut lines = HashMap::new();
         for (&id, holder) in &table.edge_curve {
             let PlaceHolder::Ref(Name::Entity(curve_id)) = &holder.edge_geometry else {
@@ -101,7 +103,11 @@ impl OriginalGeometry {
             .iter()
             .filter_map(|(&id, face)| Some((id, source_boundaries(table, face)?)))
             .collect();
-        Self { lines, boundaries }
+        Self {
+            lines,
+            boundaries,
+            finite_lines: finite_line::capture(table, bytes),
+        }
     }
 
     fn bind_edges(&self, source: &SourceBoundStepShell) -> Option<Vec<u64>> {
@@ -154,10 +160,14 @@ pub(super) struct Operation {
     pub source_edge: Option<u64>,
     pub stage: &'static str,
     pub bound_mm: Result<f64, &'static str>,
+    diagnostic_only: bool,
 }
 
 #[derive(Default)]
-pub(super) struct Ledger(Vec<Operation>);
+pub(super) struct Ledger(
+    Vec<Operation>,
+    Vec<Result<finite_line::Movement, &'static str>>,
+);
 
 impl Ledger {
     pub(super) fn conversion(
@@ -178,12 +188,27 @@ impl Ledger {
                 occurrence,
                 source_edge: id,
                 stage: "axis-aligned native LINE support substitution",
+                diagnostic_only: true,
                 bound_mm: id
                     .ok_or("original face/loop/edge binding is unproved")
                     .and_then(|id| {
                         line_support_bound(original, id, source, edge, factor, placement)
                     }),
             });
+            self.1.push(
+                id.ok_or("original finite LINE binding is unproved")
+                    .and_then(|id| {
+                        let raw = original.finite_lines.get(&id).ok_or(
+                            "finite native LINE original numeric/domain authority is unavailable",
+                        )?;
+                        let Curve3D::Line(line) = &edge.curve else {
+                            return Err("native LINE was replaced by another curve family");
+                        };
+                        let parsed = original.lines.get(&id)
+                            .ok_or("original parsed LINE attachments are unavailable")?;
+                        raw.movement(line, parsed.points, factor, placement, occurrence, id)
+                    }),
+            );
         }
         self.unknown(
             occurrence,
@@ -192,12 +217,31 @@ impl Ledger {
         );
     }
 
+    /// A proved finite operation must respect its allowance even while the
+    /// complete asset route is unknown. Partial evidence cannot certify the asset.
+    pub(super) fn enforce_finite_lines(
+        &self,
+        occurrence: usize,
+        allowance: f64,
+    ) -> Result<(), String> {
+        for movement in self.1.iter().filter_map(|entry| entry.as_ref().ok()) {
+            if movement.occurrence == occurrence && !movement.within(allowance) {
+                return Err(format!(
+                    "finite LINE repair edge #{} occurrence {} movement bound {} mm exceeds repair budget {} mm",
+                    movement.edge, occurrence, movement.bound_mm, allowance,
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn unknown(&mut self, occurrence: usize, stage: &'static str, reason: &'static str) {
         self.0.push(Operation {
             occurrence,
             source_edge: None,
             stage,
             bound_mm: Err(reason),
+            diagnostic_only: false,
         });
     }
 
@@ -206,14 +250,41 @@ impl Ledger {
         if self.0.is_empty() {
             return None;
         }
-        self.0.iter().try_fold(0.0_f64, |sum, op| {
+        let mut occurrences = HashMap::<usize, HashMap<Option<u64>, f64>>::new();
+        for op in self.0.iter().filter(|op| !op.diagnostic_only) {
             let value = *op.bound_mm.as_ref().ok()?;
             if !value.is_finite() || value < 0.0 {
                 return None;
             }
-            let bound = add_upper(sum, value);
-            bound.is_finite().then_some(bound)
-        })
+            let path = occurrences
+                .entry(op.occurrence)
+                .or_default()
+                .entry(op.source_edge)
+                .or_default();
+            *path = add_upper(*path, value);
+            if !path.is_finite() {
+                return None;
+            }
+        }
+        for movement in &self.1 {
+            let movement = movement.as_ref().ok()?;
+            let path = occurrences
+                .entry(movement.occurrence)
+                .or_default()
+                .entry(Some(movement.edge))
+                .or_default();
+            *path = add_upper(*path, movement.bound_mm);
+            if !path.is_finite() {
+                return None;
+            }
+        }
+        Some(
+            occurrences
+                .values()
+                .flat_map(|paths| paths.values())
+                .copied()
+                .fold(0.0, f64::max),
+        )
     }
 
     pub(super) fn trace(&self) {
@@ -223,6 +294,15 @@ impl Ledger {
                     "STEP repair occurrence={} edge={:?} stage={} bound_mm={:?}",
                     op.occurrence, op.source_edge, op.stage, op.bound_mm
                 );
+            }
+            for movement in &self.1 {
+                match movement {
+                    Ok(movement) => eprintln!(
+                        "STEP finite LINE repair occurrence={} edge={} whole_domain_bound_mm={} numeric_bound_mm={}",
+                        movement.occurrence, movement.edge, movement.bound_mm, movement.numeric_bound_mm
+                    ),
+                    Err(reason) => eprintln!("STEP finite LINE repair unsupported={reason}"),
+                }
             }
         }
     }
@@ -344,22 +424,141 @@ mod tests {
     use super::*;
 
     fn shifted_line_tetra() -> String {
-        include_str!("../../tests/fixtures/tetra-mm.step").replace(
-            "#22=LINE('',#1,#21);",
-            "#310=CARTESIAN_POINT('',(0.,0.001953125,0.));#22=LINE('',#310,#21);",
-        )
+        include_str!("../../tests/fixtures/repair-finite-domain.step")
+            .replace("0.03125", "0.001953125")
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn finite_line_repair_exceeding_preview_budget_refuses_without_attachment_metadata() {
-        let text = shifted_line_tetra().replace("0.001953125", "0.03125");
-        let result = import_step(text.into_bytes());
+        let text = include_str!("../../tests/fixtures/repair-finite-domain.step");
+        let result = import_step(text.as_bytes().to_vec());
         assert!(
             result.is_err(),
             "a complete finite LINE moved 0.03125 mm even though emitted endpoint attachments are exact"
         );
         assert!(result.err().unwrap().contains("finite LINE repair"));
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn whole_finite_line_movement_honors_exact_budget_boundary_and_retains_unknown_asset() {
+        let text = include_str!("../../tests/fixtures/repair-finite-domain.step");
+        let budget = 0.03125_f64;
+        for allowance in [budget, budget.next_up()] {
+            let model = import_step_with_options(
+                text.as_bytes().to_vec(),
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(allowance),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let operation = model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().ok())
+                .find(|op| op.edge == 23)
+                .unwrap();
+            assert_eq!(operation.bound_mm, budget);
+            assert_eq!(operation.occurrence, 0);
+            assert_eq!(model.original_bytes(), text.as_bytes());
+            assert_eq!(model.source_faces().len(), 4);
+            assert_eq!(model.face_occurrences().len(), 4);
+            assert_eq!(
+                model
+                    .triangle_faces()
+                    .iter()
+                    .copied()
+                    .collect::<HashSet<_>>()
+                    .len(),
+                4
+            );
+            assert_eq!(model.accuracy().selected_repair_budget_mm, Some(allowance));
+            assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+            assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+        }
+        let error = import_step_with_options(
+            text.as_bytes().to_vec(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(budget.next_down()),
+                ..Default::default()
+            },
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("finite LINE repair"), "{error}");
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn finite_line_default_floor_and_metre_occurrence_budget_are_world_mm() {
+        let text = shifted_line_tetra().replace("0.001953125", "0.015625");
+        let model = import_step(text.into_bytes()).unwrap();
+        assert_eq!(
+            model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().ok())
+                .find(|op| op.edge == 23)
+                .unwrap()
+                .bound_mm,
+            0.015625
+        );
+        let text = include_str!("../../tests/fixtures/two-occurrences-mm.step")
+            .replace(
+                "#22=LINE('',#1,#21);",
+                "#310=CARTESIAN_POINT('',(0.,0.000015625,0.));#22=LINE('',#310,#21);",
+            )
+            .replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        let bounds: Vec<_> = model
+            ._repair_ledger
+            .1
+            .iter()
+            .filter_map(|op| op.as_ref().ok())
+            .filter(|op| op.edge == 23)
+            .map(|op| (op.occurrence, op.bound_mm))
+            .collect();
+        assert_eq!(bounds, [(0, 0.015625), (1, 0.015625)]);
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.face_occurrences().len(), 8);
+        let error = import_step_with_options(
+            text.into_bytes(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(0.015625_f64.next_down()),
+                ..Default::default()
+            },
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("finite LINE repair"), "{error}");
+    }
+
+    #[test]
+    fn ledger_sums_successive_stages_and_maxes_disjoint_regions_and_occurrences() {
+        let op = |occurrence, source_edge, value| Operation {
+            occurrence,
+            source_edge,
+            stage: "finite-domain test stage",
+            bound_mm: Ok(value),
+            diagnostic_only: false,
+        };
+        let mut ledger = Ledger(
+            vec![
+                op(0, Some(1), 0.125),
+                op(0, Some(1), 0.125),
+                op(0, Some(2), 0.125),
+                op(1, Some(1), 0.125),
+            ],
+            Vec::new(),
+        );
+        assert_eq!(ledger.complete_bound_mm(), Some(0.25_f64.next_up()));
+        ledger.unknown(1, "omitted-stage control", "whole domain was not captured");
+        assert_eq!(ledger.complete_bound_mm(), None);
+        assert_eq!(Ledger::default().complete_bound_mm(), None);
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -392,7 +591,15 @@ mod tests {
                 "#310=CARTESIAN_POINT('',(0.,0.001953125,0.));#22=LINE('',#310,#21);",
             )
             .replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
-        let model = import_step(text.into_bytes()).unwrap();
+        assert!(import_step(text.clone().into_bytes()).is_err());
+        let model = import_step_with_options(
+            text.into_bytes(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(2.0),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         let operations: Vec<_> = model
             ._repair_ledger
             .0
@@ -475,7 +682,10 @@ mod tests {
             "#50=ORIENTED_EDGE('',*,*,#23,.T.);",
         );
         let exchange = parser::parse(&altered).unwrap();
-        let raw = OriginalGeometry::capture(&Table::from_data_section(&exchange.data[0]));
+        let raw = OriginalGeometry::capture(
+            &Table::from_data_section(&exchange.data[0]),
+            altered.as_bytes(),
+        );
         assert!(
             raw.bind_edges(&model.solids[&101].source[&104].shells()[0])
                 .is_none()

@@ -1,6 +1,6 @@
-# Proposed owner seam for 007 movement (awaiting root approval)
+# Approved additive owner seam for 007 movement
 
-This is a design for additive APIs, not an implemented certificate. Collision v2 and
+Root approved these additive declarations after checkpoint `cde92885`; implementation follows this contract, not an implicit certificate. Collision v2 and
 its fixture do not change. The existing 34-file preview route continues unchanged
 until its complete movement route is proved; an unsupported report is never zero.
 
@@ -49,10 +49,10 @@ public `tessellation` module (private fields, no public witness constructor):
 ```rust
 pub struct ShellRepairMesh<'a, C, S> { /* borrowed actual input; owned final mesh/trace */ }
 pub struct MeshRepairOperation<'a> { /* borrowed immutable witness */ }
-pub fn robust_cshell_triangulation_with_repair_report<C, S>(
-    shell: &CompressedShell<Point3, C, S>, options: TessellationOptions,
+pub fn robust_cshell_triangulation_with_repair_report<'a, C, S>(
+    shell: &'a CompressedShell<Point3, C, S>, options: TessellationOptions,
     closed_axes: &[(usize, usize, (f64, f64), Vec<usize>)],
-) -> ShellRepairMesh<'_, C, S>
+) -> ShellRepairMesh<'a, C, S>
 where C: PolylineableCurve + ParameterBoundary2D<S>, S: RobustMeshableSurface;
 impl<C, S> ShellRepairMesh<'_, C, S> {
     pub fn input(&self) -> &CompressedShell<Point3, C, S>;
@@ -122,11 +122,11 @@ the captured original source rather than parsing again per occurrence. Trace cos
 linear in source carriers plus actual changed domains, shared edge uses stored once.
 Reject report construction before allocation beyond 32 MiB source bytes, 1,000,000
 operation records, or 256 MiB retained witness storage; cap refusal cannot become a
-certificate. These caps are proposed, not new preview admission limits. No sampling
+certificate. These approved report-resource caps are not new preview admission limits. Check conservative owned allocation capacities before trace growth; cap/construction failure preserves the actual admitted preview and makes complete_bound Err. Never return a guessed bound. The mesher input lifetime is tied only to shell; options and closed_axes are not borrowed by its result. No sampling
 or default tolerance increase may rescue an unsupported proof.
 
 Use one literal finite LINE/plane STEP fixture in
-`cad/monstertruck/tests/fixtures/repair-finite-domain.step`, read as the same bytes by
+`cad/monstertruck/tests/fixtures/repair-finite-domain.step` (now pinned: tetrahedron with original X LINE at Y=1/32 mm and emitted chord Y=0), read as the same bytes by
 converter-owner tests and importer/actual Node-provider tests. Independently authored
 finite carrier/domain controls must prove nonzero movement in both directions;
 default, explicit, equality/rounding, metre, rotated/scaled occurrence and immutable

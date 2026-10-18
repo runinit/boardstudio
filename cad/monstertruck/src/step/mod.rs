@@ -230,9 +230,12 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let exchange = units::normalize_conical_angles(&text)?;
     let mut table = Table::from_data_section(&exchange.data[0]);
     let repair_original = if exchange == original_source {
-        repair::OriginalGeometry::capture(&table)
+        repair::OriginalGeometry::capture(&table, &bytes)
     } else {
-        repair::OriginalGeometry::capture(&Table::from_data_section(&original_source.data[0]))
+        repair::OriginalGeometry::capture(
+            &Table::from_data_section(&original_source.data[0]),
+            &bytes,
+        )
     };
     let preview_tolerance = match options.preview_repair_budget_mm {
         Some(budget) => PreviewTolerance {
@@ -422,6 +425,17 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 .iter()
                 .find(|p| p.representation_id == *representation)
                 .ok_or("source support representation precision missing")?;
+            let scale = placement
+                .x
+                .truncate()
+                .magnitude()
+                .max(placement.y.truncate().magnitude())
+                .max(placement.z.truncate().magnitude());
+            let allowance = options.preview_repair_budget_mm.unwrap_or_else(|| {
+                (PREVIEW_DECLARED_MULTIPLIER * owner.uncertainty_mm().unwrap_or(0.0) * scale)
+                    .max(PREVIEW_FLOOR_MM)
+            });
+            repair_ledger.enforce_finite_lines(occurrence, allowance)?;
             let support = bounds::validate_support(
                 source,
                 solid.mm_per_unit,
