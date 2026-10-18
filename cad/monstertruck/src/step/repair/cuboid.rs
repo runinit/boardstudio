@@ -63,32 +63,58 @@ impl<'a> Document<'a> {
     }
 
     fn explicit_mm(&self, representation: u64, solid: u64) -> Option<()> {
-        // Authenticate a direct definition occurrence. A rounded identity matrix
-        // from an assembly/map calculation is not original identity authority.
+        // Census every original record, including roots the importer does not
+        // traverse. A suffix/unsupported-kind blacklist cannot establish source
+        // completeness: presentation roots can expose geometry outside the solid.
+        // This is the entire permitted grammar of this proof, not an importer
+        // filter. Unknown records retain the asset's unknown movement result.
+        // A rounded assembly/map identity is not original identity authority.
         let mut representations = 0;
         for (&id, parts) in &self.records {
             for part in parts {
-                if part.name.ends_with("SHAPE_REPRESENTATION") {
-                    if id != representation {
-                        return None;
+                match part.name.as_str() {
+                    "ADVANCED_BREP_SHAPE_REPRESENTATION" => {
+                        if id != representation {
+                            return None;
+                        }
+                        representations += 1;
                     }
-                    representations += 1;
-                }
-                if part.name.starts_with("CARTESIAN_TRANSFORMATION_OPERATOR")
-                    || matches!(
-                        part.name.as_str(),
-                        "MAPPED_ITEM"
-                            | "REPRESENTATION_MAP"
-                            | "ITEM_DEFINED_TRANSFORMATION"
-                            | "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION"
-                            | "NEXT_ASSEMBLY_USAGE_OCCURRENCE"
-                            | "REPRESENTATION_RELATIONSHIP"
-                            | "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"
-                            | "GEOMETRIC_CURVE_SET"
-                            | "GEOMETRIC_SET"
-                    )
-                {
-                    return None;
+                    // Native geometry; the sole root's complete finite graph is
+                    // authenticated below and by Cuboid::from_original.
+                    "CARTESIAN_POINT"
+                    | "DIRECTION"
+                    | "VECTOR"
+                    | "LINE"
+                    | "VERTEX_POINT"
+                    | "EDGE_CURVE"
+                    | "ORIENTED_EDGE"
+                    | "EDGE_LOOP"
+                    | "FACE_OUTER_BOUND"
+                    | "AXIS2_PLACEMENT_3D"
+                    | "PLANE"
+                    | "ADVANCED_FACE"
+                    | "CLOSED_SHELL"
+                    | "MANIFOLD_SOLID_BREP" => {}
+                    // Context/unit and product-definition records do not present
+                    // geometry or transform occurrences. They may reference the
+                    // sole geometry root, but cannot supply another permitted root.
+                    "LENGTH_UNIT"
+                    | "NAMED_UNIT"
+                    | "SI_UNIT"
+                    | "REPRESENTATION_CONTEXT"
+                    | "GEOMETRIC_REPRESENTATION_CONTEXT"
+                    | "GLOBAL_UNIT_ASSIGNED_CONTEXT"
+                    | "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT"
+                    | "UNCERTAINTY_MEASURE_WITH_UNIT"
+                    | "APPLICATION_CONTEXT"
+                    | "PRODUCT_CONTEXT"
+                    | "PRODUCT"
+                    | "PRODUCT_DEFINITION_FORMATION"
+                    | "PRODUCT_DEFINITION_CONTEXT"
+                    | "PRODUCT_DEFINITION"
+                    | "PRODUCT_DEFINITION_SHAPE"
+                    | "SHAPE_DEFINITION_REPRESENTATION" => {}
+                    _ => return None,
                 }
             }
         }

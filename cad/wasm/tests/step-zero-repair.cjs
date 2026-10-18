@@ -106,3 +106,23 @@ test('existing tetra plane-gap default and explicit budget policy stays unchange
   assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, null);
   assert(result.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
 });
+
+test('styled finite curve and alternate presentation roots cannot borrow cuboid zero', () => {
+  // #32 has unit +X direction through the origin: [10,11] is outside [0,2].
+  const styled = box.toString().replace('ENDSEC;END-ISO-10303-21;',
+    "#901=TRIMMED_CURVE('outside-body',#32,(PARAMETER_VALUE(10.)),(PARAMETER_VALUE(11.)),.T.,.PARAMETER.);" +
+    "#902=STYLED_ITEM('',(#904),#901);" +
+    "#903=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#902),#303);" +
+    "#904=PRESENTATION_STYLE_ASSIGNMENT((#905));" +
+    "#905=CURVE_STYLE('',#906,POSITIVE_LENGTH_MEASURE(0.1),#907);" +
+    "#906=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');" +
+    "#907=COLOUR_RGB('',1.,0.,0.);" +
+    'ENDSEC;END-ISO-10303-21;');
+  const sources = [styled, ...['DRAUGHTING_MODEL', 'PRESENTATION_REPRESENTATION',
+    'GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION'].map(kind =>
+    box.toString().replace('ENDSEC;END-ISO-10303-21;',
+      `#903=${kind}('',(#32),#303);ENDSEC;END-ISO-10303-21;`))];
+  for (const source of sources) {
+    assert.equal(imported(source).vendorStep.accuracy.maxRepairDisplacementMm, null);
+  }
+});

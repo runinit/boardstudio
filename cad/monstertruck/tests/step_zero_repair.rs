@@ -184,3 +184,70 @@ fn real_preview_fallback_import_stays_unknown() {
     assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
 }
+
+#[test]
+fn styled_finite_curve_in_presentation_root_cannot_borrow_the_solid_proof() {
+    let text = std::str::from_utf8(BOX).unwrap();
+    // Original LINE #32 is the unit +X line through the origin. This separate
+    // finite interval [10, 11] lies wholly outside the cuboid's X range [0, 2].
+    let text = replace_once(
+        text,
+        "ENDSEC;END-ISO-10303-21;",
+        "#901=TRIMMED_CURVE('outside-body',#32,(PARAMETER_VALUE(10.)),(PARAMETER_VALUE(11.)),.T.,.PARAMETER.);\n\
+         #902=STYLED_ITEM('',(#904),#901);\n\
+         #903=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#902),#303);\n\
+         #904=PRESENTATION_STYLE_ASSIGNMENT((#905));\n\
+         #905=CURVE_STYLE('',#906,POSITIVE_LENGTH_MEASURE(0.1),#907);\n\
+         #906=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');\n\
+         #907=COLOUR_RGB('',1.,0.,0.);\n\
+         ENDSEC;END-ISO-10303-21;",
+    );
+    let model = import_step(text.clone().into_bytes()).unwrap();
+    assert_eq!(model.original_bytes(), text.as_bytes());
+    assert_eq!(model.source_faces().len(), 6);
+    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+}
+
+#[test]
+fn additional_representation_roots_stay_outside_the_complete_class() {
+    let text = std::str::from_utf8(BOX).unwrap();
+    for kind in [
+        "DRAUGHTING_MODEL",
+        "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+        "PRESENTATION_REPRESENTATION",
+    ] {
+        // No new curve entity is needed: presenting an existing infinite support
+        // is already outside the authenticated finite solid graph.
+        let text = replace_once(
+            text,
+            "ENDSEC;END-ISO-10303-21;",
+            &format!("#903={kind}('',(#32),#303);ENDSEC;END-ISO-10303-21;"),
+        );
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None, "{kind}");
+    }
+}
+
+#[test]
+fn product_definition_metadata_does_not_add_a_geometry_root() {
+    let text = replace_once(
+        std::str::from_utf8(BOX).unwrap(),
+        "ENDSEC;END-ISO-10303-21;",
+        "#910=APPLICATION_CONTEXT('mechanical design');\n\
+         #911=PRODUCT_CONTEXT('',#910,'mechanical');\n\
+         #912=PRODUCT('box','box','',(#911));\n\
+         #913=PRODUCT_DEFINITION_FORMATION('','',#912);\n\
+         #914=PRODUCT_DEFINITION_CONTEXT('part definition',#910,'design');\n\
+         #915=PRODUCT_DEFINITION('design','',#913,#914);\n\
+         #916=PRODUCT_DEFINITION_SHAPE('','',#915);\n\
+         #917=SHAPE_DEFINITION_REPRESENTATION(#916,#304);\n\
+         ENDSEC;END-ISO-10303-21;",
+    );
+    let model = import_step(text.clone().into_bytes()).unwrap();
+    assert_eq!(model.original_bytes(), text.as_bytes());
+    assert_eq!(model.accuracy().max_repair_displacement_mm, Some(0.0));
+    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+}
