@@ -7,6 +7,9 @@ pub mod host;
 #[cfg(any(feature = "page", feature = "cad-worker"))]
 pub mod cad_jobs;
 
+#[cfg(any(feature = "page", feature = "cad-worker"))]
+pub mod cad_qualification;
+
 #[cfg(all(target_arch = "wasm32", any(feature = "page", feature = "cad-worker")))]
 pub mod cad_worker;
 
