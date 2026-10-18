@@ -2,6 +2,96 @@ use boardstudio_contracts::PreparedCaseIR;
 use monstertruck_meshing::{prelude::*, tessellation::shell_to_polygon_strict};
 use monstertruck_modeling::{InnerSpace, Point3, Solid, Surface};
 
+fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
+    let input: PreparedCaseIR = serde_json::from_str(json).unwrap();
+    let expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/expectations.json"
+    ))
+    .unwrap();
+    let expected = expectations
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["id"] == input.body.id)
+        .unwrap();
+    let model = crate::build_case(&input).expect("complete authored PCB cutter composition");
+    assert_eq!(model.solids.len(), 1);
+    let solid = &model.solids[0];
+    assert_eq!(solid.boundaries().len(), 1);
+    Solid::try_new(solid.boundaries().clone()).expect("closed oriented native PCB topology");
+    assert!(solid.is_geometric_consistent());
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+    assert!((mesh.volume() - expected["volumeMm3"].as_f64().unwrap()).abs() < 0.002);
+    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
+    for point in mesh.positions() {
+        for axis in 0..3 {
+            bounds[0][axis] = bounds[0][axis].min(point[axis]);
+            bounds[1][axis] = bounds[1][axis].max(point[axis]);
+        }
+    }
+    for (actual, expected) in bounds.into_iter().flatten().zip(
+        expected["boundsMm"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row.as_array().unwrap()),
+    ) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-8);
+    }
+    for probe in expected["materialProbes"].as_array().unwrap() {
+        let point = std::array::from_fn(|axis| probe["pointMm"][axis].as_f64().unwrap());
+        material(&mesh, point, probe["inside"].as_bool().unwrap());
+    }
+    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 1);
+    assert_eq!(step.matches("CLOSED_SHELL(").count(), 1);
+    assert!(
+        !step.contains("B_SPLINE_SURFACE"),
+        "native planar/cylindrical walls"
+    );
+    let mut actual = raw_cylinders(&step);
+    let mut expected = cylinders.to_vec();
+    let sort = |items: &mut Vec<([f64; 2], f64)>| {
+        items.sort_by(|a, b| {
+            a.0[0]
+                .total_cmp(&b.0[0])
+                .then(a.0[1].total_cmp(&b.0[1]))
+                .then(a.1.total_cmp(&b.1))
+        });
+    };
+    sort(&mut actual);
+    sort(&mut expected);
+    assert_eq!(
+        actual, expected,
+        "complete native authored circular cut boundary"
+    );
+    crate::mesh_profile(&model).expect("production PCB preview mesh");
+}
+
+#[test]
+fn adoption_pcb_edge_drill_keeps_exact_half_cylinder() {
+    verify_adoption_pcb_cut(
+        include_str!("../../tests/fixtures/adoption/pcb-edge-drill.json"),
+        &[([0., 8.], 1.)],
+    );
+}
+
+#[test]
+fn adoption_pcb_overlapping_drills_subtract_their_exact_union() {
+    verify_adoption_pcb_cut(
+        include_str!("../../tests/fixtures/adoption/pcb-overlapping-drills.json"),
+        &[([9.5, 8.], 1.), ([10.5, 8.], 1.)],
+    );
+}
+
+#[test]
+fn adoption_pcb_drill_within_slot_preserves_the_complete_slot_boundary() {
+    verify_adoption_pcb_cut(
+        include_str!("../../tests/fixtures/adoption/pcb-drill-in-slot.json"),
+        &[([9., 8.], 1.), ([11., 8.], 1.)],
+    );
+}
+
 #[test]
 fn source_circle_metadata_is_authoritative_through_public_build_case() {
     let input: PreparedCaseIR = serde_json::from_str(include_str!(
@@ -668,6 +758,19 @@ fn source_declared_owner_is_not_silently_reassigned_to_nested_island() {
         error.contains("island-hole") && error.contains("outer"),
         "{error}"
     );
+    let mut erased = input.clone();
+    erased.body.mounts = Some(vec![boardstudio_contracts::Mount {
+        id: "erase-board".into(),
+        at: boardstudio_contracts::Vec2 { x: 10., y: 8. },
+        kind: boardstudio_contracts::MountKind::Hole,
+        hole_diameter: 100.,
+        boss_diameter: None,
+        height: None,
+    }]);
+    let error = crate::build_case(&erased)
+        .err()
+        .expect("source ownership must be checked before cuts");
+    assert!(error.contains("contradicts declared owner"), "{error}");
     input.body.pcb_source.as_mut().unwrap().contours[3].outer_id = Some("island".into());
     let model = crate::build_case(&input).expect("correctly owned nested island and hole");
     assert_eq!(model.solids.len(), 2);
@@ -685,7 +788,8 @@ fn source_declared_owner_is_not_silently_reassigned_to_nested_island() {
 #[test]
 fn source_crossing_and_tangent_drills_are_named_refusals() {
     use boardstudio_contracts::{Mount, MountKind, Vec2};
-    for x in [11.5, 11.6] {
+    // Retain the registered test name; regular crossings now have positive geometry checks.
+    for (x, tangent) in [(11.5, true), (11.6, false)] {
         let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
             "../../tests/fixtures/pcb-source/circle-tracer.json"
         ))
@@ -698,11 +802,93 @@ fn source_crossing_and_tangent_drills_are_named_refusals() {
             boss_diameter: None,
             height: None,
         }]);
-        let error = crate::build_case(&input)
-            .err()
-            .expect("crossing or tangent source boundary must refuse");
-        assert!(error.contains("boundary-drill"), "{error}");
+        if tangent {
+            let error = crate::build_case(&input)
+                .err()
+                .expect("point-tangent hole is nonmanifold");
+            assert!(error.contains("boundary-drill"), "{error}");
+        } else {
+            let model = crate::build_case(&input).expect("regular circular edge cut");
+            assert_eq!(model.solids.len(), 1);
+            let solid = &model.solids[0];
+            Solid::try_new(solid.boundaries().clone()).unwrap();
+            assert!(solid.is_geometric_consistent());
+            let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+            // Exact intersection area of circles R=2, r=0.5, centre distance d=1.6.
+            let d = 1.6_f64;
+            let lens = 4. * ((d * d + 4. - 0.25) / (4. * d)).acos()
+                + 0.25 * ((d * d + 0.25 - 4.) / d).acos()
+                - 0.5 * ((-d + 2.5) * (d + 1.5) * (d - 1.5) * (d + 2.5)).sqrt();
+            assert!((mesh.volume() - (8. * std::f64::consts::PI - 2. * lens)).abs() < 0.002);
+            material(&mesh, [11.8, 8., 1.], false);
+            material(&mesh, [10., 8., 1.], true);
+            let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+            assert_eq!(raw_cylinders(&step).len(), 2);
+        }
     }
+}
+
+#[test]
+fn adoption_pcb_slot_preserves_both_material_components() {
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/pcb-drill-in-slot.json"
+    ))
+    .unwrap();
+    input.body.mounts = None;
+    let boardstudio_contracts::MechanicalShape::Drill { size, .. } =
+        &mut input.body.pcb_source.as_mut().unwrap().slots[0].geometry
+    else {
+        unreachable!()
+    };
+    *size = boardstudio_contracts::Vec2 { x: 2., y: 20. };
+    let model =
+        crate::build_case(&input).expect("through-slot splits the PCB into two material solids");
+    assert_eq!(model.solids.len(), 2);
+    let mut extents = Vec::new();
+    for solid in &model.solids {
+        assert_eq!(solid.boundaries().len(), 1);
+        Solid::try_new(solid.boundaries().clone()).unwrap();
+        assert!(solid.is_geometric_consistent());
+        let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+        assert!((mesh.volume() - 9. * 16. * 1.6).abs() < 1e-8);
+        let low = mesh
+            .positions()
+            .iter()
+            .map(|p| p.x)
+            .fold(f64::INFINITY, f64::min);
+        let high = mesh
+            .positions()
+            .iter()
+            .map(|p| p.x)
+            .fold(f64::NEG_INFINITY, f64::max);
+        extents.push([low, high]);
+        material(&mesh, [10., 8., 0.8], false);
+    }
+    extents.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    assert_eq!(extents, vec![[0., 9.], [11., 20.]]);
+    let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
+    assert_eq!(step.matches("MANIFOLD_SOLID_BREP(").count(), 2);
+    assert_eq!(step.matches("CLOSED_SHELL(").count(), 2);
+    assert!(
+        raw_cylinders(&step).is_empty(),
+        "oval end caps lie outside the board"
+    );
+}
+
+#[test]
+fn adoption_pcb_cuts_cannot_return_empty_success() {
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/pcb-edge-drill.json"
+    ))
+    .unwrap();
+    input.body.mounts.as_mut().unwrap()[0].hole_diameter = 100.;
+    let error = crate::build_case(&input)
+        .err()
+        .expect("whole-board removal must refuse");
+    assert!(
+        error.contains("footprint/pad-0") && error.contains("removes all source material"),
+        "{error}"
+    );
 }
 
 fn prepared_source_bits(input: &PreparedCaseIR) {

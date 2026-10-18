@@ -317,8 +317,9 @@
         "inside": true
       }
     ],
-    "expectedRefusal": "fully containing",
-    "coneFaces": 0
+    "expectedRefusal": null,
+    "coneFaces": 0,
+    "cylindricalFaces": 1
   },
   {
     "id": "pcb-overlapping-drills",
@@ -356,8 +357,9 @@
         "inside": true
       }
     ],
-    "expectedRefusal": "overlap",
-    "coneFaces": 0
+    "expectedRefusal": null,
+    "coneFaces": 0,
+    "cylindricalFaces": 2
   },
   {
     "id": "pcb-drill-in-slot",
@@ -395,7 +397,8 @@
         "inside": true
       }
     ],
-    "expectedRefusal": "overlap",
-    "coneFaces": 0
+    "expectedRefusal": null,
+    "coneFaces": 0,
+    "cylindricalFaces": 2
   }
 ]

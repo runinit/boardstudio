@@ -103,6 +103,7 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
     )?;
     let frame = contours::frame(rings.iter().map(|(ring, _)| ring))?;
     let mut cut_ids = BTreeSet::new();
+    let mut cuts = Vec::new();
     for mount in body.mounts.as_deref().unwrap_or_default() {
         if mount.id.is_empty() || !cut_ids.insert(mount.id.clone()) {
             return Err(format!(
@@ -122,7 +123,7 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
             &mount.id,
         );
         contours::validate(&cut).map_err(|error| format!("PCB drill '{}': {error}", mount.id))?;
-        rings.push((cut, false));
+        cuts.push((mount.id.as_str(), cut));
     }
     for slot in &source.slots {
         if slot.id.is_empty() || !cut_ids.insert(slot.id.clone()) {
@@ -132,11 +133,10 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
             ));
         }
         let cut = slot_ring(slot)?;
-        rings.push((cut, false));
+        cuts.push((slot.id.as_str(), cut));
     }
-    // The existing validator proves full source containment and disjoint void interiors.
-    // Boundary-crossing or overlapping cuts refuse with their source IDs, never a center filter.
-    let profile = contours::from_rings(rings).map_err(|error| {
+    // Source holes declare material ownership; drill/slot operands are separate subtractions.
+    let mut profile = contours::from_rings(rings).map_err(|error| {
         format!(
             "PCB '{}' contours [{}] cuts [{}]: {error}",
             body.id,
@@ -146,7 +146,7 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
                 .map(|contour| contour.id.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
-            cut_ids.into_iter().collect::<Vec<_>>().join(", ")
+            cut_ids.iter().cloned().collect::<Vec<_>>().join(", ")
         )
     })?;
     // from_rings preserves each normalized input ring. Check its actual smallest material
@@ -166,6 +166,16 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
             ));
         }
     }
+    for (id, cut) in cuts {
+        profile = contours::difference(&profile, &cut)
+            .map_err(|error| format!("PCB '{}' cut '{id}': {error}", body.id))?;
+        if profile.is_empty() {
+            return Err(format!(
+                "PCB '{}' cut '{id}' removes all source material",
+                body.id
+            ));
+        }
+    }
     let bands = [topology::Band {
         low: span.low,
         high: span.high,
@@ -174,7 +184,13 @@ pub(super) fn build(input: &PreparedCaseIR) -> Result<ExactModel, String> {
         lower: profile.clone(),
         upper: profile,
     }];
-    let solids = topology::assemble(&bands, &[], &frame)?;
+    let solids = topology::assemble(&bands, &[], &frame).map_err(|error| {
+        format!(
+            "PCB '{}' cuts [{}]: {error}",
+            body.id,
+            cut_ids.into_iter().collect::<Vec<_>>().join(", ")
+        )
+    })?;
     Ok(ExactModel { solids })
 }
 
