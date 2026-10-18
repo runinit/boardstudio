@@ -416,6 +416,8 @@ mod tests {
                         positions: Rc::from([0.0_f32; 9]),
                         normals: Rc::from([0.0_f32; 9]),
                         colors: None,
+                        step_bounds: None,
+                        vendor_step: None,
                     }),
                     matrix: None,
                 })
@@ -478,6 +480,8 @@ mod tests {
                     positions: Rc::from([0.0_f32; 9]),
                     normals: Rc::from([0.0_f32; 9]),
                     colors: None,
+                    step_bounds: None,
+                    vendor_step: None,
                 }),
                 matrix: None,
             }],

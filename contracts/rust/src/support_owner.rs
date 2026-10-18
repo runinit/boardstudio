@@ -341,7 +341,7 @@ fn input_vertices(ring: &[Pt]) -> Result<Vec<[f64; 2]>, String> {
 pub(super) fn normalize_case_profile_region(
     exterior: &[[f64; 2]],
     holes: &[Vec<[f64; 2]>],
-) -> Result<(Vec<[f64; 2]>, Vec<Vec<[f64; 2]>>), String> {
+) -> Result<super::NormalizedProfileRegion, String> {
     let exterior = validate_poly(exterior).map_err(|error| format!("exterior: {error}"))?;
     let mut validated_holes: Vec<Vec<Pt>> = Vec::with_capacity(holes.len());
     for (index, source) in holes.iter().enumerate() {

@@ -29,6 +29,8 @@ import time
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from check import format_wasm_failure_summary, summarize_wasm_failure  # noqa: E402
 KNOWN_FAILURES = Path(__file__).with_name("wasm-known-failures.json")
 TEST_OWNERS = Path(__file__).with_name("wasm-test-owners.json")
 RUNNER_ENV = "BOARDSTUDIO_WASM_TEST_COMMAND"
@@ -418,13 +420,17 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
             label = f"{label} (via {parent})"
         observations = terminal_observations(output)
         observed_terminal_outcomes.extend(observations)
-        filter_reports.append({
+        first_failure = summarize_wasm_failure(output)
+        filter_report = {
             "filter": filter_,
             "runner_filter": runner_filter,
             "expected_tests": sorted((expected_tests or {}).get(filter_, [])),
             "terminal_outcomes": observations,
             "duration_ms": round((time.monotonic() - started) * 1000),
-        })
+        }
+        if first_failure is not None:
+            filter_report["first_failure"] = first_failure
+        filter_reports.append(filter_report)
         if result_json_path:
             log_dir = Path(str(result_json_path) + ".logs")
             try:
@@ -433,32 +439,39 @@ def run(filters, known, root=ROOT, expected_tests=None, env=None, unmatched_filt
                 filter_reports[-1]["log_path"] = str(log_dir / f"filter-{index:03d}.log")
             except OSError as error:
                 problems.append(f"could not write full WASM invocation log: {error}")
+
+        def append_filter_log():
+            summary_line = format_wasm_failure_summary(first_failure)
+            tail = "\n".join(output.strip().splitlines()[-40:])
+            body = f"{summary_line}\n{tail}" if summary_line and tail else (summary_line or tail)
+            logs.append(f"--- {label} ---\n{body}")
+
         if not found:
             problems.append(f"zero tests executed for filter {label}"
                             + ("" if code == 0 else f" (runner exit {code})")
                             + "; add a #[wasm_bindgen_test] for this module or check the runner output")
-            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+            append_filter_log()
         incomplete = sorted(name for name, status in found.items() if status == "INCOMPLETE")
         if incomplete:
             problems.append("incomplete execution; invoked tests did not report a terminal result: "
                             + ", ".join(incomplete))
-            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+            append_filter_log()
         elif code != 0 and "FAILED" not in found.values():
             problems.append(f"runner exited {code} for filter {label} without a failing test (build or harness error)")
-            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+            append_filter_log()
         failed_here = sorted(name for name, status in found.items() if status == "FAILED")
         if failed_here:
-            logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+            append_filter_log()
         if expected_tests is not None and filter_ in expected_tests:
             terminal = {name for name, status in found.items() if status in ("ok", "FAILED")}
             missing = sorted(set(expected_tests[filter_]) - terminal)
             unexpected = sorted(set(found) - set(expected_tests[filter_]))
             if missing:
                 problems.append(f"listed tests were not completed for filter {label}: " + ", ".join(missing))
-                logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+                append_filter_log()
             if unexpected:
                 problems.append(f"unlisted tests matched filter {label}: " + ", ".join(unexpected))
-                logs.append(f"--- {label} ---\n" + "\n".join(output.strip().splitlines()[-40:]))
+                append_filter_log()
         for name, status in found.items():
             outcomes.setdefault(name, status)
     duplicate_terminal = duplicate_terminal_names(observed_terminal_outcomes)

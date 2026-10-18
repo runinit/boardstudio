@@ -45,16 +45,17 @@ def verify_vendor():
     if (upstream_manifest["package"]["name"] != UPSTREAM_PACKAGE
             or upstream_manifest["package"]["version"] != provenance["upstreamVersion"]):
         raise ValueError("Vendored source is not the cgmath-next package")
-    metadata = json.loads(subprocess.check_output([
-        "cargo", "metadata", "--locked", "--format-version", "1",
-        "--manifest-path", "Cargo.toml",
-    ], cwd=ROOT))
-    packages = [package for package in metadata["packages"] if package["name"] == "cgmath"]
-    if (len(packages) != 1 or packages[0]["version"] != provenance["version"]
-            or Path(packages[0]["manifest_path"]).resolve() != VENDOR / "Cargo.toml"
-            or not any(target["name"] == "cgmath" and "lib" in target["kind"]
-                       for target in packages[0]["targets"])):
-        raise ValueError("Renderer must resolve exclusively to the reviewed cgmath-next source")
+    for manifest in ("Cargo.toml", "cad/wasm/Cargo.toml"):
+        metadata = json.loads(subprocess.check_output([
+            "cargo", "metadata", "--locked", "--format-version", "1",
+            "--manifest-path", manifest,
+        ], cwd=ROOT))
+        packages = [package for package in metadata["packages"] if package["name"] == "cgmath"]
+        if (len(packages) != 1 or packages[0]["version"] != provenance["version"]
+                or Path(packages[0]["manifest_path"]).resolve() != VENDOR / "Cargo.toml"
+                or not any(target["name"] == "cgmath" and "lib" in target["kind"]
+                           for target in packages[0]["targets"])):
+            raise ValueError(f"{manifest} must resolve exclusively to the reviewed cgmath-next source")
     return provenance
 
 
@@ -82,7 +83,7 @@ def main():
     provenance = verify_vendor()
     failed = False
     locks = ["Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"]
-    patched_locks = {"Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"}
+    patched_locks = {"Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"}
     for lock in locks:
         print(f"\nAuditing {lock}", flush=True)
         source = (ROOT / lock).read_text()

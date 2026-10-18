@@ -17,6 +17,10 @@ Finish the production switch: exact layered cases/PCBs and their STEP export, me
 
 ## Comments
 
+2026-10-17 removal audit: current root/CAD Cargo metadata and lockfiles contain no Cadrum/OCCT dependency; CAD resolves Monstertruck and the reviewed renderer cgmath fork. The freshly packaged site has the CAD provider and CAD-worker WASM assets, no native shared libraries and no Cadrum/OCCT JavaScript runtime references. OCCT authoring-system strings in source STEP assets are metadata, not links. Audit is retained in `.evidence/cad-dependency-audit.log`. Native test registration and strict workspace lint pass; browser acceptance remains red at Stagger durable saving. CAD cgmath security is repaired and independently reviewed; overall security still fails on root ZIP 8.6.0 advisories, without suppression. Performance and final feature acceptance remain open.
+
+2026-10-17 continuation: `dev` through `16ac60269` is merged at `bdfafbdfa`. The dirty checkout removes the Cadrum dependency, OCCT image/provisioning scripts, C++ STEP oracle and obsolete packaged licences, and builds the provider for `wasm32-unknown-unknown`. These edits are not final acceptance: dependency/artifact audit, full required checks, integrated performance, collision delivery and final independent reviews remain open. Preserve the existing uncommitted work; do not mark resolved from removal alone.
+
 2026-10-17 scope reconciliation:004 and general006 kernel hardening are off the critical path. Dependencies001+002 retain only the generated-exact and complete vendor-mesh obligations that remain in scope;010 carries013/006/008,009 and007/014 integration. Do not delete historical evidence or weaken the applicable case/PCB/source-completeness checks when replacing required tests.
 
 2026-10-17: User decision: cutover no longer requires a general exact B-rep Boolean engine. Exact geometry is required for cases and PCBs via 013; keycaps and vendor STEP are mesh-based by design, and that is not a forbidden preview-only replacement.

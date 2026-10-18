@@ -560,6 +560,27 @@ class RunWasmTestsTests(unittest.TestCase):
         with runner.desktop_webdriver_config({}, self.dir) as env:
             self.assertEqual(env[runner.WEBDRIVER_CONFIG_ENV], str(crate_config.resolve()))
 
+    def test_first_failure_summary_surfaces_raw_wasm_trap_before_harness_timeout(self):
+        test_name = "presentation::x::tests::traps_in_wasm"
+        self.fake(
+            f'if [ "$1" = --list ]; then echo "{test_name}: test"; exit 0; fi\n'
+            'echo "Failed to detect test as having been run. It might have timed out."\n'
+            'echo "console output:"\n'
+            f'echo "    Invoking test: {test_name}"\n'
+            'echo "    RuntimeError: memory access out of bounds"\n'
+            'echo "        at boardstudio_web.wasm.__wbindgen_exn_store (http://127.0.0.1:1/wasm:0x1)"\n'
+            'exit 1'
+        )
+        report_path = self.dir / "trap.json"
+        code, _, err = self.main("--files", "web/src/presentation/x.rs", "--result-json", str(report_path))
+        self.assertEqual(code, 1)
+        self.assertIn("first failure [raw WASM trap]", err)
+        self.assertIn("memory access out of bounds", err)
+        self.assertIn("__wbindgen_exn_store", err)
+        report = json.loads(report_path.read_text())
+        self.assertEqual(report["filters"][0]["first_failure"]["kind"], "wasm_trap")
+        self.assertTrue(report["filters"][0]["first_failure"]["timed_out_after_failure"])
+
 
 
 if __name__ == "__main__":

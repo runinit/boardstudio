@@ -7531,7 +7531,7 @@ mod mounted_settlement_tests {
     use boardstudio_core::model::{
         GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
     };
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
+    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future};
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -7801,8 +7801,8 @@ mod mounted_settlement_tests {
     }
 
     async fn settle_until(runtime: &Rc<Runtime>, what: &str, done: impl Fn() -> bool) {
-        wait_until_step(what, async || {
-            support::run_pending(runtime).await;
+        wait_until(what, || {
+            support::drive_pending(runtime);
             done()
         })
         .await;

@@ -1,12 +1,13 @@
-Third-party notices for the Cadrum CAD WebAssembly module
+Third-party notices for the Monstertruck CAD WebAssembly module
 
-Cadrum 0.8.20 is distributed under the MIT License. Its notice is in
-Cadrum-MIT.txt. Source: https://github.com/lzpel/cadrum/tree/8788df70c60b986b5ab387edb75a2f6f341a8c7a
+The CAD module is built from Rust sources only. The following components are
+distributed under the Apache License 2.0, whose text is in Apache-2.0.txt:
 
-Open CASCADE Technology 8.0.1 is distributed under the GNU Lesser General
-Public License version 2.1 with the Open CASCADE exception. The license and
-exception texts are in Open-CASCADE-LGPL-2.1.txt and
-Open-CASCADE-LGPL-Exception.txt. Source: https://github.com/lzpel/cadrum/releases/tag/occt-8_0_1_rev2
+- Monstertruck 0.4.1 crates (monstertruck-core, -derive, -geometry, -io,
+  -mesh, -meshing, -modeling, -traits), vendored with local modifications
+  recorded in each crate's SOURCE.md. Source: https://github.com/virtualritz/monstertruck
+- parry3d-f64 0.31.1. Source: https://github.com/dimforge/parry
+- manifold-rust 0.16.0. Source: https://crates.io/crates/manifold-rust/0.16.0
 
 Keycap lettering embeds DejaVu Sans outlines. The Bitstream Vera and Arev
 notices, including the public-domain DejaVu changes, are in

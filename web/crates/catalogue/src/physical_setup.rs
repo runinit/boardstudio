@@ -1219,7 +1219,7 @@ mod tests {
         assert_eq!(shared.plate_thickness, 1.5);
         assert_eq!(hardware.instances[0].mechanical.as_ref(), Some(shared));
         assert_eq!(hardware.instances[1].mechanical.as_ref(), Some(shared));
-        assert!(!hardware.instances[1].flipped);
+        assert!(hardware.instances[1].flipped);
     }
 
     #[test]
@@ -1978,7 +1978,25 @@ mod tests {
     fn a_setup_proposal_without_a_pair_needs_no_mounting_hole() {
         // Equal declared transforms imply no representable map, so this split has no
         // eligible pair and therefore needs no mounting-hole template.
-        let doc = document();
+        let mut doc = document();
+        let settings = mechanical(&doc, 4.2);
+        doc.mechanical = Some(settings.clone());
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![make_instance(
+                "primary",
+                "board-a",
+                "unibody",
+                "standalone",
+                "Keyboard",
+                true,
+                settings,
+            )],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
         let proposal = propose_with_mirror_pair(
             &doc,
             SetupIntent::Topology {
@@ -2134,7 +2152,23 @@ mod tests {
         let mut doc = document();
         let mut settings = mechanical(&doc, 4.2);
         settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
-        doc.mechanical = Some(settings);
+        doc.mechanical = Some(settings.clone());
+        doc.hardware = Some(HardwareConfiguration {
+            topology: HardwareTopology::Unibody,
+            transport: HardwareTransport::None,
+            instances: vec![make_instance(
+                "primary",
+                "board-a",
+                "unibody",
+                "standalone",
+                "Keyboard",
+                true,
+                settings,
+            )],
+            boards: vec![],
+            shared_construction: None,
+            pairs: vec![],
+        });
 
         let proposal = propose_with_mirror_pair(
             &doc,
@@ -2151,8 +2185,8 @@ mod tests {
 
         assert_eq!(proposal.mirror_pair, None);
         let hardware = proposal.document.hardware.as_ref().unwrap();
-        assert!(!hardware.instances[0].flipped);
-        assert!(!hardware.instances[1].flipped);
+        assert!(hardware.instances[0].flipped);
+        assert!(hardware.instances[1].flipped);
     }
 
     #[test]

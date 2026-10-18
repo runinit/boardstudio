@@ -203,6 +203,220 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(check.run(["test"]), 0)
         self.assertEqual(launched, commands, "one job runs them in order")
 
+    def test_browser_crates_are_derived_from_the_browser_plan_without_duplication(self):
+        self.assertEqual(
+            check.browser_crates(),
+            ("host", "runtime", "ui-model", "ui-shared", "keycaps", "library",
+             "keymap", "catalogue", "case", "parts", "pcb", "layout"),
+        )
+        custom = [["wasm-pack", "test", "--headless", "--chrome", "web/crates/custom-crate", "--lib"]]
+        with mock.patch.dict(check.STEPS, {"browser": (True, custom)}):
+            self.assertEqual(check.browser_crates(), ("custom-crate",))
+
+    def test_browser_only_selects_crate_launches_without_build_or_drag_smoke_and_reports_partial_run(self):
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            return mock.Mock(returncode=0, stdout="ok\n")
+
+        output = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.main(["browser", "--only", "case", "ui-shared"]), 0)
+        self.assertEqual(len(seen), 3, "case plus both ui-shared launches run without build or smoke")
+        self.assertTrue(all(check.is_crate_launch(cmd) for cmd in seen))
+        self.assertFalse(any("build-web.py" in " ".join(cmd) or "run-drag-browser.py" in " ".join(cmd)
+                             for cmd in seen))
+        text = output.getvalue()
+        self.assertIn("== browser (only: case, ui-shared)", text)
+        self.assertIn("check: partial steps passed: browser (only: case, ui-shared)", text)
+        self.assertNotIn("check: all steps passed:", text)
+
+    def test_browser_only_layout_runs_layout_test_css_prerequisite_and_stops_if_it_fails(self):
+        seen = []
+
+        def fake_pass(command, **kwargs):
+            seen.append((command, kwargs.get("cwd")))
+            return mock.Mock(returncode=0, stdout="ok\n")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fake_pass), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.main(["browser", "--only", "layout"]), 0)
+        self.assertEqual(seen[0], (check.LAYOUT_TEST_CSS, check.ROOT / "web"))
+        self.assertEqual(len(seen), 3, "layout-test-css followed by both layout crate launches")
+
+        seen.clear()
+        error = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=2, stdout="")), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+            self.assertEqual(check.main(["browser", "--only", "layout", "--keep-going"]), 1)
+        self.assertIn("step 'layout-test-css' failed", error.getvalue())
+
+    def test_browser_only_and_keep_going_validate_argument_combinations(self):
+        invalid = (
+            (["browser", "--only", "nonexistent"], "unknown browser crate(s): nonexistent"),
+            (["--only", "case"], "--only applies to `browser`"),
+            (["build", "browser", "--only", "case"], "--only applies to `browser`"),
+            (["repo", "browser", "--only", "case"], "--only applies to `browser`"),
+            (["quick", "--only", "case"], "--only applies to `browser`"),
+            (["--list", "--only", "case"], "--only"),
+            (["repo", "--keep-going"], "--keep-going applies to the `browser` step"),
+            (["--list", "--keep-going"], "--keep-going"),
+        )
+        for argv, expected_error in invalid:
+            stderr = io.StringIO()
+            with self.subTest(argv=argv), contextlib.redirect_stderr(stderr), \
+                    self.assertRaises(SystemExit) as raised:
+                check.main(argv)
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn(expected_error, stderr.getvalue())
+
+    def test_browser_keep_going_runs_remaining_launches_serially_and_exits_nonzero(self):
+        seen = []
+
+        def fake(command, **kwargs):
+            seen.append(command)
+            failed = any(part in ("web/crates/library", "web/crates/case") for part in command)
+            return mock.Mock(returncode=1 if failed else 0, stdout="output\n")
+
+        error = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+            self.assertEqual(
+                check.main(["browser", "--only", "library,case", "parts", "--keep-going"]),
+                1,
+            )
+        self.assertEqual(
+            [check.launch_crate(cmd) for cmd in seen],
+            ["library", "case", "parts"],
+        )
+        stderr = error.getvalue()
+        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/library", stderr)
+        self.assertIn("launch failed: wasm-pack test --headless --chrome web/crates/case", stderr)
+        self.assertIn("step 'browser (only: library, case, parts)' failed", stderr)
+
+        # In a parallel batch with --keep-going, a failed crate launch continues to trailing
+        # independent browser commands unless the page `--list` prerequisite itself fails.
+        seen.clear()
+        launches = [["wasm-pack", "test", "--headless", "--chrome", f"web/crates/{name}", "--locked", "--lib"]
+                    for name in ("library", "case")]
+        page_list = ["wasm-pack", "test", "--headless", "--chrome", "web", "--bin", "boardstudio-web", "--", "--list"]
+        page_run = [sys.executable, "scripts/run-wasm-tests.py", "--all"]
+        with mock.patch.object(check.subprocess, "run", side_effect=fake), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "2"}), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run(["browser"], keep_going=True), 1)
+        self.assertIn(page_run, seen)
+
+        seen.clear()
+
+        def fail_list(command, **kwargs):
+            seen.append(command)
+            return mock.Mock(returncode=1 if "--list" in command else 0, stdout="")
+
+        with mock.patch.object(check.subprocess, "run", side_effect=fail_list), \
+                mock.patch.dict(check.STEPS, {"browser": (True, [*launches, page_list, page_run])}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(check.run(["browser"], keep_going=True), 1)
+        self.assertNotIn(page_run, seen, "page suite does not run when its --list prerequisite failed")
+
+    def test_wasm_failure_summary_distinguishes_raw_wasm_trap_rust_panic_cascade_and_timeout(self):
+        trap_log = """\
+running 1 test
+Failed to detect test as having been run. It might have timed out.
+console output:
+    Invoking test: library::mounted_tests::project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document
+    wasm-bindgen: imported JS function that was not marked as `catch` threw an error:
+    memory access out of bounds
+
+    Stack:
+    RuntimeError: memory access out of bounds
+        at boardstudio_web_library-f0d869e22bb8c46e.wasm.__wbindgen_exn_store (http://127.0.0.1:36115/wasm-bindgen-test_bg.wasm:wasm-function[54137]:0x14f1a6e)
+        at handleError (http://127.0.0.1:36115/wasm-bindgen-test:3084:14)
+driver status: signal: 9 (SIGKILL)
+"""
+        trap = check.summarize_wasm_failure(trap_log)
+        self.assertEqual(trap["kind"], "wasm_trap")
+        self.assertEqual(
+            trap["test"],
+            "library::mounted_tests::project_menu_name_draft_survives_unrelated_accepted_revision_and_commits_latest_document",
+        )
+        self.assertEqual(trap["location"], "__wbindgen_exn_store")
+        self.assertEqual(trap["detail"], "RuntimeError: memory access out of bounds")
+        self.assertTrue(trap["timed_out_after_failure"])
+        trap_text = check.format_wasm_failure_summary(trap)
+        self.assertIn("first failure [raw WASM trap]", trap_text)
+        self.assertIn("memory access out of bounds", trap_text)
+        self.assertIn("__wbindgen_exn_store", trap_text)
+        self.assertIn("later harness timeout was a follow-on symptom", trap_text)
+
+        cascade_log = """\
+running 4 tests
+test shared_viewer::tests::viewer_events_reject_changed_owner_identity_and_unmount ... ok
+test shared_viewer::tests::vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform ... FAIL
+test shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry ... FAIL
+test case_assembly_layers::tests::layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked ... FAIL
+Failed to detect test as having been run. It might have timed out.
+console output:
+    Invoking test: shared_viewer::tests::viewer_events_reject_changed_owner_identity_and_unmount
+    Invoking test: shared_viewer::tests::vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform
+    panicked at web/crates/case/src/shared_viewer.rs:3794:9:
+    assertion `left == right` failed
+      left: Array [Number(12), Number(26), Number(42), Number(18), Number(35), Number(54)]
+     right: Array [Number(12.0), Number(26.0), Number(42.0), Number(18.0), Number(35.0), Number(54.0)]
+
+    Stack:
+    Error
+    Invoking test: shared_viewer::tests::mounted_case_gesture_feedback_preserves_canvas_geometry
+    panicked at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/std/src/panicking.rs:144:9:
+    cannot modify the panic hook from a panicking thread
+    RuntimeError: unreachable
+        at boardstudio_web_case.wasm.__rustc::__rust_abort (wasm:0x1)
+    panicked at web/crates/case/src/shared_viewer.rs:4358:14:
+    real SharedViewer canvas mounts
+    Invoking test: case_assembly_layers::tests::layer_menu_toggles_exact_rows_and_unavailable_rows_are_not_checked
+    panicked at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/std/src/panicking.rs:144:9:
+    cannot modify the panic hook from a panicking thread
+"""
+        cascade = check.summarize_wasm_failure(cascade_log)
+        self.assertEqual(cascade["kind"], "rust_panic")
+        self.assertEqual(
+            cascade["test"],
+            "shared_viewer::tests::vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform",
+        )
+        self.assertEqual(cascade["location"], "web/crates/case/src/shared_viewer.rs:3794:9")
+        self.assertIn("Number(12)", cascade["detail"])
+        self.assertIn("Number(12.0)", cascade["detail"])
+        self.assertEqual(cascade["panic_hook_cascade_count"], 2)
+        self.assertTrue(cascade["timed_out_after_failure"])
+        cascade_text = check.format_wasm_failure_summary(cascade)
+        self.assertIn("first failure [Rust panic/assertion]", cascade_text)
+        self.assertIn("2 later test(s) hit 'cannot modify the panic hook from a panicking thread'", cascade_text)
+
+        timeout_log = """\
+running 1 test
+Failed to detect test as having been run. It might have timed out.
+console output:
+    Invoking test: presentation::x::tests::genuinely_hangs
+driver status: signal: 9 (SIGKILL)
+"""
+        timeout = check.summarize_wasm_failure(timeout_log)
+        self.assertEqual(timeout["kind"], "timeout")
+        self.assertEqual(timeout["test"], "presentation::x::tests::genuinely_hangs")
+        self.assertFalse(timeout["timed_out_after_failure"])
+        self.assertIn("first failure [timeout]", check.format_wasm_failure_summary(timeout))
+
+        error = io.StringIO()
+        with mock.patch.object(check.subprocess, "run", return_value=mock.Mock(returncode=1, stdout=trap_log)), \
+                mock.patch.dict(os.environ, {"BOARDSTUDIO_CHECK_JOBS": "1"}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(error):
+            self.assertEqual(check.main(["browser", "--only", "library"]), 1)
+        self.assertIn("first failure [raw WASM trap]", error.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

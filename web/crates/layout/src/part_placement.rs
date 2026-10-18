@@ -1325,7 +1325,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
             if current {
                 selected_context.set(None);
                 anchor_scope.set(None);
-                workspace.set(if owner.workflow.is_controller() {
+                workspace.set(if owner.workflow == PlacementWorkflow::PcbController {
                     "PCB"
                 } else {
                     "Layout"
@@ -2894,7 +2894,7 @@ mod tests {
         let mount = probe.latest.borrow().as_ref().unwrap().clone();
         mount.on_choose_controller.call(());
         flush_hook(&mut dom);
-        assert_eq!(workspace(&probe), "Parts");
+        assert_eq!(workspace(&probe), "Layout");
         probe
             .latest
             .borrow()
@@ -2947,7 +2947,10 @@ mod tests {
         assert!(active.owns_canvas());
         active.on_cancel.call(());
         flush_hook(&mut dom);
-        assert_eq!(workspace(&probe), "PCB");
+        assert_eq!(workspace(&probe), "Layout");
+        let guide = (*probe.guide.borrow().as_ref().unwrap())().unwrap();
+        assert!(guide.open);
+        assert_eq!(guide.current_stage, SetupGuideStage::Wiring);
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
         assert_eq!(probe.canvas_interaction.current(), None);
     }
@@ -3134,7 +3137,7 @@ mod tests {
         run_pending_runtime(&probe).await;
         let_hook_tasks_run().await;
         flush_hook(&mut dom);
-        assert_eq!(workspace(&probe), "PCB");
+        assert_eq!(workspace(&probe), "Layout");
         assert!(probe.latest.borrow().as_ref().unwrap().projection.is_none());
         assert_eq!(probe.canvas_interaction.current(), None);
     }
@@ -3143,6 +3146,11 @@ mod tests {
     async fn production_hook_routes_persistence_failure_but_close_drains_pending_save() {
         for fail_save in [true, false] {
             let (probe, mut dom) = hook_mounted().await;
+            let mut guide = *probe.guide.borrow().as_ref().unwrap();
+            guide.set(None);
+            let mut workspace_signal = *probe.workspace.borrow().as_ref().unwrap();
+            workspace_signal.set("PCB");
+            flush_hook(&mut dom);
             let active = start_hook_placement(&probe, &mut dom).await;
             let save_gate = (!fail_save).then(|| {
                 crate::runtime::project_name_test_support::gate_next_persist(&probe.runtime)
@@ -3230,8 +3238,13 @@ mod tests {
             entered.await.expect("save reaches persistence gate");
             let mut open_outcome = None;
             if stale_identity == "board" {
-                crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other")
-                    .await;
+                probe.runtime.submit(Event::Navigate {
+                    operation_id: probe.runtime.operation(),
+                    board_id: "board-other".into(),
+                    instance_id: None,
+                });
+                start_pending_runtime(&probe);
+                assert_eq!(probe.runtime.model().active_board_id, "board-other");
             } else {
                 let open_operation = probe.runtime.operation();
                 open_outcome = Some(crate::runtime::project_name_test_support::observe(
@@ -3337,7 +3350,13 @@ mod tests {
 
         // Navigate while the real Core operation is pending. Session updates the active board
         // scope immediately; the held edit can still finish, then fail persistence.
-        crate::runtime::project_name_test_support::navigate(&probe.runtime, "board-other").await;
+        probe.runtime.submit(Event::Navigate {
+            operation_id: probe.runtime.operation(),
+            board_id: "board-other".into(),
+            instance_id: None,
+        });
+        start_pending_runtime(&probe);
+        assert_eq!(probe.runtime.model().active_board_id, "board-other");
         crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "stale board");
         let _ = release.send(());
         let_hook_tasks_run().await;

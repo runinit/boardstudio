@@ -20,11 +20,9 @@ members = [
   "web/crates/library",
   "web/crates/keycaps",
 ]
-# The CAD crates build in their own toolchains: cad/wasm inside the pinned
-# wasi-sdk container and cad/step-oracle against native OCCT.
+# cad/wasm keeps its own lockfile and patched Monstertruck dependency graph.
 exclude = [
   "cad/wasm",
-  "cad/step-oracle",
   "renderer/vendor/cgmath-0.18.0",
   "renderer/vendor/cgmath-next-0.18.1",
 ]

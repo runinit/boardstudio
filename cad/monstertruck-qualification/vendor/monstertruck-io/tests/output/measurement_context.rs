@@ -100,7 +100,7 @@ fn step_design_custom_measurement_context_appears() {
         "custom metre unit:\n{text}"
     );
     assert!(
-        text.contains("UNCERTAINTY_MEASURE_WITH_UNIT(5.0E-4,"),
+        text.contains("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(5.0E-4),"),
         "custom accuracy:\n{text}"
     );
 }

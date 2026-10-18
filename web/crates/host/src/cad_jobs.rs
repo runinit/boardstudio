@@ -27,6 +27,207 @@ pub enum CadOperation {
     Exact,
     ExportStep,
     ReadStep,
+    CollisionQuery,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CadStepImportOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_repair_budget_mm: Option<f64>,
+}
+
+impl CadStepImportOptions {
+    pub fn validate(self) -> Result<Self, String> {
+        if let Some(budget) = self.preview_repair_budget_mm
+            && (!budget.is_finite() || budget <= 0.0)
+        {
+            return Err("STEP previewRepairBudgetMm must be finite and positive".into());
+        }
+        Ok(self)
+    }
+
+    pub fn same_identity(self, other: Self) -> bool {
+        match (
+            self.preview_repair_budget_mm,
+            other.preview_repair_budget_mm,
+        ) {
+            (None, None) => true,
+            (Some(a), Some(b)) => {
+                a.is_finite() && a > 0.0 && b.is_finite() && b > 0.0 && a.to_bits() == b.to_bits()
+            }
+            _ => false,
+        }
+    }
+}
+
+pub const MAX_COLLISION_QUERY_BYTES: usize = 64 * 1024 * 1024;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadCollisionQuery {
+    pub left: CadCollisionOperand,
+    pub right: CadCollisionOperand,
+    pub clearance_threshold_mm: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_accuracy_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadCollisionOperand {
+    pub model_id: String,
+    pub source_sha256: String,
+    #[serde(default)]
+    pub import_options: CadStepImportOptions,
+    pub row_transform_f64: [f64; 16],
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CadCollisionMeshPair {
+    pub left_positions_mm_f64: Vec<f64>,
+    pub left_triangle_face_occurrence_indices: Vec<u32>,
+    pub right_positions_mm_f64: Vec<f64>,
+    pub right_triangle_face_occurrence_indices: Vec<u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadTriangleProvenance {
+    pub triangle_index: u32,
+    pub face_occurrence_index: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadTrianglePairProvenance {
+    pub left: CadTriangleProvenance,
+    pub right: CadTriangleProvenance,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadContactWitness {
+    pub triangles: CadTrianglePairProvenance,
+    pub point1_mm: [f64; 3],
+    pub point2_mm: [f64; 3],
+    pub normal1: [f64; 3],
+    pub normal2: [f64; 3],
+    pub triangle_pair_contact_dist_mm: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CadClosestPointsWitness {
+    pub triangles: CadTrianglePairProvenance,
+    pub point1_mm: [f64; 3],
+    pub point2_mm: [f64; 3],
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum CadCollisionObservation {
+    #[serde(rename_all = "camelCase")]
+    SurfaceIntersecting {
+        intersection_triangles: CadTrianglePairProvenance,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        contact_witness: Option<CadContactWitness>,
+    },
+    #[serde(rename_all = "camelCase")]
+    SurfaceSeparated {
+        surface_distance_mm: f64,
+        closest_points: CadClosestPointsWitness,
+    },
+    #[serde(rename_all = "camelCase")]
+    Uncertain {
+        reason: String,
+        #[serde(default)]
+        partial_intersection: bool,
+    },
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadVendorStep {
+    pub source_sha256: String,
+    #[serde(default)]
+    pub import_options: CadStepImportOptions,
+    pub surface_positions_mm_f64: Vec<f64>,
+    pub source_faces: Vec<CadStepSourceFace>,
+    pub face_occurrences: Vec<CadStepFaceOccurrence>,
+    pub triangle_face_occurrence_indices: Vec<u32>,
+    pub line_segments_mm_f64: Vec<f64>,
+    pub line_render_positions: Vec<f32>,
+    pub line_occurrences: Vec<CadStepLineOccurrence>,
+    pub segment_line_occurrence_indices: Vec<u32>,
+    pub precision: Vec<CadStepPrecision>,
+    pub accuracy: CadStepAccuracy,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepSourceFace {
+    pub solid_id: String,
+    pub shell_index: u32,
+    pub face_id: String,
+    pub support_id: String,
+    pub support_kind: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepFaceOccurrence {
+    pub source_face_index: u32,
+    pub solid_occurrence_index: u32,
+    pub representation_id: String,
+    pub source_uncertainty_mm: Option<f64>,
+    pub repair_displacement_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepLineOccurrence {
+    pub line_occurrence_index: u32,
+    pub trimmed_curve_id: String,
+    pub source_line_id: String,
+    pub curve_set_id: String,
+    pub representation_id: String,
+    pub source_unit_to_mm: f64,
+    pub placement_f64: [f64; 16],
+    pub declared_uncertainty_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepPrecision {
+    pub representation_id: String,
+    pub context_id: String,
+    pub geometric_dimension: Option<u32>,
+    pub declarations: Vec<CadStepUncertainty>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepUncertainty {
+    pub entity_id: String,
+    pub length_unit_id: String,
+    pub millimetres: f64,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CadStepAccuracy {
+    pub preview_deflection_mm: f64,
+    pub preview_angular_rad: f64,
+    pub analysis_error_bound_mm: Option<f64>,
+    pub bounds_from_source_geometry: bool,
+    pub mesh_closed_oriented: bool,
+    pub preview_floor_mm: f64,
+    pub preview_declared_multiplier: f64,
+    pub relaxed_beyond_declared_precision: bool,
+    pub sampled_support_checks: u32,
+    pub max_sampled_support_residual_mm: Option<f64>,
+    pub fallback_meshed_faces: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -40,6 +241,12 @@ pub struct CadRequest {
     pub prepared: Option<PreparedCaseAssemblyIR>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_import_options: Option<CadStepImportOptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collision_query: Option<CadCollisionQuery>,
+    #[serde(skip)]
+    pub collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
     pub input_bytes: Vec<u8>,
 }
@@ -75,6 +282,10 @@ pub struct CadResult {
     pub mesh: Option<CadMesh>,
     pub bodies: Vec<CadBodyMesh>,
     pub bounds: Option<CadBounds>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor_step: Option<CadVendorStep>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collision: Option<CadCollisionObservation>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -209,28 +420,369 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             }
         }
         CadOperation::ReadStep => {
-            if !request
+            let Some(expected_sha) = request
                 .source_sha256
                 .as_deref()
-                .is_some_and(valid_source_sha256)
-            {
+                .filter(|sha| valid_source_sha256(sha))
+            else {
                 return Err(bad("STEP import requires a canonical source SHA-256"));
-            }
-            if !result.mesh.as_ref().is_some_and(valid_mesh)
-                || !result.bounds.as_ref().is_some_and(valid_bounds)
-            {
+            };
+            let expected_options = request
+                .step_import_options
+                .unwrap_or_default()
+                .validate()
+                .map_err(|reason| bad(&reason))?;
+            let (Some(mesh), Some(bounds)) = (
+                result.mesh.as_ref().filter(|mesh| valid_mesh(mesh)),
+                result.bounds.as_ref().filter(|bounds| valid_bounds(bounds)),
+            ) else {
                 return Err(bad("STEP import mesh or bounds are invalid"));
+            };
+            let Some(vendor_step) = result.vendor_step.as_ref() else {
+                return Err(bad("STEP import omitted vendor STEP source metadata"));
+            };
+            validate_vendor_step(expected_sha, expected_options, mesh, bounds, vendor_step)
+                .map_err(|reason| bad(&reason))?;
+        }
+        CadOperation::CollisionQuery => {
+            let Some(query) = request.collision_query.as_ref() else {
+                return Err(bad("collision query omitted metadata"));
+            };
+            validate_collision_query(query).map_err(|reason| bad(&reason))?;
+            if let Some(meshes) = request.collision_meshes.as_ref() {
+                validate_collision_mesh_pair(meshes).map_err(|reason| bad(&reason))?;
             }
+            let Some(collision) = result.collision.as_ref() else {
+                return Err(bad("collision query omitted observation"));
+            };
+            validate_collision_observation(request.collision_meshes.as_ref(), collision)
+                .map_err(|reason| bad(&reason))?;
         }
     }
     Ok(())
 }
 
-pub(super) fn valid_source_sha256(value: &str) -> bool {
+pub fn valid_source_sha256(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+pub fn valid_step_entity_id(value: &str) -> bool {
+    !value.is_empty() && (value == "0" || !value.starts_with('0')) && value.parse::<u64>().is_ok()
+}
+
+pub fn validate_vendor_step(
+    expected_sha: &str,
+    expected_options: CadStepImportOptions,
+    mesh: &CadMesh,
+    bounds: &CadBounds,
+    vendor_step: &CadVendorStep,
+) -> Result<(), String> {
+    if !valid_source_sha256(expected_sha)
+        || !valid_source_sha256(&vendor_step.source_sha256)
+        || vendor_step.source_sha256 != expected_sha
+    {
+        return Err("STEP import returned a mismatched or non-canonical sourceSha256".into());
+    }
+    let expected_options = expected_options.validate()?;
+    vendor_step.import_options.validate()?;
+    if !vendor_step.import_options.same_identity(expected_options) {
+        return Err("STEP import returned mismatched import options".into());
+    }
+    if mesh.positions.is_empty()
+        || !mesh.positions.len().is_multiple_of(9)
+        || mesh.normals.len() != mesh.positions.len()
+        || mesh
+            .positions
+            .iter()
+            .chain(&mesh.normals)
+            .any(|value| !value.is_finite())
+        || vendor_step.surface_positions_mm_f64.len() != mesh.positions.len()
+        || vendor_step
+            .surface_positions_mm_f64
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .surface_positions_mm_f64
+            .iter()
+            .zip(&mesh.positions)
+            .any(|(source, render)| (*source as f32) != *render)
+    {
+        return Err("STEP import surface buffers are missing or inconsistent".into());
+    }
+    if vendor_step.source_faces.is_empty()
+        || vendor_step.source_faces.iter().any(|face| {
+            !valid_step_entity_id(&face.solid_id)
+                || !valid_step_entity_id(&face.face_id)
+                || !valid_step_entity_id(&face.support_id)
+                || face.support_kind.trim().is_empty()
+        })
+    {
+        return Err("STEP import source face provenance is missing or invalid".into());
+    }
+    if vendor_step.face_occurrences.is_empty()
+        || vendor_step.face_occurrences.iter().any(|face| {
+            (face.source_face_index as usize) >= vendor_step.source_faces.len()
+                || !valid_step_entity_id(&face.representation_id)
+                || face
+                    .source_uncertainty_mm
+                    .is_some_and(|value| !value.is_finite() || value <= 0.0)
+                || face
+                    .repair_displacement_mm
+                    .is_some_and(|value| !value.is_finite() || value < 0.0)
+        })
+    {
+        return Err("STEP import face occurrence provenance is missing or invalid".into());
+    }
+    let triangle_count = mesh.positions.len() / 9;
+    if vendor_step.triangle_face_occurrence_indices.len() != triangle_count
+        || vendor_step
+            .triangle_face_occurrence_indices
+            .iter()
+            .any(|index| (*index as usize) >= vendor_step.face_occurrences.len())
+    {
+        return Err("STEP import triangle face occurrence indices are invalid".into());
+    }
+    if !vendor_step.line_segments_mm_f64.len().is_multiple_of(6)
+        || vendor_step.line_render_positions.len() != vendor_step.line_segments_mm_f64.len()
+        || vendor_step.segment_line_occurrence_indices.len()
+            != vendor_step.line_segments_mm_f64.len() / 6
+        || vendor_step
+            .line_segments_mm_f64
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .line_render_positions
+            .iter()
+            .any(|value| !value.is_finite())
+        || vendor_step
+            .line_segments_mm_f64
+            .iter()
+            .zip(&vendor_step.line_render_positions)
+            .any(|(source, render)| (*source as f32) != *render)
+        || vendor_step
+            .line_occurrences
+            .iter()
+            .enumerate()
+            .any(|(index, line)| {
+                line.line_occurrence_index as usize != index
+                    || !valid_step_entity_id(&line.trimmed_curve_id)
+                    || !valid_step_entity_id(&line.source_line_id)
+                    || !valid_step_entity_id(&line.curve_set_id)
+                    || !valid_step_entity_id(&line.representation_id)
+                    || !line.source_unit_to_mm.is_finite()
+                    || line.source_unit_to_mm <= 0.0
+                    || line.placement_f64.iter().any(|value| !value.is_finite())
+                    || line
+                        .declared_uncertainty_mm
+                        .is_some_and(|value| !value.is_finite() || value <= 0.0)
+            })
+        || vendor_step
+            .segment_line_occurrence_indices
+            .iter()
+            .any(|index| (*index as usize) >= vendor_step.line_occurrences.len())
+    {
+        return Err("STEP import source line buffers or metadata are invalid".into());
+    }
+    if vendor_step.precision.iter().any(|precision| {
+        !valid_step_entity_id(&precision.representation_id)
+            || !valid_step_entity_id(&precision.context_id)
+            || precision.declarations.iter().any(|declaration| {
+                !valid_step_entity_id(&declaration.entity_id)
+                    || !valid_step_entity_id(&declaration.length_unit_id)
+                    || !declaration.millimetres.is_finite()
+                    || declaration.millimetres <= 0.0
+            })
+    }) {
+        return Err("STEP import precision declarations are invalid".into());
+    }
+    let accuracy = &vendor_step.accuracy;
+    if !accuracy.preview_deflection_mm.is_finite()
+        || accuracy.preview_deflection_mm <= 0.0
+        || !accuracy.preview_angular_rad.is_finite()
+        || accuracy.preview_angular_rad <= 0.0
+        || accuracy
+            .analysis_error_bound_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+        || !accuracy.preview_floor_mm.is_finite()
+        || accuracy.preview_floor_mm < 0.0
+        || !accuracy.preview_declared_multiplier.is_finite()
+        || accuracy.preview_declared_multiplier < 0.0
+        || accuracy
+            .max_sampled_support_residual_mm
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
+    {
+        return Err("STEP import accuracy metadata is invalid".into());
+    }
+    let bounds_tolerance = if accuracy.bounds_from_source_geometry {
+        0.03
+    } else {
+        0.0
+    };
+    let contains = |positions: &[f64]| {
+        positions.len().is_multiple_of(3)
+            && positions.as_chunks::<3>().0.iter().all(|point| {
+                (0..3).all(|axis| {
+                    bounds.min[axis] - bounds_tolerance <= point[axis]
+                        && point[axis] <= bounds.max[axis] + bounds_tolerance
+                })
+            })
+    };
+    if !contains(&vendor_step.surface_positions_mm_f64)
+        || !contains(&vendor_step.line_segments_mm_f64)
+    {
+        return Err("STEP import bounds omit returned surface or line coordinates".into());
+    }
+    Ok(())
+}
+
+pub fn validate_affine_row_transform(matrix: &[f64; 16]) -> Result<(), String> {
+    if matrix.iter().any(|value| !value.is_finite())
+        || matrix[3] != 0.0
+        || matrix[7] != 0.0
+        || matrix[11] != 0.0
+        || matrix[15] != 1.0
+    {
+        return Err("collision operand row transform must be a finite affine matrix".into());
+    }
+    let det = matrix[0] * (matrix[5] * matrix[10] - matrix[6] * matrix[9])
+        - matrix[4] * (matrix[1] * matrix[10] - matrix[2] * matrix[9])
+        + matrix[8] * (matrix[1] * matrix[6] - matrix[2] * matrix[5]);
+    if !det.is_finite() || det.abs() <= 1e-12 {
+        return Err("collision operand row transform is singular".into());
+    }
+    Ok(())
+}
+
+pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String> {
+    if !query.clearance_threshold_mm.is_finite() || query.clearance_threshold_mm < 0.0 {
+        return Err("collision clearanceThresholdMm must be finite and non-negative".into());
+    }
+    if let Some(accuracy) = query.requested_accuracy_mm
+        && (!accuracy.is_finite() || accuracy <= 0.0)
+    {
+        return Err("collision requestedAccuracyMm must be finite and positive".into());
+    }
+    for operand in [&query.left, &query.right] {
+        if operand.model_id.trim().is_empty() {
+            return Err("collision operand modelId must not be empty".into());
+        }
+        if !valid_source_sha256(&operand.source_sha256) {
+            return Err("collision operand sourceSha256 must be canonical".into());
+        }
+        operand.import_options.validate()?;
+        validate_affine_row_transform(&operand.row_transform_f64)?;
+    }
+    Ok(())
+}
+
+pub fn validate_collision_mesh_pair(meshes: &CadCollisionMeshPair) -> Result<(), String> {
+    let total_bytes = meshes
+        .left_positions_mm_f64
+        .len()
+        .saturating_mul(8)
+        .saturating_add(
+            meshes
+                .left_triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        )
+        .saturating_add(meshes.right_positions_mm_f64.len().saturating_mul(8))
+        .saturating_add(
+            meshes
+                .right_triangle_face_occurrence_indices
+                .len()
+                .saturating_mul(4),
+        );
+    if total_bytes > MAX_COLLISION_QUERY_BYTES {
+        return Err("collision mesh buffers exceed the 64 MiB limit".into());
+    }
+    for (positions, tags) in [
+        (
+            &meshes.left_positions_mm_f64,
+            &meshes.left_triangle_face_occurrence_indices,
+        ),
+        (
+            &meshes.right_positions_mm_f64,
+            &meshes.right_triangle_face_occurrence_indices,
+        ),
+    ] {
+        if positions.is_empty()
+            || !positions.len().is_multiple_of(9)
+            || tags.len() != positions.len() / 9
+            || positions.len() / 3 > u32::MAX as usize
+            || positions.iter().any(|value| !value.is_finite())
+        {
+            return Err("collision mesh buffers or triangle tags are invalid".into());
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_collision_observation(
+    meshes: Option<&CadCollisionMeshPair>,
+    observation: &CadCollisionObservation,
+) -> Result<(), String> {
+    let valid_pair = |pair: &CadTrianglePairProvenance| -> bool {
+        let Some(meshes) = meshes else {
+            return true;
+        };
+        let left_tris = meshes.left_triangle_face_occurrence_indices.len();
+        let right_tris = meshes.right_triangle_face_occurrence_indices.len();
+        (pair.left.triangle_index as usize) < left_tris
+            && meshes.left_triangle_face_occurrence_indices[pair.left.triangle_index as usize]
+                == pair.left.face_occurrence_index
+            && (pair.right.triangle_index as usize) < right_tris
+            && meshes.right_triangle_face_occurrence_indices[pair.right.triangle_index as usize]
+                == pair.right.face_occurrence_index
+    };
+    match observation {
+        CadCollisionObservation::SurfaceIntersecting {
+            intersection_triangles,
+            contact_witness,
+        } => {
+            if !valid_pair(intersection_triangles) {
+                return Err("collision intersection triangle provenance is invalid".into());
+            }
+            if let Some(witness) = contact_witness
+                && (!valid_pair(&witness.triangles)
+                    || witness
+                        .point1_mm
+                        .iter()
+                        .chain(&witness.point2_mm)
+                        .chain(&witness.normal1)
+                        .chain(&witness.normal2)
+                        .any(|value| !value.is_finite())
+                    || !witness.triangle_pair_contact_dist_mm.is_finite())
+            {
+                return Err("collision contact witness is invalid".into());
+            }
+        }
+        CadCollisionObservation::SurfaceSeparated {
+            surface_distance_mm,
+            closest_points,
+        } => {
+            if !surface_distance_mm.is_finite()
+                || *surface_distance_mm < 0.0
+                || !valid_pair(&closest_points.triangles)
+                || closest_points
+                    .point1_mm
+                    .iter()
+                    .chain(&closest_points.point2_mm)
+                    .any(|value| !value.is_finite())
+            {
+                return Err("collision separated surface observation is invalid".into());
+            }
+        }
+        CadCollisionObservation::Uncertain { reason, .. } => {
+            if reason.trim().is_empty() {
+                return Err("collision uncertain observation omitted reason".into());
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -930,6 +1482,9 @@ mod tests {
             operation: CadOperation::ExportStep,
             prepared: None,
             source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         let mut reply = CadReply {
@@ -960,14 +1515,65 @@ mod tests {
         ));
     }
 
+    fn sample_vendor_step(sha256: &str) -> CadVendorStep {
+        CadVendorStep {
+            source_sha256: sha256.into(),
+            import_options: CadStepImportOptions::default(),
+            surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+            source_faces: vec![CadStepSourceFace {
+                solid_id: "10".into(),
+                shell_index: 0,
+                face_id: "20".into(),
+                support_id: "30".into(),
+                support_kind: "PLANE".into(),
+            }],
+            face_occurrences: vec![CadStepFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+                representation_id: "40".into(),
+                source_uncertainty_mm: Some(0.01),
+                repair_displacement_mm: None,
+            }],
+            triangle_face_occurrence_indices: vec![0],
+            line_segments_mm_f64: vec![],
+            line_render_positions: vec![],
+            line_occurrences: vec![],
+            segment_line_occurrence_indices: vec![],
+            precision: vec![CadStepPrecision {
+                representation_id: "40".into(),
+                context_id: "50".into(),
+                geometric_dimension: Some(3),
+                declarations: vec![CadStepUncertainty {
+                    entity_id: "60".into(),
+                    length_unit_id: "70".into(),
+                    millimetres: 0.01,
+                }],
+            }],
+            accuracy: CadStepAccuracy {
+                preview_deflection_mm: 0.1,
+                preview_angular_rad: 0.5,
+                analysis_error_bound_mm: None,
+                bounds_from_source_geometry: true,
+                mesh_closed_oriented: false,
+                preview_floor_mm: 0.02,
+                preview_declared_multiplier: 2.0,
+                relaxed_beyond_declared_precision: false,
+                sampled_support_checks: 0,
+                max_sampled_support_residual_mm: None,
+                fallback_meshed_faces: 0,
+            },
+        }
+    }
+
     #[test]
     fn read_step_reply_requires_canonical_source_identity() {
+        let sha = "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a";
         let mut request_json = serde_json::json!({
             "requestId": "step-source", "jobId": "step-source",
             "identity": {"token": 1, "sessionEpoch": 1, "documentId": "doc",
                 "boardId": "board", "instanceId": null, "revision": 7},
             "operation": "read-step", "prepared": null,
-            "sourceSha256": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
+            "sourceSha256": sha
         });
         let request: CadRequest = serde_json::from_value(request_json.clone()).unwrap();
         let reply = CadReply {
@@ -986,11 +1592,31 @@ mod tests {
                     min: [0., 0., 0.],
                     max: [1., 1., 0.],
                 }),
+                vendor_step: Some(sample_vendor_step(sha)),
                 ..CadResult::default()
             }),
             error: None,
         };
         assert!(validate_reply(&request, reply.clone(), &request.identity).is_ok());
+        let mut missing_vendor_step = reply.clone();
+        missing_vendor_step.result.as_mut().unwrap().vendor_step = None;
+        assert!(matches!(
+            validate_reply(&request, missing_vendor_step, &request.identity),
+            Err(CadJobError::Failed(_))
+        ));
+        let mut mismatched_sha = reply.clone();
+        mismatched_sha
+            .result
+            .as_mut()
+            .unwrap()
+            .vendor_step
+            .as_mut()
+            .unwrap()
+            .source_sha256 = "0".repeat(64);
+        assert!(matches!(
+            validate_reply(&request, mismatched_sha, &request.identity),
+            Err(CadJobError::Failed(_))
+        ));
         for invalid in [
             serde_json::Value::Null,
             serde_json::json!(""),
@@ -1013,6 +1639,7 @@ mod tests {
 
     #[test]
     fn read_step_reply_requires_the_captured_result_revision() {
+        let sha = "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a";
         let identity = CadSnapshotIdentity {
             token: 3,
             session_epoch: 2,
@@ -1027,9 +1654,10 @@ mod tests {
             identity: identity.clone(),
             operation: CadOperation::ReadStep,
             prepared: None,
-            source_sha256: Some(
-                "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into(),
-            ),
+            source_sha256: Some(sha.into()),
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         let mut reply = CadReply {
@@ -1048,6 +1676,7 @@ mod tests {
                     min: [0., 0., 0.],
                     max: [1., 1., 0.],
                 }),
+                vendor_step: Some(sample_vendor_step(sha)),
                 ..CadResult::default()
             }),
             error: None,
@@ -1079,6 +1708,9 @@ mod tests {
             operation: CadOperation::Exact,
             prepared: None,
             source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         // The public provider's case-result payload contains revision, STEP,
@@ -1103,6 +1735,7 @@ mod tests {
                     normals: vec![0.0, 0.0, 1.0],
                 }],
                 bounds: None,
+                ..CadResult::default()
             }),
             error: None,
         };

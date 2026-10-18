@@ -1,21 +1,35 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Cadrum WASM browser smoke</title>
+<title>BoardStudio CAD WASM browser smoke</title>
 <pre id="result">pending</pre>
 <script type="module">
 // Exercises the real wasm-bindgen exports in a real browser: JS typed-array result shapes,
-// STEP import bounds and rejection, and buffer ownership. Geometry correctness lives in the
-// native Rust tests; this only proves the binding layer the retired Node tests used to cover.
-import init, { build_case, build_assembly, build_keycaps, read_step_model } from '../../wasm/pkg/boardstudio_cadrum_wasm.js';
+// STEP import bounds, provenance and rejection, keycap preview/print meshes, and collision queries.
+import init, {
+  build_case,
+  build_assembly,
+  build_keycaps,
+  export_cached_assembly,
+  preview_body,
+  query_collision_mesh_pair,
+  read_step_model,
+} from '../../wasm/pkg/boardstudio_cad_wasm.js';
 
 const checks = [];
 const check = (name, ok, detail = '') => checks.push({ name, ok: Boolean(ok), detail: String(detail) });
 const square = (min, max) => [{ x: min, y: min }, { x: max, y: min }, { x: max, y: max }, { x: min, y: max }];
 const near = (actual, expected, tolerance) => actual.length === expected.length
   && expected.every((value, index) => Math.abs(actual[index] - value) <= tolerance);
-const plate = (revision, z) => ({ revision, body: { id: `p${z}`, name: `p${z}`, kind: 'plate', thickness: 2, z },
+const plate = (revision, z) => ({ revision, body: { id: `p${z}`, name: `p${z}`, boardId: 'b1', kind: 'plate', thickness: 2, clearance: 0, z },
   regions: [{ outer: square(0, 20), holes: [square(5, 15)], cavities: [], gaskets: [], mounts: [] }] });
 const rejection = (run) => { try { run(); return null; } catch (error) { return String(error); } };
+const rejectionAsync = async (run) => { try { await run(); return null; } catch (error) { return String(error); } };
+const sha256Hex = async (bytes) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
+  .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+const readVerifiedStep = async (bytes) => {
+  const sha = await sha256Hex(bytes);
+  return { sha, model: read_step_model(bytes, { sourceSha256: sha, previewRepairBudgetMm: null }) };
+};
 const spec = { id: 'key-a', reference: 'SW1', profile: 'dsa', mount: 'mx', row: 3, size: { x: 18.2, y: 18.2 },
   topSize: { x: 13.2, y: 13.2 }, height: 7.5, tilt: 0, dishDepth: 0.65, spherical: true, wallThickness: 1.2,
   pose: { at: { x: 30, y: 20 }, rotation: 15 }, side: 'front', z: 10, travel: 4, legend: 'O', color: '#eeeeee', legendColor: '#222222' };
@@ -34,19 +48,38 @@ try {
     && built.mesh.positions.length > 0 && built.mesh.positions.length === built.mesh.normals.length
     && built.mesh.positions.length % 9 === 0, built.mesh.positions?.length);
 
-  const model = read_step_model(built.step);
+  const { sha: builtSha, model } = await readVerifiedStep(built.step);
   check('read_step_model reports millimetre bounds', near(model.bounds.min, [0, 0, 0], 1e-4) && near(model.bounds.max, [20, 20, 2], 1e-4),
     JSON.stringify(model.bounds));
   check('imported mesh is non-empty Float32Arrays of equal length', model.mesh.positions instanceof Float32Array
     && model.mesh.positions.length > 0 && model.mesh.positions.length === model.mesh.normals.length);
-  check('malformed STEP rejects', /STEP import failed/.test(rejection(() => read_step_model(new Uint8Array([1, 2, 3]))) ?? ''));
-  check('empty STEP rejects on size', /invalid file size/.test(rejection(() => read_step_model(new Uint8Array(0))) ?? ''));
+  check('vendorStep retains source SHA, f64 surface soup and u32 triangle tags',
+    model.vendorStep?.sourceSha256 === builtSha
+    && model.vendorStep?.surfacePositionsMmF64 instanceof Float64Array
+    && model.vendorStep.surfacePositionsMmF64.length === model.mesh.positions.length
+    && model.vendorStep?.triangleFaceOccurrenceIndices instanceof Uint32Array
+    && model.vendorStep.triangleFaceOccurrenceIndices.length === model.mesh.positions.length / 9
+    && Array.isArray(model.vendorStep?.sourceFaces) && model.vendorStep.sourceFaces.length > 0);
+  check('missing source SHA rejects', /sourceSha256/.test(rejection(() => read_step_model(built.step, {
+    previewRepairBudgetMm: null,
+  })) ?? ''));
+  check('malformed STEP rejects', /STEP import failed/.test(await rejectionAsync(() => readVerifiedStep(new Uint8Array([1, 2, 3])))));
+  check('empty STEP rejects on size', /invalid file size/.test(await rejectionAsync(() => readVerifiedStep(new Uint8Array(0)))));
+
+  const phases = [];
+  const previewMesh = preview_body(plate(9, 0), 'smoke-preview-key', (phase) => phases.push(phase));
+  check('preview_body reports progress and returns mesh buffers',
+    phases.length === 2 && previewMesh.positions instanceof Float32Array && previewMesh.positions.length > 0);
+  const stepOnly = export_cached_assembly({ revision: 9, stepOnly: true, bodies: [plate(9, 0)] }, ['smoke-preview-key']);
+  check('export_cached_assembly stepOnly returns STEP without mesh copy',
+    stepOnly.revision === 9 && stepOnly.step instanceof Uint8Array && stepOnly.step.length > 1000 && stepOnly.mesh === undefined);
 
   const assembly = build_assembly({ revision: 9, bodies: [plate(9, 0), plate(9, 8)] });
   check('build_assembly returns one STEP and per-body meshes', assembly.revision === 9 && assembly.step.length > 1000
     && assembly.bodies.length === 2 && assembly.bodies.every(body => body.positions instanceof Float32Array && body.positions.length > 0),
     assembly.bodies?.length);
-  check('compound STEP imports back with the stacked height', near(read_step_model(assembly.step).bounds.max, [20, 20, 10], 1e-4));
+  const { model: importedAssembly } = await readVerifiedStep(assembly.step);
+  check('compound STEP imports back with the stacked height', near(importedAssembly.bounds.max, [20, 20, 10], 1e-4));
   check('invalid input is rejected, not trapped', /Invalid CAD input/.test(rejection(() => build_case({ revision: 1 })) ?? ''));
 
   const preview = build_keycaps({ revision: 5, specs: [spec] });
@@ -57,8 +90,31 @@ try {
   check('transferring a result buffer detaches only that copy', preview.bodies[0].positions.byteLength === 0);
   const again = build_keycaps({ revision: 6, specs: [spec] });
   check('cached keycap geometry survives a transfer', again.bodies[0].positions[0] === firstX, again.bodies[0].positions[0]);
+  const printable = build_keycaps({ revision: 6, printable: true, specs: [{ ...spec, dishDepth: 0, spherical: false }] });
+  check('printable keycap build fuses cap and legend into one mesh body',
+    printable.step.length === 0 && printable.bodies.length === 1 && printable.bodies[0].id === 'keycap:key-a'
+    && printable.bodies[0].positions.length % 9 === 0);
   check('stale keycap STEP request is refused explicitly',
     /Keycap STEP export is unsupported/.test(rejection(() => build_keycaps({ revision: 6, specs: [spec], export: true })) ?? ''));
+
+  const identityMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+  const shiftedMatrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,5,1];
+  const collision = query_collision_mesh_pair(
+    model.vendorStep.surfacePositionsMmF64,
+    model.vendorStep.triangleFaceOccurrenceIndices,
+    model.vendorStep.surfacePositionsMmF64,
+    model.vendorStep.triangleFaceOccurrenceIndices,
+    {
+      left: { modelId: 'm1', sourceSha256: builtSha, importOptions: {}, rowTransformF64: identityMatrix },
+      right: { modelId: 'm2', sourceSha256: builtSha, importOptions: {}, rowTransformF64: shiftedMatrix },
+      clearanceThresholdMm: 1.0,
+      requestedAccuracyMm: null,
+    },
+  );
+  check('query_collision_mesh_pair reports separated distance and triangle provenance',
+    collision.kind === 'surface-separated' && Math.abs(collision.surfaceDistanceMm - 3.0) < 1e-6
+    && typeof collision.closestPoints?.triangles?.left?.faceOccurrenceIndex === 'number',
+    JSON.stringify(collision));
 } catch (caught) {
   error = String(caught?.stack ?? caught);
 }

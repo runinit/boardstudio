@@ -624,29 +624,22 @@ mod mounted_layer_tests {
         assert_eq!(count(".m1-part"), 0);
         assert_eq!(count(".m1-part-label"), 0);
 
-        let row = document
-            .query_selector("#pcb-layer-mount button[aria-label='Show References']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
-        row.focus().unwrap();
-        let event_init = web_sys::KeyboardEventInit::new();
-        event_init.set_key("Escape");
-        event_init.set_bubbles(true);
-        let event =
-            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &event_init)
-                .unwrap();
-        row.dispatch_event(&event).unwrap();
+        click("#m1-pcb-layers-trigger");
         settle().await;
         assert_eq!(
             count("#m1-pcb-layers-list"),
             0,
-            "Escape unmounts the layer popover"
+            "collapsing the layer accordion unmounts its list"
         );
         assert_eq!(
-            document.active_element().unwrap().id(),
-            "m1-pcb-layers-trigger"
+            document
+                .query_selector("#m1-pcb-layers-trigger")
+                .unwrap()
+                .unwrap()
+                .get_attribute("aria-expanded")
+                .as_deref(),
+            Some("false"),
+            "collapsing the layer accordion sets aria-expanded to false"
         );
         root.remove();
     }

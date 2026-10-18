@@ -1150,6 +1150,12 @@ fn layout_module_model_bodies(
                 })
                 .map(|definition| format!("{} · 3D model", definition.name))
                 .unwrap_or_else(|| "Mounted module · 3D model".to_owned());
+            let lines = model
+                .mesh
+                .vendor_step
+                .as_ref()
+                .filter(|step| !step.line_render_positions.is_empty())
+                .map(|step| transformed_module_points(&step.line_render_positions, &matrix));
             Some(serde_json::json!({
                 "id": model.id,
                 "name": name,
@@ -1159,6 +1165,7 @@ fn layout_module_model_bodies(
                     "normals": normals,
                     "colors": model.mesh.colors.as_ref().map(|colors| colors.as_ref()),
                 },
+                "lines": lines,
             }))
         })
         .collect()
@@ -1167,6 +1174,28 @@ fn layout_module_model_bodies(
 /// Apply Core's column-major affine transform exactly once before generic mesh
 /// bodies enter the renderer. This mirrors the existing React AssemblyPreview
 /// transform while keeping Core authoritative for module pose and model offsets.
+fn transformed_module_points(source_positions: &[f32], matrix: &[f64; 16]) -> Vec<f32> {
+    let mut positions = vec![0.0; source_positions.len()];
+    for index in (0..source_positions.len()).step_by(3) {
+        let x = source_positions[index];
+        let y = source_positions[index + 1];
+        let z = source_positions[index + 2];
+        positions[index] = (matrix[0] as f32) * x
+            + (matrix[4] as f32) * y
+            + (matrix[8] as f32) * z
+            + matrix[12] as f32;
+        positions[index + 1] = (matrix[1] as f32) * x
+            + (matrix[5] as f32) * y
+            + (matrix[9] as f32) * z
+            + matrix[13] as f32;
+        positions[index + 2] = (matrix[2] as f32) * x
+            + (matrix[6] as f32) * y
+            + (matrix[10] as f32) * z
+            + matrix[14] as f32;
+    }
+    positions
+}
+
 fn transformed_module_mesh(
     source_positions: &[f32],
     source_normals: &[f32],
@@ -1369,6 +1398,15 @@ fn loaded_model_inputs(rows: Option<&ModelDeliveryRows>) -> Array {
                 );
             }
             let _ = Reflect::set(&value, &"mesh".into(), &mesh);
+            if let Some(vendor_step) = &model.mesh.vendor_step
+                && !vendor_step.line_render_positions.is_empty()
+            {
+                let _ = Reflect::set(
+                    &value,
+                    &"lines".into(),
+                    &Float32Array::from(vendor_step.line_render_positions.as_slice()),
+                );
+            }
             loaded.push(&value);
         }
     }
@@ -3654,6 +3692,8 @@ mod tests {
                     positions: Rc::from([1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
                     normals: Rc::from([1.0_f32, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
                     colors: None,
+                    step_bounds: None,
+                    vendor_step: None,
                 }),
                 matrix: Some(matrix),
             }],
@@ -3685,6 +3725,75 @@ mod tests {
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][0], 13.0);
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][1], 13.0);
         assert_eq!(packet["bodies"][0]["mesh"]["positions"][2], 14.0);
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn vendor_step_sibling_lines_attach_to_pcb_and_module_models_with_single_row_transform() {
+        use super::super::model_delivery::{DeliveredModel, ModelDeliveryRows, ValidatedMesh};
+        use boardstudio_core::model::{BoardReference, Pose2, Vec2};
+        use boardstudio_web_host::cad_jobs::CadVendorStep;
+        use std::collections::BTreeMap;
+
+        let vendor_step = Rc::new(CadVendorStep {
+            line_render_positions: vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            ..CadVendorStep::default()
+        });
+        let mesh = Rc::new(ValidatedMesh {
+            positions: Rc::from([1.0_f32, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]),
+            normals: Rc::from([0.0_f32, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]),
+            colors: None,
+            step_bounds: None,
+            vendor_step: Some(vendor_step),
+        });
+        let matrix = [
+            2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 10.0, 20.0, 30.0, 1.0,
+        ];
+        let rows = ModelDeliveryRows {
+            delivered: vec![
+                DeliveredModel {
+                    id: "pcb-step-row".into(),
+                    mesh: mesh.clone(),
+                    matrix: None,
+                },
+                DeliveredModel {
+                    id: "module-model/placement-a/0".into(),
+                    mesh,
+                    matrix: Some(matrix),
+                },
+            ],
+            pending: Vec::new(),
+            failures: Vec::new(),
+        };
+        let loaded = loaded_model_inputs(Some(&rows));
+        assert_eq!(loaded.length(), 1);
+        let pcb_item = loaded.get(0);
+        let pcb_lines =
+            js_sys::Float32Array::from(Reflect::get(&pcb_item, &"lines".into()).unwrap()).to_vec();
+        assert_eq!(pcb_lines, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+
+        let projection = imported_layout_projection(
+            BoardReference {
+                id: "routed-board-1".into(),
+                board_id: "board-1".into(),
+                asset_id: "routed-source".into(),
+                enabled: true,
+                pose: Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+                elevation: 0.0,
+                model_assets: BTreeMap::new(),
+            },
+            Some(rows),
+        );
+        let serialized = js_sys::JSON::stringify(&projection.input)
+            .unwrap()
+            .as_string()
+            .unwrap();
+        let packet: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        let lines: Vec<f32> =
+            serde_json::from_value(packet["bodies"][0]["lines"].clone()).unwrap();
+        assert_eq!(lines, [12.0, 26.0, 42.0, 18.0, 35.0, 54.0]);
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

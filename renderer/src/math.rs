@@ -24,6 +24,46 @@ pub fn component_model_transform(
     side * local
 }
 
+pub fn physical_pcb_transform(
+    reference_pose_xy_deg: Option<([f32; 2], f32, f32)>,
+    board_thickness: f32,
+    has_mechanical_stack: bool,
+) -> Mat4 {
+    let base_z_delta = -if has_mechanical_stack {
+        board_thickness
+    } else {
+        0.0
+    };
+    let reference_transform = reference_pose_xy_deg
+        .map(|([x, y], rotation_deg, elevation)| {
+            Mat4::from_translation(Vec3::new(x, y, elevation))
+                * Mat4::from_angle_z(Rad(rotation_deg.to_radians()))
+        })
+        .unwrap_or_else(Mat4::identity);
+    reference_transform * Mat4::from_translation(Vec3::new(0.0, 0.0, base_z_delta))
+}
+
+pub fn mat4_to_f64_cols(matrix: Mat4) -> [f64; 16] {
+    [
+        f64::from(matrix.x.x),
+        f64::from(matrix.x.y),
+        f64::from(matrix.x.z),
+        f64::from(matrix.x.w),
+        f64::from(matrix.y.x),
+        f64::from(matrix.y.y),
+        f64::from(matrix.y.z),
+        f64::from(matrix.y.w),
+        f64::from(matrix.z.x),
+        f64::from(matrix.z.y),
+        f64::from(matrix.z.z),
+        f64::from(matrix.z.w),
+        f64::from(matrix.w.x),
+        f64::from(matrix.w.y),
+        f64::from(matrix.w.z),
+        f64::from(matrix.w.w),
+    ]
+}
+
 pub fn pcb_model_transform(
     pose: [f32; 3],
     pose_rotation: f32,

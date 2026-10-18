@@ -5,14 +5,21 @@ use boardstudio_cad::{
 };
 use js_sys::{Float32Array, Float64Array, Object, Uint32Array, Uint8Array};
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 
 const MAX_STEP_BYTES: u32 = 32 * 1024 * 1024;
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReadStepOptions {
     source_sha256: String,
+    preview_repair_budget_mm: Option<f64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportOptionsDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
     preview_repair_budget_mm: Option<f64>,
 }
 
@@ -42,6 +49,7 @@ struct BoundsDto {
 #[serde(rename_all = "camelCase")]
 struct VendorStepDto {
     source_sha256: String,
+    import_options: ImportOptionsDto,
     source_faces: Vec<SourceFaceDto>,
     face_occurrences: Vec<FaceOccurrenceDto>,
     precision: Vec<PrecisionDto>,
@@ -145,6 +153,13 @@ impl ReadStepAsset {
         }
         let options: ReadStepOptions = serde_wasm_bindgen::from_value(options)
             .map_err(|error| format!("Invalid STEP options: {error}"))?;
+        if bytes.length() == 0 || bytes.length() > MAX_STEP_BYTES {
+            return Err("STEP import failed: invalid file size".into());
+        }
+        Self::import_bytes(bytes.to_vec(), options)
+    }
+
+    fn import_bytes(bytes: Vec<u8>, options: ReadStepOptions) -> Result<Self, String> {
         if !is_sha256(&options.source_sha256) {
             return Err(
                 "Invalid STEP options: sourceSha256 must be 64 lowercase hexadecimal characters"
@@ -161,11 +176,11 @@ impl ReadStepAsset {
             }
             return Err("STEP import failed: previewRepairBudgetMm is not supported by the current core API".into());
         }
-        if bytes.length() == 0 || bytes.length() > MAX_STEP_BYTES {
+        if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES as usize {
             return Err("STEP import failed: invalid file size".into());
         }
 
-        let imported = import_step(bytes.to_vec())?;
+        let imported = import_step(bytes)?;
         let mesh = imported.mesh();
         let preview = imported.preview_positions_f64();
         if mesh.positions.is_empty()
@@ -268,10 +283,15 @@ impl ReadStepAsset {
         }
 
         let bounds = imported.bounds();
+        let bounds_tolerance = if imported.accuracy().bounds_from_source_geometry {
+            0.03
+        } else {
+            0.0
+        };
         if bounds.iter().flatten().any(|value| !value.is_finite())
             || (0..3).any(|axis| bounds[0][axis] > bounds[1][axis])
-            || !within_bounds(&surface_positions_mm_f64, &bounds)
-            || !within_bounds(&line_segments_mm_f64, &bounds)
+            || !within_bounds(&surface_positions_mm_f64, &bounds, bounds_tolerance)
+            || !within_bounds(&line_segments_mm_f64, &bounds, bounds_tolerance)
         {
             return Err("STEP importer returned bounds that omit asset coordinates".into());
         }
@@ -287,6 +307,9 @@ impl ReadStepAsset {
             },
             vendor_step: VendorStepDto {
                 source_sha256: options.source_sha256,
+                import_options: ImportOptionsDto {
+                    preview_repair_budget_mm: options.preview_repair_budget_mm,
+                },
                 source_faces,
                 face_occurrences,
                 precision: imported.precision().iter().map(precision_dto).collect(),
@@ -371,13 +394,40 @@ fn to_js(value: &impl Serialize) -> Result<JsValue, JsValue> {
         .map_err(super::js_error)
 }
 
-pub(crate) fn read_step_model(
-    bytes: Uint8Array,
-    options: Option<JsValue>,
-) -> Result<JsValue, JsValue> {
+#[wasm_bindgen]
+pub fn read_step_model(bytes: Uint8Array, options: Option<JsValue>) -> Result<JsValue, JsValue> {
     ReadStepAsset::import(bytes, options)
         .map_err(super::js_error)?
         .to_js_value()
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(super) struct StepTestData {
+    pub(super) mesh: super::MeshData,
+    pub(super) min: [f64; 3],
+    pub(super) max: [f64; 3],
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(super) fn read_step_model_data_for_test(
+    bytes: Vec<u8>,
+    source_sha256: String,
+) -> Result<StepTestData, String> {
+    let asset = ReadStepAsset::import_bytes(
+        bytes,
+        ReadStepOptions {
+            source_sha256,
+            preview_repair_budget_mm: None,
+        },
+    )?;
+    Ok(StepTestData {
+        mesh: super::MeshData {
+            positions: asset.mesh.positions,
+            normals: asset.mesh.normals,
+        },
+        min: asset.bounds.min,
+        max: asset.bounds.max,
+    })
 }
 
 fn is_sha256(value: &str) -> bool {
@@ -471,9 +521,12 @@ fn accuracy_dto(accuracy: &StepAccuracy) -> Result<AccuracyDto, String> {
     })
 }
 
-fn within_bounds(positions: &[f64], bounds: &[[f64; 3]; 2]) -> bool {
+fn within_bounds(positions: &[f64], bounds: &[[f64; 3]; 2], tolerance: f64) -> bool {
     positions.len().is_multiple_of(3)
         && positions.as_chunks::<3>().0.iter().all(|point| {
-            (0..3).all(|axis| bounds[0][axis] <= point[axis] && point[axis] <= bounds[1][axis])
+            (0..3).all(|axis| {
+                bounds[0][axis] - tolerance <= point[axis]
+                    && point[axis] <= bounds[1][axis] + tolerance
+            })
         })
 }

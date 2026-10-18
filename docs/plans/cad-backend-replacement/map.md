@@ -2,7 +2,7 @@
 
 ## Destination
 
-Replace BoardStudio's entire Cadrum CAD backend with Monstertruck, preserve intended features and accuracy, and remove OCCT/C++ from CAD production, build, packaging and required-test paths. Own the outcome through verified production integration; qualification experiments and individual resolved tickets are progress. Production remains Cadrum until full acceptance is established.
+Replace BoardStudio's entire Cadrum CAD backend with Monstertruck, preserve intended features and accuracy, and remove OCCT/C++ from CAD production, build, packaging and required-test paths. Own the outcome through verified production integration; qualification experiments and individual resolved tickets are progress. The current dirty checkout activates Monstertruck; full cutover acceptance remains open.
 
 Completion requires the [feature assessment](../../research/cad/monstertruck-feature-assessment-2026-10-16.md) as amended by the dated scope decisions below in current production code, passing required native/WASM/browser checks, comparable performance measurements, and an actual dependency/build/packaged-artifact audit demonstrating CAD no longer requires OCCT/C++. Exact geometry and exact STEP export are required for generated **cases and PCBs only**, built through [013](issues/013-layered-case-construction.md)'s layered 2.5D path. Preview meshes cannot substitute for those exact solids. Keycaps use appearance/optional-print meshes; vendor STEP uses complete source-retaining preview/alignment/collision meshes. Those mesh paths are the approved design. Preserve independent accuracy and strict source completeness; internal STEP roundtrips alone do not prove interoperability. No general exact 3D Boolean engine is required, and OCCT/C++ cannot remain as a final fallback.
 
@@ -21,7 +21,7 @@ The [qualification record](../../research/cad/monstertruck-qualification-2026-10
 ## Workflow & Execution Guardrails
 
 Follow the [existing tracker conventions](../../agents/issue-tracker.md) and [AGENTS.md](../../../AGENTS.md):
-- Work solo on the critical path by default; delegate at most one bounded agent when it materially unblocks integration.
+- Work solo on the critical path by default. The user approved parallel 010/014 worktrees on 2026-10-17: 010 owns web/worker/cache/UI delivery; 014 owns CAD importer repair/accuracy metadata and collision/containment/refinement. Root owns shared-contract changes, integration and final acceptance; neither lane closes the combined gates independently.
 - Run `code-review` **once per completed ticket**, never on every intermediate commit or lint fix.
 - Never create Cargo `target` directories or copy source trees inside `.evidence/`.
 - Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git tracks source state.
@@ -38,8 +38,8 @@ Follow the [existing tracker conventions](../../agents/issue-tracker.md) and [AG
 - [007: Complete vendor STEP asset import](issues/007-strict-step-import.md) — `claimed`; 34/34 vendor corpus files import (`8206af04a`), retained STEP line view (`c0ffd2ec`), staged provider adapter (`2efb01be`), and worker SHA verification (`8e413cb4`) integrated.
 - [008: Exact case/PCB STEP and independent accuracy](issues/008-step-export-independent-accuracy.md) — `claimed`; exact STEP writer and independent raw/analytic accuracy checker integrated.
 - [009: Mesh keycaps](issues/009-complete-keycaps.md) — `claimed`; display migration, MX and Alps/ChocV1 closed stems, pure-Rust Manifold printable keycap provider, and STL ZIP delivery integrated.
-- [010: Production caches, worker and browser](issues/010-production-cache-worker-browser.md) — `claimed`; generated-case facade staged, Host/Runtime/page/Case WASM gates green (`47e6bb3f`). Remaining: complete `vendorStep` worker transfer/cache/line rendering and switch the active provider registration from Cadrum to Monstertruck.
+- [010: Production caches, worker and browser](issues/010-production-cache-worker-browser.md) — `claimed`; dirty checkout activates Monstertruck, typed vendor transfer/cache and sibling source lines. Nine real-page drag checks pass. Full CAD lifecycle/browser acceptance, explicit repair budgets and collision-flow delivery remain open.
 - [011: Integrated CAD performance](issues/011-integrated-cad-performance.md) — `ready-for-agent` (blocked by [010](issues/010-production-cache-worker-browser.md)).
 - [012: Final cutover and removal](issues/012-final-cutover-remove-cadrum.md) — `ready-for-agent` (blocked by [001](issues/001-certify-closed-step-boundaries.md), [002](issues/002-preserve-shared-angular-meshing.md), [010](issues/010-production-cache-worker-browser.md), [011](issues/011-integrated-cad-performance.md)).
 - [013: Layered exact cases and PCBs](issues/013-layered-case-construction.md) — `claimed`; layered 2.5D case/PCB builder and internal-gasket inventory integrated in `cad/monstertruck/src/layered/`.
-- [014: Mesh collision validation](issues/014-vendor-mesh-collision-validation.md) — `claimed`; blocked by [007](issues/007-strict-step-import.md) worker delivery.
+- [014: Mesh collision validation](issues/014-vendor-mesh-collision-validation.md) — `claimed`; raw Parry worker queries and Runtime assessment are wired in the dirty checkout. Production caller, generated operands, qualified error bands/containment and refinement remain open.

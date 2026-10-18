@@ -26,7 +26,7 @@ kernel migration with separate STEP and geometry acceptance work.
 `--no-opt` only to commands that directly start with `wasm-pack`; the CAD
 provider is a Python command and is left out. [Build command list](../../../scripts/check.py),
 [provider command construction](../../../scripts/build-web.py), and the
-[CAD build helper](../../../cad/scripts/cadrum_build.py) show this path.
+CAD build helper show this path.
 
 The CAD helper runs `wasm-pack build ... --release --locked`, and only skips the
 command when the output exists and its input digest matches. The digest
@@ -39,7 +39,7 @@ production artifact. These source changes have not yet been build-verified.
 The normal build does **not** compile all of OpenCascade from source. The
 project downloads and checksum-verifies a prebuilt OCCT archive, then passes
 `OCCT_ROOT` into Cadrum. Cadrum compiles its C++ bridge and links the prepared
-static OCCT libraries ([archive preparation and container build](../../../cad/scripts/cadrum_build.py),
+static OCCT libraries (archive preparation and container build,
 [pinned Cadrum build script](https://github.com/lzpel/cadrum/blob/8788df70c60b986b5ab387edb75a2f6f341a8c7a/build.rs)).
 The separate `step-oracle` crate is native and test-only; it is not in the
 browser provider build ([CAD README](../../../cad/README.md)).
@@ -48,8 +48,8 @@ There are two cold-build exceptions to distinguish from ordinary source edits:
 
 - If the pinned builder image is missing or cannot be pulled, the helper falls
   back to building it locally. Its Containerfile builds the WASI SDK from
-  source, which is a substantial one-time toolchain build ([fallback](../../../cad/scripts/cadrum_build.py),
-  [Containerfile](../../../cad/wasm/Containerfile)).
+  source, which is a substantial one-time toolchain build (fallback,
+  Containerfile).
 - If the CAD source changes, Cargo still uses `--release`. Rust's release
   profile defaults to optimization level 3; Cargo documents that higher levels
   can increase compiler time. After disabling `wasm-opt` in checked builds, a
@@ -69,7 +69,7 @@ Enabling that feature is expected to fail to compile, not remove OCCT.
 
 BoardStudio uses the CAD worker for solids, boolean cuts, tessellation, STEP
 read/write, and keycap geometry ([WASM entry points](../../../cad/wasm/src/model.rs),
-[case construction](../../../cad/wasm/src/model/construction.rs),
+case construction,
 [keycaps](../../../cad/wasm/src/model/keycaps.rs)). Removing those Cadrum
 operations can trim the bridge or linked OCCT toolkits only if the public API
 and product capability are also narrowed. There is no Cargo feature in this

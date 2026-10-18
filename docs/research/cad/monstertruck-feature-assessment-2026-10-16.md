@@ -22,17 +22,17 @@ The most consequential gaps are already evidenced: Monstertruck's STEP reader pa
 
 “Available” below means the upstream source exposes an API or test for the operation. It does not mean it has passed BoardStudio geometry and error-behavior tests. The suggested APIs are candidate construction routes to prove with a small fixture before porting production code.
 
-Current behavior in the table is sourced from [case construction](../../../cad/wasm/src/model/construction.rs),
-[case caches](../../../cad/wasm/src/model/construction/cache.rs),
+Current behavior in the table is sourced from case construction,
+case caches,
 [keycaps](../../../cad/wasm/src/model/keycaps.rs),
 [lettering](../../../cad/wasm/src/model/keycaps/lettering.rs),
 [mesh/import/export conversion](../../../cad/wasm/src/model.rs),
 [worker dispatch](../../../web/crates/host/src/cad_worker.rs),
 and [model delivery](../../../web/crates/runtime/src/model_delivery.rs).
-The existing acceptance tests are [case validation](../../../cad/wasm/src/model/construction/validation_tests.rs),
-[construction equivalence](../../../cad/wasm/src/model/construction/equivalence.rs),
-[gasket features](../../../cad/wasm/src/model/construction/gasket_features.rs),
-[planar mesh](../../../cad/wasm/src/model/construction/planar_mesh.rs),
+The existing acceptance tests are case validation,
+construction equivalence,
+gasket features,
+planar mesh,
 [source assets](../../../cad/wasm/src/model/source_validation_tests.rs),
 and tests embedded in keycaps/cache modules.
 
@@ -79,8 +79,8 @@ type substitution:
   both operands are unit-height prisms. This is a candidate approach, not an
   established equivalent; input precision and the existing threshold must be
   preserved. [Mesh inside analyzer](https://github.com/virtualritz/monstertruck/blob/d2ad1ed7aa420b7f32cd2c1e3ad319b46d593652/monstertruck-meshing/src/analyzers/in_out_judge.rs),
-  [current containment check](../../../cad/wasm/src/model/construction.rs),
-  [material equivalence checks](../../../cad/wasm/src/model/construction/equivalence.rs).
+  current containment check,
+  material equivalence checks.
 
 In this assessment, exact CAD means retaining the boundary-representation
 geometry and existing accuracy requirements, rather than replacing curved
@@ -111,7 +111,7 @@ controls map directly. Verify curved meshes and normals against those limits.
 [solid feature configuration](https://github.com/virtualritz/monstertruck/blob/d2ad1ed7aa420b7f32cd2c1e3ad319b46d593652/monstertruck-solid/Cargo.toml),
 [current mesh options](../../../cad/wasm/src/model.rs).
 
-BoardStudio files in the current removal surface include [CAD manifest](../../../cad/wasm/Cargo.toml), [WASM initialization](../../../cad/wasm/src/lib.rs), [kernel seam](../../../cad/wasm/src/model/kernel.rs), [case construction/cache](../../../cad/wasm/src/model/construction.rs), [keycap and lettering builders](../../../cad/wasm/src/model/keycaps.rs), [worker dispatch](../../../web/crates/host/src/cad_worker.rs), [Cadrum WASM build script](../../../cad/scripts/build-cadrum-wasm.py), [web packaging](../../../scripts/build-web.py), native validation and source-validation tests, and [the OCCT oracle](../../../cad/step-oracle/src/oracle.cc). The full build/removal audit also needs to cover `.github/workflows/cad-image.yaml`, `check.yaml` and `pages.yaml`, `scripts/check.py`, `scripts/dev-web.py`, root Cargo workspace exclusions, web asset/license and lock files, and generated artifact paths. These are the audit surface, not a claim that every file must be deleted: retain kernel-independent prepared IR, renderer interfaces, source asset/archive behavior and the eligible planar mesh optimization.
+BoardStudio files in the current removal surface include [CAD manifest](../../../cad/wasm/Cargo.toml), [WASM initialization](../../../cad/wasm/src/lib.rs), kernel seam, case construction/cache, [keycap and lettering builders](../../../cad/wasm/src/model/keycaps.rs), [worker dispatch](../../../web/crates/host/src/cad_worker.rs), Cadrum WASM build script, [web packaging](../../../scripts/build-web.py), native validation and source-validation tests, and the OCCT oracle. The full build/removal audit also needs to cover `.github/workflows/cad-image.yaml`, `check.yaml` and `pages.yaml`, `scripts/check.py`, `scripts/dev-web.py`, root Cargo workspace exclusions, web asset/license and lock files, and generated artifact paths. These are the audit surface, not a claim that every file must be deleted: retain kernel-independent prepared IR, renderer interfaces, source asset/archive behavior and the eligible planar mesh optimization.
 
 The [current removal inventory](../../../.evidence/monstertruck-qualification/removal-inventory-current/REPORT.md) binds the remaining kernel, caches, worker/package, required-test oracle, toolchain and CI paths to inspected source hashes. Root verified 46 of 47 bindings unchanged; the qualification report changed during the inventory because pole-v18 was integrated. This is a source inventory, not proof of a C++-free build. Non-CAD native dependencies require separate source-language inspection; a `cc` package name alone does not prove C++ use.
 

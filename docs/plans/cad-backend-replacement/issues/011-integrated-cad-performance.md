@@ -17,4 +17,6 @@ Measure the integrated replacement under comparable conditions and correct mater
 
 ## Comments
 
+2026-10-17 continuation: The retained layered-case performance report measures two frozen native construction fixtures and explicitly excludes production/browser/startup/export/memory acceptance. It is insufficient to close this ticket. Comparable integrated cold/warm, build-size, startup and memory measurements remain required after 010 acceptance.
+
 2026-10-17: User approved this follow-on slice and its blocking edges. Existing 001–004 assignments and evidence continue unchanged. Qualification milestones do not establish production acceptance.

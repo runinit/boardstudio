@@ -65,6 +65,8 @@ async fn decode_model(
         positions,
         normals,
         colors,
+        step_bounds: None,
+        vendor_step: None,
     })
 }
 

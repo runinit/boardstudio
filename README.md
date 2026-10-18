@@ -105,7 +105,10 @@ which starts its own `chromedriver` and Chrome); the Case workspace, panel and s
 separately because their mounted fixtures need an isolated DOM. The check runs up to four crate launches
 at once (`BOARDSTUDIO_CHECK_JOBS`, `1` for serial) and builds test wasm without debug info
 (`CARGO_PROFILE_DEV_DEBUG=false`, which is most of a launch's cost; run `wasm-pack test` by hand,
-without the variable, for source-level debugging). Each batch has a bounded two-minute timeout,
+without the variable, for source-level debugging). Use `python3 scripts/check.py browser --only <crate>...`
+to run only the named presentation crate launch(es) without the full page build or drag smoke (reported
+as a partial subset, not full acceptance), and add `--keep-going` to continue across independent browser
+launches while still exiting nonzero if any failed. Each batch has a bounded two-minute timeout,
 overridable with `WASM_BINDGEN_TEST_TIMEOUT`. A native test run alone does not compile WASM-only
 presentation code. Browser setup installs the locked wasm-bindgen runner before executing tests.
 The browser step opens the packaged page and runs a trusted mouse-drag smoke over
@@ -130,9 +133,8 @@ Chrome or Chromium executable available as `CHROME_BIN`.
 | `scripts/` | Build, content preparation and checks |
 
 The Rust crates share one Cargo workspace (root `Cargo.toml`, `Cargo.lock` and
-`target/`), so dependencies compile once per profile and target. `cad/wasm` and
-`cad/step-oracle` stay outside it because they build against the pinned WASI and
-native OCCT toolchains. Each declares an empty `[workspace]` so cargo treats it as its own
+`target/`), so dependencies compile once per profile and target. `cad/wasm` stays
+outside it because it patches the vendored Monstertruck crates with its own lockfile. It declares an empty `[workspace]` so cargo treats it as its own
 root, which also lets it build from a worktree nested under another checkout.
 
 The repository has no TypeScript or Node dependency; Python scripts handle build, content preparation and checks. Footprint generation runs in Rust inside Core and the page. User-supplied

@@ -24,7 +24,7 @@ class BuildWebTests(unittest.TestCase):
         self.assertNotIn("wasm-pack build core", joined)
         for retained in (
             "--features core-worker", "--features cad-worker", "--features service-worker",
-            "cad/scripts/build-cadrum-wasm.py",
+            "cad/scripts/build-cad-wasm.py",
             "stage-ergogen-models.py",
         ):
             self.assertIn(retained, joined)

@@ -5,7 +5,7 @@ use crate::{
         stroke_mesh, surface_mesh,
     },
     is_stale_scene_revision,
-    math::{component_model_transform, pcb_model_transform},
+    math::{component_model_transform, pcb_model_transform, physical_pcb_transform},
 };
 // Keep stack helpers private while exercising the same source in native tests.
 include!("mechanical.rs");
@@ -14,10 +14,11 @@ use serde::Deserialize;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use three_d::{
-    AmbientLight, Camera, ClearState, CpuMaterial, CpuMesh, Cull, DirectionalLight,
-    EffectMaterialId, Gm, Indices, InnerSpace, Mat4, Material, MaterialType, Matrix, Mesh,
-    PhysicalMaterial, Positions, Program, RenderStates, RenderTarget, SquareMatrix, Srgba, Vec3,
-    Vec4, Viewer, Viewport,
+    AmbientLight, AxisAlignedBoundingBox, Camera, ClearState, ColorTexture, CpuMaterial, CpuMesh,
+    Cull, DepthTexture, DirectionalLight, Effect, EffectMaterialId, Geometry, GeometryId, Gm,
+    Indices, InnerSpace, Light, Mat4, Material, MaterialType, Matrix, Mesh, PhysicalMaterial,
+    Positions, Program, RenderStates, RenderTarget, SquareMatrix, Srgba, Vec3, Vec4, VertexBuffer,
+    Viewer, Viewport,
 };
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::{HtmlCanvasElement, WebGl2RenderingContext};
@@ -171,6 +172,8 @@ struct BoardInput {
 struct LoadedModelInput {
     id: String,
     mesh: MeshInput,
+    #[serde(deserialize_with = "optional_float_buffer")]
+    lines: Option<Vec<f32>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -180,6 +183,8 @@ struct BodyInput {
     id: String,
     name: String,
     mesh: MeshInput,
+    #[serde(deserialize_with = "optional_float_buffer")]
+    lines: Option<Vec<f32>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -219,6 +224,89 @@ struct SceneObject {
     roughness: f32,
     metallic: f32,
     edges: Option<MeshData>,
+    lines: Vec<Vec3>,
+}
+
+struct WorldLines {
+    context: three_d::core::Context,
+    gl: WebGl2RenderingContext,
+    positions: VertexBuffer<Vec3>,
+    normals: VertexBuffer<Vec3>,
+    vertex_count: u32,
+    aabb: AxisAlignedBoundingBox,
+    transformation: Mat4,
+    vertex_shader: String,
+}
+
+impl<'a> IntoIterator for &'a WorldLines {
+    type Item = &'a dyn Geometry;
+    type IntoIter = std::iter::Once<&'a dyn Geometry>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once(self)
+    }
+}
+
+impl Geometry for WorldLines {
+    fn aabb(&self) -> AxisAlignedBoundingBox {
+        self.aabb.transformed(self.transformation)
+    }
+
+    fn animate(&mut self, _time: f32) {}
+
+    fn draw(&self, viewer: &dyn Viewer, program: &Program, render_states: RenderStates) {
+        if self.vertex_count == 0 {
+            return;
+        }
+        program.use_uniform_if_required("normalMatrix", Mat4::identity());
+        program.use_uniform("viewProjection", viewer.projection() * viewer.view());
+        program.use_uniform("modelMatrix", self.transformation);
+        program.use_vertex_attribute("position", &self.positions);
+        if program.requires_attribute("normal") {
+            program.use_vertex_attribute("normal", &self.normals);
+        }
+        program.draw_with(render_states, viewer.viewport(), || {
+            self.gl
+                .draw_arrays(WebGl2RenderingContext::LINES, 0, self.vertex_count as i32);
+        });
+    }
+
+    fn vertex_shader_source(&self) -> String {
+        self.vertex_shader.clone()
+    }
+
+    fn id(&self) -> GeometryId {
+        GeometryId(1)
+    }
+
+    fn render_with_material(
+        &self,
+        material: &dyn Material,
+        viewer: &dyn Viewer,
+        lights: &[&dyn Light],
+    ) {
+        let _ =
+            three_d::renderer::render_with_material(&self.context, viewer, &self, material, lights);
+    }
+
+    fn render_with_effect(
+        &self,
+        material: &dyn Effect,
+        viewer: &dyn Viewer,
+        lights: &[&dyn Light],
+        color_texture: Option<ColorTexture>,
+        depth_texture: Option<DepthTexture>,
+    ) {
+        let _ = three_d::renderer::render_with_effect(
+            &self.context,
+            viewer,
+            self,
+            material,
+            lights,
+            color_texture,
+            depth_texture,
+        );
+    }
 }
 
 struct RenderObject {
@@ -228,6 +316,8 @@ struct RenderObject {
     fingerprint: u64,
     visible: bool,
     triangles: Vec<[Vec3; 3]>,
+    line_points: Vec<Vec3>,
+    lines: Option<Gm<WorldLines, SectionMaterial>>,
     edges: Gm<Mesh, SectionMaterial>,
     object: Gm<Mesh, SectionMaterial>,
     /// Local pose, kept separate from exploded/state transforms so retained
@@ -285,6 +375,7 @@ impl Material for SectionMaterial {
 #[wasm_bindgen]
 pub struct Renderer {
     context: three_d::core::Context,
+    gl: WebGl2RenderingContext,
     camera: Camera,
     light: DirectionalLight,
     fill: DirectionalLight,
@@ -315,12 +406,12 @@ impl Renderer {
         Reflect::set(&options, &JsValue::from_str("alpha"), &JsValue::TRUE)?;
         Reflect::set(&options, &JsValue::from_str("antialias"), &JsValue::TRUE)?;
         Reflect::set(&options, &JsValue::from_str("depth"), &JsValue::TRUE)?;
-        let context = canvas
+        let gl = canvas
             .get_context_with_context_options("webgl2", options.as_ref())?
             .ok_or_else(|| JsValue::from_str("WebGL2 is unavailable"))?
             .dyn_into::<WebGl2RenderingContext>()
             .map_err(|_| JsValue::from_str("WebGL2 is unavailable"))?;
-        let low_level = three_d::context::Context::from_webgl2_context(context);
+        let low_level = three_d::context::Context::from_webgl2_context(gl.clone());
         #[expect(
             clippy::arc_with_non_send_sync,
             reason = "three-d 0.19.0 requires Arc<Context>; WebGL2 context and renderer stay on the page thread"
@@ -374,6 +465,7 @@ impl Renderer {
                 )
             },
             context,
+            gl,
             objects: Vec::new(),
             handles: Vec::new(),
             width: 1,
@@ -457,6 +549,9 @@ impl Renderer {
                 indices: (0..object.edges.positions.len() as u32 / 3).collect(),
                 colors: None,
             });
+            if let Some(lines) = object.lines {
+                push_transformed_lines(&mut item.lines, lines, Mat4::identity())?;
+            }
         }
         self.accept_scene(built)
     }
@@ -510,6 +605,9 @@ impl Renderer {
                 indices: (0..object.edges.positions.len() as u32 / 3).collect(),
                 colors: None,
             });
+            if let Some(lines) = object.lines {
+                push_transformed_lines(&mut item.lines, lines, Mat4::identity())?;
+            }
         }
         self.accept_scene_patch(changed, input.removed)
     }
@@ -562,7 +660,7 @@ impl Renderer {
             } else {
                 0.
             };
-            for point in object.triangles.iter().flatten() {
+            for point in object.triangles.iter().flatten().chain(&object.line_points) {
                 let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
                 low.x = low.x.min(point.x);
                 low.y = low.y.min(point.y);
@@ -622,6 +720,14 @@ impl Renderer {
                 &lights,
             );
         }
+        target.render(
+            &self.camera,
+            self.objects
+                .iter()
+                .filter(|o| o.visible)
+                .filter_map(|o| o.lines.as_ref()),
+            &lights,
+        );
         if self.state.view == "section" && self.state.show_section_plane {
             target.render(&self.camera, [&self.section_plane], &lights);
         }
@@ -662,7 +768,7 @@ impl Renderer {
             } else {
                 0.
             };
-            for point in object.triangles.iter().flatten() {
+            for point in object.triangles.iter().flatten().chain(&object.line_points) {
                 let point = (object.pose * point.extend(1.)).truncate() + Vec3::new(0., 0., offset);
                 low.x = low.x.min(point.x);
                 low.y = low.y.min(point.y);
@@ -943,7 +1049,7 @@ impl Renderer {
         let mut low = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
         let mut high = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
         for object in &self.objects {
-            for point in object.triangles.iter().flatten() {
+            for point in object.triangles.iter().flatten().chain(&object.line_points) {
                 let p = (object.pose * point.extend(1.)).truncate();
                 low.x = low.x.min(p.x);
                 low.y = low.y.min(p.y);
@@ -1050,14 +1156,24 @@ impl Renderer {
             item.object.material.depth_only = self.state.mode == "wireframe";
             let selected =
                 item.id == self.state.selected_layer || self.focused_ids.contains(&item.id);
-            item.edges.material.physical.albedo = Srgba::BLACK;
-            item.edges.material.physical.emissive = if selected {
+            let line_emissive = if selected {
                 Srgba::new(255, 186, 58, 255)
             } else if self.state.mode == "wireframe" && self.state.theme == "dark" {
                 Srgba::new(180, 205, 215, 255)
             } else {
                 Srgba::new(30, 42, 48, 255)
             };
+            item.edges.material.physical.albedo = Srgba::BLACK;
+            item.edges.material.physical.emissive = line_emissive;
+            if let Some(lines) = &mut item.lines {
+                lines.geometry.transformation = transform;
+                lines.material.section = clip;
+                lines.material.physical.render_states.depth_test =
+                    item.edges.material.physical.render_states.depth_test;
+                lines.material.physical.render_states.write_mask = three_d::WriteMask::COLOR;
+                lines.material.physical.albedo = Srgba::BLACK;
+                lines.material.physical.emissive = line_emissive;
+            }
         }
     }
     fn ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
@@ -1154,14 +1270,48 @@ impl Renderer {
             },
         );
         edge_material.render_states.cull = Cull::None;
+        let edge_mesh = Mesh::new(&self.context, &edge_cpu);
+        let line_shader = edge_mesh.vertex_shader_source();
         let edges = Gm::new(
-            Mesh::new(&self.context, &edge_cpu),
+            edge_mesh,
             SectionMaterial {
                 physical: edge_material,
                 section: None,
                 depth_only: false,
             },
         );
+        let line_points = item.lines;
+        let lines = if line_points.is_empty() {
+            None
+        } else {
+            let normals = vec![Vec3::new(0.0, 0.0, 1.0); line_points.len()];
+            let mut line_material = PhysicalMaterial::new_opaque(
+                &self.context,
+                &CpuMaterial {
+                    albedo: Srgba::new(30, 42, 48, 255),
+                    roughness: 1.0,
+                    ..CpuMaterial::default()
+                },
+            );
+            line_material.render_states.cull = Cull::None;
+            Some(Gm::new(
+                WorldLines {
+                    context: self.context.clone(),
+                    gl: self.gl.clone(),
+                    positions: VertexBuffer::new_with_data(&self.context, &line_points),
+                    normals: VertexBuffer::new_with_data(&self.context, &normals),
+                    vertex_count: line_points.len() as u32,
+                    aabb: AxisAlignedBoundingBox::new_with_positions(&line_points),
+                    transformation: Mat4::identity(),
+                    vertex_shader: line_shader,
+                },
+                SectionMaterial {
+                    physical: line_material,
+                    section: None,
+                    depth_only: false,
+                },
+            ))
+        };
         let cpu_mesh = CpuMesh {
             positions: Positions::F32(item.positions),
             indices: Indices::U32(item.indices),
@@ -1197,6 +1347,8 @@ impl Renderer {
             fingerprint,
             visible: true,
             triangles,
+            line_points,
+            lines,
             edges,
             object: Gm::new(Mesh::new(&self.context, &cpu_mesh), material),
             pose: Mat4::identity(),
@@ -1300,6 +1452,10 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 0.68,
                 0.03,
             )?;
+            if let Some(lines) = body.lines {
+                let object = output.objects.last_mut().unwrap();
+                push_transformed_lines(&mut object.lines, lines, Mat4::identity())?;
+            }
         }
     } else if let Some(board) = input.board {
         let hidden = |id: &str| input.hidden.iter().any(|entry| entry == id);
@@ -1369,41 +1525,23 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 reference.pose.at.x + local_x * radians.cos() - local_y * radians.sin()
             })
         });
-        let board_base_z = input
-            .reference
-            .as_ref()
-            .map_or(0.0, |reference| reference.elevation)
-            - if !input.mechanical_stack.is_empty() {
-                board.thickness
-            } else {
-                0.0
-            }
-            + if input.view == "exploded" {
-                explode_offset(stack_index(&input.mechanical_stack, "pcb"))
-            } else {
-                0.0
-            };
-        let reference_transform = input
-            .reference
-            .as_ref()
-            .map(|reference| {
-                Mat4::from_translation(Vec3::new(
-                    reference.pose.at.x,
-                    reference.pose.at.y,
-                    reference.elevation,
-                )) * Mat4::from_angle_z(three_d::Rad(reference.pose.rotation.to_radians()))
-            })
-            .unwrap_or_else(Mat4::identity);
-        let pcb_transform = reference_transform
-            * Mat4::from_translation(Vec3::new(
-                0.0,
-                0.0,
-                board_base_z
-                    - input
-                        .reference
-                        .as_ref()
-                        .map_or(0.0, |reference| reference.elevation),
-            ));
+        let explode_z = if input.view == "exploded" {
+            explode_offset(stack_index(&input.mechanical_stack, "pcb"))
+        } else {
+            0.0
+        };
+        let pcb_transform = Mat4::from_translation(Vec3::new(0.0, 0.0, explode_z))
+            * physical_pcb_transform(
+                input.reference.as_ref().map(|reference| {
+                    (
+                        [reference.pose.at.x, reference.pose.at.y],
+                        reference.pose.rotation,
+                        reference.elevation,
+                    )
+                }),
+                board.thickness,
+                !input.mechanical_stack.is_empty(),
+            );
         if !hidden("PCB") {
             let mut board_mesh = board_mesh(&contour_refs, board.thickness)
                 .map_err(|error| JsValue::from_str(&error))?;
@@ -1569,16 +1707,20 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 } else {
                     [0.70, 0.73, 0.77, 1.0]
                 };
+                let row_transform = pcb_transform * model_transform;
                 push_mesh(
                     &mut output,
                     &model.reference,
                     loaded.mesh,
-                    pcb_transform * model_transform,
+                    row_transform,
                     color,
                     0.55,
                     0.12,
                 )?;
                 let object = output.objects.last_mut().unwrap();
+                if let Some(lines) = loaded.lines {
+                    push_transformed_lines(&mut object.lines, lines, row_transform)?;
+                }
                 object.groups = vec!["Models".into(), loaded.id.clone()];
                 if model.path.to_ascii_lowercase().contains("keycap") {
                     object.groups.push("Keycaps".into());
@@ -1626,15 +1768,20 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
                 [0.68, 0.71, 0.75, 1.0]
             };
             let color = body.color.as_deref().and_then(hex_color).unwrap_or(color);
+            let body_transform = Mat4::from_translation(Vec3::new(0.0, 0.0, offset));
             push_mesh(
                 &mut output,
                 &body.id,
                 body.mesh,
-                Mat4::from_translation(Vec3::new(0.0, 0.0, offset)),
+                body_transform,
                 color,
                 0.68,
                 0.03,
             )?;
+            if let Some(lines) = body.lines {
+                let object = output.objects.last_mut().unwrap();
+                push_transformed_lines(&mut object.lines, lines, body_transform)?;
+            }
         }
         if let Some(battery) = input.battery
             && !hidden("battery")
@@ -1706,7 +1853,7 @@ fn build_scene(input: SceneInput) -> Result<BuiltScene, JsValue> {
     let mut min = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
     let mut max = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
     for object in &output.objects {
-        for point in &object.positions {
+        for point in object.positions.iter().chain(&object.lines) {
             min.x = min.x.min(point.x);
             min.y = min.y.min(point.y);
             min.z = min.z.min(point.z);
@@ -1838,6 +1985,7 @@ fn push_data(
         groups: vec![id.to_owned()],
         explode: 0.,
         edges: None,
+        lines: Vec::new(),
         positions: data
             .positions
             .iter()
@@ -1871,6 +2019,23 @@ fn push_data(
         roughness,
         metallic,
     });
+}
+
+fn push_transformed_lines(
+    target: &mut Vec<Vec3>,
+    lines: Vec<f32>,
+    transform: Mat4,
+) -> Result<(), JsValue> {
+    if !lines.len().is_multiple_of(6) || lines.iter().any(|value| !value.is_finite()) {
+        return Err(JsValue::from_str(
+            "Source line buffer must contain finite 3D endpoint pairs",
+        ));
+    }
+    for point in lines.as_chunks::<3>().0.iter() {
+        let transformed = transform * Vec4::new(point[0], point[1], point[2], 1.0);
+        target.push(Vec3::new(transformed.x, transformed.y, transformed.z));
+    }
+    Ok(())
 }
 
 fn translate_mesh(mesh: &mut MeshData, transform: Mat4) {
@@ -2106,6 +2271,8 @@ struct PreparedObject {
     explode: f32,
     mesh: MeshInput,
     edges: MeshInput,
+    #[serde(default, deserialize_with = "optional_float_buffer")]
+    lines: Option<Vec<f32>>,
     color: [f32; 4],
     roughness: f32,
     metallic: f32,
@@ -2231,6 +2398,14 @@ pub fn prepare_scene(value: JsValue) -> Result<JsValue, JsValue> {
             }),
         };
         Reflect::set(&item, &"mesh".into(), &encode_mesh(mesh)?)?;
+        if !object.lines.is_empty() {
+            let line_coords: Vec<f32> = object.lines.iter().flat_map(|p| [p.x, p.y, p.z]).collect();
+            Reflect::set(
+                &item,
+                &"lines".into(),
+                &Float32Array::from(line_coords.as_slice()),
+            )?;
+        }
         Reflect::set(&item, &"id".into(), &object.id.into())?;
         Reflect::set(
             &item,
@@ -2271,7 +2446,12 @@ pub fn prepare_scene(value: JsValue) -> Result<JsValue, JsValue> {
 }
 fn mesh_fingerprint(object: &SceneObject) -> u64 {
     let mut hash = std::collections::hash_map::DefaultHasher::new();
-    for p in object.positions.iter().chain(&object.normals) {
+    for p in object
+        .positions
+        .iter()
+        .chain(&object.normals)
+        .chain(&object.lines)
+    {
         for v in [p.x, p.y, p.z] {
             v.to_bits().hash(&mut hash);
         }

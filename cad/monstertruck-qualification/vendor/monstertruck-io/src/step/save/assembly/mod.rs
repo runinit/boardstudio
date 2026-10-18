@@ -51,7 +51,7 @@ impl StepFormat for MonstertruckRepresentationContext {
 #{length_unit_idx} = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT({length_prefix},.METRE.));
 #{plane_angle_unit_idx} = ( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) );
 #{solid_angle_unit_idx} = ( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() );
-#{tolerance_idx} = UNCERTAINTY_MEASURE_WITH_UNIT({accuracy}, \
+#{tolerance_idx} = UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE({accuracy}), \
 #{length_unit_idx}, 'distance_accuracy_value', 'confusion accuracy');\n"
         ))
     }

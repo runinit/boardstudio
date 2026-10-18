@@ -87,6 +87,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
                     patch.object(audit.subprocess, "check_output", return_value=json.dumps(metadata).encode()):
                 with self.assertRaisesRegex(ValueError, "resolve exclusively"):
                     audit.verify_vendor()
+            wrong_cad_metadata = json.dumps(metadata).encode()
+            metadata["packages"][0]["manifest_path"] = str(manifest)
+            with patch.object(audit, "ROOT", root), patch.object(audit, "VENDOR", vendor), \
+                    patch.object(audit, "PROVENANCE", provenance_path), \
+                    patch.object(audit, "PROVENANCE_SHA256", provenance_hash), \
+                    patch.object(audit.subprocess, "check_output", side_effect=[
+                        json.dumps(metadata).encode(), wrong_cad_metadata,
+                    ]):
+                with self.assertRaisesRegex(ValueError, "resolve exclusively"):
+                    audit.verify_vendor()
 
 
 if __name__ == "__main__":

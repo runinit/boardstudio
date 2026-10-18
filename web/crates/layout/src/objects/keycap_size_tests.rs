@@ -11,7 +11,7 @@ use boardstudio_core::model::{Part, Pose2, Side};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Event, HtmlInputElement, KeyboardEvent};
+use web_sys::{Event, HtmlInputElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 

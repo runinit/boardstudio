@@ -1,11 +1,16 @@
-//! Dedicated host for the existing, separately built Cadrum WASM package.
+//! Dedicated host for the separately built Monstertruck CAD WASM package.
 use crate::cad_jobs::{
-    CadBodyMesh, CadMesh, CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult,
-    CadSnapshotIdentity,
+    CadBodyMesh, CadCollisionMeshPair, CadCollisionObservation, CadCollisionQuery, CadMesh,
+    CadOperation, CadReply, CadReplyOutcome, CadRequest, CadResult, CadSnapshotIdentity,
+    CadStepAccuracy, CadStepFaceOccurrence, CadStepImportOptions, CadStepLineOccurrence,
+    CadStepPrecision, CadStepSourceFace, CadVendorStep, MAX_COLLISION_QUERY_BYTES,
+    validate_collision_mesh_pair, validate_collision_query,
 };
 use boardstudio_core::model::KeycapSpec;
 use futures_channel::oneshot;
-use js_sys::{Array, Float32Array, Function, Object, Promise, Reflect, Uint8Array};
+use js_sys::{
+    Array, Float32Array, Float64Array, Function, Object, Promise, Reflect, Uint8Array, Uint32Array,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -59,7 +64,13 @@ struct WireRequest {
     #[serde(default)]
     source_sha256: Option<String>,
     #[serde(default)]
+    step_import_options: Option<CadStepImportOptions>,
+    #[serde(default)]
+    collision_query: Option<CadCollisionQuery>,
+    #[serde(default)]
     keycaps: Option<KeycapsInput>,
+    #[serde(skip)]
+    collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
 }
@@ -170,8 +181,13 @@ impl CadWorker {
         self.ready().await?;
         let frame =
             serde_json::to_string(&request).map_err(|error| CadWorkerError(error.to_string()))?;
-        self.request_frame(&request.request_id, &frame, &request.input_bytes)
-            .await
+        self.request_frame_with_payloads(
+            &request.request_id,
+            &frame,
+            &request.input_bytes,
+            request.collision_meshes.as_ref(),
+        )
+        .await
     }
 
     /// Build preview meshes from Core-resolved KeycapSpecs in this worker.
@@ -315,6 +331,17 @@ impl CadWorker {
         frame: &str,
         input_bytes: &[u8],
     ) -> Result<CadReply, CadWorkerError> {
+        self.request_frame_with_payloads(request_id, frame, input_bytes, None)
+            .await
+    }
+
+    async fn request_frame_with_payloads(
+        &self,
+        request_id: &str,
+        frame: &str,
+        input_bytes: &[u8],
+        collision_meshes: Option<&CadCollisionMeshPair>,
+    ) -> Result<CadReply, CadWorkerError> {
         if self.state.borrow().closed {
             return Err(CadWorkerError("CAD worker is closed".into()));
         }
@@ -327,6 +354,23 @@ impl CadWorker {
             let buffer = bytes.buffer();
             Reflect::set(&object, &"inputBytes".into(), &buffer).map_err(js_error)?;
             transfers.push(&buffer);
+        }
+        if let Some(meshes) = collision_meshes {
+            let left_pos = Float64Array::from(meshes.left_positions_mm_f64.as_slice());
+            let left_tags =
+                Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice());
+            let right_pos = Float64Array::from(meshes.right_positions_mm_f64.as_slice());
+            let right_tags =
+                Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice());
+            for (field, buffer) in [
+                ("leftPositions", left_pos.buffer()),
+                ("leftTags", left_tags.buffer()),
+                ("rightPositions", right_pos.buffer()),
+                ("rightTags", right_tags.buffer()),
+            ] {
+                Reflect::set(&object, &field.into(), &buffer).map_err(js_error)?;
+                transfers.push(&buffer);
+            }
         }
         let (sender, receiver) = oneshot::channel();
         {
@@ -409,6 +453,9 @@ pub async fn test_cad_worker_request(url: String) -> Result<u32, JsValue> {
             source_sha256: Some(
                 "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a".into(),
             ),
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: vec![1],
         })
         .await
@@ -436,6 +483,8 @@ fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
         )),
         CadOperation::ReadStep
             if request.prepared.is_some()
+                || request.collision_query.is_some()
+                || request.collision_meshes.is_some()
                 || request.input_bytes.is_empty()
                 || request.input_bytes.len() > MAX_STEP_BYTES =>
         {
@@ -453,7 +502,33 @@ fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
                 "STEP import requires a canonical source SHA-256".into(),
             ))
         }
-        CadOperation::ReadStep => Ok(()),
+        CadOperation::ReadStep => request
+            .step_import_options
+            .unwrap_or_default()
+            .validate()
+            .map(|_| ())
+            .map_err(CadWorkerError),
+        CadOperation::CollisionQuery => {
+            if request.prepared.is_some()
+                || !request.input_bytes.is_empty()
+                || request.source_sha256.is_some()
+                || request.step_import_options.is_some()
+            {
+                return Err(CadWorkerError(
+                    "collision query cannot include case or STEP byte payloads".into(),
+                ));
+            }
+            let query = request
+                .collision_query
+                .as_ref()
+                .ok_or_else(|| CadWorkerError("collision query omitted metadata".into()))?;
+            validate_collision_query(query).map_err(CadWorkerError)?;
+            let meshes = request
+                .collision_meshes
+                .as_ref()
+                .ok_or_else(|| CadWorkerError("collision query omitted mesh buffers".into()))?;
+            validate_collision_mesh_pair(meshes).map_err(CadWorkerError)
+        }
         _ if request.prepared.as_ref().is_none_or(|prepared| {
             prepared.revision != request.identity.revision
                 || prepared
@@ -584,12 +659,132 @@ fn decode_result(value: JsValue) -> Result<CadResult, String> {
     } else {
         Some(serde_wasm_bindgen::from_value(bounds_value).map_err(|error| error.to_string())?)
     };
+    let vendor_step_value = Reflect::get(&value, &"vendorStep".into()).map_err(js_message)?;
+    let vendor_step = if vendor_step_value.is_null() || vendor_step_value.is_undefined() {
+        None
+    } else {
+        Some(decode_vendor_step(vendor_step_value)?)
+    };
+    let collision_value = Reflect::get(&value, &"collision".into()).map_err(js_message)?;
+    let collision = if collision_value.is_null() || collision_value.is_undefined() {
+        None
+    } else {
+        Some(
+            serde_wasm_bindgen::from_value::<CadCollisionObservation>(collision_value)
+                .map_err(|error| error.to_string())?,
+        )
+    };
     Ok(CadResult {
         revision,
         step,
         mesh,
         bodies,
         bounds,
+        vendor_step,
+        collision,
+    })
+}
+
+fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
+    let source_sha256 = string_field(&value, "sourceSha256")?;
+    let options_value = Reflect::get(&value, &"importOptions".into()).map_err(js_message)?;
+    let import_options = if options_value.is_null() || options_value.is_undefined() {
+        CadStepImportOptions::default()
+    } else {
+        serde_wasm_bindgen::from_value::<CadStepImportOptions>(options_value)
+            .map_err(|error| error.to_string())?
+    };
+    let surface_positions_mm_f64 = read_f64_buffer(
+        Reflect::get(&value, &"surfacePositionsMmF64".into()).map_err(js_message)?,
+    )?;
+    let source_faces: Vec<CadStepSourceFace> = serde_wasm_bindgen::from_value(
+        Reflect::get(&value, &"sourceFaces".into()).map_err(js_message)?,
+    )
+    .map_err(|error| error.to_string())?;
+    let face_occurrences: Vec<CadStepFaceOccurrence> = serde_wasm_bindgen::from_value(
+        Reflect::get(&value, &"faceOccurrences".into()).map_err(js_message)?,
+    )
+    .map_err(|error| error.to_string())?;
+    let triangle_face_occurrence_indices = read_u32_buffer(
+        Reflect::get(&value, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?,
+    )?;
+    let line_segments_mm_f64 =
+        read_f64_buffer(Reflect::get(&value, &"lineSegmentsMmF64".into()).map_err(js_message)?)?;
+    let line_render_positions =
+        read_f32_buffer(Reflect::get(&value, &"lineRenderPositions".into()).map_err(js_message)?)?;
+    let line_occurrences_value =
+        Reflect::get(&value, &"lineOccurrences".into()).map_err(js_message)?;
+    if !Array::is_array(&line_occurrences_value) {
+        return Err("STEP vendorStep.lineOccurrences must be an array".into());
+    }
+    let line_occurrences_array = Array::from(&line_occurrences_value);
+    let mut line_occurrences = Vec::with_capacity(line_occurrences_array.length() as usize);
+    for item in line_occurrences_array.iter() {
+        let placement_vec =
+            read_f64_buffer(Reflect::get(&item, &"placementF64".into()).map_err(js_message)?)?;
+        let placement_f64: [f64; 16] = placement_vec
+            .try_into()
+            .map_err(|_| "STEP lineOccurrence placementF64 must have 16 values".to_string())?;
+        let line_occurrence_index = Reflect::get(&item, &"lineOccurrenceIndex".into())
+            .map_err(js_message)?
+            .as_f64()
+            .ok_or_else(|| "STEP lineOccurrence omitted lineOccurrenceIndex".to_string())?;
+        if !line_occurrence_index.is_finite()
+            || line_occurrence_index < 0.0
+            || line_occurrence_index > u32::MAX as f64
+            || line_occurrence_index.fract() != 0.0
+        {
+            return Err("STEP lineOccurrence lineOccurrenceIndex is invalid".into());
+        }
+        let source_unit_to_mm = Reflect::get(&item, &"sourceUnitToMm".into())
+            .map_err(js_message)?
+            .as_f64()
+            .ok_or_else(|| "STEP lineOccurrence omitted sourceUnitToMm".to_string())?;
+        let declared_uncertainty_value =
+            Reflect::get(&item, &"declaredUncertaintyMm".into()).map_err(js_message)?;
+        let declared_uncertainty_mm =
+            if declared_uncertainty_value.is_null() || declared_uncertainty_value.is_undefined() {
+                None
+            } else {
+                Some(declared_uncertainty_value.as_f64().ok_or_else(|| {
+                    "STEP lineOccurrence declaredUncertaintyMm must be a number or null".to_string()
+                })?)
+            };
+        line_occurrences.push(CadStepLineOccurrence {
+            line_occurrence_index: line_occurrence_index as u32,
+            trimmed_curve_id: string_field(&item, "trimmedCurveId")?,
+            source_line_id: string_field(&item, "sourceLineId")?,
+            curve_set_id: string_field(&item, "curveSetId")?,
+            representation_id: string_field(&item, "representationId")?,
+            source_unit_to_mm,
+            placement_f64,
+            declared_uncertainty_mm,
+        });
+    }
+    let segment_line_occurrence_indices = read_u32_buffer(
+        Reflect::get(&value, &"segmentLineOccurrenceIndices".into()).map_err(js_message)?,
+    )?;
+    let precision: Vec<CadStepPrecision> = serde_wasm_bindgen::from_value(
+        Reflect::get(&value, &"precision".into()).map_err(js_message)?,
+    )
+    .map_err(|error| error.to_string())?;
+    let accuracy: CadStepAccuracy = serde_wasm_bindgen::from_value(
+        Reflect::get(&value, &"accuracy".into()).map_err(js_message)?,
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(CadVendorStep {
+        source_sha256,
+        import_options,
+        surface_positions_mm_f64,
+        source_faces,
+        face_occurrences,
+        triangle_face_occurrence_indices,
+        line_segments_mm_f64,
+        line_render_positions,
+        line_occurrences,
+        segment_line_occurrence_indices,
+        precision,
+        accuracy,
     })
 }
 
@@ -610,6 +805,22 @@ fn string_field(value: &JsValue, name: &str) -> Result<String, String> {
 fn read_f32_buffer(value: JsValue) -> Result<Vec<f32>, String> {
     if value.is_instance_of::<Float32Array>() {
         Ok(value.unchecked_into::<Float32Array>().to_vec())
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
+    }
+}
+
+fn read_f64_buffer(value: JsValue) -> Result<Vec<f64>, String> {
+    if value.is_instance_of::<Float64Array>() {
+        Ok(value.unchecked_into::<Float64Array>().to_vec())
+    } else {
+        serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
+    }
+}
+
+fn read_u32_buffer(value: JsValue) -> Result<Vec<u32>, String> {
+    if value.is_instance_of::<Uint32Array>() {
+        Ok(value.unchecked_into::<Uint32Array>().to_vec())
     } else {
         serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
     }
@@ -851,6 +1062,203 @@ mod keycaps_worker_tests {
         );
         worker.close();
     }
+
+    #[wasm_bindgen_test]
+    async fn read_step_and_collision_query_transfer_typed_arrays_and_validate_replies() {
+        use crate::cad_jobs::{
+            CadCollisionMeshPair, CadCollisionObservation, CadCollisionOperand, CadCollisionQuery,
+            CadStepImportOptions, validate_reply,
+        };
+
+        let source = WorkerSource::new(
+            r#"
+            self.postMessage({ kind: "ready" });
+            self.onmessage = (event) => {
+              const input = JSON.parse(event.data.frame);
+              if (input.operation === "read-step") {
+                const frame = JSON.stringify({
+                  requestId: input.requestId,
+                  jobId: input.jobId,
+                  identity: input.identity,
+                  operation: input.operation,
+                  outcome: "completed",
+                  error: null,
+                });
+                const result = {
+                  revision: input.identity.revision,
+                  step: new Uint8Array(),
+                  mesh: {
+                    positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+                    normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]),
+                  },
+                  bodies: [],
+                  bounds: { min: [0, 0, 0], max: [2, 2, 0] },
+                  vendorStep: {
+                    sourceSha256: input.sourceSha256,
+                    importOptions: input.stepImportOptions ?? { previewRepairBudgetMm: null },
+                    surfacePositionsMmF64: new Float64Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+                    sourceFaces: [{
+                      solidId: "10",
+                      shellIndex: 0,
+                      faceId: "20",
+                      supportId: "30",
+                      supportKind: "PLANE",
+                    }],
+                    faceOccurrences: [{
+                      sourceFaceIndex: 0,
+                      solidOccurrenceIndex: 0,
+                      representationId: "40",
+                      sourceUncertaintyMm: 0.01,
+                      repairDisplacementMm: null,
+                    }],
+                    triangleFaceOccurrenceIndices: new Uint32Array([0]),
+                    lineSegmentsMmF64: new Float64Array([0, 0, 0, 2, 2, 0]),
+                    lineRenderPositions: new Float32Array([0, 0, 0, 2, 2, 0]),
+                    lineOccurrences: [{
+                      lineOccurrenceIndex: 0,
+                      trimmedCurveId: "414",
+                      sourceLineId: "413",
+                      curveSetId: "420",
+                      representationId: "430",
+                      sourceUnitToMm: 1.0,
+                      placementF64: new Float64Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+                      declaredUncertaintyMm: null,
+                    }],
+                    segmentLineOccurrenceIndices: new Uint32Array([0]),
+                    precision: [],
+                    accuracy: {
+                      previewDeflectionMm: 0.1,
+                      previewAngularRad: 0.5,
+                      analysisErrorBoundMm: null,
+                      boundsFromSourceGeometry: true,
+                      meshClosedOriented: true,
+                      previewFloorMm: 0.02,
+                      previewDeclaredMultiplier: 2.0,
+                      relaxedBeyondDeclaredPrecision: false,
+                      sampledSupportChecks: 0,
+                      maxSampledSupportResidualMm: null,
+                      fallbackMeshedFaces: 0,
+                    },
+                  },
+                };
+                self.postMessage({ kind: "reply", frame, result });
+              } else if (input.operation === "collision-query") {
+                const leftTags = new Uint32Array(event.data.leftTags);
+                const rightTags = new Uint32Array(event.data.rightTags);
+                const frame = JSON.stringify({
+                  requestId: input.requestId,
+                  jobId: input.jobId,
+                  identity: input.identity,
+                  operation: input.operation,
+                  outcome: "completed",
+                  error: null,
+                });
+                const result = {
+                  revision: input.identity.revision,
+                  step: new Uint8Array(),
+                  mesh: null,
+                  bodies: [],
+                  bounds: null,
+                  collision: {
+                    kind: "surface-separated",
+                    surfaceDistanceMm: 1.25,
+                    closestPoints: {
+                      triangles: {
+                        left: { triangleIndex: 0, faceOccurrenceIndex: leftTags[0] },
+                        right: { triangleIndex: 0, faceOccurrenceIndex: rightTags[0] },
+                      },
+                      point1Mm: [1.0, 0.0, 0.0],
+                      point2Mm: [2.25, 0.0, 0.0],
+                    },
+                  },
+                };
+                self.postMessage({ kind: "reply", frame, result });
+              }
+            };
+            "#,
+        );
+        let worker = CadWorker::new(&source.0).unwrap();
+        let identity = CadSnapshotIdentity {
+            token: 1,
+            session_epoch: 1,
+            document_id: "step-collision".into(),
+            board_id: "board".into(),
+            instance_id: None,
+            revision: 3,
+        };
+        let sha_a = "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a";
+        let step_req = CadRequest {
+            request_id: "step-1".into(),
+            job_id: "step-job-1".into(),
+            identity: identity.clone(),
+            operation: CadOperation::ReadStep,
+            prepared: None,
+            source_sha256: Some(sha_a.into()),
+            step_import_options: Some(CadStepImportOptions::default()),
+            collision_query: None,
+            collision_meshes: None,
+            input_bytes: vec![1],
+        };
+        let step_reply = worker.request(step_req.clone()).await.unwrap();
+        let validated_step = validate_reply(&step_req, step_reply, &identity).unwrap();
+        let vendor_step = validated_step.vendor_step.unwrap();
+        assert_eq!(vendor_step.source_sha256, sha_a);
+        assert_eq!(vendor_step.line_occurrences.len(), 1);
+        assert_eq!(
+            vendor_step.line_render_positions,
+            [0.0, 0.0, 0.0, 2.0, 2.0, 0.0]
+        );
+
+        let id_mat = [
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ];
+        let collision_req = CadRequest {
+            request_id: "col-1".into(),
+            job_id: "col-job-1".into(),
+            identity: identity.clone(),
+            operation: CadOperation::CollisionQuery,
+            prepared: None,
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: Some(CadCollisionQuery {
+                left: CadCollisionOperand {
+                    model_id: "m1".into(),
+                    source_sha256: sha_a.into(),
+                    import_options: CadStepImportOptions::default(),
+                    row_transform_f64: id_mat,
+                },
+                right: CadCollisionOperand {
+                    model_id: "m2".into(),
+                    source_sha256: sha_a.into(),
+                    import_options: CadStepImportOptions::default(),
+                    row_transform_f64: id_mat,
+                },
+                clearance_threshold_mm: 0.5,
+                requested_accuracy_mm: None,
+            }),
+            collision_meshes: Some(CadCollisionMeshPair {
+                left_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+                left_triangle_face_occurrence_indices: vec![7],
+                right_positions_mm_f64: vec![2.25, 0.0, 0.0, 3.25, 0.0, 0.0, 2.25, 1.0, 0.0],
+                right_triangle_face_occurrence_indices: vec![11],
+            }),
+            input_bytes: vec![],
+        };
+        let col_reply = worker.request(collision_req.clone()).await.unwrap();
+        let validated_col = validate_reply(&collision_req, col_reply, &identity).unwrap();
+        match validated_col.collision.unwrap() {
+            CadCollisionObservation::SurfaceSeparated {
+                surface_distance_mm,
+                closest_points,
+            } => {
+                assert_eq!(surface_distance_mm, 1.25);
+                assert_eq!(closest_points.triangles.left.face_occurrence_index, 7);
+                assert_eq!(closest_points.triangles.right.face_occurrence_index, 11);
+            }
+            other => panic!("unexpected observation {other:?}"),
+        }
+        worker.close();
+    }
 }
 
 fn js_error(error: JsValue) -> CadWorkerError {
@@ -997,6 +1405,35 @@ fn receive_worker_message(
     {
         request.input_bytes = Uint8Array::new(&buffer).to_vec();
     }
+    if request.operation == CadOperation::CollisionQuery {
+        let get_buf = |name: &str| -> Result<JsValue, JsValue> {
+            Reflect::get(&data, &name.into()).and_then(|v| {
+                if v.is_undefined() || v.is_null() {
+                    Err(JsValue::from_str(&format!(
+                        "collision request omitted {name}"
+                    )))
+                } else {
+                    Ok(v)
+                }
+            })
+        };
+        let left_pos = Float64Array::new(&get_buf("leftPositions")?);
+        let left_tags = Uint32Array::new(&get_buf("leftTags")?);
+        let right_pos = Float64Array::new(&get_buf("rightPositions")?);
+        let right_tags = Uint32Array::new(&get_buf("rightTags")?);
+        let total_bytes = (left_pos.byte_length() as usize)
+            .saturating_add(left_tags.byte_length() as usize)
+            .saturating_add(right_pos.byte_length() as usize)
+            .saturating_add(right_tags.byte_length() as usize);
+        if total_bytes <= MAX_COLLISION_QUERY_BYTES {
+            request.collision_meshes = Some(CadCollisionMeshPair {
+                left_positions_mm_f64: left_pos.to_vec(),
+                left_triangle_face_occurrence_indices: left_tags.to_vec(),
+                right_positions_mm_f64: right_pos.to_vec(),
+                right_triangle_face_occurrence_indices: right_tags.to_vec(),
+            });
+        }
+    }
     let input_bytes = std::mem::take(&mut request.input_bytes);
     {
         let mut queue = queue.borrow_mut();
@@ -1021,7 +1458,7 @@ fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option
     match operation {
         CadOperation::Preview | CadOperation::PrintKeycaps => None,
         CadOperation::ExportStep => Some(KEYCAP_STEP_UNSUPPORTED),
-        CadOperation::Exact | CadOperation::ReadStep => {
+        CadOperation::Exact | CadOperation::ReadStep | CadOperation::CollisionQuery => {
             Some("Keycap CAD input is only valid for preview")
         }
     }
@@ -1268,6 +1705,11 @@ async fn run_request(
                     false,
                 ));
             }
+            let step_options = request
+                .step_import_options
+                .unwrap_or_default()
+                .validate()
+                .map_err(|error| (request.clone(), error, false))?;
             let options = Object::new();
             Reflect::set(
                 &options,
@@ -1275,9 +1717,53 @@ async fn run_request(
                 &JsValue::from_str(expected),
             )
             .map_err(|error| (request.clone(), js_message(error), false))?;
+            if let Some(budget) = step_options.preview_repair_budget_mm {
+                Reflect::set(
+                    &options,
+                    &"previewRepairBudgetMm".into(),
+                    &JsValue::from_f64(budget),
+                )
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            }
             invoke(
                 "read_step_model",
                 &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
+            )
+            .map_err(|error| (request.clone(), error, false))?
+        }
+        CadOperation::CollisionQuery => {
+            let query = request.collision_query.as_ref().ok_or_else(|| {
+                (
+                    request.clone(),
+                    "collision query omitted metadata".into(),
+                    false,
+                )
+            })?;
+            validate_collision_query(query).map_err(|error| (request.clone(), error, false))?;
+            let meshes = request.collision_meshes.as_ref().ok_or_else(|| {
+                (
+                    request.clone(),
+                    "collision query omitted mesh buffers".into(),
+                    false,
+                )
+            })?;
+            validate_collision_mesh_pair(meshes)
+                .map_err(|error| (request.clone(), error, false))?;
+            let query_json = serde_json::to_string(query)
+                .map_err(|error| (request.clone(), error.to_string(), false))?;
+            let query_value = js_sys::JSON::parse(&query_json)
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            invoke(
+                "query_collision_mesh_pair",
+                &[
+                    Float64Array::from(meshes.left_positions_mm_f64.as_slice()).into(),
+                    Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice())
+                        .into(),
+                    Float64Array::from(meshes.right_positions_mm_f64.as_slice()).into(),
+                    Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice())
+                        .into(),
+                    query_value,
+                ],
             )
             .map_err(|error| (request.clone(), error, false))?
         }
@@ -1292,23 +1778,36 @@ async fn run_request(
             true,
         ));
     }
-    let result = if request.operation == CadOperation::ReadStep {
-        let wrapper = Object::new();
-        Reflect::set(
-            &wrapper,
-            &"revision".into(),
-            &JsValue::from_f64(request.identity.revision as f64),
-        )
-        .map_err(|error| (request.clone(), js_message(error), false))?;
-        for field in ["mesh", "bounds"] {
-            let value = Reflect::get(&result, &field.into())
-                .map_err(|error| (request.clone(), js_message(error), false))?;
-            Reflect::set(&wrapper, &field.into(), &value)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
+    let result = match request.operation {
+        CadOperation::ReadStep => {
+            let wrapper = Object::new();
+            Reflect::set(
+                &wrapper,
+                &"revision".into(),
+                &JsValue::from_f64(request.identity.revision as f64),
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
+            for field in ["mesh", "bounds", "vendorStep"] {
+                let value = Reflect::get(&result, &field.into())
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+                Reflect::set(&wrapper, &field.into(), &value)
+                    .map_err(|error| (request.clone(), js_message(error), false))?;
+            }
+            wrapper.into()
         }
-        wrapper.into()
-    } else {
-        result
+        CadOperation::CollisionQuery => {
+            let wrapper = Object::new();
+            Reflect::set(
+                &wrapper,
+                &"revision".into(),
+                &JsValue::from_f64(request.identity.revision as f64),
+            )
+            .map_err(|error| (request.clone(), js_message(error), false))?;
+            Reflect::set(&wrapper, &"collision".into(), &result)
+                .map_err(|error| (request.clone(), js_message(error), false))?;
+            wrapper.into()
+        }
+        _ => result,
     };
     let wire = WireReply {
         request_id: request.request_id.clone(),
@@ -1395,8 +1894,29 @@ fn result_transfers(operation: &CadOperation, result: &JsValue) -> Result<Array,
             add_buffer_transfer(&transfers, &Reflect::get(result, &"step".into())?)?
         }
         CadOperation::ReadStep => {
-            add_mesh_transfers(&transfers, &Reflect::get(result, &"mesh".into())?)?
+            add_mesh_transfers(&transfers, &Reflect::get(result, &"mesh".into())?)?;
+            let vendor_step = Reflect::get(result, &"vendorStep".into())?;
+            if !vendor_step.is_null() && !vendor_step.is_undefined() {
+                for field in [
+                    "surfacePositionsMmF64",
+                    "triangleFaceOccurrenceIndices",
+                    "lineSegmentsMmF64",
+                    "lineRenderPositions",
+                    "segmentLineOccurrenceIndices",
+                ] {
+                    let value = Reflect::get(&vendor_step, &field.into())?;
+                    add_buffer_transfer(&transfers, &value)?;
+                }
+                let occurrences = Reflect::get(&vendor_step, &"lineOccurrences".into())?;
+                if Array::is_array(&occurrences) {
+                    for item in Array::from(&occurrences).iter() {
+                        let placement = Reflect::get(&item, &"placementF64".into())?;
+                        add_buffer_transfer(&transfers, &placement)?;
+                    }
+                }
+            }
         }
+        CadOperation::CollisionQuery => {}
     }
     Ok(transfers)
 }
@@ -1411,8 +1931,12 @@ fn add_mesh_transfers(transfers: &Array, mesh: &JsValue) -> Result<(), JsValue> 
 fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue> {
     let buffer = if value.is_instance_of::<Uint8Array>() {
         Uint8Array::new(value).buffer()
+    } else if value.is_instance_of::<Float64Array>() {
+        Float64Array::new(value).buffer()
+    } else if value.is_instance_of::<Uint32Array>() {
+        Uint32Array::new(value).buffer()
     } else {
-        js_sys::Float32Array::new(value).buffer()
+        Float32Array::new(value).buffer()
     };
     transfers.push(&buffer);
     Ok(())

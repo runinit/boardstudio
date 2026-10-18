@@ -17,7 +17,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical-settings and closure-clearance adapters over Core's mechanical operation, and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
 | `renderer/` | GPU scene rendering, picking and camera behavior |
-| `cad/` | CAD provider bindings and the Cadrum/OCCT WASM kernel |
+| `cad/` | CAD provider bindings and the pure-Rust Monstertruck WASM kernel |
 | `contracts/` | Shared Rust boundary types |
 | `footprints/` | Built-in generators, parameters, render context, geometry, normalization and model references; Core and the page call Rust directly |
 | `ergogen/library/`, `kicad/` | Vendored model assets and attribution; PCB integration checks |

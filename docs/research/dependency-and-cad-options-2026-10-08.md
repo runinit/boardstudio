@@ -108,7 +108,7 @@ Sources: [Cadrum/OCCT pinned integration](cad/cadrum-assessment.md),
 [Fornjot shutdown announcement](https://www.fornjot.app/blog/shutting-down-fornjot/).
 
 There is already a useful kernel seam in
-[kernel.rs](../../cad/wasm/src/model/kernel.rs): `CadKernel` abstracts case
+kernel.rs: `CadKernel` abstracts case
 build, STEP import/export, and meshing, and the fixture gate is generic over
 implementations. The same file documents that preview/export caches and
 keycap generation still hold `cadrum::Solid` directly, so the seam does not
@@ -174,11 +174,11 @@ cutover and an arbitrary-import cutover need independent acceptance decisions.
 
 | Dependency or layer | Where it applies | Assessment |
 | --- | --- | --- |
-| Python 3.11 | Build/content/check scripts; not app runtime ([check runner](../../scripts/check.py), [CAD build helper](../../cad/scripts/cadrum_build.py)) | Useful orchestration glue, but still a developer prerequisite. Low priority unless reducing onboarding prerequisites is the objective; replacing scripts with Rust would mainly reduce toolchain count. |
+| Python 3.11 | Build/content/check scripts; not app runtime ([check runner](../../scripts/check.py), CAD build helper) | Useful orchestration glue, but still a developer prerequisite. Low priority unless reducing onboarding prerequisites is the objective; replacing scripts with Rust would mainly reduce toolchain count. |
 | Dioxus CLI, wasm-pack, wasm-bindgen, Rust WASM target | Build and packaging | Required by the Rust browser app. wasm-bindgen generates JavaScript glue; a Rust source policy cannot remove the browser's JavaScript execution environment. Simplify only with evidence that a tool duplicates another. |
 | Chrome/Chromium and ChromeDriver | Mounted WASM/browser tests | Verification-only, not shipped to users. Keep a browser CI lane; developers can run native checks without it. |
 | KiCad CLI | Native integration tests and optional manufacturing validation | Compatibility/validation oracle, not browser runtime. Split its test lane if local setup friction matters. |
-| WASI SDK, C/C++ compiler, CMake/Ninja, container runtime, native OCCT | CAD kernel build and oracle ([toolchain container](../../cad/wasm/Containerfile), [kernel boundary](../../cad/wasm/src/model/kernel.rs)) | Highest-confidence complexity candidate if the goal is pure Rust and easier CAD builds. A Rust B-rep experiment targets this cluster but introduces geometric compatibility risk. |
+| WASI SDK, C/C++ compiler, CMake/Ninja, container runtime, native OCCT | CAD kernel build and oracle (toolchain container, kernel boundary) | Highest-confidence complexity candidate if the goal is pure Rust and easier CAD builds. A Rust B-rep experiment targets this cluster but introduces geometric compatibility risk. |
 | Generated WASM glue and bundled models/fonts/catalogue data | Shipped assets | Asset size and update responsibility, not developer dependencies. Measure before pruning; bundled data enables offline operation. |
 | Rust workspace crate count and worker boundaries | Compile architecture and runtime isolation | Crate count alone is not runtime overhead. Keep the feature crates unless compile-graph measurements or ownership evidence identify a real cost. |
 | Rhai scripting ([core manifest](../../core/Cargo.toml), [script engine](../../core/src/script.rs)) | User-authored geometry scripts, compiled for native and WASM | Only a candidate if the product removes user scripting. Its current presence is purposeful; measure binary impact before treating it as avoidable. |

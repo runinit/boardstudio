@@ -286,6 +286,37 @@ fn segments_intersect(a: [f64; 2], b: [f64; 2], c: [f64; 2], d: [f64; 2]) -> boo
     (ab_c < 0 && ab_d > 0 || ab_c > 0 && ab_d < 0) && (cd_a < 0 && cd_b > 0 || cd_a > 0 && cd_b < 0)
 }
 
+/// A normalized profile region: counter-clockwise exterior and clockwise holes.
+pub type NormalizedProfileRegion = (Vec<[f64; 2]>, Vec<Vec<[f64; 2]>>);
+
+/// Validates and normalizes one prepared case profile region.
+///
+/// The returned exterior is counter-clockwise and holes are clockwise. Exact
+/// consecutive duplicates and one closing duplicate are removed in the
+/// returned coordinates. Rings must be finite, simple, nonzero-area, and each
+/// hole must be strictly contained by the exterior without touching or
+/// nesting another hole. Inputs are never changed.
+pub fn normalize_case_profile_region(
+    exterior: &[[f64; 2]],
+    holes: &[Vec<[f64; 2]>],
+) -> Result<NormalizedProfileRegion, String> {
+    support_owner::normalize_case_profile_region(exterior, holes)
+}
+
+/// Tests whether the exact planar area outside a support prism and one exterior
+/// is strictly below the existing unit-height owner cutoff of `1e-8 mm³`.
+///
+/// Coordinates are interpreted as their exact represented f64 values. The
+/// routine accepts only finite, nonzero-area simple rings (exact consecutive
+/// and closing duplicates are normalized in a local copy). It returns a
+/// validation error for unsupported operands and never changes either input.
+pub fn support_polygon_outside_area_below_owner_cutoff(
+    support: &[[f64; 2]],
+    exterior: &[[f64; 2]],
+) -> Result<bool, String> {
+    support_owner::outside_area_below_owner_cutoff(support, exterior)
+}
+
 #[cfg(test)]
 mod support_polygon_tests {
     use super::support_polygon_has_self_intersection as self_intersects;
@@ -356,32 +387,4 @@ mod support_polygon_tests {
         assert!(!self_intersects(&ring));
         assert_eq!(ring, input_copy, "predicate must not mutate caller points");
     }
-}
-
-/// Tests whether the exact planar area outside a support prism and one exterior
-/// is strictly below the existing unit-height owner cutoff of `1e-8 mm³`.
-///
-/// Coordinates are interpreted as their exact represented f64 values. The
-/// routine accepts only finite, nonzero-area simple rings (exact consecutive
-/// and closing duplicates are normalized in a local copy). It returns a
-/// validation error for unsupported operands and never changes either input.
-pub fn support_polygon_outside_area_below_owner_cutoff(
-    support: &[[f64; 2]],
-    exterior: &[[f64; 2]],
-) -> Result<bool, String> {
-    support_owner::outside_area_below_owner_cutoff(support, exterior)
-}
-
-/// Validates and normalizes one prepared case profile region.
-///
-/// The returned exterior is counter-clockwise and holes are clockwise. Exact
-/// consecutive duplicates and one closing duplicate are removed in the
-/// returned coordinates. Rings must be finite, simple, nonzero-area, and each
-/// hole must be strictly contained by the exterior without touching or
-/// nesting another hole. Inputs are never changed.
-pub fn normalize_case_profile_region(
-    exterior: &[[f64; 2]],
-    holes: &[Vec<[f64; 2]>],
-) -> Result<(Vec<[f64; 2]>, Vec<Vec<[f64; 2]>>), String> {
-    support_owner::normalize_case_profile_region(exterior, holes)
 }

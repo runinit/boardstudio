@@ -10,48 +10,39 @@ derived regions.
 The WASM module exports `build_case`, `build_assembly`, `preview_body`,
 `export_cached_assembly`, `build_keycaps` and `read_step_model`; the Rust worker
 in `web/src/cad_worker.rs` calls them through the generated `assets/cad-worker/entry.js`.
-The module pins Cadrum 0.8.20 and OCCT 8.0.1, uses absolute 0.1 mm linear and
-0.5 rad angular tessellation settings, and expands indexed Cadrum meshes into
-non-indexed `Float32Array` buffers. STEP imports are limited to 32 MiB and return
-millimeter bounds. Operations remain in the dedicated lazy CAD worker; request
-IDs, revisions, worker restarts and transferable buffers are owned by the Rust
-worker protocol. There is no TypeScript CAD package.
+`query_collision_mesh_pair` answers vendor mesh collision and clearance queries
+with `parry3d-f64`.
 
-`python3 cad/scripts/test-cadrum.py` builds the native Core preparation driver
-and the STEP oracle, runs the native Cadrum tests, then builds the WASM artifact
-through the pinned WASI SDK container. The native tests build every case,
-assembly and fixture, check them against `cad/test/fixtures/step-expectations.json`
-(original assertions, tolerances and the libcascade baseline) and the pinned
-source ledgers, and re-read each export with the STEP oracle.
+The kernel is `boardstudio-cad` (`cad/monstertruck`), a pure-Rust crate over the
+vendored Monstertruck 0.4.1 crates in `cad/monstertruck-qualification/vendor`.
+It builds layered 2.5D cases and source-backed PCBs, writes exact STEP, meshes
+profiles into non-indexed `Float32Array` buffers and imports vendor STEP with
+surface and retained wireframe lines. STEP imports are limited to 32 MiB and
+return millimeter bounds. Operations remain in the dedicated lazy CAD worker;
+request IDs, revisions, worker restarts and transferable buffers are owned by the
+Rust worker protocol. There is no TypeScript CAD package and no C or C++
+toolchain: `cad/wasm` builds for `wasm32-unknown-unknown` with `wasm-pack`.
 
-The STEP oracle (`cad/step-oracle`) is test-only and native-only. It runs as a
-separate process that reads STEP with OCCT's own `STEPControl_Reader` and checks
-`BRepCheck_Analyzer`, volume, optimal bounds, solid count and orphan faces. It is
-adapter-independent from the production Cadrum reader (which sews orphan faces)
-but **not kernel-independent**: it uses the same OCCT 8.0.1 archive. Independent
-kernel evidence comes from the pinned FreeCAD measurements and analytic expectations
-in the fixtures. Native tests cannot prove WASM bindings, worker transfer or
-cancellation; the Rust worker tests (`python3 scripts/check.py browser`) own transport, and
-`python3 cad/scripts/test-cadrum-browser.py` runs the real WASM bindings in headless
+`python3 cad/scripts/test-cad.py` runs the native `boardstudio-cad` tests
+(including the independent STEP accuracy checker in `src/step_accuracy/`, checked
+against `cad/test/fixtures/step-expectations.json` and the pinned FreeCAD
+measurements) and the native `cad/wasm` provider tests. Native tests cannot prove
+WASM bindings, worker transfer or cancellation; the Rust worker tests
+(`python3 scripts/check.py browser`) own transport, and
+`python3 cad/scripts/test-cad-browser.py` runs the real WASM bindings in headless
 Chromium through ChromeDriver (result shapes, STEP import bounds and rejection,
 buffer ownership). Chrome and ChromeDriver must be installed; set `CHROME` or
 `CHROMEDRIVER` when their binaries are not on `PATH`. Run it after
-`build-cadrum-wasm.py`. Its 180-second default bounds browser execution; owned
+`build-cad-wasm.py`. Its 180-second default bounds browser execution; owned
 browser cleanup has a separate, shared four-second maximum grace period.
-
-The first build downloads target-specific OCCT 8.0.1 archives and verifies their
-SHA-256 digests before extraction. The WASM build requires Podman or Docker;
-the native tests use the verified Linux x86_64 archive. The toolchain pins and
-integration evidence are recorded in the
-[Cadrum assessment](../docs/research/cad/cadrum-assessment.md).
 
 CAD orchestration uses Python 3.11+ and the standard library. Direct commands:
 
 ```sh
-python3 cad/scripts/prepare-cadrum-occt.py native
-python3 cad/scripts/build-cadrum-wasm.py
-python3 cad/scripts/test-cadrum.py
+python3 cad/scripts/build-cad-wasm.py
+python3 cad/scripts/test-cad.py
+python3 cad/scripts/test-cad-browser.py
 ```
 
-Run these from the repository root. `test-cadrum.py` builds the Core preparation driver and
-the STEP oracle, runs the native tests and builds WASM.
+Run these from the repository root. `build-cad-wasm.py` skips the build when the
+hashed inputs match the last build.

@@ -54,7 +54,7 @@ def provider_commands(fast: bool = False) -> list[tuple[list[str], Path]]:
           "--no-default-features", "--features", "service-worker"], ROOT),
         (["wasm-pack", "build", "renderer", "--target", "web", "--out-dir", "pkg",
           "--out-name", "boardstudio_renderer_wasm", "--release", "--locked"], ROOT),
-        ([sys.executable, "cad/scripts/build-cadrum-wasm.py",
+        ([sys.executable, "cad/scripts/build-cad-wasm.py",
           *(["--no-opt"] if fast else [])], ROOT),
         ([sys.executable, "scripts/stage-ergogen-models.py", "--source-root",
           "ergogen/library/vendor", "--destination", "web/assets/ergogen-models",
@@ -87,7 +87,7 @@ def copy_runtime_assets(site: Path, provider_root: Path | None = None) -> None:
     (assets / "cad-worker/entry.js").write_text(
         'import init, { start_cad_worker } from "./m1_cad_worker.js";\n'
         'await init();\n'
-        'start_cad_worker(new URL("../cad/boardstudio_cadrum_wasm.js", import.meta.url).href);\n'
+        'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n'
     )
 
 
@@ -107,7 +107,7 @@ def stage_runtime_assets(provider_root: Path = ROOT) -> None:
     (assets / "cad-worker/entry.js").write_text(
         'import init, { start_cad_worker } from "./m1_cad_worker.js";\n'
         'await init();\n'
-        'start_cad_worker(new URL("../cad/boardstudio_cadrum_wasm.js", import.meta.url).href);\n'
+        'start_cad_worker(new URL("../cad/boardstudio_cad_wasm.js", import.meta.url).href);\n'
     )
 
 

@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 REQUIRED = (
-    ROOT / "web/assets/cad/boardstudio_cadrum_wasm_bg.wasm",
+    ROOT / "web/assets/cad/boardstudio_cad_wasm_bg.wasm",
     ROOT / "web/assets/renderer/boardstudio_renderer_wasm_bg.wasm",
     ROOT / "web/assets/core-worker/entry.js",
     ROOT / "web/assets/core-worker/m1_core_worker_bg.wasm",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the real Cadrum WASM bindings in headless Chromium (needs `cad/wasm/pkg`, built by build-cadrum-wasm.py)."""
+"""Run the real Monstertruck CAD WASM bindings in headless Chromium (needs `cad/wasm/pkg`, built by build-cad-wasm.py)."""
 import functools
 import http.server
 import json
@@ -74,8 +74,6 @@ def run_page(url, browser=None, timeout=180):
         return result
 
     def profile_processes(profile):
-        # ChromeDriver normally closes these with DELETE /session. This exact
-        # profile match handles driver crashes without touching user browsers.
         proc_root = Path("/proc")
         if not proc_root.exists():
             return None
@@ -97,7 +95,7 @@ def run_page(url, browser=None, timeout=180):
         except OSError:
             return False
 
-    with tempfile.TemporaryDirectory(prefix="cadrum-browser-") as owned_dir:
+    with tempfile.TemporaryDirectory(prefix="cad-browser-") as owned_dir:
         profile = str(Path(owned_dir) / "chrome-profile")
         Path(profile).mkdir()
         log_path = Path(owned_dir) / "chromedriver.log"
@@ -268,8 +266,8 @@ def parse_result(dom):
 
 
 def main():
-    if not (CAD_ROOT / "wasm/pkg/boardstudio_cadrum_wasm_bg.wasm").exists():
-        sys.exit("cad/wasm/pkg is missing; run python3 cad/scripts/build-cadrum-wasm.py first")
+    if not (CAD_ROOT / "wasm/pkg/boardstudio_cad_wasm_bg.wasm").exists():
+        sys.exit("cad/wasm/pkg is missing; run python3 cad/scripts/build-cad-wasm.py first")
     server = serve()
     try:
         done = run_page(f"http://127.0.0.1:{server.server_address[1]}/{PAGE}")

@@ -21,6 +21,8 @@ Use pure-Rust `parry3d-f64` mesh queries for basic vendor-part collision validat
 
 ## Comments
 
+2026-10-17 continuation: The dirty checkout wires raw Parry queries through Host/worker and adds Runtime assessment, but `query_vendor_step_collision` has no production caller and accepts vendor/vendor operands only. Current imports emit `analysis_error_bound_mm: None`; Runtime supplies no query numerical bound and does not rule out containment, so the production path cannot produce a supported source-geometry band. Generated case/PCB operands, actual validation-flow delivery, qualified bounds/containment, refinement and complete browser acceptance remain open. Synthetic assessment tests do not establish those production capabilities.
+
 2026-10-17 user approved explicit per-file vendor preview repair budgets. Retain declared precision, chosen repair limit and measured actual movement separately. A requested repair budget is not a source/mesh/query accuracy certificate; report supported collision bands and uncertain outcomes, accounting for qualified actual repair contributions without double counting.
 
 2026-10-17 checkpoint review: [Spec](../../../../.evidence/vendor-collision-014/spec-review/REPORT.md) and [Standards](../../../../.evidence/vendor-collision-014/standards-review/REPORT.md) clear the bounded private raw-surface query adapter. Seven native checks and WASM compilation pass; provenance and unsupported/uncertain paths are retained. Degenerate contact normals may be zero and local Contact.dist is not a global penetration/clearance certificate. Ordinary Rust build scripts in transitive dependencies are not native links. Supported source bands, eligible containment, real007 and010 production integration remain open; no014 completion claimed.

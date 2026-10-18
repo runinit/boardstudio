@@ -1,29 +1,39 @@
 [package]
-name = "boardstudio-cadrum-wasm"
+name = "boardstudio-cad-wasm"
 version = "0.1.0"
 edition = "2021"
 publish = false
-# Its own workspace root. The repo root excludes this crate, but cargo still walks up past that
-# exclusion into an enclosing checkout (a nested .worktrees/ checkout) and fails. See
-# docs/plans/check-speed/issues/10-nested-worktrees.md.
+
 [workspace]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+boardstudio-cad = { path = "../monstertruck" }
 boardstudio-contracts = { path = "../../contracts/rust" }
-cadrum = { version = "=0.8.20", default-features = false }
 js-sys = "=0.3.106"
-serde = { version = "1", features = ["derive"] }
-serde-wasm-bindgen = "=0.6.5"
-wasm-bindgen = "=0.2.129"
 lyon_path = "=1.0.19"
 lyon_tessellation = "=1.0.22"
-
-ttf-parser = "=0.25.1"
 manifold-rust = { version = "=0.16.0", default-features = false }
+parry3d-f64 = { version = "=0.31.1", default-features = false, features = ["required-features", "alloc", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "=0.6.5"
+ttf-parser = "=0.25.1"
+wasm-bindgen = "=0.2.129"
 
 [dev-dependencies]
-serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
+serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"
+step-p21 = "=0.1.1"
+
+[patch.crates-io]
+cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }
+monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
+monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }
+monstertruck-geometry = { path = "../monstertruck-qualification/vendor/monstertruck-geometry" }
+monstertruck-io = { path = "../monstertruck-qualification/vendor/monstertruck-io" }
+monstertruck-mesh = { path = "../monstertruck-qualification/vendor/monstertruck-mesh" }
+monstertruck-meshing = { path = "../monstertruck-qualification/vendor/monstertruck-meshing" }
+monstertruck-modeling = { path = "../monstertruck-qualification/vendor/monstertruck-modeling" }
+monstertruck-traits = { path = "../monstertruck-qualification/vendor/monstertruck-traits" }

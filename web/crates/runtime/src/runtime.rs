@@ -2459,6 +2459,9 @@ impl Runtime {
             operation: CadOperation::Preview,
             prepared: Some(prepared.prepared.clone()),
             source_sha256: None,
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: vec![],
         };
         let reply = worker
@@ -3277,6 +3280,9 @@ impl Runtime {
             operation: CadOperation::ReadStep,
             prepared: None,
             source_sha256: Some(bytes.sha256().to_owned()),
+            step_import_options: None,
+            collision_query: None,
+            collision_meshes: None,
             input_bytes: bytes.bytes().to_vec(),
         };
         self.native_model_jobs
@@ -3297,7 +3303,163 @@ impl Runtime {
             positions: mesh.positions,
             normals: mesh.normals,
             colors: None,
+            step_bounds: result.bounds,
+            vendor_step: result.vendor_step.map(Rc::new),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn query_vendor_step_collision(
+        &self,
+        left: &crate::model_delivery::DeliveredModel,
+        left_explicit_pcb_transform: Option<[f64; 16]>,
+        right: &crate::model_delivery::DeliveredModel,
+        right_explicit_pcb_transform: Option<[f64; 16]>,
+        clearance_threshold_mm: f64,
+        requested_accuracy_mm: Option<f64>,
+        scope: Scope,
+        token: SnapshotToken,
+        revision: u64,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<crate::model_delivery::CadCollisionResult, String> {
+        use crate::model_delivery::{
+            CadCollisionAssessment, CadCollisionResult, assess_collision_observation,
+            resolve_physical_model_row_transform,
+        };
+        use boardstudio_web_host::cad_jobs::{
+            CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery,
+        };
+
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("STEP collision request became stale before worker setup".into());
+        }
+        let (Some(left_step), Some(right_step)) = (&left.mesh.vendor_step, &right.mesh.vendor_step)
+        else {
+            return Ok(CadCollisionResult {
+                observation: None,
+                left_provenance: None,
+                right_provenance: None,
+                assessment: CadCollisionAssessment::Unknown {
+                    reasons: vec![
+                        "collision query requires retained vendor STEP source assets".into(),
+                    ],
+                    refinement_requested: requested_accuracy_mm.is_some(),
+                },
+            });
+        };
+        let left_transform =
+            match resolve_physical_model_row_transform(left, left_explicit_pcb_transform) {
+                Ok(matrix) => matrix,
+                Err(reason) => {
+                    return Ok(CadCollisionResult {
+                        observation: None,
+                        left_provenance: None,
+                        right_provenance: None,
+                        assessment: CadCollisionAssessment::Unknown {
+                            reasons: vec![reason],
+                            refinement_requested: requested_accuracy_mm.is_some(),
+                        },
+                    });
+                }
+            };
+        let right_transform =
+            match resolve_physical_model_row_transform(right, right_explicit_pcb_transform) {
+                Ok(matrix) => matrix,
+                Err(reason) => {
+                    return Ok(CadCollisionResult {
+                        observation: None,
+                        left_provenance: None,
+                        right_provenance: None,
+                        assessment: CadCollisionAssessment::Unknown {
+                            reasons: vec![reason],
+                            refinement_requested: requested_accuracy_mm.is_some(),
+                        },
+                    });
+                }
+            };
+
+        let worker = crate::case_model_lifecycle::case_model_worker(
+            &self.cad_worker,
+            &scope,
+            |worker| !worker.is_closed(),
+            || {
+                CadWorker::new(&resource_url("assets/cad-worker/entry.js")?)
+                    .map(Rc::new)
+                    .map_err(|error| error.to_string())
+            },
+        )?;
+        worker.ready().await.map_err(|error| error.to_string())?;
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("STEP collision request became stale before dispatch".into());
+        }
+        let operation = self.operation().0;
+        let identity = CadSnapshotIdentity {
+            token: token.0,
+            session_epoch: scope.session_epoch.0,
+            document_id: scope.document_id.clone(),
+            board_id: scope.board_id.clone(),
+            instance_id: scope.instance_id.clone(),
+            revision,
+        };
+        let request = CadRequest {
+            request_id: format!("case-model-collision-{revision}-{operation}"),
+            job_id: format!("case-model-collision-{revision}-{operation}"),
+            identity: identity.clone(),
+            operation: CadOperation::CollisionQuery,
+            prepared: None,
+            source_sha256: None,
+            step_import_options: None,
+            collision_query: Some(CadCollisionQuery {
+                left: CadCollisionOperand {
+                    model_id: left.id.clone(),
+                    source_sha256: left_step.source_sha256.clone(),
+                    import_options: left_step.import_options,
+                    row_transform_f64: left_transform,
+                },
+                right: CadCollisionOperand {
+                    model_id: right.id.clone(),
+                    source_sha256: right_step.source_sha256.clone(),
+                    import_options: right_step.import_options,
+                    row_transform_f64: right_transform,
+                },
+                clearance_threshold_mm,
+                requested_accuracy_mm,
+            }),
+            collision_meshes: Some(CadCollisionMeshPair {
+                left_positions_mm_f64: left_step.surface_positions_mm_f64.clone(),
+                left_triangle_face_occurrence_indices: left_step
+                    .triangle_face_occurrence_indices
+                    .clone(),
+                right_positions_mm_f64: right_step.surface_positions_mm_f64.clone(),
+                right_triangle_face_occurrence_indices: right_step
+                    .triangle_face_occurrence_indices
+                    .clone(),
+            }),
+            input_bytes: Vec::new(),
+        };
+        self.native_model_jobs
+            .borrow_mut()
+            .insert(request.job_id.clone());
+        let reply = worker.request(request.clone()).await;
+        self.native_model_jobs.borrow_mut().remove(&request.job_id);
+        let reply = reply.map_err(|error| error.to_string())?;
+        if !is_current() || self.scope().as_ref() != Some(&scope) {
+            return Err("STEP collision request became stale after parsing".into());
+        }
+        let result =
+            validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let observation = result
+            .collision
+            .ok_or_else(|| "STEP collision query returned no observation".to_owned())?;
+        Ok(assess_collision_observation(
+            left_step,
+            right_step,
+            clearance_threshold_mm,
+            requested_accuracy_mm,
+            None,
+            false,
+            observation,
+        ))
     }
 
     fn native_model_delivery_ports(
@@ -5408,6 +5570,9 @@ impl Runtime {
                 operation,
                 prepared: Some(prepared.prepared.clone()),
                 source_sha256: None,
+                step_import_options: None,
+                collision_query: None,
+                collision_meshes: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -5539,6 +5704,9 @@ impl Runtime {
                 operation: CadOperation::ExportStep,
                 prepared: Some(prepared),
                 source_sha256: None,
+                step_import_options: None,
+                collision_query: None,
+                collision_meshes: None,
                 input_bytes: vec![],
             };
             let reply = worker
@@ -6867,6 +7035,9 @@ async fn request_exact_cad(
         operation: CadOperation::Exact,
         prepared: Some(prepared),
         source_sha256: None,
+        step_import_options: None,
+        collision_query: None,
+        collision_meshes: None,
         input_bytes: Vec::new(),
     };
     let reply = worker
@@ -7242,10 +7413,10 @@ pub mod project_name_test_support {
 
     pub async fn run_pending(runtime: &Rc<Runtime>) {
         loop {
-            let mut pending =
-                VecDeque::from(std::mem::take(&mut *runtime.held_effects.borrow_mut()));
-            while let Some(effect) = pending.pop_front() {
-                pending.extend(runtime.run(effect).await);
+            let pending = std::mem::take(&mut *runtime.held_effects.borrow_mut());
+            if !pending.is_empty() {
+                // Keep Runtime effects off the mounted test's WASM poll stack too.
+                runtime.drive(pending);
             }
             let drives = std::mem::take(&mut *runtime.in_process_drives.borrow_mut());
             if drives.is_empty() {

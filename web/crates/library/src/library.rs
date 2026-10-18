@@ -2998,12 +2998,11 @@ mod mounted_tests {
             },
         )
         .await;
-        wait_until_step("the first landing is accepted as First name", async || {
-            support::run_pending(&runtime).await;
+        wait_until("the first landing is accepted as First name", || {
             runtime.model().accepted.unwrap().document.name == "First name"
         })
         .await;
-        drain_and_yield(&runtime).await;
+        gloo_timers::future::TimeoutFuture::new(0).await;
         assert_eq!(
             runtime.model().accepted.unwrap().document.name,
             "First name"

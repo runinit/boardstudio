@@ -14,7 +14,10 @@ mod mechanical;
 mod wasm;
 
 pub use assets::decode_stl;
-pub use math::{component_model_transform, pcb_model_transform, transform_point};
+pub use math::{
+    component_model_transform, mat4_to_f64_cols, pcb_model_transform, physical_pcb_transform,
+    transform_point,
+};
 pub use wrl::decode_wrl;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

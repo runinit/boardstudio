@@ -1,6 +1,6 @@
 # cargo-deny policy for the root workspace (`python3 scripts/check.py deny`).
 # Advisories are covered by cargo-audit in the separate security workflow, so they are not repeated.
-# The cad/wasm and cad/step-oracle workspaces have their own lockfiles and are not checked here.
+# The cad/wasm workspace has its own lockfile and is not checked here.
 
 [graph]
 all-features = true

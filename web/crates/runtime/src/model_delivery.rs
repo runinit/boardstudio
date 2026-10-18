@@ -410,6 +410,8 @@ pub struct MeshArrays {
     pub positions: Vec<f32>,
     pub normals: Vec<f32>,
     pub colors: Option<Vec<f32>>,
+    pub step_bounds: Option<boardstudio_web_host::cad_jobs::CadBounds>,
+    pub vendor_step: Option<Rc<boardstudio_web_host::cad_jobs::CadVendorStep>>,
 }
 
 #[derive(Clone, Debug)]
@@ -417,6 +419,8 @@ pub struct ValidatedMesh {
     pub positions: Rc<[f32]>,
     pub normals: Rc<[f32]>,
     pub colors: Option<Rc<[f32]>>,
+    pub step_bounds: Option<boardstudio_web_host::cad_jobs::CadBounds>,
+    pub vendor_step: Option<Rc<boardstudio_web_host::cad_jobs::CadVendorStep>>,
 }
 
 impl TryFrom<MeshArrays> for ValidatedMesh {
@@ -445,12 +449,44 @@ impl TryFrom<MeshArrays> for ValidatedMesh {
                 return Err("Model mesh contains non-finite colors".into());
             }
         }
+        if let Some(vendor_step) = &arrays.vendor_step {
+            let bounds = arrays
+                .step_bounds
+                .as_ref()
+                .ok_or_else(|| "STEP model asset omitted bounds".to_owned())?;
+            boardstudio_web_host::cad_jobs::validate_vendor_step(
+                &vendor_step.source_sha256,
+                vendor_step.import_options,
+                &boardstudio_web_host::cad_jobs::CadMesh {
+                    positions: arrays.positions.clone(),
+                    normals: arrays.normals.clone(),
+                },
+                bounds,
+                vendor_step,
+            )?;
+        }
         Ok(Self {
             positions: Rc::from(arrays.positions),
             normals: Rc::from(arrays.normals),
             colors: arrays.colors.map(Rc::from),
+            step_bounds: arrays.step_bounds,
+            vendor_step: arrays.vendor_step,
         })
     }
+}
+
+pub fn derived_step_cache_key(
+    sha256: &str,
+    options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+) -> Result<String, String> {
+    if !boardstudio_web_host::cad_jobs::valid_source_sha256(sha256) {
+        return Err("STEP cache key requires a canonical 64-hex SHA-256".into());
+    }
+    let options = options.validate()?;
+    Ok(match options.preview_repair_budget_mm {
+        None => sha256.to_owned(),
+        Some(budget) => format!("{sha256}:repair={:016x}", budget.to_bits()),
+    })
 }
 
 #[derive(Clone)]
@@ -504,6 +540,43 @@ impl Default for ModelMeshCache {
 }
 
 impl ModelMeshCache {
+    pub fn claim_with_step_options(
+        &mut self,
+        sha256: &str,
+        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        batch: &ModelBatchIdentity,
+    ) -> Result<MeshCacheClaim, String> {
+        let key = derived_step_cache_key(sha256, options)?;
+        self.claim(&key, batch)
+    }
+
+    pub fn complete_with_step_options(
+        &mut self,
+        sha256: &str,
+        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        task_token: u64,
+        mesh: Rc<ValidatedMesh>,
+    ) -> Result<bool, String> {
+        let key = derived_step_cache_key(sha256, options)?;
+        if let Some(vendor_step) = &mesh.vendor_step
+            && (vendor_step.source_sha256 != sha256
+                || !vendor_step.import_options.same_identity(options))
+        {
+            return Err("STEP asset identity does not match derived cache key".into());
+        }
+        Ok(self.complete(&key, task_token, mesh))
+    }
+
+    pub fn fail_with_step_options(
+        &mut self,
+        sha256: &str,
+        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        task_token: u64,
+    ) -> Result<bool, String> {
+        let key = derived_step_cache_key(sha256, options)?;
+        Ok(self.fail(&key, task_token))
+    }
+
     pub fn claim(
         &mut self,
         sha256: &str,
@@ -1135,6 +1208,219 @@ pub fn resolve_preview_assets(
         .collect()
 }
 
+pub const TIGHT_COLLISION_ACCURACY_MM: f64 = 0.01;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CadCollisionRelation {
+    Clear,
+    Violation,
+    Uncertain,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CadCollisionAssessment {
+    SupportedBand {
+        lower_mm: f64,
+        upper_mm: f64,
+        relation: CadCollisionRelation,
+    },
+    Unknown {
+        reasons: Vec<String>,
+        refinement_requested: bool,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CadResolvedFaceProvenance {
+    pub triangle_index: u32,
+    pub face_occurrence_index: u32,
+    pub solid_occurrence_index: u32,
+    pub representation_id: String,
+    pub solid_id: String,
+    pub shell_index: u32,
+    pub face_id: String,
+    pub support_id: String,
+    pub support_kind: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CadCollisionResult {
+    pub observation: Option<boardstudio_web_host::cad_jobs::CadCollisionObservation>,
+    pub left_provenance: Option<CadResolvedFaceProvenance>,
+    pub right_provenance: Option<CadResolvedFaceProvenance>,
+    pub assessment: CadCollisionAssessment,
+}
+
+pub fn resolve_face_provenance(
+    asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+    provenance: &boardstudio_web_host::cad_jobs::CadTriangleProvenance,
+) -> Option<CadResolvedFaceProvenance> {
+    let expected = *asset
+        .triangle_face_occurrence_indices
+        .get(provenance.triangle_index as usize)?;
+    if expected != provenance.face_occurrence_index {
+        return None;
+    }
+    let occurrence = asset
+        .face_occurrences
+        .get(provenance.face_occurrence_index as usize)?;
+    let source_face = asset
+        .source_faces
+        .get(occurrence.source_face_index as usize)?;
+    Some(CadResolvedFaceProvenance {
+        triangle_index: provenance.triangle_index,
+        face_occurrence_index: provenance.face_occurrence_index,
+        solid_occurrence_index: occurrence.solid_occurrence_index,
+        representation_id: occurrence.representation_id.clone(),
+        solid_id: source_face.solid_id.clone(),
+        shell_index: source_face.shell_index,
+        face_id: source_face.face_id.clone(),
+        support_id: source_face.support_id.clone(),
+        support_kind: source_face.support_kind.clone(),
+    })
+}
+
+pub fn resolve_physical_model_row_transform(
+    delivered: &DeliveredModel,
+    explicit_pcb_row_transform: Option<[f64; 16]>,
+) -> Result<[f64; 16], String> {
+    if let Some(matrix) = delivered.matrix {
+        boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+        return Ok(matrix);
+    }
+    let matrix = explicit_pcb_row_transform.ok_or_else(|| {
+        format!(
+            "PCB model row {} has matrix: None and no explicit physical assembly transform was supplied",
+            delivered.id
+        )
+    })?;
+    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+    Ok(matrix)
+}
+
+pub fn assess_collision_observation(
+    left_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+    right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+    clearance_threshold_mm: f64,
+    requested_accuracy_mm: Option<f64>,
+    query_numerical_error_bound_mm: Option<f64>,
+    containment_ruled_out: bool,
+    observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
+) -> CadCollisionResult {
+    use boardstudio_web_host::cad_jobs::CadCollisionObservation;
+
+    let pair = match &observation {
+        CadCollisionObservation::SurfaceIntersecting {
+            intersection_triangles,
+            ..
+        } => Some(intersection_triangles),
+        CadCollisionObservation::SurfaceSeparated { closest_points, .. } => {
+            Some(&closest_points.triangles)
+        }
+        CadCollisionObservation::Uncertain { .. } => None,
+    };
+    let left_provenance = pair.and_then(|p| resolve_face_provenance(left_asset, &p.left));
+    let right_provenance = pair.and_then(|p| resolve_face_provenance(right_asset, &p.right));
+
+    let mut reasons = Vec::new();
+    if pair.is_some() && (left_provenance.is_none() || right_provenance.is_none()) {
+        reasons.push("witness triangle provenance could not be resolved to source faces".into());
+    }
+    if let CadCollisionObservation::Uncertain { reason, .. } = &observation {
+        reasons.push(format!("raw mesh observation is uncertain: {reason}"));
+    }
+    let left_bound = left_asset
+        .accuracy
+        .analysis_error_bound_mm
+        .filter(|v| v.is_finite() && *v >= 0.0);
+    let right_bound = right_asset
+        .accuracy
+        .analysis_error_bound_mm
+        .filter(|v| v.is_finite() && *v >= 0.0);
+    let query_bound = query_numerical_error_bound_mm.filter(|v| v.is_finite() && *v >= 0.0);
+    if left_bound.is_none() {
+        reasons.push("left asset has no certified analysisErrorBoundMm".into());
+    }
+    if right_bound.is_none() {
+        reasons.push("right asset has no certified analysisErrorBoundMm".into());
+    }
+    if query_bound.is_none() {
+        reasons.push("Parry query has no certified numerical error bound".into());
+    }
+    if !reasons.is_empty() {
+        return CadCollisionResult {
+            observation: Some(observation),
+            left_provenance,
+            right_provenance,
+            assessment: CadCollisionAssessment::Unknown {
+                reasons,
+                refinement_requested: requested_accuracy_mm.is_some(),
+            },
+        };
+    }
+
+    let band_half_width = left_bound.unwrap() + right_bound.unwrap() + query_bound.unwrap();
+    if let Some(requested) = requested_accuracy_mm
+        && band_half_width > requested
+    {
+        return CadCollisionResult {
+            observation: Some(observation),
+            left_provenance,
+            right_provenance,
+            assessment: CadCollisionAssessment::Unknown {
+                reasons: vec![format!(
+                    "pair error budget {band_half_width} mm exceeds requested accuracy {requested} mm"
+                )],
+                refinement_requested: true,
+            },
+        };
+    }
+
+    let assessment = match &observation {
+        CadCollisionObservation::SurfaceSeparated {
+            surface_distance_mm,
+            ..
+        } => {
+            let lower_mm = (surface_distance_mm - band_half_width).max(0.0);
+            let upper_mm = surface_distance_mm + band_half_width;
+            let relation = if upper_mm < clearance_threshold_mm {
+                CadCollisionRelation::Violation
+            } else if lower_mm >= clearance_threshold_mm && containment_ruled_out {
+                CadCollisionRelation::Clear
+            } else {
+                CadCollisionRelation::Uncertain
+            };
+            CadCollisionAssessment::SupportedBand {
+                lower_mm,
+                upper_mm,
+                relation,
+            }
+        }
+        CadCollisionObservation::SurfaceIntersecting { .. } => {
+            let lower_mm = 0.0;
+            let upper_mm = band_half_width;
+            let relation = if upper_mm < clearance_threshold_mm || band_half_width == 0.0 {
+                CadCollisionRelation::Violation
+            } else {
+                CadCollisionRelation::Uncertain
+            };
+            CadCollisionAssessment::SupportedBand {
+                lower_mm,
+                upper_mm,
+                relation,
+            }
+        }
+        CadCollisionObservation::Uncertain { .. } => unreachable!(),
+    };
+
+    CadCollisionResult {
+        observation: Some(observation),
+        left_provenance,
+        right_provenance,
+        assessment,
+    }
+}
+
 /// Native preparation records paths by source asset ID because Core needs that
 /// direction when materializing export artifacts. `PcbPreview` rows point the
 /// other way (path -> model row), so invert only at this consumer boundary.
@@ -1204,6 +1490,8 @@ mod tests {
             positions: vec![0.0; 9],
             normals: vec![1.0; 9],
             colors: None,
+            step_bounds: None,
+            vendor_step: None,
         }
     }
 
@@ -1668,6 +1956,306 @@ mod tests {
         assert_eq!(rows.delivered[0].matrix, Some(placement.matrix));
         assert!(rows.failures.is_empty());
         assert!(rows.pending.is_empty());
+    }
+
+    #[test]
+    fn step_cache_keys_isolate_repair_budgets_and_retain_full_vendor_asset() {
+        use boardstudio_web_host::cad_jobs::{
+            CadBounds, CadStepAccuracy, CadStepFaceOccurrence, CadStepImportOptions,
+            CadStepLineOccurrence, CadStepPrecision, CadStepSourceFace, CadStepUncertainty,
+            CadVendorStep,
+        };
+
+        let sha = "a".repeat(64);
+        let default_opts = CadStepImportOptions::default();
+        let repair_a = CadStepImportOptions {
+            preview_repair_budget_mm: Some(0.003),
+        };
+        let repair_b = CadStepImportOptions {
+            preview_repair_budget_mm: Some(0.005),
+        };
+        assert_ne!(
+            derived_step_cache_key(&sha, default_opts).unwrap(),
+            derived_step_cache_key(&sha, repair_a).unwrap()
+        );
+        assert_ne!(
+            derived_step_cache_key(&sha, repair_a).unwrap(),
+            derived_step_cache_key(&sha, repair_b).unwrap()
+        );
+        for bad in [f64::NAN, 0.0, -0.001, f64::INFINITY] {
+            assert!(
+                derived_step_cache_key(
+                    &sha,
+                    CadStepImportOptions {
+                        preview_repair_budget_mm: Some(bad),
+                    }
+                )
+                .is_err()
+            );
+        }
+
+        let vendor_step = Rc::new(CadVendorStep {
+            source_sha256: sha.clone(),
+            import_options: default_opts,
+            surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            source_faces: vec![CadStepSourceFace {
+                solid_id: "101".into(),
+                shell_index: 0,
+                face_id: "59".into(),
+                support_id: "58".into(),
+                support_kind: "PLANE".into(),
+            }],
+            face_occurrences: vec![CadStepFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+                representation_id: "104".into(),
+                source_uncertainty_mm: Some(0.01),
+                repair_displacement_mm: None,
+            }],
+            triangle_face_occurrence_indices: vec![0],
+            line_segments_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+            line_render_positions: vec![0.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+            line_occurrences: vec![CadStepLineOccurrence {
+                line_occurrence_index: 0,
+                trimmed_curve_id: "414".into(),
+                source_line_id: "413".into(),
+                curve_set_id: "420".into(),
+                representation_id: "430".into(),
+                source_unit_to_mm: 1.0,
+                placement_f64: [
+                    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                ],
+                declared_uncertainty_mm: None,
+            }],
+            segment_line_occurrence_indices: vec![0],
+            precision: vec![CadStepPrecision {
+                representation_id: "104".into(),
+                context_id: "103".into(),
+                geometric_dimension: Some(3),
+                declarations: vec![CadStepUncertainty {
+                    entity_id: "110".into(),
+                    length_unit_id: "102".into(),
+                    millimetres: 0.01,
+                }],
+            }],
+            accuracy: CadStepAccuracy {
+                preview_deflection_mm: 0.1,
+                preview_angular_rad: 0.5,
+                analysis_error_bound_mm: None,
+                bounds_from_source_geometry: true,
+                mesh_closed_oriented: true,
+                preview_floor_mm: 0.02,
+                preview_declared_multiplier: 2.0,
+                relaxed_beyond_declared_precision: false,
+                sampled_support_checks: 0,
+                max_sampled_support_residual_mm: None,
+                fallback_meshed_faces: 0,
+            },
+        });
+        let validated = Rc::new(
+            ValidatedMesh::try_from(MeshArrays {
+                positions: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+                normals: vec![0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                colors: None,
+                step_bounds: Some(CadBounds {
+                    min: [0.0, 0.0, 0.0],
+                    max: [1.0, 1.0, 0.0],
+                }),
+                vendor_step: Some(vendor_step.clone()),
+            })
+            .expect("complete STEP asset validates"),
+        );
+
+        let mut cache = ModelMeshCache::default();
+        let owner_batch = batch(1);
+        let MeshCacheClaim::Start { task_token, .. } = cache
+            .claim_with_step_options(&sha, default_opts, &owner_batch)
+            .unwrap()
+        else {
+            panic!("default STEP claim starts");
+        };
+        assert!(
+            cache
+                .complete_with_step_options(&sha, default_opts, task_token, validated.clone())
+                .unwrap()
+        );
+        assert!(
+            matches!(
+                cache
+                    .claim_with_step_options(&sha, repair_a, &owner_batch)
+                    .unwrap(),
+                MeshCacheClaim::Start { .. }
+            ),
+            "changing repair budget must not reuse default cached mesh"
+        );
+    }
+
+    #[test]
+    fn collision_assessment_distinguishes_unknown_supported_bands_and_tight_0_01mm_requests() {
+        use boardstudio_web_host::cad_jobs::{
+            CadClosestPointsWitness, CadCollisionObservation, CadStepAccuracy,
+            CadStepFaceOccurrence, CadStepImportOptions, CadStepSourceFace,
+            CadTrianglePairProvenance, CadTriangleProvenance, CadVendorStep,
+        };
+
+        let make_asset = |sha: &str, analysis_bound: Option<f64>| CadVendorStep {
+            source_sha256: sha.into(),
+            import_options: CadStepImportOptions::default(),
+            surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            source_faces: vec![CadStepSourceFace {
+                solid_id: "10".into(),
+                shell_index: 0,
+                face_id: "20".into(),
+                support_id: "30".into(),
+                support_kind: "PLANE".into(),
+            }],
+            face_occurrences: vec![CadStepFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+                representation_id: "40".into(),
+                source_uncertainty_mm: Some(0.001),
+                repair_displacement_mm: None,
+            }],
+            triangle_face_occurrence_indices: vec![0],
+            line_segments_mm_f64: vec![],
+            line_render_positions: vec![],
+            line_occurrences: vec![],
+            segment_line_occurrence_indices: vec![],
+            precision: vec![],
+            accuracy: CadStepAccuracy {
+                preview_deflection_mm: 0.1,
+                preview_angular_rad: 0.5,
+                analysis_error_bound_mm: analysis_bound,
+                bounds_from_source_geometry: true,
+                mesh_closed_oriented: true,
+                preview_floor_mm: 0.02,
+                preview_declared_multiplier: 2.0,
+                relaxed_beyond_declared_precision: false,
+                sampled_support_checks: 0,
+                max_sampled_support_residual_mm: None,
+                fallback_meshed_faces: 0,
+            },
+        };
+
+        let obs = CadCollisionObservation::SurfaceSeparated {
+            surface_distance_mm: 0.5,
+            closest_points: CadClosestPointsWitness {
+                triangles: CadTrianglePairProvenance {
+                    left: CadTriangleProvenance {
+                        triangle_index: 0,
+                        face_occurrence_index: 0,
+                    },
+                    right: CadTriangleProvenance {
+                        triangle_index: 0,
+                        face_occurrence_index: 0,
+                    },
+                },
+                point1_mm: [0.0, 0.0, 0.0],
+                point2_mm: [0.5, 0.0, 0.0],
+            },
+        };
+
+        let uncertified_left = make_asset(&"a".repeat(64), None);
+        let uncertified_right = make_asset(&"b".repeat(64), None);
+        let result = assess_collision_observation(
+            &uncertified_left,
+            &uncertified_right,
+            0.2,
+            None,
+            None,
+            true,
+            obs.clone(),
+        );
+        assert!(result.left_provenance.is_some());
+        assert!(result.right_provenance.is_some());
+        assert!(matches!(
+            result.assessment,
+            CadCollisionAssessment::Unknown {
+                refinement_requested: false,
+                ..
+            }
+        ));
+
+        let certified_left = make_asset(&"a".repeat(64), Some(0.02));
+        let certified_right = make_asset(&"b".repeat(64), Some(0.02));
+        let clear = assess_collision_observation(
+            &certified_left,
+            &certified_right,
+            0.2,
+            None,
+            Some(0.001),
+            true,
+            obs.clone(),
+        );
+        assert_eq!(
+            clear.assessment,
+            CadCollisionAssessment::SupportedBand {
+                lower_mm: 0.5 - 0.041,
+                upper_mm: 0.5 + 0.041,
+                relation: CadCollisionRelation::Clear,
+            }
+        );
+
+        let containment_unknown = assess_collision_observation(
+            &certified_left,
+            &certified_right,
+            0.2,
+            None,
+            Some(0.001),
+            false,
+            obs.clone(),
+        );
+        assert!(matches!(
+            containment_unknown.assessment,
+            CadCollisionAssessment::SupportedBand {
+                relation: CadCollisionRelation::Uncertain,
+                ..
+            }
+        ));
+
+        let violation = assess_collision_observation(
+            &certified_left,
+            &certified_right,
+            0.6,
+            None,
+            Some(0.001),
+            true,
+            obs.clone(),
+        );
+        assert!(matches!(
+            violation.assessment,
+            CadCollisionAssessment::SupportedBand {
+                relation: CadCollisionRelation::Violation,
+                ..
+            }
+        ));
+
+        let tight = assess_collision_observation(
+            &certified_left,
+            &certified_right,
+            0.2,
+            Some(TIGHT_COLLISION_ACCURACY_MM),
+            Some(0.001),
+            true,
+            obs,
+        );
+        assert!(matches!(
+            tight.assessment,
+            CadCollisionAssessment::Unknown {
+                refinement_requested: true,
+                ..
+            }
+        ));
+
+        let row = DeliveredModel {
+            id: "pcb-part-1".into(),
+            mesh: Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap()),
+            matrix: None,
+        };
+        assert!(
+            resolve_physical_model_row_transform(&row, None).is_err(),
+            "PCB row with matrix: None must never substitute identity"
+        );
     }
 
     fn block_on<F: Future>(future: F) -> F::Output {

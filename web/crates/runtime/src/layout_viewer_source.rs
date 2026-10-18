@@ -913,6 +913,8 @@ mod tests {
                         positions: vec![0.0; 9],
                         normals: vec![1.0; 9],
                         colors: None,
+                        step_bounds: None,
+                        vendor_step: None,
                     })
                 })
             }),

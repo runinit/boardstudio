@@ -408,14 +408,14 @@ successful merely because it was implemented or because a microbenchmark improve
 
 ## Implementation and API references
 
-- [Construction](../../../cad/wasm/src/model/construction.rs),
-  [existing equivalence tests](../../../cad/wasm/src/model/construction/equivalence.rs),
-  [cache ownership](../../../cad/wasm/src/model/construction/cache.rs),
-  [planar mesher](../../../cad/wasm/src/model/construction/planar_mesh.rs),
+- Construction,
+  existing equivalence tests,
+  cache ownership,
+  planar mesher,
   [metrics](../../../cad/wasm/src/model/metrics.rs), and [mesh bridge](../../../cad/wasm/src/model.rs).
 - [Pinned dependency](../../../cad/wasm/Cargo.toml),
-  [container](../../../cad/wasm/Containerfile), [build script](../../../cad/scripts/build-cadrum-wasm.py),
-  and [verified OCCT archives](../../../cad/scripts/prepare-cadrum-occt.py).
+  container, build script,
+  and verified OCCT archives.
 - [Cadrum pinned C++ bridge](https://github.com/lzpel/cadrum/blob/8788df70c60b986b5ab387edb75a2f6f341a8c7a/src/ffi.cpp)
   and [mesh extraction](https://github.com/lzpel/cadrum/blob/8788df70c60b986b5ab387edb75a2f6f341a8c7a/src/occt/io.rs).
 - [OCCT Boolean documentation](https://github.com/Open-Cascade-SAS/OCCT/wiki/boolean_operations).

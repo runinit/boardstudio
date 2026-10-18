@@ -28,21 +28,14 @@ jobs:
         with:
           workspaces: |
             . -> target
+            cad/monstertruck -> target
             cad/wasm -> target
-            cad/step-oracle -> target
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: cad/.cache/cadrum/*/*.tar.gz
-          key: occt-native-${{ hashFiles('cad/scripts/cadrum_build.py') }}
       - run: python3 scripts/check.py repo tooling lint test
 
   # Release build and mounted browser tests.
   web:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: rustup target add wasm32-unknown-unknown
@@ -59,24 +52,11 @@ jobs:
           chromedriver --version
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: . -> target
+          workspaces: |
+            . -> target
+            cad/wasm -> target
           shared-key: web
           save-if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' }}
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            cad/.cache/cadrum/*/*.tar.gz
-            cad/.cache/cargo-registry
-            cad/.cache/cargo-git
-          key: cadrum-wasm-${{ hashFiles('cad/scripts/cadrum_build.py', 'cad/wasm/Cargo.lock') }}
-      # Pull the published CAD toolchain image; cadrum_build.py builds it locally if this fails
-      # (for example on forks, or before cad-image.yaml has published a changed Containerfile).
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        continue-on-error: true
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
       - run: python3 scripts/check.py build browser
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()

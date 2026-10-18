@@ -52,6 +52,18 @@ const startedAt = new Date().toISOString();
     .map(element => [element.dataset.partId, element.getAttribute('transform')]));
   const saved = () => page.waitForFunction(() =>
     document.querySelector('.m1-save-state')?.dataset.state === 'saved', null, { timeout: 20000 });
+  const startSaveTracking = () => page.evaluate(() => {
+    window.__saveStates = [document.querySelector('.m1-save-state')?.dataset.state];
+    new MutationObserver(() => {
+      const state = document.querySelector('.m1-save-state')?.dataset.state;
+      if (state && window.__saveStates.at(-1) !== state) window.__saveStates.push(state);
+    }).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['data-state'] });
+  });
+  const waitForSaveCycle = () => page.waitForFunction(() => {
+    const states = window.__saveStates || [];
+    const saving = states.indexOf('saving', 1);
+    return saving >= 0 && states.slice(saving + 1).includes('saved');
+  }, null, { timeout: 20000 });
   const selectScope = async name => {
     const direct = page.getByRole('button', { name: `Select ${name}`, exact: true });
     if (await direct.isVisible().catch(() => false)) return direct.click();
@@ -77,34 +89,6 @@ const startedAt = new Date().toISOString();
         : value;
     return JSON.stringify(canonical(project)) === expected;
   }, { expected: signature, database: STORAGE_DATABASE }, { timeout: 20000 });
-  const waitDocumentChanged = async signature => {
-    const settled = await page.waitForFunction(async ({ previous, database }) => {
-    const project = await new Promise((resolve, reject) => {
-      const request = indexedDB.open(database);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const query = db.transaction('projects').objectStore('projects').getAll();
-        query.onerror = () => reject(query.error);
-        query.onsuccess = () => { db.close(); resolve(query.result[0]); };
-      };
-    });
-    if (!project) return false;
-    delete project.revision;
-    const canonical = value => Array.isArray(value) ? value.map(canonical)
-      : value && typeof value === 'object'
-        ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]))
-        : value;
-    if (JSON.stringify(canonical(project)) === previous) return false;
-    return true;
-    }, { previous: signature, database: STORAGE_DATABASE }, { timeout: 20000 });
-    try {
-      await settled.jsonValue();
-    } finally {
-      await settled.dispose();
-    }
-  };
-
   const vectorAt = (values, index) => values?.[index] || { x: 0, y: 0 };
   const matrixState = (project, matrixId, row, column) => {
     const matrix = project.matrices.find(item => item.id === matrixId);
@@ -192,7 +176,7 @@ const startedAt = new Date().toISOString();
     }
   }
 
-  async function runDrag(config, readState, expectedFields, allowedFields = expectedFields) {
+  async function runDrag(config, readState, expectedFields, identity, allowedFields = expectedFields) {
     console.log(`drag-smoke: ${config.name} starts`);
     await saved();
     const before = await doc();
@@ -200,10 +184,35 @@ const startedAt = new Date().toISOString();
     const expected = readState(before.project);
     const { live, release } = await drag({ ...config, beforeScene });
     assert.notDeepEqual(live.scene, beforeScene, `${config.name}: drag produced a visible preview`);
+    await startSaveTracking();
     await release();
-    await waitDocumentChanged(before.signature);
+    await waitForSaveCycle();
+    await page.waitForFunction(async ({ database, matrixId, row, column, expected, fields }) => {
+      const project = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(database);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const query = db.transaction('projects').objectStore('projects').getAll();
+          query.onerror = () => reject(query.error);
+          query.onsuccess = () => { db.close(); resolve(query.result[0]); };
+        };
+      });
+      if (!project) return false;
+      const matrix = project.matrices.find(item => item.id === matrixId);
+      if (!matrix) return false;
+      const cells = matrix.cells || [];
+      const cell = cells.find(item => item.row === row && item.column === column);
+      const state = {
+        offset: matrix.columnOffsets?.[column] || { x: 0, y: 0 },
+        stagger: matrix.columnStaggers?.[column] || 0,
+        cellOffset: cell?.offset || { x: 0, y: 0 },
+        columnCellOffsets: Array.from({ length: matrix.rows }, (_, cellRow) =>
+          cells.find(item => item.row === cellRow && item.column === column)?.offset || { x: 0, y: 0 }),
+      };
+      return fields.every(field => JSON.stringify(state[field]) !== JSON.stringify(expected[field]));
+    }, { database: STORAGE_DATABASE, ...identity, expected, fields: expectedFields }, { timeout: 20000 });
     const durableAt = await page.evaluate(() => performance.now());
-    await saved();
     const after = await doc();
     assert.notEqual(after.signature, before.signature, `${config.name}: edit was durably saved`);
     const actual = readState(after.project);
@@ -252,15 +261,23 @@ const startedAt = new Date().toISOString();
     await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Split keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Continue to layout', exact: true }).click({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Add key matrix', exact: true }).click({ timeout: 60000 });
-    await page.getByLabel('New matrix rows', { exact: true }).fill('10');
-    await page.getByLabel('New matrix columns', { exact: true }).fill('10');
+    for (const name of ['Rows', 'Columns']) {
+      const slider = page.getByRole('slider', { name, exact: true });
+      const initial = Number(await slider.getAttribute('aria-valuenow'));
+      for (let value = initial; value !== 10; value += Math.sign(10 - initial)) {
+        await slider.press(initial < 10 ? 'ArrowRight' : 'ArrowLeft');
+        const expected = String(value + Math.sign(10 - initial));
+        await page.waitForFunction(({ name, expected }) =>
+          document.querySelector(`[role="slider"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') === expected,
+          { name, expected });
+      }
+      assert.equal(await slider.getAttribute('aria-valuenow'), '10');
+    }
     await page.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
     console.log('drag-smoke: setup created a 10 x 10 matrix');
     const firstKey = page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r4c2"] .m1-part-hit-area').first();
     await firstKey.waitFor({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Edit existing objects', exact: true }).click({ timeout: 60000 });
-    await page.getByRole('button', { name: 'Open Layout workspace', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide guide', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Fit board', exact: true }).click();
 
     await selectScope('Part');
@@ -275,13 +292,13 @@ const startedAt = new Date().toISOString();
       return state;
     };
     await runDrag({ name: 'Part drag', selector: `.m1-scene-part[data-part-id="${targetPart}"] .m1-part-hit-area` },
-      partRead, ['cellOffset']);
+      partRead, ['cellOffset'], { matrixId, row, column });
 
     await selectScope('Column');
     await firstKey.click();
     const columnRead = project => matrixState(project, matrixId, row, column);
     await runDrag({ name: 'Column body drag', selector: `.m1-scene-part[data-part-id="${targetPart}"] .m1-part-hit-area` },
-      columnRead, ['columnCellOffsets'], ['columnCellOffsets', 'cellOffset']);
+      columnRead, ['columnCellOffsets'], { matrixId, row, column }, ['columnCellOffsets', 'cellOffset']);
 
     const stagger = '[aria-label="Drag to stagger"]';
     await saved();
@@ -299,9 +316,9 @@ const startedAt = new Date().toISOString();
     result('Stagger cancel', { previewSeen: true, pointerCapture: true, exactDocument: true, exactScene: true });
 
     await runDrag({ name: 'Stagger handle', selector: stagger, label: 'Drag to stagger' },
-      columnRead, ['stagger']);
+      columnRead, ['stagger'], { matrixId, row, column });
     await runDrag({ name: 'Ctrl Offset handle', selector: '[aria-label="Drag to offset column"]',
-      label: 'Drag to offset column', control: true }, columnRead, ['offset']);
+      label: 'Drag to offset column', control: true }, columnRead, ['offset'], { matrixId, row, column });
 
     const browserVersion = browser.version();
     assert.ok(checks.length >= 9, 'smoke completed all drag, cancellation and Undo checks');

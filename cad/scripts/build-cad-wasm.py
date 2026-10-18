@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build the Cadrum WASM provider using the pinned container toolchain."""
+"""Build the pure-Rust Monstertruck CAD WASM provider."""
 import argparse
 
-from cadrum_build import build_wasm
+from cad_build import build_wasm
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)

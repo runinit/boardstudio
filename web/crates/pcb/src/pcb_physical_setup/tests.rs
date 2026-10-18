@@ -322,7 +322,9 @@ async fn an_in_flight_setup_retires_silently_when_its_owner_departs() {
     poke(&probe);
     rendered().await;
     // The settlement loop answers for a departed owner while the reply is still held.
-    settle_until(&probe.runtime, "the retired setup clears busy", || {
+    wait_until_step("the retired setup clears busy", async || {
+        poke(&probe);
+        rendered().await;
         !mount(&probe).projection.busy
     })
     .await;
