@@ -1,6 +1,6 @@
 # 002: Enforce shared-edge angular sampling without whole-model regressions
 
-Status: resolved
+Status: claimed
 Type: build
 Blocked by: None
 Owner: /root

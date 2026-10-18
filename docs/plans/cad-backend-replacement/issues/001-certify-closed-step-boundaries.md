@@ -1,6 +1,6 @@
 # 001: Certify closed STEP surface boundaries and retain trim coverage
 
-Status: resolved
+Status: claimed
 Type: build
 Blocked by: None
 Owner: /root/sol_closed_chart_review
