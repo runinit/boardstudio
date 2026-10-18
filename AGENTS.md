@@ -17,7 +17,7 @@
 - `$TMPDIR` changes when the sandbox is lifted; write anything that must survive to an absolute path.
 - Cargo: lift the sandbox unless `.claude/settings.json` allowlists the directory `readlink -f target` prints (it differs per worktree: lane worktrees point into `~/.cache/boardstudio-target`, session worktrees share the main checkout's `target`). `.worktreeinclude` carries that file into new worktrees.
 - Build flags: let `.cargo/config.toml` (`jobs = 12`) and `scripts/run-wasm-tests.py` (`CARGO_PROFILE_DEV_DEBUG=false`) govern concurrency and debuginfo. Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`.
-- Single build per target: do not launch concurrent `cargo` or `wasm-pack` commands against the same `target` directory or busy-poll background commands in a tight loop.
+- Single build per target: do not manually launch overlapping `cargo` or `wasm-pack` commands against the same `target` directory or busy-poll background commands in a tight loop. The supported `scripts/check.py` scheduler owns its bounded independent launches, governed by `BOARDSTUDIO_CHECK_JOBS`.
 
 Historical workflow documents are not operating instructions.
 
