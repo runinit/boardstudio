@@ -492,6 +492,7 @@ fn finish_spline_change<P>(
         before_domain,
         after: wrap(after.clone()),
         after_domain,
+        native_line: None,
     });
 }
 

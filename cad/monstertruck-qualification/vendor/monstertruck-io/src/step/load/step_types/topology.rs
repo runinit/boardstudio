@@ -14,6 +14,35 @@ pub(in crate::step::load) struct FiniteCurveRepair {
     pub(in crate::step::load) before_domain: (f64, f64),
     pub(in crate::step::load) after: Curve3D,
     pub(in crate::step::load) after_domain: (f64, f64),
+    pub(in crate::step::load) native_line: Option<NativeLineProjection>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::step::load) struct NativeLineProjection {
+    point: [f64; 3],
+    direction: [f64; 3],
+    magnitude: f64,
+    same_sense: bool,
+    native: geom::Line<Point3>,
+}
+impl NativeLineProjection {
+    fn capture(source: &super::curve::Line, native: geom::Line<Point3>, same_sense: bool) -> Option<Self> {
+        Some(Self {
+            point: source.pnt.coordinates.as_slice().try_into().ok()?,
+            direction: source.dir.orientation.direction_ratios.as_slice().try_into().ok()?,
+            magnitude: source.dir.magnitude,
+            same_sense,
+            native,
+        })
+    }
+    pub(in crate::step::load) fn matches_original(&self, edge: &EdgeCurve) -> bool {
+        let CurveAny::Line(source) = &edge.edge_geometry else { return false; };
+        source.pnt.coordinates.as_slice() == self.point
+            && source.dir.orientation.direction_ratios.as_slice() == self.direction
+            && source.dir.magnitude == self.magnitude
+            && edge.same_sense == self.same_sense
+            && self.native.0 == Point3::from(&source.pnt)
+    }
 }
 
 #[derive(Debug)]
@@ -68,11 +97,13 @@ impl FiniteCurveTrace {
             before_domain,
             after: after.clone(),
             after_domain,
+            native_line: None,
         });
     }
 }
 pub(in crate::step::load) fn curve_storage(curve: &Curve3D) -> Option<usize> {
     match curve {
+        Curve3D::Line(_) => Some(2 * std::mem::size_of::<Curve3D>()),
         Curve3D::BsplineCurve(c) => spline_storage(c),
         Curve3D::NurbsCurve(c) => spline_storage(c.non_rationalized()),
         _ => None,
@@ -362,8 +393,8 @@ impl EdgeCurve {
                 }
                 curve
             }
-            _ => {
-                Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview)?
+            (_, capture) => {
+                Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview, capture)?
             }
         };
         Ok(curve)
@@ -391,17 +422,33 @@ impl EdgeCurve {
         same_sense: bool,
         bound: Option<f64>,
         preview: bool,
+        mut repair: Option<&mut FiniteCurveTrace>,
     ) -> Result<Curve3D, StepConvertingError> {
         let mut curve = match curve {
-            CurveAny::Line(source) => {
+            CurveAny::Line(raw) => {
                 if bound.is_some() {
-                    let source: geom::Line<Point3> = source.as_ref().into();
+                    let source: geom::Line<Point3> = raw.as_ref().into();
                     let direction = source.1 - source.0;
                     let denominator = direction.magnitude2();
                     if !denominator.is_finite() || denominator <= 0.0 {
                         return Err("invalid source line direction".into());
                     }
-                    Curve3D::Line(Line(source.projection(p), source.projection(q)))
+                    // This BEFORE is the finite attachment carrier, NOT the
+                    // native STEP support or an inferred native scalar domain.
+                    let pending = repair.as_deref_mut().and_then(|capture| {
+                        let native = NativeLineProjection::capture(raw, source, same_sense)?;
+                        let before = capture.begin(&Curve3D::Line(Line(p, q)))?;
+                        Some((before, native))
+                    });
+                    let projected = Curve3D::Line(Line(source.projection(p), source.projection(q)));
+                    if let (Some(capture), Some((before, native))) = (repair.as_deref_mut(), pending) {
+                        let count = capture.changes.len();
+                        capture.finish("native-line-attachment-projection-v1", Some(before), (0., 1.), &projected, (0., 1.));
+                        if capture.changes.len() > count {
+                            capture.changes.last_mut().unwrap().native_line = Some(native);
+                        }
+                    }
+                    projected
                 } else {
                     Curve3D::Line(Line(p, q))
                 }
@@ -550,7 +597,12 @@ impl EdgeCurve {
             }
         };
         if !same_sense {
+            let pending = repair.as_deref_mut().filter(|_| matches!(curve, Curve3D::Line(_)) && bound.is_some())
+                .and_then(|capture| capture.begin(&curve));
             curve.invert();
+            if let Some(capture) = repair {
+                capture.finish("native-sense-inversion-v1", pending, (0., 1.), &curve, (1., 0.));
+            }
         }
         Ok(curve)
     }
@@ -890,7 +942,7 @@ mod edge_normalization_tests {
                 .unwrap()
                 .is_none()
         );
-        assert!(EdgeCurve::sub_parse_curve3d(&wrapper, p, q, true, None, false).is_err());
+        assert!(EdgeCurve::sub_parse_curve3d(&wrapper, p, q, true, None, false, None).is_err());
     }
 
     fn spline_mut(curve: &mut CurveAny) -> &mut BsplineCurveWithKnots {

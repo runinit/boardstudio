@@ -370,6 +370,12 @@ impl Table {
                     let mut previous = HashMap::<u64, (&Curve3D, (f64, f64))>::new();
                     let mut valid = ids.is_some();
                     for (id, change) in &captured_curves {
+                        if change.stage == "native-line-attachment-projection-v1" {
+                            valid &= source_table
+                                .and_then(|table| table.edge_curve.get(id).map(|edge| (table, edge)))
+                                .and_then(|(table, edge)| edge.clone().into_owned(table).ok())
+                                .is_some_and(|edge| change.native_line.as_ref().is_some_and(|native| native.matches_original(&edge)));
+                        }
                         if let Some((curve, domain)) =
                             previous.insert(*id, (&change.after, change.after_domain))
                         {
