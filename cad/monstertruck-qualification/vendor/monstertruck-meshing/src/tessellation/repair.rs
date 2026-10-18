@@ -9,6 +9,7 @@ use std::sync::{
 
 const STORAGE_CAP: usize = 256 * 1024 * 1024;
 const OPERATION_CAP: usize = 1_000_000;
+pub(super) type ClosedAxis = (usize, usize, (f64, f64), Vec<usize>);
 type Output = CompressedShell<Point3, PolylineCurve, Option<PolygonMesh>>;
 
 #[derive(Clone, Copy, Debug)]
@@ -75,7 +76,7 @@ pub(super) struct Pending<'a> {
 
 impl Capture {
     fn new(faces: usize) -> Self {
-        let bytes = faces.checked_mul(size_of::<Mutex<FaceTrace>>());
+        let bytes = faces.checked_mul(2 * size_of::<Mutex<FaceTrace>>());
         let mut traces = Vec::new();
         let failure = if faces > OPERATION_CAP || bytes.is_none_or(|n| n > STORAGE_CAP) {
             Some("mesh repair trace resource cap")
@@ -160,18 +161,17 @@ impl FaceCapture<'_> {
             self.fail("mesh repair control capacity unavailable");
             return None;
         };
-        let Some(bytes) = uv_len
-            .checked_mul(size_of::<Point2>())
-            .and_then(|n| {
-                xyz_len
-                    .checked_mul(size_of::<Point3>())
-                    .and_then(|m| n.checked_add(m))
-            })
-        else {
+        let Some(bytes) = uv_len.checked_mul(2 * size_of::<Point2>()).and_then(|n| {
+            xyz_len
+                .checked_mul(2 * size_of::<Point3>())
+                .and_then(|m| n.checked_add(m))
+        }) else {
             self.fail("mesh repair control storage overflow");
             return None;
         };
-        if !self.capture.charge(bytes) {
+        if self.capture.operations.fetch_add(1, Ordering::Relaxed) >= OPERATION_CAP
+            || !self.capture.charge(bytes)
+        {
             self.fail("mesh repair control storage resource cap");
             return None;
         }
@@ -207,21 +207,17 @@ impl Pending<'_> {
             self.owner.fail("mesh repair control capacity unavailable");
             return;
         };
-        let Some(bytes) = uv_len
-            .checked_mul(size_of::<Point2>())
-            .and_then(|n| {
-                xyz_len
-                    .checked_mul(size_of::<Point3>())
-                    .and_then(|m| n.checked_add(m))
-            })
-        else {
+        let Some(bytes) = uv_len.checked_mul(2 * size_of::<Point2>()).and_then(|n| {
+            xyz_len
+                .checked_mul(2 * size_of::<Point3>())
+                .and_then(|m| n.checked_add(m))
+        }) else {
             self.owner.fail("mesh repair control storage overflow");
             return;
         };
-        if !self
-            .owner
-            .capture
-            .charge(bytes + 2 * size_of::<Change>())
+        if bytes
+            .checked_add(2 * size_of::<Change>())
+            .is_none_or(|bytes| !self.owner.capture.charge(bytes))
         {
             self.owner.fail("mesh repair control storage resource cap");
             return;
@@ -339,6 +335,10 @@ impl<C, S> ShellRepairMesh<'_, C, S> {
 }
 
 /// Existing mesher plus immutable captures; options/chart metadata are not borrowed.
+#[expect(
+    clippy::type_complexity,
+    reason = "exact additive metadata signature approved in MOVEMENT_SEAM.md"
+)]
 pub fn robust_cshell_triangulation_with_repair_report<'a, C, S>(
     shell: &'a CompressedShell<Point3, C, S>,
     options: TessellationOptions,
@@ -352,13 +352,10 @@ where
     let sp = triangulation::search_nearest_parameter_sp::<S>(options.search_trials);
     let (mesh, fallback) = triangulation::cshell_tessellation_with_closed_axis_metadata_and_repair(
         shell,
-        options.tolerance,
+        options,
         sp,
-        options.primitive,
-        options.edge_angular_tolerance,
         closed_axes,
         false,
-        options.preview_fallback,
         Some(&capture),
     );
     let failure = capture.failure;

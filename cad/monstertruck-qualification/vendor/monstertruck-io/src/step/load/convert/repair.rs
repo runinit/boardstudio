@@ -57,6 +57,7 @@ impl StepRepairSource {
 enum Stage {
     SourceBinding,
     NativeInterval,
+    CurveMutation(&'static str),
     Master,
     Surface,
     Numerical,
@@ -66,6 +67,7 @@ impl Stage {
         match self {
             Self::SourceBinding => "source-binding-v1",
             Self::NativeInterval => "native-finite-interval-v1",
+            Self::CurveMutation(stage) => stage,
             Self::Master => "selected-master-v1",
             Self::Surface => "finite-surface-support-v1",
             Self::Numerical => "numeric-conversion-v1",
@@ -81,6 +83,7 @@ struct Operation {
     // A locator cannot be rebound to another mesh or caller-owned geometry.
     _edge_index: Option<usize>,
     _emitted_interval: Option<(f64, f64)>,
+    curve: Option<FiniteCurveRepair>,
 }
 #[derive(Debug)]
 struct ShellTrace {
@@ -101,7 +104,30 @@ pub struct StepRepairConversion {
 pub struct StepRepairOperation<'a> {
     operation: &'a Operation,
 }
+/// Immutable captured pair from the actual conversion stage, not a certificate.
+#[derive(Debug)]
+pub struct StepRepairCurveChange<'a> {
+    change: &'a FiniteCurveRepair,
+}
+impl StepRepairCurveChange<'_> {
+    /// Actual immediate carriers, including all polynomial/rational controls.
+    pub fn curves(&self) -> (&Curve3D, &Curve3D) {
+        (&self.change.before, &self.change.after)
+    }
+    /// Directed finite intervals on the corresponding carriers.
+    pub fn domains(&self) -> ((f64, f64), (f64, f64)) {
+        (self.change.before_domain, self.change.after_domain)
+    }
+}
 impl StepRepairOperation<'_> {
+    /// Captured data only: unresolved original selection remains unsupported.
+    pub fn curve_change(&self) -> Option<StepRepairCurveChange<'_>> {
+        self.operation
+            .curve
+            .as_ref()
+            .map(|change| StepRepairCurveChange { change })
+    }
+
     /// Fixed identity of the owner stage.
     pub fn stage(&self) -> &'static str {
         self.operation.stage.name()
@@ -210,48 +236,88 @@ impl Table {
             .manifold_solid_brep
             .get(&solid_id)
             .ok_or("repair solid source identity missing")?;
-        let source = match representation {
-            Some(owner) => self.to_source_bound_solid_in_representation_checked(solid, owner)?,
-            None => self.to_source_bound_solid_without_connectivity_checked(solid)?,
-        };
+        self.entity_report.require_empty()?;
+        let selection = representation.map_or(ConnectivitySelection::Disabled, |owner| {
+            ConnectivitySelection::FromSource(Some(owner))
+        });
+        let capture_budget = failure.is_none().then(|| {
+            std::rc::Rc::new(std::cell::Cell::new(
+                STORAGE_CAP.saturating_sub(storage.unwrap_or(STORAGE_CAP)),
+            ))
+        });
+        let converted =
+            self.compressed_solid_with_repair_reported(solid, selection, capture_budget.clone())?;
+        let mut source = self.bind_source_solid(converted)?;
         let mut traces = Vec::new();
-        let mut charged = storage.unwrap_or(STORAGE_CAP);
+        let mut charged = capture_budget
+            .as_ref()
+            .map_or(STORAGE_CAP, |budget| STORAGE_CAP - budget.get());
         let mut operations = 0usize;
-        let shell_storage = source.shells().len().checked_mul(2 * std::mem::size_of::<ShellTrace>());
+        let shell_storage = source
+            .shells()
+            .len()
+            .checked_mul(2 * std::mem::size_of::<ShellTrace>());
         if failure.is_none() {
-            match shell_storage.and_then(|size| charged.checked_add(size)).filter(|size| *size <= STORAGE_CAP) {
-                Some(size) if traces.try_reserve_exact(source.shells().len()).is_ok() => charged = size,
+            match shell_storage
+                .and_then(|size| charged.checked_add(size))
+                .filter(|size| *size <= STORAGE_CAP)
+            {
+                Some(size) if traces.try_reserve_exact(source.shells().len()).is_ok() => {
+                    charged = size
+                }
                 _ => failure = Some("repair shell trace storage resource cap"),
             }
         }
         if failure.is_some() {
-            return Ok(StepRepairConversion { source, _original: Arc::clone(&original.inner), traces, failure });
+            return Ok(StepRepairConversion {
+                source,
+                _original: Arc::clone(&original.inner),
+                traces,
+                failure,
+            });
         }
         // The trace accounts for every real source face and shared emitted edge.
         // Unsupported correspondence is retained explicitly; it does not change
         // the successful preview's face inventory or emitted carrier/triangles.
-        for shell in source.shells() {
+        for shell in &mut source.shells {
             let count = shell
                 .shell()
                 .edges
                 .len()
                 .checked_mul(2)
                 .and_then(|count| count.checked_add(shell.shell().faces.len()))
-                .and_then(|count| count.checked_add(2));
-            let needed = count.and_then(|n| n.checked_mul(2 * std::mem::size_of::<Operation>()))
-                .and_then(|n| shell.shell().edges.len().checked_mul(8 * std::mem::size_of::<u64>())
-                    .and_then(|ids| n.checked_add(ids)));
+                .and_then(|count| count.checked_add(2))
+                .and_then(|count| count.checked_add(shell.repair_curves.len()));
+            let needed = count
+                .and_then(|n| n.checked_mul(2 * std::mem::size_of::<Operation>()))
+                .and_then(|n| {
+                    shell
+                        .shell()
+                        .edges
+                        .len()
+                        .checked_mul(8 * std::mem::size_of::<u64>())
+                        .and_then(|ids| n.checked_add(ids))
+                });
             let resource_failure = failure.or_else(|| {
-                (count.and_then(|n| operations.checked_add(n)).is_none_or(|n| n > OPERATION_CAP)
-                    || needed.and_then(|n| charged.checked_add(n)).is_none_or(|n| n > STORAGE_CAP))
+                (count
+                    .and_then(|n| operations.checked_add(n))
+                    .is_none_or(|n| n > OPERATION_CAP)
+                    || needed
+                        .and_then(|n| charged.checked_add(n))
+                        .is_none_or(|n| n > STORAGE_CAP))
                 .then_some("repair operation storage resource cap")
             });
-            if let Some(reason) = resource_failure { failure = Some(reason); break; }
+            if let Some(reason) = resource_failure {
+                failure = Some(reason);
+                break;
+            }
             charged += needed.unwrap();
             operations += count.unwrap();
             let mut trace = ShellTrace {
                 operations: Vec::new(),
-                failure: resource_failure,
+                failure: resource_failure.or(shell
+                    .repair_failed
+                    .then_some("finite carrier capture resource failure")),
             };
             if trace.failure.is_none() {
                 if trace.operations.try_reserve_exact(count.unwrap()).is_err() {
@@ -263,6 +329,7 @@ impl Table {
                         bound: Ok(0.0),
                         _edge_index: None,
                         _emitted_interval: None,
+                        curve: None,
                     });
                     // Until a unique original edge/use domain is captured at
                     // the inverse/master branch, no final edge may fabricate it.
@@ -282,8 +349,46 @@ impl Table {
                                 ),
                                 _edge_index: Some(index),
                                 _emitted_interval: Some(edge.curve.range_tuple()),
+                                curve: None,
                             });
                         }
+                    }
+                    // Move only the same invocation's retained mutation pairs.
+                    // Exact structural chaining authenticates the actual output,
+                    // independently of endpoints or sampled evaluations.
+                    let captured_curves = std::mem::take(&mut shell.repair_curves);
+                    let mut previous = HashMap::<u64, (&Curve3D, (f64, f64))>::new();
+                    let mut valid = ids.is_some();
+                    for (id, change) in &captured_curves {
+                        if let Some((curve, domain)) =
+                            previous.insert(*id, (&change.after, change.after_domain))
+                        {
+                            valid &= *curve == change.before && domain == change.before_domain;
+                        }
+                    }
+                    for (id, (curve, _)) in previous {
+                        valid &= ids
+                            .as_ref()
+                            .and_then(|ids| ids.iter().position(|candidate| *candidate == id))
+                            .is_some_and(|index| shell.shell().edges[index].curve == *curve);
+                    }
+                    if !valid {
+                        trace.failure = Some("finite carrier source/output chain mismatch");
+                    }
+                    for (id, change) in captured_curves {
+                        let index = ids
+                            .as_ref()
+                            .and_then(|ids| ids.iter().position(|candidate| *candidate == id));
+                        trace.operations.push(Operation {
+                            stage: Stage::CurveMutation(change.stage),
+                            ids: (solid_id, None, Some(id)),
+                            bound: Err(
+                                "captured finite carrier pair requires concrete whole-domain proof",
+                            ),
+                            _edge_index: index,
+                            _emitted_interval: Some(change.after_domain),
+                            curve: valid.then_some(change),
+                        });
                     }
                     for &face in shell.source_face_ids() {
                         trace.operations.push(Operation {
@@ -292,6 +397,7 @@ impl Table {
                             bound: Err("original finite surface support domain is unsupported"),
                             _edge_index: None,
                             _emitted_interval: None,
+                            curve: None,
                         });
                     }
                     trace.operations.push(Operation {
@@ -300,6 +406,7 @@ impl Table {
                         bound: Err("original numeric conversion error is unsupported"),
                         _edge_index: None,
                         _emitted_interval: None,
+                        curve: None,
                     });
                 }
             }

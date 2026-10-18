@@ -1,5 +1,6 @@
 //! Internal operation accounting. A support translation is not whole-asset movement.
 mod cuboid;
+mod finite_curve;
 mod finite_line;
 use super::*;
 pub(super) use cuboid::Cuboid;
@@ -157,6 +158,7 @@ impl OriginalGeometry {
 #[derive(Debug)]
 pub(super) struct Operation {
     pub occurrence: usize,
+    shell: Option<usize>,
     pub source_edge: Option<u64>,
     pub stage: &'static str,
     pub bound_mm: Result<f64, &'static str>,
@@ -177,6 +179,7 @@ impl Ledger {
         factor: f64,
         placement: Matrix4,
         occurrence: usize,
+        shell: usize,
     ) {
         let ids = original.bind_edges(source);
         for (index, edge) in source.shell().edges.iter().enumerate() {
@@ -186,6 +189,7 @@ impl Ledger {
                 .copied();
             self.0.push(Operation {
                 occurrence,
+                shell: None,
                 source_edge: id,
                 stage: "axis-aligned native LINE support substitution",
                 diagnostic_only: true,
@@ -208,7 +212,13 @@ impl Ledger {
                             .lines
                             .get(&id)
                             .ok_or("original parsed LINE attachments are unavailable")?;
-                        raw.movement(line, parsed.points, factor, placement, occurrence, id)
+                        raw.movement(
+                            line,
+                            parsed.points,
+                            factor,
+                            placement,
+                            (occurrence, shell, id),
+                        )
                     }),
             );
         }
@@ -217,6 +227,103 @@ impl Ledger {
             "curve trims and surface conversion",
             "source domains and whole supports are not traced",
         );
+    }
+
+    pub(super) fn conversion_operations(
+        &mut self,
+        owner: &monstertruck_io::step::load::convert::StepRepairConversion,
+        shell: usize,
+        factor: f64,
+        placement: Matrix4,
+        occurrence: usize,
+    ) {
+        for operation in owner.operations(shell) {
+            let numerical = operation.stage() == "numeric-conversion-v1";
+            let bound = operation.curve_change().map_or_else(
+                || {
+                    operation
+                        .bound()
+                        .map_err(|_| "owner stage remains unsupported")
+                },
+                |change| finite_curve::bound(change, factor, placement),
+            );
+            self.0.push(Operation {
+                occurrence,
+                shell: Some(shell),
+                source_edge: operation.source_ids().2,
+                stage: operation.stage(),
+                bound_mm: bound,
+                diagnostic_only: numerical,
+            });
+        }
+        // Even an empty/capped report must terminate in explicit incomplete coverage.
+        if owner.complete_bound(shell).is_err() {
+            self.unknown(
+                occurrence,
+                "original conversion route coverage",
+                "source/master/domain conversion coverage remains incomplete",
+            );
+        }
+    }
+
+    pub(super) fn meshing_operations(
+        &mut self,
+        owner: &monstertruck_meshing::tessellation::ShellRepairMesh<
+            '_,
+            Curve3D,
+            monstertruck_io::step::load::step_geometry::Surface,
+        >,
+        _placement: Matrix4,
+        occurrence: usize,
+    ) {
+        for operation in owner.operations() {
+            let diagnostic_only = matches!(
+                operation.stage(),
+                "ordinary-mesh-approximation-v1" | "mesh-numeric-conversion-v1"
+            );
+            self.0.push(Operation {
+                occurrence,
+                shell: None,
+                source_edge: None,
+                stage: operation.stage(),
+                bound_mm: operation
+                    .bound()
+                    .map_err(|_| "native finite mesh domain coverage remains unsupported"),
+                diagnostic_only,
+            });
+        }
+        // These views retain whole pieces. They are not certificates for source
+        // curve approximation, finite face regions or inter-stage correspondence.
+        for change in owner.domain_changes() {
+            self.unknown(
+                occurrence,
+                change.stage(),
+                "captured finite mesh domain still requires concrete surface/region proof",
+            );
+        }
+        if owner.complete_bound().is_err() {
+            self.unknown(
+                occurrence,
+                "complete meshing route coverage",
+                "source/trim/finite-domain meshing route remains incomplete",
+            );
+        }
+    }
+
+    pub(super) fn numerical_unknown(
+        &mut self,
+        occurrence: usize,
+        stage: &'static str,
+        reason: &'static str,
+    ) {
+        self.0.push(Operation {
+            occurrence,
+            shell: None,
+            source_edge: None,
+            stage,
+            bound_mm: Err(reason),
+            diagnostic_only: true,
+        });
     }
 
     /// A proved finite operation must respect its allowance even while the
@@ -234,12 +341,35 @@ impl Ledger {
                 ));
             }
         }
+        let mut paths = HashMap::<(Option<usize>, Option<u64>), num_rational::BigRational>::new();
+        for operation in self
+            .0
+            .iter()
+            .filter(|op| op.occurrence == occurrence && !op.diagnostic_only)
+        {
+            if let Ok(value) = operation.bound_mm {
+                let value = num_rational::BigRational::from_float(value)
+                    .filter(|v| *v >= num_rational::BigRational::from_integer(0.into()))
+                    .ok_or("invalid known repair movement bound")?;
+                *paths
+                    .entry((operation.shell, operation.source_edge))
+                    .or_default() += value;
+            }
+        }
+        let budget =
+            num_rational::BigRational::from_float(allowance).ok_or("invalid repair allowance")?;
+        if paths.values().any(|path| path > &budget) {
+            return Err(format!(
+                "accumulated finite carrier repair occurrence {occurrence} exceeds repair budget {allowance} mm"
+            ));
+        }
         Ok(())
     }
 
     pub(super) fn unknown(&mut self, occurrence: usize, stage: &'static str, reason: &'static str) {
         self.0.push(Operation {
             occurrence,
+            shell: None,
             source_edge: None,
             stage,
             bound_mm: Err(reason),
@@ -252,7 +382,7 @@ impl Ledger {
         if self.0.is_empty() {
             return None;
         }
-        let mut occurrences = HashMap::<usize, HashMap<Option<u64>, f64>>::new();
+        let mut occurrences = HashMap::<usize, HashMap<(Option<usize>, Option<u64>), f64>>::new();
         for op in self.0.iter().filter(|op| !op.diagnostic_only) {
             let value = *op.bound_mm.as_ref().ok()?;
             if !value.is_finite() || value < 0.0 {
@@ -261,7 +391,7 @@ impl Ledger {
             let path = occurrences
                 .entry(op.occurrence)
                 .or_default()
-                .entry(op.source_edge)
+                .entry((op.shell, op.source_edge))
                 .or_default();
             *path = add_upper(*path, value);
             if !path.is_finite() {
@@ -273,7 +403,7 @@ impl Ledger {
             let path = occurrences
                 .entry(movement.occurrence)
                 .or_default()
-                .entry(Some(movement.edge))
+                .entry((Some(movement.shell), Some(movement.edge)))
                 .or_default();
             *path = add_upper(*path, movement.bound_mm);
             if !path.is_finite() {
@@ -449,6 +579,27 @@ mod tests {
             let model =
                 import_step(bytes.clone()).unwrap_or_else(|error| panic!("{path}: {error}"));
             assert_eq!(model.original_bytes(), bytes);
+            let expected = &row["expected"]["bounds_mm"];
+            let bounds = model.bounds();
+            if let Some(tolerance) = expected["tolerance_mm"]
+                .as_f64()
+                .or_else(|| expected["tolerance"].as_f64())
+            {
+                for (side, name) in ["min", "max"].iter().enumerate() {
+                    for axis in 0..3 {
+                        assert!(
+                            (bounds[side][axis] - expected[name][axis].as_f64().unwrap()).abs()
+                                <= tolerance,
+                            "{path}: unchanged independent bounds oracle {name}[{axis}]"
+                        );
+                    }
+                }
+            } else {
+                assert!(
+                    expected.is_null(),
+                    "retain explicit missing independent oracle"
+                );
+            }
             let raw = Table::from_data_section(&model._original_source.data[0]);
             let original = OriginalGeometry::capture(&raw, &bytes);
             let mut counts = std::collections::BTreeMap::<&str, usize>::new();
@@ -490,9 +641,18 @@ mod tests {
                             CurveAny::SurfaceCurve(_) => {
                                 if let Curve3D::SurfaceCurve(actual) = &edge.curve {
                                     match Curve3D::try_from(&input.edge_geometry) {
-                                        Ok(Curve3D::SurfaceCurve(raw)) if raw.master_representation() == actual.master_representation() => note("surface_curve_selected_master_retained"),
-                                        Ok(Curve3D::SurfaceCurve(_)) => note("surface_curve_alternate_master_SELECTED"),
-                                        _ => note("surface_curve_original_master_construction_UNSUPPORTED"),
+                                        Ok(Curve3D::SurfaceCurve(raw))
+                                            if raw.master_representation()
+                                                == actual.master_representation() =>
+                                        {
+                                            note("surface_curve_selected_master_retained")
+                                        }
+                                        Ok(Curve3D::SurfaceCurve(_)) => {
+                                            note("surface_curve_alternate_master_SELECTED")
+                                        }
+                                        _ => note(
+                                            "surface_curve_original_master_construction_UNSUPPORTED",
+                                        ),
                                     }
                                 } else {
                                     note("surface_curve_changed_family");
@@ -521,6 +681,22 @@ mod tests {
                             Surface::NurbsSurface(_) => "rational_spline_support",
                             Surface::SweepSurface(_) => "sweep_support",
                         });
+                    }
+                }
+            }
+            for operation in &model._repair_ledger.0 {
+                note(operation.stage);
+            }
+            for (solid, _, representation) in &model.occurrences {
+                for shell in 0..model.solids[solid].source[representation]
+                    .source()
+                    .shells()
+                    .len()
+                {
+                    for operation in model.solids[solid].source[representation].operations(shell) {
+                        if operation.curve_change().is_some() {
+                            note("captured_actual_finite_curve_pair");
+                        }
                     }
                 }
             }
@@ -666,6 +842,7 @@ mod tests {
     fn ledger_sums_successive_stages_and_maxes_disjoint_regions_and_occurrences() {
         let op = |occurrence, source_edge, value| Operation {
             occurrence,
+            shell: Some(0),
             source_edge,
             stage: "finite-domain test stage",
             bound_mm: Ok(value),
@@ -681,6 +858,26 @@ mod tests {
             Vec::new(),
         );
         assert_eq!(ledger.complete_bound_mm(), Some(0.25_f64.next_up()));
+        assert!(
+            ledger.enforce_finite_lines(0, 0.25).is_ok(),
+            "exact accumulated budget equality passes"
+        );
+        assert!(
+            ledger
+                .enforce_finite_lines(0, 0.25_f64.next_down())
+                .is_err()
+        );
+        let mut separate = Ledger::default();
+        let mut first = op(0, Some(1), 0.015625);
+        first.shell = Some(0);
+        let mut second = op(0, Some(1), 0.015625);
+        second.shell = Some(1);
+        separate.0.extend([first, second]);
+        assert_eq!(separate.complete_bound_mm(), Some(0.015625));
+        assert!(
+            separate.enforce_finite_lines(0, 0.02).is_ok(),
+            "disjoint shell occurrences are maxed"
+        );
         ledger.unknown(1, "omitted-stage control", "whole domain was not captured");
         assert_eq!(ledger.complete_bound_mm(), None);
         assert_eq!(Ledger::default().complete_bound_mm(), None);
@@ -729,7 +926,10 @@ mod tests {
             ._repair_ledger
             .0
             .iter()
-            .filter(|op| op.source_edge == Some(23))
+            .filter(|op| {
+                op.source_edge == Some(23)
+                    && op.stage == "axis-aligned native LINE support substitution"
+            })
             .collect();
         assert_eq!(
             operations.len(),
@@ -765,7 +965,14 @@ mod tests {
         let model =
             import_step(include_bytes!("../../tests/fixtures/source-pcurve-cube.step").to_vec())
                 .unwrap();
-        assert!(model._repair_ledger.0.iter().all(|op| op.bound_mm.is_err()));
+        assert!(
+            model
+                ._repair_ledger
+                .0
+                .iter()
+                .filter(|op| op.stage == "axis-aligned native LINE support substitution")
+                .all(|op| op.bound_mm.is_err())
+        );
         assert_eq!(model.accuracy().max_repair_displacement_mm, None);
         assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     }

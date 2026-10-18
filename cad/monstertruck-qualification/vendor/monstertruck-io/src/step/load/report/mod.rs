@@ -38,6 +38,7 @@
 //! Both reports are additive ([`ShellLoadReport::merge`]) so a caller can roll a
 //! solid's shells up into one figure, and both `Display` as a one-line summary.
 
+use super::step_types::{FiniteCurveRepair, FiniteCurveTrace, curve_storage};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -397,7 +398,9 @@ impl ConnectivityAttachment {
 }
 
 impl ShellLoadReport {
-    pub(in crate::step::load) fn take_repair_curves(&mut self) -> (Vec<(u64, FiniteCurveRepair)>, bool) {
+    pub(in crate::step::load) fn take_repair_curves(
+        &mut self,
+    ) -> (Vec<(u64, FiniteCurveRepair)>, bool) {
         (std::mem::take(&mut self.repair_curves), self.repair_failed)
     }
     /// Direct source discrepancies, separate from losses and tessellation error.
@@ -688,22 +691,43 @@ impl fmt::Display for EntityLoadReport {
 /// escapes the conversion call and is never held across a call into user code,
 /// so no borrow can overlap.
 #[derive(Debug, Default)]
-pub(crate) struct LossSink(std::cell::RefCell<ShellLoadReport>, bool);
+pub(crate) struct LossSink(
+    std::cell::RefCell<ShellLoadReport>,
+    Option<std::rc::Rc<std::cell::Cell<usize>>>,
+);
 
 impl LossSink {
-    pub(crate) fn with_repair(enabled: bool) -> Self { Self(std::cell::RefCell::default(), enabled) }
-    pub(crate) fn wants_repair(&self) -> bool { self.1 }
-    pub(crate) fn repair_curve(&self, id: u64, capture: Option<FiniteCurveRepair>) {
-        let Some(capture) = capture else { return; };
+    pub(crate) fn with_repair(budget: Option<std::rc::Rc<std::cell::Cell<usize>>>) -> Self {
+        Self(std::cell::RefCell::default(), budget)
+    }
+    pub(crate) fn wants_repair(&self) -> bool {
+        self.1.is_some()
+    }
+    pub(in crate::step::load) fn repair_budget(&self) -> std::rc::Rc<std::cell::Cell<usize>> {
+        std::rc::Rc::clone(
+            self.1
+                .as_ref()
+                .expect("capture enabled in this same conversion"),
+        )
+    }
+    pub(in crate::step::load) fn repair_curve(&self, id: u64, capture: FiniteCurveTrace) {
         let mut report = self.0.borrow_mut();
-        let bytes = capture.storage_bound();
-        let next = bytes.and_then(|bytes| report.repair_bytes.checked_add(bytes));
-        if report.repair_curves.len() >= 1_000_000 || next.is_none_or(|n| n > 256 * 1024 * 1024)
-            || report.repair_curves.try_reserve_exact(1).is_err() {
-            report.repair_failed = true; return;
+        report.repair_failed |= capture.failed;
+        for capture in capture.changes {
+            let bytes = curve_storage(&capture.before)
+                .and_then(|n| curve_storage(&capture.after).and_then(|m| n.checked_add(m)))
+                .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
+            let next = bytes.and_then(|bytes| report.repair_bytes.checked_add(bytes));
+            if report.repair_curves.len() >= 1_000_000
+                || next.is_none_or(|n| n > 256 * 1024 * 1024)
+                || report.repair_curves.try_reserve_exact(1).is_err()
+            {
+                report.repair_failed = true;
+                break;
+            }
+            report.repair_bytes = next.unwrap();
+            report.repair_curves.push((id, capture));
         }
-        report.repair_bytes = next.unwrap();
-        report.repair_curves.push((id, capture));
     }
     pub(crate) fn listed(&self, category: LossCategory, n: usize) {
         self.0.borrow_mut().note_listed(category, n);

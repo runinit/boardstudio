@@ -9,25 +9,86 @@ mod bounded_trim;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::step::load) struct FiniteCurveRepair {
+    pub(in crate::step::load) stage: &'static str,
     pub(in crate::step::load) before: Curve3D,
     pub(in crate::step::load) before_domain: (f64, f64),
     pub(in crate::step::load) after: Curve3D,
     pub(in crate::step::load) after_domain: (f64, f64),
 }
-impl FiniteCurveRepair {
-    pub(in crate::step::load) fn storage_bound(&self) -> Option<usize> {
-        let size = |curve: &Curve3D| match curve {
-            Curve3D::BsplineCurve(curve) => curve.control_points().capacity()
-                .checked_mul(2 * std::mem::size_of::<Point3>())?
-                .checked_add(curve.knot_vector().len().checked_mul(2 * std::mem::size_of::<f64>())?),
-            Curve3D::NurbsCurve(curve) => curve.control_points().capacity()
-                .checked_mul(2 * std::mem::size_of::<Vector4>())?
-                .checked_add(curve.knot_vector().len().checked_mul(2 * std::mem::size_of::<f64>())?),
-            _ => None,
-        };
-        size(&self.before)?.checked_add(size(&self.after)?)?
-            .checked_add(2 * std::mem::size_of::<Self>())
+
+#[derive(Debug)]
+pub(in crate::step::load) struct FiniteCurveTrace {
+    pub(in crate::step::load) changes: Vec<FiniteCurveRepair>,
+    pub(in crate::step::load) failed: bool,
+    budget: std::rc::Rc<std::cell::Cell<usize>>,
+}
+impl FiniteCurveTrace {
+    pub(in crate::step::load) fn new(budget: std::rc::Rc<std::cell::Cell<usize>>) -> Self {
+        Self {
+            changes: Vec::new(),
+            failed: false,
+            budget,
+        }
     }
+    fn charge(&mut self, bytes: Option<usize>) -> bool {
+        let Some(bytes) = bytes else {
+            self.failed = true;
+            return false;
+        };
+        if self.failed || bytes > self.budget.get() || self.changes.len() >= 1_000_000 {
+            self.failed = true;
+            return false;
+        }
+        self.budget.set(self.budget.get() - bytes);
+        true
+    }
+    fn begin(&mut self, curve: &Curve3D) -> Option<Curve3D> {
+        self.charge(curve_storage(curve)).then(|| curve.clone())
+    }
+    fn finish(
+        &mut self,
+        stage: &'static str,
+        before: Option<Curve3D>,
+        before_domain: (f64, f64),
+        after: &Curve3D,
+        after_domain: (f64, f64),
+    ) {
+        let Some(before) = before else {
+            return;
+        };
+        let bytes = curve_storage(after)
+            .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
+        if !self.charge(bytes) || self.changes.try_reserve_exact(1).is_err() {
+            self.failed = true;
+            return;
+        }
+        self.changes.push(FiniteCurveRepair {
+            stage,
+            before,
+            before_domain,
+            after: after.clone(),
+            after_domain,
+        });
+    }
+}
+pub(in crate::step::load) fn curve_storage(curve: &Curve3D) -> Option<usize> {
+    match curve {
+        Curve3D::BsplineCurve(c) => spline_storage(c),
+        Curve3D::NurbsCurve(c) => spline_storage(c.non_rationalized()),
+        _ => None,
+    }
+}
+fn spline_storage<P>(curve: &BsplineCurve<P>) -> Option<usize> {
+    curve
+        .control_points()
+        .capacity()
+        .checked_mul(2 * std::mem::size_of::<P>())?
+        .checked_add(
+            curve
+                .knot_vector()
+                .len()
+                .checked_mul(2 * std::mem::size_of::<f64>())?,
+        )
 }
 
 /// `vertex_point`
@@ -241,8 +302,10 @@ impl EdgeCurve {
     }
 
     fn parse_curve3d_with_bound_recorded(
-        &self, bound: Option<f64>, preview: bool,
-        mut repair: Option<&mut Option<FiniteCurveRepair>>,
+        &self,
+        bound: Option<f64>,
+        preview: bool,
+        repair: Option<&mut FiniteCurveTrace>,
     ) -> Result<Curve3D, StepConvertingError> {
         let p = Point3::from(&self.edge_start.vertex_geometry);
         let q = Point3::from(&self.edge_end.vertex_geometry);
@@ -256,50 +319,84 @@ impl EdgeCurve {
             }
             return Ok(curve);
         }
-        let curve = match (&self.edge_geometry, repair.as_deref_mut()) {
+        let curve = match (&self.edge_geometry, repair) {
             (CurveAny::BoundedCurve(source), Some(capture)) => {
                 let mut curve = bounded_trim::trim_edge_curve_in_native_frame_recorded(
-                    source, p, q, bound.unwrap_or(TOLERANCE), self.same_sense, capture,
+                    source,
+                    p,
+                    q,
+                    bound.unwrap_or(TOLERANCE),
+                    self.same_sense,
+                    capture,
                 )?;
                 if !self.same_sense {
+                    let before_domain = curve.range_tuple();
+                    let before = capture.begin(&curve);
                     curve.invert();
-                    if let Some(capture) = capture {
-                        capture.before_domain = (capture.before_domain.1, capture.before_domain.0);
-                    }
+                    let (a, b) = curve.range_tuple();
+                    capture.finish(
+                        "native-sense-inversion-v1",
+                        before,
+                        before_domain,
+                        &curve,
+                        (b, a),
+                    );
                 }
                 curve
             }
-            _ => Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview)?,
+            _ => {
+                Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview)?
+            }
         };
-        if let Some(Some(capture)) = repair {
-            capture.after_domain = curve.range_tuple();
-            capture.after = curve.clone();
-        }
         Ok(curve)
     }
 
     pub(in crate::step::load) fn parse_curve3d_for_repair(
-        &self, bound: Option<f64>, preview: bool,
-    ) -> Result<(Curve3D, Option<FiniteCurveRepair>), StepConvertingError> {
-        let mut capture = None;
+        &self,
+        bound: Option<f64>,
+        preview: bool,
+        budget: std::rc::Rc<std::cell::Cell<usize>>,
+    ) -> Result<(Curve3D, FiniteCurveTrace), StepConvertingError> {
+        let mut capture = FiniteCurveTrace::new(std::rc::Rc::clone(&budget));
         let curve = match bound {
             None => self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture))?,
             Some(bound) => {
-                if !bound.is_finite() || bound <= 0.0 || !bound.powi(2).is_finite() || bound.powi(2) == 0.0 {
+                if !bound.is_finite()
+                    || bound <= 0.0
+                    || !bound.powi(2).is_finite()
+                    || bound.powi(2) == 0.0
+                {
                     return Err("invalid source connectivity bound".into());
                 }
                 let p = Point3::from(&self.edge_start.vertex_geometry);
                 let q = Point3::from(&self.edge_end.vertex_geometry);
                 let strict = matches!(&self.edge_geometry, CurveAny::BoundedCurve(_))
-                    .then(|| self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture)).ok())
+                    .then(|| {
+                        self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture))
+                            .ok()
+                    })
                     .flatten()
-                    .filter(|curve| curve.front().distance(p) <= bound && curve.back().distance(q) <= bound);
+                    .filter(|curve| {
+                        curve.front().distance(p) <= bound && curve.back().distance(q) <= bound
+                    });
                 let curve = match strict {
                     Some(curve) => curve,
-                    None => { capture = None; self.parse_curve3d_with_bound_recorded(Some(bound), preview, Some(&mut capture))? }
+                    None => {
+                        capture = FiniteCurveTrace::new(std::rc::Rc::clone(&budget));
+                        self.parse_curve3d_with_bound_recorded(
+                            Some(bound),
+                            preview,
+                            Some(&mut capture),
+                        )?
+                    }
                 };
-                if [curve.front().distance(p), curve.back().distance(q)].into_iter().any(|d| !d.is_finite() || d > bound) {
-                    return Err("EDGE_CURVE attachment exceeds its source connectivity bound".into());
+                if [curve.front().distance(p), curve.back().distance(q)]
+                    .into_iter()
+                    .any(|d| !d.is_finite() || d > bound)
+                {
+                    return Err(
+                        "EDGE_CURVE attachment exceeds its source connectivity bound".into(),
+                    );
                 }
                 curve
             }
@@ -460,7 +557,8 @@ impl EdgeCurve {
             }
             CurveAny::SurfaceCurve(c) => {
                 c.validate_master()?;
-                let Curve3D::SurfaceCurve(source) = Curve3D::try_from_surface_curve(c, preview)? else {
+                let Curve3D::SurfaceCurve(source) = Curve3D::try_from_surface_curve(c, preview)?
+                else {
                     return Err("declared STEP surface curve did not retain its master".into());
                 };
                 Curve3D::SurfaceCurve(

@@ -6,9 +6,7 @@
 use monstertruck_io::step::load::convert::{SourceBoundStepShell, StepCompressedShell};
 use monstertruck_meshing::{
     prelude::*,
-    tessellation::{
-        TessellationOptions, robust_cshell_triangulation_with_closed_axis_metadata_report,
-    },
+    tessellation::{TessellationOptions, robust_cshell_triangulation_with_repair_report},
 };
 use monstertruck_modeling::{Point3, PolylineCurve as GeometryPolyline};
 use monstertruck_topology::compress::CompressedShell;
@@ -25,12 +23,13 @@ type ClosedChartMetadata = Vec<(usize, usize, (f64, f64), Vec<usize>)>;
 /// spatial options are millimetres. The caller applies occurrence placement once.
 /// Also returns the indices of faces meshed by the
 /// `options.preview_fallback` route from their shared boundary samples.
+#[cfg(test)]
 pub fn triangulate_source_bound_shell_report(
     source: &SourceBoundStepShell,
     mm_per_unit: f64,
     options: TessellationOptions,
 ) -> Result<(StepMesh, Vec<usize>), String> {
-    triangulate_with_proof(source, mm_per_unit, options, None)
+    triangulate_with_proof(source, mm_per_unit, options, None, None)
         .map(|(mesh, fallback, _)| (mesh, fallback))
 }
 
@@ -39,12 +38,13 @@ pub(super) fn triangulate_for_import(
     mm_per_unit: f64,
     options: TessellationOptions,
     zero_candidate: Option<&super::repair::Cuboid<'_>>,
+    movement: (
+        &mut super::repair::Ledger,
+        monstertruck_modeling::Matrix4,
+        usize,
+    ),
 ) -> Result<(StepMesh, Vec<usize>, bool), String> {
-    if zero_candidate.is_none() {
-        return triangulate_source_bound_shell_report(source, mm_per_unit, options)
-            .map(|(mesh, fallback)| (mesh, fallback, false));
-    }
-    triangulate_with_proof(source, mm_per_unit, options, zero_candidate)
+    triangulate_with_proof(source, mm_per_unit, options, zero_candidate, Some(movement))
 }
 
 fn triangulate_with_proof(
@@ -52,6 +52,11 @@ fn triangulate_with_proof(
     mm_per_unit: f64,
     options: TessellationOptions,
     zero_candidate: Option<&super::repair::Cuboid<'_>>,
+    movement: Option<(
+        &mut super::repair::Ledger,
+        monstertruck_modeling::Matrix4,
+        usize,
+    )>,
 ) -> Result<(StepMesh, Vec<usize>, bool), String> {
     if !mm_per_unit.is_finite() || mm_per_unit <= 0.0 {
         return Err("source representation unit must be finite and positive".into());
@@ -72,11 +77,14 @@ fn triangulate_with_proof(
     }
     // Raw tuple metadata exists only here, after exact binding and re-certification.
     let metadata = closed_chart_metadata(source, &normalized, mm_per_unit)?;
-    let (mesh, fallback_faces) = robust_cshell_triangulation_with_closed_axis_metadata_report(
-        &normalized,
-        options,
-        &metadata,
-    );
+    let report = robust_cshell_triangulation_with_repair_report(&normalized, options, &metadata);
+    if let Some((ledger, placement, occurrence)) = movement {
+        ledger.meshing_operations(&report, placement, occurrence);
+    }
+    // Read-only owner views cannot move the mesh out; copy the actual owned
+    // output structurally, after validation, without a second meshing invocation.
+    let mesh = report.mesh().clone();
+    let fallback_faces = report.fallback_faces().to_vec();
     if !mesh.vertices.iter().all(finite)
         || !mesh.edges.iter().all(|e| e.curve.iter().all(finite))
         || !mesh.faces.iter().all(|f| {

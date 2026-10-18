@@ -1295,10 +1295,7 @@ impl PolyBoundaryPiece {
         best.map(|(_, selected)| {
             if let Some(trace) = repair {
                 if pieces.len() != selected.len() {
-                    trace.unsupported(
-                        repair::Stage::Branch,
-                        "branch piece correspondence changed",
-                    );
+                    trace.unsupported(repair::Stage::Branch, "branch piece correspondence changed");
                 } else {
                     // The selection above restores original piece order; retain
                     // each whole piece separately, including its direction.
@@ -1339,7 +1336,7 @@ impl PolyBoundaryPiece {
             trace.before(
                 repair::Stage::BoundaryRemap,
                 boundary.iter().copied(),
-                std::iter::empty(),
+                iter::empty(),
             )
         });
         let piece = paired_boundary
@@ -1462,7 +1459,7 @@ impl PolyBoundaryPiece {
         repair: Option<repair::FaceCapture<'_>>,
     ) -> Option<Self> {
         let mark = repair.map(|trace| trace.mark());
-        let result = (|| {
+        let result = {
             let pieces = wire.collect::<Vec<_>>();
             if pieces.is_empty() {
                 None
@@ -1555,7 +1552,7 @@ impl PolyBoundaryPiece {
                         )
                     })
             }
-        })();
+        };
         if result.is_none()
             && let (Some(trace), Some(mark)) = (repair, mark)
         {

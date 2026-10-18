@@ -15,6 +15,7 @@ pub(super) struct Source {
 
 pub(super) struct Movement {
     pub occurrence: usize,
+    pub shell: usize,
     pub edge: u64,
     pub bound_mm: f64,
     pub numeric_bound_mm: f64,
@@ -108,19 +109,31 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
 pub(super) fn capture(table: &Table, bytes: &[u8]) -> HashMap<u64, Source> {
     let mut needed = HashSet::new();
     for edge in table.edge_curve.values() {
-        let Some(line) = entity_id(&edge.edge_geometry).and_then(|id| table.line.get(&id)) else { continue; };
-        if let Some(id) = entity_id(&line.pnt) { needed.insert(id); }
+        let Some(line) = entity_id(&edge.edge_geometry).and_then(|id| table.line.get(&id)) else {
+            continue;
+        };
+        if let Some(id) = entity_id(&line.pnt) {
+            needed.insert(id);
+        }
         if let Some(id) = entity_id(&line.dir) {
             needed.insert(id);
             if let Some(vector) = table.vector.get(&id)
-                && let Some(id) = entity_id(&vector.orientation) { needed.insert(id); }
+                && let Some(id) = entity_id(&vector.orientation)
+            {
+                needed.insert(id);
+            }
         }
         for vertex in [&edge.edge_start, &edge.edge_end] {
             if let Some(vertex) = entity_id(vertex).and_then(|id| table.vertex_point.get(&id))
-                && let Some(id) = entity_id(&vertex.vertex_geometry) { needed.insert(id); }
+                && let Some(id) = entity_id(&vertex.vertex_geometry)
+            {
+                needed.insert(id);
+            }
         }
     }
-    if needed.is_empty() { return HashMap::new(); }
+    if needed.is_empty() {
+        return HashMap::new();
+    }
     let Some(numbers) = numbers(bytes, &needed) else {
         return HashMap::new();
     };
@@ -175,9 +188,9 @@ impl Source {
         parsed_vertices: [Point3; 2],
         factor: f64,
         placement: Matrix4,
-        occurrence: usize,
-        edge: u64,
+        identity: (usize, usize, u64),
     ) -> Result<Movement, &'static str> {
+        let (occurrence, shell, edge) = identity;
         if !(0..4).all(|col| (0..4).all(|row| placement[col][row].is_finite()))
             || placement.x.w != 0.0
             || placement.y.w != 0.0
@@ -209,7 +222,7 @@ impl Source {
             .filter(|f| f.is_positive())
             .ok_or("invalid finite LINE unit transform")?;
         let world_square = |before: &Point, after: &Point| -> Result<Q, &'static str> {
-            let delta = sub(&after, before);
+            let delta = sub(after, before);
             let mut world = std::array::from_fn(|_| Q::zero());
             for row in 0..3 {
                 for col in 0..3 {
@@ -251,6 +264,7 @@ impl Source {
         // longitudinal trim movement and nonparallel support substitution.
         Ok(Movement {
             occurrence,
+            shell,
             edge,
             bound_mm: sqrt_upper(&squared)?,
             numeric_bound_mm: sqrt_upper(&numeric_squared)?,

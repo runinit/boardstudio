@@ -8,7 +8,9 @@ use super::*;
 use monstertruck_topology::compress::*;
 use std::collections::HashSet;
 mod repair;
-pub use repair::{StepRepairConversion, StepRepairOperation, StepRepairSource};
+pub use repair::{
+    StepRepairConversion, StepRepairCurveChange, StepRepairOperation, StepRepairSource,
+};
 
 /// A compressed shell in the STEP loader's concrete geometry types.
 ///
@@ -200,11 +202,14 @@ impl Table {
         shell: &ShellHolder,
         selection: ConnectivitySelection,
     ) -> Result<SourceMappedShell, StepConvertingError> {
-        self.compressed_shell_with_repair_reported(shell, selection, false)
+        self.compressed_shell_with_repair_reported(shell, selection, None)
     }
 
     fn compressed_shell_with_repair_reported(
-        &self, shell: &ShellHolder, selection: ConnectivitySelection, repair: bool,
+        &self,
+        shell: &ShellHolder,
+        selection: ConnectivitySelection,
+        repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
     ) -> Result<SourceMappedShell, StepConvertingError> {
         let sink = LossSink::with_repair(repair);
         let connectivity = match selection {
@@ -235,11 +240,14 @@ impl Table {
         id: u64,
         selection: ConnectivitySelection,
     ) -> Result<SourceMappedShell, LoadError> {
-        self.source_mapped_shell_with_repair_at(id, selection, false)
+        self.source_mapped_shell_with_repair_at(id, selection, None)
     }
 
     fn source_mapped_shell_with_repair_at(
-        &self, id: u64, selection: ConnectivitySelection, repair: bool,
+        &self,
+        id: u64,
+        selection: ConnectivitySelection,
+        repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
     ) -> Result<SourceMappedShell, LoadError> {
         if let Some(shell) = self.shell.get(&id) {
             return Ok(self.compressed_shell_with_repair_reported(shell, selection, repair)?);
@@ -451,18 +459,28 @@ impl Table {
             };
             let preview = self.preview_tolerance.is_some();
             let parsed = if sink.wants_repair() {
-                edge_curve.parse_curve3d_for_repair(accuracy.map(|bound| bound.bound()), preview)
-                    .map(|(curve, repair)| { sink.repair_curve(idx, repair); curve })
-            } else { accuracy.map_or_else(
-                || {
-                    if preview {
-                        edge_curve.parse_curve3d_preview()
-                    } else {
-                        edge_curve.parse_curve3d()
-                    }
-                },
-                |bound| edge_curve.parse_curve3d_with_connectivity(bound.bound(), preview),
-            ) };
+                edge_curve
+                    .parse_curve3d_for_repair(
+                        accuracy.map(|bound| bound.bound()),
+                        preview,
+                        sink.repair_budget(),
+                    )
+                    .map(|(curve, repair)| {
+                        sink.repair_curve(idx, repair);
+                        curve
+                    })
+            } else {
+                accuracy.map_or_else(
+                    || {
+                        if preview {
+                            edge_curve.parse_curve3d_preview()
+                        } else {
+                            edge_curve.parse_curve3d()
+                        }
+                    },
+                    |bound| edge_curve.parse_curve3d_with_connectivity(bound.bound(), preview),
+                )
+            };
             let curve = match parsed {
                 Ok(curve) => curve,
                 Err(e) => {
@@ -1515,19 +1533,24 @@ impl Table {
         solid: &ManifoldSolidBrepHolder,
         selection: ConnectivitySelection,
     ) -> Result<SourceMappedSolid, LoadError> {
-        self.compressed_solid_with_repair_reported(solid, selection, false)
+        self.compressed_solid_with_repair_reported(solid, selection, None)
     }
 
     fn compressed_solid_with_repair_reported(
-        &self, solid: &ManifoldSolidBrepHolder, selection: ConnectivitySelection, repair: bool,
+        &self,
+        solid: &ManifoldSolidBrepHolder,
+        selection: ConnectivitySelection,
+        repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
     ) -> Result<SourceMappedSolid, LoadError> {
         let outer_id = Self::ref_id(&solid.outer).ok_or("failed to reference `solid.outer`")?;
         if !self.shell.contains_key(&outer_id) && !self.oriented_shell.contains_key(&outer_id) {
             return Err("failed to reference `solid.outer`".into());
         }
-        let (outer, report, ids) = if repair {
-            self.source_mapped_shell_with_repair_at(outer_id, selection, true)?
-        } else { self.source_mapped_shell_at(outer_id, selection)? };
+        let (outer, report, ids) = if repair.is_some() {
+            self.source_mapped_shell_with_repair_at(outer_id, selection, repair.clone())?
+        } else {
+            self.source_mapped_shell_at(outer_id, selection)?
+        };
         let mut boundaries = vec![outer];
         let mut reports = vec![report];
         let mut sources = vec![ids];
@@ -1537,9 +1560,11 @@ impl Table {
             if !self.oriented_shell.contains_key(&id) {
                 return Err("failed to reference an element of `solid.voids`".into());
             }
-            let (shell, report, ids) = if repair {
-                self.source_mapped_shell_with_repair_at(id, selection, true)?
-            } else { self.source_mapped_shell_at(id, selection)? };
+            let (shell, report, ids) = if repair.is_some() {
+                self.source_mapped_shell_with_repair_at(id, selection, repair.clone())?
+            } else {
+                self.source_mapped_shell_at(id, selection)?
+            };
             boundaries.push(shell);
             reports.push(report);
             sources.push(ids);
@@ -1609,7 +1634,8 @@ impl Table {
             return Err("source shell binding count mismatch".into());
         }
         let mut shells = Vec::new();
-        for ((shell, ids), mut report) in converted.boundaries.into_iter().zip(sources).zip(reports) {
+        for ((shell, ids), mut report) in converted.boundaries.into_iter().zip(sources).zip(reports)
+        {
             let repairs = report.take_repair_curves();
             shells.push(self.bind_source_shell(
                 shell,
@@ -1630,7 +1656,12 @@ impl Table {
         self.entity_report.require_empty()?;
         let (shell, report, ids) = self.compressed_shell_with_sources_reported(shell)?;
         report.require_lossless()?;
-        self.bind_source_shell(shell, ids, report.connectivity_attachments().to_vec(), (Vec::new(), false))
+        self.bind_source_shell(
+            shell,
+            ids,
+            report.connectivity_attachments().to_vec(),
+            (Vec::new(), false),
+        )
     }
 
     /// Checked strict geometry without consulting representation connectivity.
@@ -1644,7 +1675,12 @@ impl Table {
         let (shell, report, ids) = self
             .compressed_shell_with_connectivity_reported(shell, ConnectivitySelection::Disabled)?;
         report.require_lossless()?;
-        self.bind_source_shell(shell, ids, report.connectivity_attachments().to_vec(), (Vec::new(), false))
+        self.bind_source_shell(
+            shell,
+            ids,
+            report.connectivity_attachments().to_vec(),
+            (Vec::new(), false),
+        )
     }
 
     /// Selects an owning geometric representation explicitly when geometry is reused.
@@ -1657,7 +1693,12 @@ impl Table {
         let (shell, report, ids) =
             self.compressed_shell_in_representation_reported(shell, Some(representation))?;
         report.require_lossless()?;
-        self.bind_source_shell(shell, ids, report.connectivity_attachments().to_vec(), (Vec::new(), false))
+        self.bind_source_shell(
+            shell,
+            ids,
+            report.connectivity_attachments().to_vec(),
+            (Vec::new(), false),
+        )
     }
 
     /// Diagnostic conversion under an explicit geometric owner. Every refusal

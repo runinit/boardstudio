@@ -66,7 +66,25 @@ const metreAssembly = replaceOnce(
   replaceOnce(fixture('two-occurrences-mm.step'), line, shiftedLine),
   'SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT($,.METRE.)');
 // Independently authored placements: (10-y,20+x,30+z) and (x-5,y+7,z+11), in metres.
-check(metreAssembly, {}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
+assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(metreAssembly)),
+  {sourceSha256: sha(Buffer.from(metreAssembly))}), error =>
+    typeof error === 'string' && error.includes('finite LINE repair') && error.includes('repair budget 0.02'));
+check(metreAssembly, {previewRepairBudgetMm: 2}, [[-5000, 7000, 11000], [10000, 22000, 34000]], 2);
+const finite = fixture('repair-finite-domain.step');
+const finiteBytes = new Uint8Array(Buffer.from(finite));
+function refusesFinite(options) {
+  assert.throws(() => cad.read_step_model(finiteBytes,
+    {sourceSha256: sha(Buffer.from(finite)), ...options}), error =>
+      typeof error === 'string' && error.includes('finite LINE repair') && error.includes('exceeds repair budget'));
+}
+refusesFinite({});
+refusesFinite({previewRepairBudgetMm: 0.031249999999999997});
+for (const allowance of [0.03125, 0.03125000000000001]) {
+  const accepted = check(finite, {previewRepairBudgetMm: allowance}, tetraBounds, 1);
+  assert.equal(accepted.vendorStep.accuracy.selectedRepairBudgetMm, allowance);
+}
+assert.deepEqual(Buffer.from(finiteBytes), Buffer.from(finite), 'refused/accepted calls retain immutable original bytes');
+check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
 let gap = replaceOnce(tetra,
   "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));",
   "#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3) REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300)));");
@@ -91,4 +109,4 @@ assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
 const curved = check(fixture('unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, false);
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
-console.log('PASS repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');
+console.log('PASS complete finite LINE operation default/equality/nextdown budget enforcement; incomplete asset remains Unknown; repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');

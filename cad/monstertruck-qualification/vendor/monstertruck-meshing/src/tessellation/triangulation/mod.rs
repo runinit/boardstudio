@@ -913,32 +913,39 @@ where
 {
     cshell_tessellation_with_closed_axis_metadata_and_repair(
         shell,
-        tolerance,
+        TessellationOptions {
+            tolerance,
+            primitive: primitive_config,
+            edge_angular_tolerance,
+            preview_fallback,
+            ..Default::default()
+        },
         sp,
-        primitive_config,
-        edge_angular_tolerance,
         closed_axis_metadata,
         fallback_from_inferred_chart,
-        preview_fallback,
         None,
     )
 }
 
 pub(super) fn cshell_tessellation_with_closed_axis_metadata_and_repair<'a, C, S>(
     shell: &CompressedShell<Point3, C, S>,
-    tolerance: f64,
+    options: TessellationOptions,
     sp: impl SP<S>,
-    primitive_config: TessellationPrimitiveOptions,
-    edge_angular_tolerance: Option<f64>,
-    closed_axis_metadata: &[(usize, usize, (f64, f64), Vec<usize>)],
+    closed_axis_metadata: &[repair::ClosedAxis],
     fallback_from_inferred_chart: bool,
-    preview_fallback: bool,
     repair: Option<&repair::Capture>,
 ) -> (MeshedCompressedShell, Vec<usize>)
 where
     C: PolylineableCurve + ParameterBoundary2D<S> + 'a,
     S: PreMeshableSurface + 'a,
 {
+    let TessellationOptions {
+        tolerance,
+        primitive: primitive_config,
+        edge_angular_tolerance,
+        preview_fallback,
+        ..
+    } = options;
     let vertices = shell.vertices.clone();
     let tessellate_edge = |edge: &CompressedEdge<C>| {
         let curve = &edge.curve;
@@ -1072,6 +1079,7 @@ where
                     // An existing aligned trim retains the caller's raw shared
                     // representatives. Use the inferred chart only to recover
                     // a boundary whose alignment actually failed.
+                    let attempt = repair.map(|trace| trace.mark());
                     let aligned = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
                         surface,
                         sampled_edges.iter().map(|(_, _, _, boundary, polyline)| {
@@ -1090,6 +1098,9 @@ where
                         }
                     }) {
                         return Some(aligned);
+                    }
+                    if let (Some(trace), Some(mark)) = (repair, attempt) {
+                        trace.discard_since(mark);
                     }
                 }
                 let mut uses = HashMap::<usize, Vec<bool>>::default();
@@ -1165,11 +1176,15 @@ where
                         };
                         (boundary, polyline)
                     });
+                let attempt = repair.map(|trace| trace.mark());
                 return PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
                     surface, aligned, &sp, tolerance, true, repair,
                 )
                 .filter(PolyBoundaryPiece::is_cdt_compatible)
                 .or_else(|| {
+                    if let (Some(trace), Some(mark)) = (repair, attempt) {
+                        trace.discard_since(mark);
+                    }
                     PolyBoundaryPiece::try_new(
                         surface,
                         oriented_edge_indices(wire, face_orientation).filter_map(create_edge),
@@ -1187,6 +1202,7 @@ where
                         .map(|(_, orientation, curve, _, _)| (*orientation, *curve)),
                     boundary_tolerance,
                 );
+                let attempt = repair.map(|trace| trace.mark());
                 let aligned_piece = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
                     surface,
                     exact_edges
@@ -1199,7 +1215,12 @@ where
                 );
                 aligned_piece
                     .filter(|piece| piece.0.len() >= 3)
-                    .or(direct_piece)
+                    .or_else(|| {
+                        if let (Some(trace), Some(mark)) = (repair, attempt) {
+                            trace.discard_since(mark);
+                        }
+                        direct_piece
+                    })
             };
             let exact_piece = create_exact_piece(tolerance);
             if mesh_trace_enabled() {

@@ -312,9 +312,17 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         floor_mm: budget / max_scale,
                         declared_multiplier: 0.0,
                     });
-                    rep_table.to_source_bound_solid_with_repair_checked(*id, Some(*representation), &repair_source)
+                    rep_table.to_source_bound_solid_with_repair_checked(
+                        *id,
+                        Some(*representation),
+                        &repair_source,
+                    )
                 } else {
-                    table.to_source_bound_solid_with_repair_checked(*id, Some(*representation), &repair_source)
+                    table.to_source_bound_solid_with_repair_checked(
+                        *id,
+                        Some(*representation),
+                        &repair_source,
+                    )
                 }
             } else {
                 table.to_source_bound_solid_with_repair_checked(*id, None, &repair_source)
@@ -342,7 +350,11 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             .map(|(_, _, representation)| *representation),
     );
     for solid in solids.values() {
-        for source in solid.source.values().flat_map(|source| source.source().shells()) {
+        for source in solid
+            .source
+            .values()
+            .flat_map(|source| source.source().shells())
+        {
             retained.extend(repair_original.retained_edge_ids(source));
         }
     }
@@ -406,11 +418,24 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         units::validate_placement_matrix(*placement)?;
         let solid = &solids[id];
         let mut signed_volume = 0.0;
-        for (shell_index, source) in solid.source[representation].source().shells().iter().enumerate() {
+        for (shell_index, source) in solid.source[representation]
+            .source()
+            .shells()
+            .iter()
+            .enumerate()
+        {
             source_two_use &= require_complete_source_shell(source)? == SourceShellTopology::TwoUse;
             repair_ledger.conversion(
                 &repair_original,
                 source,
+                solid.mm_per_unit,
+                *placement,
+                occurrence,
+                shell_index,
+            );
+            repair_ledger.conversion_operations(
+                &solid.source[representation],
+                shell_index,
                 solid.mm_per_unit,
                 *placement,
                 occurrence,
@@ -476,7 +501,9 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         ..Default::default()
                     },
                     zero_candidate.as_ref(),
+                    (&mut repair_ledger, *placement, occurrence),
                 )?;
+            repair_ledger.enforce_finite_lines(occurrence, allowance)?;
             complete_zero_repair &= zero_repair;
             repair_ledger.unknown(
                 occurrence,
@@ -594,7 +621,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             "non-surface geometry changes are not traced",
         );
     }
-    repair_ledger.unknown(
+    repair_ledger.numerical_unknown(
         0,
         "source decimal decoding",
         "parsed f64 operation bounds do not cover original decimal conversion",
@@ -833,7 +860,12 @@ fn source_face_catalogue(
             .keys()
             .min()
             .ok_or("source definition has no owner")?;
-        for (shell_index, shell) in solids[&solid_id].source[owner].source().shells().iter().enumerate() {
+        for (shell_index, shell) in solids[&solid_id].source[owner]
+            .source()
+            .shells()
+            .iter()
+            .enumerate()
+        {
             for face_id in shell.source_face_ids() {
                 let parts = records
                     .get(face_id)

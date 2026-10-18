@@ -14,6 +14,7 @@ other than the source parser):
 pub struct StepRepairSource { /* original bytes, parsed numeric/domain authority */ }
 pub struct StepRepairConversion { /* actual SourceBoundStepSolid and witnesses */ }
 pub struct StepRepairOperation<'a> { /* borrowed immutable witness */ }
+pub struct StepRepairCurveChange<'a> { /* private captured finite pair */ }
 impl StepRepairSource {
     pub fn from_step_bytes(bytes: &[u8]) -> Result<Self, LoadError>;
 }
@@ -31,16 +32,39 @@ impl StepRepairConversion {
 }
 impl StepRepairOperation<'_> {
     pub fn stage(&self) -> &'static str;
+    pub fn curve_change(&self) -> Option<StepRepairCurveChange<'_>>;
     pub fn source_ids(&self) -> (u64, Option<u64>, Option<u64>); // solid, face, edge
     pub fn bound(&self) -> Result<f64, &str>;
 }
 ```
 
+Root additionally approved the exact new `StepRepairCurveChange` view and getter
+(no constructor, Clone, serde or existing visibility change):
+
+```rust
+impl StepRepairCurveChange<'_> {
+    pub fn curves(&self) -> (&Curve3D, &Curve3D);
+    pub fn domains(&self) -> ((f64, f64), (f64, f64));
+}
+```
+
+The actual selected BEFORE interval is captured in the SAME conversion before
+cut/relabel/master replacement. Directed domains retain sense through inversion.
+Every actual mutation has its own immediate pair and immutable stage identity;
+consecutive pairs must chain structurally, and the last AFTER must equal the
+actual emitted owned carrier. An early BEFORE cannot be paired with a later final
+AFTER as an individual mutation. Missing/ambiguous finite selection gives None and
+Unsupported, never a full-support or endpoint reconstruction. Some is captured
+data, not original selection proof. Numeric conversion and earlier master choice
+remain separate. Kiwano's actual alternate-master route remains Unsupported.
+Carrier/control/knot capacities are charged before witness clones; failure/caps
+make the report incomplete without changing preview admission.
+
 `representation: None` means the existing without-connectivity route, not automatic
 precision discovery. IDs must resolve in the captured original. The table must be
 identical to that source except authenticated conical angle-unit normalization;
 that normalization retains both written units/angle and resulting carrier, and
-numerical error is accounted separately. Any other mismatch refuses the new facade.
+numerical error is accounted separately. Any other mismatch makes the new report incomplete without changing preview admission.
 Existing APIs and private module visibility do not change.
 
 In `monstertruck-meshing/src/tessellation/repair.rs`, re-exported by the existing
@@ -67,6 +91,28 @@ impl MeshRepairOperation<'_> {
     pub fn bound(&self) -> Result<f64, &str>;
 }
 ```
+
+Root also approved new opaque `MeshRepairDomainChange<'a>` through the existing
+tessellation module (all fields private, no constructor, Clone or serde):
+
+```rust
+impl<C, S> ShellRepairMesh<'_, C, S> {
+    pub fn domain_changes(&self) -> impl Iterator<Item = MeshRepairDomainChange<'_>>;
+}
+impl MeshRepairDomainChange<'_> {
+    pub fn stage(&self) -> &'static str;
+    pub fn indices(&self) -> (Option<usize>, Option<usize>);
+    pub fn uv_controls(&self) -> (&[Point2], &[Point2]);
+    pub fn spatial_controls(&self) -> (&[Point3], &[Point3]);
+}
+```
+
+These are full actual finite pieces before/after the SAME mutation, with stage,
+direction and source association. Missing/empty/ambiguous or one-to-many
+correspondence is Unsupported. Preserve piece boundaries; never zip unrelated
+resampled controls. Native carriers/surfaces come only from the immutable actual
+input. The actual final mesh is owned by the same trace. A preceding true curved
+trim to polyline is a separate approximation term, Unknown without proof.
 
 ## Witness meaning and capture points
 

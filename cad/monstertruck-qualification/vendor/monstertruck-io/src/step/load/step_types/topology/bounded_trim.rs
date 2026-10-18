@@ -28,10 +28,21 @@ pub(super) fn trim_edge_curve_in_native_frame(
 }
 
 pub(super) fn trim_edge_curve_in_native_frame_recorded(
-    source: &BoundedCurveAny, p: Point3, q: Point3, accuracy: f64, same_sense: bool,
-    repair: &mut Option<FiniteCurveRepair>,
+    source: &BoundedCurveAny,
+    p: Point3,
+    q: Point3,
+    accuracy: f64,
+    same_sense: bool,
+    repair: &mut FiniteCurveTrace,
 ) -> Result<Curve3D, StepConvertingError> {
-    trim_edge_curve_impl(source.try_into()?, p, q, accuracy, Some((source, same_sense)), Some(repair))
+    trim_edge_curve_impl(
+        source.try_into()?,
+        p,
+        q,
+        accuracy,
+        Some((source, same_sense)),
+        Some(repair),
+    )
 }
 
 fn trim_edge_curve_impl(
@@ -40,7 +51,7 @@ fn trim_edge_curve_impl(
     q: Point3,
     accuracy: f64,
     native_frame: Option<(&BoundedCurveAny, bool)>,
-    repair: Option<&mut Option<FiniteCurveRepair>>,
+    repair: Option<&mut FiniteCurveTrace>,
 ) -> Result<Curve3D, StepConvertingError> {
     if !accuracy.is_finite()
         || accuracy <= 0.0
@@ -103,12 +114,8 @@ fn trim_edge_curve_impl(
     // The source domain already identifies the intended full interval, including closed curves.
     if matches(a, p) && matches(b, q) {
         if let Some(repair) = repair {
-            let bytes = controls.len().checked_mul(4 * std::mem::size_of::<Point3>())
-                .and_then(|n| knots.len().checked_mul(4 * std::mem::size_of::<f64>()).and_then(|m| n.checked_add(m)));
-            if bytes.is_some_and(|n| n <= 256 * 1024 * 1024) {
-                *repair = Some(FiniteCurveRepair { before: curve.clone(), before_domain: (a, b),
-                    after: curve.clone(), after_domain: (a, b) });
-            }
+            let before = repair.begin(&curve);
+            repair.finish("native-full-interval-v1", before, (a, b), &curve, (a, b));
         }
         return Ok(curve);
     }
@@ -193,25 +200,22 @@ fn trim_edge_curve_impl(
     if u >= v {
         return Err("B-spline edge vertices contradict the geometry sense".into());
     }
-    // Retain the actual selected native interval BEFORE restriction/relabeling.
-    // Selection itself remains a separate unsupported source-domain stage.
-    // Guard witness clones independently of the existing geometry admission.
-    if let Some(repair) = repair {
-        let bytes = controls.len().checked_mul(4 * std::mem::size_of::<Point3>())
-            .and_then(|n| knots.len().checked_mul(4 * std::mem::size_of::<f64>()).and_then(|m| n.checked_add(m)));
-        if bytes.is_some_and(|n| n <= 256 * 1024 * 1024) {
-            *repair = Some(FiniteCurveRepair { before: curve.clone(), before_domain: (u, v),
-                after: curve.clone(), after_domain: (u, v) });
-        }
-    }
+    // Every actual mutation retains its immediate finite-domain pair. Selection
+    // authority is separate: these recorded inverse results are not a proof.
     let trimmed = match &curve {
-        Curve3D::BsplineCurve(spline) => {
-            Curve3D::BsplineCurve(trim_spline(spline, (a, b), (u, v))?)
-        }
+        Curve3D::BsplineCurve(spline) => Curve3D::BsplineCurve(trim_spline(
+            spline,
+            (a, b),
+            (u, v),
+            repair,
+            Curve3D::BsplineCurve,
+        )?),
         Curve3D::NurbsCurve(spline) => Curve3D::NurbsCurve(NurbsCurve::new(trim_spline(
             spline.non_rationalized(),
             (a, b),
             (u, v),
+            repair,
+            |spline| Curve3D::NurbsCurve(NurbsCurve::new(spline)),
         )?)),
         _ => unreachable!(),
     };
@@ -384,13 +388,37 @@ fn trim_spline<P: ControlPoint<f64> + Tolerance>(
     spline: &BsplineCurve<P>,
     (a, b): (f64, f64),
     (u, v): (f64, f64),
+    mut trace: Option<&mut FiniteCurveTrace>,
+    wrap: impl Fn(BsplineCurve<P>) -> Curve3D,
 ) -> Result<BsplineCurve<P>, StepConvertingError> {
     let mut trimmed = spline.clone();
+    // Charge owned capacities before retaining a carrier clone.
+    let mut pending = begin_spline_change(&mut trace, &wrap, &trimmed);
     if u > a {
         trimmed = cut_exact(&mut trimmed, u);
+        finish_spline_change(
+            &mut trace,
+            &wrap,
+            "native-cut-front-v1",
+            pending.take(),
+            (u, v),
+            &trimmed,
+            (u, v),
+        );
+        pending = begin_spline_change(&mut trace, &wrap, &trimmed);
     }
     if v < b {
         cut_exact(&mut trimmed, v);
+        finish_spline_change(
+            &mut trace,
+            &wrap,
+            "native-cut-back-v1",
+            pending.take(),
+            (u, v),
+            &trimmed,
+            (u, v),
+        );
+        pending = begin_spline_change(&mut trace, &wrap, &trimmed);
     }
     if trimmed.knot_vector().range_length() <= TOLERANCE {
         let (knots, controls) = trimmed.destruct();
@@ -400,6 +428,15 @@ fn trim_spline<P: ControlPoint<f64> + Tolerance>(
             .map(|knot| (knot - first) / span)
             .collect::<Vec<_>>();
         trimmed = BsplineCurve::try_new(KnotVector::from(knots), controls)?;
+        finish_spline_change(
+            &mut trace,
+            &wrap,
+            "native-domain-relabel-v1",
+            pending.take(),
+            (u, v),
+            &trimmed,
+            (0.0, 1.0),
+        );
     }
     if trimmed
         .control_points()
@@ -409,6 +446,53 @@ fn trim_spline<P: ControlPoint<f64> + Tolerance>(
         return Err("B-spline edge trim produced non-finite controls".into());
     }
     Ok(trimmed)
+}
+
+fn begin_spline_change<P>(
+    trace: &mut Option<&mut FiniteCurveTrace>,
+    wrap: &impl Fn(BsplineCurve<P>) -> Curve3D,
+    spline: &BsplineCurve<P>,
+) -> Option<Curve3D>
+where
+    P: Clone,
+{
+    trace.as_deref_mut().and_then(|trace| {
+        trace
+            .charge(spline_storage(spline))
+            .then(|| wrap(spline.clone()))
+    })
+}
+fn finish_spline_change<P>(
+    trace: &mut Option<&mut FiniteCurveTrace>,
+    wrap: &impl Fn(BsplineCurve<P>) -> Curve3D,
+    stage: &'static str,
+    before: Option<Curve3D>,
+    before_domain: (f64, f64),
+    after: &BsplineCurve<P>,
+    after_domain: (f64, f64),
+) where
+    P: Clone,
+{
+    let Some(trace) = trace.as_deref_mut() else {
+        return;
+    };
+    let Some(before) = before else {
+        return;
+    };
+    // Finish without an uncharged temporary carrier clone.
+    let bytes = spline_storage(after)
+        .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
+    if !trace.charge(bytes) || trace.changes.try_reserve_exact(1).is_err() {
+        trace.failed = true;
+        return;
+    }
+    trace.changes.push(FiniteCurveRepair {
+        stage,
+        before,
+        before_domain,
+        after: wrap(after.clone()),
+        after_domain,
+    });
 }
 
 // Generic Cut snaps spatial TOLERANCE onto knot parameters; STEP interval cuts must be exact.

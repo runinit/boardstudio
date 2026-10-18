@@ -9,3 +9,5 @@ mod source_pcurve_active_view;
 mod step_cone_domain;
 mod table;
 mod tessellate_shape;
+
+mod repair_movement;
