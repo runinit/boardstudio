@@ -1,10 +1,11 @@
 //! Internal operation accounting. A support translation is not whole-asset movement.
+mod conic;
 mod cuboid;
 mod finite_curve;
 mod finite_line;
 use super::*;
 pub(super) use cuboid::Cuboid;
-use monstertruck_io::step::load::step_geometry::Curve3D;
+use monstertruck_io::step::load::step_geometry::{Conic3D, Curve3D};
 use monstertruck_io::step::load::step_p21::tables::{IntoOwned, PlaceHolder};
 
 // Preserve conversion/sqrt/outward-comparison order; whole-curve extreme and
@@ -196,6 +197,8 @@ pub(super) struct OriginalGeometry {
     finite_lines: HashMap<u64, finite_line::Source>,
     /// Native-frame vertex points `(start, end)` after edge sense, per EDGE_CURVE.
     native_ends: HashMap<u64, [Point3; 2]>,
+    /// The constructor result for each EDGE_CURVE whose support is a circle/ellipse.
+    conic_frames: HashMap<u64, Matrix4>,
 }
 
 struct SourceBoundary {
@@ -311,11 +314,34 @@ impl OriginalGeometry {
                 ))
             })
             .collect();
+        let conic_frames = table
+            .edge_curve
+            .iter()
+            .filter_map(|(&id, edge)| {
+                let PlaceHolder::Ref(Name::Entity(curve)) = &edge.edge_geometry else {
+                    return None;
+                };
+                let frame = if let Some(circle) = table.circle.get(curve) {
+                    let circle = circle.clone().into_owned(table).ok()?;
+                    Matrix4::try_from(&circle.position).ok()? * Matrix4::from_scale(circle.radius)
+                } else {
+                    let ellipse = table.ellipse.get(curve)?.clone().into_owned(table).ok()?;
+                    Matrix4::try_from(&ellipse.position).ok()?
+                        * Matrix4::from_nonuniform_scale(
+                            ellipse.semi_axis_1,
+                            ellipse.semi_axis_2,
+                            f64::min(ellipse.semi_axis_1, ellipse.semi_axis_2),
+                        )
+                };
+                Some((id, frame))
+            })
+            .collect();
         Self {
             lines,
             boundaries,
             finite_lines: finite_line::capture(table, bytes),
             native_ends,
+            conic_frames,
         }
     }
 
@@ -557,7 +583,7 @@ impl Ledger {
 
     pub(super) fn conversion_operations<'a>(
         &mut self,
-        original: Option<&OriginalGeometry>,
+        original: Option<(&OriginalGeometry, &SourceBoundStepShell)>,
         operations: impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'a>>,
         complete: bool,
         shell: usize,
@@ -576,7 +602,7 @@ impl Ledger {
                     (operation.source_ids().2, operation.curve_change())
             {
                 let residual = original
-                    .and_then(|original| original.native_ends.get(&id))
+                    .and_then(|(original, _)| original.native_ends.get(&id))
                     .ok_or("original EDGE_CURVE vertex attachments are unavailable")
                     .and_then(|ends| finite_curve::end_residual(change, ends, factor, placement));
                 self.0.push(Operation {
@@ -590,13 +616,50 @@ impl Ledger {
                 resolved.insert(id);
             }
         }
+        // A circle/ellipse edge keeps its source support; its selection is the
+        // counter-clockwise arc between the vertex parameters, so only the exact
+        // end residual against the original vertices is repair movement.
+        if let Some((original, source)) = original
+            && let Some(ids) = original.bind_edges(source)
+        {
+            for (edge, id) in source.shell().edges.iter().zip(ids) {
+                let Curve3D::Conic(Conic3D::Ellipse(ellipse)) = &edge.curve else {
+                    continue;
+                };
+                let residual = original
+                    .conic_frames
+                    .get(&id)
+                    .zip(original.native_ends.get(&id))
+                    .ok_or("original conic record or vertex attachments are unavailable")
+                    .and_then(|(frame, ends)| {
+                        conic::end_residual(ellipse, frame, ends, factor, placement)
+                    });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: Some(id),
+                    stage: "native-conic-attachment-v1",
+                    bound_mm: residual,
+                    diagnostic_only: false,
+                });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: Some(id),
+                    stage: "native-conic-numeric-v1",
+                    bound_mm: Err("binary64 conic constructor rounding is not bounded"),
+                    diagnostic_only: true,
+                });
+                resolved.insert(id);
+            }
+        }
         for operation in &operations {
             if operation.stage() == "same-master-planar-uvline-trim-v1"
                 && let (Some(id), Some(change)) =
                     (operation.source_ids().2, operation.curve_change())
             {
                 let residual = original
-                    .and_then(|original| original.native_ends.get(&id))
+                    .and_then(|(original, _)| original.native_ends.get(&id))
                     .ok_or("original EDGE_CURVE vertex attachments are unavailable")
                     .and_then(|ends| {
                         finite_curve::planar_line_end_residual(change, ends, factor, placement)
@@ -1520,6 +1583,50 @@ mod tests {
             );
             assert_eq!(model._repair_ledger.complete_bound_mm(), None);
         }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn circle_edges_keep_their_source_support_with_an_enclosed_end_residual() {
+        let text = include_str!("../../tests/fixtures/source-closed-cylinder-mm.step");
+        let model = import_step(text.as_bytes().to_vec()).unwrap();
+        let ops = &model._repair_ledger.0;
+        let mut residuals = Vec::new();
+        for edge in [52, 53] {
+            let attachment: Vec<_> = ops
+                .iter()
+                .filter(|op| {
+                    op.stage == "native-conic-attachment-v1" && op.source_edge == Some(edge)
+                })
+                .collect();
+            assert!(
+                !attachment.is_empty(),
+                "circle edge #{edge} attachment stage"
+            );
+            for op in attachment {
+                assert!(!op.diagnostic_only);
+                residuals.push(op.bound_mm.unwrap_or_else(|e| panic!("edge #{edge}: {e}")));
+            }
+            for stage in ["native-finite-interval-v1", "selected-master-v1"] {
+                assert!(
+                    !ops.iter()
+                        .any(|op| op.stage == stage && op.source_edge == Some(edge)),
+                    "{stage} placeholder for resolved circle #{edge}"
+                );
+            }
+        }
+        // The stored full turn ends at 2*pi rounded to binary64: sin(v) = -2.449e-16.
+        assert!(residuals.iter().all(|r| *r < 1e-12), "{residuals:?}");
+        assert!(
+            residuals.iter().any(|r| (2.4e-16..1e-15).contains(r)),
+            "enclosure sees the rounded full-turn parameter: {residuals:?}"
+        );
+        assert!(
+            ops.iter()
+                .any(|op| op.stage == "native-finite-interval-v1" && op.source_edge == Some(54)),
+            "the seam LINE keeps its unresolved placeholder"
+        );
+        assert_eq!(model._repair_ledger.complete_bound_mm(), None);
     }
 
     fn projected_line_tetra(offset: &str) -> String {
