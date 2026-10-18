@@ -242,7 +242,7 @@ pub fn qualify_generated(
     if model.solids.is_empty() {
         reasons.push("missing exact solid".into());
     }
-    if analysis.positions_mm_f64.is_empty() || analysis.positions_mm_f64.len() % 9 != 0 {
+    if analysis.positions_mm_f64.is_empty() || !analysis.positions_mm_f64.len().is_multiple_of(9) {
         reasons.push("invalid final buffer".into());
     }
     if analysis
@@ -388,10 +388,10 @@ pub fn qualify_generated(
             }
             let base = triangle_index * 9;
             let mut tri = [[0.0; 3]; 3];
-            for corner in 0..3 {
-                tri[corner][0] = analysis.positions_mm_f64[base + corner * 3];
-                tri[corner][1] = analysis.positions_mm_f64[base + corner * 3 + 1];
-                tri[corner][2] = analysis.positions_mm_f64[base + corner * 3 + 2];
+            for (corner, vertex) in tri.iter_mut().enumerate() {
+                vertex[0] = analysis.positions_mm_f64[base + corner * 3];
+                vertex[1] = analysis.positions_mm_f64[base + corner * 3 + 1];
+                vertex[2] = analysis.positions_mm_f64[base + corner * 3 + 2];
             }
             face_triangles.push(tri);
         }
@@ -750,14 +750,14 @@ mod tests {
             for shell in &mut shells {
                 for face in shell.face_iter_mut() {
                     let mut boundaries = face.boundaries();
-                    if let Some(wire) = boundaries.get_mut(0) {
-                        if let Some(edge) = wire.edge_iter_mut().next() {
-                            let (_start, _end) = edge.ends();
-                            edge.set_curve(Curve::Line(monstertruck_modeling::Line(
-                                Point3::new(999.0, 999.0, 999.0),
-                                Point3::new(1000.0, 1000.0, 1000.0),
-                            )));
-                        }
+                    if let Some(wire) = boundaries.get_mut(0)
+                        && let Some(edge) = wire.edge_iter_mut().next()
+                    {
+                        let (_start, _end) = edge.ends();
+                        edge.set_curve(Curve::Line(monstertruck_modeling::Line(
+                            Point3::new(999.0, 999.0, 999.0),
+                            Point3::new(1000.0, 1000.0, 1000.0),
+                        )));
                     }
                     face.set_surface(face.surface().clone());
                     // Reconstruct face with mutated boundaries.
@@ -794,10 +794,10 @@ mod tests {
             }
         }
         for key in &native_keys {
-            if let Some(corners) = exact_plane_rectangle_corners(&original, *key) {
-                if corners.iter().all(|point| point.z == 0.0) {
-                    bottom_keys.push(*key);
-                }
+            if let Some(corners) = exact_plane_rectangle_corners(&original, *key)
+                && corners.iter().all(|point| point.z == 0.0)
+            {
+                bottom_keys.push(*key);
             }
         }
         assert_eq!(bottom_keys.len(), 1);
