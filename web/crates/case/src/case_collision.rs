@@ -434,6 +434,51 @@ mod browser_tests {
         rsx! { CollisionFindingView { finding: witness_finding(), clearance_threshold_mm: 0.1 } }
     }
 
+    fn mounted_qualified_witness() -> Element {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap();
+        let mut finding = witness_finding();
+        finding.result.source_interval_mm = Some([0.98, 1.02]);
+        finding.result.query_qualification = Some(
+            serde_json::from_value(
+                fixture["qualificationV2"]["activation"]["mixedVendorGeneratedQuery"].clone(),
+            )
+            .unwrap(),
+        );
+        rsx! { CollisionFindingView { finding, clearance_threshold_mm: 0.1 } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_source_band_and_contact_boxes_preserve_witness_uncertainty() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_qualified_witness),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_for(&root, "Source surface distance:").await;
+        let text = root.text_content().unwrap();
+        for expected in [
+            "0.98",
+            "1.02",
+            "Contact region: 1 conservative box pairs",
+            "declared source precision",
+            "does not certify a unique source contact point",
+            "module-A/U1",
+            "generated body case-bottom",
+        ] {
+            assert!(text.contains(expected), "missing {expected}: {text}");
+        }
+        assert!(
+            text.contains("Uncertain"),
+            "a diagnostic interval cannot promote the assessment"
+        );
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn mounted_collision_witness_keeps_operand_and_source_occurrence_identity() {
         let document = web_sys::window().unwrap().document().unwrap();

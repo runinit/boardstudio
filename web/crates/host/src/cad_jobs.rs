@@ -105,7 +105,9 @@ pub struct CadCollisionOperand {
     pub analysis_mesh: Option<crate::cad_qualification::AnalysisMesh>,
 }
 
-fn required_accuracy<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<f64>, D::Error> {
+fn required_accuracy<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<f64>, D::Error> {
     Option::deserialize(deserializer)
 }
 
@@ -557,12 +559,27 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             };
             validate_collision_observation(request.collision_meshes.as_ref(), collision)
                 .map_err(|reason| bad(&reason))?;
-            let report = result.query_qualification.clone().ok_or_else(|| bad("missing query qualification"))?;
-            let expected = crate::cad_qualification::expected_binding(query, &request.identity, &report.binding.worker_generation)
-                .map_err(|reason| bad(&reason))?;
-            crate::cad_qualification::validate_query_qualification(report, &expected, &query.qualification_limits,
-                request.collision_meshes.as_ref().ok_or_else(|| bad("missing query buffers"))?, None)
-                .map_err(|reason| bad(&reason))?;
+            let report = result
+                .query_qualification
+                .clone()
+                .ok_or_else(|| bad("missing query qualification"))?;
+            let expected = crate::cad_qualification::expected_binding(
+                query,
+                &request.identity,
+                &report.binding.worker_generation,
+            )
+            .map_err(|reason| bad(&reason))?;
+            crate::cad_qualification::validate_query_qualification(
+                report,
+                &expected,
+                &query.qualification_limits,
+                request
+                    .collision_meshes
+                    .as_ref()
+                    .ok_or_else(|| bad("missing query buffers"))?,
+                None,
+            )
+            .map_err(|reason| bad(&reason))?;
         }
     }
     Ok(())
@@ -620,17 +637,38 @@ pub fn validate_generated_analysis(
     revision: u64,
     analysis: &CadGeneratedAnalysis,
 ) -> Result<(), String> {
-    match (&analysis.analysis_ref, &analysis.analysis_mesh, &analysis.source_qualification) {
+    match (
+        &analysis.analysis_ref,
+        &analysis.analysis_mesh,
+        &analysis.source_qualification,
+    ) {
         (Some(reference), Some(mesh), Some(source)) => {
-            crate::cad_qualification::validate_analysis(reference, mesh, source, analysis.analysis_error_bound_mm)?;
-            if reference.source != (crate::cad_qualification::Source::GeneratedBody {
-                body_id: analysis.body_id.clone(), revision, geometry_identity: metadata.geometry_identity.clone()
-            }) || mesh.settings.target_deflection_mm.map(f64::to_bits) != metadata.target_deflection_mm.map(f64::to_bits)
-                || mesh.settings.selected_deflection_mm.to_bits() != analysis.deflection_mm.to_bits() {
+            crate::cad_qualification::validate_analysis(
+                reference,
+                mesh,
+                source,
+                analysis.analysis_error_bound_mm,
+            )?;
+            crate::cad_qualification::validate_source_triangle_cap(
+                mesh,
+                source,
+                analysis.triangle_face_occurrence_indices.len(),
+            )?;
+            if reference.source
+                != (crate::cad_qualification::Source::GeneratedBody {
+                    body_id: analysis.body_id.clone(),
+                    revision,
+                    geometry_identity: metadata.geometry_identity.clone(),
+                })
+                || mesh.settings.target_deflection_mm.map(f64::to_bits)
+                    != metadata.target_deflection_mm.map(f64::to_bits)
+                || mesh.settings.selected_deflection_mm.to_bits()
+                    != analysis.deflection_mm.to_bits()
+            {
                 return Err("generated source descriptor does not match preparation".into());
             }
         }
-        (None, None, None) if analysis.analysis_error_bound_mm.is_none() => {},
+        (None, None, None) if analysis.analysis_error_bound_mm.is_none() => {}
         _ => return Err("incomplete generated qualification metadata".into()),
     }
     if analysis.body_id != metadata.body_id
@@ -692,17 +730,58 @@ pub fn validate_vendor_step(
     bounds: &CadBounds,
     vendor_step: &CadVendorStep,
 ) -> Result<(), String> {
-    match (&vendor_step.analysis_ref, &vendor_step.analysis_mesh, &vendor_step.source_qualification) {
+    match (
+        &vendor_step.analysis_ref,
+        &vendor_step.analysis_mesh,
+        &vendor_step.source_qualification,
+    ) {
         (Some(reference), Some(descriptor), Some(source)) => {
-            crate::cad_qualification::validate_analysis(reference, descriptor, source, vendor_step.accuracy.analysis_error_bound_mm)?;
-            if reference.source != (crate::cad_qualification::Source::VendorStep {
-                source_sha256: expected_sha.to_owned(), import_options: expected_options.into()
-            }) || descriptor.settings.selected_deflection_mm.to_bits() != vendor_step.accuracy.preview_deflection_mm.to_bits()
-                || descriptor.settings.angular_rad.to_bits() != vendor_step.accuracy.preview_angular_rad.to_bits() {
+            crate::cad_qualification::validate_analysis(
+                reference,
+                descriptor,
+                source,
+                vendor_step.accuracy.analysis_error_bound_mm,
+            )?;
+            crate::cad_qualification::validate_source_triangle_cap(
+                descriptor,
+                source,
+                vendor_step.triangle_face_occurrence_indices.len(),
+            )?;
+            if let crate::cad_qualification::SourceQualification::Bounded {
+                source_precision_mm,
+                ..
+            } = source
+            {
+                let declared = vendor_step
+                    .precision
+                    .iter()
+                    .flat_map(|p| &p.declarations)
+                    .map(|d| d.millimetres)
+                    .chain(
+                        vendor_step
+                            .face_occurrences
+                            .iter()
+                            .filter_map(|f| f.source_uncertainty_mm),
+                    )
+                    .fold(0_f64, f64::max);
+                if *source_precision_mm < declared {
+                    return Err("source qualification omits declared STEP precision".into());
+                }
+            }
+            if reference.source
+                != (crate::cad_qualification::Source::VendorStep {
+                    source_sha256: expected_sha.to_owned(),
+                    import_options: expected_options.into(),
+                })
+                || descriptor.settings.selected_deflection_mm.to_bits()
+                    != vendor_step.accuracy.preview_deflection_mm.to_bits()
+                || descriptor.settings.angular_rad.to_bits()
+                    != vendor_step.accuracy.preview_angular_rad.to_bits()
+            {
                 return Err("vendor source descriptor does not match authenticated import".into());
             }
         }
-        (None, None, None) if vendor_step.accuracy.analysis_error_bound_mm.is_none() => {},
+        (None, None, None) if vendor_step.accuracy.analysis_error_bound_mm.is_none() => {}
         _ => return Err("incomplete vendor qualification metadata".into()),
     }
     if !valid_source_sha256(expected_sha)
@@ -1763,7 +1842,9 @@ mod tests {
 
     fn sample_vendor_step(sha256: &str) -> CadVendorStep {
         CadVendorStep {
-            analysis_ref: None, analysis_mesh: None, source_qualification: None,
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
             source_sha256: sha256.into(),
             import_options: CadStepImportOptions::default(),
             surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
@@ -2549,7 +2630,9 @@ mod generated_collision_identity_tests {
         duplicate.bodies.push(body);
         assert!(validate_generated_analysis_request(Some(&duplicate), 7, &metadata).is_err());
         let analysis = CadGeneratedAnalysis {
-            analysis_ref: None, analysis_mesh: None, source_qualification: None,
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
             body_id: "plate".into(),
             revision: 7,
             geometry_identity: metadata.geometry_identity.clone(),
@@ -2589,13 +2672,16 @@ mod generated_collision_identity_tests {
 
     #[test]
     fn collision_operand_accepts_generated_identity_without_a_step_hash_and_rejects_ambiguity() {
-        let mut operand = serde_json::json!({
-            "modelId": "case", "generatedGeometryIdentity": "generated-v1:body",
-            "rowTransformF64": [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
-        });
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap();
+        let mut operand =
+            fixture["qualificationV2"]["activation"]["generatedQueryMetadata"]["left"].clone();
         let query = |operand: serde_json::Value| -> Result<(), String> {
             let query: CadCollisionQuery = serde_json::from_value(serde_json::json!({
-                "left": operand, "right": operand, "clearanceThresholdMm": 0.0
+                "left": operand, "right": operand, "clearanceThresholdMm": 0.0,
+                "requestedAccuracyMm": null, "qualificationLimits": crate::cad_qualification::Limits::default()
             }))
             .map_err(|error| error.to_string())?;
             validate_collision_query(&query)

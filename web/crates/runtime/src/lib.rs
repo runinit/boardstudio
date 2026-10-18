@@ -22,13 +22,13 @@ pub(crate) mod keycap_package;
 pub mod layout_viewer_source;
 pub(crate) mod mechanical_package;
 pub mod model_delivery;
-#[cfg(test)]
-mod qualification_assessment_tests;
 pub mod operation_outcomes;
 pub mod parts_preview;
 pub mod pcb_wiring_mode_operation;
 pub mod pending_edits;
 pub mod portable_archive;
+#[cfg(test)]
+mod qualification_assessment_tests;
 
 #[cfg(target_arch = "wasm32")]
 pub mod case_gesture_preview;

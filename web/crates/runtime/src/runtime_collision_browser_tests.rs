@@ -11,6 +11,13 @@ async fn fixture() -> (Rc<Runtime>, Rc<CadScene>, String) {
 }
 
 async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, String) {
+    fixture_document_mode(document, "unknown").await
+}
+
+async fn fixture_document_mode(
+    document: ProjectDoc,
+    mode: &str,
+) -> (Rc<Runtime>, Rc<CadScene>, String) {
     let runtime = project_name_test_support::new_runtime();
     project_name_test_support::open_document(&runtime, document).await;
     project_name_test_support::navigate(&runtime, "main-board").await;
@@ -62,6 +69,10 @@ async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, S
     let source = format!(
         r#"
         const payload = {};
+        const activation = {};
+        const mode = {};
+        let preparations = 0;
+        const bits = value => {{ const view = new DataView(new ArrayBuffer(8)); view.setFloat64(0,value); return view.getBigUint64(0).toString(16).padStart(16,'0'); }};
         const cancelled = new Set();
         self.postMessage({{kind:'ready'}});
         self.onmessage = event => {{
@@ -73,7 +84,19 @@ async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, S
                     operation:input.operation,outcome:cancelled.has(input.jobId)?'cancelled':'completed'}};
                 let result = {{revision:input.identity.revision}};
                 if (input.operation === 'analyze-generated-body') {{
-                    result.generatedAnalysis = {{...payload,bodyId:input.generatedAnalysisRequest.bodyId,
+                    preparations++;
+                    const requested = input.generatedAnalysisRequest.targetDeflectionMm ?? null;
+                    const mesh = structuredClone(activation.descriptors.plane);
+                    mesh.meshIdentity = 'final-f64-v1/runtime-controlled-'+preparations;
+                    mesh.settings.targetDeflectionMm = requested;
+                    mesh.settings.selectedDeflectionMm = Math.min(0.1,requested ?? 0.1);
+                    const analysisRef = {{workerGeneration:'runtime-controlled',meshIdentity:mesh.meshIdentity,
+                        source:{{kind:'generated-body',bodyId:input.generatedAnalysisRequest.bodyId,revision:input.identity.revision,geometryIdentity:input.generatedAnalysisRequest.geometryIdentity}},
+                        derivationIdentity:input.generatedAnalysisRequest.geometryIdentity+'/deflection='+(requested===null?'default':bits(requested))+'/analytic-generated-v1'}};
+                    result.generatedAnalysis = {{...payload,analysisMesh:mesh,analysisRef,
+                        analysisErrorBoundMm:mode==='bounded'?0:null,
+                        sourceQualification:mode==='bounded'?{{...activation.sourceReports.plane,meshIdentity:mesh.meshIdentity}}:{{state:'unknown',reasons:['controlled-runtime-source-unavailable']}},
+                        bodyId:input.generatedAnalysisRequest.bodyId,
                         revision:input.identity.revision,geometryIdentity:input.generatedAnalysisRequest.geometryIdentity,
                         deflectionMm:input.generatedAnalysisRequest.targetDeflectionMm ?? payload.deflectionMm,
                         surfacePositionsMmF64:new Float64Array(payload.surfacePositionsMmF64),
@@ -83,12 +106,26 @@ async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, S
                     result.collision = {{kind:'surface-separated',surfaceDistanceMm:1.0,closestPoints:{{
                         triangles:{{left:{{triangleIndex:0,faceOccurrenceIndex:0}},right:{{triangleIndex:0,faceOccurrenceIndex:0}}}},
                         point1Mm:[20,0,0],point2Mm:[21,0,0]}}}};
+                    const q = input.collisionQuery;
+                    const unknown = () => ({{state:'unknown',reasons:[mode==='missing'?'evidence-unavailable':'controlled-runtime-proof-unavailable']}});
+                    const binding = {{snapshotRevision:input.identity.revision,snapshot:{{...input.identity,token:String(input.identity.token),sessionEpoch:String(input.identity.sessionEpoch)}},
+                        workerGeneration:q.left.analysisRef.workerGeneration,leftModelId:q.left.modelId,rightModelId:q.right.modelId,
+                        leftMeshIdentity:q.left.analysisRef.meshIdentity,rightMeshIdentity:q.right.analysisRef.meshIdentity,
+                        leftAnalysis:q.left.analysisRef,rightAnalysis:q.right.analysisRef,leftMesh:q.left.analysisMesh,rightMesh:q.right.analysisMesh,
+                        leftRowTransformF64:q.left.rowTransformF64,rightRowTransformF64:q.right.rowTransformF64,
+                        clearanceThresholdMm:q.clearanceThresholdMm,requestedAccuracyMm:q.requestedAccuracyMm}};
+                    result.queryQualification = mode==='bounded'?structuredClone(activation.generatedPlaneQuery):{{version:1,algorithm:'aabb-interval-exact-v1',
+                        meshDistance:unknown(),sourceBounds:[unknown(),unknown()],contactRegion:unknown(),containment:unknown()}};
+                    result.queryQualification.binding=binding; result.queryQualification.limits=q.qualificationLimits;
+                    if(mode==='bounded') result.queryQualification.sourceBounds.forEach((bound,i)=>bound.meshIdentity=[q.left.analysisRef,q.right.analysisRef][i].meshIdentity);
                 }}
                 self.postMessage({{kind:'reply',frame:JSON.stringify(frame),result}});
             }}, 20);
         }};
     "#,
-        data["directPayload"]
+        data["directPayload"],
+        data["qualificationV2"]["activation"],
+        serde_json::to_string(mode).unwrap()
     );
     let properties = BlobPropertyBag::new();
     properties.set_type("text/javascript");
@@ -564,6 +601,188 @@ async fn collision_worker_observation_stays_uncertain_and_rejects_a_late_result(
     active.set(false);
     let result = receive.await.unwrap();
     assert!(matches!(result, Err(reason) if reason.contains("stale after")));
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn controlled_v2_reply_reaches_runtime_supported_band_with_complete_binding() {
+    // The controlled worker supplies a seam report, not authenticated CAD geometry.
+    let (runtime, scene, url) =
+        fixture_document_mode(in_process_support::board_document(), "bounded").await;
+    let analysis = runtime
+        .analyze_generated_case_body(&scene, "contract-plate", None, Rc::new(|| true))
+        .await
+        .unwrap();
+    let left = CadCollisionSubject::GeneratedCaseBody {
+        id: "contract-left".into(),
+        name: "Plate".into(),
+        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+        analysis: Some(analysis),
+    };
+    let mut right = left.clone();
+    if let CadCollisionSubject::GeneratedCaseBody {
+        id,
+        row_transform_f64,
+        ..
+    } = &mut right
+    {
+        *id = "contract-right".into();
+        row_transform_f64[14] = 3.;
+    }
+    let result = runtime
+        .query_collision_subjects(
+            &left,
+            &right,
+            0.5,
+            None,
+            scene.scope.clone(),
+            scene.token,
+            scene.snapshot.document.revision,
+            Rc::new(|| true),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        result.assessment,
+        CadCollisionAssessment::SupportedBand {
+            lower_mm: 1.,
+            upper_mm: 1.,
+            relation: crate::model_delivery::CadCollisionRelation::Clear
+        }
+    ));
+    let report = result.query_qualification.unwrap();
+    assert_eq!(report.binding.snapshot.token, scene.token.0.to_string());
+    assert_eq!(
+        report.binding.snapshot.session_epoch,
+        scene.scope.session_epoch.0.to_string()
+    );
+    assert_eq!(report.binding.right_row_transform_f64[14], 3.);
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn missing_generated_lease_prepares_once_per_batch_joins_pending_and_second_miss_stays_unknown()
+ {
+    let (runtime, scene, url) =
+        fixture_document_mode(in_process_support::board_document(), "missing").await;
+    let analysis = runtime
+        .analyze_generated_case_body(&scene, "contract-plate", None, Rc::new(|| true))
+        .await
+        .unwrap();
+    let subject = CadCollisionSubject::GeneratedCaseBody {
+        id: "contract-plate".into(),
+        name: "Plate".into(),
+        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+        analysis: Some(analysis.clone()),
+    };
+    let (done, receive) = futures_channel::oneshot::channel();
+    let task_runtime = runtime.clone();
+    let task_scene = scene.clone();
+    let task_subject = subject.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let result = task_runtime
+            .query_collision_subjects(
+                &task_subject,
+                &task_subject,
+                0.5,
+                None,
+                task_scene.scope.clone(),
+                task_scene.token,
+                task_scene.snapshot.document.revision,
+                Rc::new(|| true),
+            )
+            .await;
+        let _ = done.send(result);
+    });
+    let result = runtime
+        .query_collision_subjects(
+            &subject,
+            &subject,
+            0.5,
+            None,
+            scene.scope.clone(),
+            scene.token,
+            scene.snapshot.document.revision,
+            Rc::new(|| true),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        result.assessment,
+        CadCollisionAssessment::Unknown { .. }
+    ));
+    assert!(receive.await.unwrap().is_ok());
+    let cached = runtime
+        .generated_analysis_cache
+        .borrow()
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    assert_eq!(
+        cached.analysis_ref.as_ref().unwrap().mesh_identity,
+        "final-f64-v1/runtime-controlled-2",
+        "both concurrent checks join exactly one explicit preparation"
+    );
+    assert_eq!(cached.deflection_mm, 0.1, "basic recovery does not refine");
+    assert!(!Rc::ptr_eq(&analysis, &cached));
+    runtime
+        .query_collision_subjects(
+            &subject,
+            &subject,
+            0.5,
+            None,
+            scene.scope.clone(),
+            scene.token,
+            scene.snapshot.document.revision,
+            Rc::new(|| true),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        runtime
+            .generated_analysis_cache
+            .borrow()
+            .values()
+            .next()
+            .unwrap()
+            .analysis_ref
+            .as_ref()
+            .unwrap()
+            .mesh_identity,
+        "final-f64-v1/runtime-controlled-2",
+        "a second lease miss cannot loop on the ready asset"
+    );
+    runtime.cancel_collision_checks();
+    runtime
+        .query_collision_subjects(
+            &subject,
+            &subject,
+            0.5,
+            None,
+            scene.scope.clone(),
+            scene.token,
+            scene.snapshot.document.revision,
+            Rc::new(|| true),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        runtime
+            .generated_analysis_cache
+            .borrow()
+            .values()
+            .next()
+            .unwrap()
+            .analysis_ref
+            .as_ref()
+            .unwrap()
+            .mesh_identity,
+        "final-f64-v1/runtime-controlled-3",
+        "a new explicit batch can prepare again"
+    );
     runtime.cad_worker.borrow_mut().take().unwrap().1.close();
     Url::revoke_object_url(&url).unwrap();
 }

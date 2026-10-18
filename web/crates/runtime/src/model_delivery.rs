@@ -500,7 +500,9 @@ enum CacheSlot {
         task_token: u64,
     },
     Ready(Rc<ValidatedMesh>),
-    Refreshing { task_token: u64 },
+    Refreshing {
+        task_token: u64,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -533,6 +535,7 @@ pub struct ModelMeshCache {
     recency: VecDeque<String>,
     next_task_token: u64,
     evidence_attempts: BTreeMap<String, String>,
+    evidence_batch: Option<String>,
 }
 
 impl Default for ModelMeshCache {
@@ -542,6 +545,7 @@ impl Default for ModelMeshCache {
             recency: VecDeque::new(),
             next_task_token: 1,
             evidence_attempts: BTreeMap::new(),
+            evidence_batch: None,
         }
     }
 }
@@ -605,7 +609,11 @@ impl ModelMeshCache {
                     return Ok(MeshCacheClaim::JoinPending { task_token });
                 }
                 CacheSlot::Pending { .. } => {}
-                CacheSlot::Refreshing { task_token } => return Ok(MeshCacheClaim::JoinPending { task_token: *task_token }),
+                CacheSlot::Refreshing { task_token } => {
+                    return Ok(MeshCacheClaim::JoinPending {
+                        task_token: *task_token,
+                    });
+                }
             }
         }
 
@@ -664,11 +672,23 @@ impl ModelMeshCache {
     }
 
     fn claim_evidence_refresh(&mut self, key: &str, batch: &str) -> Result<MeshCacheClaim, String> {
-        if let Some(CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token }) = self.slots.get(key) {
-            self.evidence_attempts.insert(key.into(), batch.into());
-            return Ok(MeshCacheClaim::JoinPending { task_token: *task_token });
+        if self.evidence_batch.as_deref() != Some(batch) {
+            self.evidence_attempts.clear();
+            self.evidence_batch = Some(batch.into());
         }
-        if self.evidence_attempts.get(key).is_some_and(|current| current == batch) {
+        if let Some(CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token }) =
+            self.slots.get(key)
+        {
+            self.evidence_attempts.insert(key.into(), batch.into());
+            return Ok(MeshCacheClaim::JoinPending {
+                task_token: *task_token,
+            });
+        }
+        if self
+            .evidence_attempts
+            .get(key)
+            .is_some_and(|current| current == batch)
+        {
             return match self.slots.get(key) {
                 Some(CacheSlot::Ready(asset)) => Ok(MeshCacheClaim::Reuse(asset.clone())),
                 _ => Err("evidence preparation already failed in this batch".into()),
@@ -676,12 +696,15 @@ impl ModelMeshCache {
         }
         let task_token = self.allocate_task_token()?;
         let evicted = self.make_room_for(key);
-        if self.evidence_attempts.len() >= MESH_CACHE_CAPACITY
-            && let Some(victim) = self.evidence_attempts.keys().next().cloned() { self.evidence_attempts.remove(&victim); }
         self.evidence_attempts.insert(key.into(), batch.into());
-        self.slots.insert(key.into(), CacheSlot::Refreshing { task_token });
+        self.slots
+            .insert(key.into(), CacheSlot::Refreshing { task_token });
         self.touch(key);
-        Ok(MeshCacheClaim::Start { task_token, superseded: None, evicted })
+        Ok(MeshCacheClaim::Start {
+            task_token,
+            superseded: None,
+            evicted,
+        })
     }
 
     fn make_room_for(&mut self, sha256: &str) -> Option<EvictedTask> {
@@ -691,10 +714,12 @@ impl ModelMeshCache {
         let victim = self.recency.pop_front()?;
         let slot = self.slots.remove(&victim)?;
         match slot {
-            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token } => Some(EvictedTask {
-                sha256: victim,
-                task_token,
-            }),
+            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token } => {
+                Some(EvictedTask {
+                    sha256: victim,
+                    task_token,
+                })
+            }
             CacheSlot::Ready(_) => None,
         }
     }
@@ -912,32 +937,82 @@ impl ModelDeliveryAdapter {
         is_current: Rc<dyn Fn() -> bool>,
         load: impl Future<Output = Result<MeshArrays, String>>,
     ) -> Result<Rc<ValidatedMesh>, String> {
-        if !is_current() { return Err("evidence preparation became stale".into()); }
+        if !is_current() {
+            return Err("evidence preparation became stale".into());
+        }
         let key = derived_step_cache_key(sha, options)?;
-        let claim = self.cache.borrow_mut().claim_evidence_refresh(&key, batch)?;
+        let claim = self
+            .cache
+            .borrow_mut()
+            .claim_evidence_refresh(&key, batch)?;
         let (task_token, start) = match claim {
             MeshCacheClaim::Reuse(asset) => return Ok(asset),
             MeshCacheClaim::JoinPending { task_token } => (task_token, false),
-            MeshCacheClaim::Start { task_token, evicted, .. } => {
-                if let Some(task) = evicted { settle_pending(&self.pending, &task, Err("evidence preparation evicted".into())); }
+            MeshCacheClaim::Start {
+                task_token,
+                evicted,
+                ..
+            } => {
+                if let Some(task) = evicted {
+                    settle_pending(
+                        &self.pending,
+                        &task,
+                        Err("evidence preparation evicted".into()),
+                    );
+                }
                 (task_token, true)
             }
         };
         let cell = Rc::new(WaitCell::new());
         let task = (key, task_token);
-        self.pending.borrow_mut().entry(task.clone()).or_default().push(cell.clone());
+        self.pending
+            .borrow_mut()
+            .entry(task.clone())
+            .or_default()
+            .push(cell.clone());
         if start {
-            let result = load.await.and_then(ValidatedMesh::try_from).map(Rc::new);
-            let result = if !is_current() { Err("evidence preparation became stale after parsing".into()) } else { result };
+            let result = load
+                .await
+                .and_then(|arrays| {
+                    if arrays.vendor_step.is_none() {
+                        return Err("evidence preparation omitted the full STEP asset".into());
+                    }
+                    ValidatedMesh::try_from(arrays)
+                })
+                .map(Rc::new);
+            let result = if !is_current() {
+                Err("evidence preparation became stale after parsing".into())
+            } else {
+                result
+            };
             let result = match result {
-                Ok(mesh) if self.cache.borrow_mut().complete_with_step_options(sha, options, task_token, mesh.clone())? => Ok(mesh),
-                Ok(_) => Err("evidence preparation was superseded".into()),
-                Err(error) => { self.cache.borrow_mut().fail_with_step_options(sha, options, task_token)?; Err(error) }
+                Ok(mesh) => {
+                    let completed = self.cache.borrow_mut().complete_with_step_options(
+                        sha,
+                        options,
+                        task_token,
+                        mesh.clone(),
+                    );
+                    match completed {
+                        Ok(true) => Ok(mesh),
+                        Ok(false) => Err("evidence preparation was superseded".into()),
+                        Err(error) => {
+                            self.cache.borrow_mut().fail(&task.0, task_token);
+                            Err(error)
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.cache.borrow_mut().fail(&task.0, task_token);
+                    Err(error)
+                }
             };
             settle_task(&self.pending, &task, result);
         }
         let result = WaitCellFuture { cell }.await;
-        if !is_current() { return Err("evidence preparation became stale after settlement".into()); }
+        if !is_current() {
+            return Err("evidence preparation became stale after settlement".into());
+        }
         result
     }
 
@@ -1298,10 +1373,18 @@ pub enum CadCollisionSubject {
 }
 
 impl CadCollisionSubject {
-    pub fn source_qualification(&self) -> Option<&boardstudio_web_host::cad_qualification::SourceQualification> {
+    pub fn source_qualification(
+        &self,
+    ) -> Option<&boardstudio_web_host::cad_qualification::SourceQualification> {
         match self {
-            Self::VendorModel { vendor_step: Some(asset), .. } => asset.source_qualification.as_ref(),
-            Self::GeneratedCaseBody { analysis: Some(asset), .. } => asset.source_qualification.as_ref(),
+            Self::VendorModel {
+                vendor_step: Some(asset),
+                ..
+            } => asset.source_qualification.as_ref(),
+            Self::GeneratedCaseBody {
+                analysis: Some(asset),
+                ..
+            } => asset.source_qualification.as_ref(),
             _ => None,
         }
     }
@@ -1386,33 +1469,59 @@ pub struct CadCollisionPairFinding {
 
 impl CadCollisionPairFinding {
     pub fn qualification_details(&self) -> Vec<String> {
-        use boardstudio_web_host::cad_qualification::{ContactRegion, Containment, ContainmentExclusion, WorldSourceBound};
+        use boardstudio_web_host::cad_qualification::{
+            ContactRegion, Containment, ContainmentExclusion, WorldSourceBound,
+        };
         let mut details = Vec::new();
         if let Some([lower, upper]) = self.result.source_interval_mm {
-            details.push(format!("Source surface distance: [{lower:.9}, {upper:.9}] mm. This interval remains diagnostic when the finding is uncertain."));
+            details.push(format!("Source surface distance: [{lower}, {upper}] mm. This interval remains diagnostic when the finding is uncertain."));
         }
         if let Some(report) = &self.result.query_qualification {
             for (side, bound) in ["Left", "Right"].into_iter().zip(&report.source_bounds) {
                 match bound {
-                    WorldSourceBound::Bounded { total_bound_mm, source_precision_mm, .. } => details.push(format!("{side} source allowance: {total_bound_mm:.9} mm, including declared source precision {source_precision_mm:.9} mm once.")),
+                    WorldSourceBound::Bounded { total_bound_mm, source_precision_mm, .. } => details.push(format!("{side} source allowance: {total_bound_mm} mm, including declared source precision {source_precision_mm} mm once.")),
                     WorldSourceBound::Unknown { reasons } => details.push(format!("{side} source allowance unknown: {}", reasons.join("; "))),
                 }
             }
             match &report.contact_region {
                 ContactRegion::Boxes { pairs, .. } => {
-                    details.push(format!("Contact region: {} conservative box pairs.", pairs.len()));
-                    for pair in pairs { details.push(format!("Left box {:?} to {:?} mm; right box {:?} to {:?} mm.", pair.left_mm[0], pair.left_mm[1], pair.right_mm[0], pair.right_mm[1])); }
+                    details.push(format!(
+                        "Contact region: {} conservative box pairs.",
+                        pairs.len()
+                    ));
+                    for pair in pairs {
+                        details.push(format!(
+                            "Left box {:?} to {:?} mm; right box {:?} to {:?} mm.",
+                            pair.left_mm[0], pair.left_mm[1], pair.right_mm[0], pair.right_mm[1]
+                        ));
+                    }
                 }
-                ContactRegion::Unknown { reasons } => details.push(format!("Contact region unknown: {}", reasons.join("; "))),
+                ContactRegion::Unknown { reasons } => {
+                    details.push(format!("Contact region unknown: {}", reasons.join("; ")))
+                }
             }
             match &report.containment {
-                Containment::Unknown { reasons } => details.push(format!("Containment unknown: {}", reasons.join("; "))),
-                Containment::RuledOut { evidence: ContainmentExclusion::Slab { axis, .. } } => details.push(format!("Containment ruled out by separated source slabs on axis {axis}.")),
-                Containment::RuledOut { .. } => details.push("Containment ruled out by qualified global correspondence.".into()),
-                Containment::ContainedLeft { .. } | Containment::ContainedRight { .. } => details.push("Material overlap established; penetration depth remains unqualified.".into()),
+                Containment::Unknown { reasons } => {
+                    details.push(format!("Containment unknown: {}", reasons.join("; ")))
+                }
+                Containment::RuledOut {
+                    evidence: ContainmentExclusion::Slab { axis, .. },
+                } => details.push(format!(
+                    "Containment ruled out by separated source slabs on axis {axis}."
+                )),
+                Containment::RuledOut { .. } => {
+                    details.push("Containment ruled out by qualified global correspondence.".into())
+                }
+                Containment::ContainedLeft { .. } | Containment::ContainedRight { .. } => details
+                    .push(
+                        "Material overlap established; penetration depth remains unqualified."
+                            .into(),
+                    ),
             }
         }
-        if self.result.observation.is_some() { details.push("The raw mesh witness does not certify a unique source contact point, normal or penetration depth.".into()); }
+        if self.result.observation.is_some() {
+            details.push("The raw mesh witness does not certify a unique source contact point, normal or penetration depth.".into());
+        }
         details
     }
 
@@ -1761,7 +1870,10 @@ pub fn assess_subject_collision_observation(
     right: &CadCollisionSubject,
     clearance_threshold_mm: f64,
     requested_accuracy_mm: Option<f64>,
-    qualification: Option<(&boardstudio_web_host::cad_qualification::ValidatedQueryQualification, &boardstudio_web_host::cad_qualification::Binding)>,
+    qualification: Option<(
+        &boardstudio_web_host::cad_qualification::ValidatedQueryQualification,
+        &boardstudio_web_host::cad_qualification::Binding,
+    )>,
     observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
 ) -> CadCollisionResult {
     use boardstudio_web_host::cad_jobs::CadCollisionObservation;
@@ -1786,66 +1898,129 @@ pub fn assess_subject_collision_observation(
     if let CadCollisionObservation::Uncertain { reason, .. } = &observation {
         reasons.push(format!("raw mesh observation is uncertain: {reason}"));
     }
-    use boardstudio_web_host::cad_qualification::{add_down, add_up, ContactRegion, Containment, MeshDistance, WorldSourceBound};
+    use boardstudio_web_host::cad_qualification::{
+        ContactRegion, Containment, MeshDistance, WorldSourceBound, add_down, add_up,
+    };
     let mut source_interval_mm = None;
     let mut report = None;
     let mut half_width = None;
     if let Some((validated, expected)) = qualification {
         let candidate = validated.report();
-        let operands_match = left.operand().ok().zip(right.operand().ok()).is_some_and(|(left, right)| {
-            left.model_id == expected.left_model_id && right.model_id == expected.right_model_id
-                && left.analysis_ref.as_ref() == Some(&expected.left_analysis)
-                && right.analysis_ref.as_ref() == Some(&expected.right_analysis)
-                && left.analysis_mesh.as_ref() == Some(&expected.left_mesh)
-                && right.analysis_mesh.as_ref() == Some(&expected.right_mesh)
-                && left.row_transform_f64.map(f64::to_bits) == expected.left_row_transform_f64.map(f64::to_bits)
-                && right.row_transform_f64.map(f64::to_bits) == expected.right_row_transform_f64.map(f64::to_bits)
-        });
+        let operands_match =
+            left.operand()
+                .ok()
+                .zip(right.operand().ok())
+                .is_some_and(|(left, right)| {
+                    left.model_id == expected.left_model_id
+                        && right.model_id == expected.right_model_id
+                        && left.analysis_ref.as_ref() == Some(&expected.left_analysis)
+                        && right.analysis_ref.as_ref() == Some(&expected.right_analysis)
+                        && left.analysis_mesh.as_ref() == Some(&expected.left_mesh)
+                        && right.analysis_mesh.as_ref() == Some(&expected.right_mesh)
+                        && left.row_transform_f64.map(f64::to_bits)
+                            == expected.left_row_transform_f64.map(f64::to_bits)
+                        && right.row_transform_f64.map(f64::to_bits)
+                            == expected.right_row_transform_f64.map(f64::to_bits)
+                });
         if serde_json::to_vec(&candidate.binding).ok() != serde_json::to_vec(expected).ok()
             || expected.clearance_threshold_mm.to_bits() != clearance_threshold_mm.to_bits()
-            || expected.requested_accuracy_mm.map(f64::to_bits) != requested_accuracy_mm.map(f64::to_bits)
-            || !operands_match {
+            || expected.requested_accuracy_mm.map(f64::to_bits)
+                != requested_accuracy_mm.map(f64::to_bits)
+            || !operands_match
+        {
             reasons.push("validated qualifier belongs to another assessment request".into());
         } else {
             report = Some(candidate.clone());
             match (&candidate.mesh_distance, &candidate.source_bounds) {
-                (MeshDistance::Bounded { lower_mm, upper_mm, .. }, [WorldSourceBound::Bounded { total_bound_mm: left, .. }, WorldSourceBound::Bounded { total_bound_mm: right, .. }]) => {
+                (
+                    MeshDistance::Bounded {
+                        lower_mm, upper_mm, ..
+                    },
+                    [
+                        WorldSourceBound::Bounded {
+                            total_bound_mm: left,
+                            ..
+                        },
+                        WorldSourceBound::Bounded {
+                            total_bound_mm: right,
+                            ..
+                        },
+                    ],
+                ) => {
                     let lower = add_down(add_down(*lower_mm, -*left), -*right).max(0.0);
                     let upper = add_up(add_up(*upper_mm, *left), *right);
-                    let budget = boardstudio_web_host::cad_qualification::pair_error_budget(*lower_mm, *upper_mm, *left, *right);
+                    let budget = boardstudio_web_host::cad_qualification::pair_error_budget(
+                        *lower_mm, *upper_mm, *left, *right,
+                    );
                     if lower.is_finite() && upper.is_finite() && budget.is_finite() {
                         source_interval_mm = Some([lower, upper]);
                         half_width = Some(budget);
-                    } else { reasons.push("outward source interval overflow".into()); }
+                    } else {
+                        reasons.push("outward source interval overflow".into());
+                    }
                 }
                 _ => reasons.push("source or numerical query qualification is unknown".into()),
             }
-            if let MeshDistance::Unknown { reasons: why } = &candidate.mesh_distance { reasons.extend(why.iter().cloned()); }
+            if let MeshDistance::Unknown { reasons: why } = &candidate.mesh_distance {
+                reasons.extend(why.iter().cloned());
+            }
             for bound in &candidate.source_bounds {
-                if let WorldSourceBound::Unknown { reasons: why } = bound { reasons.extend(why.iter().cloned()); }
+                if let WorldSourceBound::Unknown { reasons: why } = bound {
+                    reasons.extend(why.iter().cloned());
+                }
             }
             if let ContactRegion::Unknown { reasons: why } = &candidate.contact_region {
                 reasons.push("contact location is unqualified".into());
                 reasons.extend(why.iter().cloned());
             }
         }
-    } else { reasons.push("source/query qualification is unavailable".into()); }
+    } else {
+        reasons.push("source/query qualification is unavailable".into());
+    }
     if let (Some(requested), Some(budget)) = (requested_accuracy_mm, half_width)
-        && budget > requested {
-        reasons.push(format!("pair error budget {budget} mm exceeds requested accuracy {requested} mm"));
+        && budget > requested
+    {
+        reasons.push(format!(
+            "pair error budget {budget} mm exceeds requested accuracy {requested} mm"
+        ));
     }
     let assessment = if reasons.is_empty() {
         if let Some([lower_mm, upper_mm]) = source_interval_mm {
-            let containment_ruled_out = report.as_ref().is_some_and(|r| matches!(r.containment, Containment::RuledOut { .. }));
+            let containment_ruled_out = report
+                .as_ref()
+                .is_some_and(|r| matches!(r.containment, Containment::RuledOut { .. }));
             let relation = if upper_mm < clearance_threshold_mm {
                 CadCollisionRelation::Violation
             } else if lower_mm >= clearance_threshold_mm && containment_ruled_out {
                 CadCollisionRelation::Clear
-            } else { CadCollisionRelation::Uncertain };
-            CadCollisionAssessment::SupportedBand { lower_mm, upper_mm, relation }
-        } else { CadCollisionAssessment::Unknown { reasons: vec!["source interval is unavailable".into()], refinement_requested: requested_accuracy_mm.is_some() } }
-    } else { CadCollisionAssessment::Unknown { reasons, refinement_requested: requested_accuracy_mm.is_some() } };
-    CadCollisionResult { observation: Some(observation), left_provenance, right_provenance, assessment, source_interval_mm, query_qualification: report }
+            } else {
+                CadCollisionRelation::Uncertain
+            };
+            CadCollisionAssessment::SupportedBand {
+                lower_mm,
+                upper_mm,
+                relation,
+            }
+        } else {
+            CadCollisionAssessment::Unknown {
+                reasons: vec!["source interval is unavailable".into()],
+                refinement_requested: requested_accuracy_mm.is_some(),
+            }
+        }
+    } else {
+        CadCollisionAssessment::Unknown {
+            reasons,
+            refinement_requested: requested_accuracy_mm.is_some(),
+        }
+    };
+    CadCollisionResult {
+        observation: Some(observation),
+        left_provenance,
+        right_provenance,
+        assessment,
+        source_interval_mm,
+        query_qualification: report,
+    }
 }
 
 pub fn assess_collision_observation(
@@ -2454,7 +2629,9 @@ mod tests {
         }
 
         let vendor_step = Rc::new(CadVendorStep {
-            analysis_ref: None, analysis_mesh: None, source_qualification: None,
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
             source_sha256: sha.clone(),
             import_options: default_opts,
             surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -2561,7 +2738,9 @@ mod tests {
         };
 
         let make_asset = |sha: &str, analysis_bound: Option<f64>| CadVendorStep {
-            analysis_ref: None, analysis_mesh: None, source_qualification: None,
+            analysis_ref: None,
+            analysis_mesh: None,
+            source_qualification: None,
             source_sha256: sha.into(),
             import_options: CadStepImportOptions::default(),
             surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -2641,35 +2820,22 @@ mod tests {
 
         let certified_left = make_asset(&"a".repeat(64), Some(0.02));
         let certified_right = make_asset(&"b".repeat(64), Some(0.02));
-        let clear = assess_collision_observation(
-            &certified_left,
-            &certified_right,
-            0.2,
-            None,
-            obs.clone(),
+        let clear =
+            assess_collision_observation(&certified_left, &certified_right, 0.2, None, obs.clone());
+        assert!(
+            matches!(clear.assessment, CadCollisionAssessment::Unknown { .. }),
+            "caller-authored bounds and containment cannot activate qualification v2"
         );
-        assert!(matches!(clear.assessment, CadCollisionAssessment::Unknown { .. }),
-            "caller-authored bounds and containment cannot activate qualification v2");
 
-        let containment_unknown = assess_collision_observation(
-            &certified_left,
-            &certified_right,
-            0.2,
-            None,
-            obs.clone(),
-        );
+        let containment_unknown =
+            assess_collision_observation(&certified_left, &certified_right, 0.2, None, obs.clone());
         assert!(matches!(
             containment_unknown.assessment,
             CadCollisionAssessment::Unknown { .. }
         ));
 
-        let violation = assess_collision_observation(
-            &certified_left,
-            &certified_right,
-            0.6,
-            None,
-            obs.clone(),
-        );
+        let violation =
+            assess_collision_observation(&certified_left, &certified_right, 0.6, None, obs.clone());
         assert!(matches!(
             violation.assessment,
             CadCollisionAssessment::Unknown { .. }
@@ -2816,7 +2982,8 @@ mod tests {
             right_id: "module-B/U1".into(),
             right_label: "U1".into(),
             result: CadCollisionResult {
-                source_interval_mm: None, query_qualification: None,
+                source_interval_mm: None,
+                query_qualification: None,
                 observation: None,
                 left_provenance: Some(CadSubjectFaceProvenance::Vendor(face)),
                 right_provenance: Some(CadSubjectFaceProvenance::Vendor(other)),
@@ -2916,6 +3083,81 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn evidence_refresh_joins_pending_and_never_reprepares_a_failed_or_evicted_asset_in_one_batch()
+    {
+        let mut cache = ModelMeshCache::default();
+        let token = match cache.claim("asset", &batch(1)).unwrap() {
+            MeshCacheClaim::Start { task_token, .. } => task_token,
+            _ => panic!("initial task"),
+        };
+        assert!(
+            matches!(cache.claim_evidence_refresh("asset", "check-1").unwrap(), MeshCacheClaim::JoinPending { task_token } if task_token == token)
+        );
+        let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
+        assert!(cache.complete("asset", token, mesh.clone()));
+        assert!(matches!(
+            cache.claim_evidence_refresh("asset", "check-1").unwrap(),
+            MeshCacheClaim::Reuse(_)
+        ));
+        let newer = match cache.claim_evidence_refresh("asset", "check-2").unwrap() {
+            MeshCacheClaim::Start { task_token, .. } => task_token,
+            _ => panic!("explicit refresh"),
+        };
+        assert!(!cache.complete("asset", token, mesh));
+        assert!(cache.fail("asset", newer));
+        assert!(cache.claim_evidence_refresh("asset", "check-2").is_err());
+        for index in 0..81 {
+            cache
+                .claim_evidence_refresh(&format!("other-{index}"), "check-2")
+                .unwrap();
+        }
+        assert!(
+            cache.claim_evidence_refresh("asset", "check-2").is_err(),
+            "LRU pressure cannot erase the attempt marker"
+        );
+        assert!(matches!(
+            cache.claim_evidence_refresh("asset", "check-3").unwrap(),
+            MeshCacheClaim::Start { .. }
+        ));
+
+        let adapter = ModelDeliveryAdapter::default();
+        let sha = "a".repeat(64);
+        let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut first = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "batch",
+            Rc::new(|| true),
+            async { wait.await.unwrap() },
+        ));
+        let mut second = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "batch",
+            Rc::new(|| true),
+            async { panic!("joined task must not run another provider call") },
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(first.as_mut().poll(&mut context).is_pending());
+        assert!(second.as_mut().poll(&mut context).is_pending());
+        release
+            .send(Err("controlled provider refusal".into()))
+            .unwrap();
+        assert_eq!(block_on(first).unwrap_err(), "controlled provider refusal");
+        assert_eq!(block_on(second).unwrap_err(), "controlled provider refusal");
+        assert!(
+            block_on(adapter.refresh_step_evidence(
+                &sha,
+                Default::default(),
+                "batch",
+                Rc::new(|| true),
+                async { panic!("same-batch retry loop") }
+            ))
+            .is_err()
+        );
     }
 
     fn block_on<F: Future>(future: F) -> F::Output {
