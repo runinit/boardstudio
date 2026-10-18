@@ -1332,3 +1332,221 @@ fn cylinder_proof_discontinuous_trim_knots_are_unknown() {
         other => panic!("discontinuous domain must refuse: {other:?}"),
     }
 }
+
+// Adversarial source mutation only: retain the real emitted fine mesh, and
+// replace one actual shared native trim used backward on its cylinder and
+// forward on its cap. The retained source, not a newly meshed replacement, is
+// what a source/final certificate must bound.
+fn asymmetric_shared_trim() -> (
+    ExactModel,
+    GeneratedAnalysisMesh,
+    AnalysisTrace,
+    usize,
+    usize,
+    usize,
+    P,
+) {
+    use monstertruck_modeling::{BsplineCurve, NurbsCurve, Vector4};
+    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let (mesh, trace) = checked_trace(&model, Some(0.01));
+    let ci = trace
+        .faces
+        .iter()
+        .position(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
+        .unwrap();
+    let (wi, edge) = trace.faces[ci]
+        .boundaries
+        .iter()
+        .enumerate()
+        .find_map(|(wi, wire)| wire.edge_iter().find(|e| !e.orientation()).map(|e| (wi, e)))
+        .unwrap();
+    let (cap, cap_wire) = trace
+        .faces
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| matches!(f.surface, Surface::Plane(_)))
+        .find_map(|(fi, f)| {
+            f.boundaries.iter().enumerate().find_map(|(wi, w)| {
+                w.edge_iter()
+                    .any(|e| e.id() == edge.id() && e.orientation())
+                    .then_some((fi, wi))
+            })
+        })
+        .unwrap();
+    let Curve::NurbsCurve(raw) = edge.curve() else {
+        unreachable!()
+    };
+    let start = edge.absolute_front().point();
+    let sx = (start.x - 10.).signum();
+    let control = raw.control_point(1);
+    let sy = (control.y / control.w - 5.).signum();
+    let z = start.z;
+    let w = 0.5_f64.sqrt();
+    let controls = [
+        (sx, 0., 1.),
+        (sx * w, sy * w, w),
+        (0., sy, 1.),
+        (-sx * w, sy * w, w),
+        (-sx, 0., 1.),
+    ]
+    .map(|(x, y, weight)| Vector4::new(10. * weight + x, 5. * weight + y, z * weight, weight))
+    .to_vec();
+    let curve = NurbsCurve::new(BsplineCurve::new(
+        vec![0., 0., 0., 0.00008, 0.00015, 1e12, 1e12, 1e12].into(),
+        controls,
+    ));
+    edge.set_curve(Curve::NurbsCurve(curve));
+    let witness = [
+        q(10.).unwrap() + q(sx).unwrap() * n(47) / n(64),
+        q(5.).unwrap() + q(sy).unwrap() * n(47) / n(64),
+        q(z).unwrap(),
+    ];
+    assert!(
+        bind(&model, &mesh, &trace).is_ok(),
+        "shared source mutation must retain binding"
+    );
+    (model, mesh, trace, ci, wi, cap * 100 + cap_wire, witness)
+}
+
+// Positive homogeneous control hulls provide an independent continuous oracle:
+// each dyadic subcurve and its endpoint chord stay outside the witness ball.
+// Their homotopy therefore preserves winding about that witness.
+fn trim_distance_and_winding(wire: &Wire, witness: &P, rho: &Q) -> i32 {
+    let mut polygon = Vec::new();
+    for edge in wire.edge_iter() {
+        let Curve::NurbsCurve(raw) = edge.curve() else {
+            unreachable!()
+        };
+        let knots = raw
+            .knot_vector()
+            .iter()
+            .map(|v| q(*v).unwrap())
+            .collect::<Vec<_>>();
+        let control = raw
+            .control_points()
+            .iter()
+            .map(|p| {
+                [
+                    q(p.x).unwrap(),
+                    q(p.y).unwrap(),
+                    q(p.z).unwrap(),
+                    q(p.w).unwrap(),
+                ]
+            })
+            .collect::<Vec<_>>();
+        let mut points = Vec::new();
+        for span in knots.windows(2).filter(|p| p[0] < p[1]) {
+            for i in 0..64 {
+                let a = &span[0] + (&span[1] - &span[0]) * n(i) / n(64);
+                let b = &span[0] + (&span[1] - &span[0]) * n(i + 1) / n(64);
+                let left = spline_value(&knots, &control, &a);
+                let right = spline_value(&knots, &control, &b);
+                let mid = spline_value(&knots, &control, &((&a + &b) / n(2)));
+                let middle: [Q; 4] =
+                    std::array::from_fn(|k| n(2) * &mid[k] - (&left[k] + &right[k]) / n(2));
+                let hull = [left, middle, right].map(|p| {
+                    assert!(p[3] > n(0));
+                    std::array::from_fn::<_, 3, _>(|k| &p[k] / &p[3])
+                });
+                let distance2: Q = (0..3)
+                    .map(|k| {
+                        let lo = hull.iter().map(|p| &p[k]).min().unwrap();
+                        let hi = hull.iter().map(|p| &p[k]).max().unwrap();
+                        let d = if witness[k] < *lo {
+                            lo - &witness[k]
+                        } else if witness[k] > *hi {
+                            &witness[k] - hi
+                        } else {
+                            n(0)
+                        };
+                        &d * &d
+                    })
+                    .sum();
+                assert!(
+                    distance2 > rho * rho,
+                    "entire raw source subcurve must avoid witness ball"
+                );
+                if points.is_empty() {
+                    points.push(hull[0].clone());
+                }
+                points.push(hull[2].clone());
+            }
+        }
+        if !edge.orientation() {
+            points.reverse();
+        }
+        if let Some(last) = polygon.last() {
+            assert_eq!(last, &points[0]);
+        }
+        polygon.extend(points.into_iter().skip(usize::from(!polygon.is_empty())));
+    }
+    assert_eq!(polygon.first(), polygon.last());
+    polygon.pop();
+    let center = [witness[0].clone(), witness[1].clone()];
+    let mut winding = 0;
+    for (a, b) in edges(&polygon) {
+        let a = centered(a, &center);
+        let b = centered(b, &center);
+        let d = det(&a, &b);
+        if a[1] <= n(0) && b[1] > n(0) && d > n(0) {
+            winding += 1;
+        }
+        if b[1] <= n(0) && a[1] > n(0) && d < n(0) {
+            winding -= 1;
+        }
+    }
+    winding
+}
+
+#[test]
+fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
+    let (model, mesh, trace, ci, wi, cap_id, p) = asymmetric_shared_trim();
+    let cap = cap_id / 100;
+    let cap_wire = cap_id % 100;
+    let groups = bind(&model, &mesh, &trace).unwrap();
+    let (circle, _) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
+    let cap_error = curve_ring(
+        &trace.faces[cap].boundaries[cap_wire],
+        &circle.center,
+        &circle.radius,
+        &p[2],
+    )
+    .unwrap()
+    .0;
+    let rho = n(1) / n(32);
+    assert!(cap_error > n(1) / n(4));
+    assert_eq!(
+        trim_distance_and_winding(&trace.faces[cap].boundaries[cap_wire], &p, &rho).abs(),
+        1
+    );
+    let radial = centered(&p, &circle.center);
+    assert!(
+        dot2(&radial, &radial) > (&circle.radius + &rho) * (&circle.radius + &rho),
+        "source cylinder is also farther than 1/32"
+    );
+    assert!(
+        groups[cap].iter().any(|tri| {
+            let signs = edges(tri)
+                .map(|(a, b)| det(&sub(b, a), &sub(&p, a)))
+                .collect::<Vec<_>>();
+            tri.iter().all(|v| v[2] == p[2])
+                && (signs.iter().all(|d| d >= &n(0)) || signs.iter().all(|d| d <= &n(0)))
+        }),
+        "witness lies on an actual final cap triangle"
+    );
+    assert!(trace.faces[cap].boundaries[cap_wire].edge_iter().any(|e| {
+        e.orientation()
+            && trace.faces[ci].boundaries[wi]
+                .edge_iter()
+                .any(|other| !other.orientation() && other.id() == e.id())
+    }));
+    match qualify(&model, &mesh, &trace) {
+        GeneratedQualification::Bounded {
+            direct_bound_mm, ..
+        } => assert!(
+            q(direct_bound_mm).unwrap() >= rho,
+            "P1: reported {direct_bound_mm}, but final cap witness is >1/32 from the source surface"
+        ),
+        GeneratedQualification::Unknown { .. } => (),
+    }
+}
