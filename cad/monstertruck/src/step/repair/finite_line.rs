@@ -53,7 +53,6 @@ fn decimal(literal: &str) -> Option<Q> {
 fn numeric_values(mut entity: &str) -> Option<Vec<Q>> {
     let mut values = Vec::new();
     values.try_reserve_exact(3).ok()?;
-    let mut supported = true;
     while !entity.is_empty() {
         if let Ok((rest, _)) = parser::combinator::separator(entity) {
             entity = rest;
@@ -64,15 +63,24 @@ fn numeric_values(mut entity: &str) -> Option<Vec<Q>> {
         } else if entity.as_bytes()[0].is_ascii_uppercase() {
             entity = parser::token::standard_keyword(entity).ok()?.0;
         } else if matches!(entity.as_bytes()[0], b'+' | b'-' | b'.' | b'0'..=b'9') {
+            if values.len() == 3 {
+                return None;
+            }
             let rest = parser::token::real(entity)
                 .map(|(rest, _)| rest)
                 .or_else(|_| parser::token::integer(entity).map(|(rest, _)| rest))
                 .ok()?;
-            // Numeric/domain limits belong to THIS immutable
-            // source entity. An unrelated unsupported scalar must
-            // not erase other complete operation certificates.
-        
-    supported.then_some(values)
+            // The outer parser has already sealed this entity span. Failure is
+            // local to its source ID; other complete authority survives.
+            values.push(decimal(&entity[..entity.len() - rest.len()])?);
+            entity = rest;
+        } else if matches!(entity.as_bytes()[0], b'(' | b')' | b',' | b'=' | b';') {
+            entity = &entity[1..];
+        } else {
+            return None;
+        }
+    }
+    Some(values)
 }
 
 // Part21's own parsers delimit instances/tokens; strings/comments/references never
