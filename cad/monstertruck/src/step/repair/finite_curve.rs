@@ -3,7 +3,7 @@
 use super::*;
 use monstertruck_io::step::load::convert::StepRepairCurveChange;
 use num_rational::BigRational as Q;
-use num_traits::{One, Signed, ToPrimitive, Zero};
+use num_traits::{One, Signed, Zero};
 type Polynomial = Vec<Q>;
 type Homogeneous = [Polynomial; 4];
 
@@ -239,20 +239,7 @@ fn controls_bound(
     }
     // Convex hulls bound the full vector numerator and positive denominator on
     // every piece; the directed affine parameter map covers both finite domains.
-    let mut bound = squared
-        .to_f64()
-        .ok_or("finite-curve movement range")?
-        .sqrt();
-    if squared.is_positive() && bound == 0.0 {
-        bound = f64::MIN_POSITIVE.sqrt();
-    }
-    if !bound.is_finite() {
-        return Err("finite-curve movement range");
-    }
-    while scalar(bound)?.pow(2) < squared {
-        bound = bound.next_up();
-    }
-    Ok(bound)
+    sqrt_upper(&squared, "finite-curve movement range")
 }
 
 #[cfg(test)]
@@ -284,21 +271,47 @@ mod tests {
     }
     #[test]
     fn whole_curve_bound_keeps_outward_rounding_at_numeric_extremes() {
-        let segment = |end| Curve3D::BsplineCurve(BsplineCurve::new_unchecked(
-            KnotVector::bezier_knot(1), vec![Point3::origin(), end],
-        ));
+        let segment = |end| {
+            Curve3D::BsplineCurve(BsplineCurve::new_unchecked(
+                KnotVector::bezier_knot(1),
+                vec![Point3::origin(), end],
+            ))
+        };
         let original = segment(Point3::new(1., 0., 0.));
         let bound = |repaired: &Curve3D| {
-            controls_bound(&original, (0., 1.), repaired, (0., 1.), 1., Matrix4::identity())
+            controls_bound(
+                &original,
+                (0., 1.),
+                repaired,
+                (0., 1.),
+                1.,
+                Matrix4::identity(),
+            )
         };
         let diagonal = segment(Point3::new(2., 1., 1.));
         // The full difference net has squared norm 3; nearest sqrt rounds down.
         assert_eq!(bound(&diagonal), Ok(3.0_f64.sqrt().next_up()));
-        assert_eq!(bound(&segment(Point3::new(1., 2.0_f64.powi(-530), 0.))), Ok(2.0_f64.powi(-530)));
-        assert_eq!(bound(&segment(Point3::new(1., 2.0_f64.powi(-600), 0.))), Ok(f64::MIN_POSITIVE.sqrt()));
-        assert_eq!(bound(&segment(Point3::new(1., f64::MAX, 0.))), Err("finite-curve movement range"));
         assert_eq!(
-            controls_bound(&original, (0., 1.), &original.inverse(), (1., 0.), 1., Matrix4::identity()),
+            bound(&segment(Point3::new(1., 2.0_f64.powi(-530), 0.))),
+            Ok(2.0_f64.powi(-530))
+        );
+        assert_eq!(
+            bound(&segment(Point3::new(1., 2.0_f64.powi(-600), 0.))),
+            Ok(f64::MIN_POSITIVE.sqrt())
+        );
+        assert_eq!(
+            bound(&segment(Point3::new(1., f64::MAX, 0.))),
+            Err("finite-curve movement range")
+        );
+        assert_eq!(
+            controls_bound(
+                &original,
+                (0., 1.),
+                &original.inverse(),
+                (1., 0.),
+                1.,
+                Matrix4::identity()
+            ),
             Ok(0.)
         );
     }

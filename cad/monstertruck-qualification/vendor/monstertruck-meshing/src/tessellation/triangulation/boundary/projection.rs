@@ -1478,7 +1478,8 @@ impl PolyBoundaryPiece {
                     .take(piece_count)
                     .map(|(boundary, polyline)| {
                         let boundary_piece = || {
-                            boundary.as_ref().and_then(|boundary| {
+                            let candidate_mark = repair.map(|trace| trace.mark());
+                            let candidate = boundary.as_ref().and_then(|boundary| {
                                 Self::aligned_boundary_piece(
                                     surface, boundary, &polyline, previous, tolerance, repair,
                                 )
@@ -1492,7 +1493,13 @@ impl PolyBoundaryPiece {
                                                 && distance <= tolerance.min(TOLERANCE)
                                         })
                                 })
-                            })
+                            });
+                            if candidate.is_none()
+                                && let (Some(trace), Some(mark)) = (repair, candidate_mark)
+                            {
+                                trace.discard_since(mark);
+                            }
+                            candidate
                         };
                         let projected_piece = || {
                             Self::projected_polyline_piece(
@@ -2943,8 +2950,8 @@ mod repair_candidate_tests {
             .into_iter()
             .enumerate()
             .map(|(index, points)| {
-                let uv = points
-                    .map(|(x, y)| Point2::new(x + if index == 1 { offset } else { 0. }, y));
+                let uv =
+                    points.map(|(x, y)| Point2::new(x + if index == 1 { offset } else { 0. }, y));
                 let xyz = points.map(|(x, y)| Point3::new(x, y, 0.));
                 (Some(uv.to_vec()), PolylineCurve::from(xyz.to_vec()))
             })
@@ -2963,18 +2970,36 @@ mod repair_candidate_tests {
         };
         let input = wire(2.0 * TOLERANCE);
         let legacy = PolyBoundaryPiece::try_new_from_aligned_exact(
-            &surface, input.clone().into_iter(), &sp, 0.01, true,
-        ).unwrap();
+            &surface,
+            input.clone().into_iter(),
+            &sp,
+            0.01,
+            true,
+        )
+        .unwrap();
         calls.store(0, Ordering::Relaxed);
         let actual = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
-            &surface, input.into_iter(), &sp, 0.01, true, Some(trace),
-        ).unwrap();
-        assert!(calls.load(Ordering::Relaxed) > 0, "rejected aligned piece must use real projection");
+            &surface,
+            input.into_iter(),
+            &sp,
+            0.01,
+            true,
+            Some(trace),
+        )
+        .unwrap();
+        assert!(
+            calls.load(Ordering::Relaxed) > 0,
+            "rejected aligned piece must use real projection"
+        );
         assert_eq!(
             actual.0.iter().map(|p| (p.uv, p.point)).collect::<Vec<_>>(),
             legacy.0.iter().map(|p| (p.uv, p.point)).collect::<Vec<_>>()
         );
-        assert_eq!(trace.mark().1, 1, "retain only the earlier accepted aligned piece");
+        assert_eq!(
+            trace.mark().1,
+            1,
+            "retain only the earlier accepted aligned piece"
+        );
     }
 
     #[test]
@@ -2983,15 +3008,35 @@ mod repair_candidate_tests {
         let capture = repair::Capture::for_test(1);
         let trace = capture.face(0).unwrap();
         let no_projection = |_: &Plane, _: Point3, _: Option<(f64, f64)>| None;
-        assert!(PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
-            &surface, wire(0.).into_iter(), &no_projection, 0.01, true, Some(trace),
-        ).is_some());
+        assert!(
+            PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+                &surface,
+                wire(0.).into_iter(),
+                &no_projection,
+                0.01,
+                true,
+                Some(trace),
+            )
+            .is_some()
+        );
         assert_eq!(trace.mark().1, 2);
         let prior = trace.mark();
-        assert!(PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
-            &surface, wire(2.0 * TOLERANCE).into_iter(), &no_projection, 0.01, true, Some(trace),
-        ).is_none());
-        assert_eq!(trace.mark(), prior, "failed construction keeps prior selected pieces");
+        assert!(
+            PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+                &surface,
+                wire(2.0 * TOLERANCE).into_iter(),
+                &no_projection,
+                0.01,
+                true,
+                Some(trace),
+            )
+            .is_none()
+        );
+        assert_eq!(
+            trace.mark(),
+            prior,
+            "failed construction keeps prior selected pieces"
+        );
     }
 }
 

@@ -2,7 +2,7 @@
 //! This does not authenticate a face trim or any subsequent meshing operation.
 use super::*;
 use num_rational::BigRational as Q;
-use num_traits::{Signed, ToPrimitive, Zero};
+use num_traits::{Signed, Zero};
 
 type Point = [Q; 3];
 
@@ -285,28 +285,11 @@ impl Source {
             occurrence,
             shell,
             edge,
-            bound_mm: sqrt_upper(&squared)?,
-            numeric_bound_mm: sqrt_upper(&numeric_squared)?,
+            bound_mm: sqrt_upper(&squared, "finite LINE movement range")?,
+            numeric_bound_mm: sqrt_upper(&numeric_squared, "finite LINE movement range")?,
             squared_mm: squared,
         })
     }
-}
-
-fn sqrt_upper(squared: &Q) -> Result<f64, &'static str> {
-    let mut bound = squared.to_f64().ok_or("finite LINE movement range")?.sqrt();
-    if squared.is_positive() && bound == 0.0 {
-        bound = f64::MIN_POSITIVE.sqrt();
-    }
-    if !bound.is_finite() {
-        return Err("finite LINE movement range");
-    }
-    while Q::from_float(bound).map(|value| &value * &value).as_ref() < Some(squared) {
-        bound = bound.next_up();
-    }
-    if !bound.is_finite() {
-        return Err("finite LINE movement range");
-    }
-    Ok(bound)
 }
 
 #[cfg(test)]

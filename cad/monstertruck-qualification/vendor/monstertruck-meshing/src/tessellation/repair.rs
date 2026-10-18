@@ -353,6 +353,7 @@ where
     C: PolylineableCurve + ParameterBoundary2D<S>,
     S: RobustMeshableSurface,
 {
+    nonpositive_tolerance!(options.tolerance);
     let capture = Capture::new(shell.faces.len());
     let sp = triangulation::search_nearest_parameter_sp::<S>(options.search_trials);
     let (mesh, fallback) = triangulation::cshell_tessellation_with_closed_axis_metadata_and_repair(

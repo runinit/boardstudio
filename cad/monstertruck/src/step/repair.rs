@@ -7,6 +7,33 @@ pub(super) use cuboid::Cuboid;
 use monstertruck_io::step::load::step_geometry::Curve3D;
 use monstertruck_io::step::load::step_p21::tables::{IntoOwned, PlaceHolder};
 
+// Preserve conversion/sqrt/outward-comparison order; whole-curve extreme and
+// finite-LINE equality/nextdown controls pin the saved numerical behavior.
+fn sqrt_upper(
+    squared: &num_rational::BigRational,
+    range_error: &'static str,
+) -> Result<f64, &'static str> {
+    use num_traits::{Signed, ToPrimitive};
+    let mut bound = squared.to_f64().ok_or(range_error)?.sqrt();
+    if squared.is_positive() && bound == 0.0 {
+        bound = f64::MIN_POSITIVE.sqrt();
+    }
+    if !bound.is_finite() {
+        return Err(range_error);
+    }
+    while num_rational::BigRational::from_float(bound)
+        .map(|value| &value * &value)
+        .as_ref()
+        < Some(squared)
+    {
+        bound = bound.next_up();
+    }
+    if !bound.is_finite() {
+        return Err(range_error);
+    }
+    Ok(bound)
+}
+
 struct NativeLineSource {
     points: [Point3; 2],
     origin: Point3,
