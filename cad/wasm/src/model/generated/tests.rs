@@ -1,5 +1,47 @@
 use super::*;
 
+#[test]
+fn generated_analysis_keeps_body_geometry_and_face_tags_without_certification() {
+    let ir = holed_plate();
+    let display = preview_body_data(&ir, "", |_| Ok(())).unwrap();
+    let analysis =
+        generated_body_analysis_data(&ir, GeneratedBodyAnalysisOptions::default()).unwrap();
+    assert_eq!(analysis.deflection_mm, 0.1);
+    assert_eq!(analysis.analysis_error_bound_mm, None);
+    assert_eq!(analysis.mesh.positions, display.positions);
+    assert_eq!(analysis.positions_mm_f64.len(), display.positions.len());
+    assert_eq!(
+        analysis.triangle_face_occurrence_indices.len(),
+        display.positions.len() / 9
+    );
+    let tags = &analysis.triangle_face_occurrence_indices;
+    for index in 0..analysis.source_faces.len() {
+        assert!(
+            tags.contains(&index),
+            "every generated face must have triangles"
+        );
+    }
+    assert!(tags.iter().all(|tag| *tag < analysis.source_faces.len()));
+    let refined = generated_body_analysis_data(
+        &ir,
+        GeneratedBodyAnalysisOptions {
+            target_deflection_mm: Some(0.01),
+        },
+    )
+    .unwrap();
+    assert_eq!(refined.deflection_mm, 0.01);
+    assert_eq!(refined.analysis_error_bound_mm, None);
+    for target in [0.0, -0.01, f64::NAN, f64::INFINITY] {
+        assert!(generated_body_analysis_data(
+            &ir,
+            GeneratedBodyAnalysisOptions {
+                target_deflection_mm: Some(target)
+            }
+        )
+        .is_err());
+    }
+}
+
 fn step_products(text: &str) -> Vec<(String, String)> {
     use step_p21::ast::{EntityInstance, Exchange, Parameter};
     let parsed: Exchange = text.parse().expect("independent Part21 syntax parser");

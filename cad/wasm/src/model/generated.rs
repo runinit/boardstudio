@@ -1,5 +1,6 @@
 use super::*;
 use boardstudio_contracts::{PreparedCaseAssemblyIR, PreparedCaseIR};
+use serde::Serialize;
 
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 
@@ -185,47 +186,114 @@ pub fn export_cached_assembly(input: JsValue, keys: JsValue) -> Result<JsValue, 
     Ok(result.into())
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct GeneratedBodyAnalysisOptions {
-    source_sha256: String,
-    #[serde(default)]
     target_deflection_mm: Option<f64>,
 }
 
-pub(crate) fn build_generated_body_analysis_asset(
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneratedSourceFaceDto {
+    solid_index: usize,
+    shell_index: usize,
+    face_index: usize,
+    support_kind: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneratedFaceOccurrenceDto {
+    source_face_index: usize,
+    solid_occurrence_index: usize,
+}
+
+fn generated_body_analysis_data(
     ir: &PreparedCaseIR,
-    key: &str,
-    source_sha256: String,
-    target_deflection_mm: Option<f64>,
-) -> Result<super::vendor_step::ReadStepAsset, String> {
-    let entry = cache::body(ir, key, false, &mut |_| Ok(()))?;
-    let analysis =
-        boardstudio_cad::mesh_profile_for_analysis(&entry.model, target_deflection_mm)?;
-    super::vendor_step::ReadStepAsset::from_generated_analysis(
-        source_sha256,
-        target_deflection_mm,
-        analysis,
-    )
+    options: GeneratedBodyAnalysisOptions,
+) -> Result<boardstudio_cad::GeneratedAnalysisMesh, String> {
+    if ir.revision > MAX_REVISION || ir.body.id.trim().is_empty() {
+        return Err("Invalid generated analysis body identity or revision".into());
+    }
+    // Reuse exact geometry only; analysis is never part of ordinary preview admission.
+    let entry = cache::body(ir, "", false, &mut |_| Ok(()))?;
+    boardstudio_cad::mesh_profile_for_analysis(&entry.model, options.target_deflection_mm)
 }
 
 #[wasm_bindgen]
-pub fn build_generated_body_analysis(
-    input: JsValue,
-    key: String,
-    options: JsValue,
-) -> Result<JsValue, JsValue> {
+pub fn analyze_generated_body(input: JsValue, options: JsValue) -> Result<JsValue, JsValue> {
     let ir: PreparedCaseIR = deserialize(input)?;
     let options: GeneratedBodyAnalysisOptions = serde_wasm_bindgen::from_value(options)
         .map_err(|error| js_error(format!("Invalid generated analysis options: {error}")))?;
-    build_generated_body_analysis_asset(
-        &ir,
-        &key,
-        options.source_sha256,
-        options.target_deflection_mm,
-    )
-    .map_err(js_error)?
-    .to_js_value()
+    let analysis = generated_body_analysis_data(&ir, options).map_err(js_error)?;
+    let source_faces: Vec<_> = analysis
+        .source_faces
+        .iter()
+        .map(|face| GeneratedSourceFaceDto {
+            solid_index: face.solid_index,
+            shell_index: face.shell_index,
+            face_index: face.face_index,
+            support_kind: face.support_kind.clone(),
+        })
+        .collect();
+    let face_occurrences: Vec<_> = analysis
+        .source_faces
+        .iter()
+        .enumerate()
+        .map(|(index, face)| GeneratedFaceOccurrenceDto {
+            source_face_index: index,
+            solid_occurrence_index: face.solid_index,
+        })
+        .collect();
+    let tags = analysis
+        .triangle_face_occurrence_indices
+        .iter()
+        .map(|index| {
+            u32::try_from(*index).map_err(|_| js_error("Generated analysis face index exceeds u32"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = Object::new();
+    set(&result, "bodyId", &JsValue::from_str(&ir.body.id))?;
+    set(&result, "revision", &JsValue::from_f64(ir.revision as f64))?;
+    set(
+        &result,
+        "surfacePositionsMmF64",
+        &js_sys::Float64Array::from(analysis.positions_mm_f64.as_slice()).into(),
+    )?;
+    set(
+        &result,
+        "triangleFaceOccurrenceIndices",
+        &js_sys::Uint32Array::from(tags.as_slice()).into(),
+    )?;
+    set(
+        &result,
+        "sourceFaces",
+        &serde_wasm_bindgen::to_value(&source_faces).map_err(js_error)?,
+    )?;
+    set(
+        &result,
+        "faceOccurrences",
+        &serde_wasm_bindgen::to_value(&face_occurrences).map_err(js_error)?,
+    )?;
+    set(
+        &result,
+        "analysisErrorBoundMm",
+        &analysis
+            .analysis_error_bound_mm
+            .map(JsValue::from_f64)
+            .unwrap_or(JsValue::NULL),
+    )?;
+    set(
+        &result,
+        "meshClosedOriented",
+        &JsValue::from_bool(analysis.mesh_closed_oriented),
+    )?;
+    set(
+        &result,
+        "deflectionMm",
+        &JsValue::from_f64(analysis.deflection_mm),
+    )?;
+    Ok(result.into())
 }
 
 #[cfg(test)]

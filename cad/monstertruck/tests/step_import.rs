@@ -567,7 +567,7 @@ fn declared_precision_is_typed_context_owned_and_unit_converted() {
             .iter()
             .all(|f| f.source_uncertainty_mm == Some(0.01))
     );
-    assert_eq!(model.accuracy().analysis_error_bound_mm, Some(0.01));
+    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     let unassigned=tetra_with_precision("#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.01),#102,'distance_accuracy_value','test');").replace("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300))","");
     let model = import_step(unassigned.into_bytes()).unwrap();
     assert!(
@@ -609,7 +609,7 @@ fn mapped_precision_is_scaled_in_world_mm_without_borrowing_another_context() {
             Some(if face.occurrence == 0 { 0.001 } else { 0.002 })
         );
     }
-    assert_eq!(model.accuracy().analysis_error_bound_mm, Some(0.002));
+    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
 }
 
 #[test]
@@ -680,7 +680,7 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
             .iter()
             .all(|f| f.source_uncertainty_mm == Some(0.01))
     );
-    assert!((model.accuracy().max_repair_displacement_mm - 0.001).abs() < 1e-12);
+    assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     let unknown = text.replace("GEOMETRIC_REPRESENTATION_CONTEXT(3) ", "");
     let error = import_step(unknown.into_bytes())
         .err()
@@ -997,7 +997,7 @@ fn selected_pcurve_cube_units_keep_full_original_parameter_extent() {
         assert_bounds(model.bounds(), [[0., 0., 0.], [10. * factor; 3]]);
         assert_eq!(model.original_bytes(), source.as_bytes());
         assert_eq!(model.source_faces().len(), 6);
-        assert_eq!(model.accuracy().analysis_error_bound_mm, Some(1.0e-7 * factor));
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
         assert!(model.accuracy().bounds_from_source_geometry);
     }
 }
@@ -1122,10 +1122,15 @@ fn exactly_certified_geometry_records_no_sampled_checks() {
     let model = import_step(TETRA.to_vec()).unwrap();
     assert_eq!(model.accuracy().sampled_support_checks, 0);
     assert_eq!(model.accuracy().max_sampled_support_residual_mm, None);
+    assert_eq!(
+        model.accuracy().analysis_error_bound_mm,
+        None,
+        "exact support incidence does not certify mesh coverage or query numerics"
+    );
 }
 
 #[test]
-fn explicit_preview_repair_budget_retains_declaration_selected_budget_and_actual_movement_without_certifying_analysis() {
+fn explicit_preview_repair_budget_preserves_source_and_keeps_movement_unknown() {
     let source = tetra_with_plane_gap("0.001", "0.025");
     assert!(
         import_step(source.clone().into_bytes()).is_err(),
@@ -1153,7 +1158,7 @@ fn explicit_preview_repair_budget_retains_declaration_selected_budget_and_actual
     assert_eq!(model.original_bytes(), source.as_bytes());
     assert_eq!(model.precision()[0].uncertainty_mm(), Some(0.001));
     assert_eq!(model.accuracy().selected_repair_budget_mm, Some(0.03));
-    assert!((model.accuracy().max_repair_displacement_mm - 0.025).abs() < 1e-12);
+    assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     assert!(model.accuracy().relaxed_beyond_declared_precision);
     assert_eq!(
         model.accuracy().analysis_error_bound_mm,
@@ -1165,12 +1170,6 @@ fn explicit_preview_repair_budget_retains_declaration_selected_budget_and_actual
             .face_occurrences()
             .iter()
             .all(|f| f.source_uncertainty_mm == Some(0.001))
-    );
-    assert!(
-        model
-            .face_occurrences()
-            .iter()
-            .any(|f| (f.repair_displacement_mm - 0.025).abs() < 1e-12)
     );
 }
 
@@ -1194,6 +1193,42 @@ fn on_demand_deflection_refinement_does_not_certify_a_nominal_tolerance() {
         refined_import.mesh().positions.len() > default_import.mesh().positions.len(),
         "tighter deflection refines curved cylinder mesh"
     );
+}
+
+#[test]
+fn import_options_keep_default_behavior_and_reject_invalid_requests() {
+    let ordinary = import_step(TETRA.to_vec()).unwrap();
+    let explicit_default =
+        import_step_with_options(TETRA.to_vec(), StepImportOptions::default()).unwrap();
+    assert_eq!(ordinary.accuracy(), explicit_default.accuracy());
+    assert_eq!(ordinary.mesh(), explicit_default.mesh());
+    assert_eq!(
+        ordinary.face_occurrences(),
+        explicit_default.face_occurrences()
+    );
+    for invalid in [0.0, -0.01, f64::NAN, f64::INFINITY] {
+        for options in [
+            StepImportOptions {
+                preview_repair_budget_mm: Some(invalid),
+                target_deflection_mm: None,
+            },
+            StepImportOptions {
+                preview_repair_budget_mm: None,
+                target_deflection_mm: Some(invalid),
+            },
+        ] {
+            assert!(import_step_with_options(TETRA.to_vec(), options).is_err());
+        }
+    }
+    let coarser = import_step_with_options(
+        TETRA.to_vec(),
+        StepImportOptions {
+            target_deflection_mm: Some(1.0),
+            ..StepImportOptions::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(coarser.accuracy().preview_deflection_mm, 0.1);
 }
 
 /// Faces the ordinary mesher cannot chart (pole and seam bands, sub-tolerance slivers) are

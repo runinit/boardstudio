@@ -25,11 +25,6 @@ pub(super) struct SupportReport {
     /// Boundary curves accepted by sampling after exact certification failed.
     pub sampled_checks: usize,
     pub max_sampled_residual_mm: Option<f64>,
-    /// Per-face maximum placed repair/support displacement (in world millimetres).
-    pub face_repair_displacement_mm: Vec<f64>,
-    /// Per-face flag indicating whether every boundary curve was certified on its support
-    /// without sampling.
-    pub face_exact_support: Vec<bool>,
 }
 
 /// Preserve support mismatch refusal independently of optional tight bounds.
@@ -42,12 +37,8 @@ pub(super) fn validate_support(
     owner: &super::StepPrecision,
     preview_repair_budget_mm: Option<f64>,
 ) -> Result<SupportReport, String> {
+    let mut report = SupportReport::default();
     let shell = source.shell();
-    let mut report = SupportReport {
-        face_repair_displacement_mm: vec![0.0; shell.faces.len()],
-        face_exact_support: vec![true; shell.faces.len()],
-        ..Default::default()
-    };
     let mut normalized = shell.clone();
     super::units::normalize_shell_to_mm(&mut normalized, factor)?;
     let attachments = source
@@ -77,33 +68,17 @@ pub(super) fn validate_support(
         .max(placement.y.truncate().magnitude())
         .max(placement.z.truncate().magnitude());
     if let Some(budget) = preview_repair_budget_mm {
-        if !budget.is_finite() || budget <= 0.0 {
-            return Err("previewRepairBudgetMm must be finite and positive".into());
-        }
         for attachment in &attachments {
-            let placed_discrepancy = attachment.discrepancy_mm() * scale;
-            if !placed_discrepancy.is_finite() || placed_discrepancy > budget {
+            let discrepancy = attachment.discrepancy_mm() * scale;
+            if !discrepancy.is_finite() || discrepancy > budget {
                 return Err(format!(
-                    "source attachment discrepancy {placed_discrepancy:.6} mm exceeds previewRepairBudgetMm {budget:.6} mm"
+                    "source attachment discrepancy {discrepancy:.6} mm exceeds previewRepairBudgetMm {budget:.6} mm"
                 ));
             }
         }
     }
     for (face_index, face) in shell.faces.iter().enumerate() {
-        let mut max_face_disp = 0.0_f64;
-        for attachment in &attachments {
-            if attachment.source().face_index() == Some(face_index) {
-                max_face_disp = max_face_disp.max(attachment.discrepancy_mm() * scale);
-            }
-        }
         for edge in face.boundaries.iter().flatten() {
-            for attachment in &attachments {
-                if attachment.source().incidence() == ConnectivityIncidence::VertexOnEdge
-                    && attachment.source().edge_index() == edge.index
-                {
-                    max_face_disp = max_face_disp.max(attachment.discrepancy_mm() * scale);
-                }
-            }
             let curve = &shell
                 .edges
                 .get(edge.index)
@@ -132,49 +107,29 @@ pub(super) fn validate_support(
                         }
                         _ => Ok(()),
                     });
-            if let Err(exact_error) = exact {
-                report.face_exact_support[face_index] = false;
-                let sampled = match &face.surface {
-                    Surface::ElementarySurface(ElementarySurface::Plane(plane)) => {
-                        sampled_plane_residual_mm(curve, plane, factor * scale)?
-                    }
-                    surface => support::sampled_residual_mm(curve, surface, factor, placement)?
-                        .ok_or(exact_error.clone())?,
-                };
-                if !sampled.is_finite() || sampled > allowance {
-                    return Err(format!(
-                        "{exact_error}; sampled support residual {sampled:.6} mm exceeds allowance {allowance:.6} mm"
-                    ));
+            let Err(exact_error) = exact else {
+                continue;
+            };
+            let sampled = match &face.surface {
+                Surface::ElementarySurface(ElementarySurface::Plane(plane)) => {
+                    sampled_plane_residual_mm(curve, plane, factor * scale)?
                 }
-                max_face_disp = max_face_disp.max(sampled);
-                report.sampled_checks += 1;
-                report.relaxed_beyond_declared_precision |= sampled > declared;
-                report.max_sampled_residual_mm = Some(
-                    report
-                        .max_sampled_residual_mm
-                        .map_or(sampled, |m| m.max(sampled)),
-                );
-            } else if let Surface::ElementarySurface(ElementarySurface::Plane(plane)) =
-                &face.surface
-            {
-                let normal = plane.normal() * (factor * scale);
-                let projection = Matrix4::from_cols(
-                    Vector4::new(0., 0., normal.x, 0.),
-                    Vector4::new(0., 0., normal.y, 0.),
-                    Vector4::new(0., 0., normal.z, 0.),
-                    Vector4::new(0., 0., -normal.dot(plane.origin().to_vec()), 1.),
-                );
-                let mut distance = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-                if curve_bounds(curve, projection, &mut distance).is_ok() {
-                    let plane_gap = distance[0][2].abs().max(distance[1][2].abs());
-                    if plane_gap.is_finite() {
-                        max_face_disp = max_face_disp.max(plane_gap);
-                        report.relaxed_beyond_declared_precision |= plane_gap > declared;
-                    }
-                }
+                surface => support::sampled_residual_mm(curve, surface, factor, placement)?
+                    .ok_or(exact_error.clone())?,
+            };
+            if !sampled.is_finite() || sampled > allowance {
+                return Err(format!(
+                    "{exact_error}; sampled support residual {sampled:.6} mm exceeds allowance {allowance:.6} mm"
+                ));
             }
+            report.sampled_checks += 1;
+            report.relaxed_beyond_declared_precision |= sampled > declared;
+            report.max_sampled_residual_mm = Some(
+                report
+                    .max_sampled_residual_mm
+                    .map_or(sampled, |m| m.max(sampled)),
+            );
         }
-        report.face_repair_displacement_mm[face_index] = max_face_disp;
     }
     report.relaxed_beyond_declared_precision |= attachments
         .iter()

@@ -70,8 +70,8 @@ pub struct StepAccuracy {
     pub preview_declared_multiplier: f64,
     /// Explicit per-file preview repair budget in millimetres, when supplied.
     pub selected_repair_budget_mm: Option<f64>,
-    /// Maximum measured actual repair/support displacement across all face occurrences, in millimetres.
-    pub max_repair_displacement_mm: f64,
+    /// Unknown until the complete geometric repair path measures actual movement.
+    pub max_repair_displacement_mm: Option<f64>,
     /// True when a measured attachment discrepancy or sampled support residual exceeded
     /// the declared precision, so a check passed only because of the preview allowance.
     /// Direction and endpoint-trim relaxations are not observable per check and are not
@@ -322,9 +322,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let mut sampled_support_checks = 0;
     let mut fallback_meshed_faces = 0;
     let mut max_sampled_support_residual_mm: Option<f64> = None;
-    let mut max_repair_displacement_mm = 0.0_f64;
-    let mut analysis_eligible = wireframe.is_empty();
-    let mut max_face_analysis_bound_mm = 0.0_f64;
     let mut preview_positions_f64 = Vec::new();
     let mut face_occurrences = Vec::new();
     let mut triangle_faces = Vec::new();
@@ -418,9 +415,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 if before == triangles.len() && !fallback {
                     return Err(format!("solid #{id} has an empty triangle face"));
                 }
-                if before == triangles.len() || fallback {
-                    analysis_eligible = false;
-                }
                 let source_face = source_faces
                     .iter()
                     .position(|f| {
@@ -437,44 +431,13 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 if uncertainty.is_some_and(|value| !value.is_finite()) {
                     return Err("nonfinite placed source precision".into());
                 }
-                let repair_displacement_mm = support
-                    .face_repair_displacement_mm
-                    .as_slice().get(face_index)
-                    .copied()
-                    .unwrap_or(0.0);
-                max_repair_displacement_mm =
-                    max_repair_displacement_mm.max(repair_displacement_mm);
-                if analysis_eligible {
-                    match face_analysis_error_bound_mm(
-                        source,
-                        face_index,
-                        solid.mm_per_unit,
-                        *placement,
-                        deflection_mm,
-                        uncertainty,
-                        repair_displacement_mm,
-                        support
-                            .face_exact_support
-                            .as_slice().get(face_index)
-                            .copied()
-                            .unwrap_or(false),
-                    ) {
-                        Some(face_bound) => {
-                            max_face_analysis_bound_mm =
-                                max_face_analysis_bound_mm.max(face_bound);
-                        }
-                        None => {
-                            analysis_eligible = false;
-                        }
-                    }
-                }
                 let tag = face_occurrences.len();
                 face_occurrences.push(StepFaceOccurrence {
                     source_face,
                     occurrence,
                     representation_id: *representation,
                     source_uncertainty_mm: uncertainty,
-                    repair_displacement_mm,
+                    repair_displacement_mm: 0.0,
                 });
                 triangle_faces.extend(std::iter::repeat_n(tag, triangles.len() - before));
             }
@@ -519,16 +482,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     {
         return Err("invalid bounds".into());
     }
-    let analysis_error_bound_mm = (analysis_eligible
-        && bounds_from_source_geometry
-        && !relaxed_beyond_declared_precision
-        && options.preview_repair_budget_mm.is_none()
-        && mesh_closed_oriented
-        && sampled_support_checks == 0
-        && fallback_meshed_faces == 0
-        && max_face_analysis_bound_mm.is_finite()
-        && max_face_analysis_bound_mm >= 0.0)
-        .then_some(max_face_analysis_bound_mm);
     Ok(ImportedStep {
         original_bytes: bytes,
         _original_source: original_source,
@@ -544,13 +497,14 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         accuracy: StepAccuracy {
             preview_deflection_mm: deflection_mm,
             preview_angular_rad: 0.5,
-            analysis_error_bound_mm,
+            // Nominal meshing tolerance and support checks do not prove a symmetric bound.
+            analysis_error_bound_mm: None,
             bounds_from_source_geometry,
             mesh_closed_oriented,
             preview_floor_mm: preview_tolerance.floor_mm,
             preview_declared_multiplier: preview_tolerance.declared_multiplier,
             selected_repair_budget_mm: options.preview_repair_budget_mm,
-            max_repair_displacement_mm,
+            max_repair_displacement_mm: None,
             relaxed_beyond_declared_precision,
             sampled_support_checks,
             max_sampled_support_residual_mm,
@@ -966,96 +920,4 @@ fn validate_occurrence_identity(
         );
     }
     Ok(())
-}
-
-/// Computes a conservative per-face analysis error bound (in world millimetres) when
-/// the face's carrier and trim curves belong to the qualified exact-bound surface family.
-/// Returns `None` if the carrier or boundary curves do not establish a symmetric bound.
-#[allow(clippy::too_many_arguments)]
-fn face_analysis_error_bound_mm(
-    source: &SourceBoundStepShell,
-    face_index: usize,
-    mm_per_unit: f64,
-    placement: Matrix4,
-    deflection_mm: f64,
-    source_uncertainty_mm: Option<f64>,
-    repair_displacement_mm: f64,
-    exact_support: bool,
-) -> Option<f64> {
-    use monstertruck_io::step::load::step_geometry::{
-        Conic3D, Curve2D, Curve3D, ElementarySurface, Surface, SurfaceCurveAssociatedGeometry,
-        SurfaceCurveRepresentation,
-    };
-
-    if !exact_support || !deflection_mm.is_finite() || deflection_mm <= 0.0 {
-        return None;
-    }
-    let face = source.shell().faces.get(face_index)?;
-    let surface_deflection_mm = match &face.surface {
-        Surface::ElementarySurface(ElementarySurface::Plane(_)) => 0.0,
-        Surface::ElementarySurface(
-            ElementarySurface::CylindricalSurface(_) | ElementarySurface::ConicalSurface(_),
-        ) => deflection_mm,
-        _ => return None,
-    };
-
-    let mut max_edge_deflection_mm = 0.0_f64;
-    for edge_use in face.boundaries.iter().flatten() {
-        let edge = source.shell().edges.get(edge_use.index)?;
-        let edge_deflection = match &edge.curve {
-            Curve3D::Line(_) | Curve3D::Polyline(_) => 0.0,
-            Curve3D::Conic(Conic3D::Ellipse(_)) => deflection_mm,
-            Curve3D::SurfaceCurve(sc) => match sc.master_representation() {
-                SurfaceCurveRepresentation::Curve3D => match sc.leader() {
-                    Curve3D::Line(_) | Curve3D::Polyline(_) => 0.0,
-                    Curve3D::Conic(Conic3D::Ellipse(_)) => deflection_mm,
-                    _ => return None,
-                },
-                SurfaceCurveRepresentation::ParameterCurve0
-                | SurfaceCurveRepresentation::ParameterCurve1 => {
-                    let slot = match sc.master_representation() {
-                        SurfaceCurveRepresentation::ParameterCurve0 => 0,
-                        SurfaceCurveRepresentation::ParameterCurve1 => 1,
-                        SurfaceCurveRepresentation::Curve3D => unreachable!(),
-                    };
-                    let Some(SurfaceCurveAssociatedGeometry::ParameterCurve(pc)) =
-                        sc.associated_geometry().get(slot)
-                    else {
-                        return None;
-                    };
-                    match (pc.curve().as_ref(), pc.surface().as_ref()) {
-                        (
-                            Curve2D::Line(_),
-                            Surface::ElementarySurface(ElementarySurface::Plane(_)),
-                        ) => 0.0,
-                        (
-                            Curve2D::Line(_),
-                            Surface::ElementarySurface(
-                                ElementarySurface::CylindricalSurface(_)
-                                | ElementarySurface::ConicalSurface(_),
-                            ),
-                        ) => deflection_mm,
-                        (
-                            Curve2D::Conic(
-                                monstertruck_io::step::load::step_geometry::Conic2D::Ellipse(_),
-                            ),
-                            Surface::ElementarySurface(ElementarySurface::Plane(_)),
-                        ) => deflection_mm,
-                        _ => return None,
-                    }
-                }
-            },
-            _ => return None,
-        };
-        max_edge_deflection_mm = max_edge_deflection_mm.max(edge_deflection);
-    }
-
-    let Some(uncertainty) = source_uncertainty_mm.filter(|u| u.is_finite() && *u > 0.0) else {
-        return None;
-    };
-    let mesh_approximation_mm = surface_deflection_mm.max(max_edge_deflection_mm);
-    let source_or_repair_mm = uncertainty.max(repair_displacement_mm);
-    let _ = (mm_per_unit, placement);
-    let bound = mesh_approximation_mm + source_or_repair_mm;
-    (bound.is_finite() && bound >= 0.0).then_some(bound)
 }

@@ -15,132 +15,131 @@ const MAX_STEP_BYTES: u32 = 32 * 1024 * 1024;
 struct ReadStepOptions {
     source_sha256: String,
     preview_repair_budget_mm: Option<f64>,
-    #[serde(default)]
     target_deflection_mm: Option<f64>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ImportOptionsDto {
+struct ImportOptionsDto {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) preview_repair_budget_mm: Option<f64>,
+    preview_repair_budget_mm: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) target_deflection_mm: Option<f64>,
+    target_deflection_mm: Option<f64>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ReadStepAsset {
-    pub(crate) mesh: MeshDto,
-    pub(crate) bounds: BoundsDto,
-    pub(crate) vendor_step: VendorStepDto,
+struct ReadStepAsset {
+    mesh: MeshDto,
+    bounds: BoundsDto,
+    vendor_step: VendorStepDto,
 }
 
 #[derive(Serialize)]
-pub(crate) struct MeshDto {
+struct MeshDto {
     #[serde(skip)]
-    pub(crate) positions: Vec<f32>,
+    positions: Vec<f32>,
     #[serde(skip)]
-    pub(crate) normals: Vec<f32>,
+    normals: Vec<f32>,
 }
 
 #[derive(Serialize)]
-pub(crate) struct BoundsDto {
-    pub(crate) min: [f64; 3],
-    pub(crate) max: [f64; 3],
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct VendorStepDto {
-    pub(crate) source_sha256: String,
-    pub(crate) import_options: ImportOptionsDto,
-    pub(crate) source_faces: Vec<SourceFaceDto>,
-    pub(crate) face_occurrences: Vec<FaceOccurrenceDto>,
-    pub(crate) precision: Vec<PrecisionDto>,
-    pub(crate) accuracy: AccuracyDto,
-    #[serde(skip)]
-    pub(crate) surface_positions_mm_f64: Vec<f64>,
-    #[serde(skip)]
-    pub(crate) triangle_face_occurrence_indices: Vec<u32>,
-    #[serde(skip)]
-    pub(crate) line_segments_mm_f64: Vec<f64>,
-    #[serde(skip)]
-    pub(crate) line_render_positions: Vec<f32>,
-    #[serde(skip)]
-    pub(crate) line_occurrences: Vec<LineOccurrenceDto>,
-    #[serde(skip)]
-    pub(crate) segment_line_occurrence_indices: Vec<u32>,
+struct BoundsDto {
+    min: [f64; 3],
+    max: [f64; 3],
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SourceFaceDto {
-    pub(crate) solid_id: String,
-    pub(crate) shell_index: u32,
-    pub(crate) face_id: String,
-    pub(crate) support_id: String,
-    pub(crate) support_kind: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct FaceOccurrenceDto {
-    pub(crate) source_face_index: u32,
-    pub(crate) solid_occurrence_index: u32,
-    pub(crate) representation_id: String,
-    pub(crate) source_uncertainty_mm: Option<f64>,
-    pub(crate) repair_displacement_mm: Option<f64>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LineOccurrenceDto {
-    pub(crate) line_occurrence_index: u32,
-    pub(crate) trimmed_curve_id: String,
-    pub(crate) source_line_id: String,
-    pub(crate) curve_set_id: String,
-    pub(crate) representation_id: String,
-    pub(crate) source_unit_to_mm: f64,
+struct VendorStepDto {
+    source_sha256: String,
+    import_options: ImportOptionsDto,
+    source_faces: Vec<SourceFaceDto>,
+    face_occurrences: Vec<FaceOccurrenceDto>,
+    precision: Vec<PrecisionDto>,
+    accuracy: AccuracyDto,
     #[serde(skip)]
-    pub(crate) placement_f64: [f64; 16],
-    pub(crate) declared_uncertainty_mm: Option<f64>,
+    surface_positions_mm_f64: Vec<f64>,
+    #[serde(skip)]
+    triangle_face_occurrence_indices: Vec<u32>,
+    #[serde(skip)]
+    line_segments_mm_f64: Vec<f64>,
+    #[serde(skip)]
+    line_render_positions: Vec<f32>,
+    #[serde(skip)]
+    line_occurrences: Vec<LineOccurrenceDto>,
+    #[serde(skip)]
+    segment_line_occurrence_indices: Vec<u32>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PrecisionDto {
-    pub(crate) representation_id: String,
-    pub(crate) context_id: String,
-    pub(crate) geometric_dimension: Option<u32>,
-    pub(crate) declarations: Vec<UncertaintyDto>,
+struct SourceFaceDto {
+    solid_id: String,
+    shell_index: u32,
+    face_id: String,
+    support_id: String,
+    support_kind: String,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct UncertaintyDto {
-    pub(crate) entity_id: String,
-    pub(crate) length_unit_id: String,
-    pub(crate) millimetres: f64,
+struct FaceOccurrenceDto {
+    source_face_index: u32,
+    solid_occurrence_index: u32,
+    representation_id: String,
+    source_uncertainty_mm: Option<f64>,
+    repair_displacement_mm: Option<f64>,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AccuracyDto {
-    pub(crate) preview_deflection_mm: f64,
-    pub(crate) preview_angular_rad: f64,
-    pub(crate) analysis_error_bound_mm: Option<f64>,
-    pub(crate) bounds_from_source_geometry: bool,
-    pub(crate) mesh_closed_oriented: bool,
-    pub(crate) preview_floor_mm: f64,
-    pub(crate) preview_declared_multiplier: f64,
+struct LineOccurrenceDto {
+    line_occurrence_index: u32,
+    trimmed_curve_id: String,
+    source_line_id: String,
+    curve_set_id: String,
+    representation_id: String,
+    source_unit_to_mm: f64,
+    #[serde(skip)]
+    placement_f64: [f64; 16],
+    declared_uncertainty_mm: Option<f64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PrecisionDto {
+    representation_id: String,
+    context_id: String,
+    geometric_dimension: Option<u32>,
+    declarations: Vec<UncertaintyDto>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UncertaintyDto {
+    entity_id: String,
+    length_unit_id: String,
+    millimetres: f64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AccuracyDto {
+    preview_deflection_mm: f64,
+    preview_angular_rad: f64,
+    analysis_error_bound_mm: Option<f64>,
+    bounds_from_source_geometry: bool,
+    mesh_closed_oriented: bool,
+    preview_floor_mm: f64,
+    preview_declared_multiplier: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) selected_repair_budget_mm: Option<f64>,
-    pub(crate) max_repair_displacement_mm: f64,
-    pub(crate) relaxed_beyond_declared_precision: bool,
-    pub(crate) sampled_support_checks: u32,
-    pub(crate) max_sampled_support_residual_mm: Option<f64>,
-    pub(crate) fallback_meshed_faces: u32,
+    selected_repair_budget_mm: Option<f64>,
+    max_repair_displacement_mm: Option<f64>,
+    relaxed_beyond_declared_precision: bool,
+    sampled_support_checks: u32,
+    max_sampled_support_residual_mm: Option<f64>,
+    fallback_meshed_faces: u32,
 }
 
 impl ReadStepAsset {
@@ -175,19 +174,13 @@ impl ReadStepAsset {
             );
         }
         // This is a binding label; worker byte verification must precede activation.
-        if let Some(budget) = options.preview_repair_budget_mm
-            && (!budget.is_finite() || budget <= 0.0)
-        {
-            return Err(
-                "Invalid STEP options: previewRepairBudgetMm must be finite and positive".into(),
-            );
-        }
-        if let Some(target) = options.target_deflection_mm
-            && (!target.is_finite() || target <= 0.0)
-        {
-            return Err(
-                "Invalid STEP options: targetDeflectionMm must be finite and positive".into(),
-            );
+        if let Some(budget) = options.preview_repair_budget_mm {
+            if !budget.is_finite() || budget <= 0.0 {
+                return Err(
+                    "Invalid STEP options: previewRepairBudgetMm must be finite and positive"
+                        .into(),
+                );
+            }
         }
         if bytes.is_empty() || bytes.len() > MAX_STEP_BYTES as usize {
             return Err("STEP import failed: invalid file size".into());
@@ -344,132 +337,7 @@ impl ReadStepAsset {
         })
     }
 
-    pub(crate) fn from_generated_analysis(
-        source_sha256: String,
-        target_deflection_mm: Option<f64>,
-        analysis: boardstudio_cad::GeneratedAnalysisMesh,
-    ) -> Result<Self, String> {
-        if !is_sha256(&source_sha256) {
-            return Err(
-                "Invalid generated analysis options: sourceSha256 must be 64 lowercase hexadecimal characters"
-                    .into(),
-            );
-        }
-        if let Some(target) = target_deflection_mm
-            && (!target.is_finite() || target <= 0.0)
-        {
-            return Err(
-                "Invalid generated analysis options: targetDeflectionMm must be finite and positive"
-                    .into(),
-            );
-        }
-        if analysis.mesh.positions.is_empty()
-            || !analysis.mesh.positions.len().is_multiple_of(9)
-            || analysis.mesh.normals.len() != analysis.mesh.positions.len()
-            || analysis.positions_mm_f64.len() != analysis.mesh.positions.len()
-            || analysis.triangle_face_occurrence_indices.len()
-                != analysis.mesh.positions.len() / 9
-            || analysis
-                .mesh
-                .positions
-                .iter()
-                .chain(&analysis.mesh.normals)
-                .any(|value| !value.is_finite())
-            || analysis.positions_mm_f64.iter().any(|value| !value.is_finite())
-            || analysis
-                .positions_mm_f64
-                .iter()
-                .zip(&analysis.mesh.positions)
-                .any(|(source, render)| *source as f32 != *render)
-        {
-            return Err("Generated analysis mesh returned inconsistent surface buffers".into());
-        }
-        let mut source_faces = Vec::with_capacity(analysis.source_faces.len());
-        let mut face_occurrences = Vec::with_capacity(analysis.source_faces.len());
-        for (index, face) in analysis.source_faces.iter().enumerate() {
-            source_faces.push(SourceFaceDto {
-                solid_id: (face.solid_index + 1).to_string(),
-                shell_index: index_u32(face.shell_index, "shell")?,
-                face_id: (face.face_index + 1).to_string(),
-                support_id: (index + 1).to_string(),
-                support_kind: face.support_kind.clone(),
-            });
-            face_occurrences.push(FaceOccurrenceDto {
-                source_face_index: index_u32(index, "source face")?,
-                solid_occurrence_index: index_u32(face.solid_index, "solid occurrence")?,
-                representation_id: "1".into(),
-                source_uncertainty_mm: None,
-                repair_displacement_mm: Some(0.0),
-            });
-        }
-        if source_faces.is_empty() {
-            return Err("Generated analysis mesh has no source faces".into());
-        }
-        let triangle_face_occurrence_indices = analysis
-            .triangle_face_occurrence_indices
-            .iter()
-            .map(|index| index_u32(*index, "triangle face occurrence"))
-            .collect::<Result<Vec<_>, _>>()?;
-        if triangle_face_occurrence_indices
-            .iter()
-            .any(|index| *index as usize >= face_occurrences.len())
-        {
-            return Err("Generated analysis mesh returned an invalid triangle face tag".into());
-        }
-        if analysis.bounds.iter().flatten().any(|value| !value.is_finite())
-            || (0..3).any(|axis| analysis.bounds[0][axis] > analysis.bounds[1][axis])
-            || !within_bounds(&analysis.positions_mm_f64, &analysis.bounds, 0.03)
-        {
-            return Err("Generated analysis mesh returned invalid bounds".into());
-        }
-        let analysis_error_bound_mm = (analysis.mesh_closed_oriented
-            && analysis.analysis_error_bound_mm.is_finite()
-            && analysis.analysis_error_bound_mm >= 0.0)
-            .then_some(analysis.analysis_error_bound_mm);
-        Ok(Self {
-            mesh: MeshDto {
-                positions: analysis.mesh.positions,
-                normals: analysis.mesh.normals,
-            },
-            bounds: BoundsDto {
-                min: analysis.bounds[0],
-                max: analysis.bounds[1],
-            },
-            vendor_step: VendorStepDto {
-                source_sha256,
-                import_options: ImportOptionsDto {
-                    preview_repair_budget_mm: None,
-                    target_deflection_mm,
-                },
-                source_faces,
-                face_occurrences,
-                precision: Vec::new(),
-                accuracy: AccuracyDto {
-                    preview_deflection_mm: analysis.deflection_mm,
-                    preview_angular_rad: analysis.angular_rad,
-                    analysis_error_bound_mm,
-                    bounds_from_source_geometry: true,
-                    mesh_closed_oriented: analysis.mesh_closed_oriented,
-                    preview_floor_mm: 0.0,
-                    preview_declared_multiplier: 1.0,
-                    selected_repair_budget_mm: None,
-                    max_repair_displacement_mm: 0.0,
-                    relaxed_beyond_declared_precision: false,
-                    sampled_support_checks: 0,
-                    max_sampled_support_residual_mm: None,
-                    fallback_meshed_faces: 0,
-                },
-                surface_positions_mm_f64: analysis.positions_mm_f64,
-                triangle_face_occurrence_indices,
-                line_segments_mm_f64: Vec::new(),
-                line_render_positions: Vec::new(),
-                line_occurrences: Vec::new(),
-                segment_line_occurrence_indices: Vec::new(),
-            },
-        })
-    }
-
-    pub(crate) fn to_js_value(&self) -> Result<JsValue, JsValue> {
+    fn to_js_value(&self) -> Result<JsValue, JsValue> {
         use super::set;
         let result = Object::new();
         let mesh = Object::new();
@@ -598,15 +466,12 @@ fn source_face_dto(face: &StepSourceFace) -> Result<SourceFaceDto, String> {
 }
 
 fn face_occurrence_dto(face: &StepFaceOccurrence) -> Result<FaceOccurrenceDto, String> {
-    if !face.repair_displacement_mm.is_finite() || face.repair_displacement_mm < 0.0 {
-        return Err("STEP importer returned invalid face repair displacement".into());
-    }
     Ok(FaceOccurrenceDto {
         source_face_index: index_u32(face.source_face, "source face")?,
         solid_occurrence_index: index_u32(face.occurrence, "solid occurrence")?,
         representation_id: face.representation_id.to_string(),
         source_uncertainty_mm: face.source_uncertainty_mm,
-        repair_displacement_mm: Some(face.repair_displacement_mm),
+        repair_displacement_mm: None,
     })
 }
 

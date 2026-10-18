@@ -31,13 +31,18 @@ const CLOSEST_POINTS_SLACK_MM: f64 = 1e-6;
 pub struct CadStepImportOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_repair_budget_mm: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_deflection_mm: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CadCollisionOperand {
     pub model_id: String,
-    pub source_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated_geometry_identity: Option<String>,
     #[serde(default)]
     pub import_options: CadStepImportOptions,
     pub row_transform_f64: [f64; 16],
@@ -171,10 +176,16 @@ impl CadCollisionOperand {
                 "Invalid collision query: {side}.modelId must not be empty"
             ));
         }
-        if !is_sha256(&self.source_sha256) {
-            return Err(format!(
-                "Invalid collision query: {side}.sourceSha256 must be 64 lowercase hexadecimal characters"
-            ));
+        match (&self.source_sha256, &self.generated_geometry_identity) {
+            (Some(sha), None) if is_sha256(sha) => {}
+            (None, Some(identity)) if !identity.trim().is_empty()
+                && self.import_options == CadStepImportOptions::default() => {}
+            _ => return Err(format!("Invalid collision query: {side} requires exactly one valid sourceSha256 or generatedGeometryIdentity; generated operands require default STEP importOptions")),
+        }
+        if let Some(target) = self.import_options.target_deflection_mm {
+            if !target.is_finite() || target <= 0.0 {
+                return Err(format!("Invalid collision query: {side}.importOptions.targetDeflectionMm must be finite and positive"));
+            }
         }
         if let Some(budget) = self.import_options.preview_repair_budget_mm {
             if !budget.is_finite() || budget <= 0.0 {
@@ -585,13 +596,15 @@ mod tests {
         CadCollisionQuery {
             left: CadCollisionOperand {
                 model_id: "part-left".into(),
-                source_sha256: SHA_A.into(),
+                source_sha256: Some(SHA_A.into()),
+                generated_geometry_identity: None,
                 import_options: CadStepImportOptions::default(),
                 row_transform_f64: left_transform,
             },
             right: CadCollisionOperand {
                 model_id: "part-right".into(),
-                source_sha256: SHA_B.into(),
+                source_sha256: Some(SHA_B.into()),
+                generated_geometry_identity: None,
                 import_options: CadStepImportOptions::default(),
                 row_transform_f64: right_transform,
             },
@@ -816,7 +829,7 @@ mod tests {
             .is_err());
         }
         let mut bad_sha = query(IDENTITY, IDENTITY);
-        bad_sha.left.source_sha256 = "not-a-sha".into();
+        bad_sha.left.source_sha256 = Some("not-a-sha".into());
         assert!(query_collision_mesh_pair_data(
             &left_pos,
             &left_tags,
@@ -825,5 +838,27 @@ mod tests {
             &bad_sha,
         )
         .is_err());
+    }
+
+    #[test]
+    fn collision_identity_is_exclusive_and_generated_operands_cannot_borrow_step_options() {
+        let mut q = query(IDENTITY, IDENTITY);
+        q.left.source_sha256 = None;
+        assert!(q.validate().is_err());
+        q.left.generated_geometry_identity = Some("generated-body-revision-7".into());
+        assert!(q.validate().is_ok());
+        q.left.source_sha256 = Some(SHA_A.into());
+        assert!(q.validate().is_err());
+        q.left.source_sha256 = None;
+        q.left.import_options.target_deflection_mm = Some(0.01);
+        assert!(q.validate().is_err());
+        q.left.import_options = CadStepImportOptions::default();
+        q.left.generated_geometry_identity = Some(" ".into());
+        assert!(q.validate().is_err());
+        let mut q = query(IDENTITY, IDENTITY);
+        for target in [0.0, -0.01, f64::NAN, f64::INFINITY] {
+            q.left.import_options.target_deflection_mm = Some(target);
+            assert!(q.validate().is_err());
+        }
     }
 }

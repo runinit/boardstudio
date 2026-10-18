@@ -108,7 +108,7 @@ pub struct GeneratedAnalysisMesh {
     pub source_faces: Vec<GeneratedSourceFace>,
     pub triangle_face_occurrence_indices: Vec<usize>,
     pub bounds: [[f64; 3]; 2],
-    pub analysis_error_bound_mm: f64,
+    pub analysis_error_bound_mm: Option<f64>,
     pub mesh_closed_oriented: bool,
     pub deflection_mm: f64,
     pub angular_rad: f64,
@@ -136,7 +136,7 @@ pub fn mesh_profile(model: &ExactModel) -> Result<MeshBuffers, String> {
 }
 
 /// Tessellates exact generated case/PCB solids into f64 analysis buffers with per-face
-/// provenance and a conservative symmetric approximation bound.
+/// provenance. Requested tolerances do not certify source-to-mesh error.
 pub fn mesh_profile_for_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
@@ -164,7 +164,6 @@ pub fn mesh_profile_for_analysis(
     let mut source_faces = Vec::new();
     let mut triangle_face_occurrence_indices = Vec::new();
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    let mut has_curved_geometry = false;
     let mut mesh_closed_oriented = true;
 
     for (solid_index, solid) in model.solids.iter().enumerate() {
@@ -174,28 +173,18 @@ pub fn mesh_profile_for_analysis(
             let _ = shell_to_polygon_strict_with(shell, options)
                 .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))?;
             let meshed = triangulation_with(shell, options);
+            if meshed.face_iter().count() != shell.face_iter().count() {
+                return Err("Generated analysis dropped a source face".into());
+            }
             let mut shell_triangles = Vec::new();
             for ((face_index, face), meshed_face) in
                 shell.face_iter().enumerate().zip(meshed.face_iter())
             {
                 let support_kind = match face.surface() {
                     Surface::Plane(_) => "PLANE",
-                    Surface::RevolutionSurface(_) => {
-                        has_curved_geometry = true;
-                        "REVOLUTION_SURFACE"
-                    }
-                    _ => {
-                        has_curved_geometry = true;
-                        "SURFACE"
-                    }
+                    Surface::RevolutionSurface(_) => "REVOLUTION_SURFACE",
+                    _ => "SURFACE",
                 };
-                if !has_curved_geometry
-                    && face
-                        .edge_iter()
-                        .any(|edge| !matches!(edge.curve(), Curve::Line(_)))
-                {
-                    has_curved_geometry = true;
-                }
                 let mut poly = meshed_face.surface().ok_or_else(|| {
                     format!("Monstertruck dropped generated case face {face_index}")
                 })?;
@@ -230,7 +219,9 @@ pub fn mesh_profile_for_analysis(
                     face_triangles += 1;
                 }
                 if face_triangles == 0 {
-                    return Err(format!("Generated case face {face_index} produced no triangles"));
+                    return Err(format!(
+                        "Generated case face {face_index} produced no triangles"
+                    ));
                 }
             }
             mesh_closed_oriented &= closed_oriented_shell_triangles(&shell_triangles);
@@ -251,18 +242,13 @@ pub fn mesh_profile_for_analysis(
     {
         return Err("Monstertruck produced an empty or invalid analysis mesh".into());
     }
-    let analysis_error_bound_mm = if has_curved_geometry {
-        deflection_mm
-    } else {
-        0.0
-    };
     Ok(GeneratedAnalysisMesh {
         mesh,
         positions_mm_f64,
         source_faces,
         triangle_face_occurrence_indices,
         bounds,
-        analysis_error_bound_mm,
+        analysis_error_bound_mm: None,
         mesh_closed_oriented,
         deflection_mm,
         angular_rad: PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
@@ -271,20 +257,11 @@ pub fn mesh_profile_for_analysis(
 
 fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
     let point = |p: Point3| {
-        if !p.x.is_finite()
-            || !p.y.is_finite()
-            || !p.z.is_finite()
-            || (p.x * 1e7).abs() >= i64::MAX as f64
-            || (p.y * 1e7).abs() >= i64::MAX as f64
-            || (p.z * 1e7).abs() >= i64::MAX as f64
-        {
+        if !p.x.is_finite() || !p.y.is_finite() || !p.z.is_finite() {
             return None;
         }
-        Some((
-            (p.x * 1e7).round() as i64,
-            (p.y * 1e7).round() as i64,
-            (p.z * 1e7).round() as i64,
-        ))
+        // Exact coordinate identity, with signed zero canonicalized; never weld a gap.
+        Some([p.x, p.y, p.z].map(|v| if v == 0.0 { 0 } else { v.to_bits() }))
     };
     let mut counts = std::collections::HashMap::new();
     for tri in triangles {
@@ -305,6 +282,26 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
         && counts
             .values()
             .all(|&(count, orientation)| count == 2 && orientation == 0)
+}
+
+#[cfg(test)]
+mod analysis_tests {
+    use super::*;
+
+    #[test]
+    fn generated_topology_does_not_weld_an_open_submicron_gap() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, 0.0);
+        let c = Point3::new(0.0, 1.0, 0.0);
+        let d = Point3::new(0.0, 0.0, 1.0);
+        let mut triangles = [[a, c, b], [a, b, d], [a, d, c], [b, c, d]];
+        assert!(closed_oriented_shell_triangles(&triangles));
+        triangles[0][0].x = 1e-9;
+        assert!(
+            !closed_oriented_shell_triangles(&triangles),
+            "topology metadata must not silently weld a gap"
+        );
+    }
 }
 
 fn wire(points: &[Vec2], z: f64) -> Result<Wire, String> {
