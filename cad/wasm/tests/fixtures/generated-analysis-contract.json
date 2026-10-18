@@ -1,0 +1,60 @@
+{
+  "preparedBody": {
+    "revision": 7,
+    "body": {
+      "id": "contract-plate",
+      "name": "Contract plate",
+      "boardId": "contract-board",
+      "kind": "plate",
+      "thickness": 2.0,
+      "clearance": 0.0,
+      "z": 0.0
+    },
+    "regions": [{
+      "outer": [{"x": 0.0, "y": 0.0}, {"x": 20.0, "y": 0.0}, {"x": 20.0, "y": 10.0}, {"x": 0.0, "y": 10.0}],
+      "holes": [], "cavities": [], "gaskets": [], "mounts": []
+    }]
+  },
+  "options": {},
+  "refinementOptions": {"targetDeflectionMm": 0.01},
+  "expectedBoundsMm": {"min": [0.0, 0.0, 0.0], "max": [20.0, 10.0, 2.0]},
+  "workerGeometryIdentityPrefix": "m1/generated-analysis-v1/",
+  "directPayload": {
+    "bodyId": "contract-plate",
+    "revision": 7,
+    "surfacePositionsMmF64": [
+      0,0,0, 20,10,0, 20,0,0,
+      0,0,0, 0,10,0, 20,10,0,
+      0,0,2, 20,0,2, 20,10,2,
+      0,0,2, 20,10,2, 0,10,2,
+      0,0,0, 20,0,0, 20,0,2,
+      0,0,0, 20,0,2, 0,0,2,
+      20,10,0, 0,10,0, 0,10,2,
+      20,10,0, 0,10,2, 20,10,2,
+      20,0,0, 20,10,0, 20,10,2,
+      20,0,0, 20,10,2, 20,0,2,
+      0,10,0, 0,0,0, 0,0,2,
+      0,10,0, 0,0,2, 0,10,2
+    ],
+    "triangleFaceOccurrenceIndices": [0,0,1,1,2,2,3,3,4,4,5,5],
+    "sourceFaces": [
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 0, "supportKind": "PLANE"},
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 1, "supportKind": "PLANE"},
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 2, "supportKind": "PLANE"},
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 3, "supportKind": "PLANE"},
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 4, "supportKind": "PLANE"},
+      {"solidIndex": 0, "shellIndex": 0, "faceIndex": 5, "supportKind": "PLANE"}
+    ],
+    "faceOccurrences": [
+      {"sourceFaceIndex": 0, "solidOccurrenceIndex": 0},
+      {"sourceFaceIndex": 1, "solidOccurrenceIndex": 0},
+      {"sourceFaceIndex": 2, "solidOccurrenceIndex": 0},
+      {"sourceFaceIndex": 3, "solidOccurrenceIndex": 0},
+      {"sourceFaceIndex": 4, "solidOccurrenceIndex": 0},
+      {"sourceFaceIndex": 5, "solidOccurrenceIndex": 0}
+    ],
+    "analysisErrorBoundMm": null,
+    "meshClosedOriented": true,
+    "deflectionMm": 0.1
+  }
+}
