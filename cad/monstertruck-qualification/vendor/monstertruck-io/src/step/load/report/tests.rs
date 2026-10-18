@@ -5,6 +5,41 @@
 
 use super::*;
 
+#[test]
+fn repair_movement_sink_charges_destination_while_source_records_are_live() {
+    use crate::step::load::{Table, step_p21::tables::IntoOwned};
+    let text =
+        include_str!("../../../../../../../monstertruck/tests/fixtures/repair-projected-line.step");
+    let mut table = Table::from_step(text).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let edge = table.edge_curve[&23].clone().into_owned(&table).unwrap();
+    let cost = 2 * std::mem::size_of::<(u64, FiniteCurveRepair)>();
+    for remaining in [0, cost - 1, cost] {
+        let budget = std::rc::Rc::new(std::cell::Cell::new(256 * 1024 * 1024));
+        let (output, capture) = edge
+            .parse_curve3d_for_repair(Some(0.02), true, std::rc::Rc::clone(&budget))
+            .unwrap();
+        assert_eq!(capture.changes.len(), 1);
+        budget.set(remaining);
+        let sink = LossSink::with_repair(Some(std::rc::Rc::clone(&budget)));
+        sink.repair_curve(23, capture);
+        let report = sink.into_report();
+        assert_eq!(report.repair_failed, remaining < cost);
+        assert_eq!(report.repair_curves.len(), usize::from(remaining == cost));
+        if remaining == cost {
+            assert_eq!(budget.get(), 0);
+            assert_eq!(report.repair_curves[0].1.after, output);
+        } else {
+            assert_eq!(
+                report.repair_curves.capacity(),
+                0,
+                "refuse before allocation"
+            );
+            assert_eq!(budget.get(), remaining);
+        }
+    }
+}
+
 /// The report must be able to say "nothing was lost" and be believed: a
 /// default report is lossless, and one that only ever recorded KEPT items
 /// stays lossless.

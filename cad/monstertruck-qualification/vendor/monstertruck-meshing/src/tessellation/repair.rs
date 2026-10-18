@@ -81,7 +81,7 @@ impl Capture {
     }
 
     fn new(faces: usize) -> Self {
-        let bytes = faces.checked_mul(2 * size_of::<Mutex<FaceTrace>>());
+        let bytes = faces.checked_mul(size_of::<Mutex<FaceTrace>>());
         let mut traces = Vec::new();
         let failure = if faces > OPERATION_CAP || bytes.is_none_or(|n| n > STORAGE_CAP) {
             Some("mesh repair trace resource cap")
@@ -93,6 +93,9 @@ impl Capture {
         if failure.is_none() {
             traces.resize_with(faces, Mutex::default);
         }
+        let failure = failure.or_else(|| {
+            (traces.capacity() > faces).then_some("mesh repair trace capacity unavailable")
+        });
         Self {
             faces: traces,
             bytes: AtomicUsize::new(bytes.unwrap_or(STORAGE_CAP)),
@@ -113,8 +116,37 @@ impl Capture {
             })
             .is_ok()
     }
+    fn record(&self) -> bool {
+        self.operations
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
+                used.checked_add(1).filter(|n| *n <= OPERATION_CAP)
+            })
+            .is_ok()
+    }
+    fn into_traces(self) -> (Vec<FaceTrace>, Option<&'static str>) {
+        let mut traces = Vec::new();
+        // The destination coexists with every face lock and its retained records.
+        let bytes = self.faces.len().checked_mul(size_of::<FaceTrace>());
+        let failure = self.failure.or_else(|| {
+            if bytes.is_none_or(|bytes| !self.charge(bytes)) {
+                Some("mesh repair final trace storage resource cap")
+            } else if traces.try_reserve_exact(self.faces.len()).is_err() {
+                Some("mesh repair final trace allocation failed")
+            } else if traces.capacity() > self.faces.len() {
+                Some("mesh repair final trace capacity unavailable")
+            } else {
+                None
+            }
+        });
+        if failure.is_none() {
+            for trace in self.faces {
+                traces.push(trace.into_inner().unwrap());
+            }
+        }
+        (traces, failure)
+    }
 }
-impl FaceCapture<'_> {
+impl<'capture> FaceCapture<'capture> {
     pub(super) fn reserve_auxiliary(self, bytes: usize) -> bool {
         if self.capture.charge(bytes) {
             true
@@ -122,6 +154,25 @@ impl FaceCapture<'_> {
             self.fail("mesh repair auxiliary storage resource cap");
             false
         }
+    }
+    pub(super) fn pending(self, count: usize) -> Option<Vec<Option<Pending<'capture>>>> {
+        let Some(bytes) = count.checked_mul(size_of::<Option<Pending<'capture>>>()) else {
+            self.fail("mesh repair pending storage overflow");
+            return None;
+        };
+        if !self.reserve_auxiliary(bytes) {
+            return None;
+        }
+        let mut pending = Vec::new();
+        if pending.try_reserve_exact(count).is_err() {
+            self.fail("mesh repair pending allocation failed");
+            return None;
+        }
+        if pending.capacity() > count {
+            self.fail("mesh repair pending capacity unavailable");
+            return None;
+        }
+        Some(pending)
     }
     pub(super) fn mark(self) -> (usize, usize) {
         let trace = self.capture.faces[self.face].lock().unwrap();
@@ -136,15 +187,19 @@ impl FaceCapture<'_> {
         self.capture.faces[self.face].lock().unwrap().failure = Some(reason);
     }
     pub(super) fn unsupported(self, stage: Stage, reason: &'static str) {
-        if self.capture.operations.fetch_add(1, Ordering::Relaxed) >= OPERATION_CAP
-            || !self.capture.charge(2 * size_of::<Operation>())
-        {
+        // Two slots per append bound the old/new Vec buffers during exact growth.
+        if !self.capture.record() || !self.capture.charge(2 * size_of::<Operation>()) {
             self.fail("mesh repair operation resource cap");
             return;
         }
         let mut trace = self.capture.faces[self.face].lock().unwrap();
+        let capacity = trace.operations.capacity().max(trace.operations.len() + 1);
         if trace.operations.try_reserve_exact(1).is_err() {
             trace.failure = Some("mesh repair operation allocation failed");
+            return;
+        }
+        if trace.operations.capacity() > capacity {
+            trace.failure = Some("mesh repair operation capacity unavailable");
             return;
         }
         trace.operations.push(Operation {
@@ -162,33 +217,12 @@ impl FaceCapture<'_> {
     where
         Self: 'a,
     {
-        let (Some(uv_len), Some(xyz_len)) = (uv.size_hint().1, xyz.size_hint().1) else {
-            self.fail("mesh repair control capacity unavailable");
-            return None;
-        };
-        let Some(bytes) = uv_len.checked_mul(2 * size_of::<Point2>()).and_then(|n| {
-            xyz_len
-                .checked_mul(2 * size_of::<Point3>())
-                .and_then(|m| n.checked_add(m))
-        }) else {
-            self.fail("mesh repair control storage overflow");
-            return None;
-        };
-        if self.capture.operations.fetch_add(1, Ordering::Relaxed) >= OPERATION_CAP
-            || !self.capture.charge(bytes)
-        {
+        if !self.capture.record() {
             self.fail("mesh repair control storage resource cap");
             return None;
         }
-        let (mut before_uv, mut before_xyz) = (Vec::new(), Vec::new());
-        if before_uv.try_reserve_exact(uv_len).is_err()
-            || before_xyz.try_reserve_exact(xyz_len).is_err()
-        {
-            self.fail("mesh repair control allocation failed");
-            return None;
-        }
-        before_uv.extend(uv);
-        before_xyz.extend(xyz);
+        let before_uv = self.controls(uv)?;
+        let before_xyz = self.controls(xyz)?;
         Some(Pending {
             owner: self,
             change: Change {
@@ -201,6 +235,38 @@ impl FaceCapture<'_> {
             },
         })
     }
+    fn controls<P>(self, controls: impl Iterator<Item = P>) -> Option<Vec<P>> {
+        let Some(count) = controls.size_hint().1 else {
+            self.fail("mesh repair control capacity unavailable");
+            return None;
+        };
+        let Some(bytes) = count.checked_mul(size_of::<P>()) else {
+            self.fail("mesh repair control storage overflow");
+            return None;
+        };
+        if !self.capture.charge(bytes) {
+            self.fail("mesh repair control storage resource cap");
+            return None;
+        }
+        let mut result = Vec::new();
+        if result.try_reserve_exact(count).is_err() {
+            self.fail("mesh repair control allocation failed");
+            return None;
+        }
+        if result.capacity() > count {
+            self.fail("mesh repair control capacity unavailable");
+            return None;
+        }
+        for point in controls {
+            // Iterator hints are advisory; never let extend/push grow this buffer.
+            if result.len() == count {
+                self.fail("mesh repair control count exceeded capacity");
+                return None;
+            }
+            result.push(point);
+        }
+        Some(result)
+    }
 }
 impl Pending<'_> {
     pub(super) fn finish(
@@ -208,36 +274,26 @@ impl Pending<'_> {
         uv: impl Iterator<Item = Point2>,
         xyz: impl Iterator<Item = Point3>,
     ) {
-        let (Some(uv_len), Some(xyz_len)) = (uv.size_hint().1, xyz.size_hint().1) else {
-            self.owner.fail("mesh repair control capacity unavailable");
+        let Some(after_uv) = self.owner.controls(uv) else {
             return;
         };
-        let Some(bytes) = uv_len.checked_mul(2 * size_of::<Point2>()).and_then(|n| {
-            xyz_len
-                .checked_mul(2 * size_of::<Point3>())
-                .and_then(|m| n.checked_add(m))
-        }) else {
-            self.owner.fail("mesh repair control storage overflow");
+        let Some(after_xyz) = self.owner.controls(xyz) else {
             return;
         };
-        if bytes
-            .checked_add(2 * size_of::<Change>())
-            .is_none_or(|bytes| !self.owner.capture.charge(bytes))
-        {
+        self.change.after_uv = after_uv;
+        self.change.after_xyz = after_xyz;
+        if !self.owner.capture.charge(2 * size_of::<Change>()) {
             self.owner.fail("mesh repair control storage resource cap");
             return;
         }
-        if self.change.after_uv.try_reserve_exact(uv_len).is_err()
-            || self.change.after_xyz.try_reserve_exact(xyz_len).is_err()
-        {
-            self.owner.fail("mesh repair control allocation failed");
-            return;
-        }
-        self.change.after_uv.extend(uv);
-        self.change.after_xyz.extend(xyz);
         let mut trace = self.owner.capture.faces[self.owner.face].lock().unwrap();
+        let capacity = trace.changes.capacity().max(trace.changes.len() + 1);
         if trace.changes.try_reserve_exact(1).is_err() {
             trace.failure = Some("mesh repair change allocation failed");
+            return;
+        }
+        if trace.changes.capacity() > capacity {
+            trace.failure = Some("mesh repair change capacity unavailable");
             return;
         }
         trace.changes.push(self.change);
@@ -364,12 +420,7 @@ where
         false,
         Some(&capture),
     );
-    let failure = capture.failure;
-    let traces = capture
-        .faces
-        .into_iter()
-        .map(|trace| trace.into_inner().unwrap())
-        .collect();
+    let (traces, failure) = capture.into_traces();
     ShellRepairMesh {
         input: shell,
         mesh,
@@ -384,6 +435,137 @@ mod tests {
     use super::*;
     use monstertruck_geometry::prelude::{Line, Plane};
     use std::panic::catch_unwind;
+
+    #[test]
+    fn repair_control_capture_never_trusts_an_iterator_capacity_hint() {
+        struct Extra(usize);
+        impl Iterator for Extra {
+            type Item = Point2;
+            fn next(&mut self) -> Option<Point2> {
+                self.0 = self.0.checked_sub(1)?;
+                Some(Point2::origin())
+            }
+            fn size_hint(&self) -> (usize, Option<usize>) {
+                (0, Some(1))
+            }
+        }
+        let capture = Capture::new(1);
+        let face = capture.face(0).unwrap();
+        assert!(
+            face.before(Stage::Loop, Extra(2), std::iter::empty())
+                .is_none()
+        );
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+        assert_eq!(face.mark(), (0, 0));
+    }
+
+    #[test]
+    fn repair_record_counter_cannot_wrap_and_reopen_capture() {
+        let capture = Capture::new(2);
+        capture.operations.store(usize::MAX, Ordering::Relaxed);
+        capture.face(0).unwrap().unsupported(Stage::Loop, "first");
+        capture.face(1).unwrap().unsupported(Stage::Loop, "second");
+        assert_eq!(capture.face(1).unwrap().mark(), (0, 0));
+        assert!(
+            capture
+                .faces
+                .iter()
+                .all(|trace| trace.lock().unwrap().failure.is_some())
+        );
+    }
+
+    #[test]
+    fn repair_finalization_charges_destination_before_releasing_face_locks() {
+        let capture = Capture::new(2);
+        let bytes = capture.bytes.load(Ordering::Relaxed);
+        assert_eq!(bytes, 2 * size_of::<Mutex<FaceTrace>>());
+        let final_bytes = 2 * size_of::<FaceTrace>();
+        capture
+            .bytes
+            .store(STORAGE_CAP - final_bytes + 1, Ordering::Relaxed);
+        let (traces, failure) = capture.into_traces();
+        assert!(traces.is_empty(), "refuse before destination allocation");
+        assert_eq!(
+            failure,
+            Some("mesh repair final trace storage resource cap")
+        );
+
+        let capture = Capture::new(2);
+        capture
+            .face(0)
+            .unwrap()
+            .unsupported(Stage::SourceDomain, "original domain");
+        let used = capture.bytes.load(Ordering::Relaxed);
+        capture
+            .bytes
+            .store(STORAGE_CAP - final_bytes, Ordering::Relaxed);
+        let (traces, failure) = capture.into_traces();
+        assert!(failure.is_none(), "the exact existing cap fits");
+        assert_eq!(traces.len(), 2);
+        assert_eq!(traces[0].operations.len(), 1);
+        assert!(used > bytes);
+    }
+
+    #[test]
+    fn repair_pending_and_rejected_controls_keep_their_coexistence_charge() {
+        let capture = Capture::new(1);
+        let face = capture.face(0).unwrap();
+        let initial = capture.bytes.load(Ordering::Relaxed);
+        let point = [Point2::origin()];
+        let pending = face
+            .before(Stage::Loop, point.into_iter(), std::iter::empty())
+            .unwrap();
+        let before = capture.bytes.load(Ordering::Relaxed);
+        assert_eq!(before - initial, size_of::<Point2>());
+        capture
+            .bytes
+            .store(STORAGE_CAP - size_of::<Point2>() + 1, Ordering::Relaxed);
+        pending.finish(point.into_iter(), std::iter::empty());
+        assert_eq!(face.mark(), (0, 0));
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+        face.discard_since((0, 0));
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+        assert_eq!(
+            capture.bytes.load(Ordering::Relaxed),
+            STORAGE_CAP - size_of::<Point2>() + 1
+        );
+    }
+
+    #[test]
+    fn repair_reuses_rollback_capacity_without_reallocating_or_erasing_failures() {
+        let capture = Capture::new(1);
+        let face = capture.face(0).unwrap();
+        for _ in 0..4 {
+            face.unsupported(Stage::Loop, "candidate");
+        }
+        let capacity = capture.faces[0].lock().unwrap().operations.capacity();
+        let charged = capture.bytes.load(Ordering::Relaxed);
+        face.discard_since((0, 0));
+        face.unsupported(Stage::Branch, "accepted candidate");
+        let trace = capture.faces[0].lock().unwrap();
+        assert_eq!(trace.operations.capacity(), capacity);
+        assert_eq!(trace.operations.len(), 1);
+        assert!(trace.failure.is_none());
+        assert!(capture.bytes.load(Ordering::Relaxed) >= charged);
+    }
+
+    #[test]
+    fn repair_pending_vector_overflow_and_cap_refuse_before_reserve() {
+        let capture = Capture::new(1);
+        let face = capture.face(0).unwrap();
+        assert!(face.pending(usize::MAX).is_none());
+        let used = capture.bytes.load(Ordering::Relaxed);
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+        face.discard_since((0, 0));
+        assert_eq!(capture.bytes.load(Ordering::Relaxed), used);
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+
+        let capture = Capture::new(1);
+        let face = capture.face(0).unwrap();
+        capture.bytes.store(STORAGE_CAP, Ordering::Relaxed);
+        assert!(face.pending(1).is_none());
+        assert!(capture.faces[0].lock().unwrap().failure.is_some());
+    }
 
     #[test]
     fn repair_report_preserves_legacy_tolerance_precondition_on_empty_shell() {

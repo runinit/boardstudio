@@ -504,12 +504,8 @@ impl PolyBoundary {
     ) -> Self {
         let mut pending = Vec::new();
         if let Some(trace) = repair {
-            let size = pieces
-                .len()
-                .checked_mul(size_of::<Option<repair::Pending<'_>>>());
-            if size.is_some_and(|n| trace.reserve_auxiliary(n))
-                && pending.try_reserve_exact(pieces.len()).is_ok()
-            {
+            if let Some(slots) = trace.pending(pieces.len()) {
+                pending = slots;
                 for piece in &pieces {
                     pending.push(trace.before(
                         repair::Stage::Loop,

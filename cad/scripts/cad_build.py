@@ -32,6 +32,7 @@ LIBRARY_TEST_ONLY_SOURCES = frozenset({
 })
 OWNER_TESTS = (
     ("monstertruck-io", "--test", "input", "repair_movement"),
+    ("monstertruck-io", "--lib", "repair_movement_sink"),
     ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
     ("monstertruck-io", "--test", "input", "preview_tolerance"),
     ("monstertruck-meshing", "--lib", "repair_"),
@@ -161,7 +162,7 @@ def test_cad():
         env=wasm_env,
     )
     owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
-    # Select independent targets: IO's broad --lib has unrelated missing fixtures.
+    # Filter legacy suites; IO's private sink control needs the pinned cylinder resource.
     for package, *selection in OWNER_TESTS:
         try:
             result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",

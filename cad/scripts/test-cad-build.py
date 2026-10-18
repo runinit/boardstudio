@@ -130,6 +130,7 @@ class CadBuildTests(unittest.TestCase):
         owner_commands = [command[4:] for command in commands[2:]]
         for selection in (
             ["-p", "monstertruck-io", "--test", "input", "repair_movement"],
+            ["-p", "monstertruck-io", "--lib", "repair_movement_sink"],
             ["-p", "monstertruck-io", "--test", "input", "source_pcurve_active_view"],
             ["-p", "monstertruck-io", "--test", "input", "preview_tolerance"],
             ["-p", "monstertruck-meshing", "--lib", "repair_"],

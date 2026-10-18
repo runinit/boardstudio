@@ -38,7 +38,7 @@
 //! Both reports are additive ([`ShellLoadReport::merge`]) so a caller can roll a
 //! solid's shells up into one figure, and both `Display` as a one-line summary.
 
-use super::step_types::{FiniteCurveRepair, FiniteCurveTrace, curve_storage};
+use super::step_types::{FiniteCurveRepair, FiniteCurveTrace};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -295,7 +295,6 @@ pub struct ShellLoadReport {
     attachments: Vec<ConnectivityAttachment>,
     alternate_masters: LossTally,
     repair_curves: Vec<(u64, FiniteCurveRepair)>,
-    repair_bytes: usize,
     repair_failed: bool,
 }
 
@@ -713,19 +712,26 @@ impl LossSink {
     pub(in crate::step::load) fn repair_curve(&self, id: u64, capture: FiniteCurveTrace) {
         let mut report = self.0.borrow_mut();
         report.repair_failed |= capture.failed;
+        let budget = self.repair_budget();
         for capture in capture.changes {
-            let bytes = curve_storage(&capture.before)
-                .and_then(|n| curve_storage(&capture.after).and_then(|m| n.checked_add(m)))
-                .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
-            let next = bytes.and_then(|bytes| report.repair_bytes.checked_add(bytes));
-            if report.repair_curves.len() >= 1_000_000
-                || next.is_none_or(|n| n > 256 * 1024 * 1024)
-                || report.repair_curves.try_reserve_exact(1).is_err()
+            // Carriers move; trace slots stay charged. Two destination slots per
+            // append cover the old/new Vec buffers during exact growth.
+            let bytes = 2 * std::mem::size_of::<(u64, FiniteCurveRepair)>();
+            if report.repair_curves.len() >= 1_000_000 || bytes > budget.get() {
+                report.repair_failed = true;
+                break;
+            }
+            budget.set(budget.get() - bytes);
+            let capacity = report
+                .repair_curves
+                .capacity()
+                .max(report.repair_curves.len() + 1);
+            if report.repair_curves.try_reserve_exact(1).is_err()
+                || report.repair_curves.capacity() > capacity
             {
                 report.repair_failed = true;
                 break;
             }
-            report.repair_bytes = next.unwrap();
             report.repair_curves.push((id, capture));
         }
     }
