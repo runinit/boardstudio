@@ -3,7 +3,7 @@
 Status: resolved
 Owner: /root (shared integration; disjoint private provider assignments)
 Type: build
-Blocked by: 006: Layered case and PCB adoption; 007: Complete vendor STEP asset import; 008: Exact case and PCB STEP export; 009: Mesh keycaps; 014: Mesh collision validation
+Blocked by: none for functional acceptance (deep 007 and 014 qualification remain follow-ons)
 
 ## What to build
 

@@ -2,7 +2,7 @@
 
 Status: resolved
 Type: build
-Blocked by: 001: Closed STEP boundaries; 002: Shared-edge angular sampling; 010: Production cache/worker/browser integration; 011: Integrated CAD performance
+Blocked by: none for removal/build/artifact acceptance (001/002/011 quality follow-ons remain explicit)
 
 ## What to build
 

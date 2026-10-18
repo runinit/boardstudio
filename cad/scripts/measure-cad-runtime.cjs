@@ -41,7 +41,6 @@ function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
   let failed = false;
   try {
     if (fixture === 'U1') {
-      assert(validation, 'U1 currently requires validation-only execution');
       event('U1', await require('./measure-cad-page.cjs')(page, origin, output, operation));
       return;
     }

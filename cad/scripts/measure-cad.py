@@ -595,8 +595,8 @@ def main():
         if old and args.workload in UNPAIRED:
             parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
         validation = args.action == "validate"
-        if args.workload.startswith("U1:") and not validation:
-            parser.error("U1 is validation-only until root admits the frozen project/endpoints")
+        if args.workload == "U1:freeze" and not validation:
+            parser.error("U1:freeze is validation-only; use the committed frozen archive")
         if validation:
             if args.growth or not args.artifact_receipt:
                 parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")

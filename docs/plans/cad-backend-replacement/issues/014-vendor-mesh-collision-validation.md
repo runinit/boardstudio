@@ -3,7 +3,7 @@
 Status: resolved
 Owner: /root (integration and remaining qualification)
 Type: build
-Blocked by: 007: Complete vendor STEP asset import
+Blocked by: none for supported-band acceptance (deep 007 repair movement remains a follow-on)
 Related: 010: Worker and browser integration; 013: Generated case and PCB geometry
 
 ## What to build
