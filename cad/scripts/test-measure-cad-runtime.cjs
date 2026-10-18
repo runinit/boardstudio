@@ -7,11 +7,11 @@ const { webcrypto } = require('node:crypto');
 const root = path.resolve(__dirname, '../..');
 const source = fs.readFileSync(path.join(__dirname, 'measure-cad-runtime.cjs'), 'utf8');
 
-async function check(workload, incomplete = false) {
+async function check(workload, incomplete = false, sequence = 'latency') {
   const directory = fs.mkdtempSync(path.join(root, '.evidence/011-preparation/protocol-'));
   const requests = [], workers = [], metrics = [];
   const fakeProcess = { argv: ['node', 'driver', 'http://controlled.invalid', 'monstertruck',
-    'checked', workload, directory, '1', 'latency'], env: { CHROME_BIN: 'controlled-no-browser' } };
+    'checked', workload, directory, '1', sequence], env: { CHROME_BIN: 'controlled-no-browser' } };
   let closed = false;
   const mesh = id => ({ id, positions: new Float32Array([0,0,0, 1,0,0, 0,1,0]),
     normals: new Float32Array([0,0,1, 0,0,1, 0,0,1]) });
@@ -61,10 +61,12 @@ async function check(workload, incomplete = false) {
   if (incomplete) {
     assert(fs.readFileSync(path.join(directory, 'events.log'), 'utf8').includes('incomplete vendor source/occurrence coverage'));
   } else {
-    assert.equal(requests.length, 6, 'one cold plus five warm requests');
-    assert.equal(new Set(requests.map(r => r.requestId)).size, 6, 'unique correlation IDs');
-    assert.equal(workers.length, workload.endsWith(':step') ? 6 : 1, 'fresh module for every STEP export');
+    const count = sequence === 'validation' ? 1 : 6;
+    assert.equal(requests.length, count, 'validation is one observation; latency has one cold plus five warm');
+    assert.equal(new Set(requests.map(r => r.requestId)).size, count, 'unique correlation IDs');
+    assert.equal(workers.length, workload.endsWith(':step') ? count : 1, 'fresh module for every STEP export');
     assert(metrics.join('').includes('dispatch-to-validated-reply'));
+    if (sequence === 'validation') assert(metrics.join('').includes('diagnostic-not-benchmark'));
   }
 }
 
@@ -74,5 +76,11 @@ async function check(workload, incomplete = false) {
   await check('C1plate:step');
   await check('V1switch:import');
   await check('V1switch:import', true);
-  console.log('4 controlled protocol checks passed; no browser/provider executed.');
+  await check('C1plate:preview', false, 'validation');
+  const { stl, oracle } = require('./check-cad-page-downloads.cjs');
+  assert.throws(() => stl(Buffer.alloc(83)), /truncated/);
+  const truncated = Buffer.alloc(84); truncated.writeUInt32LE(1,80);
+  assert.throws(() => stl(truncated), /complete binary STL/);
+  assert.equal(typeof oracle().roofAndCavity, 'function');
+  console.log('5 controlled protocol checks plus STL decoder/oracle controls passed; no browser/provider executed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

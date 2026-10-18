@@ -42,7 +42,7 @@ function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
   try {
     if (fixture === 'U1') {
       assert(validation, 'U1 currently requires validation-only execution');
-      event('U1', await require('./measure-cad-page.cjs')(context, origin, output, operation));
+      event('U1', await require('./measure-cad-page.cjs')(page, origin, output, operation));
       return;
     }
     if (fixture === 'startup') {
@@ -211,7 +211,20 @@ function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
         if (contract) {
           check(reply.queryQualification?.binding?.leftAnalysis?.meshIdentity === queryFields.collisionQuery.left.analysisRef.meshIdentity,
             'query lost owned reference');
-          metadata = { collision: reply.collision, queryQualification: reply.queryQualification };
+          const q = reply.queryQualification, expected = contract.qualificationV2.activation.pairCases[0].expectedSourceIntervalMm;
+          check(reply.collision.kind === 'surface-separated' && Math.abs(reply.collision.surfaceDistanceMm-1) < 1e-10,
+            'qualified query must preserve the independently authored 1mm surface gap');
+          check(q.meshDistance.state === 'bounded' && q.sourceBounds.every(bound => bound.state === 'bounded'),
+            'supported 0805 query must retain actual owned numerical/source bands');
+          const inflation = q.sourceBounds.reduce((sum, bound) => sum+bound.totalBoundMm, 0);
+          const interval = [q.meshDistance.lowerMm-inflation, q.meshDistance.upperMm+inflation];
+          check(interval[0] <= 1 && interval[1] >= 1
+            && interval[0] >= expected[0]-q.limits.requestedNumericalWidthMm
+            && interval[1] <= expected[1]+q.limits.requestedNumericalWidthMm, 'source band must stay in the existing fixture enclosure');
+          const budget = inflation+(q.meshDistance.upperMm-q.meshDistance.lowerMm)/2;
+          if (operation === 'tight') check(budget > .01, 'tight request cannot certify the 0805 precision budget');
+          metadata = { collision: reply.collision, queryQualification: q, sourceIntervalMm: interval,
+            assessment: operation === 'tight' ? 'Unknown: precision budget exceeds requested 0.01mm' : 'supported default source band' };
         }
         window.__lastResult = reply;
         return { duration, triangles, bufferBytes, stepBytes: reply.step?.byteLength ?? 0, metadata };

@@ -5,10 +5,11 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '../..');
 const DATABASE = 'boardstudio-m1-boardstudio';
 
-module.exports = async function validatePage(context, origin, output, operation) {
-  const page = await context.newPage();
+module.exports = async function validatePage(page, origin, output, operation) {
   page.setDefaultTimeout(60000);
   const errors = [];
+  const phases = [];
+  const mark = name => phases.push({ name, hostUnixMs: Date.now(), hostMonotonicMs: performance.now(), purpose: 'diagnostic-not-benchmark' });
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
     window.__u1 = { requests: [], replies: [], printBodies: [], steps: [], drawCalls: 0 };
@@ -61,15 +62,18 @@ module.exports = async function validatePage(context, origin, output, operation)
     };
   }), DATABASE);
   const download = async (button, filename) => {
+    mark(`${filename}:action`);
     const pending = page.waitForEvent('download', { timeout: 180000 });
     await button.click();
     const result = await pending;
     assert.equal(await result.failure(), null);
     await result.saveAs(path.join(output, filename));
+    mark(`${filename}:saved-download`);
     return { endpoint: button.toString(), file: filename, suggested: result.suggestedFilename(),
       bytes: fs.statSync(path.join(output, filename)).size, purpose: 'validation-only; diagnostic, not benchmark' };
   };
   try {
+    mark('navigation');
     await page.goto(`${origin}/boardstudio/`, { waitUntil: 'domcontentloaded' });
     if (operation === 'freeze') {
       await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click();
@@ -110,7 +114,12 @@ module.exports = async function validatePage(context, origin, output, operation)
       assert.equal(operation, 'page');
       const archive = path.join(ROOT, 'cad/test/fixtures/performance/U1.boardstudio');
       assert(fs.existsSync(archive), 'freeze and commit the ordinary U1 project first');
+      mark('frozen-project-import');
       await page.locator('input.m1-project-file-input').first().setInputFiles(archive);
+      await page.getByRole('button', { name: 'Open Case workspace', exact: true }).waitFor();
+      await saved();
+      mark('accepted-editor-ready');
+      mark('enter-Case');
       await page.getByRole('button', { name: 'Open Case workspace', exact: true }).click();
       const guide = page.getByRole('button', { name: 'Hide guide', exact: true });
       if (await guide.isVisible()) await guide.click();
@@ -121,7 +130,7 @@ module.exports = async function validatePage(context, origin, output, operation)
     assert.equal(accepted.matrices.length, 1);
     assert.equal(accepted.matrices[0].rows, 2);
     assert.equal(accepted.matrices[0].columns, 2);
-    await page.getByRole('treeitem', { name: 'Main board case assembly', exact: true }).click();
+    await page.getByRole('treeitem', { name: /Main board case assembly$/ }).click();
     for (const name of ['Assembled', 'Shaded', 'Isometric']) {
       await page.getByRole('button', { name, exact: true }).click();
     }
@@ -129,6 +138,7 @@ module.exports = async function validatePage(context, origin, output, operation)
     await page.getByRole('button', { name: 'Fit', exact: true }).click();
     await page.waitForFunction(before => window.__u1.drawCalls > before, frameBefore);
     await page.evaluate(() => window.__u1Gl.finish());
+    mark('accepted-Case-frame-after-camera-and-WebGL-finish');
     const viewer = page.getByRole('img', { name: /^Interactive 3D Case preview/ });
     const box = await viewer.boundingBox();
     assert(box && box.width > 0 && box.height > 0);
@@ -161,8 +171,8 @@ module.exports = async function validatePage(context, origin, output, operation)
     fs.writeFileSync(path.join(output, 'page-workers.log'), JSON.stringify(workers) + '\n');
     const receipt = { validationOnly: true, projectId: accepted.id, revision: accepted.revision,
       boardId: accepted.boards[0].id, viewport: [1513,1043], camera: ['Assembled','Shaded','Isometric','Fit'],
-      rendering, viewer: box, downloads, oldLoader: 'unavailable: no actual historical packaged page/worker',
-      values: 'diagnostic-not-benchmark' };
+      rendering, viewer: box, downloads, comparisonPeer: 'not exercised here; requires its separately built/admitted full page and worker',
+      phases, values: 'diagnostic-not-benchmark' };
     fs.writeFileSync(path.join(output, 'page-validation.log'), JSON.stringify(receipt, null, 2) + '\n');
     return receipt;
   } catch (error) {

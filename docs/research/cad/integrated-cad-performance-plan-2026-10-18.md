@@ -143,6 +143,18 @@ resource-cache state. Do not pool this with cache-disabled cold navigation.
 
 ### Build, size and memory measurements
 
+**2026-10-18 root revision:** the following three-cycle/36-invocation paragraph
+was the retained initial proposal, not an automatic acceptance mandate. Root's
+new instruction supersedes its repeat count: start with **one matched cycle per
+profile** (clean, unchanged no-op, same-comment incremental on each backend:
+12 single observations across checked/release). Shipped release is the shipping
+cost comparison; checked/no-opt separately describes development cost and the
+existing functional artifacts. Add repeated cycles only for unresolved variation
+or a material regression, with root's quiet-window clearance. One observation is
+single/descriptive, not significant. The original three-cycle wording is retained
+below explicitly so this change is visible. Runtime five-pair descriptive sampling
+is unchanged. See the [executable successor](integrated-cad-performance-runbook-2026-10-18.md).
+
 Run **three alternating paired build cycles per profile**, each cycle consisting
 of clean compilation, unchanged rebuild, then one incremental source rebuild.
 Profiles are checked `python3 scripts/build-web.py --fast` and shipped

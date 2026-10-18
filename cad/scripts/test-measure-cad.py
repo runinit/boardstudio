@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("measure_cad", Path(__file__).with_name("measure-cad.py"))
@@ -16,10 +17,11 @@ SPEC.loader.exec_module(PERF)
 
 
 class PerformancePreparationTests(unittest.TestCase):
-    def test_schedule_has_36_serial_builds_and_five_alternating_runtime_pairs(self):
+    def test_initial_build_cycle_is_single_and_retained_upper_plan_is_explicit(self):
         schedule = PERF.schedule()
         builds = [row for row in schedule if row["workload"] == "build"]
-        self.assertEqual(len(builds), 36)
+        self.assertEqual(len(builds), 12)
+        self.assertEqual(len([row for row in PERF.schedule(3) if row["workload"] == "build"]), 36)
         for profile in PERF.PROFILES:
             for workload in PERF.PAIRED:
                 rows = [row for row in schedule if row["profile"] == profile
@@ -28,6 +30,44 @@ class PerformancePreparationTests(unittest.TestCase):
                                  ["cadrum", "monstertruck", "monstertruck", "cadrum",
                                   "cadrum", "monstertruck", "monstertruck", "cadrum", "cadrum", "monstertruck"])
         self.assertFalse(any(row["backend"] == "cadrum" and row["workload"] in PERF.UNPAIRED for row in schedule))
+
+    def test_existing_artifact_receipt_rejects_changed_worker_and_changed_production(self):
+        evidence = PERF.ROOT / ".evidence/011-preparation"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as temporary:
+            root = Path(temporary)
+            site = root / "web/target/site/site-subpath/boardstudio"
+            site.mkdir(parents=True)
+            (site / "index.html").write_text("controlled fixture")
+            pairs = [("cad/boardstudio_cad_wasm_bg.wasm", "cad/wasm/pkg/boardstudio_cad_wasm_bg.wasm"),
+                     ("cad/boardstudio_cad_wasm.js", "cad/wasm/pkg/boardstudio_cad_wasm.js"),
+                     ("cad-worker/m1_cad_worker_bg.wasm", "web/target/providers/cad-worker/m1_cad_worker_bg.wasm"),
+                     ("cad-worker/m1_cad_worker.js", "web/target/providers/cad-worker/m1_cad_worker.js")]
+            text = "Current combined source " + "1"*40 + "; checked --no-opt; Dioxus page debug\n"
+            for packaged, original in pairs:
+                for file in (site / "assets" / packaged, root / original):
+                    file.parent.mkdir(parents=True, exist_ok=True)
+                    file.write_bytes(b"controlled-artifact")
+                text += f"BYTE_IDENTICAL packaged assets/{packaged} == {original}; 19 bytes.\n"
+            receipt = root / "receipt.log"
+            receipt.write_text(text)
+            with patch.object(PERF, "git", return_value=""):
+                self.assertIn("validation_only=true", PERF.existing_artifacts(root, receipt, "checked"))
+                (site / "assets/cad-worker/m1_cad_worker.js").write_bytes(b"different-artifact!")
+                with self.assertRaisesRegex(ValueError, "artifact differs"):
+                    PERF.existing_artifacts(root, receipt, "checked")
+            with patch.object(PERF, "git", return_value="web/crates/host/src/cad_worker.rs"):
+                with self.assertRaisesRegex(ValueError, "production changes"):
+                    PERF.existing_artifacts(root, receipt, "checked")
+
+    def test_diagnostic_validation_is_never_a_benchmark_sample(self):
+        evidence = PERF.ROOT / ".evidence/011-preparation"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as temporary:
+            root = Path(temporary)
+            (root / "diagnostic.csv").write_text("diagnostic-not-benchmark\n")
+            with self.assertRaisesRegex(ValueError, "cannot become benchmark"):
+                PERF.summarize([root], root)
 
     def test_frozen_inputs_preserve_assembly_and_prepared_fixture_identity(self):
         for name in ("C1plate", "C2trayboss", "C3gasket", "P1analyticPCB"):

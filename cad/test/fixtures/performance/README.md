@@ -42,3 +42,15 @@ newer source-backed PCB producer; its parent functional gates remain required.
 
 See the [runbook](../../../../docs/research/cad/integrated-cad-performance-runbook-2026-10-18.md)
 for execution, prerequisites, source/profile bindings and limitations.
+
+U1 now freezes the **unmodified actual product download** in `U1.boardstudio`, with
+its ordinary input/endpoints in `U1-scope.json`. The accepted 2×2 rigid project has
+four DCS/MX caps, four generated Case/foam bodies and the nominal1.6mm physical
+PCB. Standard archive export embeds its two original used bundled STEP assets;
+all authored geometry, source references and warnings are retained. Current real
+import/render, mechanical STEP and full Runtime four-STL/manifest/ZIP/download are
+validated. This U1 page block is distinct from K1's25-cap worker transport and
+does not claim source-backed PCB, printable legends or the historical page passed.
+The historical source already has these Runtime export actions; actual old loader,
+geometry and export admission await its real full package in a new root-owned
+measurement checkout. The protected old lane remains read-only.

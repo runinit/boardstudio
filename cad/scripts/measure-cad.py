@@ -95,9 +95,10 @@ def existing_artifacts(root, receipt, profile):
     if any(not path.endswith(".md") for path in changes + dirty):
         raise ValueError("measured checkout has production changes beyond the receipt's tested source")
     site = root / "web/target/site/site-subpath/boardstudio"
+    provider = "boardstudio_cadrum_wasm" if (root / "cad/scripts/cadrum_build.py").is_file() else "boardstudio_cad_wasm"
     pairs = (
-        ("cad/boardstudio_cad_wasm_bg.wasm", "cad/wasm/pkg/boardstudio_cad_wasm_bg.wasm"),
-        ("cad/boardstudio_cad_wasm.js", "cad/wasm/pkg/boardstudio_cad_wasm.js"),
+        (f"cad/{provider}_bg.wasm", f"cad/wasm/pkg/{provider}_bg.wasm"),
+        (f"cad/{provider}.js", f"cad/wasm/pkg/{provider}.js"),
         ("cad-worker/m1_cad_worker_bg.wasm", "web/target/providers/cad-worker/m1_cad_worker_bg.wasm"),
         ("cad-worker/m1_cad_worker.js", "web/target/providers/cad-worker/m1_cad_worker.js"),
     )
@@ -201,7 +202,7 @@ def sizes(root, output):
     write_csv(output, ("group", "path", "bytes", "gzip9_bytes"), rows)
 
 
-def summarize(inputs, output):
+def summarize(inputs, output, build_cycles=1):
     """Session medians keep five warm values from pretending to be five cold observations."""
     sessions = {}
     failures = []
@@ -271,7 +272,7 @@ def summarize(inputs, output):
              new_over_old=values["monstertruck"] / values["cadrum"] if values["cadrum"] else "undefined")
         for key, values in sorted(paired.items()) if set(values) == {"cadrum", "monstertruck"}])
     coverage = []
-    for row in schedule():
+    for row in schedule(build_cycles):
         if row["workload"] == "build":
             phases = ((row["state"], "wall", "s", 1),)
         elif row["workload"].startswith("startup:"):
@@ -441,7 +442,7 @@ def main():
         if not args.inputs or not args.admission_note or not args.admission_note.is_file():
             parser.error("report requires --inputs and --admission-note; an observed reply is not geometry admission")
         (out / "admission.log").write_text(args.admission_note.read_text())
-        summarize(args.inputs, out)
+        summarize(args.inputs, out, args.build_cycles)
         print(f"Descriptive samples: {out}; paired ratios are new/old, never a significance claim")
         return 0
     before, current = binding(root, args.profile)
@@ -544,8 +545,20 @@ def main():
                 with (out / "validation.log").open("w") as log:
                     log.write("Validation only; all observed values are diagnostic, not benchmark results.\n")
                     log.flush()
-                    code = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-                                          env=dict(os.environ, CHROME_BIN=chrome), timeout=600).returncode
+                    process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                               env=dict(os.environ, CHROME_BIN=chrome), start_new_session=True)
+                    try:
+                        code = process.wait(timeout=600)
+                    except subprocess.TimeoutExpired:
+                        import signal
+                        os.killpg(process.pid, signal.SIGTERM)
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            os.killpg(process.pid, signal.SIGKILL)
+                            process.wait()
+                        code = 124
+                    log.write(f"\nvalidation_exit={code}; diagnostic-only, never a build/runtime benchmark receipt\n")
             else:
                 code, _ = capture(command, root, out, 5400, dict(os.environ, CHROME_BIN=chrome))
         finally:
