@@ -28,6 +28,9 @@ mod export_tests;
 #[cfg(test)]
 mod step_accuracy;
 
+#[cfg(test)]
+mod collision_qualification;
+
 mod layered;
 
 /// Builds exact case or PCB geometry from prepared millimeter inputs.
