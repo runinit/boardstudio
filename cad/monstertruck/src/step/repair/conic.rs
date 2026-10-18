@@ -71,8 +71,9 @@ fn end_delta(matrix: &Matrix4, parameter: f64, vertex: &Point3) -> Result<[f64; 
         return Err("conic arc parameter is outside the enclosed range");
     }
     // Arcs of one asset repeat a handful of parameters; the enclosure is pure.
+    type Enclosure = ([Q; 2], [Q; 2]);
     thread_local! {
-        static CACHE: std::cell::RefCell<std::collections::HashMap<u64, ([Q; 2], [Q; 2])>> =
+        static CACHE: std::cell::RefCell<std::collections::HashMap<u64, Enclosure>> =
             std::cell::RefCell::new(std::collections::HashMap::new());
     }
     let (cos, sin) = CACHE.with(|cache| {
@@ -130,7 +131,7 @@ mod tests {
             (0.0_f64, 1.0_f64, 0.0_f64),
             (1.0, 1.0_f64.cos(), 1.0_f64.sin()),
             (-2.5, (-2.5_f64).cos(), (-2.5_f64).sin()),
-            (6.283185307179586, 1.0, -2.4492935982947064e-16),
+            (std::f64::consts::TAU, 1.0, -2.4492935982947064e-16),
             (9.42477796076938, -1.0, 3.6739403974420594e-16),
         ] {
             let (c, s) = sin_cos(&Q::from_float(t).unwrap());

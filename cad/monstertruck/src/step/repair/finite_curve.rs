@@ -510,7 +510,7 @@ fn raw_spline_identity(
         || knots.windows(2).any(|pair| pair[0] > pair[1])
         || knots[0] != first
         || knots[knots.len() - 1] != last
-        || !(first < last)
+        || first.partial_cmp(&last) != Some(std::cmp::Ordering::Less)
         || knots[..=degree].iter().any(|k| *k != first)
         || knots[controls.len()..].iter().any(|k| *k != last)
     {

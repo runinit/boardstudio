@@ -586,10 +586,7 @@ impl Ledger {
         original: Option<(&OriginalGeometry, &SourceBoundStepShell)>,
         operations: impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'a>>,
         complete: bool,
-        shell: usize,
-        factor: f64,
-        placement: Matrix4,
-        occurrence: usize,
+        (shell, factor, placement, occurrence): (usize, f64, Matrix4, usize),
     ) {
         let operations = operations.collect::<Vec<_>>();
         // A bounded curve whose authored full domain was kept resolves its own

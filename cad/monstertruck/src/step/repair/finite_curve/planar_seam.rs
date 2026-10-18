@@ -400,10 +400,7 @@ mod tests {
                 None,
                 owner.operations(0),
                 owner.complete_bound(0).is_ok(),
-                0,
-                1000.,
-                Matrix4::from_scale(-2.),
-                7,
+                (0, 1000., Matrix4::from_scale(-2.), 7),
             );
             assert!(ledger.enforce_finite_lines(7, 0.02).is_ok());
             assert!(
@@ -450,10 +447,7 @@ mod tests {
             None,
             owner.operations(0),
             owner.complete_bound(0).is_ok(),
-            0,
-            1000.,
-            Matrix4::identity(),
-            3,
+            (0, 1000., Matrix4::identity(), 3),
         );
         assert!(
             ledger
