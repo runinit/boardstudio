@@ -23,8 +23,9 @@ function replaceOnce(text, before, after) {
 function check(text, options, expectedBounds, occurrences, sourceBounds = true) {
   const bytes = Buffer.from(text), original = Buffer.from(bytes);
   const digest = sha(bytes);
-  const result = cad.read_step_model(new Uint8Array(bytes), {sourceSha256: digest, ...options});
-  assert.deepEqual(bytes, original);
+  const input = new Uint8Array(bytes);
+  const result = cad.read_step_model(input, {sourceSha256: digest, ...options});
+  assert.deepEqual(Buffer.from(input), original);
   const vendor = result.vendorStep;
   assert.equal(vendor.sourceSha256, digest);
   assert.equal(vendor.accuracy.analysisErrorBoundMm, null);
