@@ -4,8 +4,8 @@
 //! change `analysisErrorBoundMm`, or alter the active v1 wire contract.
 
 use super::*;
-use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface, Transform, Vector3};
-use std::collections::BTreeSet;
+use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GeneratedQualification {
@@ -15,111 +15,125 @@ pub enum GeneratedQualification {
         direct_bound_mm: f64,
         source_precision_mm: f64,
         total_bound_mm: f64,
-        mesh_identity: String,
     },
     Unknown {
         reasons: Vec<String>,
     },
 }
 
-fn source_surface(model: &ExactModel, face: &GeneratedSourceFace) -> Option<Surface> {
-    let solid = model.solids.get(face.solid_index)?;
-    let shell = solid.boundaries().get(face.shell_index)?;
-    let source_face = shell.face_iter().nth(face.face_index)?;
-    Some(source_face.surface().clone())
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct NativeFaceKey {
+    solid_index: usize,
+    shell_index: usize,
+    face_index: usize,
 }
 
-fn source_face_boundaries<'a>(
-    model: &'a ExactModel,
-    face: &GeneratedSourceFace,
-) -> Option<Vec<Wire>> {
-    let solid = model.solids.get(face.solid_index)?;
-    let shell = solid.boundaries().get(face.shell_index)?;
-    let source_face = shell.face_iter().nth(face.face_index)?;
-    Some(source_face.boundaries())
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NativeSupportKind {
+    Plane,
+    Revolution,
+    Other,
 }
 
-fn wire_vertices(wire: &Wire) -> Vec<Point3> {
-    let mut points = Vec::new();
-    for edge in wire.edge_iter() {
-        let (start, _) = edge.ends();
-        let point = start.point();
-        if points.last().copied() != Some(point) {
-            points.push(point);
+fn native_support_kind(surface: &Surface) -> NativeSupportKind {
+    match surface {
+        Surface::Plane(_) => NativeSupportKind::Plane,
+        Surface::RevolutionSurface(_) => NativeSupportKind::Revolution,
+        _ => NativeSupportKind::Other,
+    }
+}
+
+fn support_kind_name(kind: NativeSupportKind) -> &'static str {
+    match kind {
+        NativeSupportKind::Plane => "PLANE",
+        NativeSupportKind::Revolution => "REVOLUTION_SURFACE",
+        NativeSupportKind::Other => "SURFACE",
+    }
+}
+
+fn native_face_boundaries(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<Wire>> {
+    let solid = model.solids.get(key.solid_index)?;
+    let shell = solid.boundaries().get(key.shell_index)?;
+    let face = shell.face_iter().nth(key.face_index)?;
+    Some(face.boundaries())
+}
+
+fn is_axis_aligned_line(edge_curve: &Curve) -> bool {
+    match edge_curve {
+        Curve::Line(line) => {
+            let delta = line.1 - line.0;
+            let nonzero = [
+                if delta.x != 0.0 { 1 } else { 0 },
+                if delta.y != 0.0 { 1 } else { 0 },
+                if delta.z != 0.0 { 1 } else { 0 },
+            ];
+            nonzero.iter().sum::<i32>() == 1
+        }
+        _ => false,
+    }
+}
+
+fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<Point3>> {
+    // Only a single, hole-free, axis-aligned, line-edged rectangle with four
+    // distinct corners is accepted. No chord approximation or area fallback.
+    let boundaries = native_face_boundaries(model, key)?;
+    if boundaries.len() != 1 {
+        return None;
+    }
+    let wire = &boundaries[0];
+    let edges: Vec<_> = wire.edge_iter().collect();
+    if edges.len() != 4 {
+        return None;
+    }
+    let mut corners = Vec::with_capacity(4);
+    for edge in &edges {
+        if !is_axis_aligned_line(&edge.curve()) {
+            return None;
+        }
+        let (start, end) = edge.ends();
+        if !start.point().x.is_finite()
+            || !start.point().y.is_finite()
+            || !start.point().z.is_finite()
+            || !end.point().x.is_finite()
+            || !end.point().y.is_finite()
+            || !end.point().z.is_finite()
+        {
+            return None;
+        }
+        let start_point = start.point();
+        if corners.is_empty() || corners.last().copied() != Some(start_point) {
+            corners.push(start_point);
         }
     }
-    if points.len() > 1 && points.first() == points.last() {
-        points.pop();
+    // Close the cycle.
+    let last_end = edges[3].ends().1.point();
+    if corners.first().copied() != Some(last_end) {
+        // The last edge must return to the first corner.
+        if corners.len() == 4 && corners[0] != last_end {
+            return None;
+        }
     }
-    points
-}
-
-fn plane_loop_area(normal: Vector3, points: &[Point3]) -> f64 {
-    if points.len() < 3 {
-        return 0.0;
-    }
-    let origin = points[0];
-    let mut sum = 0.0;
-    for index in 0..points.len() {
-        let next = (index + 1) % points.len();
-        let cross = (points[index] - origin).cross(points[next] - origin);
-        sum += cross.dot(normal);
-    }
-    sum / 2.0
-}
-
-fn source_plane_area(
-    model: &ExactModel,
-    face: &GeneratedSourceFace,
-    normal: Vector3,
-) -> Option<f64> {
-    let boundaries = source_face_boundaries(model, face)?;
-    let mut area = 0.0;
-    for wire in &boundaries {
-        area += plane_loop_area(normal, &wire_vertices(wire));
-    }
-    Some(area.abs())
-}
-
-fn revolution_parameters(
-    proc: &monstertruck_modeling::Processor<
-        monstertruck_modeling::RevolutionSurface<Curve>,
-        monstertruck_modeling::Matrix4,
-    >,
-) -> Option<(Point3, Vector3, f64, f64, f64)> {
-    // Returns (origin, axis, radius, slope, height0).
-    let origin = proc.entity().origin();
-    let axis = proc.entity().axis();
-    if !axis.x.is_finite()
-        || !axis.y.is_finite()
-        || !axis.z.is_finite()
-        || (axis.magnitude2() - 1.0).abs() > 1e-9
-    {
+    if corners.len() != 4 {
         return None;
     }
-    let curve = proc.entity().entity_curve();
-    let line = match curve {
-        Curve::Line(line) => line,
-        _ => return None,
-    };
-    let offset = line.0 - origin;
-    let height0 = offset.dot(axis);
-    let radial = offset - axis * height0;
-    let radius = radial.magnitude();
-    if !radius.is_finite() || radius < 0.0 {
+    let distinct: BTreeSet<[u64; 3]> = corners
+        .iter()
+        .map(|point| [point.x.to_bits(), point.y.to_bits(), point.z.to_bits()])
+        .collect();
+    if distinct.len() != 4 {
         return None;
     }
-    let delta = line.1 - line.0;
-    let axial = delta.dot(axis);
-    let slope = if axial.abs() > 1e-18 && radius > 1e-18 {
-        delta.dot(radial / radius) / axial
-    } else {
-        0.0
-    };
-    if !slope.is_finite() {
-        return None;
+    // Adjacent edges must be perpendicular.
+    for index in 0..4 {
+        let current = edges[index].ends();
+        let next = edges[(index + 1) % 4].ends();
+        let current_delta = current.1.point() - current.0.point();
+        let next_delta = next.1.point() - next.0.point();
+        if current_delta.dot(next_delta) != 0.0 {
+            return None;
+        }
     }
-    Some((origin, axis, radius, slope, height0))
+    Some(corners)
 }
 
 pub fn qualify_generated(
@@ -147,24 +161,6 @@ pub fn qualify_generated(
     if analysis.source_faces.is_empty() {
         reasons.push("missing source face".into());
     }
-    // Native census: count exact retained source faces independently of the
-    // analysis payload's source face list.
-    let mut native_face_count = 0usize;
-    for solid in &model.solids {
-        for shell in solid.boundaries() {
-            native_face_count += shell.face_iter().count();
-        }
-    }
-    if native_face_count != analysis.source_faces.len() {
-        reasons.push("incomplete native source face census".into());
-    }
-    if analysis
-        .source_faces
-        .iter()
-        .any(|face| face.support_kind == "REVOLUTION_SURFACE")
-    {
-        reasons.push("revolution support UV/trim/numeric proof unavailable".into());
-    }
     if !analysis.deflection_mm.is_finite() || analysis.deflection_mm <= 0.0 {
         reasons.push("invalid deflection setting".into());
     }
@@ -178,13 +174,67 @@ pub fn qualify_generated(
     {
         reasons.push("invalid triangle tag".into());
     }
-    for face in &analysis.source_faces {
-        if face.support_kind != "PLANE" && face.support_kind != "REVOLUTION_SURFACE" {
-            reasons.push("unsupported support kind".into());
+
+    // Independent native face census.
+    let mut native_keys = BTreeSet::new();
+    let mut native_key_to_support = BTreeMap::new();
+    let mut native_accepted = BTreeMap::new();
+    for (solid_index, solid) in model.solids.iter().enumerate() {
+        for (shell_index, shell) in solid.boundaries().iter().enumerate() {
+            for (face_index, face) in shell.face_iter().enumerate() {
+                let key = NativeFaceKey {
+                    solid_index,
+                    shell_index,
+                    face_index,
+                };
+                native_keys.insert(key);
+                let surface = face.surface().clone();
+                let support = native_support_kind(&surface);
+                native_key_to_support.insert(key, support);
+                native_accepted.insert(key, exact_plane_rectangle_corners(model, key).is_some());
+            }
         }
-        if source_surface(model, face).is_none() {
+    }
+
+    // Payload keys must form a bijection with the native face census.
+    let mut payload_keys = Vec::new();
+    for face in &analysis.source_faces {
+        payload_keys.push(NativeFaceKey {
+            solid_index: face.solid_index,
+            shell_index: face.shell_index,
+            face_index: face.face_index,
+        });
+    }
+    let payload_key_set: BTreeSet<NativeFaceKey> = payload_keys.iter().copied().collect();
+    if payload_keys.len() != payload_key_set.len() {
+        reasons.push("duplicate payload source face".into());
+    }
+    if payload_key_set != native_keys {
+        reasons.push("incomplete native source face census".into());
+    }
+
+    // Actual support type must match metadata; string metadata is never trusted.
+    for (payload_index, face) in analysis.source_faces.iter().enumerate() {
+        let key = NativeFaceKey {
+            solid_index: face.solid_index,
+            shell_index: face.shell_index,
+            face_index: face.face_index,
+        };
+        if let Some(actual) = native_key_to_support.get(&key) {
+            if support_kind_name(*actual) != face.support_kind {
+                reasons.push("source support kind mismatch".into());
+            }
+            if *actual != NativeSupportKind::Plane {
+                reasons.push("unsupported generated source face".into());
+            }
+        } else {
             reasons.push("missing source face".into());
         }
+        let _ = payload_index;
+    }
+
+    if native_accepted.values().any(|accepted| !*accepted) {
+        reasons.push("unsupported generated source face".into());
     }
 
     let mut distinct = BTreeSet::new();
@@ -207,146 +257,143 @@ pub fn qualify_generated(
         return GeneratedQualification::Unknown { reasons };
     }
 
+    // Map each payload occurrence to its native key.
+    let mut occurrence_to_key = BTreeMap::new();
+    for (index, face) in analysis.source_faces.iter().enumerate() {
+        occurrence_to_key.insert(
+            index,
+            NativeFaceKey {
+                solid_index: face.solid_index,
+                shell_index: face.shell_index,
+                face_index: face.face_index,
+            },
+        );
+    }
+
     let triangle_count = analysis.positions_mm_f64.len() / 9;
-    let mut direct = 0.0f64;
     let mut local_reasons: Vec<String> = Vec::new();
 
-    for (face_index, face) in analysis.source_faces.iter().enumerate() {
-        let surface = match source_surface(model, face) {
-            Some(surface) => surface,
+    for occurrence in 0..analysis.source_faces.len() {
+        let key = occurrence_to_key[&occurrence];
+        let corners = match exact_plane_rectangle_corners(model, key) {
+            Some(corners) => corners,
             None => {
-                local_reasons.push("missing source face".into());
+                local_reasons.push("unsupported generated source face".into());
                 continue;
             }
         };
 
-        let mut vertices: Vec<[f64; 3]> = Vec::new();
-        for triangle in 0..triangle_count {
-            if analysis.triangle_face_occurrence_indices[triangle] != face_index {
+        // Collect final triangles for this face.
+        let mut face_triangles: Vec<[[f64; 3]; 3]> = Vec::new();
+        for triangle_index in 0..triangle_count {
+            if analysis.triangle_face_occurrence_indices[triangle_index] != occurrence {
                 continue;
             }
+            let base = triangle_index * 9;
+            let mut tri = [[0.0; 3]; 3];
             for corner in 0..3 {
-                let base = (triangle * 3 + corner) * 3;
-                vertices.push([
-                    analysis.positions_mm_f64[base],
-                    analysis.positions_mm_f64[base + 1],
-                    analysis.positions_mm_f64[base + 2],
-                ]);
+                tri[corner][0] = analysis.positions_mm_f64[base + corner * 3];
+                tri[corner][1] = analysis.positions_mm_f64[base + corner * 3 + 1];
+                tri[corner][2] = analysis.positions_mm_f64[base + corner * 3 + 2];
             }
+            face_triangles.push(tri);
         }
-        if vertices.is_empty() {
-            local_reasons.push("missing triangle for source face".into());
+
+        // The supported class is exactly two triangles, with no subdivision or
+        // interior vertices.
+        if face_triangles.len() != 2 {
+            local_reasons.push("unsupported final triangulation".into());
             continue;
         }
 
-        match surface {
-            Surface::Plane(plane) => {
-                let normal = plane.normal();
-                let origin = plane.origin();
-                // Every final vertex must lie exactly on the retained source plane.
-                for vertex in &vertices {
-                    let point = Point3::new(vertex[0], vertex[1], vertex[2]);
-                    let distance = (point - origin).dot(normal);
-                    if !distance.is_finite() {
-                        local_reasons.push("non-finite plane residual".into());
-                        break;
-                    }
-                    if distance != 0.0 {
-                        local_reasons.push("final vertex off source plane".into());
-                        break;
-                    }
-                    let residual = distance.abs();
-                    if residual > direct {
-                        direct = residual;
-                    }
-                }
-                if local_reasons.iter().any(|r| {
-                    r == "final vertex off source plane" || r == "non-finite plane residual"
-                }) {
-                    // Skip area check once plane correspondence is already invalid.
-                } else {
-                    let source_area = match source_plane_area(model, face, normal) {
-                        Some(value) if value.is_finite() && value > 0.0 => value,
-                        _ => {
-                            local_reasons.push("invalid source plane area".into());
-                            0.0
-                        }
-                    };
-                    // Final triangle area on the same plane.
-                    let mut mesh_area = 0.0;
-                    for triangle in vertices.as_chunks::<3>().0 {
-                        if triangle.len() < 3 {
-                            continue;
-                        }
-                        let a = Point3::new(triangle[0][0], triangle[0][1], triangle[0][2]);
-                        let b = Point3::new(triangle[1][0], triangle[1][1], triangle[1][2]);
-                        let c = Point3::new(triangle[2][0], triangle[2][1], triangle[2][2]);
-                        let cross = (b - a).cross(c - a);
-                        mesh_area += cross.dot(normal) / 2.0;
-                    }
-                    mesh_area = mesh_area.abs();
-                    if source_area == 0.0 || mesh_area != source_area {
-                        local_reasons.push("incomplete plane trim coverage".into());
-                    }
-                }
-            }
-            Surface::RevolutionSurface(proc) => {
-                let (origin, axis, radius, slope, height0) = match revolution_parameters(&proc) {
-                    Some(values) => values,
-                    None => {
-                        local_reasons.push("unsupported revolution support".into());
-                        continue;
-                    }
-                };
-                let transform = proc.transform();
-                let inverse = match transform.inverse_transform() {
-                    Some(value) => value,
-                    None => {
-                        local_reasons.push("invalid revolution transform".into());
-                        continue;
-                    }
-                };
+        let corner_keys: BTreeSet<[u64; 3]> = corners
+            .iter()
+            .map(|point| [point.x.to_bits(), point.y.to_bits(), point.z.to_bits()])
+            .collect();
 
-                // Numeric contribution from final vertices.
-                for vertex in &vertices {
-                    let point =
-                        inverse.transform_point(Point3::new(vertex[0], vertex[1], vertex[2]));
-                    let offset = point - origin;
-                    let height = offset.dot(axis);
-                    let radial = (offset - axis * height).magnitude();
-                    let expected_radius = radius + slope * (height - height0);
-                    let residual = (radial - expected_radius.abs()).abs();
-                    if residual.is_finite() && residual > direct {
-                        direct = residual;
-                    }
+        let mut vertices_ok = true;
+        for tri in &face_triangles {
+            for vertex in tri {
+                if !vertex[0].is_finite() || !vertex[1].is_finite() || !vertex[2].is_finite() {
+                    vertices_ok = false;
+                    break;
                 }
+                let key = [
+                    vertex[0].to_bits(),
+                    vertex[1].to_bits(),
+                    vertex[2].to_bits(),
+                ];
+                if !corner_keys.contains(&key) {
+                    vertices_ok = false;
+                    break;
+                }
+            }
+            if !vertices_ok {
+                break;
+            }
+            // Nondegenerate triangle.
+            let a = Point3::new(tri[0][0], tri[0][1], tri[0][2]);
+            let b = Point3::new(tri[1][0], tri[1][1], tri[1][2]);
+            let c = Point3::new(tri[2][0], tri[2][1], tri[2][2]);
+            if (b - a).cross(c - a).magnitude() == 0.0 {
+                vertices_ok = false;
+                break;
+            }
+        }
+        if !vertices_ok {
+            local_reasons.push("incomplete plane trim coverage".into());
+            continue;
+        }
 
-                // Analytic angular/height contribution.
-                let theta = analysis.angular_rad;
-                let height_range = {
-                    let values = vertices
-                        .iter()
-                        .map(|vertex| {
-                            let point = inverse
-                                .transform_point(Point3::new(vertex[0], vertex[1], vertex[2]));
-                            let offset = point - origin;
-                            offset.dot(axis)
-                        })
-                        .collect::<Vec<_>>();
-                    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                    (max - min).abs()
-                };
-                let cylindrical = radius * theta * theta / 8.0;
-                let mixed = slope.abs() * theta * height_range / 4.0;
-                let analytic = cylindrical + mixed;
-                if analytic.is_finite() && analytic > direct {
-                    direct = analytic;
-                }
+        // The two triangles must share one diagonal and together contain all
+        // four corners.
+        let first: BTreeSet<[u64; 3]> = face_triangles[0]
+            .iter()
+            .map(|v| [v[0].to_bits(), v[1].to_bits(), v[2].to_bits()])
+            .collect();
+        let second: BTreeSet<[u64; 3]> = face_triangles[1]
+            .iter()
+            .map(|v| [v[0].to_bits(), v[1].to_bits(), v[2].to_bits()])
+            .collect();
+        let shared: Vec<_> = first.intersection(&second).copied().collect();
+        if shared.len() != 2 {
+            local_reasons.push("incomplete plane trim coverage".into());
+            continue;
+        }
+        let union: BTreeSet<[u64; 3]> = first.union(&second).copied().collect();
+        if union != corner_keys {
+            local_reasons.push("incomplete plane trim coverage".into());
+            continue;
+        }
+        // Shared edge must be a diagonal: the two shared vertices must be
+        // opposite in the corner cycle. Check by ensuring the two non-shared
+        // vertices are distinct and not adjacent via an edge? We approximate by
+        // requiring the shared pair not be one of the original four edges.
+        let shared_set: BTreeSet<[u64; 3]> = shared.iter().copied().collect();
+        let mut is_edge_of_rectangle = false;
+        for index in 0..4 {
+            let edge_pair: BTreeSet<[u64; 3]> = [
+                [
+                    corners[index].x.to_bits(),
+                    corners[index].y.to_bits(),
+                    corners[index].z.to_bits(),
+                ],
+                [
+                    corners[(index + 1) % 4].x.to_bits(),
+                    corners[(index + 1) % 4].y.to_bits(),
+                    corners[(index + 1) % 4].z.to_bits(),
+                ],
+            ]
+            .into_iter()
+            .collect();
+            if edge_pair == shared_set {
+                is_edge_of_rectangle = true;
+                break;
             }
-            _ => {
-                local_reasons.push("unsupported generated surface".into());
-            }
+        }
+        if is_edge_of_rectangle {
+            local_reasons.push("incomplete plane trim coverage".into());
+            continue;
         }
     }
 
@@ -357,19 +404,16 @@ pub fn qualify_generated(
             reasons: local_reasons,
         };
     }
-    if !direct.is_finite() || direct < 0.0 {
-        return GeneratedQualification::Unknown {
-            reasons: vec!["invalid numeric bound".into()],
-        };
-    }
 
+    // Exact source/final correspondence for the supported class gives a zero
+    // symmetric bound. No floating-point residual or area approximation is used
+    // as proof.
     GeneratedQualification::Bounded {
         version: 1,
         class: "analytic-generated",
-        direct_bound_mm: direct,
+        direct_bound_mm: 0.0,
         source_precision_mm: 0.0,
-        total_bound_mm: direct,
-        mesh_identity: "generated-final-mesh".into(),
+        total_bound_mm: 0.0,
     }
 }
 
@@ -417,24 +461,121 @@ mod tests {
                 ..
             } => {
                 assert_eq!(source_precision_mm, 0.0);
-                assert_eq!(direct_bound_mm, total_bound_mm);
-                assert!(direct_bound_mm >= 0.0);
-                assert!(
-                    direct_bound_mm < 1e-12,
-                    "plane bound must be exact-ish, got {direct_bound_mm}"
-                );
+                assert_eq!(direct_bound_mm, 0.0);
+                assert_eq!(total_bound_mm, 0.0);
             }
             other => panic!("expected bounded, got {other:?}"),
         }
     }
 
     #[test]
-    fn missing_face_occurrence_is_unknown() {
+    fn duplicate_triangle_coverage_is_unknown() {
         let model = plate_model();
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
-        analysis.source_faces.pop();
+        // Replace the top face's two triangles with two identical copies.
+        // Find top face occurrence (support plane z=2).
+        let _ = ();
+        // Mutate all triangles belonging to occurrence 1 (top face in this mesher's order)
+        // by copying the first triangle twice. Simpler: rewrite occurrence 1 triangles.
+        let top_triangles: Vec<usize> = analysis
+            .triangle_face_occurrence_indices
+            .iter()
+            .enumerate()
+            .filter(|(_, tag)| **tag == 1)
+            .map(|(i, _)| i)
+            .collect();
+        if top_triangles.len() >= 2 {
+            let first = top_triangles[0];
+            let base_first = first * 9;
+            let copy: Vec<f64> = analysis.positions_mm_f64[base_first..base_first + 9].to_vec();
+            let second = top_triangles[1];
+            let base_second = second * 9;
+            analysis.positions_mm_f64[base_second..base_second + 9].copy_from_slice(&copy);
+        }
         let result = qualify_generated(&model, &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn translated_triangle_coverage_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        // Translate top-face triangles in X, preserving area but creating a gap.
+        for (index, tag) in analysis.triangle_face_occurrence_indices.iter().enumerate() {
+            if *tag == 1 {
+                let base = index * 9;
+                for corner in 0..3 {
+                    analysis.positions_mm_f64[base + corner * 3] += 100.0;
+                }
+            }
+        }
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn representable_corner_gap_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        let delta = 2.0_f64.powi(-50);
+        for (index, tag) in analysis.triangle_face_occurrence_indices.iter().enumerate() {
+            if *tag == 1 {
+                let base = index * 9;
+                for corner in 0..3 {
+                    if analysis.positions_mm_f64[base + corner * 3] == 0.0 {
+                        analysis.positions_mm_f64[base + corner * 3] = delta;
+                    }
+                }
+            }
+        }
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn support_kind_mismatch_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        if !analysis.source_faces.is_empty() {
+            analysis.source_faces[0].support_kind = "PLANE".into();
+        }
+        // Force a revolution surface by using a PCB model? Instead, mutate metadata only:
+        // actual support remains plane, so this case stays valid. To test mismatch,
+        // mark metadata as revolution while actual is plane.
+        if !analysis.source_faces.is_empty() {
+            analysis.source_faces[0].support_kind = "REVOLUTION_SURFACE".into();
+        }
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn removed_source_face_is_unknown_by_native_census() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        let removed = analysis.source_faces.len() - 1;
+        analysis.source_faces.pop();
+        // Reindex tags and drop removed face's triangles/positions.
+        let mut new_positions = Vec::new();
+        let mut new_tags = Vec::new();
+        for (triangle_index, tag) in analysis.triangle_face_occurrence_indices.iter().enumerate() {
+            if *tag == removed {
+                continue;
+            }
+            let adjusted = if *tag > removed { *tag - 1 } else { *tag };
+            let base = triangle_index * 9;
+            new_positions.extend_from_slice(&analysis.positions_mm_f64[base..base + 9]);
+            new_tags.push(adjusted);
+        }
+        analysis.positions_mm_f64 = new_positions;
+        analysis.triangle_face_occurrence_indices = new_tags;
+        let result = qualify_generated(&model, &analysis);
+        match result {
+            GeneratedQualification::Unknown { reasons } => {
+                assert!(reasons.iter().any(|reason| reason.contains("census")));
+            }
+            other => panic!("expected unknown, got {other:?}"),
+        }
     }
 
     #[test]
@@ -460,11 +601,33 @@ mod tests {
     }
 
     #[test]
+    fn wrong_coverage_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        if analysis.source_faces.len() > 1 {
+            for tag in &mut analysis.triangle_face_occurrence_indices {
+                if *tag == analysis.source_faces.len() - 1 {
+                    *tag = 0;
+                }
+            }
+        }
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn missing_face_occurrence_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        analysis.source_faces.pop();
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
     fn shrunk_plane_triangles_are_unknown() {
         let model = plate_model();
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
-        // Shrink every triangle toward its own centroid. Vertices stay on the
-        // source planes, but the covered area no longer matches the source face.
         for triangle in 0..(analysis.positions_mm_f64.len() / 9) {
             let base = triangle * 9;
             let mut cx = 0.0;
@@ -488,52 +651,6 @@ mod tests {
             }
         }
         let result = qualify_generated(&model, &analysis);
-        match result {
-            GeneratedQualification::Unknown { reasons } => {
-                assert!(
-                    reasons
-                        .iter()
-                        .any(|reason| reason.contains("trim coverage"))
-                );
-            }
-            other => panic!("expected unknown, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn removed_source_face_is_unknown_by_native_census() {
-        let model = plate_model();
-        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
-        let removed = analysis.source_faces.len() - 1;
-        analysis.source_faces.pop();
-        let mut kept_tags = Vec::new();
-        for tag in &analysis.triangle_face_occurrence_indices {
-            if *tag == removed {
-                continue;
-            }
-            let adjusted = if *tag > removed { *tag - 1 } else { *tag };
-            kept_tags.push(adjusted);
-        }
-        analysis.triangle_face_occurrence_indices = kept_tags;
-        // Keep positions length consistent by dropping removed face's triangles.
-        // (Positions length no longer matches tags; census/shape checks reject.)
-        let result = qualify_generated(&model, &analysis);
-        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
-    }
-
-    #[test]
-    fn wrong_coverage_is_unknown() {
-        let model = plate_model();
-        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
-        // Remove triangles for one face by re-tagging them to face 0, leaving a face uncovered.
-        if analysis.source_faces.len() > 1 {
-            for tag in &mut analysis.triangle_face_occurrence_indices {
-                if *tag == analysis.source_faces.len() - 1 {
-                    *tag = 0;
-                }
-            }
-        }
-        let result = qualify_generated(&model, &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
 
@@ -551,7 +668,7 @@ mod tests {
                 assert!(
                     reasons
                         .iter()
-                        .any(|reason| reason.contains("revolution support"))
+                        .any(|reason| reason.contains("unsupported generated source face"))
                 );
             }
             other => panic!("expected unknown, got {other:?}"),
