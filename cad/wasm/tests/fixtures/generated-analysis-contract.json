@@ -70,10 +70,7 @@
     "sourcePrecisionMm": 0.01,
     "maximumDirectBoundMm": 1e-10,
     "pair": {
-      "nominalSourceDistanceMm": [
-        1,
-        1
-      ],
+      "nominalSourceDistanceMm": [1, 1],
       "maximumMeshIntervalWidthMm": 1e-10,
       "clearanceThresholdMm": 0.5,
       "defaultRequestedAccuracyMm": null,
@@ -81,22 +78,10 @@
       "expectedDefaultRelation": "clear",
       "expectedTightRelation": "unknown",
       "containmentMethod": "slab",
-      "contactMustIncludeLeftPointMm": [
-        -0.625,
-        -2,
-        0
-      ],
-      "contactMustIncludeRightPointMm": [
-        -0.625,
-        -1,
-        0
-      ],
+      "contactMustIncludeLeftPointMm": [-0.625, -2, 0],
+      "contactMustIncludeRightPointMm": [-0.625, -1, 0],
       "coordinateFrame": "native part frame before STEP assembly placement",
-      "nativeXTranslationMm": [
-        3,
-        0,
-        0
-      ],
+      "nativeXTranslationMm": [3, 0, 0],
       "worldQueryOperandOrder": "translated instance first, original instance second for ordered +Y slab",
       "contactCoordinateFrame": "world frame; source-inflated region includes nominal native end-face points"
     },
@@ -117,12 +102,16 @@
       "degenerate-triangle",
       "resource-cap",
       "exponent-cap",
-      "unmeasured-repair-movement",
+      "unmeasured-repair-without-direct-coverage",
       "capacitor-parity-ineligible",
       "reversed-source-frame-composition",
       "unqualified-source-axis",
       "general-mapped-assembly",
-      "no-world-axis-separating-slab"
+      "no-world-axis-separating-slab",
+      "complete-retained-mixed-presentation-source",
+      "unaccepted-source-proof",
+      "discarded-cap-trim-contribution",
+      "f64-source-orientation-preprocessing"
     ],
     "generatedIdentityPrefix": "m1/generated-analysis-v2/",
     "vendorIdentityPrefix": "vendor-step-analysis-v2/",
@@ -133,17 +122,15 @@
       "directBoundMm": 1e-10,
       "sourcePrecisionMm": 0.01,
       "totalBoundMm": 0.010000000100000002,
-      "meshIdentity": "fixture-final-capacitor-left"
+      "meshIdentity": "final-f64-v1/fixture-vendor",
+      "accounting": "direct-includes-conversion-repair-trims-evaluation"
     },
     "queryExamples": {
       "meshDistance": {
         "state": "bounded",
-        "lowerMm": 1,
-        "upperMm": 1,
-        "witnessTriangles": [
-          0,
-          0
-        ]
+        "lowerMm": 0.999999999999999,
+        "upperMm": 1.000000000000001,
+        "witnessTriangles": [0, 0]
       },
       "containment": {
         "state": "ruledOut",
@@ -154,45 +141,151 @@
       },
       "contactRegion": {
         "state": "boxes",
-        "sourceInflationMm": [
-          0.010000000100000002,
-          0.010000000100000002
-        ],
+        "sourceInflationMm": [0.010000000100001002, 0.010000000100000002],
         "pairs": [
           {
             "leftMm": [
-              [
-                -0.635000001,
-                -4.010000001,
-                -0.010000001
-              ],
-              [
-                0.635000001,
-                -1.989999999,
-                1.360000001
-              ]
+              [-0.635000001, -4.010000001, -0.010000001],
+              [0.635000001, -1.989999999, 1.360000001]
             ],
             "rightMm": [
-              [
-                -0.635000001,
-                -1.010000001,
-                -0.010000001
-              ],
-              [
-                0.635000001,
-                1.010000001,
-                1.360000001
-              ]
+              [-0.635000001, -1.010000001, -0.010000001],
+              [0.635000001, 1.010000001, 1.360000001]
             ]
           }
         ]
-      }
+      },
+      "version": 1,
+      "algorithm": "aabb-interval-exact-v1",
+      "binding": {
+        "snapshotRevision": 7,
+        "snapshot": {
+          "token": "11",
+          "sessionEpoch": "2",
+          "documentId": "contract-document",
+          "boardId": "contract-board",
+          "instanceId": null,
+          "revision": 7
+        },
+        "workerGeneration": "fixture-worker-generation-1",
+        "leftModelId": "contract-left",
+        "rightModelId": "contract-right",
+        "leftMeshIdentity": "final-f64-v1/fixture-vendor",
+        "rightMeshIdentity": "final-f64-v1/fixture-vendor",
+        "leftAnalysis": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "source": {
+            "kind": "vendor-step",
+            "sourceSha256": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+            "importOptions": {
+              "previewRepairBudgetMm": null,
+              "targetDeflectionMm": null
+            }
+          },
+          "derivationIdentity": "vendor-step-analysis-v2/9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1"
+        },
+        "rightAnalysis": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "source": {
+            "kind": "vendor-step",
+            "sourceSha256": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+            "importOptions": {
+              "previewRepairBudgetMm": null,
+              "targetDeflectionMm": null
+            }
+          },
+          "derivationIdentity": "vendor-step-analysis-v2/9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1"
+        },
+        "leftMesh": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "sourceProof": "planar-final-v2",
+          "settings": {
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "planar-final-v2",
+            "maxSourceBytes": 2097152,
+            "maxSourceRecords": 10000,
+            "maxDecimalCharacters": 80,
+            "minimumDecimalExponent": -64,
+            "maximumDecimalExponent": 64,
+            "minimumExponent": -128,
+            "maximumExponent": 128,
+            "maxFinalTriangles": 4096,
+            "maxDirectBoundMm": 1e-08,
+            "cornerSnapDistanceSquaredMm2": 1e-16
+          }
+        },
+        "rightMesh": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "sourceProof": "planar-final-v2",
+          "settings": {
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "planar-final-v2",
+            "maxSourceBytes": 2097152,
+            "maxSourceRecords": 10000,
+            "maxDecimalCharacters": 80,
+            "minimumDecimalExponent": -64,
+            "maximumDecimalExponent": 64,
+            "minimumExponent": -128,
+            "maximumExponent": 128,
+            "maxFinalTriangles": 4096,
+            "maxDirectBoundMm": 1e-08,
+            "cornerSnapDistanceSquaredMm2": 1e-16
+          }
+        },
+        "leftRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 7.4940054162198e-16, -3, 0, 1],
+        "rightRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        "clearanceThresholdMm": 0.5,
+        "requestedAccuracyMm": null
+      },
+      "limits": {
+        "maxTriangles": 4096,
+        "maxNodePairs": 100000,
+        "maxExactPairs": 2048,
+        "maxContactBoxes": 8,
+        "minimumExponent": -128,
+        "maximumExponent": 128,
+        "requestedNumericalWidthMm": 1e-10
+      },
+      "sourceBounds": [
+        {
+          "state": "bounded",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "method": "scaled-local-plus-row-rounding",
+          "normUpper": 1,
+          "directBoundMm": 1e-10,
+          "sourcePrecisionMm": 0.01,
+          "transformRoundingMm": 1e-15,
+          "totalBoundMm": 0.010000000100001002
+        },
+        {
+          "state": "bounded",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "method": "scaled-local-plus-row-rounding",
+          "normUpper": 1,
+          "directBoundMm": 1e-10,
+          "sourcePrecisionMm": 0.01,
+          "transformRoundingMm": 0,
+          "totalBoundMm": 0.010000000100000002
+        }
+      ]
     },
     "unknownExample": {
       "state": "unknown",
-      "reasons": [
-        "source or query proof unavailable"
-      ]
+      "reasons": ["source or query proof unavailable"]
     },
     "invalidMutations": [
       {
@@ -207,7 +300,7 @@
       },
       {
         "path": "containment.rightLowerMm",
-        "value": 1,
+        "value": -2,
         "reason": "overlapping slab"
       },
       {
@@ -231,56 +324,1239 @@
       "composition": "parentFrame * inverse(childFrame)",
       "childFrameId": "552",
       "parentFrameId": "583",
-      "childOrigin": [
-        "0",
-        "0",
-        "0"
-      ],
-      "childAxis": [
-        "0",
-        "0",
-        "1"
-      ],
-      "childRefDirection": [
-        "1",
-        "0",
-        "0"
-      ],
-      "parentOrigin": [
-        "0",
-        "0",
-        "0"
-      ],
-      "parentAxis": [
-        "0",
-        "0",
-        "1"
-      ],
-      "parentRefDirection": [
-        "2.4980018054066e-16",
-        "-1",
-        "0"
-      ],
+      "childOrigin": ["0", "0", "0"],
+      "childAxis": ["0", "0", "1"],
+      "childRefDirection": ["1", "0", "0"],
+      "parentOrigin": ["0", "0", "0"],
+      "parentAxis": ["0", "0", "1"],
+      "parentRefDirection": ["2.4980018054066e-16", "-1", "0"],
       "normalization": "exact sqrt enclosure; frame order checked independently",
       "expectedWorldNativeXTranslationMm": [
-        [
-          7.494005416219798e-16,
-          7.494005416219802e-16
-        ],
-        [
-          -3,
-          -2.999999999999999
-        ],
-        [
-          0,
-          0
-        ]
+        [7.494005416219798e-16, 7.494005416219802e-16],
+        [-3, -2.999999999999999],
+        [0, 0]
       ],
-      "privateSuppliedWorldTranslationMm": [
-        7.4940054162198e-16,
-        -3,
-        0
-      ]
+      "privateSuppliedWorldTranslationMm": [7.4940054162198e-16, -3, 0]
+    },
+    "activation": {
+      "version": 1,
+      "status": "pending atomic producer/worker/consumer activation; active v1 unchanged",
+      "inspectedParentTransport": "2dd3b87d9f62c622a8c709ca6624b494d500660a; unchanged relevant files through ec4712647",
+      "acceptedGeneratedPrivateProof": "b03cc0951dfe4c91f7c8fb395e8dc218a656d452",
+      "untrustedPredecessors": ["5bc56d35bc77", "14cde"],
+      "snapshot": {
+        "token": "11",
+        "sessionEpoch": "2",
+        "documentId": "contract-document",
+        "boardId": "contract-board",
+        "instanceId": null,
+        "revision": 7
+      },
+      "queryLimits": {
+        "maxTriangles": 4096,
+        "maxNodePairs": 100000,
+        "maxExactPairs": 2048,
+        "maxContactBoxes": 8,
+        "minimumExponent": -128,
+        "maximumExponent": 128,
+        "requestedNumericalWidthMm": 1e-10
+      },
+      "descriptors": {
+        "vendor": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "sourceProof": "planar-final-v2",
+          "settings": {
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "planar-final-v2",
+            "maxSourceBytes": 2097152,
+            "maxSourceRecords": 10000,
+            "maxDecimalCharacters": 80,
+            "minimumDecimalExponent": -64,
+            "maximumDecimalExponent": 64,
+            "minimumExponent": -128,
+            "maximumExponent": 128,
+            "maxFinalTriangles": 4096,
+            "maxDirectBoundMm": 1e-08,
+            "cornerSnapDistanceSquaredMm2": 1e-16
+          }
+        },
+        "plane": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-plane",
+          "sourceProof": "analytic-generated-v1",
+          "settings": {
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "analytic-generated-v1",
+            "maxFinalTriangles": 10000,
+            "minimumNonzeroMagnitude": 1e-100,
+            "maximumMagnitude": 1000000000000.0
+          }
+        },
+        "cylinderDefault": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-cylinder-default",
+          "sourceProof": "analytic-generated-v1",
+          "settings": {
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "analytic-generated-v1",
+            "maxFinalTriangles": 10000,
+            "minimumNonzeroMagnitude": 1e-100,
+            "maximumMagnitude": 1000000000000.0
+          }
+        },
+        "cylinderRefined": {
+          "version": "final-f64-v1",
+          "meshIdentity": "final-f64-v1/fixture-cylinder-refined",
+          "sourceProof": "analytic-generated-v1",
+          "settings": {
+            "targetDeflectionMm": 0.01,
+            "selectedDeflectionMm": 0.01,
+            "angularRad": 0.5,
+            "previewRepairBudgetMm": null
+          },
+          "sourceLimits": {
+            "profile": "analytic-generated-v1",
+            "maxFinalTriangles": 10000,
+            "minimumNonzeroMagnitude": 1e-100,
+            "maximumMagnitude": 1000000000000.0
+          }
+        }
+      },
+      "sourceReports": {
+        "vendor": {
+          "state": "bounded",
+          "class": "complete-native-line-plane",
+          "version": 2,
+          "directBoundMm": 1e-10,
+          "sourcePrecisionMm": 0.01,
+          "totalBoundMm": 0.010000000100000002,
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "accounting": "direct-includes-conversion-repair-trims-evaluation"
+        },
+        "plane": {
+          "state": "bounded",
+          "class": "analytic-generated",
+          "version": 1,
+          "directBoundMm": 0,
+          "sourcePrecisionMm": 0,
+          "totalBoundMm": 0.0,
+          "meshIdentity": "final-f64-v1/fixture-plane",
+          "accounting": "direct-includes-conversion-repair-trims-evaluation"
+        },
+        "cylinderDefault": {
+          "state": "bounded",
+          "class": "analytic-generated",
+          "version": 1,
+          "directBoundMm": 0.058825,
+          "sourcePrecisionMm": 0,
+          "totalBoundMm": 0.058825,
+          "meshIdentity": "final-f64-v1/fixture-cylinder-default",
+          "accounting": "direct-includes-conversion-repair-trims-evaluation"
+        },
+        "cylinderRefined": {
+          "state": "bounded",
+          "class": "analytic-generated",
+          "version": 1,
+          "directBoundMm": 0.015386,
+          "sourcePrecisionMm": 0,
+          "totalBoundMm": 0.015386,
+          "meshIdentity": "final-f64-v1/fixture-cylinder-refined",
+          "accounting": "direct-includes-conversion-repair-trims-evaluation"
+        }
+      },
+      "workerReferences": {
+        "vendor": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-vendor",
+          "source": {
+            "kind": "vendor-step",
+            "sourceSha256": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+            "importOptions": {
+              "previewRepairBudgetMm": null,
+              "targetDeflectionMm": null
+            }
+          },
+          "derivationIdentity": "vendor-step-analysis-v2/9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1"
+        },
+        "plane": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-plane",
+          "source": {
+            "kind": "generated-body",
+            "bodyId": "contract-plate",
+            "revision": 7,
+            "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+          },
+          "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+        },
+        "cylinderDefault": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-cylinder-default",
+          "source": {
+            "kind": "generated-body",
+            "bodyId": "contract-r1-drilled-plate",
+            "revision": 7,
+            "geometryIdentity": "m1/generated-analysis-v2/961622be8507971576649092f488a651226d823e44338096a7a65e0910b956de"
+          },
+          "derivationIdentity": "m1/generated-analysis-v2/961622be8507971576649092f488a651226d823e44338096a7a65e0910b956de/deflection=default/analytic-generated-v1"
+        },
+        "cylinderRefined": {
+          "workerGeneration": "fixture-worker-generation-1",
+          "meshIdentity": "final-f64-v1/fixture-cylinder-refined",
+          "source": {
+            "kind": "generated-body",
+            "bodyId": "contract-r1-drilled-plate",
+            "revision": 7,
+            "geometryIdentity": "m1/generated-analysis-v2/961622be8507971576649092f488a651226d823e44338096a7a65e0910b956de"
+          },
+          "derivationIdentity": "m1/generated-analysis-v2/961622be8507971576649092f488a651226d823e44338096a7a65e0910b956de/deflection=3f847ae147ae147b/analytic-generated-v1"
+        }
+      },
+      "directGeneratedRecipe": {
+        "baseFixturePointer": "/directPayload",
+        "set": {
+          "analysisErrorBoundMm": 0,
+          "analysisMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          },
+          "sourceQualification": {
+            "state": "bounded",
+            "class": "analytic-generated",
+            "version": 1,
+            "directBoundMm": 0,
+            "sourcePrecisionMm": 0,
+            "totalBoundMm": 0.0,
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "accounting": "direct-includes-conversion-repair-trims-evaluation"
+          }
+        },
+        "providerOnlyFields": ["analysisHandle"],
+        "expectedProviderKeys": [
+          "bodyId",
+          "revision",
+          "surfacePositionsMmF64",
+          "triangleFaceOccurrenceIndices",
+          "sourceFaces",
+          "faceOccurrences",
+          "analysisErrorBoundMm",
+          "meshClosedOriented",
+          "deflectionMm",
+          "analysisMesh",
+          "sourceQualification",
+          "analysisHandle"
+        ],
+        "expectedWorkerKeys": [
+          "bodyId",
+          "revision",
+          "surfacePositionsMmF64",
+          "triangleFaceOccurrenceIndices",
+          "sourceFaces",
+          "faceOccurrences",
+          "analysisErrorBoundMm",
+          "meshClosedOriented",
+          "deflectionMm",
+          "analysisMesh",
+          "sourceQualification",
+          "geometryIdentity",
+          "analysisRef"
+        ],
+        "workerSet": {
+          "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee",
+          "analysisRef": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          }
+        },
+        "requiresActualProviderHandle": true
+      },
+      "directVendorRecipe": {
+        "originalAsset": "ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
+        "expectedRootKeys": ["mesh", "bounds", "vendorStep"],
+        "expectedVendorStepKeys": [
+          "sourceSha256",
+          "importOptions",
+          "sourceFaces",
+          "faceOccurrences",
+          "precision",
+          "accuracy",
+          "surfacePositionsMmF64",
+          "triangleFaceOccurrenceIndices",
+          "lineSegmentsMmF64",
+          "lineRenderPositions",
+          "lineOccurrences",
+          "segmentLineOccurrenceIndices",
+          "analysisMesh",
+          "sourceQualification",
+          "analysisHandle"
+        ],
+        "expectedWorkerVendorStepKeys": [
+          "sourceSha256",
+          "importOptions",
+          "sourceFaces",
+          "faceOccurrences",
+          "precision",
+          "accuracy",
+          "surfacePositionsMmF64",
+          "triangleFaceOccurrenceIndices",
+          "lineSegmentsMmF64",
+          "lineRenderPositions",
+          "lineOccurrences",
+          "segmentLineOccurrenceIndices",
+          "analysisMesh",
+          "sourceQualification",
+          "analysisRef"
+        ],
+        "setVendorStep": {
+          "analysisMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "sourceProof": "planar-final-v2",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "planar-final-v2",
+              "maxSourceBytes": 2097152,
+              "maxSourceRecords": 10000,
+              "maxDecimalCharacters": 80,
+              "minimumDecimalExponent": -64,
+              "maximumDecimalExponent": 64,
+              "minimumExponent": -128,
+              "maximumExponent": 128,
+              "maxFinalTriangles": 4096,
+              "maxDirectBoundMm": 1e-08,
+              "cornerSnapDistanceSquaredMm2": 1e-16
+            }
+          },
+          "sourceQualification": {
+            "state": "bounded",
+            "class": "complete-native-line-plane",
+            "version": 2,
+            "directBoundMm": 1e-10,
+            "sourcePrecisionMm": 0.01,
+            "totalBoundMm": 0.010000000100000002,
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "accounting": "direct-includes-conversion-repair-trims-evaluation"
+          }
+        },
+        "workerSet": {
+          "analysisRef": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "source": {
+              "kind": "vendor-step",
+              "sourceSha256": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+              "importOptions": {
+                "previewRepairBudgetMm": null,
+                "targetDeflectionMm": null
+              }
+            },
+            "derivationIdentity": "vendor-step-analysis-v2/9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1"
+          }
+        },
+        "expectedAnalysisErrorBoundMm": 0.010000000100000002,
+        "expectedMaxRepairDisplacementMm": null,
+        "expectedCensus": {
+          "solids": 4,
+          "shells": 4,
+          "faces": 30,
+          "faceOccurrences": 30
+        },
+        "requiresActualProviderHandle": true
+      },
+      "queryMetadataKeys": ["left", "right", "clearanceThresholdMm", "requestedAccuracyMm", "qualificationLimits"],
+      "qualifiedProviderKeys": ["observation", "queryQualification"],
+      "qualifiedWorkerKeys": ["revision", "collision", "queryQualification"],
+      "operandAdditionalKeys": ["analysisRef", "analysisMesh"],
+      "bufferKeys": ["leftPositions", "leftTags", "rightPositions", "rightTags"],
+      "contextKeys": ["snapshot", "workerGeneration"],
+      "opaqueHandleRules": {
+        "publicConstructor": false,
+        "jsonDeserializable": false,
+        "transferable": false,
+        "retainRustOwnedFinalBuffers": true,
+        "compareReturnedF64BitsAndU32Tags": true,
+        "sidecarMaxEntries": 80,
+        "sidecarMaxRetainedBytes": 67108864
+      },
+      "generatedPlaneQuery": {
+        "meshDistance": {
+          "state": "bounded",
+          "lowerMm": 1,
+          "upperMm": 1,
+          "witnessTriangles": [0, 0]
+        },
+        "containment": {
+          "state": "ruledOut",
+          "method": "slab",
+          "axis": 2,
+          "leftUpperMm": 2,
+          "rightLowerMm": 3
+        },
+        "contactRegion": {
+          "state": "boxes",
+          "sourceInflationMm": [0.0, 0.0],
+          "pairs": [
+            {
+              "leftMm": [
+                [0, 0, 0],
+                [20, 10, 2]
+              ],
+              "rightMm": [
+                [0, 0, 3],
+                [20, 10, 5]
+              ]
+            }
+          ]
+        },
+        "version": 1,
+        "algorithm": "aabb-interval-exact-v1",
+        "binding": {
+          "snapshotRevision": 7,
+          "snapshot": {
+            "token": "11",
+            "sessionEpoch": "2",
+            "documentId": "contract-document",
+            "boardId": "contract-board",
+            "instanceId": null,
+            "revision": 7
+          },
+          "workerGeneration": "fixture-worker-generation-1",
+          "leftModelId": "contract-left",
+          "rightModelId": "contract-right",
+          "leftMeshIdentity": "final-f64-v1/fixture-plane",
+          "rightMeshIdentity": "final-f64-v1/fixture-plane",
+          "leftAnalysis": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          },
+          "rightAnalysis": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          },
+          "leftMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          },
+          "rightMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          },
+          "leftRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+          "rightRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 3, 1],
+          "clearanceThresholdMm": 0.5,
+          "requestedAccuracyMm": null
+        },
+        "limits": {
+          "maxTriangles": 4096,
+          "maxNodePairs": 100000,
+          "maxExactPairs": 2048,
+          "maxContactBoxes": 8,
+          "minimumExponent": -128,
+          "maximumExponent": 128,
+          "requestedNumericalWidthMm": 1e-10
+        },
+        "sourceBounds": [
+          {
+            "state": "bounded",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "method": "scaled-local-plus-row-rounding",
+            "normUpper": 1,
+            "directBoundMm": 0,
+            "sourcePrecisionMm": 0,
+            "transformRoundingMm": 0,
+            "totalBoundMm": 0.0
+          },
+          {
+            "state": "bounded",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "method": "scaled-local-plus-row-rounding",
+            "normUpper": 1,
+            "directBoundMm": 0,
+            "sourcePrecisionMm": 0,
+            "transformRoundingMm": 0,
+            "totalBoundMm": 0.0
+          }
+        ]
+      },
+      "mixedVendorGeneratedQuery": {
+        "meshDistance": {
+          "state": "bounded",
+          "lowerMm": 0.99999999999999,
+          "upperMm": 1.00000000000001,
+          "witnessTriangles": [0, 0]
+        },
+        "containment": {
+          "state": "ruledOut",
+          "method": "slab",
+          "axis": 2,
+          "leftUpperMm": 1.360000001,
+          "rightLowerMm": 2.349999999
+        },
+        "contactRegion": {
+          "state": "boxes",
+          "sourceInflationMm": [0.010000000100000002, 1e-14],
+          "pairs": [
+            {
+              "leftMm": [
+                [-0.635000001, -1.010000001, -0.010000001],
+                [0.635000001, 1.010000001, 1.360000001]
+              ],
+              "rightMm": [
+                [-1e-12, -1e-12, 2.349999999999],
+                [20.000000000001, 10.000000000001, 4.350000000001]
+              ]
+            }
+          ]
+        },
+        "version": 1,
+        "algorithm": "aabb-interval-exact-v1",
+        "binding": {
+          "snapshotRevision": 7,
+          "snapshot": {
+            "token": "11",
+            "sessionEpoch": "2",
+            "documentId": "contract-document",
+            "boardId": "contract-board",
+            "instanceId": null,
+            "revision": 7
+          },
+          "workerGeneration": "fixture-worker-generation-1",
+          "leftModelId": "contract-left",
+          "rightModelId": "contract-right",
+          "leftMeshIdentity": "final-f64-v1/fixture-vendor",
+          "rightMeshIdentity": "final-f64-v1/fixture-plane",
+          "leftAnalysis": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "source": {
+              "kind": "vendor-step",
+              "sourceSha256": "9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1",
+              "importOptions": {
+                "previewRepairBudgetMm": null,
+                "targetDeflectionMm": null
+              }
+            },
+            "derivationIdentity": "vendor-step-analysis-v2/9a2fa201ffbca159125e775975a993752d00f411cb6c8260fd0dc1ab058185b1"
+          },
+          "rightAnalysis": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          },
+          "leftMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "sourceProof": "planar-final-v2",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "planar-final-v2",
+              "maxSourceBytes": 2097152,
+              "maxSourceRecords": 10000,
+              "maxDecimalCharacters": 80,
+              "minimumDecimalExponent": -64,
+              "maximumDecimalExponent": 64,
+              "minimumExponent": -128,
+              "maximumExponent": 128,
+              "maxFinalTriangles": 4096,
+              "maxDirectBoundMm": 1e-08,
+              "cornerSnapDistanceSquaredMm2": 1e-16
+            }
+          },
+          "rightMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          },
+          "leftRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+          "rightRowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 2.35, 1],
+          "clearanceThresholdMm": 0.5,
+          "requestedAccuracyMm": null
+        },
+        "limits": {
+          "maxTriangles": 4096,
+          "maxNodePairs": 100000,
+          "maxExactPairs": 2048,
+          "maxContactBoxes": 8,
+          "minimumExponent": -128,
+          "maximumExponent": 128,
+          "requestedNumericalWidthMm": 1e-10
+        },
+        "sourceBounds": [
+          {
+            "state": "bounded",
+            "meshIdentity": "final-f64-v1/fixture-vendor",
+            "method": "scaled-local-plus-row-rounding",
+            "normUpper": 1,
+            "directBoundMm": 1e-10,
+            "sourcePrecisionMm": 0.01,
+            "transformRoundingMm": 0,
+            "totalBoundMm": 0.010000000100000002
+          },
+          {
+            "state": "bounded",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "method": "scaled-local-plus-row-rounding",
+            "normUpper": 1,
+            "directBoundMm": 0,
+            "sourcePrecisionMm": 0,
+            "transformRoundingMm": 1e-14,
+            "totalBoundMm": 1e-14
+          }
+        ]
+      },
+      "pairCases": [
+        {
+          "id": "vendor-native-x-gap",
+          "queryFixturePointer": "/qualificationV2/queryExamples",
+          "nominalSourceDistanceMm": 1,
+          "expectedSourceIntervalMm": [0.979999999799998, 1.0200000002000023],
+          "expectedAssessment": "supported-band",
+          "expectedRelation": "clear",
+          "expectedContact": "boxes",
+          "expectedContainment": "slab",
+          "requestedAccuracyMm": null
+        },
+        {
+          "id": "generated-20x10x2-gap",
+          "queryFixturePointer": "/qualificationV2/activation/generatedPlaneQuery",
+          "nominalSourceDistanceMm": 1,
+          "expectedSourceIntervalMm": [1.0, 1.0],
+          "expectedAssessment": "supported-band",
+          "expectedRelation": "clear",
+          "expectedContact": "boxes",
+          "expectedContainment": "slab",
+          "requestedAccuracyMm": null
+        },
+        {
+          "id": "vendor-generated-gap",
+          "queryFixturePointer": "/qualificationV2/activation/mixedVendorGeneratedQuery",
+          "nominalSourceDistanceMm": 1,
+          "expectedSourceIntervalMm": [0.98999999989998, 1.01000000010002],
+          "expectedAssessment": "supported-band",
+          "expectedRelation": "clear",
+          "expectedContact": "boxes",
+          "expectedContainment": "slab",
+          "requestedAccuracyMm": null
+        },
+        {
+          "id": "vendor-tight-precision-floor",
+          "baseCase": "vendor-native-x-gap",
+          "requestedAccuracyMm": 0.01,
+          "expectedAssessment": "unknown",
+          "reason": "pair-accuracy-budget"
+        },
+        {
+          "id": "unknown-containment-with-finite-band",
+          "baseCase": "generated-20x10x2-gap",
+          "containment": {
+            "state": "unknown",
+            "reasons": ["no global correspondence or separating slab"]
+          },
+          "expectedAssessment": "supported-band",
+          "expectedRelation": "uncertain"
+        },
+        {
+          "id": "unknown-contact-location",
+          "baseCase": "generated-20x10x2-gap",
+          "contactRegion": {
+            "state": "unknown",
+            "reasons": ["contact traversal cap"]
+          },
+          "expectedAssessment": "unknown",
+          "reason": "contact-region-unavailable"
+        },
+        {
+          "id": "query-resource-cap",
+          "baseCase": "vendor-native-x-gap",
+          "meshDistance": {
+            "state": "unknown",
+            "reasons": ["exact pair cap"]
+          },
+          "expectedAssessment": "unknown",
+          "reason": "query-resource-cap",
+          "qualificationLimitsOverride": {
+            "maxExactPairs": 1
+          }
+        },
+        {
+          "id": "unsupported-cone-or-nonplanar-trim",
+          "sourceQualification": {
+            "state": "unknown",
+            "reasons": ["unsupported-source-class"]
+          },
+          "expectedAssessment": "unknown"
+        },
+        {
+          "id": "complete-retained-mixed-presentation",
+          "sourceQualification": {
+            "state": "unknown",
+            "reasons": ["unsupported-complete-source-class"]
+          },
+          "maxRepairDisplacementMm": null,
+          "expectedAssessment": "unknown"
+        },
+        {
+          "id": "surface-separated-nested",
+          "meshDistance": {
+            "state": "bounded",
+            "lowerMm": 3,
+            "upperMm": 3,
+            "witnessTriangles": [0, 0]
+          },
+          "containment": {
+            "state": "unknown",
+            "reasons": ["parity-ineligible"]
+          },
+          "expectedRelation": "uncertain",
+          "clearForbidden": true,
+          "expectedAssessment": "unknown",
+          "reason": "solid-containment-not-qualified"
+        },
+        {
+          "id": "vendor-common-30-degree-row",
+          "baseCase": "vendor-native-x-gap",
+          "physicalRotationFixturePointer": "/qualificationV2/rotatedControl",
+          "action": "compose physical rotation with native-X translation once; recompute actual query evidence",
+          "nominalSourceDistanceMm": 1,
+          "maximumMeshIntervalWidthMm": 1e-10,
+          "expectedAssessment": "supported-band",
+          "expectedRelation": "clear",
+          "expectedContainmentMethod": "slab",
+          "expectedWorldAxis": 1,
+          "expectedContact": "conservative boxes in rotated world frame"
+        },
+        {
+          "id": "vendor-common-45-degree-no-world-slab",
+          "baseCase": "vendor-native-x-gap",
+          "cos45F64": 0.7071067811865476,
+          "sin45F64": 0.7071067811865476,
+          "action": "compose physical rotation once; recompute actual query evidence",
+          "expectedSourceBounds": "bounded",
+          "expectedContainment": {
+            "state": "unknown",
+            "reasons": ["no world-axis separating slab; parity unqualified"]
+          },
+          "expectedRelation": "uncertain"
+        }
+      ],
+      "cylinderBudgetCases": {
+        "preparedBodyRecipe": {
+          "baseFixturePointer": "/preparedBody",
+          "replace": {
+            "/body/id": "contract-r1-drilled-plate",
+            "/regions/0/mounts": [
+              {
+                "id": "contract-drill",
+                "at": {
+                  "x": 10.0,
+                  "y": 5.0
+                },
+                "kind": "hole",
+                "holeDiameter": 2.0
+              }
+            ]
+          }
+        },
+        "authoredRadiusMm": 1,
+        "authoredHeightMm": 2,
+        "referencePlateTranslationZMm": 3,
+        "nominalPairDistanceMm": 1,
+        "proofAcceptance": "corrected b03 private proof accepted; production sidecar wiring still required",
+        "cases": [
+          {
+            "id": "default-r1",
+            "targetDeflectionMm": null,
+            "selectedDeflectionMm": 0.1,
+            "sourceReport": "cylinderDefault",
+            "requestedAccuracyMm": null,
+            "clearanceThresholdMm": 0.5,
+            "expectedRelation": "clear",
+            "expectedAssessment": "supported-band"
+          },
+          {
+            "id": "refined-r1-still-too-wide",
+            "targetDeflectionMm": 0.01,
+            "selectedDeflectionMm": 0.01,
+            "sourceReport": "cylinderRefined",
+            "requestedAccuracyMm": 0.01,
+            "clearanceThresholdMm": 0.5,
+            "expectedAssessment": "unknown",
+            "reason": "pair-accuracy-budget"
+          },
+          {
+            "id": "finer-target-needs-actual-proof",
+            "targetDeflectionMm": 0.0025,
+            "requestedAccuracyMm": 0.01,
+            "sourceQualification": {
+              "state": "unknown",
+              "reasons": ["refinement-proof-unavailable"]
+            },
+            "expectedAssessment": "unknown",
+            "allowDeflectionAsCertificate": false
+          },
+          {
+            "id": "corrected-adversarial-cap-budget",
+            "minimumDirectBoundMm": 0.4820512820512832,
+            "requestedAccuracyMm": 0.01,
+            "expectedAssessment": "unknown",
+            "discardedCapContributionForbidden": true
+          }
+        ]
+      },
+      "lifecycleCases": [
+        {
+          "id": "transfer-detaches-output-not-owned-proof",
+          "action": "transfer original result typed arrays; query with fresh Runtime copies",
+          "expected": "same owned evidence and supported result"
+        },
+        {
+          "id": "detached-query-input",
+          "action": "transfer/detach a query array before dispatch",
+          "expected": "reject"
+        },
+        {
+          "id": "shared-query-input",
+          "action": "use SharedArrayBuffer backing",
+          "expected": "reject"
+        },
+        {
+          "id": "mutated-returned-vertex",
+          "action": "change one finite f64 bit under same meshIdentity",
+          "expected": "reject"
+        },
+        {
+          "id": "mutated-returned-tag",
+          "action": "change one valid tag under same meshIdentity",
+          "expected": "reject"
+        },
+        {
+          "id": "cancel-before-register",
+          "action": "cancel at post-kernel yield",
+          "expected": "no retained entry or published reference"
+        },
+        {
+          "id": "stale-completion",
+          "action": "replace task token before old preparation completes",
+          "expected": "old result cannot replace newer entry"
+        },
+        {
+          "id": "evicted-proof",
+          "action": "evict retained entry while keeping Runtime asset",
+          "expected": "raw observation plus unknown qualification; explicit re-prepare required"
+        },
+        {
+          "id": "restart-worker",
+          "action": "reuse old analysisRef after worker replacement",
+          "expected": "unknown evidence-unavailable; no reference alias"
+        },
+        {
+          "id": "forged-json-handle",
+          "action": "pass JSON source bounds or containment instead of opaque object",
+          "expected": "reject"
+        }
+      ],
+      "rejectedQueryKeys": ["sourceQualification", "analysisHandle", "containment", "sourceBounds"],
+      "invalidMutations": [
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/leftMeshIdentity",
+          "value": "final-f64-v1/wrong",
+          "reason": "wrong-mesh"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/leftRowTransformF64/12",
+          "value": 1,
+          "reason": "wrong-row"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/snapshot/revision",
+          "value": 8,
+          "reason": "wrong-revision"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/snapshot/token",
+          "value": "12",
+          "reason": "wrong-snapshot"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/workerGeneration",
+          "value": "another-worker",
+          "reason": "wrong-owner"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/limits/maxExactPairs",
+          "value": 1,
+          "reason": "response-caps-differ-from-request"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/leftMesh/sourceLimits/cornerSnapDistanceSquaredMm2",
+          "value": 1e-12,
+          "reason": "source-construction-profile-mismatch"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/leftMesh/settings/selectedDeflectionMm",
+          "value": 0.01,
+          "reason": "wrong-selected-setting"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/algorithm",
+          "value": "aabb-interval-exact-v0",
+          "reason": "wrong-algorithm"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/sourceBounds/0/totalBoundMm",
+          "value": 0.001,
+          "reason": "source-precision-omitted"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/contactRegion/sourceInflationMm/0",
+          "value": 0,
+          "reason": "contact-inflation-omitted"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/containment/rightLowerMm",
+          "value": -2,
+          "reason": "emitted-slab-endpoints-overlap"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/meshDistance/upperMm",
+          "value": "$nonFinite",
+          "reason": "nonfinite-distance"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/binding/leftAnalysis/source/kind",
+          "value": "generated-body",
+          "reason": "wrong-source-kind"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/containment",
+          "value": {
+            "state": "ruledOut",
+            "method": "parity",
+            "correspondenceVersion": "caller-says-closed",
+            "componentCount": [1, 1]
+          },
+          "reason": "no-owned-global-correspondence-proof"
+        },
+        {
+          "example": "vendor-native-x-gap",
+          "path": "/containment/rightLowerMm",
+          "value": -1.989999999,
+          "reason": "emitted-slab-endpoints-touch"
+        }
+      ],
+      "rawObservationExample": {
+        "kind": "surface-separated",
+        "surfaceDistanceMm": 1,
+        "closestPoints": {
+          "triangles": {
+            "left": {
+              "triangleIndex": 2,
+              "faceOccurrenceIndex": 1
+            },
+            "right": {
+              "triangleIndex": 0,
+              "faceOccurrenceIndex": 0
+            }
+          },
+          "point1Mm": [0, 0, 2],
+          "point2Mm": [0, 0, 3]
+        }
+      },
+      "qualifiedProviderRecipe": {
+        "observationFixturePointer": "/qualificationV2/activation/rawObservationExample",
+        "qualificationFixturePointer": "/qualificationV2/activation/generatedPlaneQuery",
+        "expectedKeys": ["observation", "queryQualification"]
+      },
+      "qualifiedWorkerRecipe": {
+        "revision": 7,
+        "collisionFixturePointer": "/qualificationV2/activation/rawObservationExample",
+        "qualificationFixturePointer": "/qualificationV2/activation/generatedPlaneQuery",
+        "expectedKeys": ["revision", "collision", "queryQualification"]
+      },
+      "generatedQueryMetadata": {
+        "left": {
+          "modelId": "contract-left",
+          "generatedGeometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee",
+          "importOptions": {
+
+          },
+          "rowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+          "analysisRef": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          },
+          "analysisMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          }
+        },
+        "right": {
+          "modelId": "contract-right",
+          "generatedGeometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee",
+          "importOptions": {
+
+          },
+          "rowTransformF64": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 3, 1],
+          "analysisRef": {
+            "workerGeneration": "fixture-worker-generation-1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "source": {
+              "kind": "generated-body",
+              "bodyId": "contract-plate",
+              "revision": 7,
+              "geometryIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee"
+            },
+            "derivationIdentity": "m1/generated-analysis-v2/5214070f03c90de8996f530860e0870919c7a5ac5fd4f149001cb418e09eceee/deflection=default/analytic-generated-v1"
+          },
+          "analysisMesh": {
+            "version": "final-f64-v1",
+            "meshIdentity": "final-f64-v1/fixture-plane",
+            "sourceProof": "analytic-generated-v1",
+            "settings": {
+              "targetDeflectionMm": null,
+              "selectedDeflectionMm": 0.1,
+              "angularRad": 0.5,
+              "previewRepairBudgetMm": null
+            },
+            "sourceLimits": {
+              "profile": "analytic-generated-v1",
+              "maxFinalTriangles": 10000,
+              "minimumNonzeroMagnitude": 1e-100,
+              "maximumMagnitude": 1000000000000.0
+            }
+          }
+        },
+        "clearanceThresholdMm": 0.5,
+        "requestedAccuracyMm": null,
+        "qualificationLimits": {
+          "maxTriangles": 4096,
+          "maxNodePairs": 100000,
+          "maxExactPairs": 2048,
+          "maxContactBoxes": 8,
+          "minimumExponent": -128,
+          "maximumExponent": 128,
+          "requestedNumericalWidthMm": 1e-10
+        }
+      },
+      "providerContextExample": {
+        "snapshot": {
+          "token": "11",
+          "sessionEpoch": "2",
+          "documentId": "contract-document",
+          "boardId": "contract-board",
+          "instanceId": null,
+          "revision": 7
+        },
+        "workerGeneration": "fixture-worker-generation-1"
+      },
+      "slabEndpointCases": [
+        {
+          "id": "exact-gap-reversed-emitted-endpoints",
+          "leftMax": 1,
+          "rightMin": 1.0000000000000002,
+          "sourcePrecisionMmPerSide": 1e-30,
+          "expectedContainment": "unknown"
+        },
+        {
+          "id": "exact-gap-equal-emitted-endpoints",
+          "leftMax": 1,
+          "rightMin": 1.0000000000000004,
+          "sourcePrecisionMmPerSide": 1e-30,
+          "expectedContainment": "unknown"
+        },
+        {
+          "id": "representable-narrow-slab",
+          "leftMax": 1,
+          "rightMin": 1.0000000000000007,
+          "sourcePrecisionMmPerSide": 1e-30,
+          "expectedContainment": "slab"
+        }
+      ],
+      "repairDiagnostics": {
+        "acceptedCorrectedCommit": "05b00ce75d3ef9f688c219c92d9c1e227004c8cd",
+        "untrustedPredecessor": "14cde",
+        "analysisQualificationFromRepairAlone": false,
+        "cases": [
+          {
+            "id": "complete-integer-cuboid-zero-movement",
+            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "expectedImport": "success",
+            "expectedBoundsMm": [
+              [0, 0, 0],
+              [2, 4, 8]
+            ],
+            "expectedMaxRepairDisplacementMm": 0,
+            "expectedAnalysisErrorBoundMm": null
+          },
+          {
+            "id": "complete-cuboid-budget-and-refinement",
+            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "sourceMutation": "existing step_zero_repair::explicit_precision_budget_and_refinement_do_not_change_zero_or_analysis_distinctions",
+            "importOptions": {
+              "previewRepairBudgetMm": 0.03,
+              "targetDeflectionMm": 0.01
+            },
+            "expectedSourcePrecisionMm": 0.001,
+            "expectedMaxRepairDisplacementMm": 0,
+            "expectedAnalysisErrorBoundMm": null
+          },
+          {
+            "id": "complete-unsupported-finite-wires",
+            "originalAsset": "cad/monstertruck/tests/fixtures/tetra-and-finite-wires.step",
+            "expectedImport": "success",
+            "expectedMaxRepairDisplacementMm": null,
+            "expectedAnalysisErrorBoundMm": null,
+            "expectedSourceQualification": "unknown"
+          },
+          {
+            "id": "styled-unretained-curve",
+            "originalAsset": "cad/monstertruck/tests/fixtures/zero-repair-cuboid-mm.step",
+            "sourceMutation": "existing step_zero_repair::styled_finite_curve_in_presentation_root_requires_source_completeness",
+            "expectedImport": "error",
+            "expectedSourceQualification": "no asset returned"
+          }
+        ],
+        "boundary": "repair-only ImportedStep accuracy before v2 activation; not a sourceQualification producer oracle"
+      }
     }
   }
 }
