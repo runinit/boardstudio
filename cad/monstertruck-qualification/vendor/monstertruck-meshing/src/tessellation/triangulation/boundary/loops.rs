@@ -504,7 +504,9 @@ impl PolyBoundary {
     ) -> Self {
         let mut pending = Vec::new();
         if let Some(trace) = repair {
-            let size = pieces.len().checked_mul(size_of::<Option<repair::Pending<'_>>>());
+            let size = pieces
+                .len()
+                .checked_mul(size_of::<Option<repair::Pending<'_>>>());
             if size.is_some_and(|n| trace.reserve_auxiliary(n))
                 && pending.try_reserve_exact(pieces.len()).is_ok()
             {
@@ -661,11 +663,9 @@ impl PolyBoundary {
                     before.finish(std::iter::empty(), std::iter::empty());
                 }
                 for after in &boundary.loops {
-                    if let Some(before) = trace.before(
-                        repair::Stage::Loop,
-                        std::iter::empty(),
-                        std::iter::empty(),
-                    ) {
+                    if let Some(before) =
+                        trace.before(repair::Stage::Loop, std::iter::empty(), std::iter::empty())
+                    {
                         before.finish(
                             after.iter().chain(after.first()).map(|p| p.uv),
                             after.iter().chain(after.first()).map(|p| p.point),

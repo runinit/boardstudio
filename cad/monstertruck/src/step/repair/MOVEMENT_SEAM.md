@@ -182,3 +182,30 @@ Before activation replay the unchanged authoritative approved34 fixture, includi
 all positive source faces, occurrences/lines, existing bounds oracles and Panasonic
 155-face surface-only Unknown. A compatibility failure is reported, not hidden by
 raising a budget, dropping geometry or relabelling an unmeasured repair as zero.
+
+## Bounded implementation slice (2026-10-18)
+
+The approved declarations above are implemented. Actual direct bounded-curve
+conversion captures each selected finite cut/relabel and inversion, checks the
+immediate structural chain and binds its last carrier to the actual owned output.
+The importer has exact polynomial/rational whole-domain control proofs for these
+captured Bspline/NURBS stages; the earlier original finite selection remains an
+independent incomplete stage. Native LINE vertex-chord movement has a separate
+original-decimal affine proof and exact world-mm budget comparison. Known stages
+sum per occurrence/shell/edge and disjoint paths combine by maximum. A known
+over-budget stage refuses even when unrelated authority is unsupported.
+
+This is not complete 007. Projected LINE intervals, PCurve/selected-master and
+alternate-master replacement, tiny-span raw spline normalization, and original
+finite surface conversion still need their same-call original authority and
+complete proofs. Mesher views capture actual pieces at branch/boundary/loop
+changes, but concrete support composition, filled-region correspondence and
+preceding true-curve approximation remain unproved. These reports stay incomplete;
+the retained preview does not acquire a movement certificate. Kiwano's alternate
+master remains Unsupported.
+
+The initial IO source-storage estimate charges 1024 times original byte length
+against the 256 MiB report cap before parsing/copying. Thus it can deliberately
+leave reports incomplete well below the 32 MiB source cap; it does not restrict
+preview admission. This conservative estimate and unsupported route coverage are
+material limits of this slice, not evidence that admitted routes are complete.
