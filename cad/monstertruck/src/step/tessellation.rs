@@ -30,6 +30,29 @@ pub fn triangulate_source_bound_shell_report(
     mm_per_unit: f64,
     options: TessellationOptions,
 ) -> Result<(StepMesh, Vec<usize>), String> {
+    triangulate_with_proof(source, mm_per_unit, options, None)
+        .map(|(mesh, fallback, _)| (mesh, fallback))
+}
+
+pub(super) fn triangulate_for_import(
+    source: &SourceBoundStepShell,
+    mm_per_unit: f64,
+    options: TessellationOptions,
+    zero_candidate: Option<&super::repair::Cuboid<'_>>,
+) -> Result<(StepMesh, Vec<usize>, bool), String> {
+    if zero_candidate.is_none() {
+        return triangulate_source_bound_shell_report(source, mm_per_unit, options)
+            .map(|(mesh, fallback)| (mesh, fallback, false));
+    }
+    triangulate_with_proof(source, mm_per_unit, options, zero_candidate)
+}
+
+fn triangulate_with_proof(
+    source: &SourceBoundStepShell,
+    mm_per_unit: f64,
+    options: TessellationOptions,
+    zero_candidate: Option<&super::repair::Cuboid<'_>>,
+) -> Result<(StepMesh, Vec<usize>, bool), String> {
     if !mm_per_unit.is_finite() || mm_per_unit <= 0.0 {
         return Err("source representation unit must be finite and positive".into());
     }
@@ -64,7 +87,10 @@ pub fn triangulate_source_bound_shell_report(
     {
         return Err("meshing produced nonfinite normalized coordinates".into());
     }
-    Ok((mesh, fallback_faces))
+    let zero = zero_candidate.is_some_and(|candidate| {
+        mm_per_unit == 1.0 && candidate.proves_output(source, &normalized, &mesh, &fallback_faces)
+    });
+    Ok((mesh, fallback_faces, zero))
 }
 
 // Metadata never crosses the checked adapter's public interface.

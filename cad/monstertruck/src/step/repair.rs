@@ -1,5 +1,7 @@
 //! Internal operation accounting. A support translation is not whole-asset movement.
+mod cuboid;
 use super::*;
+pub(super) use cuboid::Cuboid;
 use monstertruck_io::step::load::step_geometry::Curve3D;
 use monstertruck_io::step::load::step_p21::tables::{IntoOwned, PlaceHolder};
 

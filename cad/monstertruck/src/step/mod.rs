@@ -328,6 +328,37 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         &precision,
     )?;
     let mut repair_ledger = repair::Ledger::default();
+    // A complete proof is asset-scoped. A supported shell cannot qualify mixed
+    // geometry, another occurrence, a defaulted unit or an unsupported presentation.
+    let zero_candidate = if occurrences.len() == 1
+        && curve_occurrences.is_empty()
+        && ids.len() == 1
+        && wireframe.is_empty()
+        && exchange == original_source
+    {
+        let (id, placement, representation) = occurrences[0];
+        match solids[&id].source[&representation].shells() {
+            [source]
+                if placement == Matrix4::identity()
+                    && solids[&id].mm_per_unit == 1.0
+                    && source.shell().vertices.len() == 8
+                    && source.shell().edges.len() == 12
+                    && source.shell().faces.len() == 6 =>
+            {
+                repair::Cuboid::from_original(
+                    &bytes,
+                    &original_source,
+                    &repair_original,
+                    id,
+                    representation,
+                )
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let mut complete_zero_repair = zero_candidate.is_some();
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
     let mut bounds_from_source_geometry = true;
     let mut mesh_closed_oriented = true;
@@ -396,8 +427,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 .magnitude()
                 .max(placement.y.truncate().magnitude())
                 .max(placement.z.truncate().magnitude());
-            let (triangulation, fallback_faces) =
-                tessellation::triangulate_source_bound_shell_report(
+            let (triangulation, fallback_faces, zero_repair) =
+                tessellation::triangulate_for_import(
                     source,
                     solid.mm_per_unit,
                     monstertruck_meshing::tessellation::TessellationOptions {
@@ -406,7 +437,9 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         preview_fallback: true,
                         ..Default::default()
                     },
+                    zero_candidate.as_ref(),
                 )?;
+            complete_zero_repair &= zero_repair;
             repair_ledger.unknown(
                 occurrence,
                 "mesh boundary reconciliation",
@@ -529,10 +562,14 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         "parsed f64 operation bounds do not cover original decimal conversion",
     );
     repair_ledger.trace();
-    let max_repair_displacement_mm = if source_two_use {
-        repair_ledger.complete_bound_mm()
-    } else {
+    // The complete class proof covers repair independently of mesh approximation;
+    // it does not clear unknown entries in the generic diagnostic ledger.
+    let max_repair_displacement_mm = if !source_two_use {
         None
+    } else if complete_zero_repair {
+        Some(0.0)
+    } else {
+        repair_ledger.complete_bound_mm()
     };
     Ok(ImportedStep {
         original_bytes: bytes,
