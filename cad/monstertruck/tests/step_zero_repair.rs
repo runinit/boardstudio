@@ -202,8 +202,13 @@ fn styled_finite_curve_in_presentation_root_requires_source_completeness() {
          #907=COLOUR_RGB('',1.,0.,0.);\n\
          ENDSEC;END-ISO-10303-21;",
     );
-    let error = import_step(text.into_bytes()).err().expect("unretained presented finite curve must refuse");
-    assert!(error.contains("source completeness") && error.contains("#901"), "{error}");
+    let error = import_step(text.into_bytes())
+        .err()
+        .expect("unretained presented finite curve must refuse");
+    assert!(
+        error.contains("source completeness") && error.contains("#901"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -221,8 +226,13 @@ fn additional_representation_roots_cannot_drop_unbounded_geometry() {
             "ENDSEC;END-ISO-10303-21;",
             &format!("#903={kind}('',(#32),#303);ENDSEC;END-ISO-10303-21;"),
         );
-        let error = import_step(text.into_bytes()).err().expect("presented unbounded LINE must refuse");
-        assert!(error.contains("source completeness") && error.contains("#32"), "{kind}: {error}");
+        let error = import_step(text.into_bytes())
+            .err()
+            .expect("presented unbounded LINE must refuse");
+        assert!(
+            error.contains("source completeness") && error.contains("#32"),
+            "{kind}: {error}"
+        );
     }
 }
 
@@ -248,19 +258,24 @@ fn product_definition_metadata_does_not_add_a_geometry_root() {
 }
 
 fn styled_target(source: &str, target: u64, context: u64) -> String {
-    replace_once(source, "ENDSEC;END-ISO-10303-21;", &format!(
-        "#901=STYLED_ITEM('',(#904),#{target});\n\
+    replace_once(
+        source,
+        "ENDSEC;END-ISO-10303-21;",
+        &format!(
+            "#901=STYLED_ITEM('',(#904),#{target});\n\
          #902=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#901),#{context});\n\
          #904=PRESENTATION_STYLE_ASSIGNMENT((#905));\n\
          #905=CURVE_STYLE('',#906,POSITIVE_LENGTH_MEASURE(0.1),#907);\n\
          #906=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');\n\
          #907=COLOUR_RGB('',1.,0.,0.);\n\
-         ENDSEC;END-ISO-10303-21;"))
+         ENDSEC;END-ISO-10303-21;"
+        ),
+    )
 }
 
 #[test]
 fn styles_of_retained_solids_faces_and_finite_edges_preserve_complete_assets() {
-    for target in [301, 110, 33] {
+    for target in [301, 110, 33, 304] {
         let text = styled_target(std::str::from_utf8(BOX).unwrap(), target, 303);
         let model = import_step(text.clone().into_bytes()).unwrap();
         assert_eq!(model.original_bytes(), text.as_bytes());
@@ -270,12 +285,53 @@ fn styles_of_retained_solids_faces_and_finite_edges_preserve_complete_assets() {
         assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     }
     for target in [414, 420] {
-        let text = styled_target(include_str!("fixtures/tetra-and-finite-wires.step"), target, 103);
+        let text = styled_target(
+            include_str!("fixtures/tetra-and-finite-wires.step"),
+            target,
+            103,
+        );
         let model = import_step(text.clone().into_bytes()).unwrap();
         assert_eq!(model.original_bytes(), text.as_bytes());
         assert_eq!(model.line_presentation().occurrences().len(), 2);
         assert_eq!(model.line_presentation().segments_mm().len(), 2);
         assert_eq!(model.accuracy().max_repair_displacement_mm, None);
         assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
+}
+
+#[test]
+fn presentation_graph_cannot_hide_unretained_supports_or_cycles() {
+    let source = std::str::from_utf8(BOX).unwrap();
+    let direct_support = styled_target(source, 32, 303);
+    let nested_support = styled_target(source, 908, 303).replace(
+        "ENDSEC;END-ISO-10303-21;",
+        "#908=STYLED_ITEM('',(#904),#32);ENDSEC;END-ISO-10303-21;",
+    );
+    let cycle = nested_support.replace(
+        "#908=STYLED_ITEM('',(#904),#32);",
+        "#908=STYLED_ITEM('',(#904),#901);",
+    );
+    let overriding = styled_target(source, 110, 303).replace(
+        "ENDSEC;END-ISO-10303-21;",
+        "#908=OVER_RIDING_STYLED_ITEM('',(#904),#32,#901);ENDSEC;END-ISO-10303-21;",
+    );
+    let mut cases = vec![direct_support, nested_support, cycle, overriding];
+    for record in [
+        "#908=VENDOR_GEOMETRY_VIEW('',(#32),#303);",
+        "#908=(GEOMETRIC_REPRESENTATION()REPRESENTATION('',(#32),#303));",
+        "#908=DEFINITIONAL_REPRESENTATION('',(#32),#303);",
+        "#908=DRAUGHTING_MODEL('',(#32),#999);",
+    ] {
+        cases.push(replace_once(
+            source,
+            "ENDSEC;END-ISO-10303-21;",
+            &format!("{record}ENDSEC;END-ISO-10303-21;"),
+        ));
+    }
+    for text in cases {
+        let error = import_step(text.into_bytes())
+            .err()
+            .expect("unretained presentation must refuse");
+        assert!(error.contains("source completeness"), "{error}");
     }
 }

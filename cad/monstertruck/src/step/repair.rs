@@ -141,6 +141,11 @@ impl OriginalGeometry {
         let ids = ids.into_iter().collect::<Option<Vec<_>>>()?;
         (ids.iter().copied().collect::<HashSet<_>>().len() == ids.len()).then_some(ids)
     }
+
+    // Styling may reference finite retained topology, never its infinite support.
+    pub(super) fn retained_edge_ids(&self, source: &SourceBoundStepShell) -> Vec<u64> {
+        self.bind_edges(source).unwrap_or_default()
+    }
 }
 
 #[derive(Debug)]

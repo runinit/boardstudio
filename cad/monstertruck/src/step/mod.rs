@@ -327,6 +327,26 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         &representation_units,
         &precision,
     )?;
+    let mut retained: HashSet<_> = solids.keys().copied().collect();
+    retained.extend(source_faces.iter().map(|face| face.face_id));
+    retained.extend(
+        occurrences
+            .iter()
+            .map(|(_, _, representation)| *representation),
+    );
+    for solid in solids.values() {
+        for source in solid.source.values().flat_map(|source| source.shells()) {
+            retained.extend(repair_original.retained_edge_ids(source));
+        }
+    }
+    for curve in wireframe.presentation().occurrences() {
+        retained.extend([
+            curve.trimmed_curve_id,
+            curve.curve_set_id,
+            curve.representation_id,
+        ]);
+    }
+    scene.require_complete_presentations(&retained)?;
     let mut repair_ledger = repair::Ledger::default();
     // A complete proof is asset-scoped. A supported shell cannot qualify mixed
     // geometry, another occurrence, a defaulted unit or an unsupported presentation.

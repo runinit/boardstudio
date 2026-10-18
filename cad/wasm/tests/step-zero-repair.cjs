@@ -133,7 +133,7 @@ test('unretained styled finite curve and alternate presentation roots explicitly
 
 test('styles of retained finite geometry preserve complete mixed and surface assets', () => {
   const wires = fs.readFileSync(path.join(fixtures, 'tetra-and-finite-wires.step'), 'utf8');
-  for (const [source, context, targets] of [[box.toString(), 303, [301, 110, 33]], [wires, 103, [414, 420]]]) {
+  for (const [source, context, targets] of [[box.toString(), 303, [301, 110, 33, 304]], [wires, 103, [414, 420]]]) {
     for (const target of targets) {
       const styled = source.replace('ENDSEC;END-ISO-10303-21;',
         `#901=STYLED_ITEM('',(#904),#${target});` +
