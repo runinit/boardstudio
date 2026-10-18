@@ -12,6 +12,8 @@ use super::*;
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_modeling::{EuclideanSpace, Face};
 
+mod cylinder_proof;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UvUnknown {
     Missing,
