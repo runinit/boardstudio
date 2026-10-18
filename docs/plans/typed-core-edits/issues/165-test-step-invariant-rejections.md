@@ -43,3 +43,36 @@ for a nonfinite coordinate beyond the first ten positions.
 
 Created from audit finding 4 at the user's request. This adds rejection evidence
 for existing invariants and does not reopen the broader STEP validation plan.
+
+## CURRENT
+
+2026-10-18: Implementation complete; status remains claimed pending parent integration,
+full verification and combined spec/standards review. Added eight private tests with
+explicit rejection reasons: NaN/+Inf/-Inf at position 35 after a finite prefix,
+inconsistent nonempty triangle-face tags, empty mesh, missing source faces, all
+bounds endpoints/axes with nonfinite values, and equal/reversed degenerate bounds.
+No production implementation, API or visibility changes. Retained
+`import_invariants_pass_for_valid_step`; removed the misleading duplicate
+`import_invariants_are_checked_during_import` (eight added, one removed).
+
+Fresh checks in this worktree, with logs under `.evidence/ticket-165/`:
+
+- `python3 scripts/mutation-check.py .evidence/ticket-165/late-position-scan.json --command 'cargo test --manifest-path cad/monstertruck/Cargo.toml --release --locked --lib step::invariant_tests' --evidence-dir .evidence/ticket-165/mutation --timeout 1800`: unmodified baseline 8 passed; mutation RED killed by all three late-coordinate tests (exit 101, no compile failure/timeout), `restored_exact: true`. The single exact edit changed `self.mesh.positions.iter().enumerate()` to `self.mesh.positions.iter().take(10).enumerate()` in the validator loop. Each failure returned `Ok(())` instead of the explicit nonfinite-position reason. This is mutation RED, not an unmodified baseline failure.
+- `cargo test --manifest-path cad/monstertruck/Cargo.toml --release --locked --lib step::invariant_tests`: restored GREEN, 8 passed (`restored-invariants.log`).
+- `cargo test --manifest-path cad/monstertruck/Cargo.toml --release --locked --test step_import`: 60 passed, 1 existing ignored vendor-corpus test (`step-import.log`).
+- `rustfmt --check --edition 2024 cad/monstertruck/src/step/invariant_tests.rs` and `git diff --check`: passed after correcting initial wrapping differences. Final diff read completed.
+
+Before builds, `readlink -f` inspection showed root and CAD targets absent and
+resolving locally to this worktree; all builds used `cad/monstertruck/target`.
+Source inspection confirms `import_step_with_options` invokes
+`imported.validate_invariants()` and returns its failures before `Ok(imported)`.
+The negative tests corrupt an already imported model: they prove validator
+rejection, not import-boundary rejection of an injected invariant failure. No
+injectable import hook was introduced. No production defect discovered in this
+slice. No installed Rust-specific skill was found; TDD and project Rust guidance
+were read.
+
+Parent gates: integrate with 162's separate production function changes preserved,
+run the final full suite (`python3 scripts/check.py`) under the shared root-target
+lock when applicable, and complete the combined spec/standards review before
+resolving. The existing ignored corpus test was not run in this focused stream.

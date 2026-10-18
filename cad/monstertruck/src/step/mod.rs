@@ -1281,4 +1281,7 @@ mod numerical_underflow_tests {
 }
 
 #[cfg(test)]
+mod invariant_tests;
+
+#[cfg(test)]
 mod surface_preview_tests;
