@@ -199,8 +199,8 @@ pub enum ContactRegion {
     Boxes { source_inflation_mm: [f64; 2], pairs: Vec<ContactBoxPair> },
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "state", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "state")]
 pub enum Containment {
     #[serde(rename = "unknown")]
     Unknown { reasons: Vec<String> },
@@ -210,6 +210,26 @@ pub enum Containment {
     ContainedLeft { correspondence_version: String },
     #[serde(rename = "containedRight", rename_all = "camelCase")]
     ContainedRight { correspondence_version: String },
+}
+
+impl<'de> Deserialize<'de> for Containment {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let mut value = serde_json::Value::deserialize(deserializer)?;
+        let object = value.as_object_mut().ok_or_else(|| D::Error::custom("containment object required"))?;
+        let state = object.remove("state").ok_or_else(|| D::Error::custom("containment state required"))?;
+        match state.as_str() {
+            Some("ruledOut") => serde_json::from_value(value).map(|evidence| Self::RuledOut { evidence }).map_err(D::Error::custom),
+            Some("unknown") if object.len() == 1 && object.contains_key("reasons") => {
+                serde_json::from_value(object["reasons"].clone()).map(|reasons| Self::Unknown { reasons }).map_err(D::Error::custom)
+            }
+            Some(direction @ ("containedLeft" | "containedRight")) if object.len() == 1 && object.contains_key("correspondenceVersion") => {
+                let correspondence_version = serde_json::from_value(object["correspondenceVersion"].clone()).map_err(D::Error::custom)?;
+                Ok(if direction == "containedLeft" { Self::ContainedLeft { correspondence_version } } else { Self::ContainedRight { correspondence_version } })
+            }
+            _ => Err(D::Error::custom("invalid containment state or fields")),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -500,6 +500,7 @@ enum CacheSlot {
         task_token: u64,
     },
     Ready(Rc<ValidatedMesh>),
+    Refreshing { task_token: u64 },
 }
 
 #[derive(Clone, Debug)]
@@ -531,6 +532,7 @@ pub struct ModelMeshCache {
     slots: BTreeMap<String, CacheSlot>,
     recency: VecDeque<String>,
     next_task_token: u64,
+    evidence_attempts: BTreeMap<String, String>,
 }
 
 impl Default for ModelMeshCache {
@@ -539,6 +541,7 @@ impl Default for ModelMeshCache {
             slots: BTreeMap::new(),
             recency: VecDeque::new(),
             next_task_token: 1,
+            evidence_attempts: BTreeMap::new(),
         }
     }
 }
@@ -602,6 +605,7 @@ impl ModelMeshCache {
                     return Ok(MeshCacheClaim::JoinPending { task_token });
                 }
                 CacheSlot::Pending { .. } => {}
+                CacheSlot::Refreshing { task_token } => return Ok(MeshCacheClaim::JoinPending { task_token: *task_token }),
             }
         }
 
@@ -631,7 +635,7 @@ impl ModelMeshCache {
 
     pub fn complete(&mut self, sha256: &str, task_token: u64, mesh: Rc<ValidatedMesh>) -> bool {
         let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
+            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current }) if *current == task_token);
         if current {
             self.slots.insert(sha256.to_owned(), CacheSlot::Ready(mesh));
             self.touch(sha256);
@@ -643,7 +647,7 @@ impl ModelMeshCache {
     /// task. A superseded task has no authority to evict the replacement.
     pub fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
         let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. }) if *current == task_token);
+            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current }) if *current == task_token);
         if current {
             self.slots.remove(sha256);
             self.recency.retain(|key| key != sha256);
@@ -659,6 +663,27 @@ impl ModelMeshCache {
         Ok(token)
     }
 
+    fn claim_evidence_refresh(&mut self, key: &str, batch: &str) -> Result<MeshCacheClaim, String> {
+        if let Some(CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token }) = self.slots.get(key) {
+            self.evidence_attempts.insert(key.into(), batch.into());
+            return Ok(MeshCacheClaim::JoinPending { task_token: *task_token });
+        }
+        if self.evidence_attempts.get(key).is_some_and(|current| current == batch) {
+            return match self.slots.get(key) {
+                Some(CacheSlot::Ready(asset)) => Ok(MeshCacheClaim::Reuse(asset.clone())),
+                _ => Err("evidence preparation already failed in this batch".into()),
+            };
+        }
+        let task_token = self.allocate_task_token()?;
+        let evicted = self.make_room_for(key);
+        if self.evidence_attempts.len() >= MESH_CACHE_CAPACITY
+            && let Some(victim) = self.evidence_attempts.keys().next().cloned() { self.evidence_attempts.remove(&victim); }
+        self.evidence_attempts.insert(key.into(), batch.into());
+        self.slots.insert(key.into(), CacheSlot::Refreshing { task_token });
+        self.touch(key);
+        Ok(MeshCacheClaim::Start { task_token, superseded: None, evicted })
+    }
+
     fn make_room_for(&mut self, sha256: &str) -> Option<EvictedTask> {
         if self.slots.contains_key(sha256) || self.slots.len() < MESH_CACHE_CAPACITY {
             return None;
@@ -666,7 +691,7 @@ impl ModelMeshCache {
         let victim = self.recency.pop_front()?;
         let slot = self.slots.remove(&victim)?;
         match slot {
-            CacheSlot::Pending { task_token, .. } => Some(EvictedTask {
+            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token } => Some(EvictedTask {
                 sha256: victim,
                 task_token,
             }),
@@ -877,6 +902,45 @@ pub struct ModelDeliveryAdapter {
 }
 
 impl ModelDeliveryAdapter {
+    /// A missing proof lease may replace a ready full asset once per check batch.
+    /// Concurrent callers join the same task and only its token can settle it.
+    pub async fn refresh_step_evidence(
+        &self,
+        sha: &str,
+        options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
+        batch: &str,
+        is_current: Rc<dyn Fn() -> bool>,
+        load: impl Future<Output = Result<MeshArrays, String>>,
+    ) -> Result<Rc<ValidatedMesh>, String> {
+        if !is_current() { return Err("evidence preparation became stale".into()); }
+        let key = derived_step_cache_key(sha, options)?;
+        let claim = self.cache.borrow_mut().claim_evidence_refresh(&key, batch)?;
+        let (task_token, start) = match claim {
+            MeshCacheClaim::Reuse(asset) => return Ok(asset),
+            MeshCacheClaim::JoinPending { task_token } => (task_token, false),
+            MeshCacheClaim::Start { task_token, evicted, .. } => {
+                if let Some(task) = evicted { settle_pending(&self.pending, &task, Err("evidence preparation evicted".into())); }
+                (task_token, true)
+            }
+        };
+        let cell = Rc::new(WaitCell::new());
+        let task = (key, task_token);
+        self.pending.borrow_mut().entry(task.clone()).or_default().push(cell.clone());
+        if start {
+            let result = load.await.and_then(ValidatedMesh::try_from).map(Rc::new);
+            let result = if !is_current() { Err("evidence preparation became stale after parsing".into()) } else { result };
+            let result = match result {
+                Ok(mesh) if self.cache.borrow_mut().complete_with_step_options(sha, options, task_token, mesh.clone())? => Ok(mesh),
+                Ok(_) => Err("evidence preparation was superseded".into()),
+                Err(error) => { self.cache.borrow_mut().fail_with_step_options(sha, options, task_token)?; Err(error) }
+            };
+            settle_task(&self.pending, &task, result);
+        }
+        let result = WaitCellFuture { cell }.await;
+        if !is_current() { return Err("evidence preparation became stale after settlement".into()); }
+        result
+    }
+
     pub async fn deliver_models(
         &self,
         preview_revision: u64,
@@ -1234,6 +1298,14 @@ pub enum CadCollisionSubject {
 }
 
 impl CadCollisionSubject {
+    pub fn source_qualification(&self) -> Option<&boardstudio_web_host::cad_qualification::SourceQualification> {
+        match self {
+            Self::VendorModel { vendor_step: Some(asset), .. } => asset.source_qualification.as_ref(),
+            Self::GeneratedCaseBody { analysis: Some(asset), .. } => asset.source_qualification.as_ref(),
+            _ => None,
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
             Self::VendorModel { id, .. } | Self::GeneratedCaseBody { id, .. } => id,
@@ -1563,6 +1635,8 @@ pub enum CadSubjectFaceProvenance {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CadCollisionResult {
+    pub source_interval_mm: Option<[f64; 2]>,
+    pub query_qualification: Option<boardstudio_web_host::cad_qualification::QueryQualification>,
     pub observation: Option<boardstudio_web_host::cad_jobs::CadCollisionObservation>,
     pub left_provenance: Option<CadSubjectFaceProvenance>,
     pub right_provenance: Option<CadSubjectFaceProvenance>,
@@ -1656,8 +1730,7 @@ pub fn assess_subject_collision_observation(
     right: &CadCollisionSubject,
     clearance_threshold_mm: f64,
     requested_accuracy_mm: Option<f64>,
-    query_numerical_error_bound_mm: Option<f64>,
-    containment_ruled_out: bool,
+    qualification: Option<(&boardstudio_web_host::cad_qualification::ValidatedQueryQualification, &boardstudio_web_host::cad_qualification::Binding)>,
     observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
 ) -> CadCollisionResult {
     use boardstudio_web_host::cad_jobs::CadCollisionObservation;
@@ -1682,113 +1755,66 @@ pub fn assess_subject_collision_observation(
     if let CadCollisionObservation::Uncertain { reason, .. } = &observation {
         reasons.push(format!("raw mesh observation is uncertain: {reason}"));
     }
-    let subject_bound =
-        |subject: &CadCollisionSubject, side: &str, reasons: &mut Vec<String>| -> Option<f64> {
-            match subject {
-                CadCollisionSubject::VendorModel { vendor_step, .. } => {
-                    let bound = vendor_step
-                        .as_ref()
-                        .and_then(|step| step.accuracy.analysis_error_bound_mm)
-                        .filter(|v| v.is_finite() && *v >= 0.0);
-                    if bound.is_none() {
-                        reasons.push(format!(
-                            "{side} asset has no certified analysisErrorBoundMm"
-                        ));
-                    }
-                    bound
+    use boardstudio_web_host::cad_qualification::{add_down, add_up, ContactRegion, Containment, MeshDistance, WorldSourceBound};
+    let mut source_interval_mm = None;
+    let mut report = None;
+    let mut half_width = None;
+    if let Some((validated, expected)) = qualification {
+        let candidate = validated.report();
+        let operands_match = left.operand().ok().zip(right.operand().ok()).is_some_and(|(left, right)| {
+            left.model_id == expected.left_model_id && right.model_id == expected.right_model_id
+                && left.analysis_ref.as_ref() == Some(&expected.left_analysis)
+                && right.analysis_ref.as_ref() == Some(&expected.right_analysis)
+                && left.analysis_mesh.as_ref() == Some(&expected.left_mesh)
+                && right.analysis_mesh.as_ref() == Some(&expected.right_mesh)
+                && left.row_transform_f64.map(f64::to_bits) == expected.left_row_transform_f64.map(f64::to_bits)
+                && right.row_transform_f64.map(f64::to_bits) == expected.right_row_transform_f64.map(f64::to_bits)
+        });
+        if serde_json::to_vec(&candidate.binding).ok() != serde_json::to_vec(expected).ok()
+            || expected.clearance_threshold_mm.to_bits() != clearance_threshold_mm.to_bits()
+            || expected.requested_accuracy_mm.map(f64::to_bits) != requested_accuracy_mm.map(f64::to_bits)
+            || !operands_match {
+            reasons.push("validated qualifier belongs to another assessment request".into());
+        } else {
+            report = Some(candidate.clone());
+            match (&candidate.mesh_distance, &candidate.source_bounds) {
+                (MeshDistance::Bounded { lower_mm, upper_mm, .. }, [WorldSourceBound::Bounded { total_bound_mm: left, .. }, WorldSourceBound::Bounded { total_bound_mm: right, .. }]) => {
+                    let lower = add_down(add_down(*lower_mm, -*left), -*right).max(0.0);
+                    let upper = add_up(add_up(*upper_mm, *left), *right);
+                    let budget = add_up(add_up(add_up(*upper_mm, -*lower_mm) * 0.5, *left), *right);
+                    if lower.is_finite() && upper.is_finite() && budget.is_finite() {
+                        source_interval_mm = Some([lower, upper]);
+                        half_width = Some(budget);
+                    } else { reasons.push("outward source interval overflow".into()); }
                 }
-                CadCollisionSubject::GeneratedCaseBody { analysis, .. } => {
-                    let bound = analysis
-                        .as_ref()
-                        .and_then(|asset| asset.analysis_error_bound_mm)
-                        .filter(|value| value.is_finite() && *value >= 0.0);
-                    if bound.is_none() {
-                        reasons.push(format!(
-                            "{side} generated body has no certified analysisErrorBoundMm"
-                        ));
-                    }
-                    bound
-                }
+                _ => reasons.push("source or numerical query qualification is unknown".into()),
             }
-        };
-    let left_bound = subject_bound(left, "left", &mut reasons);
-    let right_bound = subject_bound(right, "right", &mut reasons);
-    let query_bound = query_numerical_error_bound_mm.filter(|v| v.is_finite() && *v >= 0.0);
-    if query_bound.is_none() {
-        reasons.push("Parry query has no certified numerical error bound".into());
+            if let MeshDistance::Unknown { reasons: why } = &candidate.mesh_distance { reasons.extend(why.iter().cloned()); }
+            for bound in &candidate.source_bounds {
+                if let WorldSourceBound::Unknown { reasons: why } = bound { reasons.extend(why.iter().cloned()); }
+            }
+            if let ContactRegion::Unknown { reasons: why } = &candidate.contact_region {
+                reasons.push("contact location is unqualified".into());
+                reasons.extend(why.iter().cloned());
+            }
+        }
+    } else { reasons.push("source/query qualification is unavailable".into()); }
+    if let (Some(requested), Some(budget)) = (requested_accuracy_mm, half_width)
+        && budget > requested {
+        reasons.push(format!("pair error budget {budget} mm exceeds requested accuracy {requested} mm"));
     }
-    if !reasons.is_empty() {
-        return CadCollisionResult {
-            observation: Some(observation),
-            left_provenance,
-            right_provenance,
-            assessment: CadCollisionAssessment::Unknown {
-                reasons,
-                refinement_requested: requested_accuracy_mm.is_some(),
-            },
-        };
-    }
-
-    let band_half_width = left_bound.unwrap() + right_bound.unwrap() + query_bound.unwrap();
-    if let Some(requested) = requested_accuracy_mm
-        && band_half_width > requested
-    {
-        return CadCollisionResult {
-            observation: Some(observation),
-            left_provenance,
-            right_provenance,
-            assessment: CadCollisionAssessment::Unknown {
-                reasons: vec![format!(
-                    "pair error budget {band_half_width} mm exceeds requested accuracy {requested} mm"
-                )],
-                refinement_requested: true,
-            },
-        };
-    }
-
-    let assessment = match &observation {
-        CadCollisionObservation::SurfaceSeparated {
-            surface_distance_mm,
-            ..
-        } => {
-            let lower_mm = (surface_distance_mm - band_half_width).max(0.0);
-            let upper_mm = surface_distance_mm + band_half_width;
+    let assessment = if reasons.is_empty() {
+        if let Some([lower_mm, upper_mm]) = source_interval_mm {
+            let containment_ruled_out = report.as_ref().is_some_and(|r| matches!(r.containment, Containment::RuledOut { .. }));
             let relation = if upper_mm < clearance_threshold_mm {
                 CadCollisionRelation::Violation
             } else if lower_mm >= clearance_threshold_mm && containment_ruled_out {
                 CadCollisionRelation::Clear
-            } else {
-                CadCollisionRelation::Uncertain
-            };
-            CadCollisionAssessment::SupportedBand {
-                lower_mm,
-                upper_mm,
-                relation,
-            }
-        }
-        CadCollisionObservation::SurfaceIntersecting { .. } => {
-            let lower_mm = 0.0;
-            let upper_mm = band_half_width;
-            let relation = if upper_mm < clearance_threshold_mm || band_half_width == 0.0 {
-                CadCollisionRelation::Violation
-            } else {
-                CadCollisionRelation::Uncertain
-            };
-            CadCollisionAssessment::SupportedBand {
-                lower_mm,
-                upper_mm,
-                relation,
-            }
-        }
-        CadCollisionObservation::Uncertain { .. } => unreachable!(),
-    };
-
-    CadCollisionResult {
-        observation: Some(observation),
-        left_provenance,
-        right_provenance,
-        assessment,
-    }
+            } else { CadCollisionRelation::Uncertain };
+            CadCollisionAssessment::SupportedBand { lower_mm, upper_mm, relation }
+        } else { CadCollisionAssessment::Unknown { reasons: vec!["source interval is unavailable".into()], refinement_requested: requested_accuracy_mm.is_some() } }
+    } else { CadCollisionAssessment::Unknown { reasons, refinement_requested: requested_accuracy_mm.is_some() } };
+    CadCollisionResult { observation: Some(observation), left_provenance, right_provenance, assessment, source_interval_mm, query_qualification: report }
 }
 
 pub fn assess_collision_observation(
@@ -1796,8 +1822,6 @@ pub fn assess_collision_observation(
     right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
     clearance_threshold_mm: f64,
     requested_accuracy_mm: Option<f64>,
-    query_numerical_error_bound_mm: Option<f64>,
-    containment_ruled_out: bool,
     observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
 ) -> CadCollisionResult {
     let left = CadCollisionSubject::VendorModel {
@@ -1817,8 +1841,7 @@ pub fn assess_collision_observation(
         &right,
         clearance_threshold_mm,
         requested_accuracy_mm,
-        query_numerical_error_bound_mm,
-        containment_ruled_out,
+        None,
         observation,
     )
 }
@@ -2573,8 +2596,6 @@ mod tests {
             &uncertified_right,
             0.2,
             None,
-            None,
-            true,
             obs.clone(),
         );
         assert!(result.left_provenance.is_some());
@@ -2594,8 +2615,6 @@ mod tests {
             &certified_right,
             0.2,
             None,
-            Some(0.001),
-            true,
             obs.clone(),
         );
         assert!(matches!(clear.assessment, CadCollisionAssessment::Unknown { .. }),
@@ -2606,16 +2625,11 @@ mod tests {
             &certified_right,
             0.2,
             None,
-            Some(0.001),
-            false,
             obs.clone(),
         );
         assert!(matches!(
             containment_unknown.assessment,
-            CadCollisionAssessment::SupportedBand {
-                relation: CadCollisionRelation::Uncertain,
-                ..
-            }
+            CadCollisionAssessment::Unknown { .. }
         ));
 
         let violation = assess_collision_observation(
@@ -2623,16 +2637,11 @@ mod tests {
             &certified_right,
             0.6,
             None,
-            Some(0.001),
-            true,
             obs.clone(),
         );
         assert!(matches!(
             violation.assessment,
-            CadCollisionAssessment::SupportedBand {
-                relation: CadCollisionRelation::Violation,
-                ..
-            }
+            CadCollisionAssessment::Unknown { .. }
         ));
 
         let tight = assess_collision_observation(
@@ -2640,8 +2649,6 @@ mod tests {
             &certified_right,
             0.2,
             Some(TIGHT_COLLISION_ACCURACY_MM),
-            Some(0.001),
-            true,
             obs,
         );
         assert!(matches!(
@@ -2700,7 +2707,6 @@ mod tests {
             0.1,
             Some(0.01),
             None,
-            false,
             CadCollisionObservation::SurfaceSeparated {
                 surface_distance_mm: 1.0,
                 closest_points: CadClosestPointsWitness {
@@ -2779,6 +2785,7 @@ mod tests {
             right_id: "module-B/U1".into(),
             right_label: "U1".into(),
             result: CadCollisionResult {
+                source_interval_mm: None, query_qualification: None,
                 observation: None,
                 left_provenance: Some(CadSubjectFaceProvenance::Vendor(face)),
                 right_provenance: Some(CadSubjectFaceProvenance::Vendor(other)),

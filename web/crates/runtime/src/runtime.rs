@@ -269,6 +269,12 @@ pub fn new_project_id() -> Result<String, String> {
     browser_uuid()
 }
 
+type GeneratedAnalysisResult = Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String>;
+struct PendingGeneratedAnalysis {
+    task: String,
+    waiters: Vec<futures_channel::oneshot::Sender<GeneratedAnalysisResult>>,
+}
+
 pub struct Runtime {
     session: RefCell<Session>,
     operation_outcomes: crate::operation_outcomes::OperationOutcomes,
@@ -317,6 +323,10 @@ pub struct Runtime {
     native_model_jobs: RefCell<BTreeSet<String>>,
     generated_analysis_cache:
         RefCell<BTreeMap<String, Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>>>,
+    generated_analysis_prepared: RefCell<BTreeMap<String, boardstudio_core::model::PreparedCaseAssemblyIR>>,
+    generated_analysis_pending: RefCell<BTreeMap<String, PendingGeneratedAnalysis>>,
+    collision_batch: Cell<u64>,
+    collision_generated_attempts: RefCell<BTreeSet<String>>,
     archive_export_options: ArchiveExportOptions,
     #[cfg(any(test, feature = "test-support"))]
     case_gesture_preview_test_executor: RefCell<Option<Rc<CaseGesturePreviewTestExecutor>>>,
@@ -398,6 +408,10 @@ impl Runtime {
             layout_model_batch_generation: Cell::new(0),
             native_model_jobs: RefCell::new(BTreeSet::new()),
             generated_analysis_cache: RefCell::new(BTreeMap::new()),
+            generated_analysis_prepared: RefCell::new(BTreeMap::new()),
+            generated_analysis_pending: RefCell::new(BTreeMap::new()),
+            collision_batch: Cell::new(0),
+            collision_generated_attempts: RefCell::new(BTreeSet::new()),
             archive_export_options: ArchiveExportOptions::default(),
             #[cfg(any(test, feature = "test-support"))]
             case_gesture_preview_test_executor: RefCell::new(None),
@@ -3397,6 +3411,8 @@ impl Runtime {
             Ok(operands) => operands,
             Err(reason) => {
                 return Ok(CadCollisionResult {
+                    source_interval_mm: None,
+                    query_qualification: None,
                     observation: None,
                     left_provenance: None,
                     right_provenance: None,
@@ -3443,6 +3459,7 @@ impl Runtime {
             step_import_options: None,
             generated_analysis_request: None,
             collision_query: Some(CadCollisionQuery {
+                qualification_limits: Default::default(),
                 left: left_operand,
                 right: right_operand,
                 clearance_threshold_mm,
@@ -3467,13 +3484,20 @@ impl Runtime {
         }
         let result =
             validate_reply(&request, reply, &identity).map_err(|error| format!("{error:?}"))?;
+        let query = request.collision_query.as_ref().ok_or("missing collision request")?;
+        let report = result.query_qualification.clone().ok_or("missing query qualification")?;
+        let expected = boardstudio_web_host::cad_qualification::expected_binding(query, &identity, &report.binding.worker_generation)?;
+        let validated = boardstudio_web_host::cad_qualification::validate_query_qualification(
+            report, &expected, &query.qualification_limits,
+            request.collision_meshes.as_ref().ok_or("missing collision buffers")?,
+            left.source_qualification().zip(right.source_qualification()).map(|(left, right)| [left, right]),
+        )?;
         Ok(assess_subject_collision_observation(
             left,
             right,
             clearance_threshold_mm,
             requested_accuracy_mm,
-            None,
-            false,
+            Some((&validated, &expected)),
             result
                 .collision
                 .ok_or("collision query returned no observation")?,
@@ -3481,6 +3505,8 @@ impl Runtime {
     }
 
     pub fn cancel_collision_checks(&self) {
+        self.collision_batch.set(self.collision_batch.get().checked_add(1).expect("collision batch exhausted"));
+        self.collision_generated_attempts.borrow_mut().clear();
         let jobs = self
             .native_model_jobs
             .borrow()
