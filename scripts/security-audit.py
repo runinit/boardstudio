@@ -18,6 +18,12 @@ UPSTREAM_REVISION = "ca1e234d333d184894d1838cd67451a871f33ba1"
 UPSTREAM_ARCHIVE_SHA256 = "91e7fb669c7eaa07328128cc7168bb8a8ffc03f01b872cc8a50793e5b5068f30"
 REGISTRY_ARCHIVE_SHA256 = "1a98d30140e3296250832bbaaff83b27dcd6fa3cc70fb6f1f3e5c9c0023b5317"
 PATCHED_ADVISORIES = ("RUSTSEC-2026-0196", "RUSTSEC-2026-0197")
+CGMATH_MANIFESTS = (
+    "Cargo.toml",
+    "cad/wasm/Cargo.toml",
+    "cad/monstertruck/Cargo.toml",
+    "renderer/vendor/cgmath-next-0.18.1/Cargo.toml",
+)
 
 
 def verify_vendor():
@@ -45,7 +51,7 @@ def verify_vendor():
     if (upstream_manifest["package"]["name"] != UPSTREAM_PACKAGE
             or upstream_manifest["package"]["version"] != provenance["upstreamVersion"]):
         raise ValueError("Vendored source is not the cgmath-next package")
-    for manifest in ("Cargo.toml", "cad/wasm/Cargo.toml"):
+    for manifest in CGMATH_MANIFESTS:
         metadata = json.loads(subprocess.check_output([
             "cargo", "metadata", "--locked", "--format-version", "1",
             "--manifest-path", manifest,
@@ -82,20 +88,17 @@ def registry_lockfile(source, provenance):
 def main():
     provenance = verify_vendor()
     failed = False
-    locks = ["Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"]
-    patched_locks = {"Cargo.lock", "cad/wasm/Cargo.lock", "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"}
-    for lock in locks:
+    for manifest in CGMATH_MANIFESTS:
+        lock = Path(manifest).with_name("Cargo.lock")
         print(f"\nAuditing {lock}", flush=True)
         source = (ROOT / lock).read_text()
-        patched = lock in patched_locks
         with tempfile.NamedTemporaryFile(mode="w", suffix=".lock") as audit_input:
-            audit_input.write(registry_lockfile(source, provenance) if patched else source)
+            audit_input.write(registry_lockfile(source, provenance))
             audit_input.flush()
             command = ["cargo", "audit", "--file", audit_input.name, "--deny", "unsound"]
-            if patched:
-                print(f"Verified cgmath-next source; ignoring its renamed upstream advisories {', '.join(PATCHED_ADVISORIES)}.", flush=True)
-                for advisory in PATCHED_ADVISORIES:
-                    command.extend(["--ignore", advisory])
+            print(f"Verified cgmath-next source; ignoring its renamed upstream advisories {', '.join(PATCHED_ADVISORIES)}.", flush=True)
+            for advisory in PATCHED_ADVISORIES:
+                command.extend(["--ignore", advisory])
             failed |= subprocess.run(command, cwd=ROOT).returncode != 0
     raise SystemExit(1 if failed else 0)
 

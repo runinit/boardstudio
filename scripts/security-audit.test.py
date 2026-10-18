@@ -37,6 +37,52 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
             audit.registry_lockfile('[[package]]\nname = "cgmath"\nversion = "0.19.0"',
                                     {"version": "0.18.0"})
 
+    def test_standalone_cad_registry_resolution_is_rejected(self):
+        def metadata(command, **kwargs):
+            manifest = audit.VENDOR / "Cargo.toml"
+            if command[-1] == "cad/monstertruck/Cargo.toml":
+                manifest = audit.ROOT / "registry/cgmath/Cargo.toml"
+            return json.dumps({"packages": [{
+                "name": "cgmath",
+                "version": "0.18.0",
+                "manifest_path": str(manifest),
+                "targets": [{"name": "cgmath", "kind": ["lib"]}],
+            }]}).encode()
+
+        with patch.object(audit.subprocess, "check_output", side_effect=metadata):
+            with self.assertRaisesRegex(
+                    ValueError, "cad/monstertruck/Cargo.toml must resolve exclusively"):
+                audit.verify_vendor()
+
+    def test_standalone_cad_audit_failure_is_propagated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for lock in ("Cargo.lock", "cad/wasm/Cargo.lock", "cad/monstertruck/Cargo.lock",
+                         "renderer/vendor/cgmath-next-0.18.1/Cargo.lock"):
+                path = root / lock
+                path.parent.mkdir(parents=True, exist_ok=True)
+                name = "standalone-cad" if lock == "cad/monstertruck/Cargo.lock" else "other"
+                path.write_text(f'[[package]]\nname = "{name}"\nversion = "1.0.0"\n')
+            metadata = {"packages": [{
+                "name": "cgmath",
+                "version": "0.18.0",
+                "manifest_path": str(audit.VENDOR / "Cargo.toml"),
+                "targets": [{"name": "cgmath", "kind": ["lib"]}],
+            }]}
+
+            def cargo_audit(command, **kwargs):
+                source = Path(command[command.index("--file") + 1]).read_text()
+                packages = tomllib.loads(source)["package"]
+                failed = any(package["name"] == "standalone-cad" for package in packages)
+                return audit.subprocess.CompletedProcess(command, int(failed))
+
+            with patch.object(audit, "ROOT", root), \
+                    patch.object(audit.subprocess, "check_output", return_value=json.dumps(metadata).encode()), \
+                    patch.object(audit.subprocess, "run", side_effect=cargo_audit):
+                with self.assertRaises(SystemExit) as result:
+                    audit.main()
+                self.assertEqual(result.exception.code, 1)
+
     def test_tampered_vendor_and_wrong_resolution_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

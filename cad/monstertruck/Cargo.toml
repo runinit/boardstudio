@@ -28,6 +28,7 @@ serde_json = { version = "=1.0.154", features = ["float_roundtrip"] }
 wasm-bindgen-test = "=0.3.79"
 
 [patch.crates-io]
+cgmath = { path = "../../renderer/vendor/cgmath-next-0.18.1" }
 monstertruck-core = { path = "../monstertruck-qualification/vendor/monstertruck-core" }
 monstertruck-derive = { path = "../monstertruck-qualification/vendor/monstertruck-derive" }
 monstertruck-geometry = { path = "../monstertruck-qualification/vendor/monstertruck-geometry" }
