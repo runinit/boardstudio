@@ -60,6 +60,8 @@ impl ParameterDivision1D for SurfaceCurve3D {
     }
 }
 
+use crate::step::load::step_types::FiniteCurveTrace;
+
 impl SurfaceCurve3D {
     /// Trims the selected master to the vertices. In preview mode, when that fails, the
     /// other representations of the same STEP `surface_curve` (the 3D curve, then each
@@ -72,7 +74,19 @@ impl SurfaceCurve3D {
         allowance: f64,
         preview: bool,
     ) -> Option<Self> {
-        let selected = self.try_trim_selected_master(front, back, allowance, preview);
+        self.try_trim_to_points_with_repair(front, back, allowance, preview, None)
+    }
+
+    pub(in crate::step::load) fn try_trim_to_points_with_repair(
+        &self, front: Point3, back: Point3, allowance: f64, preview: bool,
+        mut trace: Option<&mut FiniteCurveTrace>,
+    ) -> Option<Self> {
+        // Only the unchanged chosen master belongs to this qualified class.
+        let mark = trace.as_ref().map(|trace| trace.surface_mark());
+        let selected = self.try_trim_selected_master(front, back, allowance, preview, trace.as_deref_mut());
+        if selected.is_none() && let (Some(trace), Some(mark)) = (trace, mark) {
+            trace.surface_rollback(mark);
+        }
         if selected.is_some() || !preview {
             return selected;
         }
@@ -91,7 +105,7 @@ impl SurfaceCurve3D {
                 representation,
             )?;
             alternate.active_trim = self.active_trim;
-            alternate.try_trim_selected_master(front, back, allowance, preview)
+            alternate.try_trim_selected_master(front, back, allowance, preview, None)
         })
     }
 
@@ -101,7 +115,9 @@ impl SurfaceCurve3D {
         back: Point3,
         allowance: f64,
         preview: bool,
+        trace: Option<&mut FiniteCurveTrace>,
     ) -> Option<Self> {
+        let mut trace = trace.filter(|_| self.planar_spline_master());
         if !allowance.is_finite() || allowance <= 0.0 {
             return None;
         }
@@ -143,7 +159,7 @@ impl SurfaceCurve3D {
                 v = u + period;
             } else if let Some((s, e)) = domain.filter(|&(s, e)| matches(s, front) && matches(e, back)) {
                 // The finite master itself returns to its start within the allowance.
-                return self.clone().try_with_active_trim(Some((s, e)));
+                return self.install_trim(s, e, trace);
             } else {
                 return None;
             }
@@ -159,8 +175,8 @@ impl SurfaceCurve3D {
                         // Otherwise the interval crosses the seam of a geometrically closed
                         // master; a contiguous copy of the master is trimmed instead.
                         None => {
-                            let (extended, period) = self.preview_seam_extended(allowance)?;
-                            return extended.trim_checked(u, v + period, back, allowance);
+                            let (extended, period) = self.preview_seam_extended(allowance, trace.as_deref_mut())?;
+                            return extended.trim_checked(u, v + period, back, allowance, trace);
                         }
                     },
                 },
@@ -169,13 +185,29 @@ impl SurfaceCurve3D {
         if v <= u || !matches(v, back) {
             return None;
         }
-        self.clone().try_with_active_trim(Some((u, v)))
+        self.install_trim(u, v, trace)
+    }
+
+    pub(in crate::step::load) fn planar_spline_master(&self) -> bool {
+        self.master_parameter_curve().is_some_and(|master| {
+            matches!(master.curve().as_ref(), Curve2D::BsplineCurve(_) | Curve2D::NurbsCurve(_))
+                && matches!(master.surface().as_ref(), Surface::ElementarySurface(ElementarySurface::Plane(_)))
+        })
+    }
+
+    fn install_trim(&self, u: f64, v: f64, mut trace: Option<&mut FiniteCurveTrace>) -> Option<Self> {
+        // Selection remains Unsupported; this captures the actual finite view
+        // immediately before installation, not an inferred earlier source trim.
+        let before = trace.as_deref_mut().and_then(|trace| trace.surface_begin(self));
+        let after = self.clone().try_with_active_trim(Some((u, v)))?;
+        if let Some(trace) = trace { trace.surface_finish(before, (u, v), &after); }
+        Some(after)
     }
 
     /// Trims to `(u, v)` when the point at `v` lies within `allowance` of `back`.
-    fn trim_checked(self, u: f64, v: f64, back: Point3, allowance: f64) -> Option<Self> {
+    fn trim_checked(self, u: f64, v: f64, back: Point3, allowance: f64, trace: Option<&mut FiniteCurveTrace>) -> Option<Self> {
         (v > u && self.evaluate(v).distance(back) <= allowance)
-            .then(|| self.try_with_active_trim(Some((u, v))))
+            .then(|| self.install_trim(u, v, trace))
             .flatten()
     }
 
@@ -186,7 +218,7 @@ impl SurfaceCurve3D {
     /// every point is still the authored curve (`C(t)` for `t > e` is `C(t - (e - s))`).
     /// Returns that copy and the span. No control point is moved: the join must be
     /// within the spline concatenation tolerance, otherwise there is no copy.
-    fn preview_seam_extended(&self, allowance: f64) -> Option<(Self, f64)> {
+    fn preview_seam_extended(&self, allowance: f64, mut trace: Option<&mut FiniteCurveTrace>) -> Option<(Self, f64)> {
         let (s, e) = self.master_scalar_domain().ok()??;
         let span = e - s;
         if !(span.is_finite() && span > 0.0)
@@ -194,19 +226,28 @@ impl SurfaceCurve3D {
         {
             return None;
         }
+        let before = trace.as_deref_mut().and_then(|trace| trace.surface_begin(self));
+        let mut shifted_piece = None;
         macro_rules! extend {
             ($curve:expr) => {{
                 let mut shifted = $curve.clone();
                 shifted.knot_translate(span);
                 $curve.try_concat(&shifted).ok()?
             }};
+            ($curve:expr, $wrap:expr) => {{
+                let mut shifted = $curve.clone();
+                shifted.knot_translate(span);
+                let joined = $curve.try_concat(&shifted).ok()?;
+                if trace.is_some() { shifted_piece = Some($wrap(shifted)); }
+                joined
+            }};
         }
         let mut extended = self.clone();
         match self.master_parameter_curve() {
             Some(master) => {
                 let curve = match master.curve().as_ref() {
-                    Curve2D::NurbsCurve(c) => Curve2D::NurbsCurve(extend!(c)),
-                    Curve2D::BsplineCurve(c) => Curve2D::BsplineCurve(extend!(c)),
+                    Curve2D::NurbsCurve(c) => Curve2D::NurbsCurve(extend!(c, Curve2D::NurbsCurve)),
+                    Curve2D::BsplineCurve(c) => Curve2D::BsplineCurve(extend!(c, Curve2D::BsplineCurve)),
                     _ => return None,
                 };
                 let slot = match self.master_representation() {
@@ -228,6 +269,7 @@ impl SurfaceCurve3D {
             }
         }
         extended.active_trim = None;
+        if let Some(trace) = trace { trace.surface_seam(before, (s,e), &extended, shifted_piece); }
         Some((extended, span))
     }
 

@@ -370,6 +370,7 @@ impl Table {
                     let mut previous = HashMap::<u64, (&Curve3D, (f64, f64))>::new();
                     let mut valid = ids.is_some();
                     for (id, change) in &captured_curves {
+                        valid &= change.surface_stage_valid();
                         if change.stage == "native-line-attachment-projection-v1" {
                             valid &= source_table
                                 .and_then(|table| {
@@ -386,7 +387,8 @@ impl Table {
                         if let Some((curve, domain)) =
                             previous.insert(*id, (&change.after, change.after_domain))
                         {
-                            valid &= *curve == change.before && domain == change.before_domain;
+                            valid &= *curve == change.before
+                                && (domain == change.before_domain || change.surface_restricts(domain));
                         }
                     }
                     for (id, (curve, _)) in previous {

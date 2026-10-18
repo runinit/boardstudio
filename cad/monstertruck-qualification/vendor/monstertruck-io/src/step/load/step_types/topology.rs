@@ -6,6 +6,8 @@
 use super::*;
 
 mod bounded_trim;
+mod repair_storage;
+mod seam_capture;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::step::load) struct FiniteCurveRepair {
@@ -15,6 +17,7 @@ pub(in crate::step::load) struct FiniteCurveRepair {
     pub(in crate::step::load) after: Curve3D,
     pub(in crate::step::load) after_domain: (f64, f64),
     pub(in crate::step::load) native_line: Option<NativeLineProjection>,
+    seam: Option<seam_capture::SeamCopy>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,16 +113,12 @@ impl FiniteCurveTrace {
             after: after.clone(),
             after_domain,
             native_line: None,
+            seam: None,
         });
     }
 }
 pub(in crate::step::load) fn curve_storage(curve: &Curve3D) -> Option<usize> {
-    match curve {
-        Curve3D::Line(_) => Some(2 * std::mem::size_of::<Curve3D>()),
-        Curve3D::BsplineCurve(c) => spline_storage(c),
-        Curve3D::NurbsCurve(c) => spline_storage(c.non_rationalized()),
-        _ => None,
-    }
+    repair_storage::curve(curve)
 }
 fn spline_storage<P>(curve: &BsplineCurve<P>) -> Option<usize> {
     curve
@@ -615,11 +614,12 @@ impl EdgeCurve {
                 else {
                     return Err("declared STEP surface curve did not retain its master".into());
                 };
-                Curve3D::SurfaceCurve(
-                    source
-                        .try_trim_to_points(p, q, bound.unwrap_or(TOLERANCE), preview)
-                        .ok_or("edge endpoints do not resolve a finite selected-master interval")?,
-                )
+                let trimmed = if repair.is_some() {
+                    source.try_trim_to_points_with_repair(p, q, bound.unwrap_or(TOLERANCE), preview, repair.as_deref_mut())
+                } else {
+                    source.try_trim_to_points(p, q, bound.unwrap_or(TOLERANCE), preview)
+                };
+                Curve3D::SurfaceCurve(trimmed.ok_or("edge endpoints do not resolve a finite selected-master interval")?)
             }
         };
         if !same_sense {
@@ -627,7 +627,17 @@ impl EdgeCurve {
                 .as_deref_mut()
                 .filter(|_| matches!(curve, Curve3D::Line(_)) && bound.is_some())
                 .and_then(|capture| capture.begin(&curve));
+            let surface_before = repair.as_deref_mut().and_then(|trace| match &curve {
+                Curve3D::SurfaceCurve(c) if c.planar_spline_master() && !trace.changes.is_empty() => {
+                    Some((trace.surface_begin(c), c.range_tuple()))
+                },
+                _ => None,
+            });
             curve.invert();
+            if let (Some(trace), Some((before, domain)), Curve3D::SurfaceCurve(after)) =
+                (repair.as_deref_mut(), surface_before, &curve) {
+                trace.surface_inversion(before, domain, after);
+            }
             if let Some(capture) = repair {
                 capture.finish(
                     "native-sense-inversion-v1",
