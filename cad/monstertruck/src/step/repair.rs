@@ -39,6 +39,117 @@ struct NativeLineSource {
     origin: Point3,
     direction: Vec<f64>,
     magnitude: f64,
+    input: Option<LineInput>,
+}
+
+#[derive(PartialEq)]
+struct LineInput {
+    ids: [u64; 8],
+    coordinates: [[f64; 3]; 4],
+    magnitude: f64,
+    same_sense: bool,
+}
+impl LineInput {
+    fn read(table: &Table, id: u64) -> Option<Self> {
+        let edge = table.edge_curve.get(&id)?;
+        let curve_id = entity_id(&edge.edge_geometry)?;
+        let line = table.line.get(&curve_id)?;
+        let origin_id = entity_id(&line.pnt)?;
+        let vector_id = entity_id(&line.dir)?;
+        let vector = table.vector.get(&vector_id)?;
+        let direction_id = entity_id(&vector.orientation)?;
+        let vertex_ids = [entity_id(&edge.edge_start)?, entity_id(&edge.edge_end)?];
+        let point_ids =
+            vertex_ids.map(|id| entity_id(&table.vertex_point.get(&id)?.vertex_geometry));
+        let point_ids = [point_ids[0]?, point_ids[1]?];
+        Some(Self {
+            ids: [
+                curve_id,
+                origin_id,
+                vector_id,
+                direction_id,
+                vertex_ids[0],
+                vertex_ids[1],
+                point_ids[0],
+                point_ids[1],
+            ],
+            coordinates: [
+                table
+                    .cartesian_point
+                    .get(&origin_id)?
+                    .coordinates
+                    .as_slice()
+                    .try_into()
+                    .ok()?,
+                table
+                    .direction
+                    .get(&direction_id)?
+                    .direction_ratios
+                    .as_slice()
+                    .try_into()
+                    .ok()?,
+                table
+                    .cartesian_point
+                    .get(&point_ids[0])?
+                    .coordinates
+                    .as_slice()
+                    .try_into()
+                    .ok()?,
+                table
+                    .cartesian_point
+                    .get(&point_ids[1])?
+                    .coordinates
+                    .as_slice()
+                    .try_into()
+                    .ok()?,
+            ],
+            magnitude: vector.magnitude,
+            same_sense: edge.same_sense,
+        })
+    }
+
+    fn projected_branch(&self, source: &SourceBoundStepShell, index: usize, id: u64) -> bool {
+        use monstertruck_io::step::load::report::ConnectivityIncidence;
+        let Some(edge) = source.shell().edges.get(index) else {
+            return false;
+        };
+        if !matches!(edge.curve, Curve3D::Line(_)) {
+            return false;
+        }
+        let endpoints = [
+            (false, edge.vertices.0, self.ids[4], self.coordinates[2]),
+            (true, edge.vertices.1, self.ids[5], self.coordinates[3]),
+        ];
+        let mut attachments = source.connectivity_attachments().iter().filter(|a| {
+            a.incidence() == ConnectivityIncidence::VertexOnEdge && a.edge_index() == index
+        });
+        let (Some(a), Some(b), None) = (attachments.next(), attachments.next(), attachments.next())
+        else {
+            return false;
+        };
+        endpoints
+            .into_iter()
+            .all(|(back, vertex_index, vertex_id, point)| {
+                source.shell().vertices.get(vertex_index)
+                    == Some(Point3::new(point[0], point[1], point[2]))
+                    && [a, b].into_iter().any(|a| {
+                        a.edge_id() == id
+                            && a.vertex_id() == vertex_id
+                            && a.vertex_index() == vertex_index
+                            && a.is_back_endpoint() == back
+                            && a.face_index().is_none()
+                            && a.face_id().is_none()
+                            && a.converted_curve_interval() == edge.curve.range_tuple()
+                    })
+            })
+    }
+}
+
+pub(super) struct ProjectionFrame {
+    pub occurrence: usize,
+    pub factor: f64,
+    pub placement: Matrix4,
+    pub allowance: f64,
 }
 
 /// Captured before checked conversion, from a table bound to the original AST.
@@ -123,6 +234,7 @@ impl OriginalGeometry {
                     origin: Point3::from(&line.pnt),
                     direction: line.dir.orientation.direction_ratios.clone(),
                     magnitude: line.dir.magnitude,
+                    input: LineInput::read(table, id),
                 },
             );
         }
@@ -136,6 +248,50 @@ impl OriginalGeometry {
             boundaries,
             finite_lines: finite_line::capture(table, bytes),
         }
+    }
+
+    // The result is created HERE from the same immutable input table: callers
+    // cannot attach this refusal guard to an alternate caller-owned output.
+    pub(super) fn convert_with_projected_refusal(
+        &self,
+        table: &Table,
+        original: &StepRepairSource,
+        selection: (u64, Option<u64>),
+        frames: &[ProjectionFrame],
+    ) -> Result<StepRepairConversion, String> {
+        let converted = table
+            .to_source_bound_solid_with_repair_checked(selection.0, selection.1, original)
+            .map_err(|error| error.to_string())?;
+        for shell in converted.source().shells() {
+            let Some(ids) = self.bind_edges(shell) else {
+                continue;
+            };
+            for (index, id) in ids.into_iter().enumerate() {
+                let (Some(parsed), Some(raw)) = (self.lines.get(&id), self.finite_lines.get(&id))
+                else {
+                    continue;
+                };
+                let Some(input) = &parsed.input else {
+                    continue;
+                };
+                if LineInput::read(table, id).as_ref() != Some(input)
+                    || !input.projected_branch(shell, index, id)
+                {
+                    continue;
+                }
+                for frame in frames {
+                    if raw.projected_exceeds(frame.factor, frame.placement, frame.allowance)
+                        == Ok(true)
+                    {
+                        return Err(format!(
+                            "finite LINE repair edge #{id} occurrence {}: exact projected attachment lower bound exceeds selected {} mm",
+                            frame.occurrence, frame.allowance
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(converted)
     }
 
     fn bind_edges(&self, source: &SourceBoundStepShell) -> Option<Vec<u64>> {
@@ -202,12 +358,13 @@ impl Ledger {
     pub(super) fn conversion(
         &mut self,
         original: &OriginalGeometry,
-        source: &SourceBoundStepShell,
+        owner: &StepRepairConversion,
         factor: f64,
         placement: Matrix4,
         occurrence: usize,
         shell: usize,
     ) {
+        let source = &owner.source().shells()[shell];
         let ids = original.bind_edges(source);
         for (index, edge) in source.shell().edges.iter().enumerate() {
             let id = ids
@@ -239,6 +396,34 @@ impl Ledger {
                             .lines
                             .get(&id)
                             .ok_or("original parsed LINE attachments are unavailable")?;
+                        if parsed
+                            .input
+                            .as_ref()
+                            .is_some_and(|input| input.projected_branch(source, index, id))
+                        {
+                            let operations = owner
+                                .operations(shell)
+                                .filter(|op| {
+                                    op.stage() == "native-line-attachment-projection-v1"
+                                        && op.source_ids().2 == Some(id)
+                                })
+                                .collect::<Vec<_>>();
+                            let [operation] = operations.as_slice() else {
+                                return Err(
+                                    "projected attachment operation is missing or ambiguous",
+                                );
+                            };
+                            return raw.projected_movement(
+                                line,
+                                parsed.points,
+                                operation
+                                    .curve_change()
+                                    .ok_or("projected attachment domain capture is incomplete")?,
+                                factor,
+                                placement,
+                                (occurrence, shell, id),
+                            );
+                        }
                         raw.movement(
                             line,
                             parsed.points,
@@ -266,13 +451,28 @@ impl Ledger {
     ) {
         for operation in owner.operations(shell) {
             let numerical = operation.stage() == "numeric-conversion-v1";
+            let attachment = operation.stage() == "native-line-attachment-projection-v1";
             let bound = operation.curve_change().map_or_else(
                 || {
                     operation
                         .bound()
                         .map_err(|_| "owner stage remains unsupported")
                 },
-                |change| finite_curve::bound(change, factor, placement),
+                |change| {
+                    if attachment {
+                        // Accounted exactly ONCE by the raw-decimal finite ledger.
+                        Err("attachment pair is not original native-curve authority")
+                    } else if operation.stage() == "native-sense-inversion-v1"
+                        && let (Curve3D::Line(before), Curve3D::Line(after)) = change.curves()
+                        && change.domains() == ((0., 1.), (1., 0.))
+                        && before.0 == after.1
+                        && before.1 == after.0
+                    {
+                        Ok(0.)
+                    } else {
+                        finite_curve::bound(change, factor, placement)
+                    }
+                },
             );
             self.0.push(Operation {
                 occurrence,
@@ -280,7 +480,7 @@ impl Ledger {
                 source_edge: operation.source_ids().2,
                 stage: operation.stage(),
                 bound_mm: bound,
-                diagnostic_only: numerical,
+                diagnostic_only: numerical || attachment,
             });
         }
         // Even an empty/capped report must terminate in explicit incomplete coverage.
@@ -363,8 +563,16 @@ impl Ledger {
         for movement in self.1.iter().filter_map(|entry| entry.as_ref().ok()) {
             if movement.occurrence == occurrence && !movement.within(allowance) {
                 return Err(format!(
-                    "finite LINE repair edge #{} occurrence {} movement bound {} mm exceeds repair budget {} mm",
-                    movement.edge, occurrence, movement.bound_mm, allowance,
+                    "finite LINE repair edge #{} occurrence {} movement bound {} mm ({}) exceeds repair budget {} mm",
+                    movement.edge,
+                    occurrence,
+                    movement.bound_mm,
+                    if movement.projected_attachment {
+                        "attachment projection"
+                    } else {
+                        "native support substitution"
+                    },
+                    allowance,
                 ));
             }
         }
@@ -754,6 +962,7 @@ mod tests {
                 "sourceFaces":model.source_faces().len(),"faceOccurrences":model.face_occurrences().len(),
                 "lineOccurrences":model.line_presentation().occurrences().len(),
                 "retainedOriginalFiniteLineAuthorities":original.finite_lines.len(),
+                "projectedAttachmentOperations":movements.iter().filter(|op|op.projected_attachment).count(),
                 "finiteLineUnsupportedReasons":unsupported,
                 "finiteLineOperations":movements.len(),"nonzeroFiniteLineOperations":movements.iter().filter(|op| op.bound_mm>0.0).count(),
                 "unknownFiniteLineOperations":model._repair_ledger.1.iter().filter(|op|op.is_err()).count(),
@@ -774,12 +983,21 @@ mod tests {
         let model = import_step(text.as_bytes().to_vec()).unwrap();
         let source = model.solids[&101].source[&104].source();
         let shell = &source.shells()[0];
-        let attachment = shell.connectivity_attachments().iter().find(|a| a.edge_id() == 23).unwrap();
+        let attachment = shell
+            .connectivity_attachments()
+            .iter()
+            .find(|a| a.edge_id() == 23)
+            .unwrap();
         let Curve3D::Line(line) = &shell.shell().edges[attachment.edge_index()].curve else {
             panic!("actual native LINE route");
         };
         assert_eq!([line.0.y, line.1.y], [0.015625; 2]);
-        let movement = model._repair_ledger.1.iter().filter_map(|op| op.as_ref().ok()).find(|op| op.edge == 23)
+        let movement = model
+            ._repair_ledger
+            .1
+            .iter()
+            .filter_map(|op| op.as_ref().ok())
+            .find(|op| op.edge == 23)
             .expect("actual same-call finite projected attachment must be accounted");
         assert_eq!(movement.bound_mm, 0.015625);
         assert_eq!(model.original_bytes(), text.as_bytes());
@@ -788,13 +1006,9 @@ mod tests {
     }
 
     fn projected_line_tetra(offset: &str) -> String {
-        let source = include_str!("../../tests/fixtures/repair-finite-domain.step");
-        let old = "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));";
-        assert_eq!(source.matches(old).count(), 1);
-        let source = source.replace(old,
-            "#105=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.000001),#102,'distance_accuracy_value','');#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#105))REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));");
-        assert_eq!(source.matches("0.03125").count(), 1);
-        source.replace("0.03125", offset)
+        let source = include_str!("../../tests/fixtures/repair-projected-line.step");
+        assert_eq!(source.matches("0.015625").count(), 1);
+        source.replace("0.015625", offset)
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
@@ -802,9 +1016,245 @@ mod tests {
     fn projected_native_line_exact_default_boundary_refuses_over_budget() {
         let text = projected_line_tetra("0.020000000000000001");
         let result = import_step(text.into_bytes());
-        assert!(result.is_err(), "actual projected attachment above exact default .02 must refuse");
+        assert!(
+            result.is_err(),
+            "actual projected attachment above exact default .02 must refuse"
+        );
         let error = result.err().unwrap();
         assert!(error.contains("finite LINE repair"), "{error}");
+    }
+
+    #[test]
+    fn projected_native_line_budget_numeric_decomposition_and_sense_are_separate() {
+        for reversed in [false, true] {
+            let mut text = projected_line_tetra("0.020000000000000001");
+            if reversed {
+                for (a, b) in [
+                    (
+                        "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
+                        "#23=EDGE_CURVE('',#12,#11,#22,.F.);",
+                    ),
+                    (
+                        "#52=ORIENTED_EDGE('',*,*,#23,.F.);",
+                        "#52=ORIENTED_EDGE('',*,*,#23,.T.);",
+                    ),
+                    (
+                        "#60=ORIENTED_EDGE('',*,*,#23,.T.);",
+                        "#60=ORIENTED_EDGE('',*,*,#23,.F.);",
+                    ),
+                ] {
+                    assert_eq!(text.matches(a).count(), 1);
+                    text = text.replace(a, b);
+                }
+            }
+            let model = import_step_with_options(
+                text.as_bytes().to_vec(),
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(0.02_f64.next_up()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let movements = model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().ok())
+                .filter(|op| op.edge == 23)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                movements.len(),
+                1,
+                "one actual attachment correction, not both views"
+            );
+            let movement = movements[0];
+            assert!(movement.projected_attachment);
+            assert_eq!(movement.bound_mm, 0.02_f64.next_up());
+            assert!(movement.numeric_bound_mm > 0. && movement.numeric_bound_mm < 1e-16);
+            assert!(!movement.within(0.02));
+            assert!(movement.within(0.02_f64.next_up()));
+            assert_eq!(model.original_bytes(), text.as_bytes());
+        }
+        let text = projected_line_tetra("0.03125");
+        let model = import_step_with_options(
+            text.into_bytes(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(0.03125),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let movement = model
+            ._repair_ledger
+            .1
+            .iter()
+            .filter_map(|op| op.as_ref().ok())
+            .find(|op| op.edge == 23)
+            .unwrap();
+        assert_eq!(
+            (movement.bound_mm, movement.numeric_bound_mm),
+            (0.03125, 0.)
+        );
+        assert!(movement.within(0.03125));
+        assert!(movement.within(0.03125_f64.next_up()));
+        assert!(!movement.within(0.03125_f64.next_down()));
+    }
+
+    #[test]
+    fn projected_native_line_caps_and_unrelated_authority_cannot_erase_refusal() {
+        let unused = "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);";
+        for padded in [false, true] {
+            for before in [false, true] {
+                let mutate = |source: String| {
+                    let mut text = if before {
+                        source.replace("DATA;", &format!("DATA;{unused}"))
+                    } else {
+                        source.replace(
+                            "ENDSEC;END-ISO-10303-21;",
+                            &format!("{unused}ENDSEC;END-ISO-10303-21;"),
+                        )
+                    };
+                    if padded {
+                        text.push_str(&" ".repeat(300_000));
+                    }
+                    text
+                };
+                let text = mutate(projected_line_tetra("0.020000000000000001"));
+                let error = import_step(text.into_bytes())
+                    .err()
+                    .expect("known exact over-budget projection refuses even if trace capped");
+                assert!(error.contains("finite LINE repair edge #23"), "{error}");
+                let text = mutate(projected_line_tetra("0.015625"));
+                let model = import_step(text.as_bytes().to_vec()).unwrap();
+                assert_eq!(model.original_bytes(), text.as_bytes());
+                assert_eq!(model.face_occurrences().len(), 4);
+                assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+                let owner = &model.solids[&101].source[&104];
+                if padded {
+                    assert!(
+                        owner
+                            .complete_bound(0)
+                            .unwrap_err()
+                            .contains("resource cap")
+                    );
+                    assert!(owner.operations(0).all(|op| op.curve_change().is_none()));
+                    assert!(
+                        model
+                            ._repair_ledger
+                            .1
+                            .iter()
+                            .filter_map(|op| op.as_ref().ok())
+                            .all(|op| op.edge != 23)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn projected_native_line_occurrences_apply_metre_units_and_rotation_once() {
+        let assembly = include_str!("../../tests/fixtures/two-occurrences-mm.step");
+        let tail = &assembly
+            [assembly.find("#200=").unwrap()..assembly.find("ENDSEC;END-ISO-10303-21;").unwrap()];
+        for metre in [false, true] {
+            let text = projected_line_tetra(if metre { "0.000015625" } else { "0.015625" });
+            let mut text = text.replace(
+                "ENDSEC;END-ISO-10303-21;",
+                &format!("{tail}ENDSEC;END-ISO-10303-21;"),
+            );
+            if metre {
+                text = text.replace("SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
+            }
+            let model = import_step(text.as_bytes().to_vec()).unwrap();
+            let movements = model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().ok())
+                .filter(|op| op.edge == 23)
+                .collect::<Vec<_>>();
+            assert_eq!(movements.len(), 2);
+            assert!(movements.iter().all(|op| op.projected_attachment
+                && op.bound_mm == 0.015625
+                && op.within(0.015625)));
+            assert_ne!(movements[0].occurrence, movements[1].occurrence);
+            assert_eq!(model.original_bytes(), text.as_bytes());
+            assert_eq!(model.face_occurrences().len(), 8);
+            let equality = import_step_with_options(
+                text.as_bytes().to_vec(),
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(0.015625),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(equality.face_occurrences().len(), 8);
+            let error = import_step_with_options(
+                text.into_bytes(),
+                StepImportOptions {
+                    preview_repair_budget_mm: Some(0.015625_f64.next_down()),
+                    ..Default::default()
+                },
+            )
+            .err()
+            .unwrap();
+            assert!(
+                error.contains("finite LINE repair")
+                    || error
+                        .contains("EDGE_CURVE attachment exceeds its source connectivity bound"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn projected_native_line_refusal_does_not_borrow_mismatched_input_or_attachments() {
+        let original = projected_line_tetra("0.020000000000000001");
+        let original_table = Table::from_step_bytes(original.as_bytes()).unwrap();
+        let geometry = OriginalGeometry::capture(&original_table, original.as_bytes());
+        let authority = StepRepairSource::from_step_bytes(original.as_bytes()).unwrap();
+        let changed = projected_line_tetra("0.015625");
+        let mut table = Table::from_step_bytes(changed.as_bytes()).unwrap();
+        table.set_preview_floor_mm(0.02);
+        let frames = [ProjectionFrame {
+            occurrence: 0,
+            factor: 1.,
+            placement: Matrix4::identity(),
+            allowance: 0.02,
+        }];
+        let result = geometry
+            .convert_with_projected_refusal(&table, &authority, (101, Some(104)), &frames)
+            .unwrap();
+        assert!(result.complete_bound(0).unwrap_err().contains("mismatch"));
+        assert!(result.operations(0).all(|op| op.curve_change().is_none()));
+        let shell = &result.source().shells()[0];
+        let input = geometry.lines[&23].input.as_ref().unwrap();
+        let attachment = shell
+            .connectivity_attachments()
+            .iter()
+            .find(|a| a.edge_id() == 23)
+            .unwrap();
+        assert!(input.projected_branch(shell, attachment.edge_index(), 23));
+        assert!(!input.projected_branch(shell, attachment.edge_index(), 27));
+        let other = shell
+            .connectivity_attachments()
+            .iter()
+            .find(|a| a.edge_id() == 27)
+            .unwrap();
+        assert!(!input.projected_branch(shell, other.edge_index(), 23));
+        let ids_changed = original.replace(
+            "#22=LINE('',#310,#21);",
+            "#311=CARTESIAN_POINT('',(0.,0.020000000000000001,0.));#22=LINE('',#311,#21);",
+        );
+        let mut table = Table::from_step_bytes(ids_changed.as_bytes()).unwrap();
+        table.set_preview_floor_mm(0.02);
+        let result = geometry
+            .convert_with_projected_refusal(&table, &authority, (101, Some(104)), &frames)
+            .unwrap();
+        assert!(
+            result.complete_bound(0).is_err(),
+            "different support identity cannot borrow original authority"
+        );
     }
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

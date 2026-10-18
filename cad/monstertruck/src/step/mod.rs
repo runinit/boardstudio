@@ -56,6 +56,18 @@ pub struct StepImportOptions {
     pub target_deflection_mm: Option<f64>,
 }
 
+fn repair_allowance(budget: Option<f64>, uncertainty: Option<f64>, placement: Matrix4) -> f64 {
+    let scale = placement
+        .x
+        .truncate()
+        .magnitude()
+        .max(placement.y.truncate().magnitude())
+        .max(placement.z.truncate().magnitude());
+    budget.unwrap_or_else(|| {
+        (PREVIEW_DECLARED_MULTIPLIER * uncertainty.unwrap_or(0.0) * scale).max(PREVIEW_FLOOR_MM)
+    })
+}
+
 /// Requested preview settings are not a certified analysis error bound.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StepAccuracy {
@@ -290,6 +302,25 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 .ok_or("source representation precision missing")?;
             let contextual = owner.geometric_dimension == Some(3)
                 && matches!(owner.declarations.as_slice(), [declaration] if simple_uncertainties.contains(&declaration.entity_id));
+            let frames = if contextual {
+                occurrences
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, (occ_id, _, occ_rep))| occ_id == id && occ_rep == representation)
+                    .map(|(occurrence, (_, placement, _))| repair::ProjectionFrame {
+                        occurrence,
+                        factor: solid.mm_per_unit,
+                        placement: *placement,
+                        allowance: repair_allowance(
+                            options.preview_repair_budget_mm,
+                            owner.uncertainty_mm(),
+                            *placement,
+                        ),
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
             let source = if contextual {
                 if let Some(budget) = options.preview_repair_budget_mm {
                     let max_scale = occurrences
@@ -312,20 +343,27 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         floor_mm: budget / max_scale,
                         declared_multiplier: 0.0,
                     });
-                    rep_table.to_source_bound_solid_with_repair_checked(
-                        *id,
-                        Some(*representation),
+                    repair_original.convert_with_projected_refusal(
+                        &rep_table,
                         &repair_source,
+                        (*id, Some(*representation)),
+                        &frames,
                     )
                 } else {
-                    table.to_source_bound_solid_with_repair_checked(
-                        *id,
-                        Some(*representation),
+                    repair_original.convert_with_projected_refusal(
+                        &table,
                         &repair_source,
+                        (*id, Some(*representation)),
+                        &frames,
                     )
                 }
             } else {
-                table.to_source_bound_solid_with_repair_checked(*id, None, &repair_source)
+                repair_original.convert_with_projected_refusal(
+                    &table,
+                    &repair_source,
+                    (*id, None),
+                    &frames,
+                )
             }
             .map_err(|error| format!("solid #{id} representation #{representation}: {error}"))?;
             if source.source().shells().is_empty() {
@@ -427,7 +465,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             source_two_use &= require_complete_source_shell(source)? == SourceShellTopology::TwoUse;
             repair_ledger.conversion(
                 &repair_original,
-                source,
+                &solid.source[representation],
                 solid.mm_per_unit,
                 *placement,
                 occurrence,
@@ -444,16 +482,11 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 .iter()
                 .find(|p| p.representation_id == *representation)
                 .ok_or("source support representation precision missing")?;
-            let scale = placement
-                .x
-                .truncate()
-                .magnitude()
-                .max(placement.y.truncate().magnitude())
-                .max(placement.z.truncate().magnitude());
-            let allowance = options.preview_repair_budget_mm.unwrap_or_else(|| {
-                (PREVIEW_DECLARED_MULTIPLIER * owner.uncertainty_mm().unwrap_or(0.0) * scale)
-                    .max(PREVIEW_FLOOR_MM)
-            });
+            let allowance = repair_allowance(
+                options.preview_repair_budget_mm,
+                owner.uncertainty_mm(),
+                *placement,
+            );
             repair_ledger.enforce_finite_lines(occurrence, allowance)?;
             let support = bounds::validate_support(
                 source,

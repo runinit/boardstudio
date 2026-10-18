@@ -353,6 +353,16 @@ mod tests {
         let mut measured = 0;
         for operation in owner.operations(0) {
             if let Some(change) = operation.curve_change() {
+                if !matches!(
+                    change.curves().0,
+                    Curve3D::BsplineCurve(_) | Curve3D::NurbsCurve(_)
+                ) {
+                    assert!(
+                        bound(change, 1., Matrix4::identity()).is_err(),
+                        "an attachment view is not spline/source authority"
+                    );
+                    continue;
+                }
                 let movement = bound(change, 1., Matrix4::identity()).unwrap();
                 assert_eq!(
                     movement, 0.,

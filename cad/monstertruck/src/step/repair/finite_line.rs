@@ -19,6 +19,7 @@ pub(super) struct Movement {
     pub edge: u64,
     pub bound_mm: f64,
     pub numeric_bound_mm: f64,
+    pub projected_attachment: bool,
     squared_mm: Q,
 }
 
@@ -200,7 +201,69 @@ fn rational_point(p: Point3) -> Option<Point> {
     ])
 }
 
+fn world_square(
+    before: &Point,
+    after: &Point,
+    factor: f64,
+    placement: Matrix4,
+) -> Result<Q, &'static str> {
+    if !(0..4).all(|col| (0..4).all(|row| placement[col][row].is_finite()))
+        || placement.x.w != 0.0
+        || placement.y.w != 0.0
+        || placement.z.w != 0.0
+        || placement.w.w != 1.0
+    {
+        return Err("nonfinite or non-affine finite LINE occurrence");
+    }
+    let factor = Q::from_float(factor)
+        .filter(|f| f.is_positive())
+        .ok_or("invalid finite LINE unit transform")?;
+    let delta = sub(after, before);
+    let mut world = std::array::from_fn(|_| Q::zero());
+    for row in 0..3 {
+        for col in 0..3 {
+            let coefficient = Q::from_float(placement[col][row])
+                .ok_or("invalid finite LINE occurrence transform")?;
+            world[row] += coefficient * &factor * &delta[col];
+        }
+    }
+    Ok(dot(&world, &world))
+}
+
 impl Source {
+    fn projected_controls(&self) -> Result<[Point; 2], &'static str> {
+        let project = |point: &Point| {
+            let parameter = dot(&sub(point, &self.origin), &self.direction)
+                / dot(&self.direction, &self.direction);
+            std::array::from_fn(|i| &self.origin[i] + &self.direction[i] * &parameter)
+        };
+        let projected = self.points.each_ref().map(project);
+        let advance = dot(&sub(&projected[1], &projected[0]), &self.direction);
+        if advance.is_zero() || advance.is_positive() != self.same_sense {
+            return Err("original finite LINE interval is degenerate or contradicts its sense");
+        }
+        Ok(projected)
+    }
+
+    // Refusal ONLY: even one authenticated attachment point over budget disproves
+    // compliance. This result never supplies a complete movement certificate.
+    pub(super) fn projected_exceeds(
+        &self,
+        factor: f64,
+        placement: Matrix4,
+        allowance: f64,
+    ) -> Result<bool, &'static str> {
+        let budget = Q::from_float(allowance)
+            .filter(|q| q.is_positive())
+            .ok_or("invalid projected LINE allowance")?;
+        for (before, after) in self.points.iter().zip(self.projected_controls()?) {
+            if world_square(before, &after, factor, placement)? > &budget * &budget {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) fn movement(
         &self,
         line: &monstertruck_modeling::Line<Point3>,
@@ -209,78 +272,88 @@ impl Source {
         placement: Matrix4,
         identity: (usize, usize, u64),
     ) -> Result<Movement, &'static str> {
-        let (occurrence, shell, edge) = identity;
-        if !(0..4).all(|col| (0..4).all(|row| placement[col][row].is_finite()))
-            || placement.x.w != 0.0
-            || placement.y.w != 0.0
-            || placement.z.w != 0.0
-            || placement.w.w != 1.0
-        {
-            return Err("nonfinite or non-affine finite LINE occurrence");
-        }
         if [line.0, line.1] != parsed_vertices {
             return Err("projected finite LINE route requires its conversion-time domain witness");
         }
-        // The original vertex selects a unique orthogonal attachment to a native
-        // LINE. Retain that entire finite projected interval, not its two residuals.
-        // Ambiguous nonlinear trim selection cannot use this affine proof.
-        let project = |point: &Point| {
-            let parameter = dot(&sub(point, &self.origin), &self.direction)
-                / dot(&self.direction, &self.direction);
-            std::array::from_fn(|i| &self.origin[i] + &self.direction[i] * &parameter)
+        self.measure(line, factor, placement, identity, false)
+    }
+
+    pub(super) fn projected_movement(
+        &self,
+        line: &monstertruck_modeling::Line<Point3>,
+        parsed_vertices: [Point3; 2],
+        change: monstertruck_io::step::load::convert::StepRepairCurveChange<'_>,
+        factor: f64,
+        placement: Matrix4,
+        identity: (usize, usize, u64),
+    ) -> Result<Movement, &'static str> {
+        let (Curve3D::Line(before), Curve3D::Line(after)) = change.curves() else {
+            return Err("projected attachment carriers are not finite affine LINEs");
         };
-        let original = self.points.each_ref().map(project);
-        let advance = dot(&sub(&original[1], &original[0]), &self.direction);
-        if advance.is_zero() || advance.is_positive() != self.same_sense {
-            return Err("original finite LINE interval is degenerate or contradicts its sense");
+        let expected_before = if self.same_sense {
+            parsed_vertices
+        } else {
+            [parsed_vertices[1], parsed_vertices[0]]
+        };
+        let expected_after = if self.same_sense {
+            [line.0, line.1]
+        } else {
+            [line.1, line.0]
+        };
+        if change.domains() != ((0., 1.), (0., 1.))
+            || [before.0, before.1] != expected_before
+            || [after.0, after.1] != expected_after
+        {
+            return Err("projected attachment source/domain/output correspondence mismatch");
         }
+        self.measure(line, factor, placement, identity, true)
+    }
+
+    fn measure(
+        &self,
+        line: &monstertruck_modeling::Line<Point3>,
+        factor: f64,
+        placement: Matrix4,
+        identity: (usize, usize, u64),
+        projected_attachment: bool,
+    ) -> Result<Movement, &'static str> {
         if line.0 == line.1 {
             return Err("repaired finite LINE interval is degenerate");
         }
-        let factor = Q::from_float(factor)
-            .filter(|f| f.is_positive())
-            .ok_or("invalid finite LINE unit transform")?;
-        let world_square = |before: &Point, after: &Point| -> Result<Q, &'static str> {
-            let delta = sub(after, before);
-            let mut world = std::array::from_fn(|_| Q::zero());
-            for row in 0..3 {
-                for col in 0..3 {
-                    let coefficient = Q::from_float(placement[col][row])
-                        .ok_or("invalid finite LINE occurrence transform")?;
-                    world[row] += coefficient * &factor * &delta[col];
-                }
-            }
-            Ok(dot(&world, &world))
+        let projected = self.projected_controls()?;
+        let (before, after) = if projected_attachment {
+            (&self.points, &projected)
+        } else {
+            (&projected, &self.points)
         };
-        // The actual chord uses these source vertices. Its ideal geometric
-        // operation keeps their original decimal values; decoding/evaluation
-        // error to the actual emitted binary64 controls is a separate stage.
-        let squared = original
+        // Complete affine [0,1] correspondence in both directions. The original
+        // chord branch and attachment-projection branch are opposite operations.
+        let squared = before
             .iter()
-            .zip(&self.points)
-            .map(|(before, after)| world_square(before, after))
+            .zip(after)
+            .map(|(a, b)| world_square(a, b, factor, placement))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()
             .unwrap();
-        let numeric_squared = self
-            .points
+        // Ideal target -> ACTUAL emitted binary64 controls is numerical error,
+        // separately retained; never charged as geometric repair.
+        let numeric_squared = after
             .iter()
             .zip([line.0, line.1])
-            .map(|(before, after)| {
+            .map(|(a, b)| {
                 world_square(
-                    before,
-                    &rational_point(after).ok_or("nonfinite repaired LINE")?,
+                    a,
+                    &rational_point(b).ok_or("nonfinite repaired LINE")?,
+                    factor,
+                    placement,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()
             .unwrap();
-        // Both finite carriers are affine images of the SAME closed [0,1].
-        // The norm of their affine difference is convex, so the exact two
-        // Bernstein controls bound EVERY point in both directions, including
-        // longitudinal trim movement and nonparallel support substitution.
+        let (occurrence, shell, edge) = identity;
         Ok(Movement {
             occurrence,
             shell,
@@ -288,6 +361,7 @@ impl Source {
             bound_mm: sqrt_upper(&squared, "finite LINE movement range")?,
             numeric_bound_mm: sqrt_upper(&numeric_squared, "finite LINE movement range")?,
             squared_mm: squared,
+            projected_attachment,
         })
     }
 }

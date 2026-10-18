@@ -7,6 +7,97 @@ use monstertruck_io::step::load::{
 const SOURCE: &[u8] = include_bytes!("partial_closed_spline/solid32377-source.step");
 
 #[test]
+fn repair_movement_projected_line_captures_attachment_not_native_support() {
+    use monstertruck_io::step::load::step_geometry::Curve3D;
+    let original =
+        include_str!("../../../../../monstertruck/tests/fixtures/repair-projected-line.step");
+    for reversed in [false, true] {
+        let mut text = original.to_owned();
+        if reversed {
+            for (a, b) in [
+                (
+                    "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
+                    "#23=EDGE_CURVE('',#12,#11,#22,.F.);",
+                ),
+                (
+                    "#52=ORIENTED_EDGE('',*,*,#23,.F.);",
+                    "#52=ORIENTED_EDGE('',*,*,#23,.T.);",
+                ),
+                (
+                    "#60=ORIENTED_EDGE('',*,*,#23,.T.);",
+                    "#60=ORIENTED_EDGE('',*,*,#23,.F.);",
+                ),
+            ] {
+                assert_eq!(text.matches(a).count(), 1);
+                text = text.replace(a, b);
+            }
+        }
+        let mut table = Table::from_step_bytes(text.as_bytes()).unwrap();
+        table.set_preview_floor_mm(0.02);
+        let authority = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
+        let owner = table
+            .to_source_bound_solid_with_repair_checked(101, Some(104), &authority)
+            .unwrap();
+        let legacy = table
+            .to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&101], 104)
+            .unwrap();
+        assert_eq!(
+            owner.source().shells()[0].shell(),
+            legacy.shells()[0].shell()
+        );
+        let operations = owner
+            .operations(0)
+            .filter(|op| op.source_ids().2 == Some(23))
+            .collect::<Vec<_>>();
+        let stage = operations
+            .iter()
+            .find(|op| op.stage() == "native-line-attachment-projection-v1")
+            .unwrap();
+        let view = stage.curve_change().unwrap();
+        assert_eq!(view.domains(), ((0., 1.), (0., 1.)));
+        let (Curve3D::Line(before), Curve3D::Line(after)) = view.curves() else {
+            panic!("whole finite affine carriers");
+        };
+        assert_eq!(
+            [before.0.y, before.1.y],
+            [0.; 2],
+            "attachment chord BEFORE, not native LINE support"
+        );
+        assert_eq!([after.0.y, after.1.y], [0.015625; 2]);
+        let changes = operations
+            .iter()
+            .filter_map(|op| op.curve_change())
+            .collect::<Vec<_>>();
+        assert_eq!(changes.len(), if reversed { 2 } else { 1 });
+        for pair in changes.windows(2) {
+            assert_eq!(pair[0].curves().1, pair[1].curves().0);
+            assert_eq!(pair[0].domains().1, pair[1].domains().0);
+        }
+        let shell = &owner.source().shells()[0];
+        let attachment = shell
+            .connectivity_attachments()
+            .iter()
+            .find(|a| a.edge_id() == 23)
+            .unwrap();
+        assert_eq!(
+            changes.last().unwrap().curves().1,
+            &shell.shell().edges[attachment.edge_index()].curve
+        );
+        if reversed {
+            assert_eq!(changes.last().unwrap().domains().1, (1., 0.));
+        }
+        assert!(
+            operations
+                .iter()
+                .any(|op| op.stage() == "native-finite-interval-v1"
+                    && op.bound().is_err()
+                    && op.curve_change().is_none())
+        );
+        assert!(owner.complete_bound(0).is_err());
+    }
+}
+
+#[test]
 fn repair_movement_pairs_chain_to_actual_selected_partial_carriers() {
     let table = Table::from_step_bytes(SOURCE).unwrap();
     let authority = StepRepairSource::from_step_bytes(SOURCE).unwrap();

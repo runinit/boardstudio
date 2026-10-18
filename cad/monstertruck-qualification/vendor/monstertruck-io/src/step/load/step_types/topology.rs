@@ -26,17 +26,29 @@ pub(in crate::step::load) struct NativeLineProjection {
     native: geom::Line<Point3>,
 }
 impl NativeLineProjection {
-    fn capture(source: &super::curve::Line, native: geom::Line<Point3>, same_sense: bool) -> Option<Self> {
+    fn capture(
+        source: &super::curve::Line,
+        native: geom::Line<Point3>,
+        same_sense: bool,
+    ) -> Option<Self> {
         Some(Self {
             point: source.pnt.coordinates.as_slice().try_into().ok()?,
-            direction: source.dir.orientation.direction_ratios.as_slice().try_into().ok()?,
+            direction: source
+                .dir
+                .orientation
+                .direction_ratios
+                .as_slice()
+                .try_into()
+                .ok()?,
             magnitude: source.dir.magnitude,
             same_sense,
             native,
         })
     }
     pub(in crate::step::load) fn matches_original(&self, edge: &EdgeCurve) -> bool {
-        let CurveAny::Line(source) = &edge.edge_geometry else { return false; };
+        let CurveAny::Line(source) = &edge.edge_geometry else {
+            return false;
+        };
         source.pnt.coordinates.as_slice() == self.point
             && source.dir.orientation.direction_ratios.as_slice() == self.direction
             && source.dir.magnitude == self.magnitude
@@ -393,9 +405,15 @@ impl EdgeCurve {
                 }
                 curve
             }
-            (_, capture) => {
-                Self::sub_parse_curve3d(&self.edge_geometry, p, q, self.same_sense, bound, preview, capture)?
-            }
+            (_, capture) => Self::sub_parse_curve3d(
+                &self.edge_geometry,
+                p,
+                q,
+                self.same_sense,
+                bound,
+                preview,
+                capture,
+            )?,
         };
         Ok(curve)
     }
@@ -441,9 +459,17 @@ impl EdgeCurve {
                         Some((before, native))
                     });
                     let projected = Curve3D::Line(Line(source.projection(p), source.projection(q)));
-                    if let (Some(capture), Some((before, native))) = (repair.as_deref_mut(), pending) {
+                    if let (Some(capture), Some((before, native))) =
+                        (repair.as_deref_mut(), pending)
+                    {
                         let count = capture.changes.len();
-                        capture.finish("native-line-attachment-projection-v1", Some(before), (0., 1.), &projected, (0., 1.));
+                        capture.finish(
+                            "native-line-attachment-projection-v1",
+                            Some(before),
+                            (0., 1.),
+                            &projected,
+                            (0., 1.),
+                        );
                         if capture.changes.len() > count {
                             capture.changes.last_mut().unwrap().native_line = Some(native);
                         }
@@ -597,11 +623,19 @@ impl EdgeCurve {
             }
         };
         if !same_sense {
-            let pending = repair.as_deref_mut().filter(|_| matches!(curve, Curve3D::Line(_)) && bound.is_some())
+            let pending = repair
+                .as_deref_mut()
+                .filter(|_| matches!(curve, Curve3D::Line(_)) && bound.is_some())
                 .and_then(|capture| capture.begin(&curve));
             curve.invert();
             if let Some(capture) = repair {
-                capture.finish("native-sense-inversion-v1", pending, (0., 1.), &curve, (1., 0.));
+                capture.finish(
+                    "native-sense-inversion-v1",
+                    pending,
+                    (0., 1.),
+                    &curve,
+                    (1., 0.),
+                );
             }
         }
         Ok(curve)

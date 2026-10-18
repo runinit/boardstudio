@@ -5,27 +5,31 @@ const fs = require('node:fs');
 const path = require('node:path');
 const cad = require(path.resolve(process.argv[2]));
 const base = fs.readFileSync(path.resolve(__dirname,
-  '../../monstertruck/tests/fixtures/repair-finite-domain.step'), 'utf8');
+  '../../monstertruck/tests/fixtures/repair-projected-line.step'), 'utf8');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function replaceOnce(text, before, after) {
   assert.equal(text.split(before).length - 1, 1);
   return text.replace(before, after);
 }
 function projected(offset) {
-  return replaceOnce(replaceOnce(base,
-    "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));",
-    "#105=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.000001),#102,'distance_accuracy_value','');#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#105))REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));"),
-  '0.03125', offset);
+  return replaceOnce(base, '0.015625', offset);
 }
-function read(source, options = {}) {
+function read(source, options = {}, occurrences = 1,
+  expectedBounds = [[0, 0, 0], [2, 3, 4]]) {
   const original = Buffer.from(source), input = new Uint8Array(original);
-  const result = cad.read_step_model(input, {sourceSha256: sha(original), ...options});
-  assert.deepEqual(Buffer.from(input), original);
+  let result;
+  try {
+    result = cad.read_step_model(input, {sourceSha256: sha(original), ...options});
+  } finally {
+    assert.deepEqual(Buffer.from(input), original, 'success and refusal preserve original input');
+  }
   const vendor = result.vendorStep;
   assert.equal(vendor.sourceSha256, sha(original));
   assert.equal(vendor.sourceFaces.length, 4);
-  assert.equal(vendor.faceOccurrences.length, 4);
-  assert.equal(new Set(vendor.triangleFaceOccurrenceIndices).size, 4);
+  assert.equal(vendor.faceOccurrences.length, 4 * occurrences);
+  assert.equal(new Set(vendor.triangleFaceOccurrenceIndices).size, 4 * occurrences);
+  assert(vendor.surfacePositionsMmF64.every(Number.isFinite));
+  assert.deepEqual([result.bounds.min, result.bounds.max], expectedBounds);
   assert.equal(vendor.accuracy.maxRepairDisplacementMm, null);
   assert.equal(vendor.accuracy.analysisErrorBoundMm, null);
   assert.equal(vendor.sourceQualification.state, 'unknown');
@@ -36,4 +40,41 @@ const boundary = projected('0.020000000000000001');
 assert.throws(() => read(boundary), error =>
   typeof error === 'string' && error.includes('finite LINE repair edge #23'),
   'exact ideal attachment projection above default .02 must refuse');
-console.log('PASS actual projected finite LINE attachment: immutable source, positive4face preview and exact default budget refusal; complete asset remains Unknown');
+read(boundary, {previewRepairBudgetMm: 0.020000000000000004});
+const exact = projected('0.03125');
+for (const previewRepairBudgetMm of [0.03125, 0.03125000000000001]) {
+  read(exact, {previewRepairBudgetMm});
+}
+assert.throws(() => read(exact, {previewRepairBudgetMm: 0.031249999999999997}),
+  error => typeof error === 'string' && error.includes('EDGE_CURVE attachment exceeds its source connectivity bound'));
+let reversed = projected('0.015625');
+for (const [a, b] of [
+  ["#23=EDGE_CURVE('',#11,#12,#22,.T.);", "#23=EDGE_CURVE('',#12,#11,#22,.F.);"],
+  ["#52=ORIENTED_EDGE('',*,*,#23,.F.);", "#52=ORIENTED_EDGE('',*,*,#23,.T.);"],
+  ["#60=ORIENTED_EDGE('',*,*,#23,.T.);", "#60=ORIENTED_EDGE('',*,*,#23,.F.);"]
+]) reversed = replaceOnce(reversed, a, b);
+read(reversed);
+const unused = "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);";
+for (const padded of [false, true]) for (const before of [false, true]) {
+  const mutate = source => {
+    const text = before ? replaceOnce(source, 'DATA;', `DATA;${unused}`)
+      : replaceOnce(source, 'ENDSEC;END-ISO-10303-21;', `${unused}ENDSEC;END-ISO-10303-21;`);
+    return padded ? text + ' '.repeat(300000) : text;
+  };
+  assert.throws(() => read(mutate(boundary)), error => typeof error === 'string'
+    && error.includes('finite LINE repair edge #23'));
+  read(mutate(projected('0.015625')));
+}
+const assembly = fs.readFileSync(path.resolve(__dirname,
+  '../../monstertruck/tests/fixtures/two-occurrences-mm.step'), 'utf8');
+const tail = assembly.slice(assembly.indexOf('#200='), assembly.indexOf('ENDSEC;END-ISO-10303-21;'));
+for (const metre of [false, true]) {
+  let text = replaceOnce(projected(metre ? '0.000015625' : '0.015625'),
+    'ENDSEC;END-ISO-10303-21;', `${tail}ENDSEC;END-ISO-10303-21;`);
+  if (metre) text = replaceOnce(text, 'SI_UNIT(.MILLI.,.METRE.)', 'SI_UNIT($,.METRE.)');
+  const expected = metre ? [[-5000, 7000, 11000], [10000, 22000, 34000]]
+    : [[-5, 7, 11], [10, 22, 34]];
+  read(text, {}, 2, expected);
+  read(text, {previewRepairBudgetMm: 0.015625}, 2, expected);
+}
+console.log('PASS actual projected finite LINE attachment: exact default/explicit bands, sense, metre/rotated occurrences, capped/unrelated entity monotonic refusal, immutable bytes and complete face inventory; asset remains Unknown');
