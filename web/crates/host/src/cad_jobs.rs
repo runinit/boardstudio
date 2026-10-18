@@ -603,11 +603,13 @@ pub fn validate_generated_analysis(
     {
         return Err("generated analysis belongs to another body, geometry or revision".into());
     }
-    if !analysis.deflection_mm.is_finite()
+    let selected_deflection_mm = metadata.target_deflection_mm.unwrap_or(0.1).min(0.1);
+    if metadata
+        .target_deflection_mm
+        .is_some_and(|target| !target.is_finite() || target <= 0.0)
+        || !analysis.deflection_mm.is_finite()
         || analysis.deflection_mm <= 0.0
-        || metadata
-            .target_deflection_mm
-            .is_some_and(|target| analysis.deflection_mm > target)
+        || analysis.deflection_mm != selected_deflection_mm
         || analysis
             .analysis_error_bound_mm
             .is_some_and(|bound| !bound.is_finite() || bound < 0.0)

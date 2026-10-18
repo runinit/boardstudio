@@ -42,7 +42,9 @@ impl CollisionSource {
 struct CheckState {
     source: Option<CollisionSource>,
     pending: bool,
-    findings: Vec<String>,
+    findings: Vec<CadCollisionPairFinding>,
+    clearance_threshold_mm: f64,
+    message: Option<String>,
     errors: Vec<String>,
     accuracy: Option<f64>,
 }
@@ -116,6 +118,7 @@ pub(crate) fn CaseCollisionChecks(
                 source: Some(source.clone()),
                 pending: true,
                 accuracy,
+                clearance_threshold_mm: threshold,
                 ..Default::default()
             });
             let runtime = runtime.clone();
@@ -143,6 +146,8 @@ pub(crate) fn CaseCollisionChecks(
                         findings: result.0,
                         errors: result.1,
                         accuracy,
+                        clearance_threshold_mm: threshold,
+                        message: result.2,
                     });
                 }
             });
@@ -186,7 +191,21 @@ pub(crate) fn CaseCollisionChecks(
             if !ready { p { "Waiting for the current exact assembly and part models." } }
             if shown.accuracy.is_some() { p { "Requested accuracy: 0.01 mm. Unsupported accuracy remains uncertain." } }
             for error in &shown.errors { p { role: "alert", "{error}" } }
-            for (index, finding) in shown.findings.iter().enumerate() { p { key: "{index}", "{finding}" } }
+            if let Some(message) = &shown.message { p { "{message}" } }
+            for (index, finding) in shown.findings.iter().enumerate() {
+                CollisionFindingView { key: "{index}", finding: finding.clone(), clearance_threshold_mm: shown.clearance_threshold_mm }
+            }
+        }
+    }
+}
+
+#[component]
+fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm: f64) -> Element {
+    rsx! {
+        p { "{finding.summary(clearance_threshold_mm)}" }
+        BoardDisclosure { class: "m1-case-collision-provenance",
+            heading: rsx! { summary { "Witness identity" } },
+            for identity in finding.provenance_details() { p { "{identity}" } }
         }
     }
 }
@@ -197,7 +216,7 @@ async fn run_checks(
     threshold: f64,
     accuracy: Option<f64>,
     current: Rc<dyn Fn() -> bool>,
-) -> (Vec<String>, Vec<String>) {
+) -> (Vec<CadCollisionPairFinding>, Vec<String>, Option<String>) {
     let mut subjects = Vec::new();
     let mut errors = Vec::new();
     if let (Some(preview), Some(rows)) = (&source.preview, &source.rows) {
@@ -255,7 +274,7 @@ async fn run_checks(
                 Err(error) => errors.push(format!("{}: {error}", model.id)),
             }
             if !current() {
-                return (Vec::new(), Vec::new());
+                return (Vec::new(), Vec::new(), None);
             }
         }
         errors.extend(
@@ -282,7 +301,7 @@ async fn run_checks(
             analysis,
         });
         if !current() {
-            return (Vec::new(), Vec::new());
+            return (Vec::new(), Vec::new(), None);
         }
     }
     let mut findings = Vec::new();
@@ -301,28 +320,24 @@ async fn run_checks(
                 )
                 .await
             {
-                Ok(result) => findings.push(
-                    CadCollisionPairFinding {
-                        left_id: left.id().into(),
-                        left_label: left.label().into(),
-                        right_id: right.id().into(),
-                        right_label: right.label().into(),
-                        result,
-                    }
-                    .summary(threshold),
-                ),
+                Ok(result) => findings.push(CadCollisionPairFinding {
+                    left_id: left.id().into(),
+                    left_label: left.label().into(),
+                    right_id: right.id().into(),
+                    right_label: right.label().into(),
+                    result,
+                }),
                 Err(error) => errors.push(format!("{} ↔ {}: {error}", left.label(), right.label())),
             }
             if !current() {
-                return (Vec::new(), Vec::new());
+                return (Vec::new(), Vec::new(), None);
             }
         }
     }
-    if subjects.len() < 2 {
-        findings
-            .push("Fewer than two collision operands are available; no pair was checked.".into());
-    }
-    (findings, errors)
+    let message = (subjects.len() < 2).then(|| {
+        "Fewer than two collision operands are available; no pair was checked.".to_owned()
+    });
+    (findings, errors, message)
 }
 
 #[cfg(test)]
@@ -365,6 +380,116 @@ mod browser_tests {
             "expected {text}, got {}",
             root.text_content().unwrap_or_default()
         );
+    }
+
+    fn witness_finding() -> CadCollisionPairFinding {
+        use boardstudio_web_host::cad_jobs::*;
+        CadCollisionPairFinding {
+            left_id: "module-A/U1".into(),
+            left_label: "U1".into(),
+            right_id: "case-bottom".into(),
+            right_label: "Bottom".into(),
+            result: CadCollisionResult {
+                observation: Some(CadCollisionObservation::SurfaceSeparated {
+                    surface_distance_mm: 0.5,
+                    closest_points: CadClosestPointsWitness {
+                        triangles: CadTrianglePairProvenance {
+                            left: CadTriangleProvenance {
+                                triangle_index: 12,
+                                face_occurrence_index: 2,
+                            },
+                            right: CadTriangleProvenance {
+                                triangle_index: 20,
+                                face_occurrence_index: 4,
+                            },
+                        },
+                        point1_mm: [1., 2., 3.],
+                        point2_mm: [1.5, 2., 3.],
+                    },
+                }),
+                left_provenance: Some(CadSubjectFaceProvenance::Vendor(
+                    CadResolvedFaceProvenance {
+                        triangle_index: 12,
+                        face_occurrence_index: 2,
+                        solid_occurrence_index: 7,
+                        representation_id: "80".into(),
+                        solid_id: "10".into(),
+                        shell_index: 1,
+                        face_id: "20".into(),
+                        support_id: "30".into(),
+                        support_kind: "PLANE".into(),
+                    },
+                )),
+                right_provenance: Some(CadSubjectFaceProvenance::Generated {
+                    body_id: "case-bottom".into(),
+                    triangle_index: 20,
+                    face_occurrence_index: 4,
+                    solid_occurrence_index: 3,
+                    source: CadGeneratedSourceFace {
+                        solid_index: 0,
+                        shell_index: 1,
+                        face_index: 5,
+                        support_kind: "PLANE".into(),
+                    },
+                }),
+                assessment: CadCollisionAssessment::Unknown {
+                    reasons: vec!["source and numerical bounds unresolved".into()],
+                    refinement_requested: false,
+                },
+            },
+        }
+    }
+
+    fn mounted_witness() -> Element {
+        rsx! { CollisionFindingView { finding: witness_finding(), clearance_threshold_mm: 0.1 } }
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_collision_witness_keeps_operand_and_source_occurrence_identity() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(mounted_witness),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_for(&root, "surface separation 0.500 mm").await;
+        let details = root
+            .query_selector(".m1-case-collision-provenance")
+            .unwrap()
+            .unwrap();
+        assert!(!details.has_attribute("open"));
+        details
+            .query_selector("summary")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        assert!(
+            details.has_attribute("open"),
+            "witness identity can be expanded"
+        );
+        let text = root.text_content().unwrap();
+        for identity in [
+            "module-A/U1",
+            "case-bottom",
+            "STEP representation #80",
+            "solid occurrence 7",
+            "face occurrence 2",
+            "source face #20",
+            "generated body case-bottom",
+            "solid occurrence 3",
+            "face occurrence 4",
+            "source face index 5",
+        ] {
+            assert!(
+                text.contains(identity),
+                "missing witness identity {identity}: {text}"
+            );
+        }
+        assert!(text.contains("Uncertain") && text.contains("1.00, 2.00, 3.00"));
+        root.remove();
     }
 
     #[wasm_bindgen_test]

@@ -2219,57 +2219,94 @@ mod generated_analysis_tests {
             collision_meshes: None,
             input_bytes: vec![],
         };
-        let decode =
-            |payload: &serde_json::Value, hash: &str, typed: bool| -> Result<CadResult, String> {
-                let direct = js_sys::JSON::parse(&payload.to_string()).map_err(js_message)?;
-                validate_generated_payload_fields(&direct, false)?;
-                if typed {
-                    Reflect::set(
-                        &direct,
-                        &"surfacePositionsMmF64".into(),
-                        &Float64Array::new(
-                            &Reflect::get(&direct, &"surfacePositionsMmF64".into())
-                                .map_err(js_message)?,
-                        ),
-                    )
-                    .map_err(js_message)?;
-                    Reflect::set(
-                        &direct,
-                        &"triangleFaceOccurrenceIndices".into(),
-                        &Uint32Array::new(
-                            &Reflect::get(&direct, &"triangleFaceOccurrenceIndices".into())
-                                .map_err(js_message)?,
-                        ),
-                    )
-                    .map_err(js_message)?;
-                }
-                Reflect::set(&direct, &"geometryIdentity".into(), &hash.into())
-                    .map_err(js_message)?;
-                let wrapper = Object::new();
+        let decode_with_target = |payload: &serde_json::Value,
+                                  hash: &str,
+                                  typed: bool,
+                                  target: Option<f64>|
+         -> Result<CadResult, String> {
+            let mut request = request.clone();
+            request
+                .generated_analysis_request
+                .as_mut()
+                .unwrap()
+                .target_deflection_mm = target;
+            let direct = js_sys::JSON::parse(&payload.to_string()).map_err(js_message)?;
+            validate_generated_payload_fields(&direct, false)?;
+            if typed {
                 Reflect::set(
-                    &wrapper,
-                    &"revision".into(),
-                    &(identity.revision as f64).into(),
+                    &direct,
+                    &"surfacePositionsMmF64".into(),
+                    &Float64Array::new(
+                        &Reflect::get(&direct, &"surfacePositionsMmF64".into())
+                            .map_err(js_message)?,
+                    ),
                 )
                 .map_err(js_message)?;
-                Reflect::set(&wrapper, &"generatedAnalysis".into(), &direct).map_err(js_message)?;
-                let result = decode_result(wrapper.into())?;
-                validate_reply(
-                    &request,
-                    CadReply {
-                        request_id: request.request_id.clone(),
-                        job_id: request.job_id.clone(),
-                        identity: identity.clone(),
-                        operation: request.operation,
-                        outcome: CadReplyOutcome::Completed,
-                        result: Some(result),
-                        error: None,
-                    },
-                    &identity,
+                Reflect::set(
+                    &direct,
+                    &"triangleFaceOccurrenceIndices".into(),
+                    &Uint32Array::new(
+                        &Reflect::get(&direct, &"triangleFaceOccurrenceIndices".into())
+                            .map_err(js_message)?,
+                    ),
                 )
-                .map_err(|error| format!("{error:?}"))
-            };
+                .map_err(js_message)?;
+            }
+            Reflect::set(&direct, &"geometryIdentity".into(), &hash.into()).map_err(js_message)?;
+            let wrapper = Object::new();
+            Reflect::set(
+                &wrapper,
+                &"revision".into(),
+                &(identity.revision as f64).into(),
+            )
+            .map_err(js_message)?;
+            Reflect::set(&wrapper, &"generatedAnalysis".into(), &direct).map_err(js_message)?;
+            let result = decode_result(wrapper.into())?;
+            validate_reply(
+                &request,
+                CadReply {
+                    request_id: request.request_id.clone(),
+                    job_id: request.job_id.clone(),
+                    identity: identity.clone(),
+                    operation: request.operation,
+                    outcome: CadReplyOutcome::Completed,
+                    result: Some(result),
+                    error: None,
+                },
+                &identity,
+            )
+            .map_err(|error| format!("{error:?}"))
+        };
+        let decode = |payload: &serde_json::Value, hash: &str, typed: bool| {
+            decode_with_target(payload, hash, typed, None)
+        };
         let payload = &fixture["directPayload"];
+        let mut accepted_bad_settings = Vec::new();
+        for (target, returned) in [
+            (None, 1.0),
+            (Some(1.0), 0.5),
+            (Some(0.01), 0.02),
+            (Some(0.01), 0.005),
+        ] {
+            let mut malformed = payload.clone();
+            malformed["deflectionMm"] = returned.into();
+            if decode_with_target(&malformed, &geometry_identity, true, target).is_ok() {
+                accepted_bad_settings.push((target, returned));
+            }
+        }
+        assert!(
+            accepted_bad_settings.is_empty(),
+            "accepted wrong selected deflections: {accepted_bad_settings:?}"
+        );
+        for (target, selected) in [(None, 0.1), (Some(1.0), 0.1), (Some(0.01), 0.01)] {
+            let mut valid = payload.clone();
+            valid["deflectionMm"] = selected.into();
+            let accepted = decode_with_target(&valid, &geometry_identity, true, target).unwrap();
+            assert_eq!(
+                accepted.generated_analysis.unwrap().analysis_error_bound_mm,
+                None
+            );
+        }
         let result = decode(payload, &geometry_identity, true).unwrap();
         assert!(result.vendor_step.is_none() && result.mesh.is_none() && result.bodies.is_empty());
         let analysis = result.generated_analysis.unwrap();

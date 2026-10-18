@@ -1309,10 +1309,56 @@ pub struct CadCollisionPairFinding {
 }
 
 impl CadCollisionPairFinding {
+    pub fn provenance_details(&self) -> [String; 2] {
+        let describe = |id: &str, label: &str, provenance: &Option<CadSubjectFaceProvenance>| {
+            let identity = match provenance {
+                Some(CadSubjectFaceProvenance::Vendor(face)) => format!(
+                    "STEP representation #{}; source solid #{}; shell {}; solid occurrence {}; face occurrence {}; source face #{}; support #{} ({}); triangle {}",
+                    face.representation_id,
+                    face.solid_id,
+                    face.shell_index,
+                    face.solid_occurrence_index,
+                    face.face_occurrence_index,
+                    face.face_id,
+                    face.support_id,
+                    face.support_kind,
+                    face.triangle_index
+                ),
+                Some(CadSubjectFaceProvenance::Generated {
+                    body_id,
+                    triangle_index,
+                    face_occurrence_index,
+                    solid_occurrence_index,
+                    source,
+                }) => format!(
+                    "generated body {body_id}; source solid index {}; shell index {}; solid occurrence {solid_occurrence_index}; face occurrence {face_occurrence_index}; source face index {}; support {}; triangle {triangle_index}",
+                    source.solid_index, source.shell_index, source.face_index, source.support_kind
+                ),
+                None => "source face/occurrence identity unresolved".to_owned(),
+            };
+            format!("{label} [{id}]: {identity}")
+        };
+        [
+            describe(
+                &self.left_id,
+                &self.left_label,
+                &self.result.left_provenance,
+            ),
+            describe(
+                &self.right_id,
+                &self.right_label,
+                &self.result.right_provenance,
+            ),
+        ]
+    }
+
     pub fn summary(&self, clearance_threshold_mm: f64) -> String {
         use boardstudio_web_host::cad_jobs::CadCollisionObservation;
 
-        let pair_label = format!("{} ↔ {}", self.left_label, self.right_label);
+        let pair_label = format!(
+            "{} [{}] ↔ {} [{}]",
+            self.left_label, self.left_id, self.right_label, self.right_id
+        );
         let witness = match &self.result.observation {
             Some(CadCollisionObservation::SurfaceIntersecting {
                 contact_witness: Some(witness),
@@ -2683,18 +2729,89 @@ mod tests {
                 ..
             }
         ));
-        let summary = CadCollisionPairFinding {
+        let finding = CadCollisionPairFinding {
             left_id: left.id().into(),
             left_label: left.label().into(),
             right_id: right.id().into(),
             right_label: right.label().into(),
             result,
-        }
-        .summary(0.1);
+        };
+        let details = finding.provenance_details();
+        assert!(
+            details[0].contains("generated body contract-plate")
+                && details[0].contains("source face index 0")
+        );
+        assert!(
+            !details[0].contains("STEP"),
+            "generated indices are not STEP entities"
+        );
+        let summary = finding.summary(0.1);
         assert!(summary.contains("Uncertain") && summary.contains("surface separation 1.000 mm"));
+        assert!(
+            summary.contains("contract-plate") && summary.contains("other"),
+            "operand IDs must survive duplicate or mutable labels"
+        );
         assert!(
             summary.contains("20.00, 0.00, 0.00")
                 && summary.contains("requested accuracy remains unqualified")
+        );
+    }
+
+    #[test]
+    fn collision_provenance_projection_distinguishes_step_occurrences_and_unresolved_identity() {
+        let face = CadResolvedFaceProvenance {
+            triangle_index: 12,
+            face_occurrence_index: 2,
+            solid_occurrence_index: 7,
+            representation_id: "80".into(),
+            solid_id: "10".into(),
+            shell_index: 1,
+            face_id: "20".into(),
+            support_id: "30".into(),
+            support_kind: "PLANE".into(),
+        };
+        let mut other = face.clone();
+        other.solid_occurrence_index = 8;
+        other.face_occurrence_index = 3;
+        let mut finding = CadCollisionPairFinding {
+            left_id: "module-A/U1".into(),
+            left_label: "U1".into(),
+            right_id: "module-B/U1".into(),
+            right_label: "U1".into(),
+            result: CadCollisionResult {
+                observation: None,
+                left_provenance: Some(CadSubjectFaceProvenance::Vendor(face)),
+                right_provenance: Some(CadSubjectFaceProvenance::Vendor(other)),
+                assessment: CadCollisionAssessment::Unknown {
+                    reasons: vec!["query bound unresolved".into()],
+                    refinement_requested: false,
+                },
+            },
+        };
+        let details = finding.provenance_details();
+        for (detail, id, occurrence) in [
+            (&details[0], "module-A/U1", "solid occurrence 7"),
+            (&details[1], "module-B/U1", "solid occurrence 8"),
+        ] {
+            for expected in [
+                id,
+                occurrence,
+                "STEP representation #80",
+                "source solid #10",
+                "source face #20",
+                "support #30 (PLANE)",
+                "triangle 12",
+            ] {
+                assert!(detail.contains(expected), "missing {expected}: {detail}");
+            }
+        }
+        assert!(
+            details[0].contains("face occurrence 2") && details[1].contains("face occurrence 3")
+        );
+        finding.result.right_provenance = None;
+        assert_eq!(
+            finding.provenance_details()[1],
+            "U1 [module-B/U1]: source face/occurrence identity unresolved"
         );
     }
 
