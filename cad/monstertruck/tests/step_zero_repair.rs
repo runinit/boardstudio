@@ -186,7 +186,7 @@ fn real_preview_fallback_import_stays_unknown() {
 }
 
 #[test]
-fn styled_finite_curve_in_presentation_root_cannot_borrow_the_solid_proof() {
+fn styled_finite_curve_in_presentation_root_requires_source_completeness() {
     let text = std::str::from_utf8(BOX).unwrap();
     // Original LINE #32 is the unit +X line through the origin. This separate
     // finite interval [10, 11] lies wholly outside the cuboid's X range [0, 2].
@@ -202,15 +202,12 @@ fn styled_finite_curve_in_presentation_root_cannot_borrow_the_solid_proof() {
          #907=COLOUR_RGB('',1.,0.,0.);\n\
          ENDSEC;END-ISO-10303-21;",
     );
-    let model = import_step(text.clone().into_bytes()).unwrap();
-    assert_eq!(model.original_bytes(), text.as_bytes());
-    assert_eq!(model.source_faces().len(), 6);
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
-    assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+    let error = import_step(text.into_bytes()).err().expect("unretained presented finite curve must refuse");
+    assert!(error.contains("source completeness") && error.contains("#901"), "{error}");
 }
 
 #[test]
-fn additional_representation_roots_stay_outside_the_complete_class() {
+fn additional_representation_roots_cannot_drop_unbounded_geometry() {
     let text = std::str::from_utf8(BOX).unwrap();
     for kind in [
         "DRAUGHTING_MODEL",
@@ -224,10 +221,8 @@ fn additional_representation_roots_stay_outside_the_complete_class() {
             "ENDSEC;END-ISO-10303-21;",
             &format!("#903={kind}('',(#32),#303);ENDSEC;END-ISO-10303-21;"),
         );
-        let model = import_step(text.clone().into_bytes()).unwrap();
-        assert_eq!(model.original_bytes(), text.as_bytes());
-        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
-        assert_eq!(model.accuracy().max_repair_displacement_mm, None, "{kind}");
+        let error = import_step(text.into_bytes()).err().expect("presented unbounded LINE must refuse");
+        assert!(error.contains("source completeness") && error.contains("#32"), "{kind}: {error}");
     }
 }
 
@@ -250,4 +245,37 @@ fn product_definition_metadata_does_not_add_a_geometry_root() {
     assert_eq!(model.original_bytes(), text.as_bytes());
     assert_eq!(model.accuracy().max_repair_displacement_mm, Some(0.0));
     assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+}
+
+fn styled_target(source: &str, target: u64, context: u64) -> String {
+    replace_once(source, "ENDSEC;END-ISO-10303-21;", &format!(
+        "#901=STYLED_ITEM('',(#904),#{target});\n\
+         #902=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#901),#{context});\n\
+         #904=PRESENTATION_STYLE_ASSIGNMENT((#905));\n\
+         #905=CURVE_STYLE('',#906,POSITIVE_LENGTH_MEASURE(0.1),#907);\n\
+         #906=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');\n\
+         #907=COLOUR_RGB('',1.,0.,0.);\n\
+         ENDSEC;END-ISO-10303-21;"))
+}
+
+#[test]
+fn styles_of_retained_solids_faces_and_finite_edges_preserve_complete_assets() {
+    for target in [301, 110, 33] {
+        let text = styled_target(std::str::from_utf8(BOX).unwrap(), target, 303);
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.bounds(), [[0., 0., 0.], [2., 4., 8.]]);
+        assert_eq!(model.source_faces().len(), 6);
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
+    for target in [414, 420] {
+        let text = styled_target(include_str!("fixtures/tetra-and-finite-wires.step"), target, 103);
+        let model = import_step(text.clone().into_bytes()).unwrap();
+        assert_eq!(model.original_bytes(), text.as_bytes());
+        assert_eq!(model.line_presentation().occurrences().len(), 2);
+        assert_eq!(model.line_presentation().segments_mm().len(), 2);
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    }
 }

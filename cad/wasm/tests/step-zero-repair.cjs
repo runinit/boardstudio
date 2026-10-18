@@ -14,10 +14,14 @@ function imported(bytes, options = {}) {
   bytes = Buffer.from(bytes);
   const original = Buffer.from(bytes);
   const digest = crypto.createHash('sha256').update(bytes).digest('hex');
-  const result = cad.read_step_model(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
-    sourceSha256: digest, ...options,
-  });
-  assert.deepEqual(bytes, original, 'caller source bytes remain immutable');
+  let result;
+  try {
+    result = cad.read_step_model(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
+      sourceSha256: digest, ...options,
+    });
+  } finally {
+    assert.deepEqual(bytes, original, 'caller source bytes remain immutable, including refusal');
+  }
   assert.equal(result.vendorStep.sourceSha256, digest);
   assert.equal(result.vendorStep.accuracy.analysisErrorBoundMm, null);
   assert(result.mesh.positions instanceof Float32Array);
@@ -107,7 +111,7 @@ test('existing tetra plane-gap default and explicit budget policy stays unchange
   assert(result.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
 });
 
-test('styled finite curve and alternate presentation roots cannot borrow cuboid zero', () => {
+test('unretained styled finite curve and alternate presentation roots explicitly refuse', () => {
   // #32 has unit +X direction through the origin: [10,11] is outside [0,2].
   const styled = box.toString().replace('ENDSEC;END-ISO-10303-21;',
     "#901=TRIMMED_CURVE('outside-body',#32,(PARAMETER_VALUE(10.)),(PARAMETER_VALUE(11.)),.T.,.PARAMETER.);" +
@@ -123,6 +127,22 @@ test('styled finite curve and alternate presentation roots cannot borrow cuboid 
     box.toString().replace('ENDSEC;END-ISO-10303-21;',
       `#903=${kind}('',(#32),#303);ENDSEC;END-ISO-10303-21;`))];
   for (const source of sources) {
-    assert.equal(imported(source).vendorStep.accuracy.maxRepairDisplacementMm, null);
+    assert.throws(() => imported(source), /source completeness/);
+  }
+});
+
+test('styles of retained finite geometry preserve complete mixed and surface assets', () => {
+  const wires = fs.readFileSync(path.join(fixtures, 'tetra-and-finite-wires.step'), 'utf8');
+  for (const [source, context, targets] of [[box.toString(), 303, [301, 110, 33]], [wires, 103, [414, 420]]]) {
+    for (const target of targets) {
+      const styled = source.replace('ENDSEC;END-ISO-10303-21;',
+        `#901=STYLED_ITEM('',(#904),#${target});` +
+        `#902=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#901),#${context});` +
+        "#904=PRESENTATION_STYLE_ASSIGNMENT((#905));#905=CURVE_STYLE('',#906,POSITIVE_LENGTH_MEASURE(0.1),#907);" +
+        "#906=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');#907=COLOUR_RGB('',1.,0.,0.);ENDSEC;END-ISO-10303-21;");
+      const result = imported(styled);
+      assert.equal(result.vendorStep.accuracy.maxRepairDisplacementMm, null);
+      assert.equal(result.vendorStep.lineOccurrences.length, source === wires ? 2 : 0);
+    }
   }
 });
