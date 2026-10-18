@@ -133,7 +133,7 @@ def binding(root, profile):
     inputs = helper.wasm_inputs_digest(no_opt=profile == "checked")
     lines = [f"checkout={root}", f"backend={'cadrum' if old else 'monstertruck'}",
              f"head={head}", f"source_sha256={source}",
-             f"branch={git(root, 'branch', '--show-current')}", f"profile={profile}",
+             f"branch={git(root, 'branch', '--show-current') or 'detached'}", f"profile={profile}",
              f"provider_profile={'release-no-opt' if profile == 'checked' else 'release'}",
              f"driver_head={driver_head}", f"driver_source_sha256={driver_source}",
              f"driver_status={git(ROOT, 'status', '--porcelain=v1')!r}",
