@@ -319,3 +319,35 @@ original one-edge fixture with an explicit chord and opposite face; the original
 open-boundary import refusal is preserved. Plane coefficients are used only when
 existing constructor equality authenticates recovery of the actual raw affine
 points and identity plane transform; other plane records remain Unsupported.
+
+## Finite IO owner routes resolved after the census (2026-10-18)
+
+The approved `StepRepairRawSplineChange` view and the existing `StepRepairCurveChange`
+view are the only interfaces used; no declaration, existing member or visibility changed.
+Every claim below is repair movement against the ORIGINAL vertices or record under the
+unchanged allowance; binary64 decoding, constructor rounding and evaluation stay separate
+unbounded numerical diagnostics. A resolved route removes only its own per-edge
+`native-finite-interval-v1` and `selected-master-v1` placeholders, so every other route
+and the asset bound remain Unknown.
+
+- **Tiny-span raw spline normalization** (`raw-spline-normalization-v1`): the same call
+  captures the expanded parsed knots, controls and both extents; the importer requires the
+  normalized intermediate to keep degree, controls and extent and to equal the saved
+  `(k - first) / (last - first)` recipe label by label. Equal order and multiplicity do
+  not suffice. Identity is 0; the rounding of that recipe is `raw-spline-normalization-numeric-v1`.
+- **Kept authored full domain** (`native-full-interval-v1`): a clamped carrier ends at its
+  first and last control point, so the exact rational distance to the original native-frame
+  vertices (edge sense applied) is `native-full-interval-attachment-v1`. Unclamped carriers
+  stay Unsupported.
+- **Planar UV LINE master** (`same-master-planar-uvline-trim-v1` and its sense inversion): a
+  line is injective, so the located interval is unique and its restriction is identity; the
+  lifted exact ends against the vertices are `planar-uvline-attachment-v1`. The UV line's
+  binary64 retention is `planar-uvline-numeric-conversion-v1` and is not bounded.
+- **Circle/ellipse edges** (`native-conic-attachment-v1`): the importer recomputes the
+  constructor result for the original record and requires the emitted transform to equal it
+  exactly, then bounds both trim ends with a rational Taylor enclosure of cosine/sine.
+  Parameters beyond |t| = 16 and hyperbola/parabola edges stay Unsupported.
+
+Alternate masters (preferred PCurve replaced by the 3D leader), bounded partial trims,
+planar spline masters, non-planar and 3D masters, direct PCurves, surface construction
+lineage and the filled face region remain open; see the 007 route matrix.

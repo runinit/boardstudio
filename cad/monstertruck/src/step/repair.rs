@@ -1332,8 +1332,11 @@ mod tests {
                     }
                 }
             }
+            let mut outcomes = std::collections::BTreeMap::<String, [usize; 2]>::new();
             for operation in &model._repair_ledger.0 {
                 note(operation.stage);
+                outcomes.entry(operation.stage.to_string()).or_default()
+                    [usize::from(operation.bound_mm.is_err())] += 1;
             }
             for _ in 0..model._repair_ledger.2 {
                 note("captured_actual_finite_curve_pair");
@@ -1361,7 +1364,7 @@ mod tests {
             assert_eq!(covered.len(), model.face_occurrences().len());
             println!(
                 "REPAIR_CENSUS {}",
-                serde_json::json!({"path":path,"routes":counts,
+                serde_json::json!({"path":path,"routes":counts,"stageOutcomesOkErr":outcomes,
                 "sourceFaces":model.source_faces().len(),"faceOccurrences":model.face_occurrences().len(),
                 "lineOccurrences":model.line_presentation().occurrences().len(),
                 "retainedOriginalFiniteLineAuthorities":original.finite_lines.len(),
