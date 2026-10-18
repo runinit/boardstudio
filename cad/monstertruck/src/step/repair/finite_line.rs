@@ -231,18 +231,13 @@ fn world_square(
 }
 
 impl Source {
-    fn projected_controls(&self) -> Result<[Point; 2], &'static str> {
+    fn projected_controls(&self) -> [Point; 2] {
         let project = |point: &Point| {
             let parameter = dot(&sub(point, &self.origin), &self.direction)
                 / dot(&self.direction, &self.direction);
             std::array::from_fn(|i| &self.origin[i] + &self.direction[i] * &parameter)
         };
-        let projected = self.points.each_ref().map(project);
-        let advance = dot(&sub(&projected[1], &projected[0]), &self.direction);
-        if advance.is_zero() || advance.is_positive() != self.same_sense {
-            return Err("original finite LINE interval is degenerate or contradicts its sense");
-        }
-        Ok(projected)
+        self.points.each_ref().map(project)
     }
 
     // Refusal ONLY: even one authenticated attachment point over budget disproves
@@ -256,7 +251,7 @@ impl Source {
         let budget = Q::from_float(allowance)
             .filter(|q| q.is_positive())
             .ok_or("invalid projected LINE allowance")?;
-        for (before, after) in self.points.iter().zip(self.projected_controls()?) {
+        for (before, after) in self.points.iter().zip(self.projected_controls()) {
             if world_square(before, &after, factor, placement)? > &budget * &budget {
                 return Ok(true);
             }
@@ -320,7 +315,15 @@ impl Source {
         if line.0 == line.1 {
             return Err("repaired finite LINE interval is degenerate");
         }
-        let projected = self.projected_controls()?;
+        let projected = self.projected_controls();
+        if !projected_attachment {
+            // This is native source-interval authority only. Attachment
+            // projection remains well-defined when that selection is unproved.
+            let advance = dot(&sub(&projected[1], &projected[0]), &self.direction);
+            if advance.is_zero() || advance.is_positive() != self.same_sense {
+                return Err("original finite LINE interval is degenerate or contradicts its sense");
+            }
+        }
         let (before, after) = if projected_attachment {
             (&self.points, &projected)
         } else {

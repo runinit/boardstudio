@@ -1026,16 +1026,30 @@ mod tests {
 
     #[test]
     fn projected_native_line_attachment_does_not_borrow_native_selection_sense() {
-        let source=projected_line_tetra("0.015625");
-        let source=source.replace("#23=EDGE_CURVE('',#11,#12,#22,.T.);","#23=EDGE_CURVE('',#11,#12,#22,.F.);");
-        let model=import_step(source.as_bytes().to_vec()).unwrap();
-        let movement=model._repair_ledger.1.iter().filter_map(|op|op.as_ref().ok()).find(|op|op.edge==23)
+        let source = projected_line_tetra("0.015625");
+        let source = source.replace(
+            "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
+            "#23=EDGE_CURVE('',#11,#12,#22,.F.);",
+        );
+        let model = import_step(source.as_bytes().to_vec()).unwrap();
+        let movement = model
+            ._repair_ledger
+            .1
+            .iter()
+            .filter_map(|op| op.as_ref().ok())
+            .find(|op| op.edge == 23)
             .expect("native interval sense is not attachment-carrier authority");
-        assert_eq!(movement.bound_mm,0.015625);
+        assert_eq!(movement.bound_mm, 0.015625);
         assert!(movement.projected_attachment);
-        assert_eq!(model.accuracy().max_repair_displacement_mm,None);
-        let error=import_step(source.replace("0.015625","0.020000000000000001").into_bytes()).err().unwrap();
-        assert!(error.contains("finite LINE repair edge #23"),"{error}");
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+        let error = import_step(
+            source
+                .replace("0.015625", "0.020000000000000001")
+                .into_bytes(),
+        )
+        .err()
+        .unwrap();
+        assert!(error.contains("finite LINE repair edge #23"), "{error}");
     }
 
     #[test]

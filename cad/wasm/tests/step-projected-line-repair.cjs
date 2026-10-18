@@ -54,6 +54,13 @@ for (const [a, b] of [
   ["#60=ORIENTED_EDGE('',*,*,#23,.T.);", "#60=ORIENTED_EDGE('',*,*,#23,.F.);"]
 ]) reversed = replaceOnce(reversed, a, b);
 read(reversed);
+// The source's native interval sense remains unproved; it must not erase
+// the independently captured finite attachment operation.
+const unresolvedSense = text => replaceOnce(text,
+  "#23=EDGE_CURVE('',#11,#12,#22,.T.);", "#23=EDGE_CURVE('',#11,#12,#22,.F.);");
+read(unresolvedSense(projected('0.015625')));
+assert.throws(() => read(unresolvedSense(boundary)), error => typeof error === 'string'
+  && error.includes('finite LINE repair edge #23'));
 const unused = "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);";
 for (const padded of [false, true]) for (const before of [false, true]) {
   const mutate = source => {
@@ -61,9 +68,12 @@ for (const padded of [false, true]) for (const before of [false, true]) {
       : replaceOnce(source, 'ENDSEC;END-ISO-10303-21;', `${unused}ENDSEC;END-ISO-10303-21;`);
     return padded ? text + ' '.repeat(300000) : text;
   };
-  assert.throws(() => read(mutate(boundary)), error => typeof error === 'string'
-    && error.includes('finite LINE repair edge #23'));
-  read(mutate(projected('0.015625')));
+  for (const unprovedNativeSense of [false, true]) {
+    const sense = source => unprovedNativeSense ? unresolvedSense(source) : source;
+    assert.throws(() => read(mutate(sense(boundary))), error => typeof error === 'string'
+      && error.includes('finite LINE repair edge #23'));
+    read(mutate(sense(projected('0.015625'))));
+  }
 }
 const assembly = fs.readFileSync(path.resolve(__dirname,
   '../../monstertruck/tests/fixtures/two-occurrences-mm.step'), 'utf8');
