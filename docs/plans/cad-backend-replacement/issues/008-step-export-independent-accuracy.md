@@ -19,6 +19,8 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 ## Comments
 
+2026-10-18 parent integration: the B5 fixture slice (`8c5086e72` → `7335da4e` → `09b8a2e68` → `a4940488e`) is integrated on the monstertruck step-support branch as `9dbe14abe` → `b61d4534d` → `f520e52d6` → `d5bd7b271`; the affected sources match the reviewed tip exactly. This parent re-ran the ten `fixture_exports` tests (all pass, debug profile), scoped test Clippy with the two inherited allowances (`chunks_exact_to_as_chunks`, `items_after_test_module`), scoped rustfmt, doc links, repository and diff checks, and reuses the untouched 42-test export receipt and the one-time FreeCAD/OCCT interoperability receipt. No WASM/browser/performance/external-FreeCAD rerun. 008 remains open; this is bounded fixture coverage, not general B-rep validity or final closure.
+
 2026-10-18 round-one SPEC P2 correction: the new exact single-record LINE direction mutation
 reproduced acceptance of malformed slot bytes (`Ok(())`); see [RED](../../../../.evidence/b5/line-direction-red.log).
 The test-only `circular/fixture.rs::edge` now requires a positive projection of normalized
