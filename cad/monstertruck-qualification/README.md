@@ -1,23 +1,33 @@
 # Monstertruck backend qualification
 
-This standalone crate qualifies the CPU-only Rust dependency slice proposed for
-the CAD backend replacement. Its four Monstertruck dependencies are pinned to
-published version `=0.4.1`; before applying the qualification-only patches
+This standalone crate records qualification of the CPU-only Rust dependency slice
+used by the CAD backend replacement. The committed production provider now uses
+Monstertruck, with full migration acceptance still open. Both
+[`cad/monstertruck`](../monstertruck/Cargo.toml) and
+[`cad/wasm`](../wasm/Cargo.toml) patch dependencies to this directory's `vendor/`
+trees: preserve them during cleanup. The
+[current acceptance reconciliation](../../docs/research/cad/migration-acceptance-2026-10-18.md)
+distinguishes production evidence from historical candidate results below.
+
+The original four Monstertruck dependencies are pinned to
+published version `=0.4.1`; before applying the local patches
 listed below, their published `src/` trees were compared byte-for-byte with the
 checkout at upstream revision `d2ad1ed7aa420b7f32cd2c1e3ad319b46d593652`.
 For Boolean refinement qualification, the published `monstertruck-traits 0.4.1`
 package is vendored with the independently reviewed surface-axis refinement
 patch. The vendor source provenance, checksum, patch hash, and exact changed
 files are recorded in [SOURCE.md](vendor/monstertruck-traits/SOURCE.md). This
-patch is scoped to this standalone qualification crate; it does not alter the
-production CAD dependency graph.
+patch originated in this standalone qualification crate; the current production
+manifests also select the vendored traits crate. Provenance does not establish
+full production acceptance.
 
 The qualification workspace also vendors reviewed candidate changes to
 `monstertruck-meshing 0.4.1` and `monstertruck-io 0.4.1`. Their provenance,
 archive checksums, patch hashes, and manifest metadata delta are recorded in
 their respective [meshing SOURCE.md](vendor/monstertruck-meshing/SOURCE.md)
-and [IO SOURCE.md](vendor/monstertruck-io/SOURCE.md). These are isolated
-qualification candidates, not production integration or parity claims.
+and [IO SOURCE.md](vendor/monstertruck-io/SOURCE.md). These vendor trees are now
+production dependencies; the historical candidate gates below retain their
+original scope and are not full parity claims.
 The meshing vendor also includes the independently reviewed co-sample pairing
 refinement recorded in its provenance note.
 
@@ -43,7 +53,7 @@ features are `marching-ssi`, `tessellation` + `analyzers`, and `step`.
 `i_overlay = 9.0.0` is included for the support-footprint qualification gate.
 
 From the repository root, record compilation logs under the ignored evidence
-directory and keep Cargo artifacts there:
+directory and keep Cargo artifacts in the crate's standard target directory:
 
 ```sh
 mkdir -p .evidence/monstertruck-qualification/candidate-build \
@@ -382,4 +392,4 @@ Run `cargo test --locked --offline --release --manifest-path cad/monstertruck-qu
 
 Run `cargo run --locked --offline --manifest-path cad/monstertruck-qualification/Cargo.toml --bin profile_topology_gate`. The gate checks production-derived concave and35-hole profiles, reversed winding, two separately extruded split regions, and the bundled font's B outline with two counters. It checks the same constructed solids before and after lossless STEP round trips against analytic straight-segment area, bounds and strict mesh closure. It reuses `cad/wasm/assets/DejaVuSans.ttf`; no font copy is required. This is qualification of Monstertruck's profile API, not the production Cadrum extrusion path or Boolean/dish behavior. Frozen scratch provenance is in `.evidence/monstertruck-qualification/profile-topology/`.
 
-The qualification workspace also vendors `monstertruck-modeling 0.4.1` for the reviewed actual-intersection-curve containment correction. Package and patch provenance are in [modeling SOURCE.md](vendor/monstertruck-modeling/SOURCE.md). Sphere inverse membership uses linear spatial tolerance; active spline-domain and near-pole follow-ups remain separately qualified. Production continues to use Cadrum until full acceptance and removal gates pass.
+The qualification workspace also vendors `monstertruck-modeling 0.4.1` for the reviewed actual-intersection-curve containment correction. Package and patch provenance are in [modeling SOURCE.md](vendor/monstertruck-modeling/SOURCE.md). Sphere inverse membership uses linear spatial tolerance; active spline-domain and near-pole follow-ups remain separately qualified. Production now selects this vendored modeling crate through Monstertruck; full acceptance and final removal verification remain open as recorded in the current reconciliation linked above.
