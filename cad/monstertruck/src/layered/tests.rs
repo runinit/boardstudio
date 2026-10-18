@@ -409,6 +409,27 @@ fn adoption_overlapping_openings_preserve_collinear_authored_segments() {
     );
 }
 
+#[test]
+fn adoption_ring_island_blind_cut_preserves_connected_floor() {
+    let input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/opening-ring-island.json"
+    ))
+    .unwrap();
+    verify(
+        &input,
+        1116., // Existing independent oracle: 1280 - (48 + 42 - 8) * 2.
+        [[0., 0., 0.], [20., 16., 4.]],
+        &[
+            ([5., 5., 3.], false),
+            ([10., 8., 3.], true),
+            ([5., 5., 1.], true),
+            ([3.5, 11., 3.], false),
+        ],
+        0,
+        0,
+    );
+}
+
 fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64, r1: f64) {
     use std::collections::BTreeMap;
     use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};
