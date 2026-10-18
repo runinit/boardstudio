@@ -24,6 +24,14 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- **2026-10-18 audit follow-ups:** the user requested a ticket for each finding
+  from the recent-change audit at `f955050c3`. All four are `claimed` for parallel implementation and
+  have no blocking edges between them:
+  - [162: Bound STEP occurrence expansion before geometry work](issues/162-bound-step-occurrence-expansion.md).
+  - [163: Refuse unsupported via spans in physical PCB geometry](issues/163-refuse-unsupported-pcb-via-spans.md).
+  - [164: Share tight collision refinement across repeated model placements](issues/164-share-tight-collision-refinement.md).
+  - [165: Test STEP invariant rejection with corrupt imports](issues/165-test-step-invariant-rejections.md).
+
 - **Curated layout-only library demos are back in scope** per the user on 2026-10-16; see
   [161](issues/161-curated-library-launchpad-demos.md). They are synthetic editable layout
   examples with no hardware or fabrication claims. The historical removal in
