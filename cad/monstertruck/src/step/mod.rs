@@ -1,5 +1,6 @@
 //! Complete vendor STEP assets with retained source and derived preview data.
 mod bounds;
+mod repair;
 mod scene;
 mod tessellation;
 mod units;
@@ -98,6 +99,7 @@ pub struct StepAccuracy {
 pub struct ImportedStep {
     original_bytes: Vec<u8>,
     _original_source: Exchange,
+    _repair_ledger: repair::Ledger,
     solids: HashMap<u64, SourceSolid>,
     occurrences: Vec<(u64, Matrix4, u64)>,
     bounds: [[f64; 3]; 2],
@@ -217,6 +219,11 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let shape_items = units::shape_representation_items(&text)?;
     let exchange = units::normalize_conical_angles(&text)?;
     let mut table = Table::from_data_section(&exchange.data[0]);
+    let repair_original = if exchange == original_source {
+        repair::OriginalGeometry::capture(&table)
+    } else {
+        repair::OriginalGeometry::capture(&Table::from_data_section(&original_source.data[0]))
+    };
     let preview_tolerance = match options.preview_repair_budget_mm {
         Some(budget) => PreviewTolerance {
             floor_mm: budget,
@@ -320,6 +327,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         &representation_units,
         &precision,
     )?;
+    let mut repair_ledger = repair::Ledger::default();
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
     let mut bounds_from_source_geometry = true;
     let mut mesh_closed_oriented = true;
@@ -341,6 +349,13 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         let mut signed_volume = 0.0;
         for (shell_index, source) in solid.source[representation].shells().iter().enumerate() {
             require_complete_source_shell(source)?;
+            repair_ledger.conversion(
+                &repair_original,
+                source,
+                solid.mm_per_unit,
+                *placement,
+                occurrence,
+            );
             let owner = precision
                 .iter()
                 .find(|p| p.representation_id == *representation)
@@ -391,6 +406,11 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         ..Default::default()
                     },
                 )?;
+            repair_ledger.unknown(
+                occurrence,
+                "mesh boundary reconciliation",
+                "boundary remapping and fallback have no complete movement proof",
+            );
             fallback_meshed_faces += fallback_faces.len();
             let mut triangles = Vec::new();
             let mut from_fallback = Vec::new();
@@ -495,9 +515,24 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     {
         return Err("invalid bounds".into());
     }
+    if !wireframe.is_empty() {
+        repair_ledger.unknown(
+            0,
+            "non-surface curve conversion",
+            "non-surface geometry changes are not traced",
+        );
+    }
+    repair_ledger.unknown(
+        0,
+        "source decimal decoding",
+        "parsed f64 operation bounds do not cover original decimal conversion",
+    );
+    repair_ledger.trace();
+    let max_repair_displacement_mm = repair_ledger.complete_bound_mm();
     Ok(ImportedStep {
         original_bytes: bytes,
         _original_source: original_source,
+        _repair_ledger: repair_ledger,
         solids,
         occurrences,
         bounds,
@@ -517,7 +552,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             preview_floor_mm: preview_tolerance.floor_mm,
             preview_declared_multiplier: preview_tolerance.declared_multiplier,
             selected_repair_budget_mm: options.preview_repair_budget_mm,
-            max_repair_displacement_mm: None,
+            max_repair_displacement_mm,
             relaxed_beyond_declared_precision,
             sampled_support_checks,
             max_sampled_support_residual_mm,

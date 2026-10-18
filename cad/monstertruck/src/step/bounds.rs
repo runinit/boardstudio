@@ -25,11 +25,6 @@ pub(super) struct SupportReport {
     /// Boundary curves accepted by sampling after exact certification failed.
     pub sampled_checks: usize,
     pub max_sampled_residual_mm: Option<f64>,
-    /// Per source face, one entry per `shell().faces` index: the proved upper bound
-    /// (world millimetres) on the movement the supported repair class applied to that
-    /// face's immutable source geometry, or `None` while its change is unsupported or
-    /// not instrumented. `None` means unknown, never an assumed zero.
-    pub face_repair_bound_mm: Vec<Option<f64>>,
 }
 
 /// Preserve support mismatch refusal independently of optional tight bounds.
@@ -83,11 +78,6 @@ pub(super) fn validate_support(
         }
     }
     for (face_index, face) in shell.faces.iter().enumerate() {
-        report
-            .face_repair_bound_mm
-            .push(proved_plane_face_repair_bound_mm(
-                source, face_index, factor, placement, scale,
-            ));
         for edge in face.boundaries.iter().flatten() {
             let curve = &shell
                 .edges
@@ -145,57 +135,6 @@ pub(super) fn validate_support(
         .iter()
         .any(|attachment| attachment.discrepancy_mm() > attachment.declared_bound_mm());
     Ok(report)
-}
-
-/// Proved upper bound (world millimetres) on the geometric movement this face's own
-/// conversion applied to its immutable source geometry.
-///
-/// Supported class: a finite planar face whose every boundary edge is a native
-/// `LINE` recovered from exactly the shell's two source vertices, and whose whole
-/// boundary is incident on the plane support at the loader's certification
-/// tolerance. A native line is affine in its endpoints, so a segment carrying the
-/// exact source vertices and their unchanged interval has not moved; the entire
-/// changed geometric set is then empty and the bound is `0`. Any other edge family,
-/// a projected proxy endpoint, a changed interval or an off-support boundary is
-/// unsupported and returns `None`. Endpoint residuals and sampled support residuals
-/// are not movement and are never substituted here.
-fn proved_plane_face_repair_bound_mm(
-    source: &SourceBoundStepShell,
-    face_index: usize,
-    factor: f64,
-    placement: Matrix4,
-    scale: f64,
-) -> Option<f64> {
-    let shell = source.shell();
-    let face = shell.faces.get(face_index)?;
-    if face.boundaries.is_empty() || face.boundaries.iter().any(Vec::is_empty) {
-        return None;
-    }
-    let Surface::ElementarySurface(ElementarySurface::Plane(plane)) = &face.surface else {
-        return None;
-    };
-    for edge_use in face.boundaries.iter().flatten() {
-        let edge = shell.edges.get(edge_use.index)?;
-        // Only a native affine line can carry an exact endpoint bound. A selected
-        // PCURVE/spline candidate, an alternate master or a seam-extension copy is
-        // equally a real change and stays unknown here.
-        let Curve3D::Line(_) = &edge.curve else {
-            return None;
-        };
-        // The emitted segment must be the authored one: exactly the shell's two
-        // source vertices, with an unchanged interval. A projection proxy or any
-        // other substitute endpoint differs and is refused.
-        if edge.curve.front() != *shell.vertices.get(edge.vertices.0)?
-            || edge.curve.back() != *shell.vertices.get(edge.vertices.1)?
-        {
-            return None;
-        }
-        // The whole active boundary must be incident on the support within the same
-        // exact tolerance `shell_bounds` uses; an allowance-only or sampled pass is
-        // not an exact-incidence proof.
-        certify_plane_support(&edge.curve, plane, factor * scale).ok()?;
-    }
-    Some(0.0)
 }
 
 /// Maximum sampled signed distance (mm) of the curve from the plane.
