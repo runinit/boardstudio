@@ -747,6 +747,7 @@ fn occurrences(
 }
 
 fn closed_oriented_mesh(triangles: &[[Point3; 3]]) -> bool {
+    // Preserve the imported STEP preview's existing 1e7 rounded coordinate policy.
     let point = |p: Point3| {
         (
             (p.x * 1e7).round() as i64,
@@ -754,23 +755,7 @@ fn closed_oriented_mesh(triangles: &[[Point3; 3]]) -> bool {
             (p.z * 1e7).round() as i64,
         )
     };
-    let mut counts = HashMap::new();
-    for tri in triangles {
-        for i in 0..3 {
-            let (a, b) = (point(tri[i]), point(tri[(i + 1) % 3]));
-            if a == b {
-                return false;
-            }
-            let (key, direction) = if a < b { ((a, b), 1i64) } else { ((b, a), -1) };
-            let (count, orientation) = counts.entry(key).or_insert((0, 0));
-            *count += 1;
-            *orientation += direction;
-        }
-    }
-    !counts.is_empty()
-        && counts
-            .values()
-            .all(|&(count, orientation)| count == 2 && orientation == 0)
+    crate::mesh::closed_oriented_edges(triangles, |p| Some(point(p)))
 }
 
 fn append_face_triangles(

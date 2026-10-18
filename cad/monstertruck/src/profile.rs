@@ -263,25 +263,7 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
         // Exact coordinate identity, with signed zero canonicalized; never weld a gap.
         Some([p.x, p.y, p.z].map(|v| if v == 0.0 { 0 } else { v.to_bits() }))
     };
-    let mut counts = std::collections::HashMap::new();
-    for tri in triangles {
-        for i in 0..3 {
-            let (Some(a), Some(b)) = (point(tri[i]), point(tri[(i + 1) % 3])) else {
-                return false;
-            };
-            if a == b {
-                return false;
-            }
-            let (key, direction) = if a < b { ((a, b), 1i64) } else { ((b, a), -1) };
-            let (count, orientation) = counts.entry(key).or_insert((0, 0));
-            *count += 1;
-            *orientation += direction;
-        }
-    }
-    !counts.is_empty()
-        && counts
-            .values()
-            .all(|&(count, orientation)| count == 2 && orientation == 0)
+    crate::mesh::closed_oriented_edges(triangles, point)
 }
 
 #[cfg(test)]
