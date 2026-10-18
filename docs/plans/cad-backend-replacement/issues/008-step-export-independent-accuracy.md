@@ -19,6 +19,25 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 ## Comments
 
+2026-10-18 round-one SPEC P2 correction: the new exact single-record LINE direction mutation
+reproduced acceptance of malformed slot bytes (`Ok(())`); see [RED](../../../../.evidence/b5/line-direction-red.log).
+The test-only `circular/fixture.rs::edge` now requires a positive projection of normalized
+LINE direction onto the normalized base edge chord, reusing finite/nonzero checks and
+retaining true-only same_sense. No new tolerance, API, dependency or production change.
+Standards scope concern assessed: `step_accuracy.rs::direct_products`/`solid_scales` bind
+direct ownership and reject occurrence/mapping/relationship paths; `fixture.rs::compare`,
+`surface`, `edge` and `trim_loop` consume the typed active face/curve/trim graph against the
+complete references. No further active semantic bypass was identified. Unknown unreferenced
+metadata is not a schema-validity claim. Calling `Document::check_scope` would reject the
+intended cylinders/rational curves because `supported_record` is deliberately planar-only;
+that reader contract is unchanged. See [correction and scope disposition](../../../../.evidence/b5/LINE-DIRECTION-CORRECTION.md),
+[scoped GREEN](../../../../.evidence/b5/line-direction-green.log) and
+[scoped Clippy](../../../../.evidence/b5/line-direction-clippy.log). All 10 scoped tests,
+formatting, scoped Clippy (unchanged inherited exceptions), 156-ticket and diff checks pass.
+The original 42-test and
+source-7335da4e one-time reader receipts are reused without regenerating/rebinding their
+artifacts. Parent owns integration/final 008 closure; no new review loop was launched.
+
 2026-10-18 B5 corrective fixture slice (`7335da4e`, descendant of recoverable WIP `8c5086e72`):
 removed the unsound general prism certificate and replaced it with a test-only comparison
 of actual emitted Part21 faces against authored reference trims. The unchanged Decimal VIK

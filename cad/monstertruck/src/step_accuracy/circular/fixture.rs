@@ -65,8 +65,8 @@ fn edge(doc: &Document, id: u64, forward: bool, expected: &FixtureEdge) -> Resul
             let line = doc.record(curve, "LINE")?;
             let origin = doc.point(reference(&line[1])?)?;
             let v = doc.record(reference(&line[2])?, "VECTOR")?;
-            let direction = vector(&doc.record(reference(&v[1])?, "DIRECTION")?[1])?;
-            if number(&v[2])? <= 0. {
+            let direction = unit(vector(&doc.record(reference(&v[1])?, "DIRECTION")?[1])?)?;
+            if number(&v[2])? <= 0. || dot(direction, unit(sub(ends[1], ends[0]))?) <= 0. {
                 return Err(Error::Geometry);
             }
             check_supporting_line(origin, direction, ends[0], ends[1])?;

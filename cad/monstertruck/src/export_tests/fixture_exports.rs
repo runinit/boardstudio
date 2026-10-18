@@ -549,6 +549,23 @@ fn direct_identity_reader_refuses_occurrences_and_duplicate_ownership() {
 }
 
 #[test]
+fn fixture_comparison_refuses_reversed_line_direction_with_true_same_sense() {
+    use crate::step_accuracy::Error;
+    let text = step(&slot());
+    compare_fixture(&text, &[("body", slot_reference())]).unwrap();
+    assert!(text.contains("#103 = EDGE_CURVE('', #127, #128, #193, .T.);"));
+    let direction = "#197 = DIRECTION('', (-1.0, 0.0, 0.0));";
+    assert_eq!(text.matches(direction).count(), 1);
+    // Only reverse the LINE support direction; the edge's vertices and true same_sense stay fixed.
+    let reversed = text.replacen(direction, "#197 = DIRECTION('', (1.0, 0.0, 0.0));", 1);
+    let result = compare_fixture(&reversed, &[("body", slot_reference())]);
+    assert!(
+        matches!(result, Err(Error::Geometry)),
+        "reversed support was accepted: {result:?}"
+    );
+}
+
+#[test]
 fn fixture_comparison_refuses_surface_units_and_complete_trim_loss() {
     let text = step(&slot());
     let cylinder = text
