@@ -1004,19 +1004,7 @@ fn cylinder_proof_authored_radius_height_and_actual_refinement_controls() {
 
 #[test]
 fn cylinder_proof_authored_circle_pcb_with_real_drill_is_bounded() {
-    use boardstudio_contracts::{Mount, MountKind};
-    let mut input: boardstudio_contracts::PreparedCaseIR = serde_json::from_str(include_str!(
-        "../../../tests/fixtures/pcb-source/circle-tracer.json"
-    ))
-    .unwrap();
-    input.body.mounts = Some(vec![Mount {
-        id: "authored-drill".into(),
-        kind: MountKind::Hole,
-        at: Vec2 { x: 10., y: 8. },
-        hole_diameter: 1.,
-        boss_diameter: None,
-        height: None,
-    }]);
+    let input = circular_drilled_input(2., 0.);
     let model = crate::build_case(&input).unwrap();
     let (mesh, trace) = checked_trace(&model, Some(0.01));
     assert_eq!(
@@ -1028,6 +1016,46 @@ fn cylinder_proof_authored_circle_pcb_with_real_drill_is_bounded() {
         2
     );
     assert!(bound(&model, &mesh, &trace) < 0.04);
+}
+
+fn circular_drilled_input(thickness: f64, elevation: f64) -> boardstudio_contracts::PreparedCaseIR {
+    use boardstudio_contracts::{Mount, MountKind};
+    let mut input: boardstudio_contracts::PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/pcb-source/circle-tracer.json"
+    ))
+    .unwrap();
+    input.body.thickness = thickness;
+    input.body.z = Some(elevation);
+    input.body.mounts = Some(vec![Mount {
+        id: "authored-drill".into(),
+        kind: MountKind::Hole,
+        at: Vec2 { x: 10., y: 8. },
+        hole_diameter: 1.,
+        boss_diameter: None,
+        height: None,
+    }]);
+    input
+}
+
+#[test]
+fn cylinder_proof_ordinary_1_6_source_pcb_has_a_complete_height_enclosure() {
+    for input in [drilled_input(1., 1.6), circular_drilled_input(1.6, 0.)] {
+        let model = crate::build_case(&input).unwrap();
+        let (mesh, trace) = checked_trace(&model, Some(0.01));
+        assert!(bind(&model, &mesh, &trace).is_ok());
+        for face in &trace.faces {
+            let z = face.polygon.positions().iter().map(|p| p.z).fold(
+                (f64::INFINITY, f64::NEG_INFINITY),
+                |(lo, hi), z| (lo.min(z), hi.max(z)),
+            );
+            eprintln!("1.6 support={} final-z={z:?}", face.source.support_kind);
+        }
+        assert_eq!(mesh.bounds[0][2], 0.);
+        let error = bound(&model, &mesh, &trace);
+        assert!(error < 0.04);
+        assert!((q(mesh.bounds[1][2]).unwrap() - q(1.6).unwrap()).abs() <= q(error).unwrap());
+        assert_eq!(mesh.analysis_error_bound_mm, None);
+    }
 }
 
 #[test]
