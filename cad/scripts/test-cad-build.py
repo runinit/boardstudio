@@ -23,6 +23,9 @@ CAD_CRATES = ("monstertruck", "wasm")
 
 
 class CadBuildTests(unittest.TestCase):
+    PASSED = subprocess.CompletedProcess([], 0, stdout=(
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 99 filtered out;\n"))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -117,7 +120,8 @@ class CadBuildTests(unittest.TestCase):
         self.assertIn("skipping the WASM build", printed.getvalue())
 
     def test_native_tests_run_library_and_provider_and_propagate_failures(self):
-        with patch.object(build, "run") as run:
+        with patch.object(build, "run", return_value=self.PASSED) as run, \
+                contextlib.redirect_stdout(io.StringIO()):
             build.test_cad()
         commands = [call.args[0] for call in run.call_args_list]
         self.assertEqual([command[3] for command in commands[:2]],
@@ -142,13 +146,50 @@ class CadBuildTests(unittest.TestCase):
     def test_each_owner_failure_propagates_without_running_later_commands(self):
         for index in range(len(build.OWNER_TESTS)):
             with self.subTest(index=index), patch.object(build, "run", side_effect=[
-                *([None] * (index + 2)), subprocess.CalledProcessError(7, "cargo")
-            ]) as run:
+                *([self.PASSED] * (index + 2)), subprocess.CalledProcessError(7, "cargo")
+            ]) as run, contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(subprocess.CalledProcessError):
                     build.test_cad()
                 self.assertEqual(run.call_count, index + 3)
                 targets = {call.kwargs["env"]["CARGO_TARGET_DIR"] for call in run.call_args_list[2:]}
                 self.assertEqual(targets, {str(self.root / "monstertruck-qualification/target")})
+
+    def test_each_required_owner_selection_rejects_zero_or_all_ignored_tests(self):
+        passed = self.PASSED.stdout
+        empty = (
+            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 100 filtered out;\n",
+            "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 99 filtered out;\n",
+            "running 1 test\n",
+        )
+        for index, (package, *selection) in enumerate(build.OWNER_TESTS):
+            for output in empty:
+                results = [subprocess.CompletedProcess([], 0, stdout=output if step == index + 2 else passed)
+                           for step in range(len(build.OWNER_TESTS) + 2)]
+                with self.subTest(package=package, selection=selection, output=output), \
+                        patch.object(build.subprocess, "run", side_effect=results) as run, \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaisesRegex(RuntimeError, "no executed tests"):
+                        build.test_cad()
+                    self.assertEqual(run.call_count, index + 3)
+
+    def test_required_owner_runs_retain_success_and_failure_output(self):
+        with patch.object(build.subprocess, "run", return_value=self.PASSED) as run, \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            build.test_cad()
+        self.assertEqual(printed.getvalue(), self.PASSED.stdout * len(build.OWNER_TESTS))
+        for call in run.call_args_list[2:]:
+            self.assertEqual(call.kwargs["stdout"], subprocess.PIPE)
+            self.assertEqual(call.kwargs["stderr"], subprocess.STDOUT)
+            self.assertTrue(call.kwargs["text"])
+            self.assertTrue(call.kwargs["check"])
+        failure = subprocess.CalledProcessError(7, "cargo", output="first real Cargo failure\n")
+        with patch.object(build.subprocess, "run", side_effect=[self.PASSED, self.PASSED, failure]) as run, \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                build.test_cad()
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(printed.getvalue(), failure.stdout)
 
     def test_provider_tests_are_registered_or_explicitly_opt_in(self):
         scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}

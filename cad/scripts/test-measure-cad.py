@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,6 +22,7 @@ SPEC.loader.exec_module(PERF)
 class BuildBindingTests(unittest.TestCase):
     HEAD = "2ea2ca48d1b0a55e99429fe06c7bdec0611a428b"
     COMMENT = "// BoardStudio CAD performance incremental rebuild probe.\n"
+    SOURCE = "// Controlled incremental source fixture, not historical provider evidence.\npub fn initialize_cadrum() {}\n"
 
     def setUp(self):
         evidence = PERF.ROOT / ".evidence/011-build-binding-fix"
@@ -28,6 +30,15 @@ class BuildBindingTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(dir=evidence)
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        # Both fixture generation and validation read this source, even in shallow CI checkouts.
+        def source(command, **kwargs):
+            self.assertIn(command, [prefix + ["show", f"{head}:cad/wasm/src/lib.rs"]
+                                   for prefix in (["git"], ["git", "-C", str(PERF.ROOT)])
+                                   for head in (self.HEAD, PERF.OLD_HEAD)])
+            self.assertTrue(kwargs["text"])
+            return self.SOURCE
+
+        self.enterContext(patch.object(PERF.subprocess, "check_output", side_effect=source))
 
     def bound(self, backend="monstertruck", state="clean", built=False, **changes):
         head = PERF.OLD_HEAD if backend == "cadrum" else self.HEAD
@@ -77,6 +88,23 @@ class BuildBindingTests(unittest.TestCase):
         output = self.reduce(inputs)
         with (output / "pairs.csv").open() as source:
             self.assertEqual(len(list(csv.DictReader(source))), 3)
+
+    def test_incremental_fixture_generation_needs_no_git_history(self):
+        for backend in ("cadrum", "monstertruck"):
+            with self.subTest(backend=backend), patch.object(
+                PERF.subprocess, "run", side_effect=subprocess.CalledProcessError(
+                    128, ["git", "show"], stderr="fatal: historical object unavailable in shallow checkout")
+            ):
+                self.bound(backend, state="incremental")
+
+    def test_incremental_validation_needs_no_git_history(self):
+        for backend in ("cadrum", "monstertruck"):
+            bound = self.bound(backend, state="incremental", built=True)
+            with self.subTest(backend=backend), patch.object(
+                PERF.subprocess, "run", side_effect=subprocess.CalledProcessError(
+                    128, ["git", "show"], stderr="fatal: historical object unavailable in shallow checkout")
+            ):
+                PERF.validate_build_bindings(bound, bound, backend, "checked", "incremental")
 
     def test_existing_output_changes_and_git_function_label_are_allowed(self):
         before = self.bound(built=True, provider_stamp="0" * 64,

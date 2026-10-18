@@ -3,6 +3,7 @@
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -50,7 +51,7 @@ PROVIDER_TESTS = (
 
 
 def run(command, **kwargs):
-    subprocess.run(command, cwd=CAD_ROOT, check=True, **kwargs)
+    return subprocess.run(command, cwd=CAD_ROOT, check=True, **kwargs)
 
 
 def _iter_source_files(base: Path, names: tuple[str, ...]):
@@ -162,8 +163,16 @@ def test_cad():
     owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
     # Select independent targets: IO's broad --lib has unrelated missing fixtures.
     for package, *selection in OWNER_TESTS:
-        run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
-             "-p", package, *selection, "--release", "--locked"], env=owner_env)
+        try:
+            result = run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
+                          "-p", package, *selection, "--release", "--locked"], env=owner_env,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as error:
+            print(error.stdout or "", end="", flush=True)
+            raise
+        print(result.stdout, end="", flush=True)
+        if not re.search(r"^test result: ok\. [1-9][0-9]* passed;", result.stdout, re.M):
+            raise RuntimeError(f"CAD owner selection has no executed tests: {package} {' '.join(selection)}")
 
 
 def test_provider():
