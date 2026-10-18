@@ -267,6 +267,9 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
 }
 
 #[cfg(test)]
+mod generated_qualification;
+
+#[cfg(test)]
 mod analysis_tests {
     use super::*;
 
