@@ -30,7 +30,9 @@ fn adoption_cone_checks_only_the_height_band_intersecting_material() {
     assert_eq!(analysis.bounds, [[0., 0., 0.], [20., 16., 4.]]);
     let volume: f64 = analysis
         .positions_mm_f64
-        .chunks_exact(9)
+        .as_chunks::<9>()
+        .0
+        .iter()
         .map(|t| {
             let [a, b, c] = [&t[0..3], &t[3..6], &t[6..9]];
             (a[0] * (b[1] * c[2] - b[2] * c[1])

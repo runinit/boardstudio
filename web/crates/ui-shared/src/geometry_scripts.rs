@@ -113,7 +113,7 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
     let mut enabled = use_signal(|| true);
     let mut draft = use_signal(|| encode_script_draft("", "", true));
     let failure = use_signal(|| None::<String>);
-    let pending = use_hook(|| PendingEditSignals::<ScriptActionKey>::new());
+    let pending = use_hook(PendingEditSignals::<ScriptActionKey>::new);
     let pending_owner = use_signal(|| None::<ScriptOwner>);
     let new_disabled = use_signal(|| false);
     let apply_disabled = use_signal(|| false);

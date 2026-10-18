@@ -300,32 +300,6 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
     crate::mesh::closed_oriented_edges(triangles, point)
 }
 
-#[cfg(test)]
-mod final_trace;
-
-#[cfg(test)]
-mod generated_qualification;
-
-#[cfg(test)]
-mod analysis_tests {
-    use super::*;
-
-    #[test]
-    fn generated_topology_does_not_weld_an_open_submicron_gap() {
-        let a = Point3::new(0.0, 0.0, 0.0);
-        let b = Point3::new(1.0, 0.0, 0.0);
-        let c = Point3::new(0.0, 1.0, 0.0);
-        let d = Point3::new(0.0, 0.0, 1.0);
-        let mut triangles = [[a, c, b], [a, b, d], [a, d, c], [b, c, d]];
-        assert!(closed_oriented_shell_triangles(&triangles));
-        triangles[0][0].x = 1e-9;
-        assert!(
-            !closed_oriented_shell_triangles(&triangles),
-            "topology metadata must not silently weld a gap"
-        );
-    }
-}
-
 fn wire(points: &[Vec2], z: f64) -> Result<Wire, String> {
     if points.len() < 3
         || !z.is_finite()
@@ -367,4 +341,30 @@ fn validate_region(region: ProfileRegion) -> Result<(Vec<Vec2>, Vec<Vec<Vec2>>),
             .collect()
     };
     Ok((convert(outer), holes.into_iter().map(convert).collect()))
+}
+
+#[cfg(test)]
+mod final_trace;
+
+#[cfg(test)]
+mod generated_qualification;
+
+#[cfg(test)]
+mod analysis_tests {
+    use super::*;
+
+    #[test]
+    fn generated_topology_does_not_weld_an_open_submicron_gap() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, 0.0);
+        let c = Point3::new(0.0, 1.0, 0.0);
+        let d = Point3::new(0.0, 0.0, 1.0);
+        let mut triangles = [[a, c, b], [a, b, d], [a, d, c], [b, c, d]];
+        assert!(closed_oriented_shell_triangles(&triangles));
+        triangles[0][0].x = 1e-9;
+        assert!(
+            !closed_oriented_shell_triangles(&triangles),
+            "topology metadata must not silently weld a gap"
+        );
+    }
 }

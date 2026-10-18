@@ -224,16 +224,15 @@ fn write_settings(side: PanelSide, value: PanelSettings, mut storage_warning: Si
     })) else {
         return;
     };
-    if let Some(storage) = preference_storage(&mut storage_warning) {
-        if storage
+    if let Some(storage) = preference_storage(&mut storage_warning)
+        && storage
             .set_item(
                 &format!("boardstudio:v2:panel:{}", side.storage_side()),
                 &json,
             )
             .is_err()
-        {
-            storage_warning.set(true);
-        }
+    {
+        storage_warning.set(true);
     }
 }
 
@@ -595,11 +594,11 @@ fn panel_frame(
                                 let Some(raw) = event.data().try_as_web_event() else { return; };
                                 if raw.button() != 0 { return; }
                                 event.prevent_default();
-                                if let Some(target) = panel_resize_target(&raw) {
-                                    if let Some(drag) = begin_panel_resize(side, raw.pointer_id()) {
-                                        let _ = target.set_pointer_capture(raw.pointer_id());
-                                        *resize_drag_start.borrow_mut() = Some(drag);
-                                    }
+                                if let Some(target) = panel_resize_target(&raw)
+                                    && let Some(drag) = begin_panel_resize(side, raw.pointer_id())
+                                {
+                                    let _ = target.set_pointer_capture(raw.pointer_id());
+                                    *resize_drag_start.borrow_mut() = Some(drag);
                                 }
                             },
                             onpointermove: move |event: dioxus::prelude::PointerEvent| {
@@ -747,10 +746,9 @@ fn available_panel_width(side: PanelSide) -> f64 {
         && document
             .get_element_by_id(PanelIds::for_side(opposing).shell)
             .is_some_and(|other| other.get_attribute("data-mode").as_deref() == Some("pinned"))
+        && let Some(other) = document.get_element_by_id(PanelIds::for_side(opposing).shell)
     {
-        if let Some(other) = document.get_element_by_id(PanelIds::for_side(opposing).shell) {
-            opposing_width = other.get_bounding_client_rect().width();
-        }
+        opposing_width = other.get_bounding_client_rect().width();
     }
     (frame.get_bounding_client_rect().width() - opposing_width - MINIMUM_CENTER_WIDTH).max(0.0)
 }

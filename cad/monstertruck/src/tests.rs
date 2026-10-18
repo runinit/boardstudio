@@ -91,7 +91,7 @@ fn assert_model_matches(
 
 fn assert_mesh_closed_and_oriented(mesh: &crate::MeshBuffers) {
     let mut edges = HashMap::<([u32; 3], [u32; 3]), (usize, isize)>::new();
-    for triangle in mesh.positions.chunks_exact(9) {
+    for triangle in mesh.positions.as_chunks::<9>().0 {
         let point = |index: usize| {
             [0, 1, 2].map(|axis| {
                 let value = triangle[index * 3 + axis];
@@ -113,7 +113,7 @@ fn assert_mesh_closed_and_oriented(mesh: &crate::MeshBuffers) {
             .values()
             .all(|(uses, orientation)| *uses == 2 && *orientation == 0)
     );
-    for normal in mesh.normals.chunks_exact(3) {
+    for normal in mesh.normals.as_chunks::<3>().0 {
         let length = normal
             .iter()
             .map(|value| f64::from(*value).powi(2))
@@ -125,7 +125,9 @@ fn assert_mesh_closed_and_oriented(mesh: &crate::MeshBuffers) {
 
 fn signed_mesh_volume(mesh: &crate::MeshBuffers) -> f64 {
     mesh.positions
-        .chunks_exact(9)
+        .as_chunks::<9>()
+        .0
+        .iter()
         .map(|triangle| {
             let p = |index: usize| {
                 [
@@ -147,7 +149,7 @@ fn signed_mesh_volume(mesh: &crate::MeshBuffers) -> f64 {
 
 fn mesh_bounds(mesh: &crate::MeshBuffers) -> [[f64; 3]; 2] {
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for point in mesh.positions.chunks_exact(3) {
+    for point in mesh.positions.as_chunks::<3>().0 {
         for axis in 0..3 {
             let coordinate = f64::from(point[axis]);
             bounds[0][axis] = bounds[0][axis].min(coordinate);
