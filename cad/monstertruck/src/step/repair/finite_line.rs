@@ -56,6 +56,7 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
     let text = units::decode_step_bytes(bytes);
     let mut input = text.as_str();
     let mut result = HashMap::new();
+    let mut seen = HashSet::new();
     while !input.is_empty() {
         if let Ok((rest, _)) = parser::combinator::separator(input) {
             input = rest;
@@ -72,6 +73,11 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
             {
                 let mut entity = &input[..input.len() - rest.len()];
                 let mut values = Vec::new();
+                values.try_reserve_exact(3).ok()?;
+                let mut supported = true;
+                if !seen.insert(id) {
+                    return None;
+                }
                 while !entity.is_empty() {
                     if let Ok((rest, _)) = parser::combinator::separator(entity) {
                         entity = rest;
@@ -86,7 +92,20 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
                             .map(|(rest, _)| rest)
                             .or_else(|_| parser::token::integer(entity).map(|(rest, _)| rest))
                             .ok()?;
-                        values.push(decimal(&entity[..entity.len() - rest.len()])?);
+                        // Numeric/domain limits belong to THIS immutable
+                        // source entity. An unrelated unsupported scalar must
+                        // not erase other complete operation certificates.
+                        if supported {
+                            if values.len() == 3 {
+                                supported = false;
+                            } else if let Some(value) =
+                                decimal(&entity[..entity.len() - rest.len()])
+                            {
+                                values.push(value);
+                            } else {
+                                supported = false;
+                            }
+                        }
                         entity = rest;
                     } else if matches!(entity.as_bytes()[0], b'(' | b')' | b',' | b'=' | b';') {
                         entity = &entity[1..];
@@ -94,8 +113,8 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
                         return None;
                     }
                 }
-                if result.insert(id, values).is_some() {
-                    return None;
+                if supported {
+                    result.insert(id, values);
                 }
             }
             input = rest;

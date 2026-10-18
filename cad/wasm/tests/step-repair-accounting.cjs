@@ -85,6 +85,13 @@ for (const allowance of [0.03125, 0.03125000000000001]) {
 }
 assert.deepEqual(Buffer.from(finiteBytes), Buffer.from(finite), 'refused/accepted calls retain immutable original bytes');
 check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
+const unrelatedNumeric = replaceOnce(finite, 'ENDSEC;END-ISO-10303-21;',
+  "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);ENDSEC;END-ISO-10303-21;");
+assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(unrelatedNumeric)),
+  {sourceSha256: sha(Buffer.from(unrelatedNumeric))}), error =>
+    typeof error === 'string' && error.includes('finite LINE repair edge #23'));
+check(unrelatedNumeric, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
+
 let gap = replaceOnce(tetra,
   "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));",
   "#103=(GEOMETRIC_REPRESENTATION_CONTEXT(3) REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102))GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300)));");
@@ -109,4 +116,17 @@ assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
 const curved = check(fixture('unsupported-non-ruled-sphere.step'), {}, [[0, 0, 0], [1, 1, 1]], 1, false);
 assert(curved.vendorStep.sourceFaces.some(face => face.supportKind !== 'PLANE'));
-console.log('PASS complete finite LINE operation default/equality/nextdown budget enforcement; incomplete asset remains Unknown; repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');
+// The same literal producer fixture exercises actual native spline restriction
+// and the concrete whole-domain certifier inside the rebuilt WASM importer.
+const partialBytes = fs.readFileSync(path.resolve(__dirname,
+  '../../monstertruck-qualification/vendor/monstertruck-io/tests/input/partial_closed_spline/solid32377-source.step'));
+const partialInput = new Uint8Array(partialBytes);
+const partial = cad.read_step_model(partialInput, {sourceSha256: sha(partialBytes)});
+assert.deepEqual(Buffer.from(partialInput), partialBytes);
+assert.equal(partial.vendorStep.sourceFaces.length, 12);
+assert.equal(partial.vendorStep.faceOccurrences.length, 12);
+assert.equal(new Set(partial.vendorStep.triangleFaceOccurrenceIndices).size, 12);
+assert.equal(partial.vendorStep.accuracy.maxRepairDisplacementMm, null);
+assert.equal(partial.vendorStep.accuracy.analysisErrorBoundMm, null);
+assert.equal(partial.vendorStep.sourceQualification.state, 'unknown');
+console.log('PASS actual native spline 12-face path and complete finite LINE operation default/equality/nextdown budget enforcement; incomplete asset remains Unknown; repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');

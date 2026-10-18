@@ -743,6 +743,28 @@ mod tests {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn unrelated_unsupported_numeric_entity_cannot_erase_an_over_budget_operation() {
+        let original = include_str!("../../tests/fixtures/repair-finite-domain.step");
+        let source = original.replace("ENDSEC;END-ISO-10303-21;",
+            "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);ENDSEC;END-ISO-10303-21;");
+        assert_ne!(source, original);
+        let error = import_step(source.as_bytes().to_vec()).err().unwrap();
+        assert!(error.contains("finite LINE repair edge #23"), "{error}");
+        let model = import_step_with_options(
+            source.as_bytes().to_vec(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(0.03125),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(model.original_bytes(), source.as_bytes());
+        assert_eq!(model.source_faces().len(), 4);
+        assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn whole_finite_line_movement_honors_exact_budget_boundary_and_retains_unknown_asset() {
         let text = include_str!("../../tests/fixtures/repair-finite-domain.step");
         let budget = 0.03125_f64;
