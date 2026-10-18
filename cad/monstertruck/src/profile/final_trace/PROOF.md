@@ -1,5 +1,9 @@
 # Private generated cylinder proof (014)
 
+Frozen `5bc56d35` failed independent Spec review with a P1 soundness
+counterexample. Its prior green checks did not cover that defect. The correction
+below remains private and unapproved for integration or activation.
+
 This is a test-only `analytic-generated-v1` source proof under the pending
 [contract](../../../../wasm/src/model/generated/ANALYSIS_CONTRACT.md).
 It does not activate v2, publish a mesh identity, qualify a query or containment,
@@ -28,9 +32,13 @@ a geometric angular chart from exact radial directions and winding.
 
 ## Continuous source trim enclosure
 
-Retained quadratic clamped NURBS spans are extracted in exact homogeneous
-rationals using Cox-de Boor and three exact polynomial values. Positive weights
-bound the denominator away from zero. For each span, with centered homogeneous
+Raw retained `edge.curve()` quadratic clamped NURBS coefficients and knots are
+converted to rationals first. Cox-de Boor and three exact polynomial values
+extract each span in that raw domain. A backward edge reverses the exact span
+order and each span's homogeneous controls; no f64 knot reflection or source
+reparameterization occurs. Raw endpoints are checked against the edge's absolute
+vertices, then oriented span joins and wire winding are checked exactly. Positive
+weights bound the denominator away from zero. For each span, with centered homogeneous
 coordinates X,Y,W and retained cylinder radius R, Bernstein coefficients bound
 the polynomial `X²+Y²-R²W²` on the **entire** interval. Consequently
 
@@ -93,6 +101,48 @@ difference has a same-ray boundary witness in the other cap within that sum.
 Unchanged rectangular boundaries contribute zero. Both directed cap distances
 are bounded. The maximum over all retained faces bounds the whole surface union.
 
+Each cap independently authenticates **every** circular trim and takes the
+maximum of its errors and the inherited cylinder-source contribution, then adds
+the mesh contribution once. This same cap band is used for axis exclusion,
+nesting/separation, and its returned surface bound. The whole-body result takes
+the maximum of the cylinder and all cap bands. A matching cylinder carrier
+identity never authorizes dropping a cap trim's independently derived error.
+
+## P1 reproduction and correction
+
+The old `edge.oriented_curve()` inverted NURBS in f64 before extraction. With
+interior knots `0.00008, 0.00015` and endpoint `1e12`, reflection merges the two
+distinct knots at `999999999999.9999`. Raw homogeneous semicircle controls with
+stored `sqrt(0.5)` weights can then have a large radial deviation while their
+rounded replacement looks almost circular. The cylinder's backward use received
+the small replacement bound; the cap's forward use computed a larger raw bound
+but discarded it. Source binding still passed because the edge was shared.
+
+The genuine Rust RED is preserved in commit `e98e0efc` and
+`.evidence/cylinder-p1-red.log`: the frozen proof reported
+`0.015384615384616942` mm although an actual final cap point, at signed
+`(47/64,47/64)` relative to the retained hole center, is more than `1/32` mm
+from the entire source surface. The source-only mutation preserves the real fine
+emission trace and has a binding-success precondition, including actual opposite
+native edge uses on cylinder and cap. An independent exact homogeneous
+control-hull enclosure covers every dyadic subinterval of each raw trim, proves
+distance from the witness ball, and preserves winding under chord homotopy.
+It proves the witness is inside the deformed source hole; exact radial and
+plane inequalities exclude every other source face. This oracle is a continuous
+enclosure, not a sampled maximum or floating tolerance.
+
+The focused command is `cargo test --manifest-path cad/monstertruck/Cargo.toml
+--lib p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound --
+--nocapture`. At the preserved RED checkpoint only the regression was added to
+the frozen proof; no proof implementation was changed to manufacture failure.
+
+Four corrective regressions cover that whole-surface counterexample, exact
+orientation invariance despite the near-ULP reflected-knot collision, a cap's
+returned error with zero inherited cylinder allowance, and cap-only error
+entering the nesting separation check. The same four join the original 13
+controls in the actual private WASM entry. No numeric limits or oracle tolerances
+were weakened; unsupported source classes and production bounds are unchanged.
+
 The final outward f64 conversion is checked against the exact rational bound;
 `next_up` is used only when an exact comparison proves conversion rounded down.
 Translation has norm one and is included directly in source/final coordinates.
@@ -116,13 +166,32 @@ Its target is outside `.evidence/`. The WASM test entry invokes these same proof
 and adversarial test functions; a compile alone is not acceptance. Repository
 manifests/locks and the parent-owned cgmath provenance work are untouched.
 
-Final checks: 40 native profile tests (13 new proof controls), 6 affected native
+Frozen pre-review checks: 40 native profile tests (13 proof controls), 6 affected native
 integration tests, and one actual Node/WASM entry invoking those same 13 proof
 controls passed. Final WASM execution took 55.90 seconds; this is a correctness
-run, not a performance comparison. Formatting, production strict Clippy and
+run, not a performance comparison. These checks predate P1 and do not establish
+soundness of the frozen proof. Formatting, production strict Clippy and
 test Clippy with only `items_after_test_module` / `chunks_exact_to_as_chunks`
 baseline allowances pass. Unadjusted `--lib --tests -D warnings` still finds six
 unchanged library-test findings and one integration-test finding. The four owned
 generated-helper findings were removed in the separate lint cleanup commit.
 Logs are `.evidence/cylinder-proof-{profile-tests,generated-integration,wasm-final,
 clippy-production,clippy-scoped,clippy-strict,fmt}.log`.
+
+P1 correction checks: 44 native profile tests (original 40 plus four P1
+regressions), all 6 affected integration tests, formatting, production strict
+Clippy and the same scoped test-Clippy gate pass. The unchanged actual Node/WASM
+entry executes the original 13 controls plus all four P1 controls: one entry
+passed in 78.92 seconds. Only its execution timeout was extended to 300 seconds
+for the additional continuous exact oracle; no proof limits or oracles changed.
+The unadjusted strict test gate still reports the same six preexisting library
+findings and one integration finding, with none in this correction.
+
+The original runtime RED and checkpoint remain available. Corrected logs are
+`.evidence/cylinder-p1-{focused-green,profile-tests,integration,fmt,
+clippy-production,clippy-scoped,clippy-strict,wasm}.log`. The focused GREEN reports
+`0.48205128205128323` mm for the adversarial source/final pair; the independent
+whole-source witness lower bound remains strictly greater than `1/32` mm.
+This is a private correction pending parent inspection, not integration or
+activation approval. Production bounds, contracts, public APIs and dependencies
+remain unchanged.

@@ -232,7 +232,9 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
     let mut error = n(0);
     let mut angular_sign = 0;
     for edge in wire.edge_iter() {
-        let Curve::NurbsCurve(curve) = edge.oriented_curve() else {
+        // Native inversion reflects knots in f64 and can change the locus.
+        // Extract the retained raw geometry before applying any orientation.
+        let Curve::NurbsCurve(curve) = edge.curve() else {
             return Err("unsupported circular trim curve");
         };
         if curve.degree() != 2
@@ -271,22 +273,26 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
         let first = spline_value(&knots, &control, &knots[0]);
         let last = spline_value(&knots, &control, &knots[knots.len() - 1]);
         let dehom = |p: &[Q; 4]| -> [Q; 3] { std::array::from_fn(|i| &p[i] / &p[3]) };
-        if dehom(&first) != point(edge.front().point())?
-            || dehom(&last) != point(edge.back().point())?
+        if dehom(&first) != point(edge.absolute_front().point())?
+            || dehom(&last) != point(edge.absolute_back().point())?
         {
             return Err("trim endpoint mismatch");
         }
-        if let Some(previous) = endpoints.last()
-            && previous != &dehom(&first)
-        {
-            return Err("unjoined source trim");
-        }
+        let mut spans = Vec::new();
         for pair in knots.windows(2).filter(|w| w[0] < w[1]) {
             let a = spline_value(&knots, &control, &pair[0]);
             let c = spline_value(&knots, &control, &pair[1]);
             let mid = spline_value(&knots, &control, &((&pair[0] + &pair[1]) / n(2)));
             let b: [Q; 4] = std::array::from_fn(|i| n(2) * &mid[i] - (&a[i] + &c[i]) / n(2));
-            let span = [a, b, c];
+            spans.push([a, b, c]);
+        }
+        if !edge.orientation() {
+            spans.reverse();
+            for span in &mut spans {
+                span.reverse();
+            }
+        }
+        for span in spans {
             if span.iter().any(|p| p[3] <= n(0)) {
                 return Err("nonpositive Bezier weight");
             }
@@ -524,11 +530,16 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
     }
     let mut points = Vec::new();
     for edge in wire.edge_iter() {
-        let Curve::Line(line) = edge.oriented_curve() else {
+        let Curve::Line(line) = edge.curve() else {
             return Err("unsupported planar trim");
         };
-        let a = point(line.0)?;
-        let b = point(line.1)?;
+        let (front, back) = if edge.orientation() {
+            (line.0, line.1)
+        } else {
+            (line.1, line.0)
+        };
+        let a = point(front)?;
+        let b = point(back)?;
         if a == b
             || a != point(edge.front().point())?
             || b != point(edge.back().point())?
@@ -633,7 +644,13 @@ enum CapRing {
     Rectangle(Vec<P>),
     Circular(usize),
 }
-fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) -> Proof<()> {
+fn planar(
+    face: &RetainedFace,
+    tris: &[[P; 3]],
+    circles: &[Circle],
+    mesh_error: &Q,
+    cylinder_source_error: &Q,
+) -> Proof<Q> {
     let Surface::Plane(plane) = &face.surface else {
         return Err("unsupported support");
     };
@@ -662,6 +679,7 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
         return Err("incomplete cap holes/domain");
     }
     let mut specs = Vec::new();
+    let mut source_error = cylinder_source_error.clone();
     for (index, wire) in face.boundaries.iter().enumerate() {
         let ids = wire_ids(wire);
         let circle = circles.iter().position(|c| c.source_edges.contains(&ids));
@@ -670,7 +688,8 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
                 return Err("nonhorizontal circular cap");
             }
             let c = &circles[ci];
-            let (_, source_sign) = curve_ring(wire, &c.center, &c.radius, &level)?;
+            let (trim_error, source_sign) = curve_ring(wire, &c.center, &c.radius, &level)?;
+            source_error = source_error.max(trim_error);
             if source_sign != if index == 0 { tri_sign } else { -tri_sign } {
                 return Err("source cap circular material orientation");
             }
@@ -710,6 +729,16 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
     if !rings.is_empty() {
         return Err("extra cap boundary");
     }
+    // Every cap authenticates its own raw trims. Carrier identity does not
+    // authorize discarding their error, even if the cylinder was checked first.
+    let band = mesh_error + source_error;
+    for spec in &specs {
+        if let CapRing::Circular(ci) = spec
+            && band >= circles[*ci].radius
+        {
+            return Err("cap radial band reaches axis");
+        }
+    }
     // Disjoint enclosing bands keep each radial boundary deformation local.
     let axes = (0..3).filter(|&i| i != axis).collect::<Vec<_>>();
     let boxes = specs
@@ -724,7 +753,7 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
                 })),
                 CapRing::Circular(ci) => {
                     let c = &circles[*ci];
-                    let r = &c.radius + band;
+                    let r = &c.radius + &band;
                     Ok(std::array::from_fn(|a| {
                         [&c.center[a] - &r, &c.center[a] + &r]
                     }))
@@ -743,7 +772,7 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
             }
             CapRing::Circular(ci) => {
                 let c = &circles[*ci];
-                let inside = &c.radius - band;
+                let inside = &c.radius - &band;
                 if inside <= n(0) {
                     return Err("outer trim band reaches axis");
                 }
@@ -763,7 +792,7 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
             }
         }
     }
-    Ok(())
+    Ok(band)
 }
 
 fn bind(
@@ -868,7 +897,7 @@ fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace
     if circles.is_empty() {
         return Err("no supported cylinder");
     }
-    let band = &mesh_error + &source_error;
+    let mut band = &mesh_error + &source_error;
     for c in &circles {
         if band >= c.radius {
             return Err("radial band reaches axis");
@@ -876,7 +905,7 @@ fn prove(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace
     }
     for (face, tris) in trace.faces.iter().zip(&groups) {
         if matches!(face.surface, Surface::Plane(_)) {
-            planar(face, tris, &circles, &band)?;
+            band = band.max(planar(face, tris, &circles, &mesh_error, &source_error)?);
         }
     }
     Ok(band)
@@ -1298,6 +1327,10 @@ fn generated_cylinder_proof_actual_wasm() {
     cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution();
     cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown();
     cylinder_proof_discontinuous_trim_knots_are_unknown();
+    p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound();
+    p1_raw_orientation_preserves_locus_when_reflected_knots_collide();
+    p1_cap_trim_error_is_returned_without_a_cylinder_error_allowance();
+    p1_cap_trim_error_participates_in_nesting_separation();
 }
 
 #[test]
@@ -1337,17 +1370,25 @@ fn cylinder_proof_discontinuous_trim_knots_are_unknown() {
 // replace one actual shared native trim used backward on its cylinder and
 // forward on its cap. The retained source, not a newly meshed replacement, is
 // what a source/final certificate must bound.
-fn asymmetric_shared_trim() -> (
-    ExactModel,
-    GeneratedAnalysisMesh,
-    AnalysisTrace,
-    usize,
-    usize,
-    usize,
-    P,
-) {
+struct AsymmetricTrim {
+    model: ExactModel,
+    mesh: GeneratedAnalysisMesh,
+    trace: AnalysisTrace,
+    side: (usize, usize),
+    cap: (usize, usize),
+    witness: P,
+}
+
+fn asymmetric_shared_trim() -> AsymmetricTrim {
+    asymmetric_shared_trim_with_left(0.)
+}
+
+fn asymmetric_shared_trim_with_left(left: f64) -> AsymmetricTrim {
     use monstertruck_modeling::{BsplineCurve, NurbsCurve, Vector4};
-    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let mut input = drilled_input(1., 2.);
+    input.regions[0].outer[0].x = left;
+    input.regions[0].outer[3].x = left;
+    let model = crate::build_case(&input).unwrap();
     let (mesh, trace) = checked_trace(&model, Some(0.01));
     let ci = trace
         .faces
@@ -1405,7 +1446,14 @@ fn asymmetric_shared_trim() -> (
         bind(&model, &mesh, &trace).is_ok(),
         "shared source mutation must retain binding"
     );
-    (model, mesh, trace, ci, wi, cap * 100 + cap_wire, witness)
+    AsymmetricTrim {
+        model,
+        mesh,
+        trace,
+        side: (ci, wi),
+        cap: (cap, cap_wire),
+        witness,
+    }
 }
 
 // Positive homogeneous control hulls provide an independent continuous oracle:
@@ -1500,10 +1548,23 @@ fn trim_distance_and_winding(wire: &Wire, witness: &P, rho: &Q) -> i32 {
 
 #[test]
 fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
-    let (model, mesh, trace, ci, wi, cap_id, p) = asymmetric_shared_trim();
-    let cap = cap_id / 100;
-    let cap_wire = cap_id % 100;
+    let AsymmetricTrim {
+        model,
+        mesh,
+        trace,
+        side: (ci, wi),
+        cap: (cap, cap_wire),
+        witness: p,
+    } = asymmetric_shared_trim();
     let groups = bind(&model, &mesh, &trace).unwrap();
+    assert_eq!(
+        trace
+            .faces
+            .iter()
+            .filter(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
+            .count(),
+        1
+    );
     let (circle, _) = cylinder(&trace.faces[ci], &groups[ci]).unwrap();
     let cap_error = curve_ring(
         &trace.faces[cap].boundaries[cap_wire],
@@ -1515,6 +1576,18 @@ fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
     .0;
     let rho = n(1) / n(32);
     assert!(cap_error > n(1) / n(4));
+    assert!(cap_wire > 0, "witness winding is in a source hole");
+    for (fi, face) in trace.faces.iter().enumerate() {
+        if fi != cap
+            && let Surface::Plane(plane) = &face.surface
+        {
+            let (axis, level, _) = plane_frame(plane).unwrap();
+            assert!(
+                (&p[axis] - level).abs() > rho,
+                "every other source plane is also farther than 1/32"
+            );
+        }
+    }
     assert_eq!(
         trim_distance_and_winding(&trace.faces[cap].boundaries[cap_wire], &p, &rho).abs(),
         1
@@ -1543,10 +1616,89 @@ fn p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound() {
     match qualify(&model, &mesh, &trace) {
         GeneratedQualification::Bounded {
             direct_bound_mm, ..
-        } => assert!(
-            q(direct_bound_mm).unwrap() >= rho,
-            "P1: reported {direct_bound_mm}, but final cap witness is >1/32 from the source surface"
-        ),
+        } => {
+            eprintln!(
+                "P1 corrected bound={direct_bound_mm:.17}; certified final/source distance >1/32"
+            );
+            assert!(
+                q(direct_bound_mm).unwrap() >= rho,
+                "P1: reported {direct_bound_mm}, but final cap witness is >1/32 from the source surface"
+            );
+        }
         GeneratedQualification::Unknown { .. } => (),
     }
+}
+
+#[test]
+fn p1_raw_orientation_preserves_locus_when_reflected_knots_collide() {
+    let case = asymmetric_shared_trim();
+    let wire = &case.trace.faces[case.cap.0].boundaries[case.cap.1];
+    let edge = wire
+        .edge_iter()
+        .find(|e| {
+            e.orientation()
+                && case.trace.faces[case.side.0].boundaries[case.side.1]
+                    .edge_iter()
+                    .any(|other| other.id() == e.id() && !other.orientation())
+        })
+        .unwrap();
+    let Curve::NurbsCurve(raw) = edge.curve() else {
+        unreachable!()
+    };
+    assert_ne!(raw.knot(3), raw.knot(4));
+    let end = q(raw.knot(7)).unwrap();
+    assert_ne!(
+        &end - q(raw.knot(3)).unwrap(),
+        &end - q(raw.knot(4)).unwrap()
+    );
+    // Exhibit the library's lossy f64 inversion only as a regression control.
+    let mut rounded = raw;
+    rounded.invert();
+    assert_eq!(rounded.knot(3).to_bits(), rounded.knot(4).to_bits());
+    let reversed: Wire = wire.edge_iter().rev().map(|edge| edge.inverse()).collect();
+    let forward = curve_ring(wire, &[n(10), n(5)], &n(1), &case.witness[2]).unwrap();
+    let backward = curve_ring(&reversed, &[n(10), n(5)], &n(1), &case.witness[2]).unwrap();
+    assert!(forward.0 > n(1) / n(4));
+    assert_eq!(
+        forward.0, backward.0,
+        "raw source enclosure must be orientation invariant"
+    );
+    assert_eq!(forward.1, -backward.1);
+}
+
+#[test]
+fn p1_cap_trim_error_is_returned_without_a_cylinder_error_allowance() {
+    let case = asymmetric_shared_trim();
+    let groups = bind(&case.model, &case.mesh, &case.trace).unwrap();
+    let (circle, mesh_error) =
+        cylinder(&case.trace.faces[case.side.0], &groups[case.side.0]).unwrap();
+    let cap = &case.trace.faces[case.cap.0];
+    let error = curve_ring(
+        &cap.boundaries[case.cap.1],
+        &circle.center,
+        &circle.radius,
+        &case.witness[2],
+    )
+    .unwrap()
+    .0;
+    // Authenticate the cap independently, with no allowance inherited from a
+    // cylinder pass. Its own raw trim error must still enter the returned band.
+    let cap_band = planar(cap, &groups[case.cap.0], &[circle], &mesh_error, &n(0)).unwrap();
+    assert_eq!(cap_band, mesh_error + error);
+    assert!(cap_band > n(1) / n(4));
+}
+
+#[test]
+fn p1_cap_trim_error_participates_in_nesting_separation() {
+    let case = asymmetric_shared_trim_with_left(8.75);
+    let groups = bind(&case.model, &case.mesh, &case.trace).unwrap();
+    let (circle, mesh_error) =
+        cylinder(&case.trace.faces[case.side.0], &groups[case.side.0]).unwrap();
+    let cap = &case.trace.faces[case.cap.0];
+    assert!(mesh_error < n(1) / n(4));
+    assert_eq!(
+        planar(cap, &groups[case.cap.0], &[circle], &mesh_error, &n(0)),
+        Err("trim band reaches exterior"),
+        "cap-only error must enlarge the domain separation band"
+    );
 }
