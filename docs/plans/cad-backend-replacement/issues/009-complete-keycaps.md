@@ -1,6 +1,6 @@
 # 009: Build mesh keycaps for appearance and optional printing
 
-Status: claimed
+Status: resolved
 Owner: /root/luna_production_keycaps_009
 Type: build
 Blocked by: None
