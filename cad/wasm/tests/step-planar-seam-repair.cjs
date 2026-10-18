@@ -29,20 +29,33 @@ function check(text, selected = {}, scale = 1) {
   assert.equal(vendor.accuracy.maxRepairDisplacementMm, null);
   assert.equal(vendor.accuracy.analysisErrorBoundMm, null);
   assert.deepEqual(vendor.sourceFaces.map(face => face.faceId).sort(), ['12', '75']);
+  assert(vendor.sourceFaces.every(face => face.solidId === '14'));
   assert.equal(vendor.faceOccurrences.length, 2);
-  assert.equal(new Set(vendor.triangleFaceOccurrenceIndices).size, 2);
+  assert.deepEqual([...new Set(vendor.triangleFaceOccurrenceIndices)].sort(), [0, 1]);
   assert(vendor.surfacePositionsMmF64.length > 0);
   assert.equal(vendor.surfacePositionsMmF64.length, vendor.triangleFaceOccurrenceIndices.length * 9);
   assert(vendor.surfacePositionsMmF64.every(Number.isFinite));
   assert(vendor.faceOccurrences.every(face => face.repairDisplacementMm === null));
+  assert.deepEqual(vendor.faceOccurrences.map(face => face.sourceFaceIndex).sort(), [0, 1]);
   for (const axis of [0, 1, 2]) {
     const expected = [[0, -scale, 0], [scale, scale, 0]];
     for (const [i, key] of ['min', 'max'].entries()) {
       assert(Math.abs(result.bounds[key][axis] - expected[i][axis]) < scale * 1e-6);
     }
   }
-  if (legacy) assert.deepEqual(result, legacy.read_step_model(new Uint8Array(bytes), settings),
-    'same bytes/settings keep the actual legacy provider geometry and metadata');
+  if (legacy) {
+    const previous = legacy.read_step_model(new Uint8Array(bytes), settings);
+    const data = result => {
+      // An owned handle's allocation address differs between WASM instances.
+      const {analysisHandle, ...vendorStep} = result.vendorStep;
+      assert(analysisHandle && typeof analysisHandle.free === 'function');
+      return {...result, vendorStep};
+    };
+    assert.deepEqual(data(result), data(previous),
+      'same bytes/settings keep the actual legacy provider geometry and wire metadata');
+    previous.vendorStep.analysisHandle.free();
+  }
+  vendor.analysisHandle.free();
 }
 check(closed);
 check(closed, {previewRepairBudgetMm: 0.02});
