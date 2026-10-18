@@ -156,7 +156,7 @@ def binding(root, profile):
         base = root / name
         files = sorted(p for p in base.rglob("*") if p.is_file())
         lines.append(f"artifact_{name}={receipt.digest_files(files, base) if files else 'MISSING'}")
-    for path in sorted(FIXTURES.glob("*.json")):
+    for path in sorted(path for path in FIXTURES.iterdir() if path.suffix in (".json", ".boardstudio")):
         relative = path.relative_to(ROOT).as_posix()
         lines.append(f"workload_blob_{path.name}={git(ROOT, 'hash-object', relative)}")
     lines.append("owned_diff:\n" + git(root, "diff", "--binary", "HEAD"))
@@ -208,6 +208,8 @@ def summarize(inputs, output):
     seen = set()
     source_bindings, harness_bindings = {}, {}
     for directory in inputs:
+        if (directory / "diagnostic.csv").exists():
+            raise ValueError("validation-only diagnostic captures cannot become benchmark samples")
         log = (directory / "command.log").read_text()
         if "\nexit=0\n" not in log:
             failures.append(str(directory))
@@ -414,7 +416,7 @@ def main():
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
     parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
-    parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm"))
+    parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm", "U1:freeze", "U1:page"))
     parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
     parser.add_argument("--growth", action="store_true")
     parser.add_argument("--state", choices=("clean", "noop", "incremental"))
@@ -482,6 +484,8 @@ def main():
         if old and args.workload in UNPAIRED:
             parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
         validation = args.action == "validate"
+        if args.workload.startswith("U1:") and not validation:
+            parser.error("U1 is validation-only until root admits the frozen project/endpoints")
         if validation:
             if args.growth or not args.artifact_receipt:
                 parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")
