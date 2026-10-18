@@ -426,10 +426,15 @@ pub(super) fn slab(a: &QualifiedSurface, b: &QualifiedSurface) -> Check<Containm
         let left = &a.source_hull[1][axis] + Q::from_float(a.bound.total_mm).unwrap();
         let right = &b.source_hull[0][axis] - Q::from_float(b.bound.total_mm).unwrap();
         if left < right {
+            let left_upper = super::exact::upper(&left)?;
+            let right_lower = -super::exact::upper(&(-right))?;
+            if left_upper >= right_lower {
+                continue;
+            }
             return Ok(Containment::RuledOutSlab {
                 axis,
-                left_upper: super::exact::upper(&left)?,
-                right_lower: -super::exact::upper(&(-right))?,
+                left_upper,
+                right_lower,
             });
         }
     }

@@ -513,3 +513,87 @@ fn missing_source_precision_and_extreme_decimal_exponents_refuse() {
     );
     assert!(decimal("1e-2147483648").is_err());
 }
+
+fn box_surface(hull: [FPoint; 2]) -> QualifiedSurface {
+    let precision = 1e-30;
+    QualifiedSurface {
+        triangles: cube(0., 1.)
+            .into_iter()
+            .map(|t| t.map(|p| std::array::from_fn(|i| hull[usize::from(p[i] == 1.)][i])))
+            .collect(),
+        tags: vec![0; 12],
+        bound: SurfaceBound {
+            direct_mm: 0.,
+            precision_mm: precision,
+            total_mm: precision,
+        },
+        source_hull: hull.map(|p| point(p).unwrap()),
+        transform_rounding_mm: 0.,
+        repair_displacement_mm: None,
+    }
+}
+
+#[test]
+fn slab_rejects_rounded_endpoints_that_reverse_or_collapse() {
+    let a = box_surface([[0.; 3], [1.; 3]]);
+    for (minimum, expected_right) in [
+        (1f64.next_up(), 1.),
+        (1f64.next_up().next_up(), 1f64.next_up()),
+    ] {
+        let b = box_surface([[minimum, 0., 0.], [2., 1., 1.]]);
+        let left = &a.source_hull[1][0] + Q::from_float(a.bound.total_mm).unwrap();
+        let right = &b.source_hull[0][0] - Q::from_float(b.bound.total_mm).unwrap();
+        assert!(left < right, "exact inflated hulls are strictly separated");
+        assert_eq!(upper(&left).unwrap(), 1f64.next_up());
+        assert_eq!(-upper(&(-right)).unwrap(), expected_right);
+        assert!(matches!(
+            query::slab(&a, &b).unwrap(),
+            Containment::Unknown(_)
+        ));
+    }
+}
+
+#[test]
+fn slab_requires_strict_emitted_separation_and_tries_other_axes() {
+    let a = box_surface([[0.; 3], [1.; 3]]);
+    let minimum = 1f64.next_up().next_up().next_up();
+    let b = box_surface([[minimum, 0., 0.], [2., 1., 1.]]);
+    assert_eq!(
+        query::slab(&a, &b).unwrap(),
+        Containment::RuledOutSlab {
+            axis: 0,
+            left_upper: 1f64.next_up(),
+            right_lower: minimum.next_down(),
+        }
+    );
+    let b = box_surface([[1f64.next_up(), 2., 0.], [2., 3., 1.]]);
+    let proof = query::slab(&a, &b).unwrap();
+    assert_eq!(
+        proof,
+        Containment::RuledOutSlab {
+            axis: 1,
+            left_upper: 1f64.next_up(),
+            right_lower: 2f64.next_down(),
+        }
+    );
+    if let Containment::RuledOutSlab {
+        left_upper,
+        right_lower,
+        ..
+    } = proof
+    {
+        assert!(left_upper < right_lower);
+    }
+}
+
+#[test]
+fn slab_refuses_touching_and_overlapping_source_hulls() {
+    let a = box_surface([[0.; 3], [1.; 3]]);
+    for minimum in [0.5, 1.] {
+        let b = box_surface([[minimum, 0., 0.], [2., 1., 1.]]);
+        assert!(matches!(
+            query::slab(&a, &b).unwrap(),
+            Containment::Unknown(_)
+        ));
+    }
+}
