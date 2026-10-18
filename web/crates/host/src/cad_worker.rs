@@ -42,7 +42,7 @@ impl fmt::Display for CadWorkerError {
 }
 impl std::error::Error for CadWorkerError {}
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WireReply {
     request_id: String,
@@ -1811,11 +1811,14 @@ fn pump_worker(
         let reply = run_request(&queue, &module, request, bytes).await;
         match reply {
             Ok((wire, result)) => {
-                if post_result(&scope, wire, result).is_err() {
+                if let Err(error) = post_result(&scope, wire.clone(), result) {
                     queue.borrow_mut().remove_task_evidence(&completed_request_id);
+                    let _ = post_reply(&scope, WireReply { outcome: CadReplyOutcome::Failed,
+                        error: Some(js_message(error)), ..wire }.into(), None, Array::new());
                 }
             }
             Err((wire, reason, cancelled)) => {
+                queue.borrow_mut().remove_task_evidence(&completed_request_id);
                 let metadata = WireReply {
                     request_id: wire.request_id,
                     job_id: wire.job_id,
@@ -2152,19 +2155,51 @@ async fn run_request(
                 .map_err(|error| (request.clone(), error.to_string(), false))?;
             let query_value = js_sys::JSON::parse(&query_json)
                 .map_err(|error| (request.clone(), js_message(error), false))?;
-            invoke(
-                "query_collision_mesh_pair",
-                &[
+            let left = queue.borrow_mut().lookup(&query.left, &request.identity, &meshes.left_positions_mm_f64, &meshes.left_triangle_face_occurrence_indices)
+                .map_err(|error| (request.clone(), error, false))?;
+            let right = queue.borrow_mut().lookup(&query.right, &request.identity, &meshes.right_positions_mm_f64, &meshes.right_triangle_face_occurrence_indices)
+                .map_err(|error| (request.clone(), error, false))?;
+            let generation = queue.borrow().generation.clone();
+            let expected = qualification::expected_binding(query, &request.identity, &generation)
+                .map_err(|error| (request.clone(), error, false))?;
+            let result = if let (Some(left), Some(right)) = (left, right) {
+                let buffers = Object::new();
+                for (key, value) in [
+                    ("leftPositions", Float64Array::from(meshes.left_positions_mm_f64.as_slice()).into()),
+                    ("leftTags", Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice()).into()),
+                    ("rightPositions", Float64Array::from(meshes.right_positions_mm_f64.as_slice()).into()),
+                    ("rightTags", Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice()).into()),
+                ] { Reflect::set(&buffers, &key.into(), &value).map_err(|e| (request.clone(), js_message(e), false))?; }
+                let context = js_sys::JSON::parse(&serde_json::json!({"snapshot": qualification::Snapshot::from(&request.identity), "workerGeneration": generation}).to_string())
+                    .map_err(|e| (request.clone(), js_message(e), false))?;
+                let result = invoke("query_qualified_collision_mesh_pair", &[buffers.into(), query_value, context, left.handle.0.clone(), right.handle.0.clone()])
+                    .map_err(|error| (request.clone(), error, false))?;
+                let report: qualification::QueryQualification = strict_metadata(Reflect::get(&result, &"queryQualification".into()).map_err(|e| (request.clone(), js_message(e), false))?)
+                    .map_err(|error| (request.clone(), error, false))?;
+                qualification::validate_query_qualification(report, &expected, &query.qualification_limits, meshes, Some([&left.source, &right.source]))
+                    .map_err(|error| (request.clone(), error, false))?;
+                pinned.extend([left, right]);
+                result
+            } else {
+                let raw = invoke("query_collision_mesh_pair", &[
                     Float64Array::from(meshes.left_positions_mm_f64.as_slice()).into(),
-                    Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice())
-                        .into(),
+                    Uint32Array::from(meshes.left_triangle_face_occurrence_indices.as_slice()).into(),
                     Float64Array::from(meshes.right_positions_mm_f64.as_slice()).into(),
-                    Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice())
-                        .into(),
-                    query_value,
-                ],
-            )
-            .map_err(|error| (request.clone(), error, false))?
+                    Uint32Array::from(meshes.right_triangle_face_occurrence_indices.as_slice()).into(), query_value,
+                ]).map_err(|error| (request.clone(), error, false))?;
+                let result = Object::new();
+                Reflect::set(&result, &"observation".into(), &raw).map_err(|e| (request.clone(), js_message(e), false))?;
+                let unknown = qualification::unavailable(expected, query.qualification_limits.clone());
+                let report = js_sys::JSON::parse(&serde_json::to_string(&unknown).map_err(|e| (request.clone(), e.to_string(), false))?)
+                    .map_err(|e| (request.clone(), js_message(e), false))?;
+                Reflect::set(&result, &"queryQualification".into(), &report).map_err(|e| (request.clone(), js_message(e), false))?;
+                result.into()
+            };
+            let object = result.dyn_ref::<Object>().ok_or_else(|| (request.clone(), "qualified result must be an object".into(), false))?;
+            if Object::keys(object).length() != 2 || !Object::has_own(object, &"observation".into()) || !Object::has_own(object, &"queryQualification".into()) {
+                return Err((request.clone(), "qualified provider result has unexpected keys".into(), false));
+            }
+            result
         }
     };
     // Let queued cancel messages run after synchronous CAD calls before deciding
@@ -2177,6 +2212,13 @@ async fn run_request(
             true,
         ));
     }
+    if queue.borrow().latest_snapshot.as_ref().is_some_and(|latest| latest != &request.identity) {
+        return Err((request, "CAD result became stale after kernel yield".into(), false));
+    }
+    if let Some(entry) = staged {
+        queue.borrow_mut().retain_analysis(entry).map_err(|e| (request.clone(), e, false))?;
+    }
+    drop(pinned);
     let result = match request.operation {
         CadOperation::ReadStep => {
             let wrapper = Object::new();
@@ -2202,8 +2244,10 @@ async fn run_request(
                 &JsValue::from_f64(request.identity.revision as f64),
             )
             .map_err(|error| (request.clone(), js_message(error), false))?;
-            Reflect::set(&wrapper, &"collision".into(), &result)
-                .map_err(|error| (request.clone(), js_message(error), false))?;
+            for (target, source) in [("collision", "observation"), ("queryQualification", "queryQualification")] {
+                let value = Reflect::get(&result, &source.into()).map_err(|e| (request.clone(), js_message(e), false))?;
+                Reflect::set(&wrapper, &target.into(), &value).map_err(|e| (request.clone(), js_message(e), false))?;
+            }
             wrapper.into()
         }
         _ => result,

@@ -446,3 +446,66 @@ pub fn validate_query_qualification(report: QueryQualification, expected: &Bindi
     }
     Ok(ValidatedQueryQualification(report))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> serde_json::Value {
+        serde_json::from_str(include_str!("../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json")).unwrap()
+    }
+
+    #[test]
+    fn shared_v2_reports_and_mutations_validate_at_the_consumer_boundary() {
+        let fixture = fixture();
+        let activation = &fixture["qualificationV2"]["activation"];
+        // These are shape/consumer reports, never constructors for trusted handles.
+        let arrays = CadCollisionMeshPair {
+            left_positions_mm_f64: vec![0.; 9 * 4096], right_positions_mm_f64: vec![0.; 9 * 4096],
+            left_triangle_face_occurrence_indices: vec![0; 4096], right_triangle_face_occurrence_indices: vec![0; 4096],
+        };
+        for value in [&activation["generatedPlaneQuery"], &activation["mixedVendorGeneratedQuery"], &fixture["qualificationV2"]["queryExamples"]] {
+            let report: QueryQualification = serde_json::from_value(value.clone()).unwrap();
+            validate_query_qualification(report.clone(), &report.binding, &report.limits, &arrays, None).unwrap();
+        }
+        let original: QueryQualification = serde_json::from_value(fixture["qualificationV2"]["queryExamples"].clone()).unwrap();
+        for mutation in activation["invalidMutations"].as_array().unwrap() {
+            let mut bad = fixture["qualificationV2"]["queryExamples"].clone();
+            let path = mutation["path"].as_str().unwrap();
+            *bad.pointer_mut(path).unwrap() = mutation["value"].clone();
+            let accepted = serde_json::from_value::<QueryQualification>(bad).ok().is_some_and(|report| {
+                validate_query_qualification(report, &original.binding, &original.limits, &arrays, None).is_ok()
+            });
+            assert!(!accepted, "accepted {}", mutation["reason"]);
+        }
+        for name in ["plane", "vendor", "cylinderDefault", "cylinderRefined"] {
+            let reference: AnalysisRef = serde_json::from_value(activation["workerReferences"][name].clone()).unwrap();
+            let mesh: AnalysisMesh = serde_json::from_value(activation["descriptors"][name].clone()).unwrap();
+            let source: SourceQualification = serde_json::from_value(activation["sourceReports"][name].clone()).unwrap();
+            let bound = match source { SourceQualification::Bounded { total_bound_mm, .. } => Some(total_bound_mm), _ => None };
+            validate_analysis(&reference, &mesh, &source, bound).unwrap();
+        }
+    }
+
+    #[test]
+    fn snapshot_decimals_nullable_keys_unknown_fields_and_cap_reductions_are_strict() {
+        let fixture = fixture();
+        let mut report = fixture["qualificationV2"]["activation"]["generatedPlaneQuery"].clone();
+        report["binding"]["snapshot"]["token"] = u64::MAX.to_string().into();
+        report["binding"]["snapshot"]["sessionEpoch"] = (u64::MAX - 1).to_string().into();
+        let typed: QueryQualification = serde_json::from_value(report.clone()).unwrap();
+        assert_eq!(typed.binding.snapshot.token, u64::MAX.to_string());
+        report["binding"]["snapshot"].as_object_mut().unwrap().remove("instanceId");
+        assert!(serde_json::from_value::<QueryQualification>(report).is_err());
+        let mut bad = fixture["qualificationV2"]["activation"]["generatedPlaneQuery"].clone();
+        bad["sourceBounds"][0]["callerCertificate"] = true.into();
+        assert!(serde_json::from_value::<QueryQualification>(bad).is_err());
+        let mut limits = Limits { max_exact_pairs: 1, ..Limits::default() };
+        limits.validate().unwrap();
+        limits.max_exact_pairs = 2049;
+        assert!(limits.validate().is_err());
+        assert_eq!(add_up(0.0, 0.0), 0.0);
+        assert!(add_up(0.01, 1e-10) >= 0.010000000100000002);
+        assert_eq!(add_down(1.0, -0.0), 1.0);
+    }
+}

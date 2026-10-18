@@ -85,6 +85,7 @@ pub struct CadCollisionQuery {
     pub left: CadCollisionOperand,
     pub right: CadCollisionOperand,
     pub clearance_threshold_mm: f64,
+    #[serde(deserialize_with = "required_accuracy")]
     pub requested_accuracy_mm: Option<f64>,
     pub qualification_limits: crate::cad_qualification::Limits,
 }
@@ -102,6 +103,10 @@ pub struct CadCollisionOperand {
     pub row_transform_f64: [f64; 16],
     pub analysis_ref: Option<crate::cad_qualification::AnalysisRef>,
     pub analysis_mesh: Option<crate::cad_qualification::AnalysisMesh>,
+}
+
+fn required_accuracy<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<f64>, D::Error> {
+    Option::deserialize(deserializer)
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -1758,6 +1763,7 @@ mod tests {
 
     fn sample_vendor_step(sha256: &str) -> CadVendorStep {
         CadVendorStep {
+            analysis_ref: None, analysis_mesh: None, source_qualification: None,
             source_sha256: sha256.into(),
             import_options: CadStepImportOptions::default(),
             surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
@@ -2543,6 +2549,7 @@ mod generated_collision_identity_tests {
         duplicate.bodies.push(body);
         assert!(validate_generated_analysis_request(Some(&duplicate), 7, &metadata).is_err());
         let analysis = CadGeneratedAnalysis {
+            analysis_ref: None, analysis_mesh: None, source_qualification: None,
             body_id: "plate".into(),
             revision: 7,
             geometry_identity: metadata.geometry_identity.clone(),

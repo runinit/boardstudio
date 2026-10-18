@@ -1256,6 +1256,8 @@ impl CadCollisionSubject {
                 vendor_step: Some(asset),
                 ..
             } => Ok(CadCollisionOperand {
+                analysis_ref: asset.analysis_ref.clone(),
+                analysis_mesh: asset.analysis_mesh.clone(),
                 model_id: id.clone(),
                 source_sha256: Some(asset.source_sha256.clone()),
                 generated_geometry_identity: None,
@@ -1268,6 +1270,8 @@ impl CadCollisionSubject {
                 analysis: Some(asset),
                 ..
             } => Ok(CadCollisionOperand {
+                analysis_ref: asset.analysis_ref.clone(),
+                analysis_mesh: asset.analysis_mesh.clone(),
                 model_id: id.clone(),
                 source_sha256: None,
                 generated_geometry_identity: Some(asset.geometry_identity.clone()),
@@ -2396,6 +2400,7 @@ mod tests {
         }
 
         let vendor_step = Rc::new(CadVendorStep {
+            analysis_ref: None, analysis_mesh: None, source_qualification: None,
             source_sha256: sha.clone(),
             import_options: default_opts,
             surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -2502,6 +2507,7 @@ mod tests {
         };
 
         let make_asset = |sha: &str, analysis_bound: Option<f64>| CadVendorStep {
+            analysis_ref: None, analysis_mesh: None, source_qualification: None,
             source_sha256: sha.into(),
             import_options: CadStepImportOptions::default(),
             surface_positions_mm_f64: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
@@ -2592,14 +2598,8 @@ mod tests {
             true,
             obs.clone(),
         );
-        assert_eq!(
-            clear.assessment,
-            CadCollisionAssessment::SupportedBand {
-                lower_mm: 0.5 - 0.041,
-                upper_mm: 0.5 + 0.041,
-                relation: CadCollisionRelation::Clear,
-            }
-        );
+        assert!(matches!(clear.assessment, CadCollisionAssessment::Unknown { .. }),
+            "caller-authored bounds and containment cannot activate qualification v2");
 
         let containment_unknown = assess_collision_observation(
             &certified_left,
