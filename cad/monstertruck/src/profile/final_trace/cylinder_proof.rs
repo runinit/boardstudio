@@ -235,7 +235,10 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
         let Curve::NurbsCurve(curve) = edge.oriented_curve() else {
             return Err("unsupported circular trim curve");
         };
-        if curve.degree() != 2 || !curve.is_clamped() || curve.control_points().len() > 64 {
+        if curve.degree() != 2
+            || !curve.is_clamped()
+            || !(3..=64).contains(&curve.control_points().len())
+        {
             return Err("unsupported circular spline domain");
         }
         let knots = curve
@@ -246,6 +249,16 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
             .collect::<Proof<Vec<_>>>()?;
         if knots.windows(2).any(|w| w[0] > w[1]) {
             return Err("unordered curve domain");
+        }
+        let first_knot = &knots[0];
+        let last_knot = &knots[knots.len() - 1];
+        if knots.iter().take_while(|k| *k == first_knot).count() != 3
+            || knots.iter().rev().take_while(|k| *k == last_knot).count() != 3
+            || knots
+                .windows(3)
+                .any(|w| w[0] == w[2] && &w[0] != first_knot && &w[0] != last_knot)
+        {
+            return Err("discontinuous or unsupported trim knots");
         }
         let control = curve
             .control_points()
@@ -263,10 +276,10 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
         {
             return Err("trim endpoint mismatch");
         }
-        if let Some(previous) = endpoints.last() {
-            if previous != &dehom(&first) {
-                return Err("unjoined source trim");
-            }
+        if let Some(previous) = endpoints.last()
+            && previous != &dehom(&first)
+        {
+            return Err("unjoined source trim");
         }
         for pair in knots.windows(2).filter(|w| w[0] < w[1]) {
             let a = spline_value(&knots, &control, &pair[0]);
@@ -332,7 +345,10 @@ fn curve_ring(wire: &Wire, center: &[Q; 2], radius: &Q, z: &Q) -> Proof<(Q, i32)
             let minw = w.iter().min().ok_or("empty weights")?;
             error = error.max(residual / (minw * minw * radius));
             let p = dehom(&span[0]);
-            if endpoints.last() != Some(&p) {
+            if endpoints.last().is_some_and(|previous| previous != &p) {
+                return Err("discontinuous source trim span");
+            }
+            if endpoints.is_empty() {
                 endpoints.push(p);
             }
             endpoints.push(dehom(&span[2]));
@@ -400,7 +416,9 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
     let mut levels = BTreeSet::new();
     for wire in &face.boundaries {
         let level = point(wire.front_vertex().ok_or("empty circular trim")?.point())?[2].clone();
-        if !circle.z.contains(&level) || !levels.insert(level.clone()) {
+        // Line is an affine carrier: actual trim parameters may extend beyond
+        // its nominal seed segment after the native face-merging operation.
+        if !levels.insert(level.clone()) {
             return Err("cylinder source trim height");
         }
         circle.source_error = circle
@@ -409,6 +427,10 @@ fn cylinder(face: &RetainedFace, tris: &[[P; 3]]) -> Proof<(Circle, Q)> {
             .max(curve_ring(wire, &circle.center, &circle.radius, &level)?.0);
         circle.source_edges.push(wire_ids(wire));
     }
+    circle.z = [
+        levels.first().ok_or("missing lower source trim")?.clone(),
+        levels.last().ok_or("missing upper source trim")?.clone(),
+    ];
     levels.clear();
     for ring in &circle.mesh_rings {
         if ring.iter().any(|p| p[2] != ring[0][2])
@@ -497,7 +519,7 @@ fn plane_frame(plane: &monstertruck_modeling::Plane) -> Proof<(usize, Q, P)> {
 }
 
 fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
-    if wire.len() != 4 {
+    if wire.len() < 4 || wire.len() > 128 {
         return Err("unsupported noncircular trim");
     }
     let mut points = Vec::new();
@@ -507,7 +529,8 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
         };
         let a = point(line.0)?;
         let b = point(line.1)?;
-        if a != point(edge.front().point())?
+        if a == b
+            || a != point(edge.front().point())?
             || b != point(edge.back().point())?
             || a[axis] != *level
             || b[axis] != *level
@@ -526,6 +549,25 @@ fn rectangle_wire(wire: &Wire, axis: usize, level: &Q) -> Proof<Vec<P>> {
         return Err("open rectangle");
     }
     points.pop();
+    loop {
+        let count = points.len();
+        let removable = (0..count).find(|&i| {
+            let a = &points[(i + count - 1) % count];
+            let b = &points[i];
+            let c = &points[(i + 1) % count];
+            cross(&sub(b, a), &sub(c, b)).iter().all(Q::is_zero)
+                && (0..3).all(|k| {
+                    b[k] >= a[k].clone().min(c[k].clone()) && b[k] <= a[k].clone().max(c[k].clone())
+                })
+        });
+        if count <= 4 || removable.is_none() {
+            break;
+        }
+        points.remove(removable.unwrap());
+    }
+    if points.len() != 4 {
+        return Err("unsupported subdivided rectangle trim");
+    }
     let axes = (0..3).filter(|&i| i != axis).collect::<Vec<_>>();
     let coords = axes
         .iter()
@@ -668,64 +710,56 @@ fn planar(face: &RetainedFace, tris: &[[P; 3]], circles: &[Circle], band: &Q) ->
     if !rings.is_empty() {
         return Err("extra cap boundary");
     }
-    // Disjoint enclosing radial bands make each boundary's radial deformation
-    // local to material: no hole can consume another hole or the outer trim.
-    for (i, spec) in specs.iter().enumerate() {
-        if i == 0 {
-            continue;
-        }
-        let CapRing::Circular(ci) = spec else {
-            return Err("unsupported noncircular hole");
-        };
-        let c = &circles[*ci];
-        let r = &c.radius + band;
-        match &specs[0] {
-            CapRing::Rectangle(points) => {
-                if axis != 2 {
-                    return Err("circular hole in vertical face");
+    // Disjoint enclosing bands keep each radial boundary deformation local.
+    let axes = (0..3).filter(|&i| i != axis).collect::<Vec<_>>();
+    let boxes = specs
+        .iter()
+        .map(|spec| -> Proof<[[Q; 2]; 2]> {
+            match spec {
+                CapRing::Rectangle(points) => Ok(std::array::from_fn(|a| {
+                    [
+                        points.iter().map(|p| p[axes[a]].clone()).min().unwrap(),
+                        points.iter().map(|p| p[axes[a]].clone()).max().unwrap(),
+                    ]
+                })),
+                CapRing::Circular(ci) => {
+                    let c = &circles[*ci];
+                    let r = &c.radius + band;
+                    Ok(std::array::from_fn(|a| {
+                        [&c.center[a] - &r, &c.center[a] + &r]
+                    }))
                 }
-                for a in 0..2 {
-                    let lo = points
-                        .iter()
-                        .map(|p| &p[a])
-                        .min()
-                        .ok_or("rectangle bounds")?;
-                    let hi = points
-                        .iter()
-                        .map(|p| &p[a])
-                        .max()
-                        .ok_or("rectangle bounds")?;
-                    if &c.center[a] - &r <= *lo || &c.center[a] + &r >= *hi {
-                        return Err("trim band reaches exterior");
+            }
+        })
+        .collect::<Proof<Vec<_>>>()?;
+    for i in 1..specs.len() {
+        match &specs[0] {
+            CapRing::Rectangle(_) => {
+                if (0..2)
+                    .any(|a| boxes[i][a][0] <= boxes[0][a][0] || boxes[i][a][1] >= boxes[0][a][1])
+                {
+                    return Err("trim band reaches exterior");
+                }
+            }
+            CapRing::Circular(ci) => {
+                let c = &circles[*ci];
+                let inside = &c.radius - band;
+                if inside <= n(0) {
+                    return Err("outer trim band reaches axis");
+                }
+                for x in &boxes[i][0] {
+                    for y in &boxes[i][1] {
+                        let d = [x - &c.center[0], y - &c.center[1], n(0)];
+                        if dot2(&d, &d) >= &inside * &inside {
+                            return Err("nested trim bands overlap");
+                        }
                     }
                 }
             }
-            CapRing::Circular(outer) => {
-                let outer = &circles[*outer];
-                let available = &outer.radius - band - &r;
-                let delta = [
-                    &c.center[0] - &outer.center[0],
-                    &c.center[1] - &outer.center[1],
-                    n(0),
-                ];
-                if available <= n(0) || dot2(&delta, &delta) >= &available * &available {
-                    return Err("nested circular trim bands overlap");
-                }
-            }
         }
-        for prior in specs.iter().take(i).skip(1) {
-            let CapRing::Circular(pi) = prior else {
-                return Err("unsupported hole");
-            };
-            let p = &circles[*pi];
-            let delta = [
-                &c.center[0] - &p.center[0],
-                &c.center[1] - &p.center[1],
-                n(0),
-            ];
-            let sum = &r + &p.radius + band;
-            if dot2(&delta, &delta) <= &sum * &sum {
-                return Err("circular hole bands overlap");
+        for j in 1..i {
+            if !(0..2).any(|a| boxes[i][a][1] < boxes[j][a][0] || boxes[j][a][1] < boxes[i][a][0]) {
+                return Err("hole trim bands overlap");
             }
         }
     }
@@ -746,6 +780,8 @@ fn bind(
         || trace.faces.is_empty()
         || trace.triangles.len() > 10_000
         || trace.triangles.len() * 9 != mesh.positions_mm_f64.len()
+        || mesh.mesh.positions.len() != mesh.positions_mm_f64.len()
+        || mesh.mesh.normals.len() != mesh.positions_mm_f64.len()
         || trace.triangles.len() != mesh.triangle_face_occurrence_indices.len()
     {
         return Err("incomplete final census");
@@ -772,12 +808,19 @@ fn bind(
         let mut points = Vec::new();
         for (j, v) in expected.iter().enumerate() {
             let point = point(face.polygon.positions()[v.pos])?;
-            for a in 0..3 {
-                if q(tri.positions_mm_f64[j * 3 + a])? != point[a]
+            for (a, coordinate) in point.iter().enumerate() {
+                if q(tri.positions_mm_f64[j * 3 + a])? != *coordinate
                     || tri.positions_mm_f64[j * 3 + a].to_bits()
                         != mesh.positions_mm_f64[i * 9 + j * 3 + a].to_bits()
                 {
                     return Err("final coordinate binding mismatch");
+                }
+                if tri.rendered_positions_f32[j * 3 + a].to_bits()
+                    != mesh.mesh.positions[i * 9 + j * 3 + a].to_bits()
+                    || tri.rendered_positions_f32[j * 3 + a].to_bits()
+                        != (tri.positions_mm_f64[j * 3 + a] as f32).to_bits()
+                {
+                    return Err("final render/filter binding mismatch");
                 }
             }
             points.push(point);
@@ -902,7 +945,7 @@ fn drilled_input(radius: f64, thickness: f64) -> boardstudio_contracts::Prepared
 
 #[test]
 fn cylinder_proof_authored_radius_height_and_actual_refinement_controls() {
-    for (radius, height) in [(0.5, 2.), (1., 2.), (2., 4.)] {
+    for (radius, height) in [(0.5, 2.), (1., 2.), (1., 4.)] {
         let model = crate::build_case(&drilled_input(radius, height)).unwrap();
         let (coarse, trace) = checked_trace(&model, None);
         let eb = bound(&model, &coarse, &trace);
@@ -915,7 +958,7 @@ fn cylinder_proof_authored_radius_height_and_actual_refinement_controls() {
         // Independent chord-midpoint observation only checks the certificate's
         // lower sanity band; the certificate itself never samples an error.
         let mut witnessed: f64 = 0.;
-        for tri in fine.positions_mm_f64.chunks_exact(9) {
+        for tri in fine.positions_mm_f64.as_chunks::<9>().0 {
             let a = [tri[0] - 10., tri[1] - 5.];
             let b = [tri[3] - 10., tri[4] - 5.];
             if (a[0].hypot(a[1]) - radius).abs() < 1e-12
@@ -983,7 +1026,7 @@ fn cylinder_proof_native_boss_caps_and_drilled_wall_are_bounded() {
 #[test]
 fn cylinder_proof_clearance_is_independent_of_requested_deflection() {
     let mut input = drilled_input(1., 2.);
-    input.regions[0].mounts[0].at.x = 1.0625;
+    input.regions[0].mounts[0].at.x = 1.03125;
     let model = crate::build_case(&input).unwrap();
     let (coarse, trace) = checked_trace(&model, None);
     assert!(matches!(
@@ -991,7 +1034,7 @@ fn cylinder_proof_clearance_is_independent_of_requested_deflection() {
         GeneratedQualification::Unknown { .. }
     ));
     let (fine, trace) = checked_trace(&model, Some(0.01));
-    assert!(bound(&model, &fine, &trace) < 0.0625);
+    assert!(bound(&model, &fine, &trace) < 0.03125);
 }
 
 fn unknown(model: &ExactModel, mesh: &GeneratedAnalysisMesh, trace: &AnalysisTrace) {
@@ -1029,12 +1072,16 @@ fn mutate_face_triangle(
             rendered_positions_f32: old.rendered_positions_f32,
         };
         mesh.positions_mm_f64.extend(new.positions_mm_f64);
+        mesh.mesh.positions.extend(new.rendered_positions_f32);
+        mesh.mesh.normals.extend_from_within(ti * 9..ti * 9 + 9);
         mesh.triangle_face_occurrence_indices.push(face_index);
         trace.triangles.push(new);
     } else {
         triangles.remove(0);
         trace.triangles.remove(ti);
         mesh.positions_mm_f64.drain(ti * 9..ti * 9 + 9);
+        mesh.mesh.positions.drain(ti * 9..ti * 9 + 9);
+        mesh.mesh.normals.drain(ti * 9..ti * 9 + 9);
         mesh.triangle_face_occurrence_indices.remove(ti);
     }
     *poly = PolygonMesh::new(poly.attributes().clone(), Faces::from_iter(triangles));
@@ -1158,4 +1205,130 @@ fn cylinder_proof_source_translation_and_large_coordinate_controls() {
     let mut huge = mesh;
     huge.positions_mm_f64[0] = 1e20;
     unknown(&translated, &huge, &trace);
+}
+
+#[test]
+fn cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution() {
+    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let (mesh, trace) = checked_trace(&model, None);
+    let fi = trace
+        .faces
+        .iter()
+        .position(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
+        .unwrap();
+    let groups = bind(&model, &mesh, &trace).unwrap();
+    let (original, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
+    assert_eq!(original.source_error, n(0));
+    let edge = trace.faces[fi].boundaries[0]
+        .edge_iter()
+        .next()
+        .unwrap()
+        .clone();
+    let Curve::NurbsCurve(mut curve) = edge.curve() else {
+        unreachable!()
+    };
+    curve.control_point_mut(1).x = curve.control_point(1).x.next_up();
+    edge.set_curve(Curve::NurbsCurve(curve));
+    assert!(bind(&model, &mesh, &trace).is_ok());
+    let (changed, _) = cylinder(&trace.faces[fi], &groups[fi]).unwrap();
+    assert!(changed.source_error > n(0));
+    assert!(prove(&model, &mesh, &trace).unwrap() > original.source_error);
+    let Curve::NurbsCurve(mut curve) = edge.curve() else {
+        unreachable!()
+    };
+    curve.control_point_mut(1).z += 0.25;
+    edge.set_curve(Curve::NurbsCurve(curve));
+    unknown(&model, &mesh, &trace);
+}
+
+#[test]
+fn cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown() {
+    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let (mut mesh, mut trace) = checked_trace(&model, None);
+    let face = 0;
+    let vertex = trace
+        .triangles
+        .iter()
+        .find(|t| t.occurrence_index == face)
+        .unwrap()
+        .vertices[0]
+        .pos;
+    trace.faces[face].polygon.positions_mut()[vertex].x += 1. / 1024.;
+    for (i, tri) in trace
+        .triangles
+        .iter_mut()
+        .enumerate()
+        .filter(|(_, t)| t.occurrence_index == face)
+    {
+        for (j, v) in tri.vertices.iter().enumerate() {
+            let p = trace.faces[face].polygon.positions()[v.pos];
+            for (axis, value) in [p.x, p.y, p.z].into_iter().enumerate() {
+                tri.positions_mm_f64[j * 3 + axis] = value;
+                tri.rendered_positions_f32[j * 3 + axis] = value as f32;
+                mesh.positions_mm_f64[i * 9 + j * 3 + axis] = value;
+                mesh.mesh.positions[i * 9 + j * 3 + axis] = value as f32;
+            }
+        }
+    }
+    assert!(bind(&model, &mesh, &trace).is_ok());
+    unknown(&model, &mesh, &trace);
+    let model = crate::build_case(&drilled_input(2., 4.)).unwrap();
+    let (mesh, trace) = checked_trace(&model, None);
+    match qualify(&model, &mesh, &trace) {
+        GeneratedQualification::Unknown { reasons } => {
+            assert!(reasons.iter().any(|r| r.contains("seam")), "{reasons:?}")
+        }
+        other => panic!("unproven real seam must stay Unknown: {other:?}"),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn generated_cylinder_proof_actual_wasm() {
+    drilled_plate_has_a_complete_symmetric_source_bound();
+    cylinder_proof_authored_radius_height_and_actual_refinement_controls();
+    cylinder_proof_authored_circle_pcb_with_real_drill_is_bounded();
+    cylinder_proof_native_boss_caps_and_drilled_wall_are_bounded();
+    cylinder_proof_clearance_is_independent_of_requested_deflection();
+    cylinder_proof_missing_duplicate_and_seam_sliver_fail_after_binding();
+    cylinder_proof_missing_uv_face_and_occurrence_are_unknown();
+    cylinder_proof_rejects_bad_span_retrace_and_normalization();
+    cylinder_proof_nonplanar_trim_and_cone_remain_unknown();
+    cylinder_proof_source_translation_and_large_coordinate_controls();
+    cylinder_proof_source_coefficients_have_a_continuous_numeric_contribution();
+    cylinder_proof_consistently_bound_cap_sliver_and_real_open_seam_are_unknown();
+    cylinder_proof_discontinuous_trim_knots_are_unknown();
+}
+
+#[test]
+fn cylinder_proof_discontinuous_trim_knots_are_unknown() {
+    use monstertruck_modeling::{BsplineCurve, NurbsCurve};
+    let model = crate::build_case(&drilled_input(1., 2.)).unwrap();
+    let (mesh, trace) = checked_trace(&model, None);
+    let face = trace
+        .faces
+        .iter()
+        .find(|f| matches!(f.surface, Surface::RevolutionSurface(_)))
+        .unwrap();
+    let edge = face.boundaries[0].edge_iter().next().unwrap();
+    let Curve::NurbsCurve(curve) = edge.curve() else {
+        unreachable!()
+    };
+    let mut knots = curve.knot_vector().iter().copied().collect::<Vec<_>>();
+    knots.insert(4, 0.5);
+    knots.insert(4, 0.5);
+    let mut controls = curve.control_points().clone();
+    controls.insert(3, controls[3]);
+    controls.insert(3, controls[3]);
+    edge.set_curve(Curve::NurbsCurve(NurbsCurve::new(BsplineCurve::new(
+        knots.into(),
+        controls,
+    ))));
+    assert!(bind(&model, &mesh, &trace).is_ok());
+    match qualify(&model, &mesh, &trace) {
+        GeneratedQualification::Unknown { reasons } => {
+            assert!(reasons[0].contains("trim knots"), "{reasons:?}")
+        }
+        other => panic!("discontinuous domain must refuse: {other:?}"),
+    }
 }
