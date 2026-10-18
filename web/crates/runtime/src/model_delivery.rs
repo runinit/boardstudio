@@ -1209,6 +1209,225 @@ pub fn resolve_preview_assets(
 }
 
 pub const TIGHT_COLLISION_ACCURACY_MM: f64 = 0.01;
+pub const IDENTITY_ROW_TRANSFORM_F64: [f64; 16] = [
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+];
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum CadCollisionSubject {
+    VendorModel {
+        id: String,
+        reference: String,
+        row_transform_f64: [f64; 16],
+        vendor_step: Option<Rc<boardstudio_web_host::cad_jobs::CadVendorStep>>,
+    },
+    GeneratedCaseBody {
+        id: String,
+        name: String,
+    },
+}
+
+impl CadCollisionSubject {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::VendorModel { id, .. } | Self::GeneratedCaseBody { id, .. } => id,
+        }
+    }
+
+    pub fn label(&self) -> &str {
+        match self {
+            Self::VendorModel { reference, .. } => reference,
+            Self::GeneratedCaseBody { name, .. } => name,
+        }
+    }
+
+    pub fn from_generated_body(
+        body: &boardstudio_web_host::cad_jobs::CadBodyMesh,
+    ) -> Result<Self, String> {
+        if body.id.trim().is_empty()
+            || body.positions.is_empty()
+            || !body.positions.len().is_multiple_of(9)
+            || body.positions.iter().any(|value| !value.is_finite())
+        {
+            return Err(format!("generated case body {} has invalid mesh buffers", body.id));
+        }
+        Ok(Self::GeneratedCaseBody {
+            id: body.id.clone(),
+            name: if body.name.trim().is_empty() {
+                body.id.clone()
+            } else {
+                body.name.clone()
+            },
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CadCollisionPairFinding {
+    pub left_id: String,
+    pub left_label: String,
+    pub right_id: String,
+    pub right_label: String,
+    pub result: CadCollisionResult,
+}
+
+impl CadCollisionPairFinding {
+    pub fn summary(&self, clearance_threshold_mm: f64) -> String {
+        use boardstudio_web_host::cad_jobs::CadCollisionObservation;
+
+        let pair_label = format!("{} ↔ {}", self.left_label, self.right_label);
+        let witness = match &self.result.observation {
+            Some(CadCollisionObservation::SurfaceIntersecting {
+                contact_witness: Some(witness),
+                ..
+            }) => format!(
+                "surface intersection near ({:.2}, {:.2}, {:.2}) mm",
+                witness.point1_mm[0], witness.point1_mm[1], witness.point1_mm[2]
+            ),
+            Some(CadCollisionObservation::SurfaceIntersecting { .. }) => {
+                "surface intersection observed".to_owned()
+            }
+            Some(CadCollisionObservation::SurfaceSeparated {
+                surface_distance_mm,
+                closest_points,
+            }) => format!(
+                "surface separation {:.3} mm between ({:.2}, {:.2}, {:.2}) and ({:.2}, {:.2}, {:.2}) mm",
+                surface_distance_mm,
+                closest_points.point1_mm[0],
+                closest_points.point1_mm[1],
+                closest_points.point1_mm[2],
+                closest_points.point2_mm[0],
+                closest_points.point2_mm[1],
+                closest_points.point2_mm[2]
+            ),
+            Some(CadCollisionObservation::Uncertain { reason, .. }) => {
+                format!("uncertain observation ({reason})")
+            }
+            None => "no mesh observation".to_owned(),
+        };
+        match &self.result.assessment {
+            CadCollisionAssessment::SupportedBand {
+                lower_mm,
+                upper_mm,
+                relation,
+            } => {
+                let status = match relation {
+                    CadCollisionRelation::Violation => "Violation",
+                    CadCollisionRelation::Clear => "Clear",
+                    CadCollisionRelation::Uncertain => "Uncertain",
+                };
+                format!(
+                    "{pair_label}: {status} [{lower_mm:.3}, {upper_mm:.3}] mm vs {clearance_threshold_mm:.3} mm ({witness})"
+                )
+            }
+            CadCollisionAssessment::Unknown {
+                reasons,
+                refinement_requested,
+            } => {
+                let refine = if *refinement_requested {
+                    "; on-demand refinement required"
+                } else {
+                    ""
+                };
+                format!(
+                    "{pair_label}: Uncertain ({witness}; {}{refine})",
+                    reasons.join(", ")
+                )
+            }
+        }
+    }
+}
+
+pub fn physical_pcb_model_row_transform_f64(
+    model: &PcbModel,
+    board_thickness: f64,
+    reference: Option<&BoardReference>,
+    has_mechanical_stack: bool,
+) -> Result<[f64; 16], String> {
+    let mul = |a: [f64; 16], b: [f64; 16]| -> [f64; 16] {
+        let mut out = [0.0; 16];
+        for col in 0..4 {
+            for row in 0..4 {
+                out[col * 4 + row] = a[row] * b[col * 4]
+                    + a[4 + row] * b[col * 4 + 1]
+                    + a[8 + row] * b[col * 4 + 2]
+                    + a[12 + row] * b[col * 4 + 3];
+            }
+        }
+        out
+    };
+    let translate = |x: f64, y: f64, z: f64| -> [f64; 16] {
+        [
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, x, y, z, 1.0,
+        ]
+    };
+    let scale = |x: f64, y: f64, z: f64| -> [f64; 16] {
+        [
+            x, 0.0, 0.0, 0.0, 0.0, y, 0.0, 0.0, 0.0, 0.0, z, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ]
+    };
+    let rot_x = |rad: f64| -> [f64; 16] {
+        let (s, c) = rad.sin_cos();
+        [
+            1.0, 0.0, 0.0, 0.0, 0.0, c, s, 0.0, 0.0, -s, c, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ]
+    };
+    let rot_y = |rad: f64| -> [f64; 16] {
+        let (s, c) = rad.sin_cos();
+        [
+            c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ]
+    };
+    let rot_z = |rad: f64| -> [f64; 16] {
+        let (s, c) = rad.sin_cos();
+        [
+            c, s, 0.0, 0.0, -s, c, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+        ]
+    };
+
+    let base_z_delta = -if has_mechanical_stack {
+        board_thickness
+    } else {
+        0.0
+    };
+    let reference_transform = reference
+        .filter(|item| item.enabled)
+        .map(|item| {
+            mul(
+                translate(item.pose.at.x, item.pose.at.y, item.elevation),
+                rot_z(item.pose.rotation.to_radians()),
+            )
+        })
+        .unwrap_or(IDENTITY_ROW_TRANSFORM_F64);
+    let pcb_transform = mul(reference_transform, translate(0.0, 0.0, base_z_delta));
+
+    let back = model.side == Side::Back;
+    let side = if back {
+        mul(rot_y(std::f64::consts::PI), rot_z(std::f64::consts::PI))
+    } else {
+        IDENTITY_ROW_TRANSFORM_F64
+    };
+    let model_transform = [
+        translate(
+            model.pose.at.x,
+            model.pose.at.y,
+            if back { 0.0 } else { board_thickness },
+        ),
+        rot_z(model.pose.rotation.to_radians()),
+        side,
+        translate(model.offset.x, model.offset.y, model.offset.z),
+        rot_z(-model.rotation.z.to_radians()),
+        rot_y(-model.rotation.y.to_radians()),
+        rot_x(-model.rotation.x.to_radians()),
+        scale(model.scale.x, model.scale.y, model.scale.z),
+    ]
+    .into_iter()
+    .fold(IDENTITY_ROW_TRANSFORM_F64, mul);
+
+    let matrix = mul(pcb_transform, model_transform);
+    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+    Ok(matrix)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CadCollisionRelation {
@@ -1298,9 +1517,21 @@ pub fn resolve_physical_model_row_transform(
     Ok(matrix)
 }
 
-pub fn assess_collision_observation(
-    left_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
-    right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+pub fn resolve_subject_face_provenance(
+    subject: &CadCollisionSubject,
+    provenance: &boardstudio_web_host::cad_jobs::CadTriangleProvenance,
+) -> Option<CadResolvedFaceProvenance> {
+    match subject {
+        CadCollisionSubject::VendorModel { vendor_step, .. } => {
+            resolve_face_provenance(vendor_step.as_deref()?, provenance)
+        }
+        CadCollisionSubject::GeneratedCaseBody { .. } => None,
+    }
+}
+
+pub fn assess_subject_collision_observation(
+    left: &CadCollisionSubject,
+    right: &CadCollisionSubject,
     clearance_threshold_mm: f64,
     requested_accuracy_mm: Option<f64>,
     query_numerical_error_bound_mm: Option<f64>,
@@ -1319,8 +1550,8 @@ pub fn assess_collision_observation(
         }
         CadCollisionObservation::Uncertain { .. } => None,
     };
-    let left_provenance = pair.and_then(|p| resolve_face_provenance(left_asset, &p.left));
-    let right_provenance = pair.and_then(|p| resolve_face_provenance(right_asset, &p.right));
+    let left_provenance = pair.and_then(|p| resolve_subject_face_provenance(left, &p.left));
+    let right_provenance = pair.and_then(|p| resolve_subject_face_provenance(right, &p.right));
 
     let mut reasons = Vec::new();
     if pair.is_some() && (left_provenance.is_none() || right_provenance.is_none()) {
@@ -1329,21 +1560,27 @@ pub fn assess_collision_observation(
     if let CadCollisionObservation::Uncertain { reason, .. } = &observation {
         reasons.push(format!("raw mesh observation is uncertain: {reason}"));
     }
-    let left_bound = left_asset
-        .accuracy
-        .analysis_error_bound_mm
-        .filter(|v| v.is_finite() && *v >= 0.0);
-    let right_bound = right_asset
-        .accuracy
-        .analysis_error_bound_mm
-        .filter(|v| v.is_finite() && *v >= 0.0);
+    let subject_bound = |subject: &CadCollisionSubject, side: &str, reasons: &mut Vec<String>| -> Option<f64> {
+        match subject {
+            CadCollisionSubject::VendorModel { vendor_step, .. } => {
+                let bound = vendor_step
+                    .as_ref()
+                    .and_then(|step| step.accuracy.analysis_error_bound_mm)
+                    .filter(|v| v.is_finite() && *v >= 0.0);
+                if bound.is_none() {
+                    reasons.push(format!("{side} asset has no certified analysisErrorBoundMm"));
+                }
+                bound
+            }
+            CadCollisionSubject::GeneratedCaseBody { .. } => {
+                reasons.push(format!("{side} generated body has no source analysis mesh"));
+                None
+            }
+        }
+    };
+    let left_bound = subject_bound(left, "left", &mut reasons);
+    let right_bound = subject_bound(right, "right", &mut reasons);
     let query_bound = query_numerical_error_bound_mm.filter(|v| v.is_finite() && *v >= 0.0);
-    if left_bound.is_none() {
-        reasons.push("left asset has no certified analysisErrorBoundMm".into());
-    }
-    if right_bound.is_none() {
-        reasons.push("right asset has no certified analysisErrorBoundMm".into());
-    }
     if query_bound.is_none() {
         reasons.push("Parry query has no certified numerical error bound".into());
     }
@@ -1419,6 +1656,38 @@ pub fn assess_collision_observation(
         right_provenance,
         assessment,
     }
+}
+
+pub fn assess_collision_observation(
+    left_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+    right_asset: &boardstudio_web_host::cad_jobs::CadVendorStep,
+    clearance_threshold_mm: f64,
+    requested_accuracy_mm: Option<f64>,
+    query_numerical_error_bound_mm: Option<f64>,
+    containment_ruled_out: bool,
+    observation: boardstudio_web_host::cad_jobs::CadCollisionObservation,
+) -> CadCollisionResult {
+    let left = CadCollisionSubject::VendorModel {
+        id: "left".into(),
+        reference: "left".into(),
+        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+        vendor_step: Some(Rc::new(left_asset.clone())),
+    };
+    let right = CadCollisionSubject::VendorModel {
+        id: "right".into(),
+        reference: "right".into(),
+        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+        vendor_step: Some(Rc::new(right_asset.clone())),
+    };
+    assess_subject_collision_observation(
+        &left,
+        &right,
+        clearance_threshold_mm,
+        requested_accuracy_mm,
+        query_numerical_error_bound_mm,
+        containment_ruled_out,
+        observation,
+    )
 }
 
 /// Native preparation records paths by source asset ID because Core needs that
