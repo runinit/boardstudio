@@ -7,6 +7,20 @@ use monstertruck_io::step::load::{
 const SOURCE: &[u8] = include_bytes!("partial_closed_spline/solid32377-source.step");
 
 #[test]
+fn repair_movement_shared_parse_preserves_padded_actual_capture() {
+    let original = include_str!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
+    let text = original.replace("ENDSEC;END-ISO-10303-21;",
+        &format!("/*{}*/ENDSEC;END-ISO-10303-21;", "padding".repeat(40000)));
+    assert!(text.len() > 262144);
+    let mut table = Table::from_step(&text).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let authority = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
+    let owner = table.to_source_bound_solid_with_repair_checked(14, Some(15), &authority).unwrap();
+    assert!(owner.operations(0).any(|op| op.curve_change().is_some()),
+        "unrelated padding must not erase actual finite capture on the shared-input route");
+}
+
+#[test]
 fn repair_movement_planar_seam_retains_actual_extension_trim_and_output() {
     let text = include_str!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
     let mut table = Table::from_step(text).unwrap();
