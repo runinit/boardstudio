@@ -216,3 +216,54 @@ its own appended records before projection fallback; accepted earlier pieces and
 conservative resource failures survive. Both finite certifiers share one private
 outward-square-root conversion with the saved arithmetic order and diagnostics.
 These corrections add no movement route coverage or preview tolerance policy.
+
+## Projected native LINE: finite attachment operation
+
+Root approved the existing curve view for the explicitly named
+`native-line-attachment-projection-v1` stage. Its BEFORE is the actual finite
+attachment `Line(p, q)` built from the SAME conversion's input vertices in source
+sense order, with directed domain `[0, 1]`. It is NOT the original STEP LINE
+support and NOT an inferred native scalar interval. AFTER is that call's actual
+projected finite LINE over `[0, 1]`. A subsequent inversion is its own immediate
+stage; structural chaining binds the last AFTER to the actual owned emitted edge.
+The private capture retains original native support coefficients, the actual
+binary native carrier and sense before projection, under the existing storage
+charges. Source edge/use identities and immutable original source bind those data.
+The stage name prevents generic consumers treating attachment-carrier data as
+source-curve authority; native finite-selection and master stages remain Unsupported.
+
+The importer independently derives the ideal projected attachment controls from
+entity-local original decimal vertices/support, then bounds the complete affine
+attachment-chord -> ideal-projected-chord operation in both directions. Numeric
+ideal projection -> actual binary64 emitted controls is a separate retained term.
+Unit and occurrence linear transforms apply once; common translation cancels.
+The attachment correction enters the finite ledger once; the diagnostic owner
+view does not charge it again. The opposite source-support -> vertex-chord branch
+keeps its existing independent authority. An unproved native interval sense does
+not invalidate the separately captured finite attachment operation or make that
+native interval proved. Explicit budgets, exact equality and rounding boundaries
+use exact rational squared comparisons against the selected binary64 allowance.
+
+Root also approved refusal-only lower-bound enforcement when detailed traces are
+capped. A private importer wrapper performs the actual conversion once while its
+immutable input Table is still available. Per edge it authenticates original
+support/vector/direction/vertex and point IDs, raw coefficients and sense against
+that SAME input, binds the actual owned emitted LINE and both correct
+VertexOnEdge attachments (edge, vertex, endpoint, indices and actual interval),
+and checks exact ideal movement of those original attachment points. A strictly
+over-budget lower bound refuses; equality does not. A non-refusal supplies NO
+certificate, finite-selection proof or authorization. Resource failure/absent
+domain captures remain incomplete; under-budget capped input keeps its existing
+preview and Unknown asset bound. Unrelated padding, unsupported entities and
+declaration ordering cannot erase a known over-budget operation. No cap, source,
+allowance, constructor, public view or trait changes are needed.
+
+The shared literal `tests/fixtures/repair-projected-line.step` extends the existing
+finite-domain tetrahedron with authenticated precision and an exact 1/64 mm LINE
+offset, selecting the real projected branch. The original approved fixture and
+corpus are unchanged. Native and actual Node REDs preserve the genuine default
+budget bypass at raw offset `0.020000000000000001`; its parsed attachment guard
+accepts `.02`, while ideal geometric attachment movement exceeds that selected
+allowance. Source numeric rounding remains separate. Full original trim/master,
+PCurve, tiny-span raw normalization, surface and mesher-region coverage remain
+pending; this finite attachment feature does not close 007 or clear 011 timings.

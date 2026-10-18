@@ -87,4 +87,12 @@ for (const metre of [false, true]) {
   read(text, {}, 2, expected);
   read(text, {previewRepairBudgetMm: 0.015625}, 2, expected);
 }
+const scaled = replaceOnce(projected('0.015625'), 'ENDSEC;END-ISO-10303-21;',
+  "#500=SHAPE_REPRESENTATION('',(#505),#103);#501=AXIS2_PLACEMENT_3D('',#1,$,$);#502=REPRESENTATION_MAP(#501,#104);#503=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,$,#1,2.,$);#505=MAPPED_ITEM('',#502,#503);ENDSEC;END-ISO-10303-21;");
+for (const padded of [false, true]) {
+  const text = padded ? scaled + ' '.repeat(300000) : scaled;
+  assert.throws(() => read(text), error => typeof error === 'string'
+    && error.includes('finite LINE repair edge #23'), 'world .03125 exceeds default .02 after real scale2');
+  read(text, {previewRepairBudgetMm: 0.03125}, 1, [[0, 0, 0], [4, 6, 8]]);
+}
 console.log('PASS actual projected finite LINE attachment: exact default/explicit bands, sense, metre/rotated occurrences, capped/unrelated entity monotonic refusal, immutable bytes and complete face inventory; asset remains Unknown');
