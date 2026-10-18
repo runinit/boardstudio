@@ -378,6 +378,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                         shell_index,
                     );
                     repair_ledger.conversion_operations(
+                        Some(&repair_original),
                         source.operations(shell_index),
                         source.complete_bound(shell_index).is_ok(),
                         shell_index,

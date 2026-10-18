@@ -194,6 +194,8 @@ pub(super) struct OriginalGeometry {
     lines: HashMap<u64, NativeLineSource>,
     boundaries: HashMap<u64, Vec<SourceBoundary>>,
     finite_lines: HashMap<u64, finite_line::Source>,
+    /// Native-frame vertex points `(start, end)` after edge sense, per EDGE_CURVE.
+    native_ends: HashMap<u64, [Point3; 2]>,
 }
 
 struct SourceBoundary {
@@ -280,10 +282,40 @@ impl OriginalGeometry {
             .iter()
             .filter_map(|(&id, face)| Some((id, source_boundaries(table, face)?)))
             .collect();
+        let point = |holder: &PlaceHolder<_>| -> Option<Point3> {
+            let PlaceHolder::Ref(Name::Entity(vertex)) = holder else {
+                return None;
+            };
+            let PlaceHolder::Ref(Name::Entity(point)) =
+                &table.vertex_point.get(vertex)?.vertex_geometry
+            else {
+                return None;
+            };
+            let [x, y, z] = table.cartesian_point.get(point)?.coordinates.as_slice() else {
+                return None;
+            };
+            Some(Point3::new(*x, *y, *z))
+        };
+        let native_ends = table
+            .edge_curve
+            .iter()
+            .filter_map(|(&id, edge)| {
+                let (start, end) = (point(&edge.edge_start)?, point(&edge.edge_end)?);
+                Some((
+                    id,
+                    if edge.same_sense {
+                        [start, end]
+                    } else {
+                        [end, start]
+                    },
+                ))
+            })
+            .collect();
         Self {
             lines,
             boundaries,
             finite_lines: finite_line::capture(table, bytes),
+            native_ends,
         }
     }
 
@@ -525,6 +557,7 @@ impl Ledger {
 
     pub(super) fn conversion_operations<'a>(
         &mut self,
+        original: Option<&OriginalGeometry>,
         operations: impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'a>>,
         complete: bool,
         shell: usize,
@@ -532,7 +565,42 @@ impl Ledger {
         placement: Matrix4,
         occurrence: usize,
     ) {
+        let operations = operations.collect::<Vec<_>>();
+        // A bounded curve whose authored full domain was kept resolves its own
+        // finite selection and (nonexistent) master choice. The residual between
+        // the emitted curve ends and the original vertices is the only movement.
+        let mut resolved = std::collections::HashSet::new();
+        for operation in &operations {
+            if operation.stage() == "native-full-interval-v1"
+                && let (Some(id), Some(change)) =
+                    (operation.source_ids().2, operation.curve_change())
+            {
+                let residual = original
+                    .and_then(|original| original.native_ends.get(&id))
+                    .ok_or("original EDGE_CURVE vertex attachments are unavailable")
+                    .and_then(|ends| finite_curve::end_residual(change, ends, factor, placement));
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: Some(id),
+                    stage: "native-full-interval-attachment-v1",
+                    bound_mm: residual,
+                    diagnostic_only: false,
+                });
+                resolved.insert(id);
+            }
+        }
         for operation in operations {
+            if matches!(
+                operation.stage(),
+                "native-finite-interval-v1" | "selected-master-v1"
+            ) && operation
+                .source_ids()
+                .2
+                .is_some_and(|id| resolved.contains(&id))
+            {
+                continue;
+            }
             self.2 = self
                 .2
                 .saturating_add(usize::from(operation.curve_change().is_some()));
@@ -1288,6 +1356,60 @@ mod tests {
                         && op.bound_mm.is_err()),
                 "knot rounding stays a separate unproved numeric term"
             );
+            assert_eq!(model._repair_ledger.complete_bound_mm(), None);
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn full_interval_spline_selection_is_the_authored_domain_with_exact_attachment_residual() {
+        let text = include_str!("../../tests/fixtures/repair-full-interval-spline.step");
+        for reversed in [false, true] {
+            let text = if reversed {
+                // Same geometry, opposite edge sense: the located ends swap with the vertices.
+                text.replace(
+                    "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
+                    "#23=EDGE_CURVE('',#12,#11,#22,.F.);",
+                )
+                .replace(
+                    "#52=ORIENTED_EDGE('',*,*,#23,.F.);",
+                    "#52=ORIENTED_EDGE('',*,*,#23,.T.);",
+                )
+                .replace(
+                    "#60=ORIENTED_EDGE('',*,*,#23,.T.);",
+                    "#60=ORIENTED_EDGE('',*,*,#23,.F.);",
+                )
+            } else {
+                text.to_string()
+            };
+            let model = import_step(text.as_bytes().to_vec()).unwrap();
+            let ops = &model._repair_ledger.0;
+            let attachment: Vec<_> = ops
+                .iter()
+                .filter(|op| op.stage == "native-full-interval-attachment-v1")
+                .collect();
+            let [attachment] = attachment.as_slice() else {
+                panic!("one attachment residual stage, reversed {reversed}");
+            };
+            assert_eq!(attachment.source_edge, Some(23));
+            assert!(!attachment.diagnostic_only);
+            let measured = attachment.bound_mm.unwrap();
+            assert!(
+                (0.001953125..=0.001953125 * (1. + 1e-14)).contains(&measured),
+                "outward-rounded exact curve-end to vertex distance {measured}, reversed {reversed}"
+            );
+            for stage in ["native-finite-interval-v1", "selected-master-v1"] {
+                assert!(
+                    !ops.iter()
+                        .any(|op| op.stage == stage && op.source_edge == Some(23)),
+                    "{stage} placeholder for the resolved edge"
+                );
+                assert!(
+                    ops.iter()
+                        .any(|op| op.stage == stage && op.source_edge.is_some()),
+                    "{stage} placeholders remain for unresolved routes"
+                );
+            }
             assert_eq!(model._repair_ledger.complete_bound_mm(), None);
         }
     }

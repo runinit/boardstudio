@@ -415,6 +415,63 @@ mod tests {
     }
 }
 
+/// Largest world-space distance between the kept curve's two ends and the
+/// original native-frame vertices, from exact rational end points.
+///
+/// Only a clamped carrier ends at its first/last control point, so anything else
+/// stays Unsupported rather than borrowing an endpoint sample.
+pub(super) fn end_residual(
+    change: StepRepairCurveChange<'_>,
+    ends: &[monstertruck_modeling::Point3; 2],
+    factor: f64,
+    placement: Matrix4,
+) -> Result<f64, &'static str> {
+    let (curve, _) = change.curves();
+    let (degree, knots, controls): (usize, &[f64], Vec<[f64; 4]>) = match curve {
+        Curve3D::BsplineCurve(c) => (
+            c.degree(),
+            c.knot_vector(),
+            c.control_points()
+                .iter()
+                .map(|p| [p.x, p.y, p.z, 1.])
+                .collect(),
+        ),
+        Curve3D::NurbsCurve(c) => (
+            c.degree(),
+            c.knot_vector(),
+            c.control_points()
+                .iter()
+                .map(|p| [p.x, p.y, p.z, p.w])
+                .collect(),
+        ),
+        _ => return Err("full-interval carrier family has no concrete end proof"),
+    };
+    let n = controls.len();
+    let (a, b) = change.domains().0;
+    if degree == 0
+        || n <= degree
+        || knots.len() != n + degree + 1
+        || knots[..=degree].iter().any(|k| *k != a)
+        || knots[n..].iter().any(|k| *k != b)
+    {
+        return Err("full-interval carrier is not clamped; its ends are not control points");
+    }
+    let mut worst = 0.0_f64;
+    for (end, vertex) in [(&controls[0], &ends[0]), (&controls[n - 1], &ends[1])] {
+        let w = scalar(end[3])?;
+        if !w.is_positive() {
+            return Err("full-interval carrier end weight is not positive");
+        }
+        let mut delta = [0.0; 3];
+        for axis in 0..3 {
+            let d = (scalar(end[axis])? / &w - scalar(vertex[axis])?).abs();
+            delta[axis] = sqrt_upper(&(&d * &d), "full-interval end residual range")?;
+        }
+        worst = worst.max(super::placed_translation_bound(delta, factor, placement)?);
+    }
+    Ok(worst)
+}
+
 /// Ideal tiny-span knot normalization of a clamped non-rational spline.
 ///
 /// The positive affine map `(k - first) / (last - first)` relabels the parameter

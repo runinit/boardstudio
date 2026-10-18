@@ -311,6 +311,7 @@ mod tests {
             assert_eq!(count, if reversed { 3 } else { 2 });
             let mut ledger = Ledger::default();
             ledger.conversion_operations(
+                None,
                 owner.operations(0),
                 owner.complete_bound(0).is_ok(),
                 0,
@@ -360,6 +361,7 @@ mod tests {
         assert!(world.1 >= local.1 * 2000. && world.1 <= (local.1 * 2000.).next_up());
         let mut ledger = Ledger::default();
         ledger.conversion_operations(
+            None,
             owner.operations(0),
             owner.complete_bound(0).is_ok(),
             0,
