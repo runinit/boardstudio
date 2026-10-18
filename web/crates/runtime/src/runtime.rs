@@ -58,6 +58,12 @@ type KeycapsPreviewTestExecutor = dyn Fn(
     >,
 >;
 
+struct PhysicalStepAssembly {
+    prepared: boardstudio_web_host::cad_jobs::PreparedCadSnapshot,
+    pcb_source: Option<boardstudio_web_host::cad_jobs::CapturedPcbSource>,
+    pcb_source_thickness: Option<f64>,
+}
+
 pub struct CadScene {
     pub scope: Scope,
     pub token: SnapshotToken,
@@ -3568,7 +3574,7 @@ impl Runtime {
     }
 
     pub async fn generated_collision_subjects(
-        &self,
+        self: &Rc<Self>,
         scene: &CadScene,
         accuracy: Option<f64>,
         current: Rc<dyn Fn() -> bool>,
@@ -3576,23 +3582,117 @@ impl Runtime {
         use crate::model_delivery::{CadCollisionSubject, IDENTITY_ROW_TRANSFORM_F64};
         let mut subjects = Vec::new();
         let mut errors = Vec::new();
-        for body in &scene.prepared.bodies {
-            let analysis = match self.analyze_generated_case_body(scene, &body.body.id, accuracy, current.clone()).await {
+        for body in scene
+            .prepared
+            .bodies
+            .iter()
+            .filter(|body| body.body.id != "pcb-reference")
+        {
+            let analysis = match self
+                .analyze_generated_case_body(scene, &body.body.id, accuracy, current.clone())
+                .await
+            {
                 Ok(analysis) => Some(analysis),
-                Err(error) => { errors.push(format!("{}: {error}", body.body.name)); None }
+                Err(error) => {
+                    errors.push(format!("{}: {error}", body.body.name));
+                    None
+                }
             };
             subjects.push(CadCollisionSubject::GeneratedCaseBody {
-                id: body.body.id.clone(), name: body.body.name.clone(),
-                row_transform_f64: IDENTITY_ROW_TRANSFORM_F64, analysis,
+                id: body.body.id.clone(),
+                name: body.body.name.clone(),
+                row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+                analysis,
             });
-            if !current() { return (Vec::new(), Vec::new()); }
+            if !current() {
+                return (Vec::new(), Vec::new());
+            }
         }
+        let core = self.core.borrow().clone();
+        let epoch = self.session.borrow().core_executor_epoch();
+        let pcb_current: Rc<dyn Fn() -> bool> = {
+            let runtime = self.clone();
+            let core = core.clone();
+            let current = current.clone();
+            let scope = scene.scope.clone();
+            let token = scene.token;
+            let revision = scene.snapshot.document.revision;
+            let scene_identity = scene as *const CadScene as usize;
+            Rc::new(move || {
+                current()
+                    && runtime.collision_snapshot_is_current(&scope, token, revision)
+                    && runtime.session.borrow().core_executor_epoch() == epoch
+                    && Rc::ptr_eq(&core, &runtime.core.borrow())
+                    && runtime
+                        .cad_scene()
+                        .is_some_and(|scene| Rc::as_ptr(&scene) as usize == scene_identity)
+            })
+        };
+        let pcb = async {
+            let physical = self
+                .prepare_physical_step_assembly(
+                    core.as_ref(),
+                    &epoch.0.to_string(),
+                    &format!("collision-pcb-{}", self.operation().0),
+                    &scene.snapshot,
+                    &scene.scope,
+                    pcb_current.clone(),
+                )
+                .await?;
+            self.analyze_prepared_generated_body(
+                scene,
+                &physical.prepared.prepared,
+                "pcb-reference",
+                accuracy,
+                pcb_current.clone(),
+            )
+            .await
+        }
+        .await;
+        let analysis = match pcb {
+            Ok(analysis) if pcb_current() => Some(analysis),
+            Ok(_) => {
+                errors.push("PCB unavailable: physical source preparation became stale".into());
+                None
+            }
+            Err(error) => {
+                errors.push(format!("PCB unavailable: {error}"));
+                None
+            }
+        };
+        if !current() {
+            return (Vec::new(), Vec::new());
+        }
+        subjects.push(CadCollisionSubject::GeneratedCaseBody {
+            id: "pcb-reference".into(),
+            name: "PCB".into(),
+            row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+            analysis,
+        });
         (subjects, errors)
     }
 
     pub async fn analyze_generated_case_body(
         &self,
         scene: &CadScene,
+        body_id: &str,
+        target_deflection_mm: Option<f64>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String> {
+        self.analyze_prepared_generated_body(
+            scene,
+            &scene.prepared,
+            body_id,
+            target_deflection_mm,
+            is_current,
+        )
+        .await
+    }
+
+    async fn analyze_prepared_generated_body(
+        &self,
+        scene: &CadScene,
+        prepared: &boardstudio_core::model::PreparedCaseAssemblyIR,
         body_id: &str,
         target_deflection_mm: Option<f64>,
         is_current: Rc<dyn Fn() -> bool>,
@@ -3610,8 +3710,7 @@ impl Runtime {
         {
             return Err("generated analysis requires the current exact scene".into());
         }
-        let body = scene
-            .prepared
+        let body = prepared
             .bodies
             .iter()
             .find(|body| body.body.id == body_id)
@@ -3622,7 +3721,7 @@ impl Runtime {
             target_deflection_mm,
         };
         boardstudio_web_host::cad_jobs::validate_generated_analysis_request(
-            Some(&scene.prepared),
+            Some(prepared),
             revision,
             &metadata,
         )?;
@@ -3668,7 +3767,7 @@ impl Runtime {
             job_id: format!("case-model-analysis-{revision}-{operation}"),
             identity: identity.clone(),
             operation: CadOperation::AnalyzeGeneratedBody,
-            prepared: Some(scene.prepared.clone()),
+            prepared: Some(prepared.clone()),
             generated_analysis_request: Some(metadata),
             source_sha256: None,
             step_import_options: None,
@@ -4784,94 +4883,39 @@ impl Runtime {
         Ok((archive, capture.token()))
     }
 
-    async fn mechanical_package_bytes(
-        self: &Rc<Self>,
-        operation_id: OperationId,
-        initial_snapshot: &AcceptedSnapshot,
+    /// Share complete physical PCB preparation between export and collision.
+    async fn prepare_physical_step_assembly(
+        &self,
+        core: &dyn boardstudio_web_host::host::CoreExecutor,
+        executor_epoch: &str,
+        request_prefix: &str,
+        snapshot: &AcceptedSnapshot,
         scope: &Scope,
-    ) -> Result<Vec<u8>, String> {
-        let capture = self
-            .export_leases
-            .borrow()
-            .get(operation_id)
-            .cloned()
-            .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
-        if capture.scope() != scope
-            || capture.token() != initial_snapshot.token
-            || capture.snapshot().document.revision != initial_snapshot.document.revision
-            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
-            || capture.snapshot().document.id != initial_snapshot.document.id
-        {
-            return Err("Mechanical export no longer matches its captured project.".into());
-        }
-        let core = self.core.borrow().clone();
-        let runtime = self.clone();
-        let ensure_current = || -> Result<(), String> {
-            if runtime.export_lease_is_current(operation_id, &capture, &core) {
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<PhysicalStepAssembly, String> {
+        let ensure_current = || {
+            if is_current() {
                 Ok(())
             } else {
-                Err("Mechanical export was cancelled, superseded, or its source changed.".into())
+                Err("Physical PCB preparation was cancelled or became stale.".to_owned())
             }
         };
         ensure_current()?;
-        let document = captured_case_document(initial_snapshot, scope)
-            .map_err(|error| format!("Could not capture mechanical document: {error:?}"))?;
-        let scene = captured_case_scene(initial_snapshot, scope)
-            .map_err(|error| format!("Could not capture mechanical scene: {error:?}"))?;
-        let configuration = document
-            .mechanical
-            .as_ref()
-            .filter(|configuration| configuration.board_id == scope.board_id)
-            .ok_or_else(|| {
-                "Enable a mechanical assembly for the selected board before export.".to_owned()
-            })?;
-        let outline_ready = initial_snapshot
-            .scene
-            .board_readiness
-            .iter()
-            .find(|item| item.board_id == scope.board_id)
-            .map_or(
-                initial_snapshot.document.boards.len() <= 1
-                    && initial_snapshot.scene.readiness.outline,
-                |item| item.outline,
-            );
-        if !outline_ready {
-            return Err(
-                "Resolve active outline findings before exporting plate or case artifacts.".into(),
-            );
-        }
-        let contours = scene
-            .board_contours
-            .iter()
-            .find(|item| item.board_id == scope.board_id)
-            .map(|item| item.contours.clone())
-            .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
-        let executor_epoch = capture.executor_epoch().0.to_string();
-        let mut prepared = prepare_captured_step_assembly(
-            core.as_ref(),
-            &executor_epoch,
-            &format!("mechanical-export-{}", operation_id.0),
-            initial_snapshot,
-            scope,
-        )
-        .await
-        .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
+        let mut prepared =
+            prepare_captured_step_assembly(core, executor_epoch, request_prefix, snapshot, scope)
+                .await
+                .map_err(|error| format!("Mechanical assembly resolution failed: {error:?}"))?;
         ensure_current()?;
-        let pcb_source = captured_pcb_source(initial_snapshot, scope)
+        let pcb_source = captured_pcb_source(snapshot, scope)
             .map_err(|error| format!("Could not capture imported PCB source: {error:?}"))?;
         let mut pcb_source_thickness = None;
         if let Some(source) = &pcb_source {
-            let source_is_current = {
-                let runtime = self.clone();
-                let capture = capture.clone();
-                let core = core.clone();
-                Rc::new(move || runtime.export_lease_is_current(operation_id, &capture, &core))
-            };
+            let source_is_current = is_current.clone();
             let bytes = self
                 .load_preview_document_asset(&source.asset, source_is_current)
                 .await?;
             ensure_current()?;
-            let request_id = format!("mechanical-export-{}-pcb-source", operation_id.0);
+            let request_id = format!("{request_prefix}-pcb-source");
             let request = ArtifactRequest::ReadBoardSource {
                 id: request_id.clone(),
                 source: String::from_utf8(bytes)
@@ -4880,7 +4924,7 @@ impl Runtime {
                 flipped: source.flipped,
             };
             let reply = core
-                .artifact(&request_id, &executor_epoch, &request)
+                .artifact(&request_id, executor_epoch, &request)
                 .await
                 .map_err(|error| format!("Could not read complete PCB source: {error}"))?;
             ensure_current()?;
@@ -4952,7 +4996,7 @@ impl Runtime {
                 body,
                 contours,
             };
-            let request_id = format!("mechanical-export-{}-pcb-prepare", operation_id.0);
+            let request_id = format!("{request_prefix}-pcb-prepare");
             let request = CoreRequest::PrepareCase {
                 id: request_id.clone(),
                 ir: CaseAssemblyIR {
@@ -4961,7 +5005,7 @@ impl Runtime {
                 },
             };
             let reply = core
-                .request(&request_id, &executor_epoch, &request)
+                .request(&request_id, executor_epoch, &request)
                 .await
                 .map_err(|error| format!("PCB source preparation failed: {error}"))?;
             ensure_current()?;
@@ -4992,6 +5036,97 @@ impl Runtime {
                 }
             }
         }
+        Ok(PhysicalStepAssembly {
+            prepared,
+            pcb_source,
+            pcb_source_thickness,
+        })
+    }
+
+    async fn mechanical_package_bytes(
+        self: &Rc<Self>,
+        operation_id: OperationId,
+        initial_snapshot: &AcceptedSnapshot,
+        scope: &Scope,
+    ) -> Result<Vec<u8>, String> {
+        let capture = self
+            .export_leases
+            .borrow()
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| "Mechanical export owner was cancelled or superseded.".to_owned())?;
+        if capture.scope() != scope
+            || capture.token() != initial_snapshot.token
+            || capture.snapshot().document.revision != initial_snapshot.document.revision
+            || capture.snapshot().session_epoch != initial_snapshot.session_epoch
+            || capture.snapshot().document.id != initial_snapshot.document.id
+        {
+            return Err("Mechanical export no longer matches its captured project.".into());
+        }
+        let core = self.core.borrow().clone();
+        let runtime = self.clone();
+        let ensure_current = || -> Result<(), String> {
+            if runtime.export_lease_is_current(operation_id, &capture, &core) {
+                Ok(())
+            } else {
+                Err("Mechanical export was cancelled, superseded, or its source changed.".into())
+            }
+        };
+        ensure_current()?;
+        let document = captured_case_document(initial_snapshot, scope)
+            .map_err(|error| format!("Could not capture mechanical document: {error:?}"))?;
+        let scene = captured_case_scene(initial_snapshot, scope)
+            .map_err(|error| format!("Could not capture mechanical scene: {error:?}"))?;
+        let configuration = document
+            .mechanical
+            .as_ref()
+            .filter(|configuration| configuration.board_id == scope.board_id)
+            .ok_or_else(|| {
+                "Enable a mechanical assembly for the selected board before export.".to_owned()
+            })?;
+        let outline_ready = initial_snapshot
+            .scene
+            .board_readiness
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map_or(
+                initial_snapshot.document.boards.len() <= 1
+                    && initial_snapshot.scene.readiness.outline,
+                |item| item.outline,
+            );
+        if !outline_ready {
+            return Err(
+                "Resolve active outline findings before exporting plate or case artifacts.".into(),
+            );
+        }
+        let contours = scene
+            .board_contours
+            .iter()
+            .find(|item| item.board_id == scope.board_id)
+            .map(|item| item.contours.clone())
+            .ok_or_else(|| "The selected board has no resolved outline contours.".to_owned())?;
+        let executor_epoch = capture.executor_epoch().0.to_string();
+        let source_is_current = {
+            let runtime = self.clone();
+            let capture = capture.clone();
+            let core = core.clone();
+            Rc::new(move || runtime.export_lease_is_current(operation_id, &capture, &core))
+        };
+        let PhysicalStepAssembly {
+            prepared,
+            pcb_source,
+            pcb_source_thickness,
+        } = self
+            .prepare_physical_step_assembly(
+                core.as_ref(),
+                &executor_epoch,
+                &format!("mechanical-export-{}", operation_id.0),
+                initial_snapshot,
+                scope,
+                source_is_current,
+            )
+            .await?;
+        ensure_current()?;
         let assembly = prepared
             .mechanical_assembly
             .as_ref()

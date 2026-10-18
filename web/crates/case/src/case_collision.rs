@@ -211,7 +211,7 @@ fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm
 }
 
 async fn run_checks(
-    runtime: &Runtime,
+    runtime: &Rc<Runtime>,
     source: &CollisionSource,
     threshold: f64,
     accuracy: Option<f64>,
@@ -283,10 +283,14 @@ async fn run_checks(
                 .map(|failure| format!("{}: {}", failure.reference, failure.reason)),
         );
     }
-    let (generated, generated_errors) = runtime.generated_collision_subjects(&source.scene, accuracy, current.clone()).await;
+    let (generated, generated_errors) = runtime
+        .generated_collision_subjects(&source.scene, accuracy, current.clone())
+        .await;
     subjects.extend(generated);
     errors.extend(generated_errors);
-    if !current() { return (Vec::new(), Vec::new(), None); }
+    if !current() {
+        return (Vec::new(), Vec::new(), None);
+    }
     let mut findings = Vec::new();
     for (index, left) in subjects.iter().enumerate() {
         for right in &subjects[index + 1..] {
