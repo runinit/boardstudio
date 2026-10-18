@@ -1035,3 +1035,6 @@ mod numerical_underflow_tests {
         assert!(push_render_degraded_triangle(&mut buffers, [a, b, c]).is_err());
     }
 }
+
+#[cfg(test)]
+mod surface_preview_tests;
