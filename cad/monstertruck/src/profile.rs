@@ -137,10 +137,22 @@ pub fn mesh_profile(model: &ExactModel) -> Result<MeshBuffers, String> {
 
 /// Tessellates exact generated case/PCB solids into f64 analysis buffers with per-face
 /// provenance. Requested tolerances do not certify source-to-mesh error.
-#[cfg(not(test))]
 pub fn mesh_profile_for_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
+) -> Result<GeneratedAnalysisMesh, String> {
+    mesh_profile_for_analysis_impl(
+        model,
+        target_deflection_mm,
+        #[cfg(test)]
+        None,
+    )
+}
+
+fn mesh_profile_for_analysis_impl(
+    model: &ExactModel,
+    target_deflection_mm: Option<f64>,
+    #[cfg(test)] mut trace: Option<&mut final_trace::AnalysisTrace>,
 ) -> Result<GeneratedAnalysisMesh, String> {
     if model.solids.is_empty() {
         return Err("Case analysis mesh requires at least one exact solid".into());
@@ -199,6 +211,15 @@ pub fn mesh_profile_for_analysis(
                     face_index,
                     support_kind: support_kind.into(),
                 });
+                #[cfg(test)]
+                if let Some(trace) = trace.as_deref_mut() {
+                    trace.record_face(
+                        &source_faces[occurrence_index],
+                        face,
+                        meshed_face.orientation(),
+                        &poly,
+                    );
+                }
                 let mut face_triangles = 0usize;
                 for triangle in poly.faces().triangle_iter() {
                     let points = triangle.map(|v| poly.positions()[v.pos]);
@@ -217,6 +238,18 @@ pub fn mesh_profile_for_analysis(
                         }
                     }
                     triangle_face_occurrence_indices.push(occurrence_index);
+                    // Observe only the accepted, oriented fan triangle, using the final
+                    // f64 coordinates and the f32 conversion that push_triangle emitted.
+                    #[cfg(test)]
+                    if let Some(trace) = trace.as_deref_mut() {
+                        trace.record_triangle(
+                            occurrence_index,
+                            &poly,
+                            triangle,
+                            &positions_mm_f64[positions_mm_f64.len() - 9..],
+                            &mesh.positions[mesh.positions.len() - 9..],
+                        );
+                    }
                     face_triangles += 1;
                 }
                 if face_triangles == 0 {
@@ -266,6 +299,9 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
     };
     crate::mesh::closed_oriented_edges(triangles, point)
 }
+
+#[cfg(test)]
+mod final_trace;
 
 #[cfg(test)]
 mod generated_qualification;
@@ -331,190 +367,4 @@ fn validate_region(region: ProfileRegion) -> Result<(Vec<Vec2>, Vec<Vec<Vec2>>),
             .collect()
     };
     Ok((convert(outer), holes.into_iter().map(convert).collect()))
-}
-
-#[cfg(test)]
-#[derive(Clone, Debug)]
-pub struct GeneratedFinalTriangleTrace {
-    pub occurrence_index: usize,
-    pub native_key: (usize, usize, usize),
-    pub support_kind: String,
-    pub positions_mm_f64: [f64; 9],
-    pub uv_coords: Option<[[f64; 2]; 3]>,
-    pub rendered_positions_f32: [f32; 9],
-    pub row_transform_applied: bool,
-}
-
-#[cfg(test)]
-#[derive(Clone, Debug)]
-pub struct GeneratedAnalysisTrace {
-    pub mesh: GeneratedAnalysisMesh,
-    pub triangles: Vec<GeneratedFinalTriangleTrace>,
-}
-
-#[cfg(test)]
-pub fn mesh_profile_for_analysis(
-    model: &ExactModel,
-    target_deflection_mm: Option<f64>,
-) -> Result<GeneratedAnalysisMesh, String> {
-    mesh_profile_for_analysis_with_trace(model, target_deflection_mm).map(|trace| trace.mesh)
-}
-
-#[cfg(test)]
-pub fn mesh_profile_for_analysis_with_trace(
-    model: &ExactModel,
-    target_deflection_mm: Option<f64>,
-) -> Result<GeneratedAnalysisTrace, String> {
-    if model.solids.is_empty() {
-        return Err("Case analysis mesh requires at least one exact solid".into());
-    }
-    let deflection_mm = match target_deflection_mm {
-        Some(target) => {
-            if !target.is_finite() || target <= 0.0 {
-                return Err("targetDeflectionMm must be finite and positive".into());
-            }
-            target.min(PROFILE_MESH_TOLERANCE_MM)
-        }
-        None => PROFILE_MESH_TOLERANCE_MM,
-    };
-    let options = TessellationOptions {
-        tolerance: deflection_mm,
-        edge_angular_tolerance: Some(PROFILE_EDGE_ANGULAR_TOLERANCE_RAD),
-        ..Default::default()
-    };
-
-    let mut mesh = MeshBuffers::default();
-    let mut positions_mm_f64 = Vec::new();
-    let mut source_faces = Vec::new();
-    let mut triangle_face_occurrence_indices = Vec::new();
-    let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    let mut mesh_closed_oriented = true;
-    let mut triangles = Vec::new();
-
-    for (solid_index, solid) in model.solids.iter().enumerate() {
-        let mut signed_volume = 0.0;
-        for (shell_index, shell) in solid.boundaries().iter().enumerate() {
-            let _ = shell_to_polygon_strict_with(shell, options)
-                .map_err(|error| format!("Monstertruck could not mesh case profile: {error:?}"))?;
-            let meshed = triangulation_with(shell, options);
-            if meshed.face_iter().count() != shell.face_iter().count() {
-                return Err("Generated analysis dropped a source face".into());
-            }
-            let mut shell_triangles = Vec::new();
-            for ((face_index, face), meshed_face) in
-                shell.face_iter().enumerate().zip(meshed.face_iter())
-            {
-                let support_kind = match face.surface() {
-                    Surface::Plane(_) => "PLANE",
-                    Surface::RevolutionSurface(_) => "REVOLUTION_SURFACE",
-                    _ => "SURFACE",
-                };
-                let mut poly = meshed_face.surface().ok_or_else(|| {
-                    format!("Monstertruck dropped generated case face {face_index}")
-                })?;
-                if !meshed_face.orientation() {
-                    poly.invert();
-                }
-                let occurrence_index = source_faces.len();
-                source_faces.push(GeneratedSourceFace {
-                    solid_index,
-                    shell_index,
-                    face_index,
-                    support_kind: support_kind.into(),
-                });
-                let uv_coords_all = poly.uv_coords().clone();
-                let mut face_triangles = 0usize;
-                for triangle in poly.faces().triangle_iter() {
-                    let points = triangle.map(|v| poly.positions()[v.pos]);
-                    crate::mesh::push_triangle(&mut mesh, points)?;
-                    shell_triangles.push(points);
-                    let mut positions = [0.0; 9];
-                    for (corner, point) in points.iter().enumerate() {
-                        for (axis, coord) in [point.x, point.y, point.z].into_iter().enumerate() {
-                            if !coord.is_finite() {
-                                return Err(
-                                    "Monstertruck produced a non-finite analysis coordinate".into(),
-                                );
-                            }
-                            bounds[0][axis] = bounds[0][axis].min(coord);
-                            bounds[1][axis] = bounds[1][axis].max(coord);
-                            positions[corner * 3 + axis] = coord;
-                            positions_mm_f64.push(coord);
-                        }
-                    }
-                    triangle_face_occurrence_indices.push(occurrence_index);
-                    face_triangles += 1;
-
-                    let mut uv_triangle = Some([[0.0; 2]; 3]);
-                    for (corner, vertex) in triangle.iter().enumerate() {
-                        match vertex.uv {
-                            Some(index) => {
-                                if let Some(uv) = uv_coords_all.get(index) {
-                                    uv_triangle.as_mut().unwrap()[corner] = [uv.x, uv.y];
-                                } else {
-                                    uv_triangle = None;
-                                }
-                            }
-                            None => {
-                                uv_triangle = None;
-                            }
-                        }
-                    }
-
-                    let mut rendered = [0.0f32; 9];
-                    for (corner, point) in points.iter().enumerate() {
-                        rendered[corner * 3] = point.x as f32;
-                        rendered[corner * 3 + 1] = point.y as f32;
-                        rendered[corner * 3 + 2] = point.z as f32;
-                    }
-
-                    triangles.push(GeneratedFinalTriangleTrace {
-                        occurrence_index,
-                        native_key: (solid_index, shell_index, face_index),
-                        support_kind: support_kind.into(),
-                        positions_mm_f64: positions,
-                        uv_coords: uv_triangle,
-                        rendered_positions_f32: rendered,
-                        row_transform_applied: false,
-                    });
-                }
-                if face_triangles == 0 {
-                    return Err(format!(
-                        "Generated case face {face_index} produced no triangles"
-                    ));
-                }
-            }
-            mesh_closed_oriented &= closed_oriented_shell_triangles(&shell_triangles);
-            if let Some(first) = shell_triangles.first() {
-                let reference = first[0];
-                use monstertruck_modeling::InnerSpace;
-                for [a, b, c] in shell_triangles {
-                    signed_volume +=
-                        (a - reference).dot((b - reference).cross(c - reference)) / 6.0;
-                }
-            }
-        }
-        mesh_closed_oriented &= signed_volume.is_finite() && signed_volume > 0.0;
-    }
-    if positions_mm_f64.is_empty()
-        || bounds.iter().flatten().any(|v| !v.is_finite())
-        || (0..3).any(|axis| bounds[0][axis] > bounds[1][axis])
-    {
-        return Err("Monstertruck produced an empty or invalid analysis mesh".into());
-    }
-    let analysis = GeneratedAnalysisMesh {
-        mesh,
-        positions_mm_f64,
-        source_faces,
-        triangle_face_occurrence_indices,
-        bounds,
-        analysis_error_bound_mm: None,
-        mesh_closed_oriented,
-        deflection_mm,
-        angular_rad: PROFILE_EDGE_ANGULAR_TOLERANCE_RAD,
-    };
-    Ok(GeneratedAnalysisTrace {
-        mesh: analysis,
-        triangles,
-    })
 }
