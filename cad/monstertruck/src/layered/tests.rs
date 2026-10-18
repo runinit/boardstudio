@@ -371,6 +371,44 @@ fn cone_crossing_vertical_wall_is_rejected_with_feature_identity() {
     );
 }
 
+#[test]
+fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
+    let input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/cone-clipped-height.json"
+    ))
+    .unwrap();
+    let model = crate::build_case(&input).expect("height-clipped exact cone");
+    assert_eq!(model.solids.len(), 1);
+    let solid = &model.solids[0];
+    assert_eq!(solid.boundaries().len(), 1);
+    Solid::try_new(solid.boundaries().clone())
+        .expect("closed consistently oriented native topology");
+    assert!(solid.is_geometric_consistent());
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+    assert!((mesh.volume() - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.002);
+}
+
+#[test]
+fn adoption_overlapping_openings_preserve_collinear_authored_segments() {
+    let input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/overlapping-openings-lineage.json"
+    ))
+    .unwrap();
+    verify(
+        &input,
+        1208.,
+        [[0., 0., 0.], [20., 16., 4.]],
+        &[
+            ([5., 5., 3.], false),
+            ([15., 8., 3.], false),
+            ([10., 8., 3.], true),
+            ([5., 5., 1.], true),
+        ],
+        0,
+        0,
+    );
+}
+
 fn inspect_cone_step(text: &str, center: [f64; 2], low: f64, high: f64, r0: f64, r1: f64) {
     use std::collections::BTreeMap;
     use step_p21::ast::{EntityInstance, Exchange, Name, Parameter, Record};

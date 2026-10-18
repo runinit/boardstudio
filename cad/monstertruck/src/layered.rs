@@ -340,7 +340,7 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                     continue;
                 }
                 if f.cone.is_some() {
-                    contours::check_contained_cone(&p, f)
+                    contours::check_contained_cone(&p, f, low, high)
                         .map_err(|e| format!("Conical seat '{}': {e}", f.id))?;
                 }
                 p = if let Some(cutter) = &f.cutter {

@@ -1,0 +1,401 @@
+[
+  {
+    "id": "cone-clipped-height",
+    "volumeMm3": 1162.713874265981,
+    "formula": "1280 - pi*4*(4^2 + 4*2 + 2^2)/3",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          5,
+          8,
+          2
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          9,
+          8,
+          3
+        ],
+        "inside": true
+      },
+      {
+        "pointMm": [
+          1,
+          8,
+          1
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": null,
+    "coneFaces": 1
+  },
+  {
+    "id": "cone-wall",
+    "volumeMm3": 1272.6696171416238,
+    "formula": "1280 - (pi/2)*2*(2^2 + 2*1 + 1^2)/3",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          0.5,
+          8,
+          3
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          0.5,
+          11,
+          3
+        ],
+        "inside": true
+      },
+      {
+        "pointMm": [
+          10,
+          8,
+          3
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "vertical wall",
+    "coneFaces": 1
+  },
+  {
+    "id": "sealed-round-seat",
+    "volumeMm3": 1276.85840734641,
+    "formula": "1280 - pi*1^2*1",
+    "solidCount": 1,
+    "shellCount": 2,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          10,
+          8,
+          1.5
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          10,
+          8,
+          2.5
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "sealed",
+    "coneFaces": 0
+  },
+  {
+    "id": "sealed-opening",
+    "volumeMm3": 1264,
+    "formula": "1280 - 4*4*1",
+    "solidCount": 1,
+    "shellCount": 2,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          9,
+          7,
+          1.5
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          9,
+          7,
+          2.5
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "sealed",
+    "coneFaces": 0
+  },
+  {
+    "id": "opening-ring-island",
+    "volumeMm3": 1116,
+    "formula": "1280 - (48 + 42 - 8)*2; U profile plus cap overlaps in two 2x2 squares",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          5,
+          5,
+          3
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          10,
+          8,
+          3
+        ],
+        "inside": true
+      },
+      {
+        "pointMm": [
+          5,
+          5,
+          1
+        ],
+        "inside": true
+      },
+      {
+        "pointMm": [
+          3.5,
+          11,
+          3
+        ],
+        "inside": false
+      }
+    ],
+    "expectedRefusal": "material island",
+    "coneFaces": 0
+  },
+  {
+    "id": "overlapping-openings-lineage",
+    "volumeMm3": 1208,
+    "formula": "1280 - (12*2 + 2*8 - 2*2)*2",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        4
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          5,
+          5,
+          3
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          15,
+          8,
+          3
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          10,
+          8,
+          3
+        ],
+        "inside": true
+      },
+      {
+        "pointMm": [
+          5,
+          5,
+          1
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": null,
+    "coneFaces": 0
+  },
+  {
+    "id": "pcb-edge-drill",
+    "volumeMm3": 509.48672587712815,
+    "formula": "20*16*1.6 - (pi/2)*1^2*1.6",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        1.6
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          0.2,
+          8,
+          0.8
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          0.2,
+          10,
+          0.8
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "fully containing",
+    "coneFaces": 0
+  },
+  {
+    "id": "pcb-overlapping-drills",
+    "volumeMm3": 503.9122950262867,
+    "formula": "20*16*1.6 - 1.6*(4*pi/3 + sqrt(3)/2)",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        1.6
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          10,
+          8,
+          0.8
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          10,
+          10,
+          0.8
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "overlap",
+    "coneFaces": 0
+  },
+  {
+    "id": "pcb-drill-in-slot",
+    "volumeMm3": 500.5734517542563,
+    "formula": "20*16*1.6 - 1.6*(2*2 + pi*1^2); round drill is contained in the slot",
+    "solidCount": 1,
+    "shellCount": 1,
+    "boundsMm": [
+      [
+        0,
+        0,
+        0
+      ],
+      [
+        20,
+        16,
+        1.6
+      ]
+    ],
+    "materialProbes": [
+      {
+        "pointMm": [
+          10,
+          8,
+          0.8
+        ],
+        "inside": false
+      },
+      {
+        "pointMm": [
+          10,
+          10,
+          0.8
+        ],
+        "inside": true
+      }
+    ],
+    "expectedRefusal": "overlap",
+    "coneFaces": 0
+  }
+]

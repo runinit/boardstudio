@@ -1,0 +1,83 @@
+{
+  "revision": 1,
+  "body": {
+    "id": "overlapping-openings-lineage",
+    "name": "overlapping-openings-lineage",
+    "boardId": "adoption-board",
+    "kind": "plate",
+    "thickness": 4.0,
+    "clearance": 0.0,
+    "openings": [
+      {
+        "points": [
+          {
+            "x": 4,
+            "y": 4
+          },
+          {
+            "x": 16,
+            "y": 4
+          },
+          {
+            "x": 16,
+            "y": 6
+          },
+          {
+            "x": 4,
+            "y": 6
+          }
+        ],
+        "z": 2.0,
+        "height": 2.0
+      },
+      {
+        "points": [
+          {
+            "x": 14,
+            "y": 4
+          },
+          {
+            "x": 16,
+            "y": 4
+          },
+          {
+            "x": 16,
+            "y": 12
+          },
+          {
+            "x": 14,
+            "y": 12
+          }
+        ],
+        "z": 2.0,
+        "height": 2.0
+      }
+    ]
+  },
+  "regions": [
+    {
+      "outer": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 0
+        },
+        {
+          "x": 20,
+          "y": 16
+        },
+        {
+          "x": 0,
+          "y": 16
+        }
+      ],
+      "holes": [],
+      "cavities": [],
+      "gaskets": [],
+      "mounts": []
+    }
+  ]
+}

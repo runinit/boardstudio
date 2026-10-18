@@ -77,6 +77,13 @@ fn canonical_line_junctions(ring: &mut Ring) -> Result<(), String> {
             } else {
                 (c, d, a, b)
             };
+            let u = [b[0] - a[0], b[1] - a[1]];
+            let v = [d[0] - c[0], d[1] - c[1]];
+            let determinant = u[0] * v[1] - u[1] * v[0];
+            // Collinear segments may share an endpoint away from the Boolean junction.
+            if determinant == 0. {
+                continue;
+            }
             // A shared authored corner is already the exact intersection; preserve its bits.
             let shared = match (a == c || a == d, b == c || b == d) {
                 (true, false) => Some(a),
@@ -86,12 +93,6 @@ fn canonical_line_junctions(ring: &mut Ring) -> Result<(), String> {
             let point = if let Some(shared) = shared {
                 shared
             } else {
-                let u = [b[0] - a[0], b[1] - a[1]];
-                let v = [d[0] - c[0], d[1] - c[1]];
-                let determinant = u[0] * v[1] - u[1] * v[0];
-                if determinant == 0. {
-                    continue;
-                }
                 let t = ((c[0] - a[0]) * v[1] - (c[1] - a[1]) * v[0]) / determinant;
                 let mut point = [a[0] + t * u[0], a[1] + t * u[1]];
                 for coordinate in 0..2 {
@@ -480,8 +481,16 @@ pub(super) fn subtract_profile(a: &Profile, b: &Profile, _frame: &Ring) -> Resul
     }
     Ok(result)
 }
-pub(super) fn check_contained_cone(p: &Profile, f: &Feature) -> Result<(), String> {
+pub(super) fn check_contained_cone(
+    p: &Profile,
+    f: &Feature,
+    low: f64,
+    high: f64,
+) -> Result<(), String> {
     let (center, r0, r1) = f.cone.unwrap();
+    // Only this authored band intersects the current material profile.
+    let radius = |z| r0 + (r1 - r0) * (z - f.low) / (f.high - f.low);
+    let (r0, r1) = (radius(low), radius(high));
     let max = circle(center, r0.max(r1), &f.id);
     let min = circle(center, r0.min(r1), &f.id);
     let mut overlaps_exterior = false;
