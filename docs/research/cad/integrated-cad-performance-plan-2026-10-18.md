@@ -320,10 +320,16 @@ an unrelated unreadable untracked `.gitmodules` if present in a future workspace
 Retained Cadrum JS/WASM exists under the main checkout's `cad/wasm/pkg` (WASM
 19,785,714 bytes, Oct 16 mtime), alongside input stamp
 `e40a3dd169ec0e912b36c2cee28c5efd0c7c0ad093ad5974361359b8faf830dc`.
-Read-only reconstruction of the historical helper's exact clean-Git input algorithm
-gives `744dbfc577d67733c4f2304c4c9a8cf4de99e41588c0eae6bd210ce2d31d53a9`
-for release and `a659bed0edc38cea95227788c7a86d6aaf468fd6da65c08b64236ccdf3f81a2d`
-for release-no-opt. Neither matches. Even a matching input stamp would not bind
+The official historical `cadrum_build.wasm_inputs_digest` at clean
+`6c9c4867755bd2316f751783729a3ff9778fc04a` gives
+`373b765945f8dc60b3052eefd84f43c7fd2af349e84b37f63e66a772a2d73f8f`
+for release and
+`af404602ba9de053fbc0938c820933b604c6207ea9a84c4915ff6160c8dbbc01`
+for release-no-opt. These official helper-derived values supersede the earlier
+reconstruction, which sorted pathname strings instead of `pathlib.Path`
+components in the helper's order. Neither official value matches the retained
+artifact's `e40a3dd169ec0e912b36c2cee28c5efd0c7c0ad093ad5974361359b8faf830dc`
+input stamp. Even a matching input stamp would not bind
 the current output bytes by itself. **Do not assign that retained artifact to
 6c9c4867 or use its size/timings as this baseline.** Preserve it in place; a fresh
 build/source/artifact receipt is needed. No build-history provenance was inferred
@@ -406,3 +412,16 @@ stops on 288 existing links to absent ignored `.evidence` paths in this isolated
 lane, with no failure in this note; see `.evidence/011-doc-check.log`. These links
 were preserved for the parent evidence checkout. No full native/WASM/browser
 suite, independent review or final benchmark was run in this research slice.
+
+## Readiness update — 2026-10-18
+
+The historical baseline lane has now built actual Cadrum at
+`6c9c4867755bd2316f751783729a3ff9778fc04a` in its separate T3 workspace, with
+15 smoke checks passing. First untimed C1 paired admission passed for the frozen
+120 × 80 × 2 mm plate with 24 square through-holes: independently derived volume
+14400 mm³, mesh topology, 126 material probes and independent inspection of both
+providers' emitted STEP passed. The one-time FreeCAD inspection is QA evidence;
+it does not restore a required OCCT/C++ test dependency. This fresh artifact and
+admission leave the older retained artifact unbound. No performance timing claim
+follows. Historical page/worker baseline packaging, remaining workload admissions
+and the acceptance gates above remain open; neither 011 nor 012 is closed.
