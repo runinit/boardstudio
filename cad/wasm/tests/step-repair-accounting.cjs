@@ -87,10 +87,13 @@ assert.deepEqual(Buffer.from(finiteBytes), Buffer.from(finite), 'refused/accepte
 check(replaceOnce(finite, '(0.,0.03125,0.)', '(0.,0.015625,0.)'), {}, tetraBounds, 1);
 const unrelatedNumeric = replaceOnce(finite, 'ENDSEC;END-ISO-10303-21;',
   "#4000=DIRECTION('',(1.E-100,1.,0.));#4001=VECTOR('',#4000,1.);#4002=LINE('',#1,#4001);#4003=EDGE_CURVE('',#11,#12,#4002,.T.);ENDSEC;END-ISO-10303-21;");
-assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(unrelatedNumeric)),
-  {sourceSha256: sha(Buffer.from(unrelatedNumeric))}), error =>
-    typeof error === 'string' && error.includes('finite LINE repair edge #23'));
-check(unrelatedNumeric, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
+const dotNumeric = replaceOnce(unrelatedNumeric, '1.E-100', '.5');
+for (const source of [unrelatedNumeric, dotNumeric]) {
+  assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(source)),
+    {sourceSha256: sha(Buffer.from(source))}), error =>
+      typeof error === 'string' && error.includes('finite LINE repair edge #23'));
+  check(source, {previewRepairBudgetMm: 0.03125}, tetraBounds, 1);
+}
 
 let gap = replaceOnce(tetra,
   "#103=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#102)));",

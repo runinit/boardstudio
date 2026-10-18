@@ -50,6 +50,31 @@ fn decimal(literal: &str) -> Option<Q> {
     value.parse().ok()
 }
 
+fn numeric_values(mut entity: &str) -> Option<Vec<Q>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(3).ok()?;
+    let mut supported = true;
+    while !entity.is_empty() {
+        if let Ok((rest, _)) = parser::combinator::separator(entity) {
+            entity = rest;
+        } else if entity.starts_with('\'') {
+            entity = parser::token::string(entity).ok()?.0;
+        } else if entity.starts_with('#') {
+            entity = parser::token::entity_instance_name(entity).ok()?.0;
+        } else if entity.as_bytes()[0].is_ascii_uppercase() {
+            entity = parser::token::standard_keyword(entity).ok()?.0;
+        } else if matches!(entity.as_bytes()[0], b'+' | b'-' | b'.' | b'0'..=b'9') {
+            let rest = parser::token::real(entity)
+                .map(|(rest, _)| rest)
+                .or_else(|_| parser::token::integer(entity).map(|(rest, _)| rest))
+                .ok()?;
+            // Numeric/domain limits belong to THIS immutable
+            // source entity. An unrelated unsupported scalar must
+            // not erase other complete operation certificates.
+        
+    supported.then_some(values)
+}
+
 // Part21's own parsers delimit instances/tokens; strings/comments/references never
 // become coordinate authority. Keep the original numeric spelling, not AST f64.
 fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> {
@@ -81,46 +106,7 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
                     "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
                 )
             {
-                let mut entity = &input[..input.len() - rest.len()];
-                let mut values = Vec::new();
-                values.try_reserve_exact(3).ok()?;
-                let mut supported = true;
-                while !entity.is_empty() {
-                    if let Ok((rest, _)) = parser::combinator::separator(entity) {
-                        entity = rest;
-                    } else if entity.starts_with('\'') {
-                        entity = parser::token::string(entity).ok()?.0;
-                    } else if entity.starts_with('#') {
-                        entity = parser::token::entity_instance_name(entity).ok()?.0;
-                    } else if entity.as_bytes()[0].is_ascii_uppercase() {
-                        entity = parser::token::standard_keyword(entity).ok()?.0;
-                    } else if matches!(entity.as_bytes()[0], b'+' | b'-' | b'0'..=b'9') {
-                        let rest = parser::token::real(entity)
-                            .map(|(rest, _)| rest)
-                            .or_else(|_| parser::token::integer(entity).map(|(rest, _)| rest))
-                            .ok()?;
-                        // Numeric/domain limits belong to THIS immutable
-                        // source entity. An unrelated unsupported scalar must
-                        // not erase other complete operation certificates.
-                        if supported {
-                            if values.len() == 3 {
-                                supported = false;
-                            } else if let Some(value) =
-                                decimal(&entity[..entity.len() - rest.len()])
-                            {
-                                values.push(value);
-                            } else {
-                                supported = false;
-                            }
-                        }
-                        entity = rest;
-                    } else if matches!(entity.as_bytes()[0], b'(' | b')' | b',' | b'=' | b';') {
-                        entity = &entity[1..];
-                    } else {
-                        return None;
-                    }
-                }
-                if supported {
+                if let Some(values) = numeric_values(&input[..input.len() - rest.len()]) {
                     result.insert(id, values);
                 }
             }
@@ -325,6 +311,7 @@ mod tests {
         for other in [
             "#2=DIRECTION('',(1.E-100,1.,0.));",
             "#2=DIRECTION('',(0.,1.,0.,4.));",
+            "#2=DIRECTION('',(.F.,1.,0.));",
             "#2=DIRECTION('',(0.,1.,0.));#2=VECTOR('',#1,1.);",
         ] {
             let source = format!("{clear}{other}");
@@ -339,5 +326,7 @@ mod tests {
             );
             assert!(!authority.contains_key(&2));
         }
+        let authority = numbers(b"#2=DIRECTION('',(.5,1.,0.));", &HashSet::from([2])).unwrap();
+        assert_eq!(authority[&2][0], Q::new(1.into(), 2.into()));
     }
 }
