@@ -377,6 +377,8 @@ mod browser_tests {
             right_id: "case-bottom".into(),
             right_label: "Bottom".into(),
             result: CadCollisionResult {
+                source_interval_mm: None,
+                query_qualification: None,
                 observation: Some(CadCollisionObservation::SurfaceSeparated {
                     surface_distance_mm: 0.5,
                     closest_points: CadClosestPointsWitness {

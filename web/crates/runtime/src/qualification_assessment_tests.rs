@@ -49,7 +49,12 @@ fn assess(report: QueryQualification) -> CadCollisionResult {
         right_positions_mm_f64: right.mesh().unwrap().0.to_vec(), right_triangle_face_occurrence_indices: right.mesh().unwrap().1.to_vec() };
     let validated = validate_query_qualification(report.clone(), &report.binding, &report.limits, &meshes,
         Some([left.source_qualification().unwrap(), right.source_qualification().unwrap()])).unwrap();
-    let observation: CadCollisionObservation = serde_json::from_value(fixture()["qualificationV2"]["activation"]["rawObservationExample"].clone()).unwrap();
+    let mut observation: CadCollisionObservation = serde_json::from_value(fixture()["qualificationV2"]["activation"]["rawObservationExample"].clone()).unwrap();
+    if let CadCollisionObservation::SurfaceSeparated { closest_points, .. } = &mut observation {
+        for (provenance, subject) in [(&mut closest_points.triangles.left, &left), (&mut closest_points.triangles.right, &right)] {
+            provenance.face_occurrence_index = subject.mesh().unwrap().1[provenance.triangle_index as usize];
+        }
+    }
     assess_subject_collision_observation(&left, &right, report.binding.clearance_threshold_mm,
         report.binding.requested_accuracy_mm, Some((&validated, &report.binding)), observation)
 }

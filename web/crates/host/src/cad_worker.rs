@@ -55,7 +55,7 @@ struct WireReply {
 }
 
 #[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct WireRequest {
     request_id: String,
     job_id: String,
@@ -76,6 +76,15 @@ struct WireRequest {
     collision_meshes: Option<CadCollisionMeshPair>,
     #[serde(skip)]
     input_bytes: Vec<u8>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RequestEnvelope {
+    request_id: String,
+    job_id: String,
+    identity: CadSnapshotIdentity,
+    operation: CadOperation,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1514,6 +1523,7 @@ struct WorkerQueue {
     cancelled: BTreeSet<String>,
     active: bool,
     active_job: Option<String>,
+    active_request: Option<String>,
     generation: String,
     evidence: BTreeMap<String, Rc<OwnedAnalysis>>,
     evidence_recency: VecDeque<String>,
@@ -1525,7 +1535,7 @@ impl Default for WorkerQueue {
     fn default() -> Self {
         let generation = Function::new_no_args("return crypto.randomUUID()")
             .call0(&JsValue::NULL).expect("worker UUID source").as_string().expect("worker UUID");
-        Self { pending: VecDeque::new(), cancelled: BTreeSet::new(), active: false, active_job: None,
+        Self { pending: VecDeque::new(), cancelled: BTreeSet::new(), active: false, active_job: None, active_request: None,
             generation, evidence: BTreeMap::new(), evidence_recency: VecDeque::new(), retained_bytes: 0, latest_snapshot: None }
     }
 }
@@ -1666,8 +1676,15 @@ fn receive_worker_message(
     let frame = Reflect::get(&data, &"frame".into())?
         .as_string()
         .ok_or_else(|| JsValue::from_str("CAD request omitted frame"))?;
-    let mut request = serde_json::from_str::<WireRequest>(&frame)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let mut request = match serde_json::from_str::<WireRequest>(&frame) {
+        Ok(request) => request,
+        Err(error) => {
+            let envelope: RequestEnvelope = serde_json::from_str(&frame).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            return post_reply(scope, WireReply { request_id: envelope.request_id, job_id: envelope.job_id,
+                identity: envelope.identity, operation: envelope.operation, outcome: CadReplyOutcome::Failed,
+                error: Some(error.to_string()) }.into(), None, Array::new());
+        }
+    };
     if let Some(message) = keycap_operation_error(&request.operation, request.keycaps.is_some()) {
         return post_reply(
             scope,
@@ -1717,32 +1734,10 @@ fn receive_worker_message(
         request.input_bytes = Uint8Array::new(&buffer).to_vec();
     }
     if request.operation == CadOperation::CollisionQuery {
-        let get_buf = |name: &str| -> Result<JsValue, JsValue> {
-            Reflect::get(&data, &name.into()).and_then(|v| {
-                if v.is_undefined() || v.is_null() {
-                    Err(JsValue::from_str(&format!(
-                        "collision request omitted {name}"
-                    )))
-                } else {
-                    Ok(v)
-                }
-            })
-        };
-        let left_pos = Float64Array::new(&get_buf("leftPositions")?);
-        let left_tags = Uint32Array::new(&get_buf("leftTags")?);
-        let right_pos = Float64Array::new(&get_buf("rightPositions")?);
-        let right_tags = Uint32Array::new(&get_buf("rightTags")?);
-        let total_bytes = (left_pos.byte_length() as usize)
-            .saturating_add(left_tags.byte_length() as usize)
-            .saturating_add(right_pos.byte_length() as usize)
-            .saturating_add(right_tags.byte_length() as usize);
-        if total_bytes <= MAX_COLLISION_QUERY_BYTES {
-            request.collision_meshes = Some(CadCollisionMeshPair {
-                left_positions_mm_f64: left_pos.to_vec(),
-                left_triangle_face_occurrence_indices: left_tags.to_vec(),
-                right_positions_mm_f64: right_pos.to_vec(),
-                right_triangle_face_occurrence_indices: right_tags.to_vec(),
-            });
+        match decode_query_buffers(&data) {
+            Ok(meshes) => request.collision_meshes = Some(meshes),
+            Err(error) => return post_reply(scope, WireReply { request_id: request.request_id, job_id: request.job_id,
+                identity: request.identity, operation: request.operation, outcome: CadReplyOutcome::Failed, error: Some(error) }.into(), None, Array::new()),
         }
     }
     let input_bytes = std::mem::take(&mut request.input_bytes);
@@ -1752,6 +1747,7 @@ fn receive_worker_message(
             .pending
             .iter()
             .any(|(item, _)| item.request_id == request.request_id)
+            || queue.active_request.as_ref() == Some(&request.request_id)
         {
             return Err(JsValue::from_str("duplicate in-flight CAD request id"));
         }
@@ -1782,6 +1778,28 @@ fn keycap_operation_error(operation: &CadOperation, has_keycaps: bool) -> Option
     }
 }
 
+fn decode_query_buffers(data: &JsValue) -> Result<CadCollisionMeshPair, String> {
+    let mut buffers = Vec::new();
+    let mut bytes = 0_usize;
+    for (name, width) in [("leftPositions", 8), ("leftTags", 4), ("rightPositions", 8), ("rightTags", 4)] {
+        let value = Reflect::get(data, &name.into()).map_err(js_message)?;
+        let buffer = value.dyn_into::<js_sys::ArrayBuffer>().map_err(|_| format!("{name} requires an owned ArrayBuffer"))?;
+        let length = buffer.byte_length() as usize;
+        if length == 0 || !length.is_multiple_of(width) { return Err(format!("{name} is detached, empty or misaligned")); }
+        bytes = bytes.saturating_add(length);
+        buffers.push(buffer);
+    }
+    if bytes > MAX_COLLISION_QUERY_BYTES { return Err("collision pair exceeds 64 MiB".into()); }
+    let meshes = CadCollisionMeshPair {
+        left_positions_mm_f64: Float64Array::new(&buffers[0]).to_vec(),
+        left_triangle_face_occurrence_indices: Uint32Array::new(&buffers[1]).to_vec(),
+        right_positions_mm_f64: Float64Array::new(&buffers[2]).to_vec(),
+        right_triangle_face_occurrence_indices: Uint32Array::new(&buffers[3]).to_vec(),
+    };
+    validate_collision_mesh_pair(&meshes)?;
+    Ok(meshes)
+}
+
 fn pump_worker(
     queue: Rc<RefCell<WorkerQueue>>,
     scope: DedicatedWorkerGlobalScope,
@@ -1796,6 +1814,7 @@ fn pump_worker(
             Some(request) => {
                 queue.active = true;
                 queue.active_job = Some(request.0.job_id.clone());
+                queue.active_request = Some(request.0.request_id.clone());
                 request
             }
             None => return,
@@ -1836,6 +1855,7 @@ fn pump_worker(
         }
         next_queue.borrow_mut().active = false;
         next_queue.borrow_mut().active_job = None;
+        next_queue.borrow_mut().active_request = None;
         next_queue.borrow_mut().cancelled.remove(&completed_job_id);
         pump_worker(next_queue, next_scope, next_module);
     });
