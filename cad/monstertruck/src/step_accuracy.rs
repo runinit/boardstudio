@@ -120,44 +120,44 @@ pub(super) fn certify_circular_extrusion(
     circular::certify(text, expected)
 }
 
-/// One horizontal-plane trim segment in traversal order: a line or a circular arc.
-#[derive(Clone, Copy)]
-pub(super) enum Segment {
+/// Explicit reference geometry for the retained export fixtures, not a B-rep validity proof.
+#[derive(Clone, Debug)]
+pub(super) enum FixtureEdge {
     Line {
-        from: [f64; 2],
-        to: [f64; 2],
+        from: [f64; 3],
+        to: [f64; 3],
     },
     Arc {
+        from: [f64; 3],
+        to: [f64; 3],
         center: [f64; 2],
         radius: f64,
-        from: [f64; 2],
-        to: [f64; 2],
         turn: f64,
     },
 }
 
-/// A raw-Part21 measurement of one vertical-wall prism: two horizontal caps joined by
-/// planar and Z-cylindrical walls, with every arc proved to lie on its declared cylinder.
-pub(super) struct PrismCertificate {
-    pub bounds: [[f64; 3]; 2],
-    pub bound_error: f64,
-    pub area: [f64; 2],
-    pub volume: [f64; 2],
-    /// Vertices, edges and faces of the shell.
-    pub topology: [usize; 3],
-    /// Through holes: inner loops on each cap.
-    pub holes: usize,
-    /// Declared (center, radius) of every cylindrical wall face.
-    pub cylinders: Vec<([f64; 2], f64)>,
-    /// Number of planar wall faces.
-    pub planar_walls: usize,
-    z: [f64; 2],
-    /// Top-cap loops, outer counter-clockwise and holes clockwise about +Z.
-    loops: Vec<Vec<Segment>>,
+#[derive(Clone, Debug)]
+pub(super) enum FixtureSurface {
+    Plane {
+        origin: [f64; 3],
+        outward: [f64; 3],
+    },
+    Cylinder {
+        center: [f64; 2],
+        radius: f64,
+        outward: bool,
+        tolerance: f64,
+    },
 }
 
-pub(super) fn certify_prisms(text: &str) -> Result<Vec<PrismCertificate>> {
-    circular::certify_prisms(text)
+#[derive(Clone, Debug)]
+pub(super) struct FixtureFace {
+    pub surface: FixtureSurface,
+    pub loops: Vec<Vec<FixtureEdge>>,
+}
+
+pub(super) fn compare_fixture(text: &str, expected: &[(&str, Vec<FixtureFace>)]) -> Result<()> {
+    circular::compare_fixture(text, expected)
 }
 
 type Point = [f64; 3];
@@ -241,6 +241,86 @@ pub(super) fn product_solid_counts(text: &str) -> Result<Vec<(String, String, us
             Ok((name(&product[0])?, name(&product[1])?, count))
         })
         .collect()
+}
+
+/// Direct product/B-rep ownership only; surface geometry is deliberately not interpreted.
+/// Occurrence/relationship graphs are refused rather than counted as identity placements.
+pub(super) fn direct_product_solid_counts(text: &str) -> Result<Vec<(String, String, usize)>> {
+    let doc = parse(text)?;
+    Ok(direct_products(&doc)?
+        .into_iter()
+        .map(|(id, (name, solids))| (id, name, solids.len()))
+        .collect())
+}
+
+fn direct_products(doc: &Document) -> Result<BTreeMap<String, (String, Vec<u64>)>> {
+    if doc.0.values().flatten().any(|r| {
+        r.name.contains("RELATIONSHIP")
+            || r.name.contains("ASSEMBLY")
+            || matches!(
+                r.name.as_str(),
+                "MAPPED_ITEM" | "REPRESENTATION_MAP" | "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION"
+            )
+    }) {
+        return Err(Error::Unsupported);
+    }
+    let solids = doc.ids("MANIFOLD_SOLID_BREP");
+    if solids.is_empty() {
+        return Err(Error::NoSolids);
+    }
+    doc.solid_scales(&solids)?;
+    let mut products = BTreeSet::new();
+    let mut shells = BTreeSet::new();
+    for &id in &solids {
+        let shell = reference(&doc.record(id, "MANIFOLD_SOLID_BREP")?[1])?;
+        doc.record(shell, "CLOSED_SHELL")?;
+        if !shells.insert(shell) {
+            return Err(Error::Topology);
+        }
+    }
+    let counts = doc
+        .ids("SHAPE_DEFINITION_REPRESENTATION")
+        .into_iter()
+        .map(|id| {
+            let definition = doc.record(id, "SHAPE_DEFINITION_REPRESENTATION")?;
+            let product = doc.product(definition)?;
+            // One product definition per emitted body; do not hide unused/duplicated products.
+            let shape = doc.record(reference(&definition[0])?, "PRODUCT_DEFINITION_SHAPE")?;
+            let pd = doc.record(reference(&shape[2])?, "PRODUCT_DEFINITION")?;
+            let formation = doc.record(reference(&pd[2])?, "PRODUCT_DEFINITION_FORMATION")?;
+            if !products.insert(reference(&formation[2])?) {
+                return Err(Error::Topology);
+            }
+            let representation = doc
+                .record(reference(&definition[1])?, "SHAPE_REPRESENTATION")
+                .or_else(|_| {
+                    doc.record(
+                        reference(&definition[1])?,
+                        "ADVANCED_BREP_SHAPE_REPRESENTATION",
+                    )
+                })?;
+            let owned = refs(&representation[1])?
+                .into_iter()
+                .filter(|id| solids.contains(id))
+                .collect::<Vec<_>>();
+            let string = |p: &Parameter| match p {
+                Parameter::String(s) => Ok(s.clone()),
+                _ => Err(Error::Syntax),
+            };
+            Ok((string(&product[0])?, (string(&product[1])?, owned)))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if products != doc.ids("PRODUCT").into_iter().collect()
+        || shells != doc.ids("CLOSED_SHELL").into_iter().collect()
+    {
+        return Err(Error::Topology);
+    }
+    let count = counts.len();
+    let products: BTreeMap<_, _> = counts.into_iter().collect();
+    if products.len() != count {
+        return Err(Error::Topology);
+    }
+    Ok(products)
 }
 
 fn parse(text: &str) -> Result<Document> {

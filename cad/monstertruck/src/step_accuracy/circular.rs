@@ -3,10 +3,10 @@
 use super::*;
 mod analytic;
 mod countersink;
-mod prism;
+mod fixture;
 
-pub(super) fn certify_prisms(text: &str) -> Result<Vec<PrismCertificate>> {
-    prism::certify(text)
+pub(super) fn compare_fixture(text: &str, expected: &[(&str, Vec<FixtureFace>)]) -> Result<()> {
+    fixture::compare(text, expected)
 }
 
 pub(super) fn certify_countersink(
