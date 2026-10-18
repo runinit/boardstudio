@@ -421,6 +421,30 @@ mod tests {
     }
 
     #[test]
+    fn repair_report_keeps_positive_tolerance_cube_output_identical_to_legacy() {
+        use monstertruck_modeling::{Edge, Face, Solid, builder};
+        let vertex = builder::vertex(Point3::origin());
+        let edge: Edge = builder::extrude(&vertex, Vector3::unit_x());
+        let face: Face = builder::extrude(&edge, Vector3::unit_y());
+        let solid: Solid = builder::extrude(&face, Vector3::unit_z());
+        let shell = solid.boundaries()[0].compress();
+        let options = TessellationOptions::default();
+        let (mesh, fallback) =
+            robust_cshell_triangulation_with_closed_axis_metadata_report(&shell, options, &[]);
+        let reported = robust_cshell_triangulation_with_repair_report(&shell, options, &[]);
+        assert_eq!(&mesh, reported.mesh());
+        assert_eq!(&fallback, reported.fallback_faces());
+        assert!(
+            reported
+                .mesh()
+                .faces
+                .iter()
+                .all(|face| face.surface.is_some())
+        );
+        assert!(std::ptr::eq(reported.input(), &shell));
+    }
+
+    #[test]
     fn repair_trace_rollback_keeps_failures_and_other_faces() {
         let capture = Capture::new(2);
         let first = capture.face(0).unwrap();

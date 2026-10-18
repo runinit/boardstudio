@@ -209,3 +209,10 @@ against the 256 MiB report cap before parsing/copying. Thus it can deliberately
 leave reports incomplete well below the 32 MiB source cap; it does not restrict
 preview admission. This conservative estimate and unsupported route coverage are
 material limits of this slice, not evidence that admitted routes are complete.
+
+The same-slice review correction retains the legacy tolerance precondition before
+trace allocation, including empty inputs. A rejected aligned candidate rolls back
+its own appended records before projection fallback; accepted earlier pieces and
+conservative resource failures survive. Both finite certifiers share one private
+outward-square-root conversion with the saved arithmetic order and diagnostics.
+These corrections add no movement route coverage or preview tolerance policy.
