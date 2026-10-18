@@ -34,7 +34,7 @@ The v8 handoff's two positive previews use 0.1 mm / 0.5 rad tessellation, report
 - P6: [closest-points API](https://docs.rs/parry3d-f64/0.31.1/parry3d_f64/query/closest_points/enum.ClosestPoints.html); [composite closest-points source](https://docs.rs/crate/parry3d-f64/0.31.1/source/src/query/closest_points/closest_points_composite_shape_shape.rs).
 - P7: [TriMesh flags and builder source](https://docs.rs/crate/parry3d-f64/0.31.1/source/src/shape/trimesh.rs).
 - P8: [composite distance source](https://docs.rs/crate/parry3d-f64/0.31.1/source/src/query/distance/distance_composite_shape_shape.rs).
-- L1: [Production STEP 007 v8 handoff](../../../.evidence/production-step-007/review-v8/HANDOFF.md), local private evidence.
+- L1: Production STEP 007 v8 handoff (`../../../.evidence/production-step-007/review-v8/HANDOFF.md`), local private evidence.
 - L2: [ticket 007](../../plans/cad-backend-replacement/issues/007-strict-step-import.md).
 
 Research was limited to primary docs/source and existing local evidence; no build, corpus run, new target, or application change was made.

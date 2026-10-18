@@ -110,15 +110,15 @@ class DocLinkTests(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("ignored", issues[0])
 
-    def test_temporary_doc_root_uses_only_committed_portable_files(self):
+    def test_temporary_doc_root_uses_git_objects_without_local_evidence(self):
         self.write(".gitignore", ".evidence/\n")
         self.write("README.md", "[docs](docs/reference/) [page](docs/reference/a%20b.md#part)\n")
         self.write("docs/reference/a b.md", "# Part\n")
         subprocess.run(["git", "-C", str(self.root), "add", "."], check=True)
         tree = subprocess.check_output(["git", "-C", str(self.root), "write-tree"], text=True).strip()
         self.write("README.md", "[local](.evidence/not-in-git.log)\n")
-        committed = subprocess.check_output(["git", "-C", str(self.root), "show", f"{tree}:README.md"], text=True)
-        self.write("README.md", committed)
+        stored = subprocess.check_output(["git", "-C", str(self.root), "show", f"{tree}:README.md"], text=True)
+        self.write("README.md", stored)
         self.assertFalse((self.root / ".evidence").exists())
         self.assertEqual(check.broken_links(self.root), [])
 

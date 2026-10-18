@@ -64,6 +64,11 @@ These notes retain their original dates and measured revisions. Benchmark result
 old code paths and integration status describe those snapshots; use the current
 architecture and source for present ownership.
 
+Code-formatted `.evidence/` and absolute worktree paths in these records identify
+private diagnostic artifacts owned by the surrounding dated report or ticket.
+Their raw files are absent from a clean checkout; the retained summaries, source
+hashes, review outcomes and limitations describe the original executions.
+
 | Topic | Evidence |
 | --- | --- |
 | CAD selection | [Kernel comparison](research/cad/cad-kernel-options.md), [Cadrum integration](research/cad/cadrum-assessment.md), [opencascade-rs](research/cad/opencascade-rs-assessment.md), [pure Rust alternatives](research/cad/pure-rust-cad-assessment.md), [Monstertruck STEP support and migration scope](research/cad/monstertruck-step-support-2026-10-16.md), [full Monstertruck replacement assessment](research/cad/monstertruck-feature-assessment-2026-10-16.md), [executable qualification results](research/cad/monstertruck-qualification-2026-10-16.md) |
