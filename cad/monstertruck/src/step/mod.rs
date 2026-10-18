@@ -415,7 +415,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                     // positive-area triangle stays in the f64 analysis geometry even when its
                     // f32 render projection degrades (see `push_render_degraded_triangle`).
                     let mut tail = triangles.split_off(before);
-                    tail.retain(|[a, b, c]| (b - a).cross(c - a).magnitude() != 0.0);
+                    tail.retain(|triangle| fallback_triangle_has_representable_area(*triangle));
                     triangles.extend(tail);
                 }
                 from_fallback.resize(triangles.len(), fallback);
@@ -528,6 +528,14 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     })
 }
 
+/// A fallback triangle carries source coverage only when its f64 cross product has at least one
+/// representably nonzero component. Checking components (rather than the squared magnitude)
+/// prevents a representably nonzero cross product of ~1e-200 from being treated as zero.
+fn fallback_triangle_has_representable_area(points: [Point3; 3]) -> bool {
+    let cross = (points[1] - points[0]).cross(points[2] - points[0]);
+    cross.x != 0.0 || cross.y != 0.0 || cross.z != 0.0
+}
+
 /// Appends the f32 projection of a positive-area fallback triangle whose render orientation does
 /// not survive the projection. The normal is the exact f64 normal, so the render buffer remains
 /// the f32 image of the analysis geometry. Ordinary faces keep the strict refusal.
@@ -536,22 +544,19 @@ fn push_render_degraded_triangle(
     points: [Point3; 3],
 ) -> Result<(), String> {
     let normal = (points[1] - points[0]).cross(points[2] - points[0]);
-    let length = normal.magnitude();
+    let length = normal.x.hypot(normal.y).hypot(normal.z);
     if !length.is_finite() || length == 0.0 {
         return Err("fallback triangle lost its f64 area".into());
     }
-    let normal = normal / length;
+    let normal = Point3::new(normal.x / length, normal.y / length, normal.z / length);
+    if !normal.x.is_finite() || !normal.y.is_finite() || !normal.z.is_finite() {
+        return Err("fallback triangle lost its f64 area".into());
+    }
     for point in points {
-        for coordinate in [point.x, point.y, point.z] {
-            let coordinate = coordinate as f32;
-            if !coordinate.is_finite() {
-                return Err("fallback triangle is outside the render range".into());
-            }
-            buffers.positions.push(coordinate);
-        }
-        buffers
-            .normals
-            .extend([normal.x, normal.y, normal.z].map(|value| value as f32));
+        crate::mesh::append_point(&mut buffers.positions, point)
+            .map_err(|_| "fallback triangle is outside the render range".to_string())?;
+        crate::mesh::append_point(&mut buffers.normals, normal)
+            .map_err(|_| "fallback triangle is outside the render range".to_string())?;
     }
     Ok(())
 }
@@ -947,4 +952,30 @@ fn validate_occurrence_identity(
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod numerical_underflow_tests {
+    use super::*;
+
+    #[test]
+    fn tiny_cross_product_is_retained_not_filtered() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1e-100, 0.0, 0.0);
+        let c = Point3::new(0.0, 1e-100, 0.0);
+        assert!(fallback_triangle_has_representable_area([a, b, c]));
+        let normal = (b - a).cross(c - a);
+        let length = normal.x.hypot(normal.y).hypot(normal.z);
+        assert!(length != 0.0 && length.is_finite());
+        let unit = Point3::new(normal.x / length, normal.y / length, normal.z / length);
+        assert!(unit.x.is_finite() && unit.y.is_finite() && unit.z.is_finite());
+    }
+
+    #[test]
+    fn genuinely_degenerate_triangle_is_refused() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, 0.0);
+        let c = Point3::new(2.0, 0.0, 0.0);
+        assert!(!fallback_triangle_has_representable_area([a, b, c]));
+    }
 }

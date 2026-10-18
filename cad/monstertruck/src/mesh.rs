@@ -78,7 +78,7 @@ pub(crate) fn mesh_buffers(
 
 pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> Result<(), String> {
     let normal = (points[1] - points[0]).cross(points[2] - points[0]);
-    let length = normal.magnitude();
+    let length = normal.x.hypot(normal.y).hypot(normal.z);
     if !length.is_finite() || length == 0.0 {
         return Err("Monstertruck produced a degenerate mesh triangle".into());
     }
@@ -112,13 +112,18 @@ pub(crate) fn push_triangle(buffers: &mut MeshBuffers, points: [Point3; 3]) -> R
     Ok(())
 }
 
-fn push_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {
+pub(crate) fn append_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {
     for coordinate in [point.x, point.y, point.z] {
         let coordinate = coordinate as f32;
         if !coordinate.is_finite() {
-            return Err("Monstertruck mesh contains a coordinate outside the render range".into());
+            return Err("mesh contains a coordinate outside the render range".into());
         }
         output.push(coordinate);
     }
     Ok(())
+}
+
+fn push_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {
+    append_point(output, point)
+        .map_err(|_| "Monstertruck mesh contains a coordinate outside the render range".into())
 }
