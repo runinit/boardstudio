@@ -724,7 +724,7 @@
           "state": "bounded",
           "lowerMm": 1,
           "upperMm": 1,
-          "witnessTriangles": [0, 0]
+          "witnessTriangles": [2, 0]
         },
         "containment": {
           "state": "ruledOut",
@@ -1159,7 +1159,8 @@
                 "holeDiameter": 2.0
               }
             ]
-          }
+          },
+          "appliesToCaseIds": ["default-r1", "refined-r1-still-too-wide", "finer-target-needs-actual-proof"]
         },
         "authoredRadiusMm": 1,
         "authoredHeightMm": 2,
@@ -1175,7 +1176,8 @@
             "requestedAccuracyMm": null,
             "clearanceThresholdMm": 0.5,
             "expectedRelation": "clear",
-            "expectedAssessment": "supported-band"
+            "expectedAssessment": "supported-band",
+            "layer": "prepared-case-producer"
           },
           {
             "id": "refined-r1-still-too-wide",
@@ -1185,7 +1187,8 @@
             "requestedAccuracyMm": 0.01,
             "clearanceThresholdMm": 0.5,
             "expectedAssessment": "unknown",
-            "reason": "pair-accuracy-budget"
+            "reason": "pair-accuracy-budget",
+            "layer": "prepared-case-producer"
           },
           {
             "id": "finer-target-needs-actual-proof",
@@ -1196,14 +1199,40 @@
               "reasons": ["refinement-proof-unavailable"]
             },
             "expectedAssessment": "unknown",
-            "allowDeflectionAsCertificate": false
+            "allowDeflectionAsCertificate": false,
+            "layer": "prepared-case-producer"
           },
           {
             "id": "corrected-adversarial-cap-budget",
             "minimumDirectBoundMm": 0.4820512820512832,
             "requestedAccuracyMm": 0.01,
             "expectedAssessment": "unknown",
-            "discardedCapContributionForbidden": true
+            "discardedCapContributionForbidden": true,
+            "layer": "private-source-trace-proof",
+            "inheritsPreparedBodyRecipe": false,
+            "inheritsPairGeometry": false,
+            "preparedCaseProducerInput": false,
+            "immutableRecipe": {
+              "commit": "b03cc0951dfe4c91f7c8fb395e8dc218a656d452",
+              "path": "cad/monstertruck/src/profile/final_trace/cylinder_proof.rs",
+              "helper": "asymmetric_shared_trim",
+              "helperDelegate": "asymmetric_shared_trim_with_left(0.0)",
+              "regression": "p1_asymmetric_shared_trim_cannot_publish_a_smaller_surface_bound",
+              "initialPrivateInput": "drilled_input(1.0, 2.0)",
+              "retainedEmissionTargetDeflectionMm": 0.01,
+              "mutationTiming": "after checked_trace; retain original emitted mesh and trace; replace actual shared native source trim only",
+              "rawKnotsDecimal": ["0", "0", "0", "0.00008", "0.00015", "1000000000000", "1000000000000", "1000000000000"],
+              "sharedEdgeSelection": "first backward-oriented edge of first RevolutionSurface; matching edge id used forward by a Plane cap hole",
+              "orientationRule": "extract raw retained knots/weights before any f64 oriented_curve preprocessing; reverse in exact arithmetic",
+              "controlPointsAndWitness": "exact construction in immutable helper; witness (10+sx*47/64, 5+sy*47/64, z)",
+              "independentControls": {
+                "capTrimErrorStrictlyGreaterThanMm": 0.25,
+                "finalCapWitnessSourceDistanceStrictlyGreaterThanMm": 0.03125,
+                "completeCapContributionRequired": true
+              }
+            },
+            "expectedReportUse": "consumer shape/accuracy-budget control only; does not construct an authenticated producer handle",
+            "producerAcceptanceRecipe": "ordinary preparedBodyRecipe cases only"
           }
         ]
       },
@@ -1556,6 +1585,70 @@
           }
         ],
         "boundary": "repair-only ImportedStep accuracy before v2 activation; not a sourceQualification producer oracle"
+      },
+      "canonicalSeedCheck": {
+        "meshFixturePointer": "/directPayload/surfacePositionsMmF64",
+        "queryFixturePointer": "/qualificationV2/activation/generatedPlaneQuery",
+        "rawWitnessFixturePointer": "/qualificationV2/activation/rawObservationExample/closestPoints",
+        "arithmetic": "exact rational interpretation of canonical coordinates and f64 row entries",
+        "distanceProof": "parallel horizontal plane lower bound equals feasible common-XY vertex upper bound; raw witness belongs to named triangles",
+        "oldInvalidSeed": {
+          "witnessTriangles": [0, 0],
+          "exactDistanceMm": 3,
+          "claimedUpperMm": 1,
+          "expected": "reject infeasible upper bound"
+        },
+        "correctedSeed": {
+          "witnessTriangles": [2, 0],
+          "exactDistanceMm": 1,
+          "claimedUpperMm": 1,
+          "expected": "accept feasible upper bound"
+        },
+        "actualProducerIndexRule": "resolve and validate indices against actual owned final emission and provenance; canonical ordering is not required"
+      },
+      "readOnlyExport": {
+        "status": "proposed new Rust read-only API; not implemented or activated",
+        "owner": "PreparedAnalysisMesh: private fields; preparation is the only constructor",
+        "methods": {
+          "export_view": "(&self) -> PreparedAnalysisView<'_>",
+          "analysis_mesh": "(&self) -> &AnalysisMesh",
+          "source_qualification": "(&self) -> &SourceQualification",
+          "retained_storage_bytes": "(&self) -> Option<usize>"
+        },
+        "generated": {
+          "view": "PreparedAnalysisView::Generated(PreparedGeneratedView)",
+          "borrowedFields": {
+            "emission": "&GeneratedAnalysisMesh",
+            "face_occurrences": "&[PreparedGeneratedFaceOccurrence]"
+          },
+          "occurrenceFields": ["source_face_index", "solid_occurrence_index"],
+          "occurrenceRule": "one sealed occurrence per source face; source_face_index resolves that face, solid_occurrence_index equals its solid_index",
+          "emitterCallsPerResult": 1,
+          "sourceOfPayload": "same retained emission; never call mesh_profile_for_analysis or generated_body_analysis_data again"
+        },
+        "vendor": {
+          "view": "PreparedAnalysisView::Vendor(PreparedVendorView)",
+          "borrowedFields": {
+            "positions_mm_f64": "&[[f64;3]]",
+            "triangle_face_occurrence_indices": "&[usize]",
+            "source_faces": "&[StepSourceFace]",
+            "face_occurrences": "&[StepFaceOccurrence]"
+          },
+          "sourceOfPayload": "bit-preserving copies of ImportedStep final preview_positions_f64, triangle_faces and catalogues; no reimport/remesh",
+          "remainingMetadata": "same ImportedStep stays alive for existing display/line/precision/repair getters"
+        },
+        "settingsAndReport": "borrow analysis_mesh settings/sourceLimits and source_qualification; v2 analysisErrorBoundMm is sealed totalBoundMm or null",
+        "jsOwnership": "independent typed-array/object copies; checked usize-to-u32 tags/catalogues; no WASM-memory views",
+        "handleOwnership": "end all export borrows then move SAME prepared owner into AnalysisHandle; transfer detaches only JS copies",
+        "workerCostAccess": "proposed AnalysisHandle.retainedStorageBytes(): number|null; checked u53 or null; worker reads before admission; no direct payload field/caller override",
+        "retainedStorage": {
+          "accounting": "checked conservative sum of entire owner, buffer/string capacities, full generated emission including f32, catalogues/descriptors/reports and retained proof/exact-number heap; shared allocations never omitted",
+          "unaccountableOrOverflow": "None; do not retain; later query evidence-unavailable",
+          "temporaryJsCopiesIncluded": false,
+          "separateTransferCapStillApplies": true,
+          "peakMemoryOrTimingGuarantee": false
+        },
+        "forbidden": ["public mutator", "certificate constructor/deserializer", "source AST/trace access", "existing member visibility widening", "second tessellation"]
       }
     }
   }

@@ -326,20 +326,98 @@ Implementation requires a **new, separately approved** narrow backend API, not
 widening existing declarations. Proposed signatures (Rust-owned fields private):
 
 ```text
-pub struct PreparedAnalysisMesh { /* immutable final mesh + sealed evidence */ }
+pub struct PreparedAnalysisMesh { /* private: owned final emission + sealed evidence */ }
 pub fn prepare_vendor_analysis(&ImportedStep) -> Result<PreparedAnalysisMesh, Error>
 pub fn prepare_generated_analysis(&ExactModel, Option<f64>)
     -> Result<PreparedAnalysisMesh, Error>
+
+pub struct PreparedGeneratedFaceOccurrence {
+    pub source_face_index:usize, pub solid_occurrence_index:usize
+}
+pub struct PreparedGeneratedView<'a> {
+    pub emission:&'a GeneratedAnalysisMesh,
+    pub face_occurrences:&'a [PreparedGeneratedFaceOccurrence]
+}
+pub struct PreparedVendorView<'a> {
+    pub positions_mm_f64:&'a [[f64;3]],
+    pub triangle_face_occurrence_indices:&'a [usize],
+    pub source_faces:&'a [StepSourceFace],
+    pub face_occurrences:&'a [StepFaceOccurrence]
+}
+pub enum PreparedAnalysisView<'a> {
+    Generated(PreparedGeneratedView<'a>), Vendor(PreparedVendorView<'a>)
+}
+impl PreparedAnalysisMesh {
+    pub fn export_view(&self) -> PreparedAnalysisView<'_>;
+    pub fn analysis_mesh(&self) -> &AnalysisMesh;
+    pub fn source_qualification(&self) -> &SourceQualification;
+    pub fn retained_storage_bytes(&self) -> Option<usize>;
+}
+
 pub fn verify_analysis_pair(&PreparedAnalysisMesh, &PreparedAnalysisMesh,
     rows:[[f64;16];2], limits:Limits) -> QueryEvidence
 ```
 
-`QueryEvidence` is the typed numeric/source/contact/containment report; the
-provider adds the worker-supplied `Binding`. Errors use the existing textual
-error boundary. These proposed signatures do not expose the source AST.
+`AnalysisMesh` and `SourceQualification` are typed Rust counterparts of the
+pending shapes above, not JSON certificate inputs. `analysis_mesh()` includes the
+sealed selected settings and effective source limits. `QueryEvidence` is the
+typed numeric/source/contact/containment report; the provider adds the
+worker-supplied `Binding`. Errors use the existing textual error boundary.
 
-Generated preparation uses the shared final emitter **once**, proving its retained
-trace before it drops; it does not call analysis then tessellate a second time.
+These are **proposed new** read-only declarations for the separate `cad/wasm`
+crate; no existing member visibility changes. `GeneratedAnalysisMesh`,
+`StepSourceFace` and `StepFaceOccurrence` are already public. A returned view
+borrows the prepared owner immutably; it cannot outlive that owner. Constructing
+or copying a view/report does not construct `PreparedAnalysisMesh` or sealed
+evidence. There is no public mutator, deserializer, certificate constructor or
+source AST/trace access. Preparation alone creates the opaque owner.
+
+Generated preparation uses the shared final emitter **once**, proves its retained
+trace before dropping it, and moves that SAME `GeneratedAnalysisMesh` into the
+owner. The borrowed emission supplies f64 positions, tags, source faces, selected
+deflection/angular settings, bounds, closure metadata and existing f32 display
+buffers. Preparation also owns and seals the generated occurrence catalogue:
+`source_face_index` resolves each source face and `solid_occurrence_index` is its
+solid index, matching today's direct DTO. The provider serializes this borrowed
+catalogue rather than reconstructing unchecked tags/catalogues. It never calls
+`mesh_profile_for_analysis` or `generated_body_analysis_data` again for this
+result. The legacy emission's optional bound is not the v2 authority: derive the
+v2 `analysisErrorBoundMm` from `source_qualification()` exactly as specified below.
+
+Vendor preparation copies the already FINAL `preview_positions_f64`,
+`triangle_faces` and both catalogues from the supplied `ImportedStep` into its
+sealed owner, preserving all f64 bits and index order; it does not reimport or
+remesh. Its export view supplies exactly those retained analysis arrays and
+catalogues. Keep the same `ImportedStep` alive while serializing existing display,
+line, precision and repair metadata through its existing getters. The descriptor
+binds that import's selected settings. Direct vendor `accuracy.analysisErrorBoundMm`
+is likewise taken from the sealed source report; other repair fields retain
+their separate existing meanings. Neither producer substitutes a display mesh.
+
+In `cad/wasm`, borrow the prepared export view/descriptor/report to construct the
+existing direct payload plus the pending fields. Copy slices into independently
+owned JS typed arrays (`Float64Array::from`/`Uint32Array::from`, checking each
+usize-to-u32 conversion); flatten vendor xyz without changing f64 values. Copy
+catalogues/settings/report into JS objects. Do not expose a view into WASM linear
+memory. After these borrows end, move the SAME prepared owner into the new opaque
+`AnalysisHandle`; no second retained mesh is created. Transfer/detachment affects
+only JS output copies, not the owner's immutable allocation. A serialization
+failure drops the staged owner and cannot publish an evidence reference.
+
+`retained_storage_bytes()` is a conservative checked sum for the opaque owner's
+entire retained allocation: vector/string **capacities**, catalogue/descriptor/
+report storage, any retained exact-number/proof heap and the owner itself. Count
+the full generated emission, including retained f32 buffers, not just f64 lengths.
+Shared allocations must not be omitted (conservative double counting is allowed).
+Overflow or unaccountable storage returns `None`, so the worker must not retain
+it and later qualification is `evidence-unavailable`. Temporary JS transfer
+copies are outside this retained cost; their separate existing transfer cap still
+applies. The proposed read-only WASM handle method
+`AnalysisHandle.retainedStorageBytes(): number|null` exposes this cost internally
+to the worker (checked u53 conversion, null on failure), without adding a direct
+payload field or accepting a caller override. The worker calls it before cache
+admission. This is a retention ceiling, not a peak-memory or timing guarantee.
+
 A new provider-owned `AnalysisHandle` wraps this type. Proposed WASM export
 `query_qualified_collision_mesh_pair(buffers,metadata,context,leftHandle,rightHandle)`
 borrows those opaque handles; strict `buffers` keys are `leftPositions`,
@@ -508,7 +586,16 @@ cylinder deflection with a roughly 0.015385 mm source bound cannot satisfy
 0.01 mm pair accuracy even against an exact plane. Coarse roughly 0.058824 mm
 and the corrected adversarial roughly 0.48205 mm bound must include full caps.
 Finer targets authorize another on-demand proof, not an assumed smaller band;
-return unknown until its actual result meets the full budget. The capacitor's
+return unknown until its actual result meets the full budget. The adversarial
+cap case is a private retained-source/trace mutation, not a `PreparedCaseIR`
+producer recipe: its immutable helper/test reference is pinned to corrected
+`b03cc0951dfe4c91f7c8fb395e8dc218a656d452` in the same fixture. That helper retains
+the actual 0.01 mm emission, changes a shared raw NURBS trim with the listed
+asymmetric knots, and uses opposite raw orientations on cylinder/cap. Extract
+raw knots/weights before exact reversal and include the complete cap error.
+Producer acceptance uses the ordinary supported recipe; a consumer may test the
+adversarial expected report shape, but cannot manufacture a trusted handle or
+claim that this private mutation is a public producer input. The capacitor's
 0.01 mm source-precision floor alone also prevents a 0.01 mm pair claim when
 other contributions are nonzero. Complete retained but unsupported mixed
 presentation geometry keeps source/repair qualification unknown. Unretained
@@ -551,7 +638,19 @@ no JSON example: the real producer supplies it, the worker retains it, and only
 its field name/type is asserted. Vendor examples use original asset bytes and
 the existing catalogues, checking the four-solid/30-face census rather than
 inventing a tessellation count. Array/face order remains free, but every actual
-reported tag and catalogue entry is sealed in the handle.
+reported tag and catalogue entry is sealed in the handle. The proposed
+`readOnlyExport` recipe pins how both producers serialize the same owned emission
+before moving it into the handle, including retained-storage refusal.
+
+The canonical plane query names triangles `[2,0]`: after the exact fixture rows,
+these are top Z=2 and bottom Z=3, with a feasible common-XY witness and 1 mm
+distance. The old `[0,0]` names bottom Z=0 and bottom Z=3, whose exact distance
+is 3 mm, so it cannot seed a 1 mm upper bound. `canonicalSeedCheck` pins an
+independent geometry check: transform the actual named canonical vertices with
+exact arithmetic, combine the parallel-plane lower bound with a feasible vertex
+upper bound, then check raw witness membership. Actual producer tests resolve
+indices from their own emitted arrays/provenance and independently validate the
+seed; they never assume canonical triangle ordering.
 
 Pair cases name descriptor/ref examples and exact rows; expected bounds are
 independently authored conservative oracles, not certificate inputs. Consumer
