@@ -100,6 +100,67 @@ fn spline(curve: &SurfaceCurve3D, seam: Option<f64>) -> Result<Spline, &'static 
     })
 }
 
+/// Exact rational ends `(lift(l0), lift(l1))` of the UV line on its stored plane.
+///
+/// The plane's reported origin and axes are used as stored binary64 values, so
+/// source decimal decoding, plane-transform rounding and UV line retention are
+/// the separate numerical term, never part of the repair bound.
+fn line_master(curve: &SurfaceCurve3D) -> Result<([Q; 3], [Q; 3]), &'static str> {
+    let (uv, plane) = master(curve)?;
+    let Curve2D::Line(line) = uv else {
+        return Err("selected planar carrier is not a UV line");
+    };
+    let (o, u, v) = (plane.origin(), plane.axis_u(), plane.axis_v());
+    if ![o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z]
+        .into_iter()
+        .all(f64::is_finite)
+    {
+        return Err("nonfinite planar affine coefficients");
+    }
+    let (o, u, v) = ([o.x, o.y, o.z], [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let lift = |uv: &monstertruck_modeling::Point2| -> Result<[Q; 3], &'static str> {
+        let (a, b) = (scalar(uv.x)?, scalar(uv.y)?);
+        Ok([0, 1, 2].map(|axis| {
+            Q::from_float(o[axis]).unwrap_or_default()
+                + Q::from_float(u[axis]).unwrap_or_default() * &a
+                + Q::from_float(v[axis]).unwrap_or_default() * &b
+        }))
+    };
+    Ok((lift(&line.0)?, lift(&line.1)?))
+}
+
+/// Largest world distance between the lifted UV line at its trim ends and the
+/// original native-frame vertices; both ends are exact rational points.
+pub(in crate::step::repair) fn line_end_residual(
+    change: StepRepairCurveChange<'_>,
+    ends: &[monstertruck_modeling::Point3; 2],
+    factor: f64,
+    placement: Matrix4,
+) -> Result<f64, &'static str> {
+    let (_, Curve3D::SurfaceCurve(trimmed)) = change.curves() else {
+        return Err("missing UV line trim pair");
+    };
+    let (u, v) = trimmed
+        .active_trim()
+        .filter(|trim| *trim == change.domains().1)
+        .ok_or("UV line trim is not installed")?;
+    let (l0, l1) = line_master(trimmed)?;
+    let mut worst = 0.0_f64;
+    for (t, vertex) in [(u, &ends[0]), (v, &ends[1])] {
+        let t = scalar(t)?;
+        let mut delta = [0.0; 3];
+        for axis in 0..3 {
+            let point = &l0[axis] + (&l1[axis] - &l0[axis]) * &t;
+            let d = (point - scalar([vertex.x, vertex.y, vertex.z][axis])?).abs();
+            delta[axis] = sqrt_upper(&(&d * &d), "UV line end residual range")?;
+        }
+        worst = worst.max(crate::step::repair::placed_translation_bound(
+            delta, factor, placement,
+        )?);
+    }
+    Ok(worst)
+}
+
 /// Geometric repair and numerical carrier deviation, separately. Only sealed
 /// same-call owner stages may call this; a captured pair alone is not authority.
 pub(in crate::step::repair) fn bound(
@@ -190,6 +251,31 @@ fn proof(
             }
             // Its SAME finite view is unchanged; choosing that region remains
             // independently Unsupported and is never certified by this zero.
+            Ok((0., 0.))
+        }
+        "same-master-planar-uvline-trim-v1" => {
+            line_master(a)?;
+            if !domains.0.0.is_finite()
+                || !domains.0.1.is_finite()
+                || domains.0.0 >= domains.0.1
+                || domains.0 != domains.1
+                || a.active_trim().is_some()
+                || b.active_trim() != Some(domains.1)
+                || a.kind() != b.kind()
+                || a.leader() != b.leader()
+                || a.associated_geometry() != b.associated_geometry()
+            {
+                return Err("UV line trim installation changed its retained carrier/domain");
+            }
+            // Restricting the unchanged injective master to the located interval is
+            // identity; the end residual against the vertices is its own stage.
+            Ok((0., 0.))
+        }
+        "same-master-planar-uvline-sense-inversion-v1" => {
+            line_master(a)?;
+            if a.inverse() != *b {
+                return Err("UV line inversion is not the actual inverse");
+            }
             Ok((0., 0.))
         }
         "same-master-planar-pcurve-sense-inversion-v1" => {

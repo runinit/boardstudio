@@ -12,6 +12,9 @@ impl FiniteCurveRepair {
         budget: &std::cell::Cell<usize>,
     ) -> bool {
         let stage = self.stage;
+        if stage.starts_with("same-master-planar-uvline-") {
+            return self.uvline_stage_valid(budget);
+        }
         if !stage.starts_with("same-master-planar-pcurve-") {
             return true;
         }
@@ -73,6 +76,35 @@ impl FiniteCurveRepair {
             "same-master-planar-pcurve-sense-inversion-v1" => {
                 self.seam.is_none()
                     && step_geometry::repair_storage::inverts_to(a, b, budget)
+                    && self.before_domain == a.range_tuple()
+                    && self.after_domain == (b.range_tuple().1, b.range_tuple().0)
+            }
+            _ => false,
+        }
+    }
+    fn uvline_stage_valid(&self, budget: &std::cell::Cell<usize>) -> bool {
+        let (Curve3D::SurfaceCurve(a), Curve3D::SurfaceCurve(b)) = (&self.before, &self.after)
+        else {
+            return false;
+        };
+        if !a.planar_line_master()
+            || !b.planar_line_master()
+            || a.master_representation() != b.master_representation()
+            || a.kind() != b.kind()
+            || self.seam.is_some()
+        {
+            return false;
+        }
+        match self.stage {
+            "same-master-planar-uvline-trim-v1" => {
+                a.leader() == b.leader()
+                    && a.active_trim().is_none()
+                    && self.before_domain == self.after_domain
+                    && b.active_trim() == Some(self.after_domain)
+                    && a.associated_geometry() == b.associated_geometry()
+            }
+            "same-master-planar-uvline-sense-inversion-v1" => {
+                step_geometry::repair_storage::inverts_to(a, b, budget)
                     && self.before_domain == a.range_tuple()
                     && self.after_domain == (b.range_tuple().1, b.range_tuple().0)
             }
@@ -268,14 +300,13 @@ impl FiniteCurveTrace {
             return;
         };
         // Move the charged AFTER rather than making another nested clone.
-        self.surface_push(
-            "same-master-planar-pcurve-trim-v1",
-            before,
-            domain,
-            after,
-            domain,
-            None,
-        );
+        let stage = match &after {
+            Curve3D::SurfaceCurve(c) if c.planar_line_master() => {
+                "same-master-planar-uvline-trim-v1"
+            }
+            _ => "same-master-planar-pcurve-trim-v1",
+        };
+        self.surface_push(stage, before, domain, after, domain, None);
     }
     pub(in crate::step::load) fn surface_shifted(&mut self, curve: Curve2D) -> Option<Curve2D> {
         // This moves an existing preview allocation; retain its actual spare
@@ -346,16 +377,14 @@ impl FiniteCurveTrace {
         after: &SurfaceCurve3D,
     ) {
         let range = after.range_tuple();
+        let stage = if after.planar_line_master() {
+            "same-master-planar-uvline-sense-inversion-v1"
+        } else {
+            "same-master-planar-pcurve-sense-inversion-v1"
+        };
         let Some(after) = self.surface_begin(after) else {
             return;
         };
-        self.surface_push(
-            "same-master-planar-pcurve-sense-inversion-v1",
-            before,
-            domain,
-            after,
-            (range.1, range.0),
-            None,
-        );
+        self.surface_push(stage, before, domain, after, (range.1, range.0), None);
     }
 }

@@ -8,6 +8,7 @@ type Polynomial = Vec<Q>;
 type Homogeneous = [Polynomial; 4];
 mod planar_seam;
 pub(super) use planar_seam::bound as planar_bound;
+pub(super) use planar_seam::line_end_residual as planar_line_end_residual;
 
 fn scalar(value: f64) -> Result<Q, &'static str> {
     Q::from_float(value).ok_or("nonfinite finite-curve coefficient")

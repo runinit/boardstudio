@@ -767,7 +767,8 @@ impl EdgeCurve {
                 .and_then(|capture| capture.begin(&curve));
             let surface_before = repair.as_deref_mut().and_then(|trace| match &curve {
                 Curve3D::SurfaceCurve(c)
-                    if c.planar_spline_master() && !trace.changes.is_empty() =>
+                    if (c.planar_spline_master() || c.planar_line_master())
+                        && !trace.changes.is_empty() =>
                 {
                     Some((trace.surface_begin(c), c.range_tuple()))
                 }

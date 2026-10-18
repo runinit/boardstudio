@@ -590,6 +590,28 @@ impl Ledger {
                 resolved.insert(id);
             }
         }
+        for operation in &operations {
+            if operation.stage() == "same-master-planar-uvline-trim-v1"
+                && let (Some(id), Some(change)) =
+                    (operation.source_ids().2, operation.curve_change())
+            {
+                let residual = original
+                    .and_then(|original| original.native_ends.get(&id))
+                    .ok_or("original EDGE_CURVE vertex attachments are unavailable")
+                    .and_then(|ends| {
+                        finite_curve::planar_line_end_residual(change, ends, factor, placement)
+                    });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: Some(id),
+                    stage: "planar-uvline-attachment-v1",
+                    bound_mm: residual,
+                    diagnostic_only: false,
+                });
+                resolved.insert(id);
+            }
+        }
         for operation in operations {
             if matches!(
                 operation.stage(),
@@ -604,6 +626,31 @@ impl Ledger {
             self.2 = self
                 .2
                 .saturating_add(usize::from(operation.curve_change().is_some()));
+            if operation.stage().starts_with("same-master-planar-uvline-") {
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: operation.stage(),
+                    bound_mm: operation
+                        .curve_change()
+                        .ok_or("UV line same-call capture is incomplete")
+                        .and_then(|change| {
+                            finite_curve::planar_bound(operation.stage(), change, factor, placement)
+                        })
+                        .map(|value| value.0),
+                    diagnostic_only: false,
+                });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: "planar-uvline-numeric-conversion-v1",
+                    bound_mm: Err("binary64 UV line retention is not bounded"),
+                    diagnostic_only: true,
+                });
+                continue;
+            }
             if operation.stage().starts_with("same-master-planar-pcurve-") {
                 let measured = operation
                     .curve_change()
@@ -1410,6 +1457,67 @@ mod tests {
                     "{stage} placeholders remain for unresolved routes"
                 );
             }
+            assert_eq!(model._repair_ledger.complete_bound_mm(), None);
+        }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn planar_uv_line_master_selection_is_unique_with_exact_attachment_residual() {
+        let text = include_str!("../../tests/fixtures/repair-uvline-master.step");
+        for reversed in [false, true] {
+            let text = if reversed {
+                text.replace(
+                    "#23=EDGE_CURVE('',#11,#12,#317,.T.);",
+                    "#23=EDGE_CURVE('',#12,#11,#317,.F.);",
+                )
+                .replace(
+                    "#52=ORIENTED_EDGE('',*,*,#23,.F.);",
+                    "#52=ORIENTED_EDGE('',*,*,#23,.T.);",
+                )
+                .replace(
+                    "#60=ORIENTED_EDGE('',*,*,#23,.T.);",
+                    "#60=ORIENTED_EDGE('',*,*,#23,.F.);",
+                )
+            } else {
+                text.to_string()
+            };
+            let model = import_step(text.as_bytes().to_vec()).unwrap();
+            let ops = &model._repair_ledger.0;
+            let stages = |name: &str| {
+                ops.iter()
+                    .filter(|op| op.stage == name && op.source_edge == Some(23))
+                    .collect::<Vec<_>>()
+            };
+            let trims = stages("same-master-planar-uvline-trim-v1");
+            let [trim] = trims.as_slice() else {
+                panic!("one UV line trim stage, reversed {reversed}");
+            };
+            assert_eq!(trim.bound_mm, Ok(0.0), "restriction of the same master");
+            assert_eq!(
+                stages("same-master-planar-uvline-sense-inversion-v1").len(),
+                usize::from(reversed)
+            );
+            let attachments = stages("planar-uvline-attachment-v1");
+            let [attachment] = attachments.as_slice() else {
+                panic!("one attachment residual, reversed {reversed}");
+            };
+            let measured = attachment.bound_mm.unwrap();
+            assert!(
+                (0.001953125..=0.001953125 * (1. + 1e-14)).contains(&measured),
+                "exact lifted end to vertex distance {measured}, reversed {reversed}"
+            );
+            for stage in ["native-finite-interval-v1", "selected-master-v1"] {
+                assert!(stages(stage).is_empty(), "{stage} resolved for edge 23");
+            }
+            assert!(
+                ops.iter()
+                    .any(|op| op.stage == "planar-uvline-numeric-conversion-v1"
+                        && op.source_edge == Some(23)
+                        && op.diagnostic_only
+                        && op.bound_mm.is_err()),
+                "binary64 UV line retention stays a separate unbounded numeric term"
+            );
             assert_eq!(model._repair_ledger.complete_bound_mm(), None);
         }
     }

@@ -134,7 +134,7 @@ impl SurfaceCurve3D {
         preview: bool,
         trace: Option<&mut FiniteCurveTrace>,
     ) -> Option<Self> {
-        let mut trace = trace.filter(|_| self.planar_spline_master());
+        let mut trace = trace.filter(|_| self.planar_spline_master() || self.planar_line_master());
         if !allowance.is_finite() || allowance <= 0.0 {
             return None;
         }
@@ -217,6 +217,17 @@ impl SurfaceCurve3D {
                 master.surface().as_ref(),
                 Surface::ElementarySurface(ElementarySurface::Plane(_))
             )
+        })
+    }
+
+    /// A selected UV LINE master on a plane: injective, so its trim selection is unique.
+    pub(in crate::step::load) fn planar_line_master(&self) -> bool {
+        self.master_parameter_curve().is_some_and(|master| {
+            matches!(master.curve().as_ref(), Curve2D::Line(_))
+                && matches!(
+                    master.surface().as_ref(),
+                    Surface::ElementarySurface(ElementarySurface::Plane(_))
+                )
         })
     }
 
