@@ -45,6 +45,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
 
 PY = "python3"
@@ -59,7 +60,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
-    "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py",
+    "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
 ISOLATED = ("presentation::case_workspace::",)
@@ -519,6 +520,12 @@ def run(names: list[str], update_native_baseline: bool = False,
     smoke_indices = [index for index, step in enumerate(names)
                      if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
     if smoke_indices:
+        # Fail before the page build, which is minutes of work the smoke cannot use without these.
+        try:
+            browser_tools.locate()
+        except browser_tools.MissingBrowserTool as error:
+            print(f"check: {error}", file=sys.stderr)
+            return 1
         smoke_index = smoke_indices[0]
         built = any(step in ("build", "release") for step in names[:smoke_index])
         if not built:

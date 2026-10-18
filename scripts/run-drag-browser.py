@@ -9,13 +9,15 @@ import importlib.util
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import threading
 import uuid
 from http.server import ThreadingHTTPServer
 from urllib.request import urlopen
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "web/target/site"
@@ -87,19 +89,10 @@ def main() -> int:
     index = SITE / "site-subpath/boardstudio/index.html"
     if not index.is_file():
         raise SystemExit(f"drag browser smoke needs a built site; run `python3 scripts/check.py build` first ({index} missing)")
-    node = shutil.which("node")
-    if not node:
-        raise SystemExit("drag browser smoke needs Node.js")
-    probe = subprocess.run([node, "-e", "require('playwright-core')"], capture_output=True, text=True)
-    if probe.returncode:
-        raise SystemExit("drag browser smoke needs playwright-core (the CI web-tools action installs it); "
-                         "set NODE_PATH to its node_modules directory")
-    chrome = os.environ.get("CHROME_BIN") or next(
-        (shutil.which(name) for name in ("google-chrome", "chromium", "chromium-browser") if shutil.which(name)),
-        None,
-    )
-    if not chrome:
-        raise SystemExit("drag browser smoke needs Chrome or Chromium; set CHROME_BIN to its executable")
+    try:
+        node, chrome = browser_tools.locate()
+    except browser_tools.MissingBrowserTool as error:
+        raise SystemExit(str(error))
 
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:12]}"
     run_dir = RESULTS / run_id
