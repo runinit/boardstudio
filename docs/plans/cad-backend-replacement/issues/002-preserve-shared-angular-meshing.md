@@ -22,6 +22,10 @@ STEP preview tessellation honors the requested topology-edge angular limit while
 
 V1 was rejected by whole-model regressions. V2 restores topology classes and passes native/WASM checks, but domain review and invalid-option consistency work remain. Continue the current isolated assignment; do not restart it. Evidence: astra-surface-refinement/angular-edge-candidate (`../../../../.evidence/monstertruck-qualification/astra-surface-refinement/angular-edge-candidate/`). The [qualification record](../../../research/cad/monstertruck-qualification-2026-10-16.md) identifies shared source and broader acceptance limits.
 
+## CURRENT — 2026-10-18
+
+Delivered: angular shared-edge sampling (meshing-v21 onward) and fallback mesher caching; every acceptance box is open and the ticket stays `claimed`. Remaining exits: (1) confirm invalid-option consistency for edge-free faces and the frozen full-shell-set baseline comparison; (2) run it through 007's 34-asset replay with 001; (3) one combined closure review with native/WASM verification. Close then, not on status alone.
+
 ## Comments
 
 2026-10-17: Under the approved vendor-asset contract, distinguish requested tessellation settings from certified source/mesh/repair error bounds. Keep shared-edge consistency, face completeness and source attribution; bounded vendor mesh repair may proceed under 007 without proving an exact imported solid. Generated CAD/export remains exact. Vendor collision targets 0.01 mm clearance accuracy with an uncertain result when the combined error budget cannot support it; a 0.1 mm display mesh is not a tighter collision certificate.

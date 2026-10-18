@@ -21,6 +21,10 @@ An imported finite closed STEP surface uses a source-certified seam and retains 
 
 V1 was rejected by an independent polynomial seam counterexample. V3 adds a source certificate and remains under qualification; full-shell edge incidence is not clean. Continue the current isolated assignment; do not restart it. Evidence: astra-closed-chart-high-v3 (`../../../../.evidence/monstertruck-qualification/astra-closed-chart-high-v3/`). The [qualification record](../../../research/cad/monstertruck-qualification-2026-10-16.md) identifies shared source and broader acceptance limits.
 
+## CURRENT — 2026-10-18
+
+Delivered: closed-chart, pole and closed-spline fixes through v41/v50 with the Choc strict gates passing, yet every acceptance box is open and the ticket stays `claimed`. Remaining exits: (1) explain, against source geometry, the volume changes of the four default meshes that recovered faces; (2) confirm source-edge-use and trim coverage in 007's 34-asset replay (its "Apply 001+002" criterion); (3) one combined closure review and combined native/WASM verification. Close at that point; do not close on status alone.
+
 ## Comments
 
 2026-10-17 root: Partial-closed-spline-v50 (`../../../../.evidence/monstertruck-qualification/vendor-integration/partial-closed-spline-v50/REPORT.md`) integrates the reviewed private polynomial join-interval producer and13 public regressions. Exact source metadata, all join aliases, sense and restriction are retained; unsupported or ambiguous native labels refuse. Actual106 IO library/83 input/45 backend controls and WASM tests pass with disclosed inherited ignores/snapshot exclusion; strict IO Clippy remains at its same16 inherited diagnostics. No complete THQ repair/mesh/admission claim follows. Serial priority returns to006's producer integration; other candidate evidence remains preserved.
