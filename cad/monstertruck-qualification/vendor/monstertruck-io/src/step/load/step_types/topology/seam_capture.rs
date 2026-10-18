@@ -7,7 +7,10 @@ pub(super) struct SeamCopy {
     join: f64,
 }
 impl FiniteCurveRepair {
-    pub(in crate::step::load) fn surface_stage_valid(&self) -> bool {
+    pub(in crate::step::load) fn surface_stage_valid(
+        &self,
+        budget: &std::cell::Cell<usize>,
+    ) -> bool {
         let stage = self.stage;
         if !stage.starts_with("same-master-planar-pcurve-") {
             return true;
@@ -69,7 +72,8 @@ impl FiniteCurveRepair {
             }
             "same-master-planar-pcurve-sense-inversion-v1" => {
                 self.seam.is_none()
-                    && a.inverse() == *b
+                    && step_geometry::repair_storage::inverse_surface_curve(a, budget)
+                        .is_some_and(|inverse| inverse == *b)
                     && self.before_domain == a.range_tuple()
                     && self.after_domain == (b.range_tuple().1, b.range_tuple().0)
             }
@@ -78,10 +82,133 @@ impl FiniteCurveRepair {
     }
     pub(in crate::step::load) fn surface_restricts(&self, previous: (f64, f64)) -> bool {
         self.stage == "same-master-planar-pcurve-trim-v1"
-            && self.surface_stage_valid()
+            && self.surface_stage_valid(&std::cell::Cell::new(0))
             && previous.0 <= self.before_domain.0
             && self.before_domain.0 < self.before_domain.1
             && self.before_domain.1 <= previous.1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use step_p21::tables::IntoOwned;
+
+    #[test]
+    fn repair_movement_sink_inverse_validation_requires_its_own_workspace() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../monstertruck/tests/fixtures/repair-planar-seam.step"
+        ));
+        let sense = "#8=EDGE_CURVE('',#2,#32,#7,.T.);";
+        assert_eq!(source.matches(sense).count(), 1);
+        let table =
+            Table::from_step(&source.replace(sense, "#8=EDGE_CURVE('',#2,#32,#7,.F.);")).unwrap();
+        let edge = table.edge_curve[&8].clone().into_owned(&table).unwrap();
+        let budget = std::rc::Rc::new(std::cell::Cell::new(256 * 1024 * 1024));
+        let (output, trace) = edge
+            .parse_curve3d_for_repair(Some(0.02), true, budget)
+            .unwrap();
+        assert_eq!(
+            output,
+            edge.parse_curve3d_with_connectivity(0.02, true).unwrap()
+        );
+        let change = trace
+            .changes
+            .iter()
+            .find(|change| change.stage == "same-master-planar-pcurve-sense-inversion-v1")
+            .unwrap();
+        assert_eq!(change.after, output);
+        let workspace = std::cell::Cell::new(0);
+        assert!(
+            !change.surface_stage_valid(&workspace),
+            "actual inverse comparison cannot borrow the retained snapshots' allocation charge"
+        );
+        assert_eq!(workspace.get(), 0);
+        workspace.set(65536);
+        assert!(change.surface_stage_valid(&workspace));
+        let needed = 65536 - workspace.get();
+        assert!(needed > 0);
+        let clone_budget = std::rc::Rc::new(std::cell::Cell::new(65536));
+        let mut comparison = FiniteCurveTrace::new(std::rc::Rc::clone(&clone_budget));
+        let Curve3D::SurfaceCurve(before) = &change.before else {
+            unreachable!()
+        };
+        comparison.surface_begin(before).unwrap();
+        assert!(
+            needed > 65536 - clone_budget.get(),
+            "inverse needs knot scratch in addition to the same actual carrier clone"
+        );
+        workspace.set(needed - 1);
+        assert!(!change.surface_stage_valid(&workspace));
+        assert_eq!(workspace.get(), needed - 1, "refuse before cloning");
+        workspace.set(needed);
+        assert!(change.surface_stage_valid(&workspace));
+        assert_eq!(workspace.get(), 0);
+    }
+
+    #[test]
+    fn repair_movement_sink_actual_rejected_seam_keeps_prior_records_charges_and_failures() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../monstertruck/tests/fixtures/repair-planar-seam.step"
+        ));
+        let table = Table::from_step(source).unwrap();
+        let edge = table.edge_curve[&8].clone().into_owned(&table).unwrap();
+        let unclamped = source.replace(
+            "((3,2,2,3),(0.,1.,2.,3.),.UNSPECIFIED.)",
+            "((1,1,1,2,2,1,1,1),(-1.,-0.00000001,0.,1.,2.,3.,3.00000001,4.),.UNSPECIFIED.)",
+        );
+        assert_ne!(unclamped, source);
+        let rejected_table = Table::from_step(&unclamped).unwrap();
+        let rejected = rejected_table.edge_curve[&8]
+            .clone()
+            .into_owned(&rejected_table)
+            .unwrap();
+        let CurveAny::SurfaceCurve(raw) = &rejected.edge_geometry else {
+            unreachable!()
+        };
+        let Curve3D::SurfaceCurve(raw) = Curve3D::try_from_surface_curve(raw, true).unwrap() else {
+            unreachable!()
+        };
+        let front = Point3::from(&rejected.edge_start.vertex_geometry);
+        let back = Point3::from(&rejected.edge_end.vertex_geometry);
+        let expected = raw.try_trim_to_points(front, back, 0.02, true).unwrap();
+        assert_ne!(
+            raw.master_representation(),
+            expected.master_representation()
+        );
+        for remaining in [0, 65536] {
+            let budget = std::rc::Rc::new(std::cell::Cell::new(65536));
+            let (_, mut trace) = edge
+                .parse_curve3d_for_repair(Some(0.02), true, std::rc::Rc::clone(&budget))
+                .unwrap();
+            assert!(
+                trace.changes.iter().any(|change| change.seam.is_some()),
+                "the real accepted path retains its shifted copy"
+            );
+            let prior = trace.changes.clone();
+            let capacity = trace.changes.capacity();
+            budget.set(remaining);
+            let actual = raw
+                .try_trim_to_points_with_repair(front, back, 0.02, true, Some(&mut trace))
+                .unwrap();
+            assert_eq!(actual, expected);
+            assert_eq!(
+                trace.changes, prior,
+                "rejected candidate cannot remove earlier captures"
+            );
+            assert!(trace.changes.capacity() >= capacity);
+            assert_eq!(trace.failed, remaining == 0);
+            if remaining > 0 {
+                assert!(
+                    budget.get() < remaining,
+                    "rejected snapshots remain charged"
+                );
+            }
+            trace.surface_rollback(trace.surface_mark());
+            assert_eq!(trace.failed, remaining == 0);
+        }
     }
 }
 fn shifted_knots(a: &KnotVector, b: &KnotVector, span: f64) -> bool {
@@ -99,10 +226,12 @@ impl FiniteCurveTrace {
         &mut self,
         curve: &SurfaceCurve3D,
     ) -> Option<Curve3D> {
-        // Account before wrapping/cloning nested source curves/surfaces.
-        let cost = repair_storage::surface_curve(curve);
-        self.charge(cost)
-            .then(|| Curve3D::SurfaceCurve(curve.clone()))
+        if !self.charge(Some(0)) {
+            return None;
+        }
+        let copy = step_geometry::repair_storage::surface_curve(curve, &self.budget);
+        self.failed |= copy.is_none();
+        copy.map(Curve3D::SurfaceCurve)
     }
     pub(in crate::step::load) fn surface_finish(
         &mut self,
@@ -124,7 +253,16 @@ impl FiniteCurveTrace {
         );
     }
     pub(in crate::step::load) fn surface_shifted(&mut self, curve: Curve2D) -> Option<Curve2D> {
-        self.charge(repair_storage::curve2(&curve)).then_some(curve)
+        // This moves an existing preview allocation; retain its actual spare
+        // capacity while snapshots and the joined preview output coexist.
+        if !self.charge(Some(0)) {
+            return None;
+        }
+        if !step_geometry::repair_storage::retain_curve2(&curve, &self.budget) {
+            self.failed = true;
+            return None;
+        }
+        Some(curve)
     }
     pub(in crate::step::load) fn surface_seam(
         &mut self,
@@ -165,13 +303,7 @@ impl FiniteCurveTrace {
         let Some(before) = before else {
             return;
         };
-        if !self.charge(Some(2 * std::mem::size_of::<FiniteCurveRepair>()))
-            || self.changes.try_reserve_exact(1).is_err()
-        {
-            self.failed = true;
-            return;
-        }
-        self.changes.push(FiniteCurveRepair {
+        self.push(FiniteCurveRepair {
             stage,
             before,
             before_domain,

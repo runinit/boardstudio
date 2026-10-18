@@ -717,8 +717,9 @@ impl Table {
                         vec![None::<usize>; shell.shell().edges.len()].into_boxed_slice();
                     let previous = &mut *previous_storage;
                     let mut valid = ids.is_some();
+                    let validation_budget = std::cell::Cell::new(STORAGE_CAP - charged);
                     for (ordinal, (id, change)) in captured_curves.iter().enumerate() {
-                        valid &= change.surface_stage_valid();
+                        valid &= change.surface_stage_valid(&validation_budget);
                         if change.stage == "native-line-attachment-projection-v1" {
                             valid &= source_table
                                 .and_then(|table| {
@@ -745,6 +746,7 @@ impl Table {
                             valid = false;
                         }
                     }
+                    charged = STORAGE_CAP - validation_budget.get();
                     for (index, ordinal) in previous.iter().enumerate() {
                         if let Some(ordinal) = ordinal {
                             valid &= shell.shell().edges[index].curve

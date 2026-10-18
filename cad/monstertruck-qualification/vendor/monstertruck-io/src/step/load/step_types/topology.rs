@@ -6,6 +6,7 @@
 use super::*;
 
 mod bounded_trim;
+#[cfg(test)]
 mod repair_storage;
 mod seam_capture;
 
@@ -114,7 +115,12 @@ impl FiniteCurveTrace {
         true
     }
     fn begin(&mut self, curve: &Curve3D) -> Option<Curve3D> {
-        self.charge(curve_storage(curve)).then(|| curve.clone())
+        if !self.charge(Some(0)) {
+            return None;
+        }
+        let copy = step_geometry::repair_storage::curve(curve, &self.budget);
+        self.failed |= copy.is_none();
+        copy
     }
     fn finish(
         &mut self,
@@ -127,37 +133,40 @@ impl FiniteCurveTrace {
         let Some(before) = before else {
             return;
         };
-        let bytes = curve_storage(after)
-            .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
-        if !self.charge(bytes) || self.changes.try_reserve_exact(1).is_err() {
-            self.failed = true;
+        let Some(after) = self.begin(after) else {
             return;
-        }
-        self.changes.push(FiniteCurveRepair {
+        };
+        self.push(FiniteCurveRepair {
             stage,
             before,
             before_domain,
-            after: after.clone(),
+            after,
             after_domain,
             native_line: None,
             seam: None,
         });
     }
-}
-pub(in crate::step::load) fn curve_storage(curve: &Curve3D) -> Option<usize> {
-    repair_storage::curve(curve)
-}
-fn spline_storage<P>(curve: &BsplineCurve<P>) -> Option<usize> {
-    curve
-        .control_points()
-        .capacity()
-        .checked_mul(2 * std::mem::size_of::<P>())?
-        .checked_add(
-            curve
-                .knot_vector()
-                .len()
-                .checked_mul(2 * std::mem::size_of::<f64>())?,
-        )
+    fn begin_spline<P: Copy>(&mut self, curve: &BsplineCurve<P>) -> Option<BsplineCurve<P>> {
+        if !self.charge(Some(0)) {
+            return None;
+        }
+        let copy = step_geometry::repair_storage::spline(curve, &self.budget);
+        self.failed |= copy.is_none();
+        copy
+    }
+    fn push(&mut self, change: FiniteCurveRepair) {
+        // Retained slots remain charged after rollback; two new slots per append
+        // cover the old/new requested Vec layouts during exact growth.
+        if !self.charge(Some(2 * std::mem::size_of::<FiniteCurveRepair>())) {
+            return;
+        }
+        let capacity = self.changes.capacity().max(self.changes.len() + 1);
+        if self.changes.try_reserve_exact(1).is_err() || self.changes.capacity() > capacity {
+            self.failed = true;
+            return;
+        }
+        self.changes.push(change);
+    }
 }
 
 /// `vertex_point`

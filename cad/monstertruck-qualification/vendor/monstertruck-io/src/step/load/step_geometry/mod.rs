@@ -10,6 +10,8 @@ pub mod re_exports {
 }
 pub use re_exports::*;
 
+pub(in crate::step::load) mod repair_storage;
+
 /// Errors that occur when converting STEP format
 pub type StepConvertingError = Box<dyn std::error::Error + Send + Sync + 'static>;
 

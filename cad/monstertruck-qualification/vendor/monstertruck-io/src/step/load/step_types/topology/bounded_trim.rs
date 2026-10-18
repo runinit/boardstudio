@@ -454,13 +454,11 @@ fn begin_spline_change<P>(
     spline: &BsplineCurve<P>,
 ) -> Option<Curve3D>
 where
-    P: Clone,
+    P: Copy,
 {
-    trace.as_deref_mut().and_then(|trace| {
-        trace
-            .charge(spline_storage(spline))
-            .then(|| wrap(spline.clone()))
-    })
+    trace
+        .as_deref_mut()
+        .and_then(|trace| trace.begin_spline(spline).map(wrap))
 }
 fn finish_spline_change<P>(
     trace: &mut Option<&mut FiniteCurveTrace>,
@@ -471,7 +469,7 @@ fn finish_spline_change<P>(
     after: &BsplineCurve<P>,
     after_domain: (f64, f64),
 ) where
-    P: Clone,
+    P: Copy,
 {
     let Some(trace) = trace.as_deref_mut() else {
         return;
@@ -479,18 +477,14 @@ fn finish_spline_change<P>(
     let Some(before) = before else {
         return;
     };
-    // Finish without an uncharged temporary carrier clone.
-    let bytes = spline_storage(after)
-        .and_then(|n| n.checked_add(2 * std::mem::size_of::<FiniteCurveRepair>()));
-    if !trace.charge(bytes) || trace.changes.try_reserve_exact(1).is_err() {
-        trace.failed = true;
+    let Some(after) = trace.begin_spline(after) else {
         return;
-    }
-    trace.changes.push(FiniteCurveRepair {
+    };
+    trace.push(FiniteCurveRepair {
         stage,
         before,
         before_domain,
-        after: wrap(after.clone()),
+        after: wrap(after),
         after_domain,
         native_line: None,
         seam: None,
