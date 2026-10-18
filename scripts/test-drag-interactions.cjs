@@ -13,6 +13,20 @@ const stable = value => Array.isArray(value)
     : value;
 const startedAt = new Date().toISOString();
 
+async function setSlider(page, name, target) {
+  const slider = page.getByRole('slider', { name, exact: true });
+  const initial = Number(await slider.getAttribute('aria-valuenow'));
+  for (let value = initial; value !== target; value += Math.sign(target - initial)) {
+    await slider.press(initial < target ? 'ArrowRight' : 'ArrowLeft');
+    const expected = String(value + Math.sign(target - initial));
+    await page.waitForFunction(({ name, expected }) =>
+      document.querySelector(`[role="slider"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') === expected,
+      { name, expected });
+  }
+  assert.equal(await slider.getAttribute('aria-valuenow'), String(target));
+}
+
+
 (async () => {
   const browser = await chromium.launch({
     executablePath: process.env.CHROME_BIN || '/usr/bin/chromium',
@@ -256,23 +270,53 @@ const startedAt = new Date().toISOString();
     console.log(`drag-smoke: ${config.name} and exact Undo passed`);
   }
 
+  // The default collision check runs the real page, worker and Monstertruck provider on a 2 x 2 rigid-mount
+  // case: the physical PCB must pair with a generated case body, and the findings must not collapse the viewer.
+  async function collisionScenario(context) {
+    const scenarioStartedMs = Date.now();
+    const collisionPage = await context.newPage();
+    collisionPage.on('pageerror', error => pageErrors.push(error.message));
+    await collisionPage.goto(process.env.BOARDSTUDIO_PREVIEW_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await collisionPage.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
+    await collisionPage.getByRole('button', { name: 'Continue to layout', exact: true }).click({ timeout: 60000 });
+    for (const name of ['Rows', 'Columns']) await setSlider(collisionPage, name, 2);
+    await collisionPage.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
+    await collisionPage.getByRole('button', { name: 'Open Case workspace', exact: true }).click();
+    await collisionPage.getByRole('button', { name: /Case \(optional\)/ }).click();
+    await collisionPage.getByRole('combobox', { name: 'Case mounting style' }).selectOption('Rigid mount');
+    await collisionPage.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor({ timeout: 120000 });
+    const startedMs = Date.now();
+    await collisionPage.getByRole('button', { name: 'Check collisions', exact: true }).click();
+    const pcbPair = /\[(?:plate|bottom)[^\]]*\] ↔ PCB \[pcb-reference\]/;
+    await collisionPage.waitForFunction(source => {
+      const pairs = [...document.querySelectorAll('.m1-case-collision-checks p')]
+        .filter(element => element.textContent.includes('↔'));
+      return pairs.some(element => new RegExp(source).test(element.textContent));
+    }, pcbPair.source, { timeout: 120000 });
+    const collisionMs = Date.now() - startedMs;
+    const layout = await collisionPage.evaluate(() => {
+      const panel = document.querySelector('.m1-case-collision-checks');
+      const viewer = document.querySelector('[aria-label^="Interactive 3D Case preview"]').getBoundingClientRect();
+      return {
+        pairs: [...panel.querySelectorAll('p')].map(element => element.textContent).filter(text => text.includes('↔')),
+        viewerHeight: Math.round(viewer.height),
+      };
+    });
+    assert.ok(layout.pairs.some(text => pcbPair.test(text)), 'a case body pairs with the physical PCB');
+    result('Default collision PCB pair', { pairs: layout.pairs.length, pcbPairs: layout.pairs.filter(text => pcbPair.test(text)).length,
+      collisionMs });
+    assert.ok(layout.pairs.length >= 20, `enough collision findings render to overflow the panel (${layout.pairs.length})`);
+    assert.ok(layout.viewerHeight >= 300, `Case viewer stays visible beside collision findings (${layout.viewerHeight}px)`);
+    result('Case viewer with overflowing collision findings', { viewerHeight: layout.viewerHeight });
+    console.log(`drag-smoke: default collision check paired the PCB in ${collisionMs} ms (scenario ${Date.now() - scenarioStartedMs} ms); viewer ${layout.viewerHeight}px`);
+  }
+
   try {
     await page.goto(process.env.BOARDSTUDIO_PREVIEW_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Split keyboard', exact: true }).click({ timeout: 60000 });
     await page.getByRole('button', { name: 'Continue to layout', exact: true }).click({ timeout: 60000 });
-    for (const name of ['Rows', 'Columns']) {
-      const slider = page.getByRole('slider', { name, exact: true });
-      const initial = Number(await slider.getAttribute('aria-valuenow'));
-      for (let value = initial; value !== 10; value += Math.sign(10 - initial)) {
-        await slider.press(initial < 10 ? 'ArrowRight' : 'ArrowLeft');
-        const expected = String(value + Math.sign(10 - initial));
-        await page.waitForFunction(({ name, expected }) =>
-          document.querySelector(`[role="slider"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') === expected,
-          { name, expected });
-      }
-      assert.equal(await slider.getAttribute('aria-valuenow'), '10');
-    }
+    for (const name of ['Rows', 'Columns']) await setSlider(page, name, 10);
     await page.getByRole('button', { name: 'Create matrix', exact: true }).click({ timeout: 60000 });
     console.log('drag-smoke: setup created a 10 x 10 matrix');
     const firstKey = page.locator('.m1-scene-part[data-part-id^="matrix/"][data-part-id$="r4c2"] .m1-part-hit-area').first();
@@ -320,8 +364,10 @@ const startedAt = new Date().toISOString();
     await runDrag({ name: 'Ctrl Offset handle', selector: '[aria-label="Drag to offset column"]',
       label: 'Drag to offset column', control: true }, columnRead, ['offset'], { matrixId, row, column });
 
+    await collisionScenario(await browser.newContext({ viewport: { width: 1513, height: 1043 } }));
+
     const browserVersion = browser.version();
-    assert.ok(checks.length >= 9, 'smoke completed all drag, cancellation and Undo checks');
+    assert.ok(checks.length >= 11, 'smoke completed all drag, cancellation, Undo and collision checks');
     assert.deepEqual(pageErrors, [], 'page raised no uncaught browser errors');
     const receiptPath = process.env.BOARDSTUDIO_DRAG_RECEIPT_PATH;
     assert.ok(receiptPath, 'receipt path supplied by runner');
