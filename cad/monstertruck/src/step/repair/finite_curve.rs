@@ -46,6 +46,14 @@ struct Spline {
 }
 impl Spline {
     fn from_curve(curve: &Curve3D) -> Result<Self, &'static str> {
+        let (degree, count) = match curve {
+            Curve3D::BsplineCurve(c) => (c.degree(), c.control_points().len()),
+            Curve3D::NurbsCurve(c) => (c.degree(), c.control_points().len()),
+            _ => return Err("captured finite carrier family has no concrete control proof"),
+        };
+        if degree == 0 || degree > 16 || count > 8192 || count <= degree {
+            return Err("finite-curve control proof resource/domain limit");
+        }
         let (degree, knots, controls) = match curve {
             Curve3D::BsplineCurve(c) => (
                 c.degree(),
@@ -79,6 +87,13 @@ impl Spline {
             .collect::<Result<Vec<_>, _>>()?;
         if knots.windows(2).any(|k| k[0] > k[1]) || controls.iter().any(|p| !p[3].is_positive()) {
             return Err("invalid finite-curve knots or rational weights");
+        }
+        // A directed change at a discontinuity could select opposite one-sided
+        // values at the same label. Do not manufacture endpoint correspondence.
+        if knots.windows(degree + 1).any(|run| {
+            run[0] == run[degree] && run[0] > knots[degree] && run[0] < knots[controls.len()]
+        }) {
+            return Err("discontinuous finite spline needs one-sided domain authority");
         }
         Ok(Self {
             degree,
@@ -267,6 +282,30 @@ mod tests {
             controls_bound(&b, (0., 1.), &a, (0., 1.), 1., Matrix4::identity()).unwrap()
         );
     }
+    #[test]
+    fn discontinuous_direction_changes_require_one_sided_domain_authority() {
+        let curve = Curve3D::BsplineCurve(BsplineCurve::new_unchecked(
+            KnotVector::from(vec![0., 0., 0.5, 0.5, 1., 1.]),
+            vec![
+                Point3::new(0., 0., 0.),
+                Point3::new(1., 0., 0.),
+                Point3::new(1., 1., 0.),
+                Point3::new(2., 1., 0.),
+            ],
+        ));
+        assert_eq!(
+            controls_bound(
+                &curve,
+                (0., 1.),
+                &curve.inverse(),
+                (1., 0.),
+                1.,
+                Matrix4::identity()
+            ),
+            Err("discontinuous finite spline needs one-sided domain authority")
+        );
+    }
+
     #[test]
     fn actual_partial_spline_mutations_have_exact_whole_domain_control_proofs() {
         let bytes = include_bytes!(

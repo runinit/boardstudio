@@ -90,9 +90,15 @@ test('rounded source lexemes, inconsistent native LINE and selected PCurves stay
   const rounded = box.toString().replace("#2=CARTESIAN_POINT('',(2.,0.,0.));", "#2=CARTESIAN_POINT('',(2.0000000000000001,0.,0.));");
   const offLine = box.toString().replace("#32=LINE('',#1,#31);", "#900=CARTESIAN_POINT('',(0.,1.,0.));#32=LINE('',#900,#31);");
   const selected = fs.readFileSync(path.join(fixtures, 'source-pcurve-cube.step'));
-  for (const bytes of [rounded, offLine, selected]) {
+  for (const bytes of [rounded, selected]) {
     assert.equal(imported(bytes).vendorStep.accuracy.maxRepairDisplacementMm, null);
   }
+  // This actual one-millimetre finite LINE operation used to pass attachment
+  // guards. The complete operation bound now enforces the selected allowance;
+  // admission with an explicit equality budget still cannot certify the asset.
+  assert.throws(() => imported(offLine), error =>
+    typeof error === 'string' && error.includes('finite LINE repair') && error.includes('exceeds repair budget 0.02'));
+  assert.equal(imported(offLine, {previewRepairBudgetMm: 1}).vendorStep.accuracy.maxRepairDisplacementMm, null);
   const sliver = imported(fs.readFileSync(path.join(fixtures, 'circular-segment-sliver-prism.step')));
   assert.equal(sliver.vendorStep.accuracy.maxRepairDisplacementMm, null);
   assert(sliver.vendorStep.accuracy.fallbackMeshedFaces > 0);

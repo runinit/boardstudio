@@ -268,6 +268,14 @@ impl EdgeCurve {
         bound: f64,
         preview: bool,
     ) -> Result<Curve3D, StepConvertingError> {
+        self.parse_curve3d_with_connectivity_recorded(bound, preview, None)
+    }
+    fn parse_curve3d_with_connectivity_recorded(
+        &self,
+        bound: f64,
+        preview: bool,
+        mut repair: Option<&mut FiniteCurveTrace>,
+    ) -> Result<Curve3D, StepConvertingError> {
         if !bound.is_finite() || bound <= 0.0 || !bound.powi(2).is_finite() || bound.powi(2) == 0.0
         {
             return Err("invalid source connectivity bound".into());
@@ -276,14 +284,24 @@ impl EdgeCurve {
         let q = Point3::from(&self.edge_end.vertex_geometry);
         // Preserve an already resolved interval before considering wider source attachments.
         let strict = matches!(&self.edge_geometry, CurveAny::BoundedCurve(_))
-            .then(|| self.parse_curve3d_with_bound(None, preview).ok())
+            .then(|| {
+                self.parse_curve3d_with_bound_recorded(None, preview, repair.as_deref_mut())
+                    .ok()
+            })
             .flatten()
             .filter(|curve| {
                 curve.front().distance(p) <= bound && curve.back().distance(q) <= bound
             });
         let curve = match strict {
             Some(curve) => curve,
-            None => self.parse_curve3d_with_bound(Some(bound), preview)?,
+            None => {
+                // Captures from a rejected candidate cannot authenticate the
+                // selected route. Keep conservative resource failures/charges.
+                if let Some(trace) = repair.as_deref_mut() {
+                    trace.changes.clear();
+                }
+                self.parse_curve3d_with_bound_recorded(Some(bound), preview, repair)?
+            }
         };
         if [curve.front().distance(p), curve.back().distance(q)]
             .into_iter()
@@ -361,44 +379,7 @@ impl EdgeCurve {
         let curve = match bound {
             None => self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture))?,
             Some(bound) => {
-                if !bound.is_finite()
-                    || bound <= 0.0
-                    || !bound.powi(2).is_finite()
-                    || bound.powi(2) == 0.0
-                {
-                    return Err("invalid source connectivity bound".into());
-                }
-                let p = Point3::from(&self.edge_start.vertex_geometry);
-                let q = Point3::from(&self.edge_end.vertex_geometry);
-                let strict = matches!(&self.edge_geometry, CurveAny::BoundedCurve(_))
-                    .then(|| {
-                        self.parse_curve3d_with_bound_recorded(None, preview, Some(&mut capture))
-                            .ok()
-                    })
-                    .flatten()
-                    .filter(|curve| {
-                        curve.front().distance(p) <= bound && curve.back().distance(q) <= bound
-                    });
-                let curve = match strict {
-                    Some(curve) => curve,
-                    None => {
-                        capture = FiniteCurveTrace::new(std::rc::Rc::clone(&budget));
-                        self.parse_curve3d_with_bound_recorded(
-                            Some(bound),
-                            preview,
-                            Some(&mut capture),
-                        )?
-                    }
-                };
-                if [curve.front().distance(p), curve.back().distance(q)]
-                    .into_iter()
-                    .any(|d| !d.is_finite() || d > bound)
-                {
-                    return Err(
-                        "EDGE_CURVE attachment exceeds its source connectivity bound".into(),
-                    );
-                }
-                curve
+                self.parse_curve3d_with_connectivity_recorded(bound, preview, Some(&mut capture))?
             }
         };
         Ok((curve, capture))
