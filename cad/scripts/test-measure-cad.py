@@ -2,6 +2,8 @@
 """Untimed protocol checks: no compiler, provider, container or browser execution."""
 
 import csv
+import difflib
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -14,6 +16,157 @@ sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("measure_cad", Path(__file__).with_name("measure-cad.py"))
 PERF = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PERF)
+
+
+class BuildBindingTests(unittest.TestCase):
+    HEAD = "2ea2ca48d1b0a55e99429fe06c7bdec0611a428b"
+    COMMENT = "// BoardStudio CAD performance incremental rebuild probe.\n"
+
+    def setUp(self):
+        evidence = PERF.ROOT / ".evidence/011-build-binding-fix"
+        evidence.mkdir(parents=True, exist_ok=True)
+        self.temporary = tempfile.TemporaryDirectory(dir=evidence)
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+
+    def bound(self, backend="monstertruck", state="clean", built=False, **changes):
+        head = PERF.OLD_HEAD if backend == "cadrum" else self.HEAD
+        diff = ""
+        if state == "incremental":
+            path = "cad/wasm/src/lib.rs"
+            base = PERF.git(PERF.ROOT, "show", f"{head}:{path}") + "\n"
+            diff = (f"diff --git a/{path} b/{path}\nindex 1234567..abcdef0 100644\n" +
+                    "\n".join(difflib.unified_diff(base.splitlines(), (base + self.COMMENT).splitlines(),
+                                                  fromfile=f"a/{path}", tofile=f"b/{path}", lineterm="")))
+        fields = dict(backend=backend, head=head,
+                      source_sha256=hashlib.sha256((diff + "\n" if diff else "").encode()).hexdigest(),
+                      status=repr(" M cad/wasm/src/lib.rs" if diff else ""),
+                      profile="checked", provider_profile="release-no-opt",
+                      driver_head=self.HEAD, driver_source_sha256="f" * 64, driver_status=repr(""),
+                      official_provider_inputs="b" * 64,
+                      provider_stamp="b" * 64 if built else "MISSING")
+        fields["artifact_cad/wasm/pkg"] = "c" * 64 if built else "MISSING"
+        fields["artifact_web/target/site/site-subpath/boardstudio"] = "d" * 64 if built else "MISSING"
+        fields["resolved_target"] = f"/controlled/target exists={built}"
+        for path in sorted(PERF.FIXTURES.iterdir()):
+            if path.suffix in (".json", ".boardstudio"):
+                fields[f"workload_blob_{path.name}"] = "e" * 40
+        fields.update(changes)
+        return "\n".join(f"{key}={value}" for key, value in fields.items()) + "\nowned_diff:\n" + diff + "\n"
+
+    def sample(self, name, backend="monstertruck", state="clean", pair=1, before=None, after=None, **row_changes):
+        directory = self.root / name
+        directory.mkdir()
+        (directory / "command.log").write_text("controlled subprocess fixture; not benchmark data\nexit=0\n")
+        (directory / "binding-before.log").write_text(before or self.bound(backend, state))
+        (directory / "binding-after.log").write_text(after or self.bound(backend, state, built=True))
+        row = dict(backend=backend, profile="checked", pair=pair, state=state, seconds=1, status="ok")
+        row.update(row_changes)
+        PERF.write_csv(directory / "build.csv", tuple(row), [row])
+        return directory
+
+    def reduce(self, inputs):
+        output = self.root / "report"
+        output.mkdir(exist_ok=True)
+        PERF.summarize(inputs, output)
+        return output
+
+    def test_reduction_accepts_generated_outputs_and_exact_incremental_transition(self):
+        inputs = [self.sample(f"{backend}-{state}", backend, state)
+                  for backend in ("cadrum", "monstertruck") for state in ("clean", "noop", "incremental")]
+        output = self.reduce(inputs)
+        with (output / "pairs.csv").open() as source:
+            self.assertEqual(len(list(csv.DictReader(source))), 3)
+
+    def test_reduction_rejects_missing_build_bindings(self):
+        for name in ("binding-before.log", "binding-after.log"):
+            with self.subTest(name=name):
+                directory = self.sample(name)
+                (directory / name).unlink()
+                with self.assertRaisesRegex(ValueError, "binding"):
+                    self.reduce([directory])
+
+    def test_reduction_rejects_incomplete_or_drifted_bindings(self):
+        before = self.bound()
+        after = self.bound(built=True)
+        cases = {
+            "source-drift": after.replace(f"head={self.HEAD}\n", "head=" + "1" * 40 + "\n", 1),
+            "patch-drift": self.bound(state="incremental", built=True),
+            "harness-drift": after.replace("driver_source_sha256=" + "f" * 64, "driver_source_sha256=" + "0" * 64),
+            "workload-drift": after.replace("workload_blob_C1plate.json=" + "e" * 40, "workload_blob_C1plate.json=" + "0" * 40),
+            "stale-stamp": after.replace("provider_stamp=" + "b" * 64, "provider_stamp=MISSING"),
+            "missing-artifact": after.replace("artifact_cad/wasm/pkg=" + "c" * 64, "artifact_cad/wasm/pkg=MISSING"),
+            "missing-source": after.replace("source_sha256=" + hashlib.sha256(b"").hexdigest() + "\n", ""),
+            "missing-harness": after.replace(f"driver_head={self.HEAD}\n", ""),
+            "missing-workload": after.replace("workload_blob_C1plate.json=" + "e" * 40 + "\n", ""),
+            "missing-owned-patch": after.split("owned_diff:")[0],
+        }
+        for name, changed in cases.items():
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, "binding|drift|stamp|artifact"):
+                    self.reduce([self.sample(name, before=before, after=changed)])
+
+    def test_reduction_rejects_row_profile_backend_and_arbitrary_patch(self):
+        for name, changes in (("backend", dict(backend="cadrum")), ("profile", dict(profile="release")),
+                              ("state", dict(state="incremental"))):
+            with self.subTest(name=name):
+                row = self.sample(name, before=self.bound(), after=self.bound(built=True), **changes)
+                with self.assertRaisesRegex(ValueError, "binding|patch"):
+                    self.reduce([row])
+        for name, bound in (("unowned", self.bound(source_sha256="a" * 64, status=repr(" M other.rs"))),
+                            ("other-comment", self.bound(state="incremental").replace(self.COMMENT.strip(), "// arbitrary edit"))):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(ValueError, "binding|patch"):
+                    self.reduce([self.sample(name, state="incremental", before=bound, after=bound)])
+
+    def test_reduction_rejects_mixed_source_and_harness_across_cycle(self):
+        first = self.sample("first")
+        cases = {
+            "source": dict(head="1" * 40),
+            "harness": dict(driver_head="2" * 40),
+            "workload": {"workload_blob_C1plate.json": "3" * 40},
+        }
+        for name, changes in cases.items():
+            with self.subTest(name=name):
+                second = self.sample(name, state="noop", before=self.bound(**changes),
+                                     after=self.bound(built=True, **changes))
+                with self.assertRaisesRegex(ValueError, "mixed|different harness/workload"):
+                    self.reduce([first, second])
+        other = self.sample("other-backend", "cadrum", before=self.bound("cadrum", driver_head="4" * 40),
+                            after=self.bound("cadrum", built=True, driver_head="4" * 40))
+        with self.assertRaisesRegex(ValueError, "different harness/workload"):
+            self.reduce([first, other])
+
+    def test_build_capture_checks_bindings_after_successful_controlled_subprocess(self):
+        # Exercise main's real capture path without invoking a compiler or version probes.
+        original_capture = PERF.capture
+
+        def controlled_capture(command, root, out, timeout):
+            return original_capture([sys.executable, "-c", "print('controlled subprocess, diagnostic only')"],
+                                    root, out, 15)
+
+        cases = {"outputs-only": self.bound(built=True),
+                 "source": self.bound(built=True, head="1" * 40),
+                 "harness": self.bound(built=True, driver_head="2" * 40),
+                 "patch": self.bound(state="incremental", built=True)}
+        checkout = self.root / "checkout"
+        checkout.mkdir()
+        for name, after in cases.items():
+            with self.subTest(name=name):
+                output = self.root / ("capture-" + name)
+                argv = ["measure-cad.py", "build", "--checkout", str(checkout), "--source-head", self.HEAD,
+                        "--state", "clean", "--output", str(output)]
+                with patch.object(sys, "argv", argv), patch.object(PERF, "git", return_value=self.HEAD), \
+                     patch.object(PERF, "binding", side_effect=[(self.bound().splitlines(), False), (after.splitlines(), True)]), \
+                     patch.object(PERF.browser_tools, "locate"), patch.object(PERF, "sizes"), \
+                     patch.object(PERF, "environment", return_value="controlled environment; diagnostic only\n"), \
+                     patch.object(PERF, "capture", side_effect=controlled_capture):
+                    result = PERF.main()
+                with (output / "build.csv").open() as source:
+                    row, = list(csv.DictReader(source))
+                self.assertIn("\nexit=0\n", (output / "command.log").read_text())
+                self.assertEqual(row["status"] == "ok", name == "outputs-only")
+                self.assertEqual(result == 0, name == "outputs-only")
 
 
 class PerformancePreparationTests(unittest.TestCase):
