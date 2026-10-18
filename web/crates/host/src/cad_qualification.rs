@@ -266,8 +266,8 @@ pub fn derivation_identity(source: &Source, mesh: &AnalysisMesh) -> String {
         Source::GeneratedBody { geometry_identity, .. } => format!("{geometry_identity}/deflection={}/analytic-generated-v1", selected(mesh.settings.target_deflection_mm).unwrap_or_else(|| "default".into())),
         Source::VendorStep { source_sha256, import_options } => {
             let mut key = source_sha256.clone();
-            if let Some(bits) = selected(import_options.preview_repair_budget_mm) { key.push_str(&format!("/repair-budget={bits}")); }
-            if let Some(bits) = selected(import_options.target_deflection_mm) { key.push_str(&format!("/target-deflection={bits}")); }
+            if let Some(bits) = selected(import_options.preview_repair_budget_mm) { key.push_str(&format!(":repair={bits}")); }
+            if let Some(bits) = selected(import_options.target_deflection_mm) { key.push_str(&format!(":deflection={bits}")); }
             format!("vendor-step-analysis-v2/{key}")
         }
     }

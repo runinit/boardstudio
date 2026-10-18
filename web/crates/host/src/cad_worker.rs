@@ -6,6 +6,7 @@ use crate::cad_jobs::{
     CadStepPrecision, CadStepSourceFace, CadVendorStep, MAX_COLLISION_QUERY_BYTES,
     validate_collision_mesh_pair, validate_collision_query,
 };
+use crate::cad_qualification::{self as qualification, AnalysisMesh, AnalysisRef, Source, SourceQualification};
 use boardstudio_core::model::KeycapSpec;
 use futures_channel::oneshot;
 use js_sys::{
@@ -704,6 +705,7 @@ fn decode_result(value: JsValue) -> Result<CadResult, String> {
         )
     };
     Ok(CadResult {
+        query_qualification: optional_strict_field(&value, "queryQualification")?,
         revision,
         step,
         mesh,
@@ -739,6 +741,7 @@ fn decode_generated_analysis(
     }
     let positions = positions_value.unchecked_into::<Float64Array>();
     let tags = tags_value.unchecked_into::<Uint32Array>();
+    validate_analysis_buffers(positions.as_ref(), tags.as_ref())?;
     if (positions.byte_length() as usize).saturating_add(tags.byte_length() as usize)
         > MAX_COLLISION_QUERY_BYTES
     {
@@ -755,7 +758,13 @@ fn decode_generated_analysis(
         "analysisErrorBoundMm",
         "meshClosedOriented",
         "deflectionMm",
+        "analysisMesh",
+        "sourceQualification",
+        "analysisRef",
     ] {
+        if Reflect::get(&value, &field.into()).map_err(js_message)?.is_undefined() {
+            continue;
+        }
         Reflect::set(
             &metadata,
             &field.into(),
@@ -772,6 +781,9 @@ fn decode_generated_analysis(
     .map_err(js_message)?;
     let mut analysis: crate::cad_jobs::CadGeneratedAnalysis =
         serde_wasm_bindgen::from_value(metadata.into()).map_err(|error| error.to_string())?;
+    analysis.analysis_mesh = optional_strict_field(&value, "analysisMesh")?;
+    analysis.source_qualification = optional_strict_field(&value, "sourceQualification")?;
+    analysis.analysis_ref = optional_strict_field(&value, "analysisRef")?;
     analysis.surface_positions_mm_f64 = positions.to_vec();
     analysis.triangle_face_occurrence_indices = tags.to_vec();
     Ok(analysis)
@@ -791,6 +803,10 @@ fn validate_generated_payload_fields(value: &JsValue, has_identity: bool) -> Res
     ];
     if has_identity {
         fields.push("geometryIdentity");
+    }
+    if Reflect::has(value, &"analysisMesh".into()).unwrap_or(false) {
+        fields.extend(["analysisMesh", "sourceQualification"]);
+        fields.push(if has_identity { "analysisRef" } else { "analysisHandle" });
     }
     let object = value
         .dyn_ref::<Object>()
@@ -898,6 +914,9 @@ fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
     )
     .map_err(|error| error.to_string())?;
     Ok(CadVendorStep {
+        analysis_ref: optional_strict_field(&value, "analysisRef")?,
+        analysis_mesh: optional_strict_field(&value, "analysisMesh")?,
+        source_qualification: optional_strict_field(&value, "sourceQualification")?,
         source_sha256,
         import_options,
         surface_positions_mm_f64,
@@ -911,6 +930,37 @@ fn decode_vendor_step(value: JsValue) -> Result<CadVendorStep, String> {
         precision,
         accuracy,
     })
+}
+
+fn strict_metadata<T: serde::de::DeserializeOwned + Serialize>(value: JsValue) -> Result<T, String> {
+    let decoded: T = serde_wasm_bindgen::from_value(value.clone()).map_err(|e| e.to_string())?;
+    let expected = js_sys::JSON::parse(&serde_json::to_string(&decoded).map_err(|e| e.to_string())?).map_err(js_message)?;
+    fn keys(actual: &JsValue, expected: &JsValue) -> Result<(), String> {
+        if Array::is_array(expected) {
+            if !Array::is_array(actual) { return Err("metadata array required".into()); }
+            let a = Array::from(actual);
+            let e = Array::from(expected);
+            if a.length() != e.length() { return Err("metadata array length mismatch".into()); }
+            for i in 0..a.length() { keys(&a.get(i), &e.get(i))?; }
+        } else if expected.is_object() && !expected.is_null() {
+            let a = actual.dyn_ref::<Object>().ok_or("metadata object required")?;
+            let e = expected.unchecked_ref::<Object>();
+            let names = Object::keys(e);
+            if Object::keys(a).length() != names.length() { return Err("missing or unexpected metadata fields".into()); }
+            for name in names.iter() {
+                if !Object::has_own(a, &name) { return Err("missing own metadata field".into()); }
+                keys(&Reflect::get(actual, &name).map_err(js_message)?, &Reflect::get(expected, &name).map_err(js_message)?)?;
+            }
+        } else if expected.is_null() && !actual.is_null() { return Err("explicit nullable metadata required".into()); }
+        Ok(())
+    }
+    keys(&value, &expected)?;
+    Ok(decoded)
+}
+
+fn optional_strict_field<T: serde::de::DeserializeOwned + Serialize>(value: &JsValue, field: &str) -> Result<Option<T>, String> {
+    let value = Reflect::get(value, &field.into()).map_err(js_message)?;
+    if value.is_undefined() { Ok(None) } else { strict_metadata(value).map(Some) }
 }
 
 fn decode_mesh(value: JsValue) -> Result<CadMesh, String> {
@@ -941,6 +991,18 @@ fn read_f64_buffer(value: JsValue) -> Result<Vec<f64>, String> {
     } else {
         serde_wasm_bindgen::from_value(value).map_err(|error| error.to_string())
     }
+}
+
+fn validate_analysis_buffers(positions: &JsValue, tags: &JsValue) -> Result<(), String> {
+    let positions = positions.dyn_ref::<Float64Array>().ok_or("analysis positions require Float64Array")?;
+    let tags = tags.dyn_ref::<Uint32Array>().ok_or("analysis tags require Uint32Array")?;
+    if !positions.buffer().is_instance_of::<js_sys::ArrayBuffer>()
+        || !tags.buffer().is_instance_of::<js_sys::ArrayBuffer>()
+        || positions.length() == 0 || positions.length() % 9 != 0 || tags.length() != positions.length() / 9
+        || (positions.byte_length() as usize).saturating_add(tags.byte_length() as usize) > MAX_COLLISION_QUERY_BYTES {
+        return Err("detached/shared/malformed or oversized analysis buffers".into());
+    }
+    Ok(())
 }
 
 fn read_u32_buffer(value: JsValue) -> Result<Vec<u32>, String> {
@@ -1447,12 +1509,132 @@ async fn initialize_cad_module(url: &str) -> Result<JsValue, String> {
     Ok(module)
 }
 
-#[derive(Default)]
 struct WorkerQueue {
     pending: VecDeque<(WireRequest, Vec<u8>)>,
     cancelled: BTreeSet<String>,
     active: bool,
     active_job: Option<String>,
+    generation: String,
+    evidence: BTreeMap<String, Rc<OwnedAnalysis>>,
+    evidence_recency: VecDeque<String>,
+    retained_bytes: usize,
+    latest_snapshot: Option<CadSnapshotIdentity>,
+}
+
+impl Default for WorkerQueue {
+    fn default() -> Self {
+        let generation = Function::new_no_args("return crypto.randomUUID()")
+            .call0(&JsValue::NULL).expect("worker UUID source").as_string().expect("worker UUID");
+        Self { pending: VecDeque::new(), cancelled: BTreeSet::new(), active: false, active_job: None,
+            generation, evidence: BTreeMap::new(), evidence_recency: VecDeque::new(), retained_bytes: 0, latest_snapshot: None }
+    }
+}
+
+struct ProviderHandle(JsValue);
+impl Drop for ProviderHandle {
+    fn drop(&mut self) {
+        if let Ok(free) = Reflect::get(&self.0, &"free".into())
+            && let Some(free) = free.dyn_ref::<Function>() { let _ = free.call0(&self.0); }
+    }
+}
+
+struct OwnedAnalysis {
+    handle: ProviderHandle,
+    reference: AnalysisRef,
+    descriptor: AnalysisMesh,
+    source: SourceQualification,
+    scope: CadSnapshotIdentity,
+    task: String,
+    retained_bytes: Option<usize>,
+    // Transport comparison only. Proof remains exclusively in the opaque owner.
+    positions: Vec<f64>,
+    tags: Vec<u32>,
+}
+
+fn same_scope(a: &CadSnapshotIdentity, b: &CadSnapshotIdentity) -> bool {
+    a.session_epoch == b.session_epoch && a.document_id == b.document_id
+        && a.board_id == b.board_id && a.instance_id == b.instance_id
+}
+
+impl WorkerQueue {
+    fn remove_evidence(&mut self, identity: &str) {
+        if let Some(entry) = self.evidence.remove(identity) {
+            self.retained_bytes -= entry.retained_bytes.unwrap_or(0);
+        }
+        self.evidence_recency.retain(|key| key != identity);
+    }
+
+    fn remove_task_evidence(&mut self, task: &str) {
+        let keys = self.evidence.iter().filter(|(_, e)| e.task == task).map(|(key, _)| key.clone()).collect::<Vec<_>>();
+        for key in keys { self.remove_evidence(&key); }
+    }
+
+    fn retain_analysis(&mut self, entry: Rc<OwnedAnalysis>) -> Result<(), String> {
+        let Some(cost) = entry.retained_bytes.filter(|&n| n <= MAX_COLLISION_QUERY_BYTES) else { return Ok(()); };
+        let key = entry.reference.mesh_identity.clone();
+        if self.evidence.contains_key(&key) { return Err("provider reused an owned mesh identity".into()); }
+        while self.evidence.len() >= 80 || self.retained_bytes.saturating_add(cost) > MAX_COLLISION_QUERY_BYTES {
+            let Some(victim) = self.evidence_recency.front().cloned() else { break; };
+            self.remove_evidence(&victim);
+        }
+        self.retained_bytes += cost;
+        self.evidence_recency.push_back(key.clone());
+        self.evidence.insert(key, entry);
+        Ok(())
+    }
+
+    fn lookup(&mut self, operand: &crate::cad_jobs::CadCollisionOperand, scope: &CadSnapshotIdentity, positions: &[f64], tags: &[u32]) -> Result<Option<Rc<OwnedAnalysis>>, String> {
+        qualification::validate_operand(operand)?;
+        let reference = operand.analysis_ref.as_ref().ok_or("missing reference")?;
+        if reference.worker_generation != self.generation { return Ok(None); }
+        let Some(entry) = self.evidence.get(&reference.mesh_identity).cloned() else { return Ok(None); };
+        if !same_scope(scope, &entry.scope) || &entry.reference != reference
+            || operand.analysis_mesh.as_ref() != Some(&entry.descriptor)
+            || entry.positions.len() != positions.len() || entry.tags != tags
+            || entry.positions.iter().zip(positions).any(|(a,b)| a.to_bits() != b.to_bits()) {
+            return Err("known analysis reference has mismatched scope/source/descriptor".into());
+        }
+        self.evidence_recency.retain(|key| key != &reference.mesh_identity);
+        self.evidence_recency.push_back(reference.mesh_identity.clone());
+        Ok(Some(entry))
+    }
+}
+
+fn stage_analysis(queue: &Rc<RefCell<WorkerQueue>>, module: &JsValue, request: &WireRequest, payload: &JsValue, source: Source) -> Result<Rc<OwnedAnalysis>, String> {
+    let raw_handle = Reflect::get(payload, &"analysisHandle".into()).map_err(js_message)?;
+    let class = Reflect::get(module, &"AnalysisHandle".into()).map_err(js_message)?;
+    let is_owned = Function::new_with_args("handle,owner", "return typeof owner === 'function' && handle instanceof owner")
+        .call2(&JsValue::NULL, &raw_handle, &class).map_err(js_message)?.as_bool() == Some(true);
+    if !is_owned { return Err("provider must return its opaque AnalysisHandle".into()); }
+    let handle = ProviderHandle(raw_handle);
+    Reflect::delete_property(payload.unchecked_ref::<Object>(), &"analysisHandle".into()).map_err(js_message)?;
+    let descriptor: AnalysisMesh = strict_metadata(Reflect::get(payload, &"analysisMesh".into()).map_err(js_message)?)?;
+    let report: SourceQualification = strict_metadata(Reflect::get(payload, &"sourceQualification".into()).map_err(js_message)?)?;
+    let reference = AnalysisRef { worker_generation: queue.borrow().generation.clone(), mesh_identity: descriptor.mesh_identity.clone(),
+        derivation_identity: qualification::derivation_identity(&source, &descriptor), source };
+    let bound_value = match reference.source {
+        Source::GeneratedBody { .. } => Reflect::get(payload, &"analysisErrorBoundMm".into()).map_err(js_message)?,
+        Source::VendorStep { .. } => Reflect::get(&Reflect::get(payload, &"accuracy".into()).map_err(js_message)?, &"analysisErrorBoundMm".into()).map_err(js_message)?,
+    };
+    let bound = if bound_value.is_null() { None } else { Some(bound_value.as_f64().ok_or("invalid source bound")?) };
+    qualification::validate_analysis(&reference, &descriptor, &report, bound)?;
+    let method = Reflect::get(&handle.0, &"retainedStorageBytes".into()).map_err(js_message)?.dyn_into::<Function>().map_err(js_message)?;
+    let cost = method.call0(&handle.0).map_err(js_message)?;
+    let positions_value = Reflect::get(payload, &"surfacePositionsMmF64".into()).map_err(js_message)?;
+    let tags_value = Reflect::get(payload, &"triangleFaceOccurrenceIndices".into()).map_err(js_message)?;
+    validate_analysis_buffers(&positions_value, &tags_value)?;
+    let positions = positions_value.unchecked_into::<Float64Array>().to_vec();
+    let tags = tags_value.unchecked_into::<Uint32Array>().to_vec();
+    let retained_bytes = if cost.is_null() { None } else {
+        let number = cost.as_f64().ok_or("invalid retained storage cost")?;
+        if !number.is_finite() || number < 0.0 || number.fract() != 0.0 || number > crate::cad_jobs::MAX_CAD_REVISION as f64 { return Err("invalid retained storage cost".into()); }
+        (number as usize).checked_add(positions.capacity().saturating_mul(8))
+            .and_then(|n| n.checked_add(tags.capacity().saturating_mul(4)))
+            .and_then(|n| serde_json::to_vec(&reference).ok().and_then(|r| n.checked_add(r.len().saturating_mul(8))))
+            .and_then(|n| n.checked_add(std::mem::size_of::<OwnedAnalysis>()))
+    };
+    Reflect::set(payload, &"analysisRef".into(), &js_sys::JSON::parse(&serde_json::to_string(&reference).map_err(|e| e.to_string())?).map_err(js_message)?).map_err(js_message)?;
+    Ok(Rc::new(OwnedAnalysis { handle, reference, descriptor, source: report, scope: request.identity.clone(), task: request.request_id.clone(), retained_bytes, positions, tags }))
 }
 
 fn receive_worker_message(
@@ -1573,6 +1755,12 @@ fn receive_worker_message(
         {
             return Err(JsValue::from_str("duplicate in-flight CAD request id"));
         }
+        if queue.latest_snapshot.as_ref().is_some_and(|old| !same_scope(old, &request.identity)) {
+            queue.evidence.clear();
+            queue.evidence_recency.clear();
+            queue.retained_bytes = 0;
+        }
+        queue.latest_snapshot = Some(request.identity.clone());
         queue.pending.push_back((request, input_bytes));
     }
     pump_worker(queue.clone(), scope.clone(), module.clone());
@@ -1619,10 +1807,13 @@ fn pump_worker(
     spawn_local(async move {
         let (request, bytes) = request;
         let completed_job_id = request.job_id.clone();
+        let completed_request_id = request.request_id.clone();
         let reply = run_request(&queue, &module, request, bytes).await;
         match reply {
             Ok((wire, result)) => {
-                let _ = post_result(&scope, wire, result);
+                if post_result(&scope, wire, result).is_err() {
+                    queue.borrow_mut().remove_task_evidence(&completed_request_id);
+                }
             }
             Err((wire, reason, cancelled)) => {
                 let metadata = WireReply {
@@ -1674,6 +1865,8 @@ async fn run_request(
         let text = serde_json::to_string(prepared).map_err(|error| error.to_string())?;
         js_sys::JSON::parse(&text).map_err(js_message)
     };
+    let mut staged = None;
+    let mut pinned = Vec::new();
     let result = match request.operation {
         CadOperation::AnalyzeGeneratedBody => {
             let metadata = request.generated_analysis_request.as_ref().ok_or_else(|| {
@@ -1701,8 +1894,10 @@ async fn run_request(
             }
             let analysis = invoke("analyze_generated_body", &[body_value, options.into()])
                 .map_err(|error| (request.clone(), error, false))?;
-            validate_generated_payload_fields(&analysis, false)
-                .map_err(|error| (request.clone(), error, false))?;
+            staged = Some(stage_analysis(queue, module, &request, &analysis, Source::GeneratedBody {
+                body_id: metadata.body_id.clone(), revision: request.identity.revision,
+                geometry_identity: metadata.geometry_identity.clone(),
+            }).map_err(|error| (request.clone(), error, false))?);
             if string_field(&analysis, "bodyId").ok().as_deref() != Some(metadata.body_id.as_str())
                 || Reflect::get(&analysis, &"revision".into())
                     .ok()
@@ -1924,11 +2119,16 @@ async fn run_request(
                 Reflect::set(&options, &"targetDeflectionMm".into(), &target.into())
                     .map_err(|error| (request.clone(), js_message(error), false))?;
             }
-            invoke(
+            let result = invoke(
                 "read_step_model",
                 &[Uint8Array::from(bytes.as_slice()).into(), options.into()],
             )
-            .map_err(|error| (request.clone(), error, false))?
+            .map_err(|error| (request.clone(), error, false))?;
+            let vendor = Reflect::get(&result, &"vendorStep".into()).map_err(|e| (request.clone(), js_message(e), false))?;
+            staged = Some(stage_analysis(queue, module, &request, &vendor, Source::VendorStep {
+                source_sha256: expected.into(), import_options: step_options.into(),
+            }).map_err(|error| (request.clone(), error, false))?);
+            result
         }
         CadOperation::CollisionQuery => {
             let query = request.collision_query.as_ref().ok_or_else(|| {
