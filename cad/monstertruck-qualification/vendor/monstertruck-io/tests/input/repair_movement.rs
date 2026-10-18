@@ -7,6 +7,34 @@ use monstertruck_io::step::load::{
 const SOURCE: &[u8] = include_bytes!("partial_closed_spline/solid32377-source.step");
 
 #[test]
+fn repair_movement_planar_seam_retains_actual_extension_trim_and_output() {
+    let text = include_str!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
+    let mut table = Table::from_step(text).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let original = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
+    let owner = table
+        .to_source_bound_solid_with_repair_checked(14, Some(15), &original)
+        .unwrap();
+    let legacy = table
+        .to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&14], 15)
+        .unwrap();
+    assert_eq!(owner.source().shells()[0].shell(), legacy.shells()[0].shell());
+    let operations = owner.operations(0).filter(|op| op.source_ids().2 == Some(8)).collect::<Vec<_>>();
+    let extension = operations.iter().find(|op| op.stage() == "same-master-planar-pcurve-seam-extension-v1")
+        .expect("the successful real seam extension needs its same-call finite pair");
+    let extension = extension.curve_change().expect("actual selected carrier capture");
+    assert_eq!(extension.domains(), ((0., 3.), (0., 6.)));
+    let trim = operations.iter().find(|op| op.stage() == "same-master-planar-pcurve-trim-v1")
+        .unwrap().curve_change().unwrap();
+    assert_eq!(extension.curves().1, trim.curves().0);
+    assert_eq!(trim.domains().0, trim.domains().1);
+    let (u,v) = trim.domains().0;
+    assert!(u > 2. && u < 3. && v > 3. && v < 4., "{u}..{v}");
+    assert_eq!(trim.curves().1, &owner.source().shells()[0].shell().edges[0].curve);
+    assert!(owner.complete_bound(0).is_err(), "selection/master remain unsupported");
+}
+
+#[test]
 fn repair_movement_projected_line_captures_attachment_not_native_support() {
     use monstertruck_io::step::load::step_geometry::Curve3D;
     let original =
