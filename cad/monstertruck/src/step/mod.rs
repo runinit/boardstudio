@@ -191,11 +191,11 @@ impl ImportedStep {
         // 2. No NaN or Inf vertices.
         for (i, v) in self.mesh.positions.iter().enumerate() {
             if !v.is_finite() {
-                failures.push(format!("mesh position {i} is not finite: {v}"));
-                if failures.len() > 10 {
+                if failures.len() >= 10 {
                     failures.push("... (truncated)".to_string());
                     break;
                 }
+                failures.push(format!("mesh position {i} is not finite: {v}"));
             }
         }
 

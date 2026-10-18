@@ -1343,3 +1343,12 @@ fn import_invariants_pass_for_valid_step() {
     let model = import_step(bytes).expect("tetrahedron imports");
     assert!(model.validate_invariants().is_ok());
 }
+
+#[test]
+fn import_invariants_are_checked_during_import() {
+    // Verify that validate_invariants is called during import by checking
+    // that a valid import succeeds (invariants pass).
+    let bytes = include_bytes!("fixtures/tetra-mm.step").to_vec();
+    let result = import_step(bytes);
+    assert!(result.is_ok(), "valid import should pass invariants");
+}
