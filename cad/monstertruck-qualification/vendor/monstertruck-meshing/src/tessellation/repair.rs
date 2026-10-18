@@ -406,7 +406,7 @@ mod tests {
             let reported = catch_unwind(|| {
                 robust_cshell_triangulation_with_repair_report(&shell, options, &[])
             });
-            assert_eq!(legacy.is_err(), !(tolerance >= TOLERANCE));
+            assert_eq!(legacy.is_ok(), tolerance >= TOLERANCE);
             assert_eq!(
                 reported.is_err(),
                 legacy.is_err(),
