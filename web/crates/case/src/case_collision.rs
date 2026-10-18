@@ -283,27 +283,10 @@ async fn run_checks(
                 .map(|failure| format!("{}: {}", failure.reference, failure.reason)),
         );
     }
-    for body in &source.scene.prepared.bodies {
-        let analysis = match runtime
-            .analyze_generated_case_body(&source.scene, &body.body.id, accuracy, current.clone())
-            .await
-        {
-            Ok(analysis) => Some(analysis),
-            Err(error) => {
-                errors.push(format!("{}: {error}", body.body.name));
-                None
-            }
-        };
-        subjects.push(CadCollisionSubject::GeneratedCaseBody {
-            id: body.body.id.clone(),
-            name: body.body.name.clone(),
-            row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
-            analysis,
-        });
-        if !current() {
-            return (Vec::new(), Vec::new(), None);
-        }
-    }
+    let (generated, generated_errors) = runtime.generated_collision_subjects(&source.scene, accuracy, current.clone()).await;
+    subjects.extend(generated);
+    errors.extend(generated_errors);
+    if !current() { return (Vec::new(), Vec::new(), None); }
     let mut findings = Vec::new();
     for (index, left) in subjects.iter().enumerate() {
         for right in &subjects[index + 1..] {

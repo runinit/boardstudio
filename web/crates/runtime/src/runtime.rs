@@ -3567,6 +3567,29 @@ impl Runtime {
         })
     }
 
+    pub async fn generated_collision_subjects(
+        &self,
+        scene: &CadScene,
+        accuracy: Option<f64>,
+        current: Rc<dyn Fn() -> bool>,
+    ) -> (Vec<crate::model_delivery::CadCollisionSubject>, Vec<String>) {
+        use crate::model_delivery::{CadCollisionSubject, IDENTITY_ROW_TRANSFORM_F64};
+        let mut subjects = Vec::new();
+        let mut errors = Vec::new();
+        for body in &scene.prepared.bodies {
+            let analysis = match self.analyze_generated_case_body(scene, &body.body.id, accuracy, current.clone()).await {
+                Ok(analysis) => Some(analysis),
+                Err(error) => { errors.push(format!("{}: {error}", body.body.name)); None }
+            };
+            subjects.push(CadCollisionSubject::GeneratedCaseBody {
+                id: body.body.id.clone(), name: body.body.name.clone(),
+                row_transform_f64: IDENTITY_ROW_TRANSFORM_F64, analysis,
+            });
+            if !current() { return (Vec::new(), Vec::new()); }
+        }
+        (subjects, errors)
+    }
+
     pub async fn analyze_generated_case_body(
         &self,
         scene: &CadScene,
