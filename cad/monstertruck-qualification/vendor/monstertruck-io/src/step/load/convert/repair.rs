@@ -225,7 +225,14 @@ impl StepRepairBorrowedConversion<'_> {
     }
     /// Drops captures and the authority borrow, retaining ordinary preview geometry.
     pub fn into_source(self) -> SourceBoundStepSolid {
-        self.report.source
+        let mut source = self.report.source;
+        for shell in &mut source.shells {
+            // Capped/failed reports can bypass trace construction and leave
+            // witnesses here. Drop their capacity and all nested ownership,
+            // preserving geometry, provenance and the conservative failure flag.
+            drop(std::mem::take(&mut shell.repair_curves));
+        }
+        source
     }
 }
 impl StepRepairConversion {
@@ -848,4 +855,107 @@ fn bind_edges(table: &Table, source: &SourceBoundStepShell, result: &mut [u64]) 
     }
     sorted.sort_unstable();
     (!sorted.windows(2).any(|pair| pair[0] == pair[1])).then_some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn capped_handoff(failure: &str) {
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../monstertruck/tests/fixtures/repair-planar-seam.step"
+        ));
+        let input = StepRepairInput::parse(bytes.to_vec()).unwrap();
+        let tolerance = PreviewTolerance {
+            floor_mm: 0.02,
+            declared_multiplier: 2.0,
+        };
+        let mut legacy = Table::from_step_bytes(bytes).unwrap();
+        legacy.set_preview_tolerance(tolerance);
+        let expected = legacy
+            .to_source_bound_solid_in_representation_checked(&legacy.manifold_solid_brep[&14], 15)
+            .unwrap();
+        // Reserve the rest through the existing private accounting argument,
+        // then exercise the actual converter/capture/sink/finalization path.
+        // Searching allowances observes real failure branches without fabricating
+        // a witness or duplicating the allocation-cost formula in this test.
+        for allowance in (512..=65536).step_by(32) {
+            let report = input
+                .table()
+                .capture_repair(
+                    14,
+                    Some(15),
+                    Some(input.table()),
+                    STORAGE_CAP - allowance,
+                    None,
+                    Some(tolerance),
+                )
+                .unwrap();
+            let shell = &report.source.shells[0];
+            let selected = if failure == "partial shell" {
+                shell.repair_failed
+            } else {
+                report.failure == Some(failure) && !shell.repair_failed
+            };
+            if !selected || shell.repair_curves.is_empty() {
+                continue;
+            }
+            assert!(
+                shell.repair_curves.iter().any(|(_, change)| matches!(
+                    change.before,
+                    Curve3D::ParameterCurve(_) | Curve3D::SurfaceCurve(_)
+                ) || matches!(
+                    change.after,
+                    Curve3D::ParameterCurve(_) | Curve3D::SurfaceCurve(_)
+                )),
+                "actual nested seam carriers were retained"
+            );
+            let failed = shell.repair_failed;
+            let owner = StepRepairBorrowedConversion {
+                _input: &input,
+                report,
+            };
+            assert!(owner.complete_bound(0).is_err());
+            let source = owner.into_source();
+            let actual = &source.shells[0];
+            let expected = &expected.shells[0];
+            assert_eq!(actual.shell, expected.shell);
+            assert_eq!(actual.source_face_ids, expected.source_face_ids);
+            assert_eq!(actual.certified_closed_axes, expected.certified_closed_axes);
+            assert_eq!(actual.source_surfaces, expected.source_surfaces);
+            assert_eq!(
+                actual.connectivity_attachments,
+                expected.connectivity_attachments
+            );
+            assert_eq!(
+                actual.repair_failed, failed,
+                "handoff cannot erase conservative failure"
+            );
+            assert_eq!(
+                actual.repair_curves.capacity(),
+                0,
+                "{failure}, allowance {allowance}: ordinary source must release witness storage and nested carriers"
+            );
+            assert!(actual.repair_curves.is_empty());
+            assert_eq!(input.bytes(), bytes);
+            return;
+        }
+        panic!("actual seam did not reach {failure} with retained witnesses");
+    }
+
+    #[test]
+    fn repair_movement_sink_handoff_drops_failed_shell_witnesses() {
+        capped_handoff("partial shell");
+    }
+
+    #[test]
+    fn repair_movement_sink_handoff_drops_shell_storage_capped_witnesses() {
+        capped_handoff("repair shell trace storage resource cap");
+    }
+
+    #[test]
+    fn repair_movement_sink_handoff_drops_operation_storage_capped_witnesses() {
+        capped_handoff("repair operation storage resource cap");
+    }
 }
