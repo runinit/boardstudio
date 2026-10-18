@@ -1,9 +1,9 @@
 # 001: Certify closed STEP surface boundaries and retain trim coverage
 
-Status: claimed
+Status: ready-for-agent
 Type: build
 Blocked by: None
-Owner: /root/sol_closed_chart_review
+Related: 002 (joint Track B closure)
 
 ## What to build
 
@@ -11,11 +11,23 @@ An imported finite closed STEP surface uses a source-certified seam and retains 
 
 ## Acceptance criteria
 
-- [ ] Certify full boundary equality from valid source geometry, bind it to the actual converted surface, and reject malformed knots, nonfinite controls, invalid weights and unsupported representations without accepting partial import.
-- [ ] Retain regressions for sample-aliased open seams, excess knot multiplicity, unequal weights, changed surfaces and undeclared closure; each defect must fail before its fix.
-- [ ] Exercise public STEP conversion and meshing on the affected C2 and rotation fixtures, including all eligible faces; account for every source edge use and investigate changed previously populated faces with an independent trim-domain check.
-- [ ] Preserve source topology and finite-domain semantics. Existing unrelated topology failures must remain explicit; newly missing faces or source-edge coverage regressions reject the candidate.
-- [ ] Pass affected native and WASM checks, independent review, and exact combined-source verification before shared integration.
+Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track B, closed jointly with [002](002-preserve-shared-angular-meshing.md). Reuse the existing evidence; do not rerun the 34-asset census.
+
+- [ ] **Recovered faces are diagnostics.** For the four default meshes that recovered faces in choc-v41 (`.evidence/monstertruck-qualification/vendor-integration/choc-v41/REPORT.md`), record from the existing receipts that the volume change comes from previously missing faces that now mesh (before/after missing-face and triangle counts). Mesh volume on open shells is not an acceptance measure.
+- [ ] **No coverage regression.** From the existing choc-v41 30-mode prior-PASS replay, record that parts, bounds, loss accounting and source-edge use are unchanged and no face became missing or empty. If a row changed for an unexplained reason, investigate that row only.
+- [ ] **Regressions retained.** List the existing public regressions for the closed-chart, collapsed-pole (v49) and partial-closed-spline (v50) fixes, and confirm they are registered and pass in one native run of the vendored IO and meshing suites at the current commit.
+- [ ] **Joint review.** One combined Standards+Spec review covering 001 and 002 (Track B) passes, with findings fixed or recorded.
+- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+
+Not required (cut by the rescope): a universal closed-boundary or trim certificate, the 007 34-asset replay, mesh-volume agreement on open shells, and repeated WASM or combined-source verification of unchanged code.
+
+### Superseded criteria (before 2026-10-18)
+
+- Certify full boundary equality from valid source geometry, bind it to the actual converted surface, and reject malformed knots, nonfinite controls, invalid weights and unsupported representations without accepting partial import.
+- Retain regressions for sample-aliased open seams, excess knot multiplicity, unequal weights, changed surfaces and undeclared closure; each defect must fail before its fix.
+- Exercise public STEP conversion and meshing on the affected C2 and rotation fixtures, including all eligible faces; account for every source edge use and investigate changed previously populated faces with an independent trim-domain check.
+- Preserve source topology and finite-domain semantics. Existing unrelated topology failures must remain explicit; newly missing faces or source-edge coverage regressions reject the candidate.
+- Pass affected native and WASM checks, independent review, and exact combined-source verification before shared integration.
 
 ## Existing work
 
@@ -23,7 +35,7 @@ V1 was rejected by an independent polynomial seam counterexample. V3 adds a sour
 
 ## CURRENT — 2026-10-18
 
-Delivered: closed-chart, pole and closed-spline fixes through v41/v50 with the Choc strict gates passing, yet every acceptance box is open and the ticket stays `claimed`. Remaining exits: (1) explain, against source geometry, the volume changes of the four default meshes that recovered faces; (2) confirm source-edge-use and trim coverage in 007's 34-asset replay (its "Apply 001+002" criterion); (3) one combined closure review and combined native/WASM verification. Close at that point; do not close on status alone.
+Superseded by the rescoped acceptance criteria above.
 
 ## Comments
 

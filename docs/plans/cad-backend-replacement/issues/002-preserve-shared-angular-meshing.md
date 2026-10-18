@@ -1,9 +1,9 @@
 # 002: Enforce shared-edge angular sampling without whole-model regressions
 
-Status: claimed
+Status: ready-for-agent
 Type: build
 Blocked by: None
-Owner: /root
+Related: 001 (joint Track B closure)
 
 ## What to build
 
@@ -11,12 +11,24 @@ STEP preview tessellation honors the requested topology-edge angular limit while
 
 ## Acceptance criteria
 
-- [ ] At the public tessellation APIs, refine shared edges once, preserve original samples, and propagate bounded sampling failures to every incident face.
-- [ ] Reject invalid angular options consistently for nonempty inputs, including edge-free faces; preserve the documented empty-shell behavior where the API has no error channel.
-- [ ] Retain expected-red controls and verify the actual failing STEP edge meets its requested turn limit after the fix.
-- [ ] Compare the full affected shell set against its frozen baseline: topology, source-edge coverage, empty/dropped faces and independent source-domain accuracy. Explain substantial changes using source geometry rather than assuming mesh volume is trustworthy on open shells.
-- [ ] Keep edge-turn, face-normal and linear accuracy checks distinct; document remaining diagnostics and do not silently change their contracts.
-- [ ] Pass focused and full affected meshing tests, native/WASM checks, independent review and combined-source verification.
+Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track B, closed jointly with [001](001-certify-closed-step-boundaries.md) and sharing its evidence.
+
+- [ ] **Invalid options.** Cite the existing `angular_invalid_options_refuse_edge_free_faces_in_every_lenient_route` test (`cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/tests.rs`) and the empty-shell behaviour it preserves. No new validation work.
+- [ ] **Failing edge fixed.** Name the existing regression showing that the original failing STEP edge meets its requested turn limit, and confirm it passes in the shared native run with 001.
+- [ ] **Baseline comparison.** Use 001's choc-v41 30-mode comparison as the affected-shell comparison (one comparison for both tickets). Record that edge-turn, face-normal and linear accuracy stay distinct checks and list any remaining diagnostics.
+- [ ] **Joint review.** Covered by 001's single Track B Standards+Spec review.
+- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+
+Not required (cut by the rescope): a new sampling framework, a broad source-domain accuracy certificate, the 007 34-asset replay, and a separate review.
+
+### Superseded criteria (before 2026-10-18)
+
+- At the public tessellation APIs, refine shared edges once, preserve original samples, and propagate bounded sampling failures to every incident face.
+- Reject invalid angular options consistently for nonempty inputs, including edge-free faces; preserve the documented empty-shell behavior where the API has no error channel.
+- Retain expected-red controls and verify the actual failing STEP edge meets its requested turn limit after the fix.
+- Compare the full affected shell set against its frozen baseline: topology, source-edge coverage, empty/dropped faces and independent source-domain accuracy. Explain substantial changes using source geometry rather than assuming mesh volume is trustworthy on open shells.
+- Keep edge-turn, face-normal and linear accuracy checks distinct; document remaining diagnostics and do not silently change their contracts.
+- Pass focused and full affected meshing tests, native/WASM checks, independent review and combined-source verification.
 
 ## Existing work
 
@@ -24,7 +36,7 @@ V1 was rejected by whole-model regressions. V2 restores topology classes and pas
 
 ## CURRENT — 2026-10-18
 
-Delivered: angular shared-edge sampling (meshing-v21 onward) and fallback mesher caching; every acceptance box is open and the ticket stays `claimed`. Remaining exits: (1) confirm invalid-option consistency for edge-free faces and the frozen full-shell-set baseline comparison; (2) run it through 007's 34-asset replay with 001; (3) one combined closure review with native/WASM verification. Close then, not on status alone.
+Superseded by the rescoped acceptance criteria above.
 
 ## Comments
 

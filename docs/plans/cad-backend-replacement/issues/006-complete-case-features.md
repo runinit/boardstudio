@@ -1,9 +1,9 @@
 # 006: Adopt layered cases and PCBs and close remaining feature gaps
 
-Status: claimed
-Owner: /root (shared integration); /root/luna_production_profiles_005 (private PCB source); /root/sol_layered_case_013 (private PCB consumer)
+Status: ready-for-agent
 Type: build
 Blocked by: 013: Layered case and PCB construction
+Related: 008 (Track A closure)
 
 ## What to build
 
@@ -11,12 +11,32 @@ Adopt the reviewed013 layered builder for production exact cases and PCB board s
 
 ## Acceptance criteria
 
-- [ ] Record013's adoption recommendation and feature-by-feature gaps; integrate the reviewed builder without unrelated overlays. If no residual feature needs general Booleans, record that conclusion and do not build that engine.
-- [ ] Preserve case and PCB dimensions, feature identity/order, body counts, region/material ownership and intended blind/partial-depth behavior. Reordering overlapping mounts requires the existing proof that it is safe.
-- [ ] Reject self-crossing supports and enforce the written support cutoff exactly through Core and direct CAD inputs.
-- [ ] Cover full cavities, holed gasket profiles, supports, bosses, openings, flush seats, countersinks and PCB outline/drill inputs with independent analytic volume, material, bounds and closed-topology checks. Preserve legitimate splits and void ownership; errors cannot become empty successful output.
-- [ ] Preserve native planes/cylinders/cones and authored depths; unsupported cone-wall crossings name the feature and remain an explicit adoption gap until resolved or decided.
-- [ ] Pass affected native/WASM tests and both reviews; combine with008 export and001+002 tessellation checks. Production caller/cache migration remains010.
+Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, second step. Closes on one explicit adoption decision with named limitations, not on universal feature coverage.
+
+- [ ] **Adoption decision.** Under `## Answer`, record that the layered builder is the production exact path for cases and PCBs (integrated through 010/012) and give the limitation table:
+
+  | Interaction | Disposition |
+  |---|---|
+  | Cone-wall crossing | Named refusal with the feature id (accepted adoption gap) |
+  | Fully enclosed round seat | Named refusal |
+  | Sealed polygon opening (reachable from Core) | Named refusal; never empty or positive output |
+  | Ring-island opening | Supported (integrated) |
+  | Edge, intersecting and redundant PCB cuts; contained or height-clipped cones; PCB outline and drills | Supported |
+
+- [ ] **Refusals are visible.** Each named refusal is covered by an existing literal refused-feature fixture that asserts a named error through the public or Core path. Add a test only for a limitation without one.
+- [ ] **Preserved behaviour.** Name the existing tests covering dimensions, feature order, support cutoff, mount reordering and void ownership (the affected layered/PCB suite and Core replays). No new checks.
+- [ ] Set `Status: resolved` once 013 is resolved, and update the map. The final Track A review in 008 covers 006.
+
+Not required (cut by the rescope): a general 3D Boolean engine, implementing the named refusals, or reading blind-depth language as universal support.
+
+### Superseded criteria (before 2026-10-18)
+
+- Record013's adoption recommendation and feature-by-feature gaps; integrate the reviewed builder without unrelated overlays. If no residual feature needs general Booleans, record that conclusion and do not build that engine.
+- Preserve case and PCB dimensions, feature identity/order, body counts, region/material ownership and intended blind/partial-depth behavior. Reordering overlapping mounts requires the existing proof that it is safe.
+- Reject self-crossing supports and enforce the written support cutoff exactly through Core and direct CAD inputs.
+- Cover full cavities, holed gasket profiles, supports, bosses, openings, flush seats, countersinks and PCB outline/drill inputs with independent analytic volume, material, bounds and closed-topology checks. Preserve legitimate splits and void ownership; errors cannot become empty successful output.
+- Preserve native planes/cylinders/cones and authored depths; unsupported cone-wall crossings name the feature and remain an explicit adoption gap until resolved or decided.
+- Pass affected native/WASM tests and both reviews; combine with008 export and001+002 tessellation checks. Production caller/cache migration remains010.
 
 ## Comments
 

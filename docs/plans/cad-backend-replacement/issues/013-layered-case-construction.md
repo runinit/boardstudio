@@ -1,10 +1,9 @@
 # 013: Build exact cases and PCB boards through layered 2.5D construction
 
-Status: claimed
-Owner: /root/sol_layered_case_013
+Status: ready-for-agent
 Type: prototype
 Blocked by: None
-Related: 005, 006, 008, 003, 011
+Related: 006, 008 (Track A closure)
 
 ## What to build
 
@@ -60,22 +59,34 @@ A solid built only from Z features has horizontal profile bands, with exact cont
 
 ## Acceptance criteria
 
-- [ ] **Fixtures** each produce one consistently oriented solid with verified closed topology and shared-edge incidence, with no general3D Boolean calls:
+Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, first step. This prototype closes on its recorded recommendation; it does not wait for 006 to resolve every limitation.
+
+- [ ] **Recommendation.** Write the adoption recommendation under `## Answer`, linking the [adoption inventory](../../../research/cad/layered-adoption-inventory-2026-10-18.md) and the [ring-island implementation](../../../research/cad/ring-island-implementation-2026-10-18.md). Include the supported feature matrix (the six fixtures plus ring-island) and the named refusals: cone-wall crossing (rejected with the feature id), sealed voids or openings, and the fully enclosed round seat.
+- [ ] **Evidence still applies.** Run the affected layered and PCB native tests once at the current commit (48/48 at the ring-island integration). Fix only regressions.
+- [ ] **Performance.** Accept the recorded 2026-10-17 paired measurement (five alternating pairs, two fixtures) as the prototype's comparison. Cadrum has been removed and [011](011-integrated-cad-performance.md) owns integrated performance, so there is no rerun.
+- [ ] **Review.** The v5 both-axes review stands for the prototype; later changes are covered by the single Track A review in [008](008-step-export-independent-accuracy.md).
+- [ ] Set `Status: resolved` and update the map.
+
+Not required (cut by the rescope): implementing the named refusals, a new performance comparison, and a separate per-ticket review.
+
+### Superseded criteria (before 2026-10-18)
+
+- **Fixtures** each produce one consistently oriented solid with verified closed topology and shared-edge incidence, with no general3D Boolean calls:
   1. the 006 round-seat failure case;
   2. a boss with a through-hole;
   3. a round seat flush with the plate top (touching-face case);
   4. a countersink inside material;
   5. a cavity plus an opening through a wall;
   6. a PCB with a nonconvex outline and multiple exact circular drilled holes at authored thickness.
-- [ ] **Volume** matches an independent value, `Σ layer 2D area × layer height` for constant profiles and the analytic area integral for varying-radius cone bands (`πh(r_bottom² + r_bottom r_top + r_top²)/3` for a frustum), computed from analytic circle and polygon geometry rather than from the built solid. Tolerance is stated per fixture; conical bands must not become stepped cylinders.
-- [ ] **Bounds and material probes** (points known inside or outside) agree with the expected geometry.
-- [ ] **Review regressions:** preserve interleaved overlapping mount semantics; represent or explicitly reject sealed voids rather than exporting them as positive bodies; reject unrepresentable positive spans; preserve valid post-opening material splits.
-- [ ] **Countersink rejection:** a countersink crossing a vertical wall is rejected with the feature id. Record it as an adoption gap; neither silent wrong geometry nor an unqualified general Boolean fallback is accepted.
-- [ ] **Faces:** a through-hole wall is one cylindrical face after merge, and circles are exact (not polygonal).
-- [ ] **PCB:** outline/cutouts plus round drills retain thickness, positions and radii, exact cylindrical hole faces, independently computed area-minus-holes times thickness, bounds/material probes and closed topology through mesh and STEP.
-- [ ] **Builds and reviews:** native tests, WASM library build and independent Standards/Spec reviews pass on the fixed source. The2D library evaluation is recorded in `docs/research/cad/`.
-- [ ] **Performance:** measure comparable Cadrum versus layered case builds on identical retained prepared inputs, source/artifact revisions, machine/load, build profile, output options and cold/warm conditions. Report elapsed time, sample count and memory where available; do not claim speedup from unlike or failed builds. No arbitrary speed threshold is invented.
-- [ ] **Recommendation** on006 production adoption for cases and PCBs, with the complete feature inventory and remaining unsupported interactions/source contracts. Name any actual feature this approach cannot express before proposing residual006 work; general3D Boolean capability is not a prerequisite by itself.
+- **Volume** matches an independent value, `Σ layer 2D area × layer height` for constant profiles and the analytic area integral for varying-radius cone bands (`πh(r_bottom² + r_bottom r_top + r_top²)/3` for a frustum), computed from analytic circle and polygon geometry rather than from the built solid. Tolerance is stated per fixture; conical bands must not become stepped cylinders.
+- **Bounds and material probes** (points known inside or outside) agree with the expected geometry.
+- **Review regressions:** preserve interleaved overlapping mount semantics; represent or explicitly reject sealed voids rather than exporting them as positive bodies; reject unrepresentable positive spans; preserve valid post-opening material splits.
+- **Countersink rejection:** a countersink crossing a vertical wall is rejected with the feature id. Record it as an adoption gap; neither silent wrong geometry nor an unqualified general Boolean fallback is accepted.
+- **Faces:** a through-hole wall is one cylindrical face after merge, and circles are exact (not polygonal).
+- **PCB:** outline/cutouts plus round drills retain thickness, positions and radii, exact cylindrical hole faces, independently computed area-minus-holes times thickness, bounds/material probes and closed topology through mesh and STEP.
+- **Builds and reviews:** native tests, WASM library build and independent Standards/Spec reviews pass on the fixed source. The2D library evaluation is recorded in `docs/research/cad/`.
+- **Performance:** measure comparable Cadrum versus layered case builds on identical retained prepared inputs, source/artifact revisions, machine/load, build profile, output options and cold/warm conditions. Report elapsed time, sample count and memory where available; do not claim speedup from unlike or failed builds. No arbitrary speed threshold is invented.
+- **Recommendation** on006 production adoption for cases and PCBs, with the complete feature inventory and remaining unsupported interactions/source contracts. Name any actual feature this approach cannot express before proposing residual006 work; general3D Boolean capability is not a prerequisite by itself.
 
 ## Decision needed
 

@@ -1,9 +1,8 @@
 # 008: Export exact cases and PCBs and replace their oracle coverage
 
-Status: claimed
-Owner: /root/sol_frame_serde_spec
+Status: ready-for-agent
 Type: build
-Blocked by: None
+Blocked by: 006: Production case and PCB adoption
 Related: 013: Layered construction; 006: Production case and PCB adoption
 
 ## What to build
@@ -12,10 +11,23 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 ## Acceptance criteria
 
-- [ ] Export actual exact case/PCB solids with correct units, body identity/counts, placements and complete trim geometry, including outline plus drilled holes and round/conical seats. Preserve exact rational representations where STEP uses them; do not replace cones/circles with facets.
-- [ ] Verify bounds, volume, material, topology and source completeness against analytic or independently sourced expectations; same-kernel roundtrips alone are insufficient.
-- [ ] Preserve applicable case/PCB acceptance fixtures, tolerances and negative controls while replacing their OCCT-dependent role. Explicitly map former keycap exact tests to009 mesh/print checks rather than retaining an obsolete exact gate or deleting intended feature coverage.
-- [ ] Pass native/WASM checks and Standards/Spec review on the actual013/006 exports; independent reference checks establish interoperability beyond internal roundtrips. Keycap export uses009's mesh format, not this writer.
+Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, final step. Closes on bounded fixture and reference coverage plus one combined review.
+
+- [ ] **Fixtures reconciled.** Run the `fixture_exports` tests and the export suite in `cad/monstertruck/src/export_tests.rs` once at the current commit (VIK, reflected slot, circle, half-disc, gasket tray/lid, circular extrusion).
+- [ ] **External receipt reused.** Reuse the one-time FreeCAD/OCCT receipt (`.evidence/b5/FREECAD-CURRENT-RECEIPT.md`). Rerun it once only if exporter source changed since its bound commit (`git diff` on the exporter paths).
+- [ ] **One cone export.** Confirm one live export of a cone-bearing layered fixture (countersink) with an analytic volume and bounds check. If no such test exists, add one bounded test; do not build a general cone checker.
+- [ ] **Keycap mapping.** List each former keycap exact test and its 009 mesh/print replacement.
+- [ ] **Track A review.** One combined Standards+Spec review over the 013/006/008 changes since their last reviewed points passes, with findings fixed or recorded. It closes 013's and 006's review obligations.
+- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+
+Not required (cut by the rescope): a general B-rep or STEP validator, widening the planar-only reader, and WASM, browser or FreeCAD reruns for unchanged exports.
+
+### Superseded criteria (before 2026-10-18)
+
+- Export actual exact case/PCB solids with correct units, body identity/counts, placements and complete trim geometry, including outline plus drilled holes and round/conical seats. Preserve exact rational representations where STEP uses them; do not replace cones/circles with facets.
+- Verify bounds, volume, material, topology and source completeness against analytic or independently sourced expectations; same-kernel roundtrips alone are insufficient.
+- Preserve applicable case/PCB acceptance fixtures, tolerances and negative controls while replacing their OCCT-dependent role. Explicitly map former keycap exact tests to009 mesh/print checks rather than retaining an obsolete exact gate or deleting intended feature coverage.
+- Pass native/WASM checks and Standards/Spec review on the actual013/006 exports; independent reference checks establish interoperability beyond internal roundtrips. Keycap export uses009's mesh format, not this writer.
 
 ## Comments
 
