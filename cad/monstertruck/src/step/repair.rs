@@ -706,6 +706,15 @@ mod tests {
                 .iter()
                 .filter_map(|op| op.as_ref().ok())
                 .collect();
+            let mut unsupported = std::collections::BTreeMap::<&str, usize>::new();
+            for reason in model
+                ._repair_ledger
+                .1
+                .iter()
+                .filter_map(|op| op.as_ref().err())
+            {
+                *unsupported.entry(reason).or_default() += 1;
+            }
             let covered = model
                 .triangle_faces()
                 .iter()
@@ -717,6 +726,8 @@ mod tests {
                 serde_json::json!({"path":path,"routes":counts,
                 "sourceFaces":model.source_faces().len(),"faceOccurrences":model.face_occurrences().len(),
                 "lineOccurrences":model.line_presentation().occurrences().len(),
+                "retainedOriginalFiniteLineAuthorities":original.finite_lines.len(),
+                "finiteLineUnsupportedReasons":unsupported,
                 "finiteLineOperations":movements.len(),"nonzeroFiniteLineOperations":movements.iter().filter(|op| op.bound_mm>0.0).count(),
                 "unknownFiniteLineOperations":model._repair_ledger.1.iter().filter(|op|op.is_err()).count(),
                 "fallbackFaces":model.accuracy().fallback_meshed_faces,"bounds":model.bounds()})
