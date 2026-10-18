@@ -72,8 +72,7 @@ impl FiniteCurveRepair {
             }
             "same-master-planar-pcurve-sense-inversion-v1" => {
                 self.seam.is_none()
-                    && step_geometry::repair_storage::inverse_surface_curve(a, budget)
-                        .is_some_and(|inverse| inverse == *b)
+                    && step_geometry::repair_storage::inverts_to(a, b, budget)
                     && self.before_domain == a.range_tuple()
                     && self.after_domain == (b.range_tuple().1, b.range_tuple().0)
             }
@@ -127,7 +126,19 @@ mod tests {
         assert_eq!(workspace.get(), 0);
         workspace.set(65536);
         assert!(change.surface_stage_valid(&workspace));
-        let needed = 65536 - workspace.get();
+        assert_eq!(workspace.get(), 65536, "generous allowance is restored");
+        // The reservation is released, so find the exact requirement by search.
+        let (mut low, mut high) = (0, 65536);
+        while low < high {
+            let mid = (low + high) / 2;
+            workspace.set(mid);
+            if change.surface_stage_valid(&workspace) {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        let needed = low;
         assert!(needed > 0);
         let clone_budget = std::rc::Rc::new(std::cell::Cell::new(65536));
         let mut comparison = FiniteCurveTrace::new(std::rc::Rc::clone(&clone_budget));
@@ -144,7 +155,21 @@ mod tests {
         assert_eq!(workspace.get(), needed - 1, "refuse before cloning");
         workspace.set(needed);
         assert!(change.surface_stage_valid(&workspace));
-        assert_eq!(workspace.get(), 0);
+        assert_eq!(
+            workspace.get(),
+            needed,
+            "temporary inverse carrier and scratch are released after comparison"
+        );
+        for _ in 0..8 {
+            assert!(change.surface_stage_valid(&workspace));
+        }
+        assert_eq!(workspace.get(), needed);
+
+        // A mismatching comparison also drops its workspace and stays invalid.
+        let mut mismatch = change.clone();
+        mismatch.after = change.before.clone();
+        assert!(!mismatch.surface_stage_valid(&workspace));
+        assert_eq!(workspace.get(), needed);
     }
 
     #[test]

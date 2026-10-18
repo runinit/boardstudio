@@ -61,27 +61,39 @@ fn snapshot<T: Clone>(
     (storage(&copy, true)? <= requested).then_some(copy)
 }
 
-pub(in crate::step::load) fn inverse_surface_curve(
+/// Whether inverting `value` yields exactly `expected`. The inverse carrier and
+/// knot scratch exist only for this comparison, so their reservation is
+/// returned to `budget` once they are dropped, whatever the outcome.
+pub(in crate::step::load) fn inverts_to(
     value: &SurfaceCurve3D,
+    expected: &SurfaceCurve3D,
     budget: &Cell<usize>,
-) -> Option<SurfaceCurve3D> {
+) -> bool {
     // Full preflight bounds recursion before the scratch walk or any clone.
     let mut requested = Cost::new(false);
-    requested.node(0)?;
-    requested.surface_curve(value, 0)?;
-    let scratch = surface_inverse_scratch(value)?;
-    if !reserve(requested.bytes.checked_add(scratch), budget) {
-        return None;
+    let reserved = requested
+        .node(0)
+        .and_then(|()| requested.surface_curve(value, 0))
+        .and_then(|()| requested.bytes.checked_add(surface_inverse_scratch(value)?));
+    if !reserve(reserved, budget) {
+        return false;
     }
     let mut copy = value.clone();
     let mut retained = Cost::new(true);
-    retained.node(0)?;
-    retained.surface_curve(&copy, 0)?;
-    if retained.bytes > requested.bytes {
-        return None;
+    let within = retained
+        .node(0)
+        .and_then(|()| retained.surface_curve(&copy, 0))
+        .is_some()
+        && retained.bytes <= requested.bytes;
+    let equal = within && {
+        copy.invert();
+        copy == *expected
+    };
+    drop(copy);
+    if let Some(bytes) = reserved {
+        budget.set(budget.get() + bytes);
     }
-    copy.invert();
-    Some(copy)
+    equal
 }
 
 // KnotVector::invert clones its Vec, then drops it before returning. All other
