@@ -19,6 +19,25 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 ## Comments
 
+2026-10-18 B5 interrupted-candidate assessment: preserved the test-only raw-Part21 prism WIP;
+it is **not ready for integration or acceptance**. Current emitted Core VIK, reflected-offset
+slot, circle and half-disc positive checks pass against the unchanged source/analytic oracles.
+Two new active negative tests in `export_tests::pcb_prism` prove false acceptance: a wall
+EDGE_LOOP with disconnected traversal, and a slot translated wholly outside its outer cap,
+both return `Ok(1)`. Wall connectivity and cap-loop containment/disjointness must be proved
+or explicitly refused before this candidate can certify geometry; its numerical envelope
+and SURFACE_CURVE associations also need assessment. The combined-body test reaches both
+volume assertions but fails at the existing planar-only product reader's deliberate curved
+scope refusal. Do not widen that reader to make the test pass. Current assembled gasket/
+case composition remains uncovered; cones remain unsupported by the new prism path.
+All 42 existing export tests pass; candidate tests are 4 passed/3 failed. Formatting,
+diff checks and scoped test Clippy pass with existing lint exceptions; strict test Clippy
+is blocked by untouched `mesh.rs`/`profile.rs` test-module ordering. No exporter/builder
+defect, production edit, FreeCAD run, dependency, tolerance change, WASM/full-web rerun or
+review is claimed. See [assessment and required delta](../../../../.evidence/b5/ASSESSMENT.md)
+and [active failures](../../../../.evidence/b5/prism-assessment.log). Existing evidence is
+retained; 008 stays open under the user's preserve-WIP instruction.
+
 2026-10-17 root countersink integration: [Exact reviewed v9 postimages](../../../../.evidence/production-step-export-008/root-integration-v9/REPORT.md) now pass47 actual shared native tests (45 unit+2 integration), retaining all44 prior root tests and all43 private v9 unit names; WASM library/tests, formatting and scoped test Clippy pass. Runtime/API/Cargo/vendor unchanged. The actual013 countersink export has independent analytic volume, complete cone/trim/source and material/topology coverage. Full008 case/PCB coverage and production adoption remain open.
 
 2026-10-17 root integration: The reviewed circular/annular oracle successor through v8 is now in shared production-crate tests. Actual locked44 native tests pass (42 library+2 integration), retaining all33 prior root tests and all40 private-v8 tests; WASM library/tests, formatting and scoped test Clippy pass with the existing005 lint exception. Only seven owned test/fixture postimages and two direct development edges changed; runtime/API, dependency versions and local overrides are preserved. See [integration](../../../../.evidence/production-step-export-008/root-integration-v8/REPORT.md). Full008 remains open; the same owner continues the actual013 countersink certificate through an additive successor.

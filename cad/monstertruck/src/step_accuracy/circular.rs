@@ -3,6 +3,11 @@
 use super::*;
 mod analytic;
 mod countersink;
+mod prism;
+
+pub(super) fn certify_prisms(text: &str) -> Result<Vec<PrismCertificate>> {
+    prism::certify(text)
+}
 
 pub(super) fn certify_countersink(
     text: &str,
@@ -305,9 +310,13 @@ struct Face {
 }
 
 fn face(doc: &Document, id: u64) -> Result<Face> {
+    face_with_bounds(doc, id, 2)
+}
+
+fn face_with_bounds(doc: &Document, id: u64, limit: usize) -> Result<Face> {
     let record = doc.record(id, "ADVANCED_FACE")?;
     let bounds = refs(&record[1])?;
-    if bounds.is_empty() || bounds.len() > 2 {
+    if bounds.is_empty() || bounds.len() > limit {
         return Err(Error::Unsupported);
     }
     let loops = bounds

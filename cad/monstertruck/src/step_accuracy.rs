@@ -120,6 +120,46 @@ pub(super) fn certify_circular_extrusion(
     circular::certify(text, expected)
 }
 
+/// One horizontal-plane trim segment in traversal order: a line or a circular arc.
+#[derive(Clone, Copy)]
+pub(super) enum Segment {
+    Line {
+        from: [f64; 2],
+        to: [f64; 2],
+    },
+    Arc {
+        center: [f64; 2],
+        radius: f64,
+        from: [f64; 2],
+        to: [f64; 2],
+        turn: f64,
+    },
+}
+
+/// A raw-Part21 measurement of one vertical-wall prism: two horizontal caps joined by
+/// planar and Z-cylindrical walls, with every arc proved to lie on its declared cylinder.
+pub(super) struct PrismCertificate {
+    pub bounds: [[f64; 3]; 2],
+    pub bound_error: f64,
+    pub area: [f64; 2],
+    pub volume: [f64; 2],
+    /// Vertices, edges and faces of the shell.
+    pub topology: [usize; 3],
+    /// Through holes: inner loops on each cap.
+    pub holes: usize,
+    /// Declared (center, radius) of every cylindrical wall face.
+    pub cylinders: Vec<([f64; 2], f64)>,
+    /// Number of planar wall faces.
+    pub planar_walls: usize,
+    z: [f64; 2],
+    /// Top-cap loops, outer counter-clockwise and holes clockwise about +Z.
+    loops: Vec<Vec<Segment>>,
+}
+
+pub(super) fn certify_prisms(text: &str) -> Result<Vec<PrismCertificate>> {
+    circular::certify_prisms(text)
+}
+
 type Point = [f64; 3];
 type Result<T> = std::result::Result<T, Error>;
 
