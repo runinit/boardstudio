@@ -35,31 +35,6 @@ pub(crate) fn closed_oriented_edges<K: Copy + Ord + std::hash::Hash>(
             .all(|&(count, orientation)| count == 2 && orientation == 0)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn edge_incidence_requires_a_closed_consistently_oriented_surface() {
-        let a = Point3::new(0.0, 0.0, 0.0);
-        let b = Point3::new(1.0, 0.0, 0.0);
-        let c = Point3::new(0.0, 1.0, 0.0);
-        let d = Point3::new(0.0, 0.0, 1.0);
-        let triangles = [[a, c, b], [a, b, d], [a, d, c], [b, c, d]];
-        let key = |p: Point3| Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
-        assert!(closed_oriented_edges(&triangles, key));
-        assert!(!closed_oriented_edges(&triangles[..3], key));
-        let mut reversed = triangles;
-        reversed[0].swap(0, 1);
-        assert!(!closed_oriented_edges(&reversed, key));
-        let mut nonmanifold = triangles.to_vec();
-        nonmanifold.push(triangles[0]);
-        assert!(!closed_oriented_edges(&nonmanifold, key));
-        assert!(!closed_oriented_edges(&[[a, a, b]], key));
-        assert!(!closed_oriented_edges(&[], key));
-    }
-}
-
 pub(crate) fn mesh_buffers(
     meshes: impl IntoIterator<Item = PolygonMesh>,
 ) -> Result<MeshBuffers, String> {
@@ -126,4 +101,29 @@ pub(crate) fn append_point(output: &mut Vec<f32>, point: Point3) -> Result<(), S
 fn push_point(output: &mut Vec<f32>, point: Point3) -> Result<(), String> {
     append_point(output, point)
         .map_err(|_| "Monstertruck mesh contains a coordinate outside the render range".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn edge_incidence_requires_a_closed_consistently_oriented_surface() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 0.0, 0.0);
+        let c = Point3::new(0.0, 1.0, 0.0);
+        let d = Point3::new(0.0, 0.0, 1.0);
+        let triangles = [[a, c, b], [a, b, d], [a, d, c], [b, c, d]];
+        let key = |p: Point3| Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
+        assert!(closed_oriented_edges(&triangles, key));
+        assert!(!closed_oriented_edges(&triangles[..3], key));
+        let mut reversed = triangles;
+        reversed[0].swap(0, 1);
+        assert!(!closed_oriented_edges(&reversed, key));
+        let mut nonmanifold = triangles.to_vec();
+        nonmanifold.push(triangles[0]);
+        assert!(!closed_oriented_edges(&nonmanifold, key));
+        assert!(!closed_oriented_edges(&[[a, a, b]], key));
+        assert!(!closed_oriented_edges(&[], key));
+    }
 }
