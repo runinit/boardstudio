@@ -6,6 +6,7 @@
 // Exercises the real wasm-bindgen exports in a real browser: JS typed-array result shapes,
 // STEP import bounds, provenance and rejection, keycap preview/print meshes, and collision queries.
 import init, {
+  analyze_generated_body,
   build_case,
   build_assembly,
   build_keycaps,
@@ -38,6 +39,42 @@ let error = null;
 try {
   await init();
   check('module initializes', true);
+
+  const contractResponse = await fetch('../../wasm/tests/fixtures/generated-analysis-contract.json');
+  if (!contractResponse.ok) throw new Error('Generated analysis contract fixture is unavailable');
+  const contract = await contractResponse.json();
+  const analysis = analyze_generated_body(contract.preparedBody, contract.options);
+  const sameKeys = (actual, expected) => JSON.stringify(Object.keys(actual).sort()) === JSON.stringify(Object.keys(expected).sort());
+  check('generated analysis keeps the shared direct field contract', sameKeys(analysis, contract.directPayload)
+    && analysis.bodyId === contract.preparedBody.body.id && analysis.revision === contract.preparedBody.revision);
+  const positions = analysis.surfacePositionsMmF64;
+  const tags = analysis.triangleFaceOccurrenceIndices;
+  check('generated analysis transfers f64 geometry and u32 provenance', positions instanceof Float64Array
+    && tags instanceof Uint32Array && positions.length > 0 && positions.length === tags.length * 9
+    && positions.every(Number.isFinite));
+  const analysisBounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+  for (let index = 0; index < positions.length; index++) {
+    const axis = index % 3;
+    analysisBounds.min[axis] = Math.min(analysisBounds.min[axis], positions[index]);
+    analysisBounds.max[axis] = Math.max(analysisBounds.max[axis], positions[index]);
+  }
+  check('generated analysis preserves independently authored plate bounds',
+    near(analysisBounds.min, contract.expectedBoundsMm.min, 1e-10)
+    && near(analysisBounds.max, contract.expectedBoundsMm.max, 1e-10));
+  check('generated analysis retains complete source and occurrence records', analysis.sourceFaces.length > 0
+    && analysis.sourceFaces.every(face => sameKeys(face, contract.directPayload.sourceFaces[0]))
+    && analysis.faceOccurrences.every(face => sameKeys(face, contract.directPayload.faceOccurrences[0])
+      && face.sourceFaceIndex < analysis.sourceFaces.length)
+    && tags.every(tag => tag < analysis.faceOccurrences.length)
+    && new Set(Array.from(tags, tag => analysis.faceOccurrences[tag]?.sourceFaceIndex)).size === analysis.sourceFaces.length);
+  const refinedAnalysis = analyze_generated_body(contract.preparedBody, contract.refinementOptions);
+  check('generated analysis settings remain separate from accuracy certificates',
+    analysis.deflectionMm === contract.directPayload.deflectionMm && analysis.analysisErrorBoundMm === null
+    && analysis.meshClosedOriented === contract.directPayload.meshClosedOriented
+    && refinedAnalysis.deflectionMm === contract.refinementOptions.targetDeflectionMm
+    && refinedAnalysis.analysisErrorBoundMm === null);
+  check('generated analysis refuses worker identity in backend options',
+    rejection(() => analyze_generated_body(contract.preparedBody, { geometryIdentity: 'untrusted' })) !== null);
 
   const built = build_case(plate(7, 0));
   check('build_case keeps the revision', built.revision === 7, built.revision);
