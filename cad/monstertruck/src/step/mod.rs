@@ -176,6 +176,73 @@ impl ImportedStep {
     pub fn line_presentation(&self) -> StepLinePresentation<'_> {
         self.wireframe.presentation()
     }
+
+    /// Post-import invariant suite. Returns Ok(()) if all cheap invariants hold,
+    /// or a list of failure reasons. These are deterministic checks that catch
+    /// incomplete or corrupt imports without per-route accounting.
+    pub fn validate_invariants(&self) -> Result<(), Vec<String>> {
+        let mut failures = Vec::new();
+
+        // 1. Mesh is nonempty.
+        if self.mesh.positions.is_empty() {
+            failures.push("mesh has no positions".to_string());
+        }
+
+        // 2. No NaN or Inf vertices.
+        for (i, v) in self.mesh.positions.iter().enumerate() {
+            if !v.is_finite() {
+                failures.push(format!("mesh position {i} is not finite: {v}"));
+                if failures.len() > 10 {
+                    failures.push("... (truncated)".to_string());
+                    break;
+                }
+            }
+        }
+
+        // 3. Bounds are finite.
+        for (axis, range) in self.bounds.iter().enumerate() {
+            for (i, v) in range.iter().enumerate() {
+                if !v.is_finite() {
+                    failures.push(format!("bounds[{axis}][{i}] is not finite: {v}"));
+                }
+            }
+        }
+
+        // 4. Source faces nonempty.
+        if self.source_faces.is_empty() {
+            failures.push("no source faces retained".to_string());
+        }
+
+        // 5. Triangle-face consistency: one face index per triangle.
+        let triangle_count = self.mesh.positions.len() / 9;
+        if !self.triangle_faces.is_empty()
+            && self.triangle_faces.len() != triangle_count
+        {
+            failures.push(format!(
+                "triangle_faces count ({}) != triangle count ({})",
+                self.triangle_faces.len(),
+                triangle_count
+            ));
+        }
+
+        // 6. Bounds non-degenerate (min < max on at least one axis).
+        let mut degenerate = true;
+        for axis in 0..3 {
+            if self.bounds[1][axis] > self.bounds[0][axis] {
+                degenerate = false;
+                break;
+            }
+        }
+        if degenerate && !self.mesh.positions.is_empty() {
+            failures.push("bounds are degenerate (zero volume)".to_string());
+        }
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(failures)
+        }
+    }
 }
 
 pub fn mesh_imported_step(model: &ImportedStep) -> Result<MeshBuffers, String> {
@@ -665,7 +732,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     drop(scene);
     drop(exchange);
     let (bytes, original_source) = input.into_parts();
-    Ok(ImportedStep {
+    let imported = ImportedStep {
         original_bytes: bytes,
         analysis_options: options,
         _original_source: original_source,
@@ -697,7 +764,13 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             render_degraded_fallback_triangles,
         },
         wireframe,
-    })
+    };
+    // Post-import invariant suite: cheap deterministic checks that catch
+    // incomplete or corrupt imports without per-route accounting.
+    if let Err(failures) = imported.validate_invariants() {
+        return Err(format!("import invariants failed: {}", failures.join("; ")));
+    }
+    Ok(imported)
 }
 
 /// A fallback triangle carries source coverage only when its f64 cross product has at least one

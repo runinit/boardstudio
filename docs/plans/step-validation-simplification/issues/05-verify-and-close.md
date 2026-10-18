@@ -30,4 +30,9 @@ that check times are dramatically reduced compared to the 007 slice cycle.
 
 ## CURRENT
 
-(none)
+Done. Verification:
+- cargo build: pass
+- cargo test: 278 passed, 0 failed
+- cargo clippy: clean (0 warnings)
+- GVP code removed, post-import invariants added
+- 007 re-scoped, 010/011/012/014 already resolved

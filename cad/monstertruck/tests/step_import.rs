@@ -1336,3 +1336,10 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
     assert_eq!(model.accuracy().render_degraded_fallback_triangles, 4);
     assert_eq!(areas.len(), 4, "every source face keeps analysis coverage");
 }
+
+#[test]
+fn import_invariants_pass_for_valid_step() {
+    let bytes = include_bytes!("fixtures/tetra-mm.step").to_vec();
+    let model = import_step(bytes).expect("tetrahedron imports");
+    assert!(model.validate_invariants().is_ok());
+}

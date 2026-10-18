@@ -32,10 +32,10 @@ Replace the six-package per-route accounting with the industry-standard approach
    after table build; `ShellLoadReport::require_lossless()` after each conversion.
    Refuse if either fails. One call per conversion, O(entities).
 
-2. **GVP comparison** (new): When a source STEP file carries validation properties
-   (volume, area, centroid per CAx-IF RP 4.2), recompute them on the imported
-   geometry and compare using RP thresholds (green <1% volume/area, <0.1% centroid).
-   Refuse or mark yellow on red. Skip if GVP absent.
+2. **GVP comparison**: Dropped per research. ISO does not require GVP for import
+   admission; no real vendor files carry it; no Rust crate parses it. Retain
+   aggregate reports + invariants + budget gate instead. Revisit only if a
+   certification contract (LOTAR/COPS) demands it.
 
 3. **Single budget gate** (already exists): `max(2 × declared precision, 0.02 mm)`.
    Reject over-budget repairs. Do not attribute to routes.

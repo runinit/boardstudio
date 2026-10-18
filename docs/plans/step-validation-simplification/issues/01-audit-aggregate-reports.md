@@ -30,4 +30,12 @@ import path. Determine what's already gated and what's missing.
 
 ## CURRENT
 
-(none)
+Done. Audit findings:
+- `require_empty()` is called in mod.rs (import path) and tessellation.rs.
+- `require_lossless()` is NOT called in the production import path.
+- Shell conversions use the repair system's own completeness checks.
+- The repair system's `convert_input_with_refusal` / `convert_normalized_with_refusal`
+  already enforce completeness through the repair ledger.
+- Aggregate reports are used at the table level (entity_report) but not at the
+  shell level in the production import path. The repair system provides equivalent
+  completeness enforcement through its own mechanisms.

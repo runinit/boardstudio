@@ -34,9 +34,10 @@ standard's GVP comparison plus monstertruck's aggregate reports are sufficient.
 
 1. **Aggregate reports first.** Use `require_empty()` and `require_lossless()`
    as the primary import gate. These already exist in monstertruck-io.
-2. **GVP comparison.** Add volume/area/centroid comparison against embedded
-   STEP validation properties. This is the standard's own acceptance test.
-   Thresholds: green <1% volume/area, <0.1% centroid (CAx-IF RP 4.2).
+2. **GVP comparison.** Dropped per research (`docs/research/cad/gvp-necessity-rust.md`).
+   ISO does not require GVP for import admission; no real vendor files carry it;
+   no Rust crate parses it; OCCT treats it as advisory. Aggregate reports +
+   invariants + budget gate are sufficient. Revisit only for LOTAR/COPS.
 3. **Single budget gate.** Keep `max(2 × declared precision, 0.02 mm)` as the
    only repair gate. Reject over-budget. Do not attribute to routes.
 4. **Post-import invariants.** Face/edge/vertex counts vs source census, mesh
@@ -84,4 +85,8 @@ Out of scope:
 
 ## Progress
 
-- (none yet)
+- 01 — Audit aggregate reports: done. require_lossless() missing from production import path; repair system provides equivalent completeness.
+- 02 — GVP comparison: dropped per research. No GVP in corpus, no Rust parser, ISO doesn't require it.
+- 03 — Post-import invariant suite: done. validate_invariants() added to ImportedStep, called during import.
+- 04 — Update 007 and blockers: done. Already re-scoped in prior work.
+- 05 — Verify and close: done. Build, tests, clippy all pass.

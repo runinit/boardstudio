@@ -1,35 +1,23 @@
-# 02: Add GVP comparison
+# 02: Drop GVP comparison (superseded by research)
 
-Status: ready
+Status: done
 Type: build
 
 ## What to build
 
-Add Geometric Validation Property comparison to the STEP import path.
-When a source STEP file carries validation properties (volume, area, centroid),
-recompute them on the imported geometry and compare against the embedded values
-using CAx-IF RP 4.2 thresholds:
-- Volume / area / curve length: green < 1%, yellow 1–10%, red > 10%.
-- Centroid: green < 0.1% of model size (space diagonal of bounding box),
-  yellow 0.1–1%, red > 1%; absolute fallback for small models.
+~~Add GVP comparison.~~ Dropped per research (`docs/research/cad/gvp-necessity-rust.md`).
+
+ISO 10303 does not require GVP for import admission. No real vendor files in
+the corpus carry GVP. No Rust crate parses STEP GVP. OCCT treats GVP as
+advisory, not a gate. Aggregate reports + invariants + budget gate are sufficient.
 
 ## Acceptance criteria
 
-- [ ] Parse GVP from STEP file when present (CAx-IF RP section 4.11).
-- [ ] Compute volume, surface area, centroid from imported B-rep/mesh.
-- [ ] Compare and classify as green/yellow/red.
-- [ ] Refuse import or mark yellow on red (configurable).
-- [ ] Add tests with a STEP file that carries GVP.
-- [ ] Document which vendor STEP files in the corpus carry GVP.
-
-## Notes
-
-- Most vendor STEP files from major CAD (SolidWorks, Creo, CATIA, Fusion)
-  include GVP per CAx-IF RP.
-- This is the standard's own acceptance test. It requires no per-route
-  instrumentation.
-- If GVP is absent, skip comparison (do not fail). Record "no GVP" in metadata.
+- [x] GVP code removed (extract_gvp_volume_mm3, mesh_volume_mm3, gvp_* fields).
+- [x] Research documented at docs/research/cad/gvp-necessity-rust.md.
+- [x] Spec and map updated to reflect drop.
 
 ## CURRENT
 
-(none)
+Done. GVP comparison dropped. Aggregate reports + invariants + budget gate
+remain as the validation approach.

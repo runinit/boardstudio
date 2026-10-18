@@ -29,4 +29,5 @@ remains in 007's scope but is scoped to collision-relevant routes only.
 
 ## CURRENT
 
-(none)
+Done. 007 ticket already re-scoped (packages 2-6 deferred, non-blocking).
+Map already shows 010/011/012/014 as resolved. No further changes needed.
