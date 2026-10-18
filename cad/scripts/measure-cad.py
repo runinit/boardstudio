@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
+import difflib
 import gzip
 import hashlib
 import importlib.util
@@ -29,6 +31,7 @@ HISTORICAL = Path("/home/chris/.t3/worktrees/ts-boardstudio2/t3-2088b1aa")
 OLD_HEAD = "6c9c4867755bd2316f751783729a3ff9778fc04a"
 FIXTURES = ROOT / "cad/test/fixtures/performance"
 PROFILES = ("checked", "release")
+INCREMENTAL_COMMENT = "// BoardStudio CAD performance incremental rebuild probe.\n"
 PAIRED = tuple(f"{name}:{op}" for name in
                ("C1plate", "C2trayboss", "C3gasket", "P1analyticPCB")
                for op in ("preview", "step")) + (
@@ -125,7 +128,8 @@ def binding(root, profile):
                               "cad/scripts/cad_build.py"), "perf_cad_helper")
     stamp = root / f"cad/.cache/{'cadrum' if old else 'cad'}/wasm-build.sha256"
     inputs = helper.wasm_inputs_digest(no_opt=profile == "checked")
-    lines = [f"checkout={root}", f"head={head}", f"source_sha256={source}",
+    lines = [f"checkout={root}", f"backend={'cadrum' if old else 'monstertruck'}",
+             f"head={head}", f"source_sha256={source}",
              f"branch={git(root, 'branch', '--show-current')}", f"profile={profile}",
              f"provider_profile={'release-no-opt' if profile == 'checked' else 'release'}",
              f"driver_head={driver_head}", f"driver_source_sha256={driver_source}",
@@ -162,6 +166,90 @@ def binding(root, profile):
         lines.append(f"workload_blob_{path.name}={git(ROOT, 'hash-object', relative)}")
     lines.append("owned_diff:\n" + git(root, "diff", "--binary", "HEAD"))
     return lines, stamp.is_file() and stamp.read_text().strip() == inputs
+
+
+def build_binding(text):
+    """Read the ordinary receipt, including its exact Git patch; never infer success from exit alone."""
+    header, separator, owned_diff = text.partition("\nowned_diff:\n")
+    if not separator:
+        raise ValueError("missing build binding owned patch")
+    fields = {}
+    for line in header.splitlines():
+        key, separator, value = line.partition("=")
+        if not separator or not value or key in fields:
+            raise ValueError("incomplete/duplicate build binding field")
+        fields[key] = value
+    required = {"backend", "head", "source_sha256", "status", "profile", "provider_profile",
+                "driver_head", "driver_source_sha256", "driver_status", "official_provider_inputs",
+                "provider_stamp", "artifact_cad/wasm/pkg", "artifact_web/target/site/site-subpath/boardstudio"}
+    required.update(f"workload_blob_{path.name}" for path in FIXTURES.iterdir()
+                    if path.suffix in (".json", ".boardstudio"))
+    if not required <= fields.keys():
+        raise ValueError(f"missing build binding fields: {sorted(required - fields.keys())}")
+    hashes = {"head", "driver_head", "source_sha256", "driver_source_sha256", "official_provider_inputs",
+              "provider_stamp", "artifact_cad/wasm/pkg", "artifact_web/target/site/site-subpath/boardstudio"}
+    hashes.update(key for key in required if key.startswith("workload_blob_"))
+    for key in hashes:
+        length = 40 if key in ("head", "driver_head") or key.startswith("workload_blob_") else 64
+        if fields[key] == "MISSING" and key.startswith(("provider_stamp", "artifact_")):
+            continue
+        if not re.fullmatch(f"[0-9a-f]{{{length}}}", fields[key]):
+            raise ValueError(f"invalid build binding {key}")
+    for key in ("status", "driver_status"):
+        try:
+            if not isinstance(ast.literal_eval(fields[key]), str):
+                raise ValueError("status must be a string")
+        except (SyntaxError, ValueError) as error:
+            raise ValueError(f"invalid build binding {key}") from error
+    fields["owned_diff"] = owned_diff.rstrip("\n")
+    return fields
+
+
+def validate_build_bindings(before_text, after_text, backend, profile, state):
+    before, after = build_binding(before_text), build_binding(after_text)
+    if backend not in ("cadrum", "monstertruck") or profile not in PROFILES or state not in ("clean", "noop", "incremental"):
+        raise ValueError("invalid build row binding backend/profile/state")
+    for bound in (before, after):
+        if (bound["backend"], bound["profile"], bound["provider_profile"]) != (
+                backend, profile, "release-no-opt" if profile == "checked" else "release"):
+            raise ValueError("build row backend/profile binding mismatch")
+    # A build creates output directories/stamps/artifacts. Everything else must stay fixed.
+    def fixed(bound):
+        return {key: value.split(" exists=", 1)[0] if key.startswith("resolved_") else value
+                for key, value in bound.items() if key != "provider_stamp" and not key.startswith("artifact_")}
+    if fixed(before) != fixed(after):
+        raise ValueError("build source/harness/workload binding drift")
+    diff = before["owned_diff"]
+    if state == "incremental":
+        path = "cad/wasm/src/lib.rs"
+        try:
+            base = subprocess.check_output(["git", "show", f"{before['head']}:{path}"], cwd=ROOT, text=True)
+        except subprocess.CalledProcessError as error:
+            raise ValueError("incremental binding base Git object unavailable") from error
+        if not base.endswith("\n") or INCREMENTAL_COMMENT in base:
+            raise ValueError("incremental binding base cannot accept the owned comment patch")
+        expected = list(difflib.unified_diff(base.splitlines(), (base + INCREMENTAL_COMMENT).splitlines(),
+                                           fromfile=f"a/{path}", tofile=f"b/{path}", lineterm=""))
+        lines = diff.splitlines()
+        # Git adds a function label to hunk headers; it does not change the owned patch.
+        actual = [re.sub(r"^(@@ -[0-9,]+ \+[0-9,]+ @@).*$", r"\1", line) for line in lines[2:]]
+        if (len(lines) < 3 or lines[0] != f"diff --git a/{path} b/{path}"
+                or not re.fullmatch(r"index [0-9a-f]{7,40}\.\.[0-9a-f]{7,40} 100644", lines[1])
+                or actual != expected):
+            raise ValueError("build binding has an unauthorized incremental patch")
+    elif diff or ast.literal_eval(before["status"]) != "":
+        raise ValueError("clean/noop build binding must have no owned patch")
+    expected_source = hashlib.sha256((diff + "\n" if diff else "").encode()).hexdigest()
+    if before["source_sha256"] != expected_source:
+        raise ValueError("build binding source digest includes an unowned patch/untracked input")
+    if after["provider_stamp"] != after["official_provider_inputs"] or after["provider_stamp"] == "MISSING":
+        raise ValueError("build binding has no current official provider stamp")
+    if any(after[key] == "MISSING" for key in ("artifact_cad/wasm/pkg", "artifact_web/target/site/site-subpath/boardstudio")):
+        raise ValueError("build binding has missing packaged artifacts")
+    source = (after["head"], after["profile"], after["provider_profile"])
+    harness = tuple(sorted((key, value) for key, value in after.items()
+                           if key.startswith(("driver_", "workload_blob_"))))
+    return source, harness, (after["source_sha256"], diff, after["official_provider_inputs"])
 
 
 def environment():
@@ -208,6 +296,7 @@ def summarize(inputs, output, build_cycles=1):
     failures = []
     seen = set()
     source_bindings, harness_bindings = {}, {}
+    build_sources, build_harnesses, build_states = {}, {}, {}
     for directory in inputs:
         if (directory / "diagnostic.csv").exists():
             raise ValueError("validation-only diagnostic captures cannot become benchmark samples")
@@ -248,6 +337,21 @@ def summarize(inputs, output, build_cycles=1):
                     if row["status"] != "ok":
                         failures.append(str(directory))
                         continue
+                    try:
+                        before_text = (directory / "binding-before.log").read_text()
+                        after_text = (directory / "binding-after.log").read_text()
+                    except FileNotFoundError as error:
+                        raise ValueError(f"missing build binding: {directory}") from error
+                    source, harness, patch = validate_build_bindings(
+                        before_text, after_text, row["backend"], row["profile"], row["state"])
+                    source_key = (row["backend"], row["profile"])
+                    if build_sources.setdefault(source_key, source) != source:
+                        raise ValueError(f"mixed build source/profile binding for {source_key}")
+                    patch_key = (*source_key, "incremental" if row["state"] == "incremental" else "base")
+                    if build_states.setdefault(patch_key, patch) != patch:
+                        raise ValueError(f"mixed build patch/provider inputs for {source_key}")
+                    if build_harnesses.setdefault(row["profile"], harness) != harness:
+                        raise ValueError("matched comparison has different harness/workload bindings")
                     key = (row["backend"], row["profile"], "build", row["pair"], row["state"], "wall", "s")
                     if key in seen:
                         raise ValueError(f"duplicate observation: {key}")
@@ -404,6 +508,8 @@ def capture(command, root, out, timeout, env=None):
                 reader.join(timeout=2)
                 code = 125
                 log.write("stdout remained open after child exit; observation invalid\n")
+        if not reader.is_alive():
+            process.stdout.close()
         elapsed = time.monotonic() - started
         log.write(f"\nexit={code}\nwall_seconds={elapsed}\n")
     (out / "environment-after.log").write_text(environment())
@@ -475,9 +581,6 @@ def main():
         browser_tools.locate()  # Fail before expensive compilation if the retained browser prerequisites drifted.
         command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
         code, elapsed = capture(command, root, out, 7200)
-        write_csv(out / "build.csv", ("backend", "profile", "pair", "state", "seconds", "status"),
-                  [dict(backend=backend, profile=args.profile, pair=args.pair, state=args.state,
-                        seconds=elapsed, status="ok" if code == 0 else f"exit-{code}")])
         sizes(root, out / "sizes.csv")
     else:
         if not args.workload or not current:
@@ -567,6 +670,18 @@ def main():
             thread.join(timeout=3)
     after, _ = binding(root, args.profile)
     (out / "binding-after.log").write_text("\n".join(after) + "\n")
+    if args.action == "build":
+        status = "ok" if code == 0 else f"exit-{code}"
+        if code == 0:
+            try:
+                validate_build_bindings("\n".join(before) + "\n", "\n".join(after) + "\n",
+                                        backend, args.profile, args.state)
+            except ValueError as error:
+                (out / "binding-rejection.log").write_text(str(error) + "\n")
+                code, status = 1, "binding-rejected"
+        write_csv(out / "build.csv", ("backend", "profile", "pair", "state", "seconds", "status"),
+                  [dict(backend=backend, profile=args.profile, pair=args.pair, state=args.state,
+                        seconds=elapsed, status=status)])
     if args.action in ("runtime", "validate") and before != after:
         raise SystemExit("source/artifact/stamp drift: invalidate this observation and its pair")
     print(f"Captured {args.action}, exit={code}, output={out}; admission/review required before comparison")

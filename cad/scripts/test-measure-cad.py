@@ -78,6 +78,24 @@ class BuildBindingTests(unittest.TestCase):
         with (output / "pairs.csv").open() as source:
             self.assertEqual(len(list(csv.DictReader(source))), 3)
 
+    def test_existing_output_changes_and_git_function_label_are_allowed(self):
+        before = self.bound(built=True, provider_stamp="0" * 64,
+                            **{"artifact_cad/wasm/pkg": "1" * 64,
+                               "artifact_web/target/site/site-subpath/boardstudio": "2" * 64})
+        self.reduce([self.sample("rebuilt", before=before, after=self.bound(built=True))])
+        for profile in PERF.PROFILES:
+            bound = self.bound(state="incremental", built=True, profile=profile,
+                               provider_profile="release-no-opt" if profile == "checked" else "release")
+            lines = bound.splitlines()
+            hunk = next(i for i, line in enumerate(lines) if line.startswith("@@"))
+            lines[hunk] += " pub fn initialize_cadrum() {"
+            diff = "\n".join(lines).split("\nowned_diff:\n", 1)[1] + "\n"
+            old_hash = hashlib.sha256(bound.split("\nowned_diff:\n", 1)[1].encode()).hexdigest()
+            new_hash = hashlib.sha256(diff.encode()).hexdigest()
+            bound = "\n".join(lines).replace("source_sha256=" + old_hash, "source_sha256=" + new_hash) + "\n"
+            row = self.sample(profile, state="incremental", before=bound, after=bound, profile=profile)
+            self.reduce([row])
+
     def test_reduction_rejects_missing_build_bindings(self):
         for name in ("binding-before.log", "binding-after.log"):
             with self.subTest(name=name):
@@ -100,6 +118,9 @@ class BuildBindingTests(unittest.TestCase):
             "missing-harness": after.replace(f"driver_head={self.HEAD}\n", ""),
             "missing-workload": after.replace("workload_blob_C1plate.json=" + "e" * 40 + "\n", ""),
             "missing-owned-patch": after.split("owned_diff:")[0],
+            "missing-profile": after.replace("provider_profile=release-no-opt\n", ""),
+            "invalid-driver": after.replace(f"driver_head={self.HEAD}", "driver_head=MISSING"),
+            "target-drift": after.replace("/controlled/target", "/other/target"),
         }
         for name, changed in cases.items():
             with self.subTest(name=name):
@@ -136,6 +157,12 @@ class BuildBindingTests(unittest.TestCase):
                             after=self.bound("cadrum", built=True, driver_head="4" * 40))
         with self.assertRaisesRegex(ValueError, "different harness/workload"):
             self.reduce([first, other])
+        different_inputs = self.sample("different-inputs", state="noop",
+                                       before=self.bound(official_provider_inputs="a" * 64),
+                                       after=self.bound(built=True, official_provider_inputs="a" * 64,
+                                                        provider_stamp="a" * 64))
+        with self.assertRaisesRegex(ValueError, "mixed build patch/provider inputs"):
+            self.reduce([first, different_inputs])
 
     def test_build_capture_checks_bindings_after_successful_controlled_subprocess(self):
         # Exercise main's real capture path without invoking a compiler or version probes.
@@ -148,16 +175,19 @@ class BuildBindingTests(unittest.TestCase):
         cases = {"outputs-only": self.bound(built=True),
                  "source": self.bound(built=True, head="1" * 40),
                  "harness": self.bound(built=True, driver_head="2" * 40),
-                 "patch": self.bound(state="incremental", built=True)}
+                 "patch": self.bound(state="incremental", built=True),
+                 "owned-incremental": self.bound(state="incremental", built=True)}
         checkout = self.root / "checkout"
         checkout.mkdir()
         for name, after in cases.items():
             with self.subTest(name=name):
                 output = self.root / ("capture-" + name)
+                state = "incremental" if name == "owned-incremental" else "clean"
+                before = self.bound(state=state)
                 argv = ["measure-cad.py", "build", "--checkout", str(checkout), "--source-head", self.HEAD,
-                        "--state", "clean", "--output", str(output)]
+                        "--state", state, "--output", str(output)]
                 with patch.object(sys, "argv", argv), patch.object(PERF, "git", return_value=self.HEAD), \
-                     patch.object(PERF, "binding", side_effect=[(self.bound().splitlines(), False), (after.splitlines(), True)]), \
+                     patch.object(PERF, "binding", side_effect=[(before.splitlines(), False), (after.splitlines(), True)]), \
                      patch.object(PERF.browser_tools, "locate"), patch.object(PERF, "sizes"), \
                      patch.object(PERF, "environment", return_value="controlled environment; diagnostic only\n"), \
                      patch.object(PERF, "capture", side_effect=controlled_capture):
@@ -165,8 +195,11 @@ class BuildBindingTests(unittest.TestCase):
                 with (output / "build.csv").open() as source:
                     row, = list(csv.DictReader(source))
                 self.assertIn("\nexit=0\n", (output / "command.log").read_text())
-                self.assertEqual(row["status"] == "ok", name == "outputs-only")
-                self.assertEqual(result == 0, name == "outputs-only")
+                accepted = name in ("outputs-only", "owned-incremental")
+                self.assertEqual(row["status"] == "ok", accepted)
+                self.assertEqual(result == 0, accepted)
+                if not accepted:
+                    self.assertIn("binding drift", (output / "binding-rejection.log").read_text())
 
 
 class PerformancePreparationTests(unittest.TestCase):

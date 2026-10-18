@@ -117,7 +117,48 @@ python3 -B "$HARNESS/cad/scripts/measure-cad.py" plan --build-cycles 3 --output 
 Plans never execute automatically. Later build commands remain `build --checkout
 "$MEASURE" --source-head "$ACCEPTED_HEAD" --profile checked --pair 1 --state clean
 --output "$HARNESS/.evidence/011-build-clean"`, then `--state noop`, then the same
-owned harmless comment in registered `cad/wasm/src/lib.rs` and `--state incremental`.
+owned comment appended once at EOF of registered `cad/wasm/src/lib.rs` and
+`--state incremental`. The exact additional bytes are
+`// BoardStudio CAD performance incremental rebuild probe.` followed by one LF.
+Apply it **before** capture in the dedicated measurement checkout; keep the harness
+checkout fixed and separate throughout the matched cycle. Clean/no-op samples must
+have no source patch or untracked source inputs. The incremental sample retains the
+same accepted HEAD and permits only this appended comment, with its complete Git
+diff and source digest preserved in both binding logs. No other source revision or
+patch may be pooled into the matched comparison.
+
+After root clears builds/timings, the guarded edit is:
+
+```bash
+python3 -B - "$MEASURE" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+root = Path(sys.argv[1])
+relative = 'cad/wasm/src/lib.rs'
+base = subprocess.check_output(['git', 'show', f'HEAD:{relative}'], cwd=root)
+comment = b'// BoardStudio CAD performance incremental rebuild probe.\n'
+path = root / relative
+assert base.endswith(b'\n') and comment not in base
+assert path.read_bytes() == base, 'preserve any existing work; do not overwrite it'
+path.write_bytes(base + comment)
+PY
+```
+
+Restore only those exact appended bytes afterward, checking the file still equals
+`base + comment` before writing `base`; preserve any unexpected edits for root.
+The capture and reducer share the build-binding check: every successful build row
+requires complete before/after bindings matching its backend/profile, stable source,
+harness/workloads and resolved output paths, a current official provider stamp and
+present packaged artifacts afterward. Output creation, artifact/stamp changes and
+output-directory existence changes are expected; source/harness drift is rejected
+even when the build command exits zero. Rejected captures retain both logs,
+`binding-rejection.log` and a `binding-rejected` CSV row, and return nonzero.
+Reduction independently checks these rules, a fixed source/profile per backend,
+common harness/workload identity across the matched profile's builds and fixed
+provider inputs per base/incremental patch. Earlier build rows without the required
+bindings cannot be admitted by a successful command exit or retroactive metadata.
+
 Checked calls normal `build-web.py --fast`; release calls normal `build-web.py`.
 Root must use fresh dedicated outputs for clean observations. The tool never
 cleans/discards/edits source and retains normal jobs/debug flags. Preserve the exact
