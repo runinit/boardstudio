@@ -4,7 +4,7 @@
 //! change `analysisErrorBoundMm`, or alter the active v1 wire contract.
 
 use super::*;
-use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface};
+use monstertruck_modeling::{Curve, InnerSpace, Plane, Point3, Solid, Surface};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -58,24 +58,60 @@ fn native_face_boundaries(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<
     Some(face.boundaries())
 }
 
-fn is_axis_aligned_line(edge_curve: &Curve) -> bool {
-    match edge_curve {
-        Curve::Line(line) => {
-            let delta = line.1 - line.0;
-            let nonzero = [
-                if delta.x != 0.0 { 1 } else { 0 },
-                if delta.y != 0.0 { 1 } else { 0 },
-                if delta.z != 0.0 { 1 } else { 0 },
-            ];
-            nonzero.iter().sum::<i32>() == 1
-        }
-        _ => false,
+fn nonzero_axis(delta: Vector3) -> Option<usize> {
+    let axes = [delta.x != 0.0, delta.y != 0.0, delta.z != 0.0];
+    if axes.iter().filter(|value| **value).count() != 1 {
+        return None;
     }
+    axes.iter().position(|value| *value)
+}
+
+fn native_face_surface(model: &ExactModel, key: NativeFaceKey) -> Option<Surface> {
+    let solid = model.solids.get(key.solid_index)?;
+    let shell = solid.boundaries().get(key.shell_index)?;
+    let face = shell.face_iter().nth(key.face_index)?;
+    Some(face.surface().clone())
 }
 
 fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Option<Vec<Point3>> {
-    // Only a single, hole-free, axis-aligned, line-edged rectangle with four
-    // distinct corners is accepted. No chord approximation or area fallback.
+    let surface = native_face_surface(model, key)?;
+    let plane = match surface {
+        Surface::Plane(plane) => plane,
+        _ => return None,
+    };
+
+    let origin = plane.origin();
+    let axis_u = plane.axis_u();
+    let axis_v = plane.axis_v();
+    let normal = plane.normal();
+    if !origin.x.is_finite()
+        || !origin.y.is_finite()
+        || !origin.z.is_finite()
+        || !axis_u.x.is_finite()
+        || !axis_u.y.is_finite()
+        || !axis_u.z.is_finite()
+        || !axis_v.x.is_finite()
+        || !axis_v.y.is_finite()
+        || !axis_v.z.is_finite()
+        || !normal.x.is_finite()
+        || !normal.y.is_finite()
+        || !normal.z.is_finite()
+    {
+        return None;
+    }
+    let normal_components = [normal.x.abs(), normal.y.abs(), normal.z.abs()];
+    if normal_components
+        .iter()
+        .filter(|value| **value == 1.0)
+        .count()
+        != 1
+        || normal_components
+            .iter()
+            .any(|value| *value != 0.0 && *value != 1.0)
+    {
+        return None;
+    }
+
     let boundaries = native_face_boundaries(model, key)?;
     if boundaries.len() != 1 {
         return None;
@@ -85,37 +121,51 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
     if edges.len() != 4 {
         return None;
     }
+
     let mut corners = Vec::with_capacity(4);
-    for edge in &edges {
-        if !is_axis_aligned_line(&edge.curve()) {
-            return None;
-        }
+    for (index, edge) in edges.iter().enumerate() {
         let (start, end) = edge.ends();
-        if !start.point().x.is_finite()
-            || !start.point().y.is_finite()
-            || !start.point().z.is_finite()
-            || !end.point().x.is_finite()
-            || !end.point().y.is_finite()
-            || !end.point().z.is_finite()
+        let start_point = start.point();
+        let end_point = end.point();
+        let _ = (start, end);
+        if !start_point.x.is_finite()
+            || !start_point.y.is_finite()
+            || !start_point.z.is_finite()
+            || !end_point.x.is_finite()
+            || !end_point.y.is_finite()
+            || !end_point.z.is_finite()
         {
             return None;
         }
-        let start_point = start.point();
-        if corners.is_empty() || corners.last().copied() != Some(start_point) {
-            corners.push(start_point);
-        }
-    }
-    // Close the cycle.
-    let last_end = edges[3].ends().1.point();
-    if corners.first().copied() != Some(last_end) {
-        // The last edge must return to the first corner.
-        if corners.len() == 4 && corners[0] != last_end {
+
+        let curve = edge.curve();
+        let line = match curve {
+            Curve::Line(line) => line,
+            _ => return None,
+        };
+        if !((line.0 == start_point && line.1 == end_point)
+            || (line.0 == end_point && line.1 == start_point))
+        {
             return None;
         }
+        if (start_point - origin).dot(normal) != 0.0 || (end_point - origin).dot(normal) != 0.0 {
+            return None;
+        }
+
+        if index == 0 {
+            corners.push(start_point);
+        } else if corners.last().copied() != Some(start_point) {
+            return None;
+        }
+        corners.push(end_point);
+    }
+    if corners.len() == 5 && corners[0] == corners[4] {
+        corners.pop();
     }
     if corners.len() != 4 {
         return None;
     }
+
     let distinct: BTreeSet<[u64; 3]> = corners
         .iter()
         .map(|point| [point.x.to_bits(), point.y.to_bits(), point.z.to_bits()])
@@ -123,16 +173,36 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
     if distinct.len() != 4 {
         return None;
     }
-    // Adjacent edges must be perpendicular.
+
+    let mut axes = Vec::with_capacity(4);
+    let mut lengths = Vec::with_capacity(4);
+    for edge in &edges {
+        let (start, end) = edge.ends();
+        let delta = end.point() - start.point();
+        let axis = nonzero_axis(delta)?;
+        axes.push(axis);
+        lengths.push(match axis {
+            0 => delta.x.abs(),
+            1 => delta.y.abs(),
+            2 => delta.z.abs(),
+            _ => return None,
+        });
+    }
     for index in 0..4 {
-        let current = edges[index].ends();
-        let next = edges[(index + 1) % 4].ends();
-        let current_delta = current.1.point() - current.0.point();
-        let next_delta = next.1.point() - next.0.point();
-        if current_delta.dot(next_delta) != 0.0 {
+        if axes[index] == axes[(index + 1) % 4] {
+            return None;
+        }
+        if axes[index] != axes[(index + 2) % 4] {
+            return None;
+        }
+        if lengths[index] != lengths[(index + 2) % 4] {
+            return None;
+        }
+        if lengths[index] == 0.0 {
             return None;
         }
     }
+
     Some(corners)
 }
 
@@ -474,7 +544,7 @@ mod tests {
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
         // Replace the top face's two triangles with two identical copies.
         // Find top face occurrence (support plane z=2).
-        let _ = ();
+
         // Mutate all triangles belonging to occurrence 1 (top face in this mesher's order)
         // by copying the first triangle twice. Simpler: rewrite occurrence 1 triangles.
         let top_triangles: Vec<usize> = analysis
@@ -596,6 +666,102 @@ mod tests {
         if !analysis.source_faces.is_empty() {
             analysis.source_faces[0].support_kind = "SURFACE".into();
         }
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn duplicate_native_descriptor_is_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        analysis.source_faces.push(analysis.source_faces[0].clone());
+        let result = qualify_generated(&model, &analysis);
+        match result {
+            GeneratedQualification::Unknown { reasons } => {
+                assert!(
+                    reasons
+                        .iter()
+                        .any(|reason| reason.contains("duplicate") || reason.contains("census"))
+                );
+            }
+            other => panic!("expected unknown, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn mismatched_plane_support_is_unknown() {
+        let original = plate_model();
+        let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
+        let mut model = original;
+        let mut solids = Vec::new();
+        for solid in model.solids {
+            let mut shells = solid.into_boundaries();
+            for shell in &mut shells {
+                for face in shell.face_iter_mut() {
+                    face.set_surface(Surface::Plane(Plane::new(
+                        Point3::new(100.0, 0.0, 0.0),
+                        Point3::new(101.0, 0.0, 0.0),
+                        Point3::new(100.0, 1.0, 0.0),
+                    )));
+                }
+            }
+            solids.push(Solid::new_unchecked(shells));
+        }
+        model.solids = solids;
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn reversed_line_endpoint_is_unknown() {
+        let original = plate_model();
+        let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
+        let mut model = original;
+        let mut solids = Vec::new();
+        for solid in model.solids {
+            let mut shells = solid.into_boundaries();
+            for shell in &mut shells {
+                for face in shell.face_iter_mut() {
+                    let mut boundaries = face.boundaries();
+                    if let Some(wire) = boundaries.get_mut(0) {
+                        if let Some(edge) = wire.edge_iter_mut().next() {
+                            let (_start, _end) = edge.ends();
+                            edge.set_curve(Curve::Line(monstertruck_modeling::Line(
+                                Point3::new(999.0, 999.0, 999.0),
+                                Point3::new(1000.0, 1000.0, 1000.0),
+                            )));
+                        }
+                    }
+                    face.set_surface(face.surface().clone());
+                    // Reconstruct face with mutated boundaries.
+                    let surface = face.surface().clone();
+                    // Replace boundaries by creating a new face is not possible in place;
+                    // set_curve already mutated the shared edge, so keep face.
+                    let _ = (boundaries, surface);
+                }
+            }
+            solids.push(Solid::new_unchecked(shells));
+        }
+        model.solids = solids;
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn triangular_plane_face_is_unknown() {
+        // A triangular region has three edges, not the supported rectangle class.
+        let input = ProfileInput {
+            kind: ProfileKind::Plate,
+            base_z: 0.0,
+            thickness: 1.0,
+            wall_height: 0.0,
+            regions: vec![ProfileRegion {
+                outer: vec![point(0.0, 0.0), point(10.0, 0.0), point(0.0, 10.0)],
+                holes: vec![],
+            }],
+        };
+        let model = build_profile(input).expect("triangle");
+        let analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
         let result = qualify_generated(&model, &analysis);
         assert!(matches!(result, GeneratedQualification::Unknown { .. }));
     }
