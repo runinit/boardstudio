@@ -16,7 +16,8 @@ function replaceOnce(text, before, after) {
   assert.equal(text.split(before).length - 1, 1, `unique original fixture entity: ${before}`);
   const changed = text.replace(before, after);
   assert.notEqual(sha(Buffer.from(changed)), sha(Buffer.from(text)), 'mutation must change source identity');
-  assert(!changed.includes(before), 'original entity must have been replaced');
+  assert.equal(changed.split(before).length - 1, after.split(before).length - 1,
+    'only occurrences deliberately retained by the replacement may remain');
   assert(changed.includes(after));
   return changed;
 }
@@ -75,9 +76,16 @@ gap = replaceOnce(gap, "#57=AXIS2_PLACEMENT_3D('',#1,#55,#56);",
   "#310=CARTESIAN_POINT('',(0.,0.,0.025));#57=AXIS2_PLACEMENT_3D('',#310,#55,#56);");
 for (const options of [{}, {previewRepairBudgetMm: 0.024}]) {
   assert.throws(() => cad.read_step_model(new Uint8Array(Buffer.from(gap)),
-    {sourceSha256: sha(Buffer.from(gap)), ...options}), /support incidence/);
+    {sourceSha256: sha(Buffer.from(gap)), ...options}), error => {
+    assert.equal(typeof error, 'string');
+    assert(error.includes('SourceConnectivityRefused'));
+    const limit = options.previewRepairBudgetMm ?? 0.02;
+    assert(error.includes(`#59: vertex #11: no direct finite face attachment witness within source bound ${limit}`));
+    return true;
+  });
 }
-const admitted = check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1);
+// An admitted off-plane attachment still fails exact source-bound certification.
+const admitted = check(gap, {previewRepairBudgetMm: 0.03}, tetraBounds, 1, false);
 assert.equal(admitted.vendorStep.accuracy.selectedRepairBudgetMm, 0.03);
 assert.equal(admitted.vendorStep.importOptions.previewRepairBudgetMm, 0.03);
 assert(admitted.vendorStep.faceOccurrences.every(face => face.sourceUncertaintyMm === 0.001));
