@@ -122,6 +122,103 @@ class DocLinkTests(unittest.TestCase):
         self.assertFalse((self.root / ".evidence").exists())
         self.assertEqual(check.broken_links(self.root), [])
 
+    def test_rejects_ignored_intermediate_directory_symlink(self):
+        self.write(".gitignore", ".evidence/\n")
+        self.write("docs/reference/page.md", "ok\n")
+        (self.root / ".evidence").mkdir()
+        (self.root / ".evidence/hop").symlink_to("../docs/reference", target_is_directory=True)
+        (self.root / "alias").symlink_to(".evidence/hop", target_is_directory=True)
+        self.write("README.md", "[page](alias/page.md)\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "alias", "docs/reference/page.md"], check=True)
+        with mock.patch.object(subprocess, "run", wraps=subprocess.run) as run:
+            issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("ignored", issues[0])
+        self.assertEqual(sum("check-ignore" in call.args[0] for call in run.call_args_list), 1)
+
+    def test_rejects_ignored_intermediate_file_symlink(self):
+        self.write(".gitignore", "private-link\n")
+        self.write("docs/reference/page.md", "ok\n")
+        (self.root / "private-link").symlink_to("docs/reference/page.md")
+        (self.root / "docs/alias").symlink_to("../private-link")
+        self.write("README.md", "[page](docs/alias)\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "docs/alias", "docs/reference/page.md"], check=True)
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("ignored", issues[0])
+
+    def test_rejects_external_intermediate_symlink_even_when_destination_returns(self):
+        self.write("docs/reference/page.md", "ok\n")
+        with tempfile.TemporaryDirectory() as outside:
+            (Path(outside) / "hop").symlink_to(self.root / "docs/reference", target_is_directory=True)
+            (self.root / "alias").symlink_to(Path(outside) / "hop", target_is_directory=True)
+            (self.root / "relative-alias").symlink_to(f"../{Path(outside).name}/hop", target_is_directory=True)
+            self.write("README.md", "[page](alias/page.md) [relative](relative-alias/page.md)\n")
+            issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 2)
+        self.assertTrue(all("outside checkout" in issue for issue in issues))
+
+    def test_checks_symlink_hops_before_parent_components(self):
+        self.write(".gitignore", ".evidence/\n")
+        self.write("docs/reference/page.md", "ok\n")
+        (self.root / "docs/branch").mkdir()
+        (self.root / ".evidence").mkdir()
+        (self.root / ".evidence/hop").symlink_to("../docs/branch", target_is_directory=True)
+        (self.root / "alias").symlink_to(".evidence/hop", target_is_directory=True)
+        self.write("README.md", "[page](alias/../reference/page.md)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("ignored", issues[0])
+
+    def test_accepts_internal_chains_spaces_directories_and_tracked_ignore_overrides(self):
+        self.write(".gitignore", "hop\ndocs/\n")
+        self.write("docs/reference/a b.md", "ok\n")
+        (self.root / "hop").symlink_to("docs/reference", target_is_directory=True)
+        (self.root / "alias").symlink_to("hop", target_is_directory=True)
+        self.write("README.md", "[space](alias/a%20b.md) [directory](alias/) [parent](alias/../reference/a%20b.md)\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "-f", "alias", "hop", "docs/reference/a b.md"], check=True)
+        self.assertEqual(check.broken_links(self.root), [])
+
+    def test_reports_cycles_broken_chains_and_non_directory_traversal(self):
+        (self.root / "cycle-a").symlink_to("cycle-b")
+        (self.root / "cycle-b").symlink_to("cycle-a")
+        (self.root / "growing-cycle").symlink_to("growing-cycle/child")
+        (self.root / "broken").symlink_to("missing/hop")
+        self.write("plain.md", "ok\n")
+        self.write("README.md", "[cycle](cycle-a) [growing](growing-cycle) [broken](broken) [file-parent](plain.md/../README.md)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 4)
+        self.assertTrue(all("does not resolve" in issue for issue in issues))
+
+    def test_directory_components_preserve_trailing_slashes_and_dots(self):
+        self.write("plain.md", "ok\n")
+        (self.root / "slash-link").symlink_to("plain.md/")
+        (self.root / "dot-link").symlink_to("plain.md/.")
+        self.write("README.md", "[slash](plain.md/) [dot](plain.md/.) [alias-slash](slash-link) [alias-dot](dot-link)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 4)
+        self.assertTrue(all("does not resolve" in issue for issue in issues))
+
+    def test_accepts_checkout_root_directory_links(self):
+        self.write("README.md", "[here](.) [root](./)\n")
+        self.assertEqual(check.broken_links(self.root), [])
+
+    def test_rejects_ignored_directory_traversed_before_parent_component(self):
+        self.write(".gitignore", "private/\n")
+        (self.root / "private").mkdir()
+        self.write("README.md", "[page](private/../README.md)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("ignored", issues[0])
+
+    def test_rejects_absolute_internal_symlink_dependency(self):
+        self.write("docs/reference/page.md", "ok\n")
+        (self.root / "alias").symlink_to(self.root / "docs/reference/page.md")
+        self.write("README.md", "[page](alias)\n")
+        issues = check.broken_links(self.root)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("absolute symlink destination", issues[0])
+
 
 if __name__ == "__main__":
     unittest.main()
