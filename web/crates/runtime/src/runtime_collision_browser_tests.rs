@@ -786,3 +786,381 @@ async fn missing_generated_lease_prepares_once_per_batch_joins_pending_and_secon
     runtime.cad_worker.borrow_mut().take().unwrap().1.close();
     Url::revoke_object_url(&url).unwrap();
 }
+
+// Controlled STEP reader at the worker transport seam; it certifies no geometry.
+async fn vendor_refinement_fixture() -> (Rc<Runtime>, Rc<CadScene>, String, CadCollisionSubject) {
+    use boardstudio_web_host::cad_jobs::{CadStepFaceOccurrence, CadStepSourceFace, CadVendorStep};
+    let (runtime, scene, old_url) = fixture().await;
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&old_url).unwrap();
+    let bytes = b"controlled vendor STEP source".to_vec();
+    let sha = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    runtime.assets.borrow_mut().insert(sha.clone(), bytes);
+    let asset = CadVendorStep {
+        source_sha256: sha,
+        surface_positions_mm_f64: vec![0., 0., 0., 1., 0., 0., 0., 1., 0.],
+        triangle_face_occurrence_indices: vec![0],
+        source_faces: vec![CadStepSourceFace {
+            solid_id: "10".into(),
+            face_id: "20".into(),
+            support_id: "30".into(),
+            support_kind: "PLANE".into(),
+            ..Default::default()
+        }],
+        face_occurrences: vec![CadStepFaceOccurrence {
+            representation_id: "40".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let source = format!(
+        r#"
+        const asset = {};
+        const activation = {};
+        const bits = value => {{ const view = new DataView(new ArrayBuffer(8)); view.setFloat64(0,value); return view.getBigUint64(0).toString(16).padStart(16,'0'); }};
+        let reads = 0;
+        self.postMessage({{kind:'ready'}});
+        self.onmessage = event => {{
+            if (event.data.kind === 'cancel') return;
+            const input = JSON.parse(event.data.frame);
+            if (input.operation === 'collision-query') {{
+                const q = input.collisionQuery;
+                const unknown = () => ({{state:'unknown',reasons:['evidence-unavailable']}});
+                const binding = {{snapshotRevision:input.identity.revision,snapshot:{{...input.identity,token:String(input.identity.token),sessionEpoch:String(input.identity.sessionEpoch)}},
+                    workerGeneration:q.left.analysisRef.workerGeneration,leftModelId:q.left.modelId,rightModelId:q.right.modelId,
+                    leftMeshIdentity:q.left.analysisRef.meshIdentity,rightMeshIdentity:q.right.analysisRef.meshIdentity,
+                    leftAnalysis:q.left.analysisRef,rightAnalysis:q.right.analysisRef,leftMesh:q.left.analysisMesh,rightMesh:q.right.analysisMesh,
+                    leftRowTransformF64:q.left.rowTransformF64,rightRowTransformF64:q.right.rowTransformF64,
+                    clearanceThresholdMm:q.clearanceThresholdMm,requestedAccuracyMm:q.requestedAccuracyMm}};
+                self.postMessage({{kind:'reply',frame:JSON.stringify({{requestId:input.requestId,jobId:input.jobId,identity:input.identity,operation:input.operation,outcome:'completed'}}),result:{{
+                    revision:input.identity.revision,
+                    collision:{{kind:'surface-separated',surfaceDistanceMm:1,closestPoints:{{triangles:{{left:{{triangleIndex:0,faceOccurrenceIndex:0}},right:{{triangleIndex:0,faceOccurrenceIndex:0}}}},point1Mm:[0,0,0],point2Mm:[1,0,0]}}}},
+                    queryQualification:{{version:1,algorithm:'aabb-interval-exact-v1',binding,limits:q.qualificationLimits,
+                        meshDistance:unknown(),sourceBounds:[unknown(),unknown()],contactRegion:unknown(),containment:unknown()}}
+                }}}});
+                return;
+            }}
+            reads++;
+            if (input.stepImportOptions.targetDeflectionMm === 0.007) {{
+                setTimeout(() => self.postMessage({{kind:'reply',frame:JSON.stringify({{
+                    requestId:input.requestId,jobId:input.jobId,identity:input.identity,operation:input.operation,
+                    outcome:'failed',error:'controlled vendor refusal'
+                }}),result:null}}), 20);
+                return;
+            }}
+            const vendorStep = structuredClone(asset);
+            const options = {{previewRepairBudgetMm:input.stepImportOptions.previewRepairBudgetMm??null,targetDeflectionMm:input.stepImportOptions.targetDeflectionMm??null}};
+            const mesh = structuredClone(activation.descriptors.vendor);
+            mesh.meshIdentity = 'final-f64-v1/controlled-vendor-'+reads;
+            mesh.settings = {{targetDeflectionMm:options.targetDeflectionMm,selectedDeflectionMm:options.targetDeflectionMm??0.1,angularRad:0.5,previewRepairBudgetMm:options.previewRepairBudgetMm}};
+            vendorStep.analysisMesh = mesh;
+            vendorStep.sourceQualification = {{state:'unknown',reasons:['controlled-vendor-source-unavailable']}};
+            const derivation = input.sourceSha256+(options.previewRepairBudgetMm===null?'':':repair='+bits(options.previewRepairBudgetMm))+(options.targetDeflectionMm===null?'':':deflection='+bits(options.targetDeflectionMm));
+            vendorStep.analysisRef = {{workerGeneration:'controlled-vendor',meshIdentity:mesh.meshIdentity,
+                source:{{kind:'vendor-step',sourceSha256:input.sourceSha256,importOptions:options}},derivationIdentity:'vendor-step-analysis-v2/'+derivation}};
+            vendorStep.sourceSha256 = input.sourceSha256;
+            vendorStep.importOptions = input.stepImportOptions;
+            vendorStep.accuracy.previewDeflectionMm = input.stepImportOptions.targetDeflectionMm;
+            vendorStep.accuracy.previewAngularRad = 0.5;
+            vendorStep.accuracy.selectedRepairBudgetMm = input.stepImportOptions.previewRepairBudgetMm ?? null;
+            vendorStep.accuracy.sampledSupportChecks = reads;
+            vendorStep.surfacePositionsMmF64 = new Float64Array(asset.surfacePositionsMmF64);
+            vendorStep.triangleFaceOccurrenceIndices = new Uint32Array([0]);
+            vendorStep.lineSegmentsMmF64 = new Float64Array();
+            vendorStep.lineRenderPositions = new Float32Array();
+            vendorStep.segmentLineOccurrenceIndices = new Uint32Array();
+            setTimeout(() => self.postMessage({{kind:'reply',frame:JSON.stringify({{
+                requestId:input.requestId,jobId:input.jobId,identity:input.identity,operation:input.operation,outcome:'completed'
+            }}),result:{{revision:input.identity.revision,vendorStep,bounds:{{min:[0,0,0],max:[1,1,0]}},
+                mesh:{{positions:new Float32Array(asset.surfacePositionsMmF64),normals:new Float32Array([0,0,1,0,0,1,0,0,1])}}
+            }}}}), 20);
+        }};
+    "#,
+        serde_json::to_string(&asset).unwrap(),
+        serde_json::from_str::<serde_json::Value>(include_str!(
+            "../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json"
+        ))
+        .unwrap()["qualificationV2"]["activation"]
+    );
+    let parts = js_sys::Array::new();
+    parts.push(&source.into());
+    let options = BlobPropertyBag::new();
+    options.set_type("text/javascript");
+    let blob = Blob::new_with_str_sequence_and_options(&parts, &options).unwrap();
+    let url = Url::create_object_url_with_blob(&blob).unwrap();
+    let worker = Rc::new(CadWorker::new(&url).unwrap());
+    worker.ready().await.unwrap();
+    *runtime.cad_worker.borrow_mut() = Some((scene.scope.clone(), worker));
+    let subject = CadCollisionSubject::VendorModel {
+        id: "switch-1".into(),
+        reference: "SW1".into(),
+        row_transform_f64: IDENTITY_ROW_TRANSFORM_F64,
+        vendor_step: Some(Rc::new(asset)),
+    };
+    (runtime, scene, url, subject)
+}
+
+fn vendor_asset(
+    subject: &CadCollisionSubject,
+) -> &Rc<boardstudio_web_host::cad_jobs::CadVendorStep> {
+    let CadCollisionSubject::VendorModel {
+        vendor_step: Some(asset),
+        ..
+    } = subject
+    else {
+        panic!("missing vendor asset")
+    };
+    asset
+}
+
+#[wasm_bindgen_test]
+async fn tight_vendor_refinement_shares_one_preparation_without_merging_placements() {
+    let (runtime, scene, url, left) = vendor_refinement_fixture().await;
+    let mut right = left.clone();
+    if let CadCollisionSubject::VendorModel {
+        id,
+        reference,
+        row_transform_f64,
+        ..
+    } = &mut right
+    {
+        *id = "switch-2".into();
+        *reference = "SW2".into();
+        row_transform_f64[12] = 19.;
+    }
+    let first = runtime
+        .refine_collision_vendor(&scene, &left, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    let second = runtime
+        .refine_collision_vendor(&scene, &right, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(
+        vendor_asset(&second).accuracy.sampled_support_checks,
+        1,
+        "one preparation request for repeated source/settings"
+    );
+    assert!(Rc::ptr_eq(vendor_asset(&first), vendor_asset(&second)));
+    assert_eq!(first.id(), "switch-1");
+    assert_eq!(second.id(), "switch-2");
+    assert_eq!(second.label(), "SW2");
+    let CadCollisionSubject::VendorModel {
+        row_transform_f64, ..
+    } = second
+    else {
+        unreachable!()
+    };
+    assert_eq!(row_transform_f64[12], 19.);
+    assert_eq!(
+        vendor_asset(&first).source_faces,
+        vendor_asset(&left).source_faces
+    );
+    assert_eq!(
+        vendor_asset(&first).face_occurrences,
+        vendor_asset(&left).face_occurrences
+    );
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn tight_vendor_refinement_isolates_source_repair_and_target_settings() {
+    let (runtime, scene, url, subject) = vendor_refinement_fixture().await;
+    let first = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    let target = runtime
+        .refine_collision_vendor(&scene, &subject, 0.02, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(vendor_asset(&target).accuracy.sampled_support_checks, 2);
+    let mut repaired = subject.clone();
+    if let CadCollisionSubject::VendorModel {
+        vendor_step: Some(asset),
+        ..
+    } = &mut repaired
+    {
+        Rc::make_mut(asset).import_options.preview_repair_budget_mm = Some(0.003);
+    }
+    let repair = runtime
+        .refine_collision_vendor(&scene, &repaired, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(vendor_asset(&repair).accuracy.sampled_support_checks, 3);
+    let bytes = b"different controlled vendor source".to_vec();
+    let sha = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    runtime.assets.borrow_mut().insert(sha.clone(), bytes);
+    let mut other = subject.clone();
+    if let CadCollisionSubject::VendorModel {
+        vendor_step: Some(asset),
+        ..
+    } = &mut other
+    {
+        Rc::make_mut(asset).source_sha256 = sha;
+    }
+    let different = runtime
+        .refine_collision_vendor(&scene, &other, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(vendor_asset(&different).accuracy.sampled_support_checks, 4);
+    let repeated = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert!(Rc::ptr_eq(vendor_asset(&first), vendor_asset(&repeated)));
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn tight_vendor_refinement_shares_failure_and_new_check_can_recover() {
+    let (runtime, scene, url, subject) = vendor_refinement_fixture().await;
+    let (done, receive) = futures_channel::oneshot::channel();
+    let task_runtime = runtime.clone();
+    let task_scene = scene.clone();
+    let task_subject = subject.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = done.send(
+            task_runtime
+                .refine_collision_vendor(&task_scene, &task_subject, 0.007, Rc::new(|| true))
+                .await,
+        );
+    });
+    let failed = runtime
+        .refine_collision_vendor(&scene, &subject, 0.007, Rc::new(|| true))
+        .await
+        .unwrap_err();
+    let joined = receive.await.unwrap().unwrap_err();
+    assert!(failed.contains("controlled vendor refusal"), "{failed}");
+    assert_eq!(joined, failed);
+    assert!(
+        runtime
+            .refine_collision_vendor(&scene, &subject, 0.007, Rc::new(|| true))
+            .await
+            .is_err()
+    );
+    let healthy = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(
+        vendor_asset(&healthy).accuracy.sampled_support_checks,
+        2,
+        "failed placements do not each dispatch an import"
+    );
+    runtime.cancel_collision_checks();
+    let fresh = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(vendor_asset(&fresh).accuracy.sampled_support_checks, 3);
+    assert!(!Rc::ptr_eq(vendor_asset(&healthy), vendor_asset(&fresh)));
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn cancelled_tight_vendor_refinement_cannot_settle_a_replacement_check() {
+    let (runtime, scene, url, subject) = vendor_refinement_fixture().await;
+    let (done, receive) = futures_channel::oneshot::channel();
+    let task_runtime = runtime.clone();
+    let task_scene = scene.clone();
+    let task_subject = subject.clone();
+    wasm_bindgen_futures::spawn_local(async move {
+        let _ = done.send(
+            task_runtime
+                .refine_collision_vendor(&task_scene, &task_subject, 0.01, Rc::new(|| true))
+                .await,
+        );
+    });
+    for _ in 0..100 {
+        if !runtime.native_model_jobs.borrow().is_empty() {
+            break;
+        }
+        TimeoutFuture::new(1).await;
+    }
+    assert!(
+        !runtime.native_model_jobs.borrow().is_empty(),
+        "preparation reached the worker"
+    );
+    runtime.cancel_collision_checks();
+    let fresh = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert!(receive.await.unwrap().is_err());
+    let repeated = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert!(Rc::ptr_eq(vendor_asset(&fresh), vendor_asset(&repeated)));
+    assert!(
+        runtime
+            .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| false))
+            .await
+            .is_err(),
+        "retired callers cannot reuse a ready result"
+    );
+    assert!(runtime.native_model_jobs.borrow().is_empty());
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn tight_vendor_refinement_keeps_one_separate_bounded_evidence_recovery() {
+    let (runtime, scene, url, subject) = vendor_refinement_fixture().await;
+    let refined = runtime
+        .refine_collision_vendor(&scene, &subject, 0.01, Rc::new(|| true))
+        .await
+        .unwrap();
+    for _ in 0..2 {
+        let result = runtime
+            .query_collision_subjects(
+                &refined,
+                &refined,
+                0.,
+                Some(0.01),
+                scene.scope.clone(),
+                scene.token,
+                scene.snapshot.document.revision,
+                Rc::new(|| true),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(
+            result.assessment,
+            CadCollisionAssessment::Unknown { .. }
+        ));
+        assert!(
+            result.observation.is_some(),
+            "missing evidence retains the raw observation"
+        );
+        let binding = result.query_qualification.unwrap().binding;
+        assert_eq!(
+            binding.left_mesh_identity,
+            "final-f64-v1/controlled-vendor-2"
+        );
+        assert_eq!(binding.right_mesh_identity, binding.left_mesh_identity);
+    }
+    let other_settings = runtime
+        .refine_collision_vendor(&scene, &subject, 0.02, Rc::new(|| true))
+        .await
+        .unwrap();
+    assert_eq!(
+        vendor_asset(&other_settings)
+            .accuracy
+            .sampled_support_checks,
+        3,
+        "one tight preparation and one recovery; a second lease miss cannot loop"
+    );
+    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
+    Url::revoke_object_url(&url).unwrap();
+}

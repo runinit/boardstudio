@@ -334,6 +334,8 @@ pub struct Runtime {
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
+    // Tight preparation must not consume the separate missing-evidence retry.
+    collision_vendor_refinement: crate::model_delivery::ModelDeliveryAdapter,
     native_model_delivery: RefCell<NativeModelDeliveryState>,
     layout_preview: RefCell<crate::layout_viewer_source::LayoutPreviewState>,
     layout_model_rows: RefCell<
@@ -427,6 +429,7 @@ impl Runtime {
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
+            collision_vendor_refinement: Default::default(),
             native_model_delivery: RefCell::new(Default::default()),
             layout_preview: RefCell::new(Default::default()),
             layout_model_rows: RefCell::new(None),
@@ -3828,36 +3831,60 @@ impl Runtime {
                 subject.label()
             ));
         };
-        if !is_current() {
+        if !is_current()
+            || !self.collision_snapshot_is_current(
+                &scene.scope,
+                scene.token,
+                scene.snapshot.document.revision,
+            )
+        {
             return Err("vendor refinement became stale".into());
         }
         let is_current = self.collision_current(is_current);
-        let bytes = self
-            .verified_collision_step_bytes(&asset.source_sha256)
-            .await?;
         let options = boardstudio_web_host::cad_jobs::CadStepImportOptions {
             target_deflection_mm: Some(target_deflection_mm),
             ..asset.import_options
         };
         options.validate()?;
-        let arrays = self
-            .read_step_model(
+        let batch = format!(
+            "{:?}/{}/{}/{}",
+            scene.scope,
+            scene.token.0,
+            scene.snapshot.document.revision,
+            self.collision_batch.get()
+        );
+        let load = async {
+            let bytes = self
+                .verified_collision_step_bytes(&asset.source_sha256)
+                .await?;
+            self.read_step_model(
                 bytes,
                 options,
                 StepReadContext {
                     scope: scene.scope.clone(),
                     token: scene.token,
                     revision: scene.snapshot.document.revision,
-                    is_current,
+                    is_current: is_current.clone(),
                     collision: true,
                 },
+            )
+            .await
+        };
+        let arrays = self
+            .collision_vendor_refinement
+            .refresh_step_evidence(
+                &asset.source_sha256,
+                options,
+                &batch,
+                is_current.clone(),
+                load,
             )
             .await?;
         Ok(CadCollisionSubject::VendorModel {
             id: id.clone(),
             reference: reference.clone(),
             row_transform_f64: *row_transform_f64,
-            vendor_step: arrays.vendor_step,
+            vendor_step: arrays.vendor_step.clone(),
         })
     }
 

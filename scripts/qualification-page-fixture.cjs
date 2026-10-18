@@ -6,6 +6,20 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    // Observe requests at the real worker boundary, without replacing delivery.
+    window.collisionPreparations = [];
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, ...args) {
+      if (message?.frame) {
+        const frame = JSON.parse(message.frame);
+        if (frame.operation === 'read-step') window.collisionPreparations.push({
+          sha: frame.sourceSha256, options: frame.stepImportOptions,
+        });
+      }
+      return postMessage.call(this, message, ...args);
+    };
+  });
   try {
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: 'Create new keyboard', exact: true }).click({ timeout: 60000 });
@@ -54,6 +68,7 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
     await page.getByRole('button', { name: 'Open Case workspace', exact: true }).click({ timeout: 60000 });
     await page.getByRole('status').filter({ hasText: 'Exact case geometry ready.' }).waitFor({ timeout: 30000 });
     async function run(button) {
+      await page.evaluate(() => { window.collisionPreparations = []; });
       await page.getByRole('button', { name: button, exact: true }).click();
       await page.waitForFunction(() => {
         const panel = document.querySelector('.m1-case-collision-checks');
@@ -64,7 +79,8 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
         && node.textContent.includes('↔')).map(node => node.textContent));
       const alerts = await panel.locator('[role="alert"]').allTextContents();
       const provenance = await panel.locator('.m1-case-collision-provenance').allTextContents();
-      return { summaries, alerts, provenance };
+      const preparations = await page.evaluate(() => window.collisionPreparations);
+      return { summaries, alerts, provenance, preparations };
     }
     const defaults = await run('Check collisions');
     if (unavailablePcb) {
@@ -91,7 +107,10 @@ module.exports = async function qualificationPageScenario(context, baseUrl, unav
     assert.equal((vendorDetails.match(/declared source precision 0.01 mm once/g) || []).length, 2);
     assert(vendorDetails.includes('STEP representation #') && vendorDetails.includes('source face #') && vendorDetails.includes('conservative box pairs'));
     assert(defaults.provenance.some(text => text.includes('generated body pcb-reference') && text.includes('source face index')));
+    assert(defaults.preparations.every(request => request.options?.targetDeflectionMm == null), 'default checking does not request tight refinement');
     const tight = await run('Check at 0.01 mm');
+    assert.equal(tight.preparations.length, 1, 'two identical placements share one real provider preparation');
+    assert.equal(tight.preparations[0].options.targetDeflectionMm, 0.01);
     assert.deepEqual(tight.alerts, []);
     assert(tight.summaries.some(text => /C1 .*↔ C2 .*: Uncertain/.test(text)), '0805 source precision refuses the tight request');
     assert(tight.summaries[0].includes('exceeds requested accuracy 0.01 mm'));
