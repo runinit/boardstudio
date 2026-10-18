@@ -24,11 +24,22 @@ The [2026-10-18 acceptance reconciliation and CURRENT update](../../research/cad
 
 Migration acceptance requires supported tolerance bands for generated case/PCB bodies and qualified vendor geometry classes. The qualification record must name the supported classes, restrictions and supporting fixtures, including positive vendor-pair results. An implementation leaving every vendor pair uncertain does not satisfy this coverage requirement. Unsupported vendor geometry, ineligible containment queries and requested accuracies that cannot be justified remain explicitly uncertain; this decision does not certify unknown bounds or require every vendor geometry class to be qualified.
 
+## Closure and workflow decisions (2026-10-18, user)
+
+Accepted from the Opus orchestration/migration analysis (local `.evidence/orchestration-t3code-audit/opus-analysis.md`). None of these decisions relaxes geometry, allowances, source preservation, the 34-asset contract, the repair policy, collision acceptance, API approval rules or the existing 32 MiB/256 MiB/1,000,000-record caps.
+
+- **Review:** one combined spec+standards reviewer, run at ticket closure or when a change touches public API, geometry, allowances or a cross-crate contract. A private storage or test-only slice gets the owner's RED/GREEN evidence plus root's diff read, with no agent review. Corrections are checked against their finding, without a re-review. The two-agent `code-review` stays available on request and for 012's final review.
+- **Tickets:** each ticket keeps one short CURRENT block. History stays in git.
+- **007 package 1 depth, option (b):** after S1, keep enforced local counters with sticky-incomplete and cheap borrow-instead-of-clone fixes. D1 is dropped: bigint stays on ordinary allocation, documented. D3 is dropped: IO and mesher keep their per-crate 256 MiB counters, documented as per-crate rather than aggregate. D2 is optional. S5 becomes one corpus measurement of observed added-report peak. Package 2 may start once S1 lands.
+- **007 exit:** packages 2–6 close against a finite owner-route inventory delivered with package 2. 007 closes when every listed path terminates as identity, bounded repair or refusal.
+- **011:** baseline timings may run on current source now, and are re-measured only if 007 changes hot paths.
+- **Declined:** strict 007 terminal policy (packages 5–6) is **not** deferred past 012.
+
 ## Workflow & Execution Guardrails
 
 Follow the [existing tracker conventions](../../agents/issue-tracker.md) and [AGENTS.md](../../../AGENTS.md):
 - Work solo on the critical path by default. The user approved parallel 010/014 worktrees on 2026-10-17: 010 owns web/worker/cache/UI delivery. Remaining007 work owns actual importer repair movement and vendor source/mesh bounds;014 owns generated-body, query/contact and containment qualification, consuming007's evidence. Root owns shared-contract changes, integration and final acceptance; no lane closes the combined gates independently.
-- Run `code-review` **once per completed ticket**, never on every intermediate commit or lint fix.
+- Review per the 2026-10-18 decision above: one combined reviewer at ticket closure or on contract-touching changes. Never review every intermediate commit, slice or lint fix.
 - Never create Cargo `target` directories or copy source trees inside `.evidence/`.
 - Never generate `PREIMAGES.json`, `POSTIMAGES.json`, `before/` or `after/` file copies, or custom SHA-256 manifest files—Git tracks source state.
 - Never pass `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`, or `CARGO_PROFILE_DEV_DEBUG=2`.

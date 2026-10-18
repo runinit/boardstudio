@@ -98,6 +98,17 @@ Fresh combined-parent checks pass: STEP 89/one ignored census, import 59/one ign
 
 Completed 94 corpus evidence is reused at 95 for unchanged geometry/provenance only: 34 unique originals independently authenticated 34/34, original manifest/oracles/budgets/transforms and positive face provenance retained, missing oracles explicit. Its 44,638 finite pairs include Kiwano 346 (2,350 source faces/3,607 occurrences); these are captures, not allocation or movement qualification. Exact cleanup parity justifies reuse; the superseded 1a6 partial 7 is neither PASS nor RED. No new corpus ran. Package 1 remains incomplete: legacy eligibility is not a hard cap, nested/control-net/numeric/map/exact-proof peaks and all-asset 256 MiB fit remain unqualified. Owner 29 lint diagnostics and broad IO 112-pass/3 old failures remain disclosed, not fixed or green. Full 007/011/012 stay open.
 
+**2026-10-18 user decision — package 1 depth narrowed (supersedes conflicting text below).** Option (b) from the [map decision](../map.md#closure-and-workflow-decisions-2026-10-18-user):
+- S1 completes after root fixes the Spec P2 (release the inverse reservation once comparison finishes).
+- S2–S4 keep only borrow-instead-of-clone fixes and charging into the existing local counters with sticky-incomplete.
+- D1 is dropped, and the bigint allocation behavior is documented.
+- D3 is dropped: per-crate 256 MiB counters, explicitly not an aggregate cap.
+- D2 is optional; a counted clone is acceptable.
+- S5 becomes one observed added-report peak measurement over the 34-asset corpus.
+- Package 2 no longer waits for S2–S5. It starts after S1 lands and delivers the finite owner-route inventory that defines the exit for packages 2–6.
+
+Caps, geometry, allowances, source preservation and the repair policy are unchanged.
+
 **Package 1 remaining closure plan — 2026-10-18, planning only at `c109b9374`.** This section plans the eight allocation owners from the read-only audit at `95e5d49d` (applies unchanged to the integrated parent) and the aggregate crosscut. It adds no tests, builds, corpus runs, benchmarks or public declarations and does not reopen the same-parse design. Existing 29 owner lint diagnostics (17 IO/12 mesher) and the 112-pass/3-failure broad IO result are disclosed, not suppressed. Paths below are owners; "RED" means a genuine failing behavioral regression against current production written before the change.
 
 *Ground rules.* Charge only **added report** allocations (BEFORE/AFTER snapshots, traces, ledgers, indexes, proof work). Pre-existing preview allocations (`trim_spline`/`cut_exact` buffers, normalized-shell clone, closed-chart metadata) are recorded separately. Any added copy or extended retention caused by reporting is charged for its actual coexistence; moving a preview-created carrier into a report does not make that retention free. A requested-payload bound excludes allocator bookkeeping and OS/process peak; every claim in this package says "requested payload". Exhaustion becomes a sticky **incomplete** state that still enforces independently proved refusals (strict `>`, monotone under padding/order). Incompleteness is safe for transitional preview but never satisfies the package exit.
