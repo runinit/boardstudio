@@ -23,13 +23,9 @@ Acceptance coverage follows the [2026-10-18 user decision](../map.md#collision-a
 
 ## CURRENT — 2026-10-18
 
-Status unchanged: claimed, no acceptance box checked. Source `HEAD` of the IO owner range is recorded in the handoff; the P2 inverse-workspace release is at `5bdcf7a8e` (its valid official mutation fails the named assertion; the first mutation attempt in `.evidence/p2-inverse-release/invalid-first-attempt/` ran no test and is not evidence).
+Deferred quality follow-on under the user's revised cutover scope; packages 2–6 and further accounting do not block 010/011/012/014. Source-retaining previews and the delivered IO routes remain in production. The finite route matrix below records the unresolved selection/master/surface and complete-repair obligations; no universal movement certificate or unknown-to-clear promotion is claimed.
 
-**IO functional priority.** Four owner routes are resolved against the original vertices/record under the unchanged allowance, with binary64 decoding/constructor rounding kept as separate unbounded diagnostics: tiny-span raw spline normalization, kept full-domain splines, planar UV LINE masters, circle/ellipse edges. They remove 41,267 of 84,885 per-edge-use `native-finite-interval-v1`/`selected-master-v1` placeholders (43,618 remain) with zero Err outcomes and unchanged 34-asset geometry, bounds and occurrence counts (census `.evidence/io-routes/final/census-outcomes.log`, 34 rows, 1,107 s). The asset bound stays Unknown until the open rows below terminate. Package 1 memory slices S2–S4 are not started and take no priority over them.
-
-**Evidence freshness (source `HEAD` at handoff).** Executed on that source: native lib 278/1 ignored, STEP import 59 and zero-repair 14, IO lib 117/9 ignored, IO input repair, strict native and strict wasm clippy, rustfmt, official `build-cad-wasm.py --no-opt`, all registered provider suites, seven-case planar parity against the frozen lane package `475cc14fb`, and the 34-asset census. Owner lint stays at the disclosed 23-line baseline. Not rerun: the old 94-corpus replay and full browser/page gates.
-
-Remaining decisions: the optional D2 public member, and an asset or allowance decision only if the 12 alternate-master uses prove over budget. The 256 MiB counters are local to IO and mesher, not an aggregate or process bound.
+Known repair-limit enforcement, original bytes/geometry/provenance and local memory counters remain unchanged. The recorded 34-asset compatibility results remain valid within their source scope; do not run another census or mutation cycle merely to advance a deferred slice. Any future work resumes against the matrix and the applicable approval rules.
 
 ## Current closure plan — 2026-10-18, reconciled at 68eb7c68
 

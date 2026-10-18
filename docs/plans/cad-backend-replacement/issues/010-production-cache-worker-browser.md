@@ -3,7 +3,7 @@
 Status: resolved
 Owner: /root (shared integration; disjoint private provider assignments)
 Type: build
-Blocked by: none for functional acceptance (deep 007 and 014 qualification remain follow-ons)
+Blocked by: None
 
 ## What to build
 
@@ -13,11 +13,11 @@ Run all CAD operations through the production Monstertruck backend while preserv
 
 ## Acceptance criteria
 
-- [ ] Generated case/PCB previews and exact STEP exports use real Monstertruck B-rep geometry; keycap preview/print uses009 meshes, and vendor STEP uses007 source-retaining meshes. Preserve IDs, revisions, transferable output and correct format choices through caches and worker operations.
-- [ ] Preserve staged/final cache isolation, size limits, eviction, STEP-only reuse and retained source assets; failed or cancelled work cannot corrupt later results.
-- [ ] Preserve vendor source bytes, source-face/occurrence provenance and authenticated error metadata through cache/worker transfer. Deliver014 intersection, clearance and contact-location results with supported tolerance bands and uncertain outcomes. Refine only on demand;0.01 mm is an explicit tighter check. Include requested accuracy and geometry/error revisions in query/cache identity so results cannot be reused at unsupported accuracy. Derived vendor assets also include explicit repair settings beside verified source SHA; changing a repair budget cannot reuse an incompatible mesh.
-- [ ] Verify stale requests, cancellation, worker restart/recovery and cache hit/miss paths in the actual browser/WASM build.
-- [ ] Pass required affected native/WASM/browser checks and both reviews; keep the application working throughout the switch and leave no final runtime fallback.
+- [x] Generated case/PCB previews and exact STEP exports use real Monstertruck B-rep geometry; keycap preview/print uses009 meshes, and vendor STEP uses007 source-retaining meshes. Preserve IDs, revisions, transferable output and correct format choices through caches and worker operations.
+- [x] Preserve staged/final cache isolation, size limits, eviction, STEP-only reuse and retained source assets; failed or cancelled work cannot corrupt later results.
+- [x] Preserve vendor source bytes, source-face/occurrence provenance and authenticated error metadata through cache/worker transfer. Deliver014 intersection, clearance and contact-location results with supported tolerance bands and uncertain outcomes. Refine only on demand;0.01 mm is an explicit tighter check. Include requested accuracy and geometry/error revisions in query/cache identity so results cannot be reused at unsupported accuracy. Derived vendor assets also include explicit repair settings beside verified source SHA; changing a repair budget cannot reuse an incompatible mesh.
+- [x] Verify stale requests, cancellation, worker restart/recovery and cache hit/miss paths in the actual browser/WASM build.
+- [x] Pass required affected native/WASM/browser checks and both reviews; keep the application working throughout the switch and leave no final runtime fallback.
 
 ## Comments
 
@@ -89,3 +89,7 @@ Fresh full native confirms Host26/Runtime125 (not an inferred count); full brows
 ## CURRENT — 2026-10-18 (rescope)
 
 Resolved under the authorized functional acceptance: production/browser/provider evidence covers the supported generated/vendor/mixed delivery, physical PCB operand, cancellation/recovery, cache identity and full browser gate. Unsupported/insufficient-accuracy outcomes remain Unknown by design. Deep 007 repair-movement and 014 qualification remain follow-on quality work, not blockers for this functional acceptance.
+
+## Answer
+
+Accepted under the user-approved functional cutover scope. The current production implementation, full standard check run and retained provider/worker/page evidence satisfy the supported behavior above. Deep 007 repair certification and unsupported geometry remain separate quality work; Unknown outcomes retain their meaning.

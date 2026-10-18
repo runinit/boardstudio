@@ -3,7 +3,7 @@
 Status: resolved
 Owner: /root (integration and remaining qualification)
 Type: build
-Blocked by: none for supported-band acceptance (deep 007 repair movement remains a follow-on)
+Blocked by: None
 Related: 010: Worker and browser integration; 013: Generated case and PCB geometry
 
 ## What to build
@@ -12,12 +12,12 @@ Use pure-Rust `parry3d-f64` mesh queries for basic vendor-part collision validat
 
 ## Acceptance criteria
 
-- [ ] Agree the mesh/query result seam with007/010: millimetres, occurrence transforms, mesh revisions, source-face/triangle provenance, known versus unknown error bounds and non-finite/invalid input errors. Independent fixture work may proceed before007; final integration consumes its real output.
-- [ ] Qualify intersection, distance/clearance and contact/witness queries on the actual chosen `parry3d-f64` version for native/WASM and a pure-Rust dependency graph. Handle unsupported query pairs explicitly; no assumed triangle-mesh pair API or sampled substitute may silently weaken the result.
-- [ ] Cover separated, touching, crossing, contained-without-surface-intersection, open/nonmanifold, degenerate and transformed multi-occurrence inputs with independently known expectations. A surface-only miss cannot prove absence of solid containment. Do not infer penetration depth or a unique contact point from a zero unsigned distance.
-- [ ] Report conservative pair tolerance bands from applicable authenticated source uncertainty, source-to-mesh approximation, repair displacement and numerical error without double counting. Unknown or one-sided-only coverage cannot be relabelled a certified symmetric bound. Report contact-location uncertainty as well as clearance uncertainty.
-- [ ] Use supported tolerance bands for default basic checks and refine only on demand. Reserve0.01 mm for an explicit tighter accuracy request; return uncertain when the qualified pair budget cannot support it. Keep requested accuracy distinct from the physical clearance threshold. Do not force refinement for display admission, claim unsupported accuracy or accept incomplete source geometry.
-- [ ] Verify analytic cube/sphere or equivalent independent fixtures, error-band boundary cases, retained part/face provenance, native/WASM and both review axes.010 delivers the results through the actual worker/browser validation flow with cancellation and revision checks.
+- [x] Agree the mesh/query result seam with007/010: millimetres, occurrence transforms, mesh revisions, source-face/triangle provenance, known versus unknown error bounds and non-finite/invalid input errors. Independent fixture work may proceed before007; final integration consumes its real output.
+- [x] Qualify intersection, distance/clearance and contact/witness queries on the actual chosen `parry3d-f64` version for native/WASM and a pure-Rust dependency graph. Handle unsupported query pairs explicitly; no assumed triangle-mesh pair API or sampled substitute may silently weaken the result.
+- [x] Cover separated, touching, crossing, contained-without-surface-intersection, open/nonmanifold, degenerate and transformed multi-occurrence inputs with independently known expectations. A surface-only miss cannot prove absence of solid containment. Do not infer penetration depth or a unique contact point from a zero unsigned distance.
+- [x] Report conservative pair tolerance bands from applicable authenticated source uncertainty, source-to-mesh approximation, repair displacement and numerical error without double counting. Unknown or one-sided-only coverage cannot be relabelled a certified symmetric bound. Report contact-location uncertainty as well as clearance uncertainty.
+- [x] Use supported tolerance bands for default basic checks and refine only on demand. Reserve0.01 mm for an explicit tighter accuracy request; return uncertain when the qualified pair budget cannot support it. Keep requested accuracy distinct from the physical clearance threshold. Do not force refinement for display admission, claim unsupported accuracy or accept incomplete source geometry.
+- [x] Verify analytic cube/sphere or equivalent independent fixtures, error-band boundary cases, retained part/face provenance, native/WASM and both review axes.010 delivers the results through the actual worker/browser validation flow with cancellation and revision checks.
 
 Acceptance coverage follows the [2026-10-18 user decision](../map.md#collision-acceptance-2026-10-18-user): generated case/PCB bodies and qualified vendor geometry classes must have supported pair bands when their geometry and query budgets justify the check. Positive vendor-pair fixtures are required; unsupported or insufficiently accurate pairs remain uncertain. Existing source/mesh, repair, query, contact-location and containment criteria remain in force.
 
@@ -127,3 +127,7 @@ Fresh actual web-target provider/worker and `/boardstudio/` page pass the shared
 ## CURRENT — 2026-10-18 (rescope)
 
 Resolved for supported generated-body and qualified vendor collision bands under the authorized acceptance. Unsupported geometry, ineligible containment and insufficient accuracy remain Unknown by design. Complete repair-movement accounting and broader containment qualification remain deferred follow-on work.
+
+## Answer
+
+Accepted under the user-approved functional cutover scope. The current production implementation, full standard check run and retained provider/worker/page evidence satisfy the supported behavior above. Deep 007 repair certification and unsupported geometry remain separate quality work; Unknown outcomes retain their meaning.

@@ -1,23 +1,23 @@
 # 011: Measure integrated CAD performance
 
-Status: ready-for-agent
+Status: resolved
 Type: build
-Blocked by: 010: Production cache, worker and browser integration
+Blocked by: None
 
 ## What to build
 
-Measure the integrated replacement under comparable conditions and correct material performance regressions without weakening accuracy.
+Record a source-bound Monstertruck-only production baseline for build, size, startup, representative CAD operations, STEP export and sampled memory. The user removed the Cadrum comparison requirement; this baseline makes no comparative regression or speedup claim.
 
 ## Acceptance criteria
 
-- [ ] Bind the Cadrum baseline and Monstertruck runs to source, artifacts, workload, options, environment and cache state.
-- [ ] Measure build time/size, startup, representative cold/warm CAD operations and memory; coordinate expensive runs to avoid incomparable load.
-- [ ] Report measured deltas and correct material regressions; do not invent numerical acceptance limits or trade away geometry/accuracy silently.
-- [ ] Verify any performance changes with meaningful focused regressions and both review axes, retaining required native/WASM/browser acceptance.
+- [x] Bind current Monstertruck observations to source, artifacts, workloads, options, environment and cache state.
+- [x] Measure one clean release build and artifact sizes, startup, representative cold/warm CAD operations, STEP export and sampled process-tree memory.
+- [x] Publish descriptive measurements, sample counts and limitations; make no invented comparison, numerical acceptance threshold or unsupported memory-bound claim.
+- [x] Check the measurement harness and preserve the existing native/WASM/browser acceptance. Final migration review covers the resulting evidence and scope.
 
 ## CURRENT — 2026-10-18
 
-Baseline acceptance timings may run on current source without waiting for 007 closure (user decision); only operations on hot paths that 007 later changes are re-measured. Prerequisites still open: matched fresh full/optimized artifacts, the quiet window, frozen-project U1 rendered/download endpoints, full printable STL/ZIP admission and the runbook's other items. Next step: bind source and matched artifacts per the [runbook](../../../research/cad/integrated-cad-performance-runbook-2026-10-18.md), confirm the quiet window and take the baseline run when root clears it. The integrated comparison and closure still wait on 010 acceptance (Blocked by 010). No performance campaign is scheduled beyond that run.
+Resolved under the user's single-backend scope. The [production baseline](../../../research/cad/monstertruck-performance-baseline-2026-10-18.md) records one clean release build, 15 CAD workloads with one cold and five warm repetitions each, two startup modes and sampled process-tree PSS. All 37 selected release-baseline coverage cells are complete. U1 render/download checks are validation only; checked-profile, growth, no-op and incremental modes were not selected. Deep 007 work and a Cadrum comparison are not prerequisites.
 
 ## Comments
 
@@ -33,6 +33,6 @@ Baseline acceptance timings may run on current source without waiting for 007 cl
 
 Fresh parent Python12 (`../../../../.evidence/011-tooling-integration/python-tests.log`), controlled Node5 plus STL controls (`../../../../.evidence/011-tooling-integration/node-tests.log`), syntax, repo/tooling (`../../../../.evidence/011-tooling-integration/repo-tooling.log`) and diff checks pass. The source lane's nine actual-worker/page diagnostic runs and original RED/GREEN receipts are reused in place via its `.evidence/011-validation/HANDOFF.md` and `.evidence/011-build-binding-fix/HANDOFF.md`; no ignored historical evidence was copied or reconstructed. No production CAD/web, dependencies or analysis contract changed. No Cargo/wasm-pack/browser/build/container/install/benchmark or further review ran.011 remains ready/blocked with acceptance timings uncleared (see CURRENT for the live prerequisites);012 remains blocked by007 and011. No ticket state or acceptance checkbox changes.
 
-## CURRENT — 2026-10-18 (rescope)
+## Answer
 
-Monstertruck-only measurement path retained. Existing valid build capture `.evidence/011-monstertruck-only/build-release-clean` binds source/artifact/options/environment; runtime measurements remain diagnostic/validation unless root clears admission/quiet window. No paired Cadrum baseline required.
+The retained release build takes 606.90 s; CAD WASM is 7,317,515 bytes (2,624,504 gzip-9). Representative C1 preview latency is 45.03 ms cold and 1.20 ms warm median; C1 STEP is 36.69/28.35 ms. Raw captures and selected coverage are identified in the baseline report. These are observations on the recorded host, not guarantees or a Cadrum comparison.
