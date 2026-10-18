@@ -1,0 +1,465 @@
+{
+  "revision": 1,
+  "bodies": [
+    {
+      "revision": 1,
+      "body": {
+        "openings": [
+          {
+            "points": [
+              {
+                "x": 8.0,
+                "y": -1.0
+              },
+              {
+                "x": 16.0,
+                "y": -1.0
+              },
+              {
+                "x": 16.0,
+                "y": 4.0
+              },
+              {
+                "x": 8.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          },
+          {
+            "points": [
+              {
+                "x": 26.0,
+                "y": -1.0
+              },
+              {
+                "x": 34.0,
+                "y": -1.0
+              },
+              {
+                "x": 34.0,
+                "y": 4.0
+              },
+              {
+                "x": 26.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          },
+          {
+            "points": [
+              {
+                "x": 44.0,
+                "y": -1.0
+              },
+              {
+                "x": 52.0,
+                "y": -1.0
+              },
+              {
+                "x": 52.0,
+                "y": 4.0
+              },
+              {
+                "x": 44.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          },
+          {
+            "points": [
+              {
+                "x": 62.0,
+                "y": -1.0
+              },
+              {
+                "x": 70.0,
+                "y": -1.0
+              },
+              {
+                "x": 70.0,
+                "y": 4.0
+              },
+              {
+                "x": 62.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          },
+          {
+            "points": [
+              {
+                "x": 80.0,
+                "y": -1.0
+              },
+              {
+                "x": 88.0,
+                "y": -1.0
+              },
+              {
+                "x": 88.0,
+                "y": 4.0
+              },
+              {
+                "x": 80.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          },
+          {
+            "points": [
+              {
+                "x": 98.0,
+                "y": -1.0
+              },
+              {
+                "x": 106.0,
+                "y": -1.0
+              },
+              {
+                "x": 106.0,
+                "y": 4.0
+              },
+              {
+                "x": 98.0,
+                "y": 4.0
+              }
+            ],
+            "z": 3.0,
+            "height": 3.0
+          }
+        ],
+        "id": "boss-tray",
+        "name": "boss-tray",
+        "boardId": "bench",
+        "kind": "tray",
+        "thickness": 2.0,
+        "clearance": 0.0,
+        "wallHeight": 8.0,
+        "wallThickness": 3.0,
+        "mounts": [
+          {
+            "id": "m0-0",
+            "at": {
+              "x": 16.0,
+              "y": 16.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m0-1",
+            "at": {
+              "x": 44.0,
+              "y": 16.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m0-2",
+            "at": {
+              "x": 72.0,
+              "y": 16.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m0-3",
+            "at": {
+              "x": 100.0,
+              "y": 16.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m1-0",
+            "at": {
+              "x": 16.0,
+              "y": 40.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m1-1",
+            "at": {
+              "x": 44.0,
+              "y": 40.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m1-2",
+            "at": {
+              "x": 72.0,
+              "y": 40.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m1-3",
+            "at": {
+              "x": 100.0,
+              "y": 40.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m2-0",
+            "at": {
+              "x": 16.0,
+              "y": 64.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m2-1",
+            "at": {
+              "x": 44.0,
+              "y": 64.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m2-2",
+            "at": {
+              "x": 72.0,
+              "y": 64.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          },
+          {
+            "id": "m2-3",
+            "at": {
+              "x": 100.0,
+              "y": 64.0
+            },
+            "kind": "boss",
+            "holeDiameter": 2.0,
+            "bossDiameter": 6.0,
+            "height": 5.0
+          }
+        ]
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            },
+            {
+              "x": 120.0,
+              "y": 0.0
+            },
+            {
+              "x": 120.0,
+              "y": 80.0
+            },
+            {
+              "x": 0.0,
+              "y": 80.0
+            }
+          ],
+          "holes": [],
+          "cavities": [
+            [
+              {
+                "x": 3.0,
+                "y": 77.0
+              },
+              {
+                "x": 3.0,
+                "y": 3.0
+              },
+              {
+                "x": 117.0,
+                "y": 3.0
+              },
+              {
+                "x": 117.0,
+                "y": 77.0
+              }
+            ]
+          ],
+          "gaskets": [],
+          "mounts": [
+            {
+              "id": "m0-0",
+              "at": {
+                "x": 16.0,
+                "y": 16.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m0-1",
+              "at": {
+                "x": 44.0,
+                "y": 16.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m0-2",
+              "at": {
+                "x": 72.0,
+                "y": 16.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m0-3",
+              "at": {
+                "x": 100.0,
+                "y": 16.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m1-0",
+              "at": {
+                "x": 16.0,
+                "y": 40.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m1-1",
+              "at": {
+                "x": 44.0,
+                "y": 40.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m1-2",
+              "at": {
+                "x": 72.0,
+                "y": 40.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m1-3",
+              "at": {
+                "x": 100.0,
+                "y": 40.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m2-0",
+              "at": {
+                "x": 16.0,
+                "y": 64.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m2-1",
+              "at": {
+                "x": 44.0,
+                "y": 64.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m2-2",
+              "at": {
+                "x": 72.0,
+                "y": 64.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            },
+            {
+              "id": "m2-3",
+              "at": {
+                "x": 100.0,
+                "y": 64.0
+              },
+              "kind": "boss",
+              "holeDiameter": 2.0,
+              "bossDiameter": 6.0,
+              "height": 5.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stepOnly": true
+}

@@ -1,0 +1,53 @@
+{
+  "revision": 1,
+  "bodies": [
+    {
+      "revision": 1,
+      "body": {
+        "id": "pcb-simple",
+        "name": "pcb-simple",
+        "boardId": "pcb-board",
+        "kind": "plate",
+        "thickness": 1.6,
+        "clearance": 0.0
+      },
+      "regions": [
+        {
+          "outer": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 20,
+              "y": 0
+            },
+            {
+              "x": 20,
+              "y": 16
+            },
+            {
+              "x": 0,
+              "y": 16
+            }
+          ],
+          "holes": [],
+          "cavities": [],
+          "gaskets": [],
+          "mounts": [
+            {
+              "id": "authored-drill",
+              "kind": "hole",
+              "at": {
+                "x": 10,
+                "y": 8
+              },
+              "holeDiameter": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stepOnly": true
+}

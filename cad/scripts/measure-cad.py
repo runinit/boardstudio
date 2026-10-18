@@ -1,0 +1,514 @@
+#!/usr/bin/env python3
+"""Finite 011 preparation/capture. No builds or browser launches without a run subcommand."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import gzip
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import platform
+import statistics
+import subprocess
+import sys
+import threading
+import time
+from http.server import ThreadingHTTPServer
+
+sys.dont_write_bytecode = True
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+import browser_tools  # noqa: E402
+
+HISTORICAL = Path("/home/chris/.t3/worktrees/ts-boardstudio2/t3-2088b1aa")
+OLD_HEAD = "6c9c4867755bd2316f751783729a3ff9778fc04a"
+FIXTURES = ROOT / "cad/test/fixtures/performance"
+PROFILES = ("checked", "release")
+PAIRED = tuple(f"{name}:{op}" for name in
+               ("C1plate", "C2trayboss", "C3gasket", "P1analyticPCB")
+               for op in ("preview", "step")) + (
+                   "V1switch:import", "V2vendor:import", "K1keycap:preview", "K1keycap:print")
+UNPAIRED = ("V2vendor:refine", "Qvendor:default", "Qvendor:tight")
+
+
+def module_at(path, name):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def git(root, *args):
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+
+def write_csv(path, fields, rows):
+    with path.open("w") as output:
+        writer = csv.DictWriter(output, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def schedule():
+    rows = []
+    for profile in PROFILES:
+        for pair in range(1, 6):
+            order = ("cadrum", "monstertruck") if pair % 2 else ("monstertruck", "cadrum")
+            for workload in (*PAIRED, "startup:cold", "startup:warm"):
+                for backend in order:
+                    rows.append(dict(profile=profile, pair=pair, backend=backend,
+                                     workload=workload, state="cold+5warm" if not
+                                     workload.startswith("startup:") else workload.split(":")[1]))
+        for backend in ("cadrum", "monstertruck"):
+            for workload in PAIRED:
+                rows.append(dict(profile=profile, pair=0, backend=backend,
+                                 workload=workload, state="growth20"))
+        for workload in UNPAIRED:
+            for pair in range(1, 6):
+                rows.append(dict(profile=profile, pair=pair, backend="monstertruck",
+                                 workload=workload, state="cold+5warm;unpaired"))
+            rows.append(dict(profile=profile, pair=0, backend="monstertruck",
+                             workload=workload, state="growth20;unpaired"))
+        for pair in range(1, 4):
+            order = ("cadrum", "monstertruck") if pair % 2 else ("monstertruck", "cadrum")
+            for backend in order:
+                for state in ("clean", "noop", "incremental"):
+                    rows.append(dict(profile=profile, pair=pair, backend=backend,
+                                     workload="build", state=state))
+    return rows
+
+
+def binding(root, profile):
+    """Reuse the existing receipt digest, official helper/stamp and Git; no source manifest."""
+    receipt = module_at(ROOT / "scripts/run-drag-browser.py", "perf_receipt")
+    driver_head, driver_source = receipt.source_identity()
+    receipt.ROOT = root
+    head, source = receipt.source_identity()
+    old = (root / "cad/scripts/cadrum_build.py").is_file()
+    helper = module_at(root / ("cad/scripts/cadrum_build.py" if old else
+                              "cad/scripts/cad_build.py"), "perf_cad_helper")
+    stamp = root / f"cad/.cache/{'cadrum' if old else 'cad'}/wasm-build.sha256"
+    inputs = helper.wasm_inputs_digest(no_opt=profile == "checked")
+    lines = [f"checkout={root}", f"head={head}", f"source_sha256={source}",
+             f"branch={git(root, 'branch', '--show-current')}", f"profile={profile}",
+             f"provider_profile={'release-no-opt' if profile == 'checked' else 'release'}",
+             f"driver_head={driver_head}", f"driver_source_sha256={driver_source}",
+             f"driver_status={git(ROOT, 'status', '--porcelain=v1')!r}",
+             f"status={git(root, 'status', '--porcelain=v1')!r}",
+             f"official_provider_inputs={inputs}",
+             f"provider_stamp={stamp.read_text().strip() if stamp.is_file() else 'MISSING'}"]
+    for name in ("target", "cad/wasm/target", "web/target", "renderer/target"):
+        path = root / name
+        lines.append(f"resolved_{name}={path.resolve()} exists={path.exists()}")
+    if old:
+        lines.append(f"historical_containerfile_blob={git(root, 'rev-parse', 'HEAD:cad/wasm/Containerfile')}")
+        try:
+            image = json.loads(subprocess.check_output(
+                [os.environ.get("CADRUM_CONTAINER_RUNTIME", "podman"), "image", "inspect", helper.IMAGE], text=True, timeout=15))[0]
+            lines.append("historical_image=" + json.dumps({key: image.get(key) for key in
+                         ("Id", "Digest", "RepoDigests", "Architecture", "Os")}, sort_keys=True))
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            lines.append(f"historical_image=UNAVAILABLE {error}")
+        name, expected = helper.BUILDS["wasm"]
+        archive = root / "cad/.cache/cadrum/wasm" / name
+        if archive.is_file():
+            with archive.open("rb") as source:
+                actual = hashlib.file_digest(source, "sha256").hexdigest()
+            lines.append(f"historical_prebuilt_archive={archive} bytes={archive.stat().st_size} pinned={expected} actual={actual}")
+        else:
+            lines.append(f"historical_prebuilt_archive=MISSING {archive} pinned={expected}")
+    for name in ("cad/wasm/pkg", "web/target/site/site-subpath/boardstudio"):
+        base = root / name
+        files = sorted(p for p in base.rglob("*") if p.is_file())
+        lines.append(f"artifact_{name}={receipt.digest_files(files, base) if files else 'MISSING'}")
+    for path in sorted(FIXTURES.glob("*.json")):
+        relative = path.relative_to(ROOT).as_posix()
+        lines.append(f"workload_blob_{path.name}={git(ROOT, 'hash-object', relative)}")
+    lines.append("owned_diff:\n" + git(root, "diff", "--binary", "HEAD"))
+    return lines, stamp.is_file() and stamp.read_text().strip() == inputs
+
+
+def environment():
+    lines = [f"platform={platform.platform()}", f"python={sys.version}",
+             f"load={os.getloadavg()}", "memory:\n" + Path("/proc/meminfo").read_text()]
+    for key in ("CARGO_TARGET_DIR", "CARGO_BUILD_JOBS", "CARGO_INCREMENTAL",
+                "CARGO_PROFILE_DEV_DEBUG", "RUSTFLAGS", "RUSTUP_TOOLCHAIN", "NODE_PATH",
+                "CHROME_BIN", "CADRUM_IMAGE_READY", "CADRUM_CONTAINER_RUNTIME"):
+        lines.append(f"env_{key}={os.environ.get(key, '<unset>')}")
+    for command in (("rustc", "--version"), ("cargo", "--version"), ("wasm-pack", "--version"),
+                    ("wasm-bindgen", "--version"), ("wasm-opt", "--version"),
+                    ("dx", "--version"), ("node", "--version"), ("chromium", "--version")):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+            lines.append(f"{command[0]}={result.stdout.strip()} {result.stderr.strip()} exit={result.returncode}")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            lines.append(f"{command[0]}=UNAVAILABLE {error}")
+    for path in (Path("/proc/cpuinfo"), Path("/proc/pressure/cpu"),
+                 Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")):
+        if path.is_file():
+            lines.append(f"{path}:\n{path.read_text()}")
+    lines.append("processes:\n" + subprocess.check_output(
+        ["ps", "-eo", "pid,ppid,comm,pcpu,pmem", "--sort=-pcpu"], text=True))
+    return "\n".join(lines) + "\n"
+
+
+def sizes(root, output):
+    """Each group is a separate product view. Only site is the nonduplicated shipped total."""
+    rows = []
+    for name in ("cad/wasm/pkg", "web/target/providers", "renderer/pkg",
+                 "web/target/site/site-subpath/boardstudio"):
+        base = root / name
+        for file in sorted(base.rglob("*")):
+            if file.is_file():
+                data = file.read_bytes()
+                rows.append(dict(group=name, path=file.relative_to(base).as_posix(),
+                                 bytes=len(data), gzip9_bytes=len(gzip.compress(data, compresslevel=9, mtime=0))))
+    write_csv(output, ("group", "path", "bytes", "gzip9_bytes"), rows)
+
+
+def summarize(inputs, output):
+    """Session medians keep five warm values from pretending to be five cold observations."""
+    sessions = {}
+    failures = []
+    seen = set()
+    source_bindings, harness_bindings = {}, {}
+    for directory in inputs:
+        log = (directory / "command.log").read_text()
+        if "\nexit=0\n" not in log:
+            failures.append(str(directory))
+            continue
+        if (directory / "runtime.csv").is_file():
+            if (directory / "binding-before.log").read_text() != (directory / "binding-after.log").read_text():
+                failures.append(str(directory) + " (binding drift)")
+                continue
+            with (directory / "runtime.csv").open() as source:
+                rows = list(csv.DictReader(source))
+                if not rows:
+                    raise ValueError(f"empty runtime capture: {directory}")
+                observation = tuple(rows[0][k] for k in ("backend", "profile", "workload", "pair"))
+                if observation in seen:
+                    raise ValueError(f"duplicate observation: {observation}")
+                seen.add(observation)
+                binding_lines = (directory / "binding-before.log").read_text().splitlines()
+                source_key = observation[:2]
+                source_signature = tuple(line for line in binding_lines if line.startswith(
+                    ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")))
+                harness_signature = tuple(line for line in binding_lines if line.startswith(
+                    ("driver_head=", "driver_source_sha256=", "workload_blob_")))
+                if not source_signature or not harness_signature:
+                    raise ValueError(f"missing source/harness binding: {directory}")
+                if source_bindings.setdefault(source_key, source_signature) != source_signature:
+                    raise ValueError(f"mixed source/artifacts for {source_key}")
+                if harness_bindings.setdefault(observation[1], harness_signature) != harness_signature:
+                    raise ValueError("matched comparison has different harness/workload bindings")
+                for row in rows:
+                    key = tuple(row[k] for k in ("backend", "profile", "workload", "pair", "state", "metric", "unit"))
+                    sessions.setdefault(key, []).append(float(row["value"]))
+        else:
+            with (directory / "build.csv").open() as source:
+                for row in csv.DictReader(source):
+                    if row["status"] != "ok":
+                        failures.append(str(directory))
+                        continue
+                    key = (row["backend"], row["profile"], "build", row["pair"], row["state"], "wall", "s")
+                    if key in seen:
+                        raise ValueError(f"duplicate observation: {key}")
+                    seen.add(key)
+                    sessions.setdefault(key, []).append(float(row["seconds"]))
+    grouped, paired = {}, {}
+    for key, values in sessions.items():
+        backend, profile, workload, pair, state, metric, unit = key
+        value = statistics.median(values)
+        group = (backend, profile, workload, state, metric, unit)
+        grouped.setdefault(group, []).append(value)
+        if pair != "0":
+            paired.setdefault((profile, workload, pair, state, metric, unit), {})[backend] = value
+    fields = ("backend", "profile", "workload", "state", "metric", "unit")
+    write_csv(output / "summary.csv", (*fields, "sessions", "median", "min", "max"), [
+        dict(zip(fields, key), sessions=len(values), median=statistics.median(values), min=min(values), max=max(values))
+        for key, values in sorted(grouped.items())])
+    fields = ("profile", "workload", "pair", "state", "metric", "unit")
+    write_csv(output / "pairs.csv", (*fields, "cadrum", "monstertruck", "new_minus_old", "new_over_old"), [
+        dict(zip(fields, key), cadrum=values["cadrum"], monstertruck=values["monstertruck"],
+             new_minus_old=values["monstertruck"] - values["cadrum"],
+             new_over_old=values["monstertruck"] / values["cadrum"] if values["cadrum"] else "undefined")
+        for key, values in sorted(paired.items()) if set(values) == {"cadrum", "monstertruck"}])
+    coverage = []
+    for row in schedule():
+        if row["workload"] == "build":
+            phases = ((row["state"], "wall", "s", 1),)
+        elif row["workload"].startswith("startup:"):
+            phases = ((row["state"], "navigation-to-usable-landing", "ms", 1),
+                      ("worker-startup", "worker-create-to-ready", "ms", 1),
+                      ("cold", "dispatch-to-validated-reply", "ms", 1))
+        elif row["state"].startswith("growth20"):
+            phases = (("growth", "dispatch-to-validated-reply", "ms", 20),)
+        else:
+            phases = (("cold", "dispatch-to-validated-reply", "ms", 1),
+                      ("warm", "dispatch-to-validated-reply", "ms", 5))
+        for state, metric, unit, expected in phases:
+            key = (row["backend"], row["profile"], row["workload"], str(row["pair"]), state, metric, unit)
+            count = len(sessions.get(key, []))
+            coverage.append(dict(backend=row["backend"], profile=row["profile"], workload=row["workload"],
+                                 pair=row["pair"], state=state, metric=metric, expected=expected, observed=count,
+                                 status="complete" if count == expected else "missing-or-extra"))
+    write_csv(output / "coverage.csv", ("backend", "profile", "workload", "pair", "state", "metric", "expected", "observed", "status"), coverage)
+    (output / "report.log").write_text(f"input_captures={len(inputs)} failed_captures={len(failures)}\n"
+                                      f"complete_schedule_cells={sum(row['status'] == 'complete' for row in coverage)}\n"
+                                      f"missing_or_extra_schedule_cells={sum(row['status'] != 'complete' for row in coverage)}\n"
+                                      "Descriptive capture only. U1/downloads and independent quality/admission remain separate.\n")
+    (output / "failures.log").write_text("\n".join(failures) + "\n")
+    if failures:
+        raise ValueError("failed observations retained; diagnose and invalidate their whole pairs before reporting wins")
+
+
+def process_memory(pid):
+    """Return PSS/RSS KiB from one live process, never process high-water marks."""
+    values = {}
+    for line in Path(f"/proc/{pid}/smaps_rollup").read_text().splitlines():
+        key, _, value = line.partition(":")
+        if key in ("Pss", "Rss"):
+            values[key] = int(value.split()[0])
+    return values["Pss"], values["Rss"]
+
+
+def sample_tree(pid):
+    parents, commands = {}, {}
+    for path in Path("/proc").iterdir():
+        if not path.name.isdigit():
+            continue
+        try:
+            tail = (path / "stat").read_text().rsplit(")", 1)[1].split()
+            parents[int(path.name)] = int(tail[1])
+            commands[int(path.name)] = (path / "cmdline").read_bytes().split(b"\0")
+        except (OSError, ValueError):
+            continue
+    owned = {pid}
+    while True:
+        children = {p for p, parent in parents.items() if parent in owned} - owned
+        if not children:
+            break
+        owned.update(children)
+    # Playwright's own browser descendant has this launch flag. Keep the Node controller separate.
+    browsers = {p for p in owned if b"--remote-debugging-pipe" in commands.get(p, [])}
+    browser_tree = set(browsers)
+    while True:
+        children = {p for p in owned if parents.get(p) in browser_tree} - browser_tree
+        if not children:
+            break
+        browser_tree.update(children)
+    rows = []
+    for process in sorted(owned):
+        try:
+            pss, rss = process_memory(process)
+            rows.append((process, "browser" if process in browser_tree else "controller", pss, rss, "ok"))
+        except (OSError, KeyError, ValueError):
+            rows.append((process, "browser" if process in browser_tree else "controller", "", "", "unavailable"))
+    return rows
+
+
+def capture(command, root, out, timeout, env=None):
+    (out / "environment-before.log").write_text(environment())
+    started = time.monotonic()
+    with (out / "command.log").open("w") as log, (out / "memory.csv").open("w") as memory, \
+            (out / "stdout-timing.csv").open("w") as timing:
+        log.write(f"cwd={root}\nargv={command!r}\nsampling_interval_seconds=0.05\n")
+        log.flush()
+        writer = csv.writer(memory)
+        writer.writerow(("monotonic_s", "unix_s", "pid", "scope", "pss_kib", "rss_kib", "status"))
+        process = subprocess.Popen(command, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   env=env, start_new_session=True, text=True, bufsize=1)
+        done = threading.Event()
+        timed_lines = csv.writer(timing)
+        timed_lines.writerow(("monotonic_s", "unix_s", "line"))
+
+        def drain():
+            for line in process.stdout:
+                timed_lines.writerow((time.monotonic(), time.time(), line.rstrip("\n")))
+                log.write(line)
+                log.flush()
+
+        reader = threading.Thread(target=drain, daemon=True)
+        reader.start()
+
+        def sample():
+            while not done.is_set():
+                now = time.monotonic()
+                unix = time.time()
+                for row in sample_tree(process.pid):
+                    writer.writerow((now, unix, *row))
+                memory.flush()
+                done.wait(max(0, .05 - (time.monotonic() - now)))
+
+        thread = threading.Thread(target=sample, daemon=True)
+        thread.start()
+        try:
+            code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            import signal
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            code = 124
+        finally:
+            done.set()
+            thread.join()
+            reader.join(timeout=10)
+            if reader.is_alive():
+                import signal
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                reader.join(timeout=2)
+                code = 125
+                log.write("stdout remained open after child exit; observation invalid\n")
+        elapsed = time.monotonic() - started
+        log.write(f"\nexit={code}\nwall_seconds={elapsed}\n")
+    (out / "environment-after.log").write_text(environment())
+    return code, elapsed
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("plan", "bind", "build", "runtime", "report"))
+    parser.add_argument("--checkout", type=Path, default=ROOT)
+    parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
+    parser.add_argument("--profile", choices=PROFILES, default="checked")
+    parser.add_argument("--output", type=Path, required=True, help="new directory under this lane's .evidence")
+    parser.add_argument("--workload", choices=(*PAIRED, *UNPAIRED, "startup:cold", "startup:warm"))
+    parser.add_argument("--pair", type=int, choices=range(0, 6), default=1)
+    parser.add_argument("--growth", action="store_true")
+    parser.add_argument("--state", choices=("clean", "noop", "incremental"))
+    parser.add_argument("--build-run", type=Path, help="successful measure-cad build capture directory for the served artifacts")
+    parser.add_argument("--inputs", type=Path, nargs="+", help="completed capture directories for report")
+    parser.add_argument("--admission-note", type=Path, help="root's source/artifact-bound independent admission and quiet-window record")
+    args = parser.parse_args()
+    root, out = args.checkout.resolve(), args.output.resolve()
+    if not out.is_relative_to(ROOT / ".evidence"):
+        parser.error("capture outputs must be under this lane's .evidence")
+    if out.exists():
+        parser.error("use a new output directory; failed observations are never overwritten")
+    out.mkdir(parents=True)
+    if args.action == "plan":
+        write_csv(out / "schedule.csv", ("profile", "pair", "backend", "workload", "state"), schedule())
+        print(f"Untimed finite schedule: {out / 'schedule.csv'}; root clearance/admission still required")
+        return 0
+    if args.action == "report":
+        if not args.inputs or not args.admission_note or not args.admission_note.is_file():
+            parser.error("report requires --inputs and --admission-note; an observed reply is not geometry admission")
+        (out / "admission.log").write_text(args.admission_note.read_text())
+        summarize(args.inputs, out)
+        print(f"Descriptive samples: {out}; paired ratios are new/old, never a significance claim")
+        return 0
+    before, current = binding(root, args.profile)
+    (out / "binding-before.log").write_text("\n".join(before) + "\n")
+    if args.action == "bind":
+        sizes(root, out / "sizes.csv")
+        print(f"Read-only binding: {out}; official stamp matches={current}")
+        return 0
+    if not args.source_head or git(root, "rev-parse", "HEAD") != args.source_head:
+        parser.error("execution requires the exact root-cleared --source-head")
+    if args.growth and args.pair != 0:
+        parser.error("growth sequence is separate from the five pairs; pass --pair 0")
+    old = (root / "cad/scripts/cadrum_build.py").is_file()
+    backend = "cadrum" if old else "monstertruck"
+    if args.action == "build":
+        if root == HISTORICAL:
+            parser.error("historical baseline lane/artifacts are read-only; provision a measurement workspace")
+        if not args.state:
+            parser.error("build requires --state clean/noop/incremental")
+        if args.state == "clean" and any((root / p).exists() for p in (
+                "target", "cad/wasm/target", "cad/wasm/pkg", "web/target", "renderer/pkg", "renderer/target")):
+            parser.error("clean cycle requires fresh dedicated output directories; this tool never cleans")
+        if old and os.environ.get("CADRUM_IMAGE_READY") != "1":
+            parser.error("verify pinned image/archive first, then set CADRUM_IMAGE_READY=1")
+        if old and (not any(line.startswith("historical_image=") and
+                            "569918e5874f8908957a76e2b2df7518d9c7886f5d224c5536ec2ca9896fd2f0" in line for line in before)
+                    or not any(line.startswith("historical_prebuilt_archive=") and
+                               "actual=8149e781acdbd21507cfb29937e48e5fdbe628ee5c37007f720dcf5d4000e6ad" in line for line in before)):
+            parser.error("pinned historical image/archive provenance unavailable; no automatic provisioning fallback")
+        browser_tools.locate()  # Fail before expensive compilation if the retained browser prerequisites drifted.
+        command = [sys.executable, "scripts/build-web.py", *(["--fast"] if args.profile == "checked" else [])]
+        code, elapsed = capture(command, root, out, 7200)
+        write_csv(out / "build.csv", ("backend", "profile", "pair", "state", "seconds", "status"),
+                  [dict(backend=backend, profile=args.profile, pair=args.pair, state=args.state,
+                        seconds=elapsed, status="ok" if code == 0 else f"exit-{code}")])
+        sizes(root, out / "sizes.csv")
+    else:
+        if not args.workload or not current:
+            parser.error("runtime requires --workload and the selected profile's current official CAD stamp")
+        if old and args.workload in UNPAIRED:
+            parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
+        if not args.admission_note or not args.admission_note.is_file():
+            parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
+        (out / "admission.log").write_text(args.admission_note.read_text())
+        if not args.build_run or not (args.build_run / "binding-after.log").is_file():
+            parser.error("runtime requires --build-run from a successful source-bound full build capture")
+        build_binding = (args.build_run / "binding-after.log").read_text()
+        if "\nexit=0\n" not in (args.build_run / "command.log").read_text():
+            parser.error("the referenced full build failed")
+        # Harness metadata can differ; served source/profile/input/artifact lines cannot.
+        bound_fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
+        selected = lambda lines: [line for line in lines if line.startswith(bound_fields)]
+        if selected(build_binding.splitlines()) != selected(before):
+            parser.error("full build binding does not match these served source/profile/artifacts")
+        package = root / "cad/wasm/pkg"
+        staged = root / "web/target/site/site-subpath/boardstudio/assets/cad"
+        for file in package.glob("*.js"):
+            if not (staged / file.name).is_file() or file.read_bytes() != (staged / file.name).read_bytes():
+                parser.error("packaged CAD JS differs from the official source-bound package")
+        for file in package.glob("*.wasm"):
+            if not (staged / file.name).is_file() or file.read_bytes() != (staged / file.name).read_bytes():
+                parser.error("packaged CAD WASM differs from the official source-bound package")
+        site = root / "web/target/site"
+        if not (site / "site-subpath/boardstudio/assets/cad-worker/entry.js").is_file():
+            parser.error("runtime requires a fresh source-bound full page/worker package; provider-only is insufficient")
+        node, chrome = browser_tools.locate()
+        serve = module_at(ROOT / "scripts/serve-web.py", "perf_serve")
+        base_handler = serve.handler_for(site)
+
+        class Handler(base_handler):
+            def translate_path(self, path):
+                url = path.partition("?")[0]
+                if url.startswith("/__perf/"):
+                    relative = url.removeprefix("/__perf/")
+                    file = (ROOT / relative).resolve()
+                    return str(file) if file.is_relative_to(ROOT) else "/dev/null"
+                if url.startswith("/__source/"):
+                    file = (root / url.removeprefix("/__source/")).resolve()
+                    return str(file) if file.is_relative_to(root) else "/dev/null"
+                return super().translate_path(path)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        command = [node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs"),
+                   f"http://127.0.0.1:{server.server_port}", backend, args.profile,
+                   args.workload, str(out), str(args.pair), "growth20" if args.growth else "latency"]
+        try:
+            code, _ = capture(command, root, out, 5400, dict(os.environ, CHROME_BIN=chrome))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+    after, _ = binding(root, args.profile)
+    (out / "binding-after.log").write_text("\n".join(after) + "\n")
+    if args.action == "runtime" and before != after:
+        raise SystemExit("source/artifact/stamp drift: invalidate this observation and its pair")
+    print(f"Captured {args.action}, exit={code}, output={out}; admission/review required before comparison")
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,830 @@
+{
+  "revision": 5,
+  "specs": [
+    {
+      "id": "key-r0c0",
+      "reference": "SW1",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 30.0,
+          "y": 20.0
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r0c1",
+      "reference": "SW2",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 49.05,
+          "y": 20.0
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r0c2",
+      "reference": "SW3",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 68.1,
+          "y": 20.0
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r0c3",
+      "reference": "SW4",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 87.15,
+          "y": 20.0
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r0c4",
+      "reference": "SW5",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 106.2,
+          "y": 20.0
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r1c0",
+      "reference": "SW6",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 30.0,
+          "y": 39.05
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r1c1",
+      "reference": "SW7",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 49.05,
+          "y": 39.05
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r1c2",
+      "reference": "SW8",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 68.1,
+          "y": 39.05
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r1c3",
+      "reference": "SW9",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 87.15,
+          "y": 39.05
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r1c4",
+      "reference": "SW10",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 106.2,
+          "y": 39.05
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r2c0",
+      "reference": "SW11",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 30.0,
+          "y": 58.1
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r2c1",
+      "reference": "SW12",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 49.05,
+          "y": 58.1
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r2c2",
+      "reference": "SW13",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 68.1,
+          "y": 58.1
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r2c3",
+      "reference": "SW14",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 87.15,
+          "y": 58.1
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r2c4",
+      "reference": "SW15",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 106.2,
+          "y": 58.1
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r3c0",
+      "reference": "SW16",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 30.0,
+          "y": 77.15
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r3c1",
+      "reference": "SW17",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 49.05,
+          "y": 77.15
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r3c2",
+      "reference": "SW18",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 68.1,
+          "y": 77.15
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r3c3",
+      "reference": "SW19",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 87.15,
+          "y": 77.15
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r3c4",
+      "reference": "SW20",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 106.2,
+          "y": 77.15
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r4c0",
+      "reference": "SW21",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 30.0,
+          "y": 96.2
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r4c1",
+      "reference": "SW22",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 49.05,
+          "y": 96.2
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r4c2",
+      "reference": "SW23",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 68.1,
+          "y": 96.2
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r4c3",
+      "reference": "SW24",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 87.15,
+          "y": 96.2
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    },
+    {
+      "id": "key-r4c4",
+      "reference": "SW25",
+      "profile": "dsa",
+      "mount": "mx",
+      "row": 3,
+      "size": {
+        "x": 18.2,
+        "y": 18.2
+      },
+      "topSize": {
+        "x": 13.2,
+        "y": 13.2
+      },
+      "height": 7.5,
+      "tilt": 0,
+      "dishDepth": 0.65,
+      "spherical": true,
+      "wallThickness": 1.2,
+      "pose": {
+        "at": {
+          "x": 106.2,
+          "y": 96.2
+        },
+        "rotation": 15
+      },
+      "side": "front",
+      "z": 10,
+      "travel": 4,
+      "legend": "O",
+      "color": "#eeeeee",
+      "legendColor": "#222222"
+    }
+  ]
+}
