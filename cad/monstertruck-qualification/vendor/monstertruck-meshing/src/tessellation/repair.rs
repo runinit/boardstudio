@@ -75,6 +75,11 @@ pub(super) struct Pending<'a> {
 }
 
 impl Capture {
+    #[cfg(test)]
+    pub(super) fn for_test(faces: usize) -> Self {
+        Self::new(faces)
+    }
+
     fn new(faces: usize) -> Self {
         let bytes = faces.checked_mul(2 * size_of::<Mutex<FaceTrace>>());
         let mut traces = Vec::new();
@@ -370,5 +375,65 @@ where
         fallback,
         traces,
         failure,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use monstertruck_geometry::prelude::{Line, Plane};
+    use std::panic::catch_unwind;
+
+    #[test]
+    fn repair_report_preserves_legacy_tolerance_precondition_on_empty_shell() {
+        let shell: CompressedShell<Point3, Line<Point3>, Plane> = CompressedShell {
+            vertices: Vec::new(),
+            edges: Vec::new(),
+            faces: Vec::new(),
+            vertex_stable_ids: None,
+            edge_stable_ids: None,
+            face_stable_ids: None,
+        };
+        for tolerance in [0.0, -0.01, f64::NAN, TOLERANCE.next_down(), TOLERANCE, 0.01] {
+            let options = TessellationOptions {
+                tolerance,
+                ..Default::default()
+            };
+            let legacy = catch_unwind(|| {
+                robust_cshell_triangulation_with_closed_axis_metadata_report(&shell, options, &[])
+            });
+            let reported = catch_unwind(|| {
+                robust_cshell_triangulation_with_repair_report(&shell, options, &[])
+            });
+            assert_eq!(legacy.is_err(), !(tolerance >= TOLERANCE));
+            assert_eq!(
+                reported.is_err(),
+                legacy.is_err(),
+                "same precondition for tolerance {tolerance:?}"
+            );
+            if let (Ok((mesh, fallback)), Ok(report)) = (legacy, reported) {
+                assert_eq!(&mesh, report.mesh());
+                assert_eq!(&fallback, report.fallback_faces());
+                assert!(report.complete_bound().is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn repair_trace_rollback_keeps_failures_and_other_faces() {
+        let capture = Capture::new(2);
+        let first = capture.face(0).unwrap();
+        let other = capture.face(1).unwrap();
+        other.unsupported(Stage::SourceDomain, "other face");
+        let mark = first.mark();
+        first.unsupported(Stage::BoundaryRemap, "rejected candidate");
+        assert!(!first.reserve_auxiliary(STORAGE_CAP + 1));
+        first.discard_since(mark);
+        assert_eq!(first.mark(), mark);
+        assert_eq!(other.mark(), (1, 0));
+        assert_eq!(
+            capture.faces[0].lock().unwrap().failure,
+            Some("mesh repair auxiliary storage resource cap")
+        );
     }
 }

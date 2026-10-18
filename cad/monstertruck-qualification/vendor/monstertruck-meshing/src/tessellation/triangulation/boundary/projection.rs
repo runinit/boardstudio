@@ -2931,6 +2931,71 @@ mod seam_branch_tests {
 }
 
 #[cfg(test)]
+mod repair_candidate_tests {
+    use super::*;
+    use monstertruck_geometry::prelude::Plane;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn wire(offset: f64) -> Vec<(Option<Vec<Point2>>, PolylineCurve)> {
+        let first = [(0., 0.), (1., 0.), (1., 1.)];
+        let second = [(1., 1.), (0., 1.), (0., 0.)];
+        [first, second]
+            .into_iter()
+            .enumerate()
+            .map(|(index, points)| {
+                let uv = points
+                    .map(|(x, y)| Point2::new(x + if index == 1 { offset } else { 0. }, y));
+                let xyz = points.map(|(x, y)| Point3::new(x, y, 0.));
+                (Some(uv.to_vec()), PolylineCurve::from(xyz.to_vec()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn repair_rejected_alignment_does_not_survive_successful_projection() {
+        let surface = Plane::xy();
+        let capture = repair::Capture::for_test(1);
+        let trace = capture.face(0).unwrap();
+        let calls = AtomicUsize::new(0);
+        let sp = |_: &Plane, point: Point3, _: Option<(f64, f64)>| {
+            calls.fetch_add(1, Ordering::Relaxed);
+            Some((point.x, point.y))
+        };
+        let input = wire(2.0 * TOLERANCE);
+        let legacy = PolyBoundaryPiece::try_new_from_aligned_exact(
+            &surface, input.clone().into_iter(), &sp, 0.01, true,
+        ).unwrap();
+        calls.store(0, Ordering::Relaxed);
+        let actual = PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+            &surface, input.into_iter(), &sp, 0.01, true, Some(trace),
+        ).unwrap();
+        assert!(calls.load(Ordering::Relaxed) > 0, "rejected aligned piece must use real projection");
+        assert_eq!(
+            actual.0.iter().map(|p| (p.uv, p.point)).collect::<Vec<_>>(),
+            legacy.0.iter().map(|p| (p.uv, p.point)).collect::<Vec<_>>()
+        );
+        assert_eq!(trace.mark().1, 1, "retain only the earlier accepted aligned piece");
+    }
+
+    #[test]
+    fn repair_accepted_alignment_retains_trace_and_failed_route_rolls_back() {
+        let surface = Plane::xy();
+        let capture = repair::Capture::for_test(1);
+        let trace = capture.face(0).unwrap();
+        let no_projection = |_: &Plane, _: Point3, _: Option<(f64, f64)>| None;
+        assert!(PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+            &surface, wire(0.).into_iter(), &no_projection, 0.01, true, Some(trace),
+        ).is_some());
+        assert_eq!(trace.mark().1, 2);
+        let prior = trace.mark();
+        assert!(PolyBoundaryPiece::try_new_from_aligned_exact_with_repair(
+            &surface, wire(2.0 * TOLERANCE).into_iter(), &no_projection, 0.01, true, Some(trace),
+        ).is_none());
+        assert_eq!(trace.mark(), prior, "failed construction keeps prior selected pieces");
+    }
+}
+
+#[cfg(test)]
 mod angular_closure_tests {
     use super::*;
 
