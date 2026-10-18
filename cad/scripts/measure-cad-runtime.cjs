@@ -9,16 +9,18 @@ const [origin, backend, profile, workload, output, pair, sequence] = process.arg
 const [fixture, operation] = workload.split(':');
 let activeBrowser;
 const csv = values => values.map(value => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',');
-const metrics = fs.createWriteStream(path.join(output, 'runtime.csv'));
+const validation = sequence === 'validation';
+const metrics = fs.createWriteStream(path.join(output, validation ? 'diagnostic.csv' : 'runtime.csv'));
 metrics.write(csv(['backend', 'profile', 'workload', 'pair', 'state', 'ordinal', 'metric', 'value', 'unit', 'status']) + '\n');
 const event = (name, data = {}) => fs.appendFileSync(path.join(output, 'events.log'),
   JSON.stringify({ unix_ms: Date.now(), name, ...data }) + '\n');
 function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
   assert(Number.isFinite(value) && value >= 0);
-  metrics.write(csv([backend, profile, workload, pair, state, ordinal, name, value, unit, status]) + '\n');
+  metrics.write(csv([backend, profile, workload, pair, state, ordinal, name, value, unit, validation ? 'diagnostic-not-benchmark' : status]) + '\n');
 }
 
 (async () => {
+  event('purpose', { validationOnly: validation, values: validation ? 'diagnostic-not-benchmark' : 'observation-awaiting-admission' });
   const warmStartup = workload === 'startup:warm';
   const flags = ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
   const browser = activeBrowser = await chromium.launch({ executablePath: process.env.CHROME_BIN, args: flags });
@@ -219,7 +221,7 @@ function metric(state, ordinal, name, value, unit = 'ms', status = 'observed') {
     const dwell = () => new Promise(resolve => setTimeout(resolve, 100));
     await dwell();
     event('idle-baseline');
-    const count = fixture === 'startup' ? 1 : sequence === 'growth20' ? 20 : 6;
+    const count = validation || fixture === 'startup' ? 1 : sequence === 'growth20' ? 20 : 6;
     for (let i = 0; i < count; ++i) {
       const state = sequence === 'growth20' ? 'growth' : i === 0 ? 'cold' : 'warm';
       if (operation === 'step' && i > 0) {

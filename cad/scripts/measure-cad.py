@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import statistics
 import subprocess
 import sys
@@ -53,7 +54,7 @@ def write_csv(path, fields, rows):
         writer.writerows(rows)
 
 
-def schedule():
+def schedule(build_cycles=1):
     rows = []
     for profile in PROFILES:
         for pair in range(1, 6):
@@ -73,13 +74,43 @@ def schedule():
                                  workload=workload, state="cold+5warm;unpaired"))
             rows.append(dict(profile=profile, pair=0, backend="monstertruck",
                              workload=workload, state="growth20;unpaired"))
-        for pair in range(1, 4):
+        for pair in range(1, build_cycles + 1):
             order = ("cadrum", "monstertruck") if pair % 2 else ("monstertruck", "cadrum")
             for backend in order:
                 for state in ("clean", "noop", "incremental"):
                     rows.append(dict(profile=profile, pair=pair, backend=backend,
                                      workload="build", state=state))
     return rows
+
+
+def existing_artifacts(root, receipt, profile):
+    """Validate the existing integration receipt, without inventing a timed build record."""
+    content = receipt.read_text()
+    match = re.search(r"Current combined source ([0-9a-f]{40});", content)
+    if not match or profile != "checked" or "--no-opt" not in content or "Dioxus page debug" not in content:
+        raise ValueError("existing receipt must identify tested source and checked/no-opt artifacts")
+    tested = match[1]
+    changes = git(root, "diff", "--name-only", tested, "HEAD").splitlines()
+    dirty = git(root, "diff", "--name-only", "HEAD").splitlines()
+    if any(not path.endswith(".md") for path in changes + dirty):
+        raise ValueError("measured checkout has production changes beyond the receipt's tested source")
+    site = root / "web/target/site/site-subpath/boardstudio"
+    pairs = (
+        ("cad/boardstudio_cad_wasm_bg.wasm", "cad/wasm/pkg/boardstudio_cad_wasm_bg.wasm"),
+        ("cad/boardstudio_cad_wasm.js", "cad/wasm/pkg/boardstudio_cad_wasm.js"),
+        ("cad-worker/m1_cad_worker_bg.wasm", "web/target/providers/cad-worker/m1_cad_worker_bg.wasm"),
+        ("cad-worker/m1_cad_worker.js", "web/target/providers/cad-worker/m1_cad_worker.js"),
+    )
+    for packaged, original in pairs:
+        expected = re.search(re.escape(f"BYTE_IDENTICAL packaged assets/{packaged} == {original}; ") + r"(\d+) bytes\.", content)
+        if not expected:
+            raise ValueError(f"existing receipt omits {packaged}")
+        data = (root / original).read_bytes()
+        if len(data) != int(expected[1]) or (site / "assets" / packaged).read_bytes() != data:
+            raise ValueError(f"packaged/original artifact differs from receipt: {packaged}")
+    if not (site / "index.html").is_file():
+        raise ValueError("packaged page index missing")
+    return f"validation_only=true\ntested_source={tested}\ncheckout_head={git(root, 'rev-parse', 'HEAD')}\ndocs_only_successors={changes!r}\nreceipt={receipt}\n{content}"
 
 
 def binding(root, profile):
@@ -378,7 +409,7 @@ def capture(command, root, out, timeout, env=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("plan", "bind", "build", "runtime", "report"))
+    parser.add_argument("action", choices=("plan", "bind", "build", "runtime", "validate", "report"))
     parser.add_argument("--checkout", type=Path, default=ROOT)
     parser.add_argument("--source-head", help="root's frozen full source commit; required for execution")
     parser.add_argument("--profile", choices=PROFILES, default="checked")
@@ -390,6 +421,9 @@ def main():
     parser.add_argument("--build-run", type=Path, help="successful measure-cad build capture directory for the served artifacts")
     parser.add_argument("--inputs", type=Path, nargs="+", help="completed capture directories for report")
     parser.add_argument("--admission-note", type=Path, help="root's source/artifact-bound independent admission and quiet-window record")
+    parser.add_argument("--artifact-receipt", type=Path, help="existing official integration artifact receipt, validation only")
+    parser.add_argument("--build-cycles", type=int, choices=(1, 3), default=1,
+                        help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
     root, out = args.checkout.resolve(), args.output.resolve()
     if not out.is_relative_to(ROOT / ".evidence"):
@@ -398,7 +432,7 @@ def main():
         parser.error("use a new output directory; failed observations are never overwritten")
     out.mkdir(parents=True)
     if args.action == "plan":
-        write_csv(out / "schedule.csv", ("profile", "pair", "backend", "workload", "state"), schedule())
+        write_csv(out / "schedule.csv", ("profile", "pair", "backend", "workload", "state"), schedule(args.build_cycles))
         print(f"Untimed finite schedule: {out / 'schedule.csv'}; root clearance/admission still required")
         return 0
     if args.action == "report":
@@ -447,19 +481,24 @@ def main():
             parser.error("runtime requires --workload and the selected profile's current official CAD stamp")
         if old and args.workload in UNPAIRED:
             parser.error("historical Cadrum has no admitted refinement/owned-query counterpart")
-        if not args.admission_note or not args.admission_note.is_file():
-            parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
-        (out / "admission.log").write_text(args.admission_note.read_text())
-        if not args.build_run or not (args.build_run / "binding-after.log").is_file():
-            parser.error("runtime requires --build-run from a successful source-bound full build capture")
-        build_binding = (args.build_run / "binding-after.log").read_text()
-        if "\nexit=0\n" not in (args.build_run / "command.log").read_text():
-            parser.error("the referenced full build failed")
-        # Harness metadata can differ; served source/profile/input/artifact lines cannot.
-        bound_fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
-        selected = lambda lines: [line for line in lines if line.startswith(bound_fields)]
-        if selected(build_binding.splitlines()) != selected(before):
-            parser.error("full build binding does not match these served source/profile/artifacts")
+        validation = args.action == "validate"
+        if validation:
+            if args.growth or not args.artifact_receipt:
+                parser.error("validate requires --artifact-receipt and never runs repetition/growth sequences")
+            (out / "artifact-validation.log").write_text(existing_artifacts(root, args.artifact_receipt, args.profile))
+        else:
+            if not args.admission_note or not args.admission_note.is_file():
+                parser.error("runtime needs root's --admission-note for this frozen source/artifacts/quiet window")
+            (out / "admission.log").write_text(args.admission_note.read_text())
+            if not args.build_run or not (args.build_run / "binding-after.log").is_file():
+                parser.error("runtime requires --build-run from a successful source-bound full build capture")
+            build_binding = (args.build_run / "binding-after.log").read_text()
+            if "\nexit=0\n" not in (args.build_run / "command.log").read_text():
+                parser.error("the referenced full build failed")
+            bound_fields = ("head=", "source_sha256=", "profile=", "official_provider_inputs=", "provider_stamp=", "artifact_")
+            selected = lambda lines: [line for line in lines if line.startswith(bound_fields)]
+            if selected(build_binding.splitlines()) != selected(before):
+                parser.error("full build binding does not match these served source/profile/artifacts")
         package = root / "cad/wasm/pkg"
         staged = root / "web/target/site/site-subpath/boardstudio/assets/cad"
         for file in package.glob("*.js"):
@@ -495,16 +534,23 @@ def main():
         thread.start()
         command = [node, str(ROOT / "cad/scripts/measure-cad-runtime.cjs"),
                    f"http://127.0.0.1:{server.server_port}", backend, args.profile,
-                   args.workload, str(out), str(args.pair), "growth20" if args.growth else "latency"]
+                   args.workload, str(out), str(args.pair), "validation" if validation else "growth20" if args.growth else "latency"]
         try:
-            code, _ = capture(command, root, out, 5400, dict(os.environ, CHROME_BIN=chrome))
+            if validation:
+                with (out / "validation.log").open("w") as log:
+                    log.write("Validation only; all observed values are diagnostic, not benchmark results.\n")
+                    log.flush()
+                    code = subprocess.run(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                          env=dict(os.environ, CHROME_BIN=chrome), timeout=600).returncode
+            else:
+                code, _ = capture(command, root, out, 5400, dict(os.environ, CHROME_BIN=chrome))
         finally:
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
     after, _ = binding(root, args.profile)
     (out / "binding-after.log").write_text("\n".join(after) + "\n")
-    if args.action == "runtime" and before != after:
+    if args.action in ("runtime", "validate") and before != after:
         raise SystemExit("source/artifact/stamp drift: invalidate this observation and its pair")
     print(f"Captured {args.action}, exit={code}, output={out}; admission/review required before comparison")
     return code
