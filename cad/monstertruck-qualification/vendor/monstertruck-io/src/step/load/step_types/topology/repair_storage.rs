@@ -4,6 +4,44 @@ use super::*;
 pub(super) fn curve(curve: &Curve3D) -> Option<usize> {
     Cost { nodes: 0, bytes: 0 }.curve(curve, 0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repair_movement_sink_nested_snapshot_does_not_retain_preview_spare_capacity() {
+        let mut rows = Vec::with_capacity(256);
+        for x in [0.0, 1.0] {
+            let mut row = Vec::with_capacity(256);
+            row.extend([Point3::new(x, 0.0, 0.0), Point3::new(x, 1.0, 0.0)]);
+            rows.push(row);
+        }
+        let surface = Surface::BsplineSurface(BsplineSurface::new(
+            (KnotVector::bezier_knot(1), KnotVector::bezier_knot(1)),
+            rows,
+        ));
+        let curve = Curve3D::ParameterCurve(StepParameterCurve::new(
+            Box::new(Curve2D::BsplineCurve(BsplineCurve::new(
+                KnotVector::bezier_knot(1),
+                vec![Point2::new(0.0, 0.0), Point2::new(1.0, 1.0)],
+            ))),
+            Box::new(surface),
+        ));
+        let budget = std::rc::Rc::new(std::cell::Cell::new(4096));
+        let mut trace = FiniteCurveTrace::new(std::rc::Rc::clone(&budget));
+        let snapshot = trace.begin(&curve).expect(
+            "the small actual nested snapshot fits even when the preview net has large spare capacity",
+        );
+        assert_eq!(snapshot, curve);
+        let Curve3D::ParameterCurve(copy) = &snapshot else { unreachable!() };
+        let Surface::BsplineSurface(copy) = copy.surface().as_ref() else { unreachable!() };
+        assert_eq!(copy.control_points().capacity(), 2);
+        assert!(copy.control_points().iter().all(|row| row.capacity() == 2));
+        assert!(!trace.failed);
+        assert!(budget.get() > 0);
+    }
+}
 pub(super) fn curve2(curve: &Curve2D) -> Option<usize> {
     let mut cost = Cost { nodes: 0, bytes: 0 };
     cost.curve2(curve)?;
