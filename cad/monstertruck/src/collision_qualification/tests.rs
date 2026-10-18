@@ -1,6 +1,8 @@
 use super::*;
 use num_traits::One;
 use query::{ContactRegion, Containment, Limits};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::console_log as println;
 
 fn fixture() -> serde_json::Value {
     serde_json::from_str(include_str!(
@@ -76,7 +78,8 @@ fn cube(lo: f64, hi: f64) -> Vec<FTriangle> {
     .to_vec()
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn complete_capacitor_final_mesh_has_a_symmetric_source_bound() {
     let model = capacitor();
     let q = qualified(&model, IDENTITY);
@@ -102,7 +105,8 @@ fn complete_capacitor_final_mesh_has_a_symmetric_source_bound() {
     assert_eq!(q.transform_rounding_mm, 0.0);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn capacitor_pair_uses_slab_and_keeps_broad_nonunique_contacts() {
     let m = capacitor();
     let b = qualified(&m, IDENTITY);
@@ -174,7 +178,8 @@ fn capacitor_pair_uses_slab_and_keeps_broad_nonunique_contacts() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn thirty_degree_affine_control_counts_exact_rounding_once() {
     let m = capacitor();
     let mut row = IDENTITY;
@@ -209,7 +214,8 @@ fn thirty_degree_affine_control_counts_exact_rounding_once() {
     assert!(result.mm[0] - source_errors < 1.0 && result.mm[1] + source_errors > 1.0);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn finite_source_band_does_not_invent_a_world_slab_after_rotation() {
     let m = capacitor();
     let mut row = IDENTITY;
@@ -230,7 +236,8 @@ fn finite_source_band_does_not_invent_a_world_slab_after_rotation() {
     ));
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn original_frame_order_normalization_and_origins_are_independently_checked() {
     let m = capacitor();
     let text = std::str::from_utf8(m.original_bytes()).unwrap();
@@ -274,7 +281,8 @@ fn original_frame_order_normalization_and_origins_are_independently_checked() {
     assert!(q.source_hull[0][1] > decimal("3.9").unwrap());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn final_triangle_loss_tags_and_support_edits_refuse_qualification() {
     let m = capacitor();
     let positions = m.preview_positions_f64();
@@ -321,7 +329,8 @@ fn final_triangle_loss_tags_and_support_edits_refuse_qualification() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn original_decimal_authority_and_sqrt_bounds_are_exact() {
     let q = decimal("1.000000000000000000000000000001").unwrap();
     assert!(q > Q::one());
@@ -345,7 +354,8 @@ fn original_decimal_authority_and_sqrt_bounds_are_exact() {
     assert!(decimal("1e1000").is_err());
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn mesh_distance_checks_separated_touching_crossing_coplanar_and_nested() {
     let a = triangle(0.0);
     let crossing = [[0.5, 0.5, -1.], [0.5, 0.5, 1.], [1.5, 0.5, 0.]];
@@ -376,7 +386,8 @@ fn mesh_distance_checks_separated_touching_crossing_coplanar_and_nested() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn exact_features_cover_oblique_parallel_edges_and_square_root_two() {
     let a = [[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]];
     let b = [[2., 1., 0.], [3., 1., 0.], [2., 2., 0.]];
@@ -393,7 +404,8 @@ fn exact_features_cover_oblique_parallel_edges_and_square_root_two() {
     assert!(d.mm[0] > 0. && d.mm[1] >= 1e-12);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn invalid_seeds_nonfinite_degenerates_caps_and_tighter_numeric_requests_refuse() {
     let a = triangle(0.);
     let b = triangle(1.);
@@ -465,7 +477,8 @@ fn invalid_seeds_nonfinite_degenerates_caps_and_tighter_numeric_requests_refuse(
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn filled_hole_and_duplicate_face_triangles_do_not_gain_coverage_or_containment() {
     let p = |x, y| point([x, y, 0.]).unwrap();
     let loops = vec![
@@ -487,7 +500,8 @@ fn filled_hole_and_duplicate_face_triangles_do_not_gain_coverage_or_containment(
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn missing_source_precision_and_extreme_decimal_exponents_refuse() {
     let bytes = include_str!(
         "../../../../ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step"
@@ -533,7 +547,8 @@ fn box_surface(hull: [FPoint; 2]) -> QualifiedSurface {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn slab_rejects_rounded_endpoints_that_reverse_or_collapse() {
     let a = box_surface([[0.; 3], [1.; 3]]);
     for (minimum, expected_right) in [
@@ -553,7 +568,8 @@ fn slab_rejects_rounded_endpoints_that_reverse_or_collapse() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn slab_requires_strict_emitted_separation_and_tries_other_axes() {
     let a = box_surface([[0.; 3], [1.; 3]]);
     let minimum = 1f64.next_up().next_up().next_up();
@@ -586,7 +602,8 @@ fn slab_requires_strict_emitted_separation_and_tries_other_axes() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn slab_refuses_touching_and_overlapping_source_hulls() {
     let a = box_surface([[0.; 3], [1.; 3]]);
     for minimum in [0.5, 1.] {
