@@ -159,6 +159,16 @@ impl StepRepairConversion {
         if let Some(reason) = self.failure {
             return Err(reason);
         }
+        let source = self
+            .source
+            .shells()
+            .get(shell)
+            .ok_or("missing repair shell source")?;
+        if source.shell().faces.is_empty()
+            || source.source_face_ids().len() != source.shell().faces.len()
+        {
+            return Err("empty or incomplete finite source face coverage");
+        }
         let trace = self
             .traces
             .get(shell)

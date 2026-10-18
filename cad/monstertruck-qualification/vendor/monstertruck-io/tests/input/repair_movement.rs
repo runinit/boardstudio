@@ -193,3 +193,17 @@ fn repair_movement_report_resource_cap_preserves_the_admitted_output() {
     assert!(traced.operations(0).all(|op| op.curve_change().is_none()));
     assert_eq!(bytes, original);
 }
+
+#[test]
+fn repair_movement_empty_finite_face_coverage_is_incomplete() {
+    let bytes = b"ISO-10303-21;HEADER;FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));ENDSEC;DATA;#1=CLOSED_SHELL('',());#2=MANIFOLD_SOLID_BREP('',#1);ENDSEC;END-ISO-10303-21;";
+    let table = Table::from_step_bytes(bytes).unwrap();
+    let authority = StepRepairSource::from_step_bytes(bytes).unwrap();
+    let report = table
+        .to_source_bound_solid_with_repair_checked(2, None, &authority)
+        .unwrap();
+    assert!(
+        report.complete_bound(0).is_err(),
+        "empty finite face coverage is never a zero movement certificate"
+    );
+}
