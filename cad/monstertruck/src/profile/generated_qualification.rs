@@ -29,6 +29,58 @@ fn source_surface(model: &ExactModel, face: &GeneratedSourceFace) -> Option<Surf
     Some(source_face.surface().clone())
 }
 
+fn source_face_boundaries<'a>(
+    model: &'a ExactModel,
+    face: &GeneratedSourceFace,
+) -> Option<Vec<Wire>> {
+    let solid = model.solids.get(face.solid_index)?;
+    let shell = solid.boundaries().get(face.shell_index)?;
+    let source_face = shell.face_iter().nth(face.face_index)?;
+    Some(source_face.boundaries())
+}
+
+fn wire_vertices(wire: &Wire) -> Vec<Point3> {
+    let mut points = Vec::new();
+    for edge in wire.edge_iter() {
+        let (start, _) = edge.ends();
+        let point = start.point();
+        if points.last().copied() != Some(point) {
+            points.push(point);
+        }
+    }
+    if points.len() > 1 && points.first() == points.last() {
+        points.pop();
+    }
+    points
+}
+
+fn plane_loop_area(normal: Vector3, points: &[Point3]) -> f64 {
+    if points.len() < 3 {
+        return 0.0;
+    }
+    let origin = points[0];
+    let mut sum = 0.0;
+    for index in 0..points.len() {
+        let next = (index + 1) % points.len();
+        let cross = (points[index] - origin).cross(points[next] - origin);
+        sum += cross.dot(normal);
+    }
+    sum / 2.0
+}
+
+fn source_plane_area(
+    model: &ExactModel,
+    face: &GeneratedSourceFace,
+    normal: Vector3,
+) -> Option<f64> {
+    let boundaries = source_face_boundaries(model, face)?;
+    let mut area = 0.0;
+    for wire in &boundaries {
+        area += plane_loop_area(normal, &wire_vertices(wire));
+    }
+    Some(area.abs())
+}
+
 fn revolution_parameters(
     proc: &monstertruck_modeling::Processor<
         monstertruck_modeling::RevolutionSurface<Curve>,
@@ -94,6 +146,24 @@ pub fn qualify_generated(
     }
     if analysis.source_faces.is_empty() {
         reasons.push("missing source face".into());
+    }
+    // Native census: count exact retained source faces independently of the
+    // analysis payload's source face list.
+    let mut native_face_count = 0usize;
+    for solid in &model.solids {
+        for shell in solid.boundaries() {
+            native_face_count += shell.face_iter().count();
+        }
+    }
+    if native_face_count != analysis.source_faces.len() {
+        reasons.push("incomplete native source face census".into());
+    }
+    if analysis
+        .source_faces
+        .iter()
+        .any(|face| face.support_kind == "REVOLUTION_SURFACE")
+    {
+        reasons.push("revolution support UV/trim/numeric proof unavailable".into());
     }
     if !analysis.deflection_mm.is_finite() || analysis.deflection_mm <= 0.0 {
         reasons.push("invalid deflection setting".into());
@@ -173,11 +243,50 @@ pub fn qualify_generated(
             Surface::Plane(plane) => {
                 let normal = plane.normal();
                 let origin = plane.origin();
+                // Every final vertex must lie exactly on the retained source plane.
                 for vertex in &vertices {
                     let point = Point3::new(vertex[0], vertex[1], vertex[2]);
-                    let distance = (point - origin).dot(normal).abs();
-                    if distance > direct {
-                        direct = distance;
+                    let distance = (point - origin).dot(normal);
+                    if !distance.is_finite() {
+                        local_reasons.push("non-finite plane residual".into());
+                        break;
+                    }
+                    if distance != 0.0 {
+                        local_reasons.push("final vertex off source plane".into());
+                        break;
+                    }
+                    let residual = distance.abs();
+                    if residual > direct {
+                        direct = residual;
+                    }
+                }
+                if local_reasons.iter().any(|r| {
+                    r == "final vertex off source plane" || r == "non-finite plane residual"
+                }) {
+                    // Skip area check once plane correspondence is already invalid.
+                } else {
+                    let source_area = match source_plane_area(model, face, normal) {
+                        Some(value) if value.is_finite() && value > 0.0 => value,
+                        _ => {
+                            local_reasons.push("invalid source plane area".into());
+                            0.0
+                        }
+                    };
+                    // Final triangle area on the same plane.
+                    let mut mesh_area = 0.0;
+                    for triangle in vertices.as_chunks::<3>().0 {
+                        if triangle.len() < 3 {
+                            continue;
+                        }
+                        let a = Point3::new(triangle[0][0], triangle[0][1], triangle[0][2]);
+                        let b = Point3::new(triangle[1][0], triangle[1][1], triangle[1][2]);
+                        let c = Point3::new(triangle[2][0], triangle[2][1], triangle[2][2]);
+                        let cross = (b - a).cross(c - a);
+                        mesh_area += cross.dot(normal) / 2.0;
+                    }
+                    mesh_area = mesh_area.abs();
+                    if source_area == 0.0 || mesh_area != source_area {
+                        local_reasons.push("incomplete plane trim coverage".into());
                     }
                 }
             }
@@ -351,6 +460,68 @@ mod tests {
     }
 
     #[test]
+    fn shrunk_plane_triangles_are_unknown() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        // Shrink every triangle toward its own centroid. Vertices stay on the
+        // source planes, but the covered area no longer matches the source face.
+        for triangle in 0..(analysis.positions_mm_f64.len() / 9) {
+            let base = triangle * 9;
+            let mut cx = 0.0;
+            let mut cy = 0.0;
+            let mut cz = 0.0;
+            for corner in 0..3 {
+                cx += analysis.positions_mm_f64[base + corner * 3];
+                cy += analysis.positions_mm_f64[base + corner * 3 + 1];
+                cz += analysis.positions_mm_f64[base + corner * 3 + 2];
+            }
+            cx /= 3.0;
+            cy /= 3.0;
+            cz /= 3.0;
+            for corner in 0..3 {
+                let index = base + corner * 3;
+                analysis.positions_mm_f64[index] = (analysis.positions_mm_f64[index] + cx) * 0.5;
+                analysis.positions_mm_f64[index + 1] =
+                    (analysis.positions_mm_f64[index + 1] + cy) * 0.5;
+                analysis.positions_mm_f64[index + 2] =
+                    (analysis.positions_mm_f64[index + 2] + cz) * 0.5;
+            }
+        }
+        let result = qualify_generated(&model, &analysis);
+        match result {
+            GeneratedQualification::Unknown { reasons } => {
+                assert!(
+                    reasons
+                        .iter()
+                        .any(|reason| reason.contains("trim coverage"))
+                );
+            }
+            other => panic!("expected unknown, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn removed_source_face_is_unknown_by_native_census() {
+        let model = plate_model();
+        let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
+        let removed = analysis.source_faces.len() - 1;
+        analysis.source_faces.pop();
+        let mut kept_tags = Vec::new();
+        for tag in &analysis.triangle_face_occurrence_indices {
+            if *tag == removed {
+                continue;
+            }
+            let adjusted = if *tag > removed { *tag - 1 } else { *tag };
+            kept_tags.push(adjusted);
+        }
+        analysis.triangle_face_occurrence_indices = kept_tags;
+        // Keep positions length consistent by dropping removed face's triangles.
+        // (Positions length no longer matches tags; census/shape checks reject.)
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
     fn wrong_coverage_is_unknown() {
         let model = plate_model();
         let mut analysis = mesh_profile_for_analysis(&model, None).expect("mesh");
@@ -367,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn pcb_hole_qualifies_with_positive_bound() {
+    fn pcb_hole_is_unknown_until_uv_trim_proof_exists() {
         let input: boardstudio_contracts::PreparedCaseIR = serde_json::from_str(include_str!(
             "../../tests/fixtures/pcb-source/circle-tracer.json"
         ))
@@ -376,13 +547,14 @@ mod tests {
         let analysis = mesh_profile_for_analysis(&entry, Some(0.01)).expect("mesh");
         let result = qualify_generated(&entry, &analysis);
         match result {
-            GeneratedQualification::Bounded {
-                direct_bound_mm, ..
-            } => {
-                assert!(direct_bound_mm >= 0.0);
-                assert!(direct_bound_mm.is_finite());
+            GeneratedQualification::Unknown { reasons } => {
+                assert!(
+                    reasons
+                        .iter()
+                        .any(|reason| reason.contains("revolution support"))
+                );
             }
-            other => panic!("expected bounded, got {other:?}"),
+            other => panic!("expected unknown, got {other:?}"),
         }
     }
 }
