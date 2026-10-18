@@ -120,11 +120,21 @@ class CadBuildTests(unittest.TestCase):
         with patch.object(build, "run") as run:
             build.test_cad()
         commands = [call.args[0] for call in run.call_args_list]
-        self.assertEqual(
-            [command[3] for command in commands],
-            ["monstertruck/Cargo.toml", "wasm/Cargo.toml"],
-        )
+        self.assertEqual([command[3] for command in commands[:2]],
+                         ["monstertruck/Cargo.toml", "wasm/Cargo.toml"])
         self.assertTrue(all("--locked" in command and "--release" in command for command in commands))
+        owner_commands = [command[4:] for command in commands[2:]]
+        for selection in (
+            ["-p", "monstertruck-io", "--test", "input", "repair_movement"],
+            ["-p", "monstertruck-io", "--test", "input", "source_pcurve_active_view"],
+            ["-p", "monstertruck-io", "--test", "input", "preview_tolerance"],
+            ["-p", "monstertruck-meshing", "--lib", "repair_"],
+            ["-p", "monstertruck-meshing", "--test", "closed_trim_projection"],
+            ["-p", "monstertruck-meshing", "--lib", "seam_branch_tests"],
+        ):
+            self.assertTrue(any(command[:len(selection)] == selection for command in owner_commands), selection)
+        self.assertTrue(all(command[3] == "monstertruck-qualification/Cargo.toml"
+                            for command in commands[2:]))
         with patch.object(build, "run", side_effect=[None, subprocess.CalledProcessError(1, "cargo")]):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()

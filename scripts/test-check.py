@@ -30,6 +30,33 @@ class CheckTests(unittest.TestCase):
                     if argument.endswith(".py") or argument.endswith("Cargo.toml"):
                         self.assertTrue((ROOT / argument).is_file(), f"{name}: {argument} is missing")
 
+    def test_supported_test_scripts_are_registered_or_explicitly_opt_in(self):
+        scripts = {str(path.relative_to(ROOT)) for directory in ("scripts", "cad/scripts")
+                   for pattern in ("test-*.py", "test-*.cjs", "*.test.py")
+                   for path in (ROOT / directory).glob(pattern)}
+        registered = {argument for _, commands in check.STEPS.values()
+                      for command in commands for argument in command if argument in scripts}
+        delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
+        opt_in = {
+            "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
+            "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
+        }
+        self.assertEqual(scripts, registered | delegated.keys() | opt_in.keys())
+        self.assertTrue(all(opt_in.values()))
+        for runner in delegated.values():
+            self.assertTrue(any(runner in command for _, commands in check.STEPS.values()
+                                for command in commands))
+
+    def test_measurement_protocols_run_in_tooling_with_node_prerequisite(self):
+        commands = check.STEPS["tooling"][1]
+        self.assertIn([check.PY, "-B", "cad/scripts/test-measure-cad.py"], commands)
+        self.assertIn(["node", "cad/scripts/test-measure-cad-runtime.cjs"], commands)
+        self.assertLess(commands.index(["node", "--version"]),
+                        commands.index(["node", "cad/scripts/test-measure-cad-runtime.cjs"]))
+
+    def test_browser_runs_packaged_provider_regressions(self):
+        self.assertIn([check.PY, "cad/scripts/test-cad-provider.py"], check.STEPS["browser"][1])
+
     def test_full_check_runs_the_documented_steps_in_order(self):
         self.assertEqual(check.DEFAULT, ("repo", "tooling", "lint", "build", "test", "browser"))
         self.assertNotIn("security", check.DEFAULT)
