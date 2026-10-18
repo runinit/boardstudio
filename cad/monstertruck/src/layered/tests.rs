@@ -513,6 +513,122 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
 }
 
 #[test]
+fn adoption_ring_island_retains_disjoint_through_holes_in_either_opening_order() {
+    let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/opening-ring-island.json"
+    ))
+    .unwrap();
+    input.regions[0].mounts.push(Mount {
+        id: "disjoint-round-through-hole".into(),
+        at: Vec2 { x: 18., y: 8. },
+        kind: MountKind::Hole,
+        hole_diameter: 1.,
+        boss_diameter: None,
+        height: None,
+    });
+    let rectangle = CaseOpening {
+        points: rectangle(1., 1., 1., 1.),
+        z: 0.,
+        height: 4.,
+    };
+    let ring_openings = input.body.openings.clone().unwrap();
+    for reverse_ring in [false, true] {
+        for rectangle_first in [true, false] {
+            let mut openings = ring_openings.clone();
+            if reverse_ring {
+                openings.reverse();
+            }
+            openings.insert(if rectangle_first { 0 } else { 2 }, rectangle.clone());
+            input.body.openings = Some(openings);
+            verify(
+                &input,
+                1116. - std::f64::consts::PI - 4., // Independent Ø1 × 4 mm bore and 1 × 1 × 4 mm cut.
+                [[0., 0., 0.], [20., 16., 4.]],
+                &[
+                    ([18., 8., 3.], false),
+                    ([18., 8., 1.], false),
+                    ([19., 8., 3.], true),
+                    ([1.5, 1.5, 3.], false),
+                    ([1.5, 1.5, 1.], false),
+                    ([2.5, 1.5, 3.], true),
+                    ([10., 8., 3.], true),
+                    ([5., 8., 3.], false),
+                    ([5., 8., 1.], true),
+                ],
+                1,
+                0,
+            );
+        }
+    }
+}
+
+#[test]
+fn adoption_ring_island_retains_disjoint_hole_segment_sources() {
+    use cavalier_contours::polyline::PlineSource;
+
+    let input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../tests/fixtures/adoption/opening-ring-island.json"
+    ))
+    .unwrap();
+    let outer = polygon(&input.regions[0].outer).unwrap();
+    let round = circle([18., 8.], 0.5, "disjoint-round-through-hole");
+    let rectangular = polygon(&rectangle(1., 1., 1., 1.)).unwrap();
+    let openings = input.body.openings.unwrap();
+    for reverse_ring in [false, true] {
+        let first = usize::from(reverse_ring);
+        for reverse_holes in [false, true] {
+            // The upper Z section immediately before the ring-forming cutter:
+            // one R with three prior holes, including two disjoint components.
+            let mut holes = vec![
+                round.clone(),
+                rectangular.clone(),
+                polygon(&openings[first].points).unwrap(),
+            ];
+            if reverse_holes {
+                holes.reverse();
+            }
+            let previous = vec![contours::Region {
+                outer: outer.clone(),
+                holes,
+            }];
+            let result = difference(&previous, &polygon(&openings[1 - first].points).unwrap())
+                .expect("ring union retains every previous hole");
+            assert_eq!(
+                result.len(),
+                2,
+                "outside material and floor-connected island"
+            );
+            for original in [&round, &rectangular] {
+                let mut matches = 0;
+                for hole in result.iter().flat_map(|region| &region.holes) {
+                    let mut hole = hole.clone();
+                    if hole.area() < 0. {
+                        hole.invert_direction_mut();
+                    }
+                    if hole.vertex_count() != original.vertex_count() {
+                        continue;
+                    }
+                    // Match ordered trim vertices and their corresponding source indices,
+                    // allowing only the closed ring's arbitrary starting vertex.
+                    for offset in 0..hole.vertex_count() {
+                        if (0..hole.vertex_count()).all(|i| {
+                            let j = (i + offset) % hole.vertex_count();
+                            hole.at(j) == original.at(i) && hole.sources[j] == original.sources[i]
+                        }) {
+                            matches += 1;
+                        }
+                    }
+                }
+                assert_eq!(
+                    matches, 1,
+                    "each disjoint authored hole survives exactly once"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn adoption_ring_island_retains_another_owned_cut_in_either_authoring_order() {
     let mut input: PreparedCaseIR = serde_json::from_str(include_str!(
         "../../tests/fixtures/adoption/opening-ring-island.json"
