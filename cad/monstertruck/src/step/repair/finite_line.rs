@@ -64,8 +64,18 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
             input = parser::token::string(input).ok()?.0;
         } else if input.starts_with('#') {
             let (rest, instance) = parser::exchange::entity_instance(input).ok()?;
-            if let EntityInstance::Simple { id, record } = instance
-                && needed.contains(&id)
+            let (id, record) = match instance {
+                EntityInstance::Simple { id, record } => (id, Some(record)),
+                EntityInstance::Complex { id, .. } => (id, None),
+            };
+            let wanted = needed.contains(&id);
+            let unique = !wanted || seen.insert(id);
+            if wanted && !unique {
+                result.remove(&id);
+            }
+            if wanted
+                && unique
+                && let Some(record) = record
                 && matches!(
                     record.name.as_str(),
                     "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
@@ -75,9 +85,6 @@ fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> 
                 let mut values = Vec::new();
                 values.try_reserve_exact(3).ok()?;
                 let mut supported = true;
-                if !seen.insert(id) {
-                    return None;
-                }
                 while !entity.is_empty() {
                     if let Ok((rest, _)) = parser::combinator::separator(entity) {
                         entity = rest;
@@ -307,4 +314,30 @@ fn sqrt_upper(squared: &Q) -> Result<f64, &'static str> {
         return Err("finite LINE movement range");
     }
     Ok(bound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unsupported_or_ambiguous_scalar_entities_do_not_erase_other_authority() {
+        let clear = "#1=CARTESIAN_POINT('',(0.,1.,2.));";
+        for other in [
+            "#2=DIRECTION('',(1.E-100,1.,0.));",
+            "#2=DIRECTION('',(0.,1.,0.,4.));",
+            "#2=DIRECTION('',(0.,1.,0.));#2=VECTOR('',#1,1.);",
+        ] {
+            let source = format!("{clear}{other}");
+            let authority = numbers(source.as_bytes(), &HashSet::from([1, 2])).unwrap();
+            assert_eq!(
+                authority[&1],
+                vec![
+                    Q::zero(),
+                    Q::from_integer(1.into()),
+                    Q::from_integer(2.into())
+                ]
+            );
+            assert!(!authority.contains_key(&2));
+        }
+    }
 }
