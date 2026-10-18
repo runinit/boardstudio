@@ -210,3 +210,39 @@ fn support_solids_are_checked_even_when_the_case_shell_is_below_the_cap() {
             .any(|finding| finding.id.ends_with("feature/post"))
     );
 }
+
+#[test]
+fn product_presets_match_the_independent_print_coverage_table() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../cad/wasm/tests/fixtures/keycap-product-presets.json"
+    ))
+    .unwrap();
+    let presets = fixture["presets"].as_array().unwrap();
+    assert_eq!(presets.len(), 40, "eight profiles times five rows");
+    for preset in presets {
+        let profile = preset["profile"].as_str().unwrap();
+        let row = preset["row"].as_u64().unwrap() as u8;
+        let mut document = doc();
+        document.matrices.clear();
+        let config = document.keycaps.as_mut().unwrap();
+        config.keys.clear();
+        config.keys.insert(
+            document.parts[0].id.clone(),
+            serde_json::from_value(json!({
+                "profile": profile,
+                "mount": if profile == "choc" { "choc-v1" } else { "mx" },
+                "row": row,
+            }))
+            .unwrap(),
+        );
+        let result = resolve(document, None);
+        assert!(result.findings.is_empty(), "{profile} row {row}: {:?}", result.findings);
+        let spec = serde_json::to_value(&result.specs[0]).unwrap();
+        for field in ["height", "tilt", "dishDepth", "spherical"] {
+            assert_eq!(spec[field], preset[field], "{profile} row {row} {field}");
+        }
+        for field in ["size", "topSize", "wallThickness"] {
+            assert_eq!(spec[field], fixture[field], "{profile} row {row} {field}");
+        }
+    }
+}

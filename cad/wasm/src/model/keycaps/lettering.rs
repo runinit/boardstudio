@@ -76,7 +76,8 @@ impl OutlineBuilder for Outline {
     }
 }
 
-pub(super) fn mesh(spec: &KeycapSpec) -> Result<Option<MeshData>, String> {
+/// The legend outlines fitted to the roof, snapped to the f32 coordinates the display mesh uses.
+fn fitted_paths(spec: &KeycapSpec) -> Result<Option<Vec<Vec<[f64; 2]>>>, String> {
     if spec.legend.trim().is_empty() {
         return Ok(None);
     }
@@ -137,7 +138,51 @@ pub(super) fn mesh(spec: &KeycapSpec) -> Result<Option<MeshData>, String> {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+    Ok(Some(paths))
+}
 
+/// Outer contours counter-clockwise and holes clockwise, by even-odd nesting depth.
+fn oriented(paths: &[Vec<[f64; 2]>]) -> Vec<Vec<[f64; 2]>> {
+    paths
+        .iter()
+        .enumerate()
+        .filter(|(_, contour)| contour.len() >= 3)
+        .map(|(index, contour)| {
+            let nesting = paths
+                .iter()
+                .enumerate()
+                .filter(|(other_index, other)| {
+                    index != *other_index && other.len() >= 3 && inside(contour[0], other)
+                })
+                .count();
+            let hole = nesting % 2 == 1;
+            let mut oriented = contour.clone();
+            let area = signed_area_f64(&oriented);
+            if (!hole && area < 0.0) || (hole && area > 0.0) {
+                oriented.reverse();
+            }
+            oriented
+        })
+        .collect()
+}
+
+/// Closed print outlines of the legend, for a solid built without the display triangulation.
+pub(super) fn print_contours(spec: &KeycapSpec) -> Result<Option<Vec<Vec<[f64; 2]>>>, String> {
+    Ok(fitted_paths(spec)?.map(|paths| oriented(&paths)))
+}
+
+/// Height of the roof under `(x, y)`, which the legend relief follows.
+pub(super) fn roof_z(spec: &KeycapSpec, x: f64, y: f64) -> f64 {
+    surface_z(spec, x, y)
+}
+
+pub(super) const RAISE_MM: f64 = LEGEND_RAISE_MM;
+pub(super) const EMBED_MM: f64 = LEGEND_EMBED_MM;
+
+pub(super) fn mesh(spec: &KeycapSpec) -> Result<Option<MeshData>, String> {
+    let Some(paths) = fitted_paths(spec)? else {
+        return Ok(None);
+    };
     let mut path = Path::builder();
     for contour in paths.iter().filter(|contour| contour.len() >= 3) {
         path.begin(point(contour[0][0] as f32, contour[0][1] as f32));
@@ -184,24 +229,7 @@ pub(super) fn mesh(spec: &KeycapSpec) -> Result<Option<MeshData>, String> {
         add_triangle_if_nondegenerate(&mut mesh, [bottom[0], bottom[2], bottom[1]])?;
     }
 
-    for (index, contour) in paths
-        .iter()
-        .enumerate()
-        .filter(|(_, contour)| contour.len() >= 3)
-    {
-        let nesting = paths
-            .iter()
-            .enumerate()
-            .filter(|(other_index, other)| {
-                index != *other_index && other.len() >= 3 && inside(contour[0], other)
-            })
-            .count();
-        let hole = nesting % 2 == 1;
-        let mut oriented = contour.clone();
-        let area = signed_area_f64(&oriented);
-        if (!hole && area < 0.0) || (hole && area > 0.0) {
-            oriented.reverse();
-        }
+    for oriented in oriented(&paths) {
         for edge in 0..oriented.len() {
             let a = oriented[edge];
             let b = oriented[(edge + 1) % oriented.len()];

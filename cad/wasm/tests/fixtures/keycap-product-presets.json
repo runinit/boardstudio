@@ -1,0 +1,334 @@
+{
+  "note": "Independent transcription of the product keycap preset table (core/src/keycaps.rs) for a 18.2 x 18.2 mm key with 1.2 mm walls. core/tests/keycaps.rs asserts the resolver still produces exactly these values; cad/wasm print coverage consumes them.",
+  "size": {
+    "x": 18.2,
+    "y": 18.2
+  },
+  "topSize": {
+    "x": 13.2,
+    "y": 13.2
+  },
+  "wallThickness": 1.2,
+  "presets": [
+    {
+      "profile": "cherry",
+      "row": 1,
+      "height": 9.4,
+      "tilt": -6.0,
+      "dishDepth": 0.55,
+      "spherical": false
+    },
+    {
+      "profile": "cherry",
+      "row": 2,
+      "height": 8.7,
+      "tilt": -3.0,
+      "dishDepth": 0.55,
+      "spherical": false
+    },
+    {
+      "profile": "cherry",
+      "row": 3,
+      "height": 8.0,
+      "tilt": 0.0,
+      "dishDepth": 0.55,
+      "spherical": false
+    },
+    {
+      "profile": "cherry",
+      "row": 4,
+      "height": 8.7,
+      "tilt": 3.0,
+      "dishDepth": 0.55,
+      "spherical": false
+    },
+    {
+      "profile": "cherry",
+      "row": 5,
+      "height": 9.4,
+      "tilt": 6.0,
+      "dishDepth": 0.55,
+      "spherical": false
+    },
+    {
+      "profile": "oem",
+      "row": 1,
+      "height": 11.6,
+      "tilt": -8.0,
+      "dishDepth": 0.65,
+      "spherical": false
+    },
+    {
+      "profile": "oem",
+      "row": 2,
+      "height": 10.8,
+      "tilt": -4.0,
+      "dishDepth": 0.65,
+      "spherical": false
+    },
+    {
+      "profile": "oem",
+      "row": 3,
+      "height": 10.0,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": false
+    },
+    {
+      "profile": "oem",
+      "row": 4,
+      "height": 10.8,
+      "tilt": 4.0,
+      "dishDepth": 0.65,
+      "spherical": false
+    },
+    {
+      "profile": "oem",
+      "row": 5,
+      "height": 11.6,
+      "tilt": 8.0,
+      "dishDepth": 0.65,
+      "spherical": false
+    },
+    {
+      "profile": "dcs",
+      "row": 1,
+      "height": 9.7,
+      "tilt": -7.0,
+      "dishDepth": 0.6,
+      "spherical": false
+    },
+    {
+      "profile": "dcs",
+      "row": 2,
+      "height": 9.1,
+      "tilt": -3.5,
+      "dishDepth": 0.6,
+      "spherical": false
+    },
+    {
+      "profile": "dcs",
+      "row": 3,
+      "height": 8.5,
+      "tilt": 0.0,
+      "dishDepth": 0.6,
+      "spherical": false
+    },
+    {
+      "profile": "dcs",
+      "row": 4,
+      "height": 9.1,
+      "tilt": 3.5,
+      "dishDepth": 0.6,
+      "spherical": false
+    },
+    {
+      "profile": "dcs",
+      "row": 5,
+      "height": 9.7,
+      "tilt": 7.0,
+      "dishDepth": 0.6,
+      "spherical": false
+    },
+    {
+      "profile": "dsa",
+      "row": 1,
+      "height": 7.5,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": true
+    },
+    {
+      "profile": "dsa",
+      "row": 2,
+      "height": 7.5,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": true
+    },
+    {
+      "profile": "dsa",
+      "row": 3,
+      "height": 7.5,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": true
+    },
+    {
+      "profile": "dsa",
+      "row": 4,
+      "height": 7.5,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": true
+    },
+    {
+      "profile": "dsa",
+      "row": 5,
+      "height": 7.5,
+      "tilt": 0.0,
+      "dishDepth": 0.65,
+      "spherical": true
+    },
+    {
+      "profile": "sa",
+      "row": 1,
+      "height": 14.0,
+      "tilt": -8.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "sa",
+      "row": 2,
+      "height": 13.0,
+      "tilt": -4.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "sa",
+      "row": 3,
+      "height": 12.0,
+      "tilt": 0.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "sa",
+      "row": 4,
+      "height": 13.0,
+      "tilt": 4.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "sa",
+      "row": 5,
+      "height": 14.0,
+      "tilt": 8.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "hi-pro",
+      "row": 1,
+      "height": 15.0,
+      "tilt": -8.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "hi-pro",
+      "row": 2,
+      "height": 14.0,
+      "tilt": -4.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "hi-pro",
+      "row": 3,
+      "height": 13.0,
+      "tilt": 0.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "hi-pro",
+      "row": 4,
+      "height": 14.0,
+      "tilt": 4.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "hi-pro",
+      "row": 5,
+      "height": 15.0,
+      "tilt": 8.0,
+      "dishDepth": 0.7,
+      "spherical": true
+    },
+    {
+      "profile": "g20",
+      "row": 1,
+      "height": 6.5,
+      "tilt": 0.0,
+      "dishDepth": 0.0,
+      "spherical": false
+    },
+    {
+      "profile": "g20",
+      "row": 2,
+      "height": 6.5,
+      "tilt": 0.0,
+      "dishDepth": 0.0,
+      "spherical": false
+    },
+    {
+      "profile": "g20",
+      "row": 3,
+      "height": 6.5,
+      "tilt": 0.0,
+      "dishDepth": 0.0,
+      "spherical": false
+    },
+    {
+      "profile": "g20",
+      "row": 4,
+      "height": 6.5,
+      "tilt": 0.0,
+      "dishDepth": 0.0,
+      "spherical": false
+    },
+    {
+      "profile": "g20",
+      "row": 5,
+      "height": 6.5,
+      "tilt": 0.0,
+      "dishDepth": 0.0,
+      "spherical": false
+    },
+    {
+      "profile": "choc",
+      "row": 1,
+      "height": 4.2,
+      "tilt": 0.0,
+      "dishDepth": 0.4,
+      "spherical": true
+    },
+    {
+      "profile": "choc",
+      "row": 2,
+      "height": 4.2,
+      "tilt": 0.0,
+      "dishDepth": 0.4,
+      "spherical": true
+    },
+    {
+      "profile": "choc",
+      "row": 3,
+      "height": 4.2,
+      "tilt": 0.0,
+      "dishDepth": 0.4,
+      "spherical": true
+    },
+    {
+      "profile": "choc",
+      "row": 4,
+      "height": 4.2,
+      "tilt": 0.0,
+      "dishDepth": 0.4,
+      "spherical": true
+    },
+    {
+      "profile": "choc",
+      "row": 5,
+      "height": 4.2,
+      "tilt": 0.0,
+      "dishDepth": 0.4,
+      "spherical": true
+    }
+  ]
+}

@@ -50,7 +50,7 @@ fn build_mode(specs: &[Spec], printable: bool) -> Result<Vec<BodyMeshData>, Stri
 
         let placed = (|| -> Result<(MeshData, Option<MeshData>), String> {
             let cap_mesh = if printable {
-                super::printing::mesh(&template)
+                super::printing::mesh(&template, spec)
                     .map_err(|error| format!("Keycap '{}' print failed: {error}", spec.id))?
             } else {
                 display_cap_mesh(&template)

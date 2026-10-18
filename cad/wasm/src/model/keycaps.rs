@@ -5,6 +5,8 @@ mod adapter;
 mod lettering;
 mod mesh_template;
 mod printing;
+#[cfg(test)]
+mod print_coverage;
 mod request;
 
 use request::Request;
@@ -65,6 +67,17 @@ mod print_tests {
         let result = build(serde_json::from_value(input).unwrap())
             .expect("tilted legend must form a closed print operand");
         assert_eq!(result.bodies.unwrap().len(), 1, "legend is merged into cap");
+    }
+
+    #[test]
+    fn printable_dcs_row_three_dished_legend_prints() {
+        // Product preset: DCS row 3 is untilted with a 0.6 mm cylindrical dish.
+        let mut input = print_input("mx");
+        input["specs"][0]["profile"] = "dcs".into();
+        input["specs"][0]["height"] = 8.5.into();
+        input["specs"][0]["dishDepth"] = 0.6.into();
+        input["specs"][0]["legend"] = "A".into();
+        build(serde_json::from_value(input).unwrap()).expect("dished legend must print");
     }
 
     #[test]
