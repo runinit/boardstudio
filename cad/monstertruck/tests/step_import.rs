@@ -678,7 +678,7 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
         model
             .face_occurrences()
             .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.01))
+            .all(|f| f.source_uncertainty_mm == Some(0.01) && f.repair_displacement_mm == 0.)
     );
     assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     let unknown = text.replace("GEOMETRIC_REPRESENTATION_CONTEXT(3) ", "");
