@@ -1255,3 +1255,84 @@ fn corpus_faces_without_a_uv_chart_are_meshed_from_shared_samples() {
         );
     }
 }
+
+/// Sum of f64 triangle areas per source face id, from the analysis positions the importer
+/// retains (independent of the f32 render buffer).
+fn analysis_area_by_face_id(
+    model: &boardstudio_cad::ImportedStep,
+) -> std::collections::BTreeMap<u64, f64> {
+    let positions = model.preview_positions_f64();
+    let mut areas = std::collections::BTreeMap::<u64, f64>::new();
+    for (triangle, tag) in model.triangle_faces().iter().enumerate() {
+        let source = &model.source_faces()[model.face_occurrences()[*tag].source_face];
+        let [a, b, c] = [0, 1, 2].map(|k| positions[triangle * 3 + k]);
+        let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        let ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+        let cross = [
+            ab[1] * ac[2] - ab[2] * ac[1],
+            ab[2] * ac[0] - ab[0] * ac[2],
+            ab[0] * ac[1] - ab[1] * ac[0],
+        ];
+        *areas.entry(source.face_id).or_default() +=
+            0.5 * (cross[0].powi(2) + cross[1].powi(2) + cross[2].powi(2)).sqrt();
+    }
+    areas
+}
+
+/// Two planar circular-segment faces (R = 3.18045527649815 mm, half-angle 1e-4 rad, sagitta
+/// 1.6e-8 mm, area R^2 (theta - sin theta cos theta) = 6.7e-12 mm^2 each) cap a 2 mm prism. They
+/// are finer than the f32 render grid at 3.18 mm (ulp 2.4e-7 mm), so the ordinary mesher cannot
+/// chart them and their shared-sample fallback triangles collapse at render precision. Their
+/// positive f64 source coverage must stay in the analysis buffers while the import succeeds.
+#[test]
+fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysis_coverage() {
+    let model = import_step(include_bytes!("fixtures/circular-segment-sliver-prism.step").to_vec())
+        .unwrap();
+    assert_eq!(model.source_faces().len(), 4);
+    assert_eq!(model.face_occurrences().len(), 4);
+    assert_eq!(model.accuracy().fallback_meshed_faces, 2);
+    assert_eq!(
+        model.triangle_faces().len(),
+        model.preview_positions_f64().len() / 3
+    );
+    let (radius, theta) = (3.18045527649815_f64, 1e-4_f64);
+    // theta - sin(theta) cos(theta) = 2 theta^3 / 3 - 2 theta^5 / 15 + ..., free of cancellation.
+    let segment_area = radius * radius * (2. * theta.powi(3) / 3. - 2. * theta.powi(5) / 15.);
+    let areas = analysis_area_by_face_id(&model);
+    // #214 is the bottom segment, #244 the top one. The sagitta (1.6e-8 mm) is far inside the
+    // 0.1 mm preview deflection, so the shared arc samples are the chord endpoints and the
+    // retained triangles inscribe the segment; they are f64 geometry, not a claimed area.
+    for face_id in [214, 244] {
+        let actual = areas.get(&face_id).copied().unwrap_or(0.);
+        assert!(
+            actual > 0. && actual <= segment_area * (1. + 1e-6),
+            "source face #{face_id} analysis area {actual:e} vs source segment area {segment_area:e}"
+        );
+    }
+    // Each cap keeps its two fallback triangles, all degraded at f32 render precision. The
+    // render buffer stays the f32 image of the analysis positions.
+    for face_id in [214, 244] {
+        let triangles = model
+            .triangle_faces()
+            .iter()
+            .filter(|tag| {
+                model.source_faces()[model.face_occurrences()[**tag].source_face].face_id == face_id
+            })
+            .count();
+        assert_eq!(triangles, 2, "source face #{face_id}");
+    }
+    assert_eq!(
+        model.mesh().positions.len(),
+        model.preview_positions_f64().len() * 3
+    );
+    for (exact, render) in model
+        .preview_positions_f64()
+        .iter()
+        .flatten()
+        .zip(&model.mesh().positions)
+    {
+        assert_eq!(*exact as f32, *render);
+    }
+    assert_eq!(model.accuracy().render_degraded_fallback_triangles, 4);
+    assert_eq!(areas.len(), 4, "every source face keeps analysis coverage");
+}

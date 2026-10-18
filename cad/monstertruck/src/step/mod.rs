@@ -86,6 +86,11 @@ pub struct StepAccuracy {
     /// boundary samples instead. Preview geometry within the preview deflection; the
     /// boundary vertices are the shared edge samples.
     pub fallback_meshed_faces: usize,
+    /// Fallback triangles kept in the exact f64 analysis geometry whose f32 render projection
+    /// collapses or reverses (a face finer than the f32 render grid at its placement). The render
+    /// buffer carries the projected points, so these triangles draw as nothing or as a sliver of
+    /// at most one render-grid step; the analysis buffers keep the full source coverage.
+    pub render_degraded_fallback_triangles: usize,
 }
 
 /// Owns immutable source definitions, transforms, bytes and source-tagged preview data.
@@ -321,6 +326,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let mut relaxed_beyond_declared_precision = false;
     let mut sampled_support_checks = 0;
     let mut fallback_meshed_faces = 0;
+    let mut render_degraded_fallback_triangles = 0;
     let mut max_sampled_support_residual_mm: Option<f64> = None;
     let mut preview_positions_f64 = Vec::new();
     let mut face_occurrences = Vec::new();
@@ -387,6 +393,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 )?;
             fallback_meshed_faces += fallback_faces.len();
             let mut triangles = Vec::new();
+            let mut from_fallback = Vec::new();
             if triangulation.faces.is_empty() {
                 return Err(format!("solid #{id} has an empty shell"));
             }
@@ -404,15 +411,15 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 .ok_or_else(|| format!("solid #{id} has an unmeshed face"))?;
                 let fallback = fallback_faces.contains(&face_index);
                 if fallback {
-                    // A face finer than the f32 render grid (a sliver narrower than the
-                    // preview deflection) keeps its catalogue entry but renders nothing.
+                    // Only triangles with exactly zero f64 area carry no source coverage. A
+                    // positive-area triangle stays in the f64 analysis geometry even when its
+                    // f32 render projection degrades (see `push_render_degraded_triangle`).
                     let mut tail = triangles.split_off(before);
-                    tail.retain(|tri| {
-                        crate::mesh::push_triangle(&mut MeshBuffers::default(), *tri).is_ok()
-                    });
+                    tail.retain(|[a, b, c]| (b - a).cross(c - a).magnitude() != 0.0);
                     triangles.extend(tail);
                 }
-                if before == triangles.len() && !fallback {
+                from_fallback.resize(triangles.len(), fallback);
+                if before == triangles.len() {
                     return Err(format!("solid #{id} has an empty triangle face"));
                 }
                 let source_face = source_faces
@@ -452,9 +459,15 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             mesh_closed_oriented &= closed_oriented_mesh(&triangles);
             // A shell-local origin avoids cancellation under large occurrence translations.
             let reference = triangles[0][0];
-            for [a, b, c] in triangles {
+            for ([a, b, c], fallback) in triangles.into_iter().zip(from_fallback) {
                 signed_volume += (a - reference).dot((b - reference).cross(c - reference)) / 6.0;
-                crate::mesh::push_triangle(&mut mesh, [a, b, c])?;
+                if let Err(error) = crate::mesh::push_triangle(&mut mesh, [a, b, c]) {
+                    if !fallback {
+                        return Err(error);
+                    }
+                    push_render_degraded_triangle(&mut mesh, [a, b, c])?;
+                    render_degraded_fallback_triangles += 1;
+                }
                 for p in [a, b, c] {
                     preview_positions_f64.push([p.x, p.y, p.z]);
                 }
@@ -509,9 +522,38 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             sampled_support_checks,
             max_sampled_support_residual_mm,
             fallback_meshed_faces,
+            render_degraded_fallback_triangles,
         },
         wireframe,
     })
+}
+
+/// Appends the f32 projection of a positive-area fallback triangle whose render orientation does
+/// not survive the projection. The normal is the exact f64 normal, so the render buffer remains
+/// the f32 image of the analysis geometry. Ordinary faces keep the strict refusal.
+fn push_render_degraded_triangle(
+    buffers: &mut MeshBuffers,
+    points: [Point3; 3],
+) -> Result<(), String> {
+    let normal = (points[1] - points[0]).cross(points[2] - points[0]);
+    let length = normal.magnitude();
+    if !length.is_finite() || length == 0.0 {
+        return Err("fallback triangle lost its f64 area".into());
+    }
+    let normal = normal / length;
+    for point in points {
+        for coordinate in [point.x, point.y, point.z] {
+            let coordinate = coordinate as f32;
+            if !coordinate.is_finite() {
+                return Err("fallback triangle is outside the render range".into());
+            }
+            buffers.positions.push(coordinate);
+        }
+        buffers
+            .normals
+            .extend([normal.x, normal.y, normal.z].map(|value| value as f32));
+    }
+    Ok(())
 }
 
 fn require_complete_source_shell(source: &SourceBoundStepShell) -> Result<(), String> {
