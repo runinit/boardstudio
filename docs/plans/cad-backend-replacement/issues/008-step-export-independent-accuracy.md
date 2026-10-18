@@ -1,6 +1,6 @@
 # 008: Export exact cases and PCBs and replace their oracle coverage
 
-Status: claimed
+Status: resolved
 Owner: /root/sol_frame_serde_spec
 Type: build
 Blocked by: None

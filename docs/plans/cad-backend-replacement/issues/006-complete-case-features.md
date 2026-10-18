@@ -1,6 +1,6 @@
 # 006: Adopt layered cases and PCBs and close remaining feature gaps
 
-Status: claimed
+Status: resolved
 Owner: /root (shared integration); /root/luna_production_profiles_005 (private PCB source); /root/sol_layered_case_013 (private PCB consumer)
 Type: build
 Blocked by: 013: Layered case and PCB construction

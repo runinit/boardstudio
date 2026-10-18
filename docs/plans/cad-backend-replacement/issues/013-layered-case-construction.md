@@ -1,6 +1,6 @@
 # 013: Build exact cases and PCB boards through layered 2.5D construction
 
-Status: claimed
+Status: resolved
 Owner: /root/sol_layered_case_013
 Type: prototype
 Blocked by: None
