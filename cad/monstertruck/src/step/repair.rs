@@ -352,6 +352,18 @@ mod tests {
 
     #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
     #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn finite_line_repair_exceeding_preview_budget_refuses_without_attachment_metadata() {
+        let text = shifted_line_tetra().replace("0.001953125", "0.03125");
+        let result = import_step(text.into_bytes());
+        assert!(
+            result.is_err(),
+            "a complete finite LINE moved 0.03125 mm even though emitted endpoint attachments are exact"
+        );
+        assert!(result.err().unwrap().contains("finite LINE repair"));
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn native_line_support_translation_is_measured_on_the_real_import_route() {
         let text = shifted_line_tetra();
         let model = import_step(text.clone().into_bytes()).unwrap();
