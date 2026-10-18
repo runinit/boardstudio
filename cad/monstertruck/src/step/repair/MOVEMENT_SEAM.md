@@ -267,3 +267,45 @@ accepts `.02`, while ideal geometric attachment movement exceeds that selected
 allowance. Source numeric rounding remains separate. Full original trim/master,
 PCurve, tiny-span raw normalization, surface and mesher-region coverage remain
 pending; this finite attachment feature does not close 007 or clear 011 timings.
+
+## Same-master planar spline-PCurve seam slice (root authorized after 4de2f735)
+
+No new public declaration or existing visibility widening. The shared literal
+`tests/fixtures/repair-planar-seam.step` uses the existing preview-tolerance rational
+planar circle, with only its shell/model wrapper made a solid for the traced facade.
+The first qualified class keeps the selected planar spline PCurve; alternate
+masters, original finite selection and original surface conversion stay Unsupported.
+
+In `try_trim_to_points`, mark each attempted candidate; rejected candidates truncate
+only their own records, never conservative resource failures or earlier records.
+`preview_seam_extended` retains the immediate original finite carrier `(s,e)`, the
+ACTUAL shifted spline after `knot_translate(e-s)`, and ACTUAL concatenated carrier
+`(s,e+(e-s))` in that invocation. The immutable
+`same-master-planar-pcurve-seam-extension-v1` pair covers two separate pieces:
+the original and its translated copy. Private records retain the join and shifted
+net. A single affine map over the doubled domain is forbidden. Whole knot and
+homogeneous-control algebra must cover both pieces, their one-sided seam limits
+and the actual value selected at the seam; endpoint closeness is not periodicity.
+
+Exact copying/translation/clamping preserves the geometric image. Its independently
+derived ideal operation repair is zero only after full finite-piece coverage;
+actual binary64 knot/clamping deviation is a separate measured numerical term,
+never ordinary tessellation approximation. Missing/ambiguous maps or nonpositive
+rational denominators are Unsupported. Plane coefficients must be authenticated
+from the actual retained concrete plane, not sampled evaluations. Source plane
+conversion and evaluation/render quantization remain separate and unproved.
+
+`same-master-planar-pcurve-trim-v1` retains the resolved directed finite interval
+immediately BEFORE active-trim installation and the SAME interval/carrier AFTER.
+That view operation does not prove the preceding selection of the finite region.
+The seam pair's full-domain AFTER may restrict to this actual interval only at
+this named stage, with structural carrier equality and checked inclusion; no
+general chain weakening. Inversion has its own immediate carrier/domain pair.
+The last pair must bind the actual emitted edge, original IDs and unchanged master.
+
+Recursive curve/surface storage is charged with checked capacities and bounded
+traversal before retaining clones, including the shifted copy. Caps preserve the
+legacy preview with incomplete coverage. Consecutive stages sum, disjoint seam
+pieces max; source units/occurrence maps apply once. Numeric terms never authorize
+unknown source/master coverage. The existing census's two TrackPoint alternates
+are exactly `TP_Cap_Green_T430.step`; none of the twelve alternates gains proof.
