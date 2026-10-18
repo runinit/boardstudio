@@ -278,6 +278,200 @@ fn resolve_internal_sized(doc: Value, width: f64, height: f64) -> Value {
     serde_json::from_str::<Value>(&reply).unwrap()["assembly"].clone()
 }
 
+fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/adoption-reachability.json")).unwrap();
+    let case = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["prototypeId"] == id)
+        .unwrap()
+        .clone();
+    let mut original =
+        serde_json::to_value(serde_json::from_value::<ProjectDoc>(internal_document()).unwrap())
+            .unwrap();
+    original["formatVersion"] = json!(boardstudio_core::migrate::CURRENT_VERSION);
+    let mut engine = CoreEngine::new();
+    let call = |engine: &mut CoreEngine, input: Value| {
+        serde_json::from_str::<Value>(&engine.request(&input.to_string())).unwrap()
+    };
+    let opened = call(
+        &mut engine,
+        json!({"kind":"open","id":"open","document":original}),
+    );
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let edited = call(
+        &mut engine,
+        json!({"kind":"edit","id":"adopt","command":{
+            "baseRevision":0,"transactionId":id,"phase":"commit","targetIds":[],
+            "operation":{"kind":"set-mechanical","configuration":case["request"]["document"]["mechanical"]}
+        }}),
+    );
+    assert_eq!(edited["kind"], "scene", "{edited}");
+    assert_eq!(edited["document"], case["request"]["document"]);
+    let resolved = call(&mut engine, case["request"].clone());
+    assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
+    let assembly = &resolved["assembly"];
+    assert_eq!(assembly["generationBlocked"], false, "{resolved}");
+    assert!(
+        assembly["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|f| f["severity"] != "error")
+    );
+    let prepared = prepare(serde_json::from_value(assembly["case"].clone()).unwrap()).unwrap();
+    let body = prepared
+        .bodies
+        .into_iter()
+        .find(|body| body.body.id == case["preparedBody"]["body"]["id"])
+        .unwrap();
+    assert_eq!(serde_json::to_value(&body).unwrap(), case["preparedBody"]);
+    let mut changed = case["request"]["document"]["mechanical"].clone();
+    if id.contains("opening") {
+        changed.as_object_mut().unwrap().remove("openings");
+    } else {
+        let fields: &[&str] = if id == "cone-wall" {
+            &["headProfile", "lengthDatum"]
+        } else {
+            &["seatDepth"]
+        };
+        for field in fields {
+            changed["internalGasket"]["hardware"][field] =
+                original["mechanical"]["internalGasket"]["hardware"][field].clone();
+        }
+    }
+    assert_eq!(
+        changed, original["mechanical"],
+        "only the relevant authoring fields change"
+    );
+    (fixture, case, body)
+}
+
+#[test]
+fn adoption_reachability_countersunk_hardware_still_emits_contained_surface_seats() {
+    let (_, case, prepared) = adoption_reachability_case("cone-wall");
+    let hardware = &case["request"]["document"]["mechanical"]["internalGasket"]["hardware"];
+    assert_eq!(hardware["headProfile"], "countersunk");
+    assert_eq!(hardware["lengthDatum"], "overall");
+    let features = prepared.body.features.unwrap();
+    let heads: Vec<_> = features
+        .iter()
+        .filter_map(|feature| match feature {
+            CaseFeature::ConicalSeat {
+                at,
+                z,
+                height,
+                diameter,
+                ..
+            } => Some((at, z, height, diameter)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(heads.len(), 4);
+    for (at, z, height, diameter) in heads {
+        assert_eq!(Some(*z), prepared.body.z);
+        assert!(*z + height < z + prepared.body.thickness);
+        let radius = diameter / 2.;
+        // This retained source has a rectangular floor; every head fits inside it.
+        for axis in [0, 1] {
+            let coordinates: Vec<_> = prepared.regions[0]
+                .outer
+                .iter()
+                .map(|p| if axis == 0 { p.x } else { p.y })
+                .collect();
+            let centre = if axis == 0 { at.x } else { at.y };
+            assert!(centre - radius > coordinates.iter().copied().fold(f64::INFINITY, f64::min));
+            assert!(
+                centre + radius
+                    < coordinates
+                        .iter()
+                        .copied()
+                        .fold(f64::NEG_INFINITY, f64::max)
+            );
+        }
+    }
+    let attempt = &case["blockedWallAxisAttempt"];
+    let blocked: Value =
+        serde_json::from_str(&CoreEngine::new().request(&attempt["request"].to_string())).unwrap();
+    assert_eq!(blocked["assembly"]["generationBlocked"], true);
+    assert!(
+        blocked["assembly"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| {
+                finding["severity"] == "error"
+                    && finding["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains(attempt["expectedReason"].as_str().unwrap())
+            })
+    );
+}
+
+#[test]
+fn adoption_reachability_deeper_insert_seats_still_start_at_the_part_surface() {
+    let (_, _, prepared) = adoption_reachability_case("sealed-round-seat");
+    let seats: Vec<_> = prepared
+        .body
+        .features
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter_map(|feature| match feature {
+            CaseFeature::RoundSeat { z, height, .. } => Some((z, height)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(seats.len(), 4);
+    for (z, height) in seats {
+        assert_eq!(Some(*z), prepared.body.z);
+        assert_eq!(*height, 5.);
+        assert_eq!(prepared.body.thickness - height, 1.5);
+    }
+}
+
+fn check_authored_opening_reachability(id: &str, original: &str, removed_volume: f64) {
+    let (fixture, case, prepared) = adoption_reachability_case(id);
+    let prototype: PreparedCaseIR = serde_json::from_str(original).unwrap();
+    let openings = prepared.body.openings.as_ref().unwrap();
+    let source = prototype.body.openings.as_ref().unwrap();
+    for (actual, expected) in openings.iter().zip(source) {
+        assert_eq!(actual.points, expected.points);
+        assert_eq!(actual.height, expected.height);
+        assert!(actual.z > prepared.body.z.unwrap());
+        assert!(actual.z + actual.height <= prepared.body.z.unwrap() + prepared.body.thickness);
+    }
+    assert_eq!(case["expectedBackend"]["removedVolumeMm3"], removed_volume);
+    let mut body = serde_json::to_value(&prepared).unwrap();
+    body["body"]["openings"] = json!(&openings[source.len()..]);
+    assert_eq!(body["body"], fixture["baselinePreparedBottom"]["body"]);
+    assert_eq!(
+        body["regions"],
+        fixture["baselinePreparedBottom"]["regions"]
+    );
+}
+
+#[test]
+fn adoption_reachability_authored_sealed_opening_survives_real_tray_preparation() {
+    check_authored_opening_reachability(
+        "sealed-opening",
+        include_str!("../../cad/monstertruck/tests/fixtures/adoption/sealed-opening.json"),
+        16.,
+    );
+}
+
+#[test]
+fn adoption_reachability_authored_ring_island_survives_real_tray_preparation() {
+    check_authored_opening_reachability(
+        "opening-ring-island",
+        include_str!("../../cad/monstertruck/tests/fixtures/adoption/opening-ring-island.json"),
+        164.,
+    );
+}
+
 #[test]
 fn internal_case_has_nominal_plate_stable_exterior_and_independent_insert_closures() {
     let original = resolve_internal(internal_document());
