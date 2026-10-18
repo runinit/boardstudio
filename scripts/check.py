@@ -83,7 +83,7 @@ def browser() -> list[Command]:
         [PY, "scripts/check-wasm-tests.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
-         "--lib", "--", "host::storage::"],
+         "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/runtime", "--locked", "--lib"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/ui-model", "--locked", "--lib"],
         # Panel tests run on their own, as they did in the page suite.

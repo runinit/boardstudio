@@ -112,6 +112,13 @@ class CheckTests(unittest.TestCase):
         self.assertEqual([name for name, _ in captured["plan"]], ["build", "drag-smoke"])
         self.assertEqual(captured["plan"][-1][1], [check.DRAG_SMOKE])
 
+    def test_host_browser_gate_includes_cad_worker_tests_alongside_storage(self):
+        launches = check.select_browser_crate_launches(["host"])
+        self.assertEqual(len(launches), 1)
+        command = launches[0]
+        self.assertEqual(command[command.index("--lib") + 1:], [],
+                         "Host filtering must not exclude the CAD worker browser regressions")
+
 
     def test_each_command_and_step_reports_its_wall_time(self):
         output = io.StringIO()
