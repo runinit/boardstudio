@@ -232,6 +232,24 @@ fn offset_selected_master_falls_back_to_the_3d_curve_in_preview() {
 }
 
 #[test]
+fn repair_movement_offset_alternate_master_remains_unsupported() {
+    use monstertruck_io::step::load::convert::StepRepairSource;
+    let text = cylinder_with_offset_master(0.5)
+        .replace("#13=OPEN_SHELL('',(#12));#14=SHELL_BASED_SURFACE_MODEL('',(#13));",
+            "#13=CLOSED_SHELL('',(#12));#14=MANIFOLD_SOLID_BREP('',#13);");
+    assert!(text.contains("MANIFOLD_SOLID_BREP"));
+    let mut table = Table::from_step(&text).unwrap();
+    table.set_preview_floor_mm(0.01);
+    let original = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
+    let owner = table.to_source_bound_solid_with_repair_checked(14,Some(15),&original).unwrap();
+    let legacy = table.to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&14],15).unwrap();
+    assert_eq!(owner.source().shells()[0].shell(),legacy.shells()[0].shell());
+    assert!(owner.complete_bound(0).is_err());
+    assert!(owner.operations(0).all(|op| !op.stage().starts_with("same-master-planar-pcurve-")));
+    assert!(owner.operations(0).any(|op| op.stage() == "selected-master-v1" && op.bound().is_err()));
+}
+
+#[test]
 fn no_representation_within_the_allowance_still_refuses() {
     // Vertices 0.05 mm from the 3D circle (z = 0.5) and 0.55 mm from the PCURVE line (z = 0).
     let text = cylinder_with_offset_master(0.55);

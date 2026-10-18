@@ -18,20 +18,117 @@ fn repair_movement_planar_seam_retains_actual_extension_trim_and_output() {
     let legacy = table
         .to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&14], 15)
         .unwrap();
-    assert_eq!(owner.source().shells()[0].shell(), legacy.shells()[0].shell());
-    let operations = owner.operations(0).filter(|op| op.source_ids().2 == Some(8)).collect::<Vec<_>>();
-    let extension = operations.iter().find(|op| op.stage() == "same-master-planar-pcurve-seam-extension-v1")
+    assert_eq!(
+        owner.source().shells()[0].shell(),
+        legacy.shells()[0].shell()
+    );
+    let operations = owner
+        .operations(0)
+        .filter(|op| op.source_ids().2 == Some(8))
+        .collect::<Vec<_>>();
+    let extension = operations
+        .iter()
+        .find(|op| op.stage() == "same-master-planar-pcurve-seam-extension-v1")
         .expect("the successful real seam extension needs its same-call finite pair");
-    let extension = extension.curve_change().expect("actual selected carrier capture");
+    let extension = extension
+        .curve_change()
+        .expect("actual selected carrier capture");
     assert_eq!(extension.domains(), ((0., 3.), (0., 6.)));
-    let trim = operations.iter().find(|op| op.stage() == "same-master-planar-pcurve-trim-v1")
-        .unwrap().curve_change().unwrap();
+    let trim = operations
+        .iter()
+        .find(|op| op.stage() == "same-master-planar-pcurve-trim-v1")
+        .unwrap()
+        .curve_change()
+        .unwrap();
     assert_eq!(extension.curves().1, trim.curves().0);
     assert_eq!(trim.domains().0, trim.domains().1);
-    let (u,v) = trim.domains().0;
+    let (u, v) = trim.domains().0;
     assert!(u > 2. && u < 3. && v > 3. && v < 4., "{u}..{v}");
-    assert_eq!(trim.curves().1, &owner.source().shells()[0].shell().edges[0].curve);
-    assert!(owner.complete_bound(0).is_err(), "selection/master remain unsupported");
+    assert_eq!(
+        trim.curves().1,
+        &owner.source().shells()[0].shell().edges[0].curve
+    );
+    assert!(
+        owner.complete_bound(0).is_err(),
+        "selection/master remain unsupported"
+    );
+}
+
+#[test]
+fn repair_movement_planar_seam_source_cap_sense_and_failed_conversion_preserve_policy() {
+    let source = include_str!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
+    let reversed = source.replace(
+        "#8=EDGE_CURVE('',#2,#32,#7,.T.);",
+        "#8=EDGE_CURVE('',#32,#2,#7,.F.);",
+    );
+    let padded = source.replace(
+        "ENDSEC;END-ISO-10303-21;",
+        &format!("/*{}*/ENDSEC;END-ISO-10303-21;", "padding".repeat(40000)),
+    );
+    for text in [source, reversed.as_str(), padded.as_str()] {
+        let mut table = Table::from_step(text).unwrap();
+        table.set_preview_floor_mm(0.02);
+        let original = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
+        let owner = table
+            .to_source_bound_solid_with_repair_checked(14, Some(15), &original)
+            .unwrap();
+        let legacy = table
+            .to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&14], 15)
+            .unwrap();
+        assert_eq!(
+            owner.source().shells()[0].shell(),
+            legacy.shells()[0].shell()
+        );
+        assert!(owner.complete_bound(0).is_err());
+        if text == padded {
+            assert!(owner.operations(0).all(|op| op.curve_change().is_none()));
+        } else {
+            let operations = owner.operations(0).collect::<Vec<_>>();
+            let changes = operations
+                .iter()
+                .filter_map(|op| op.curve_change())
+                .collect::<Vec<_>>();
+            assert_eq!(changes.len(), if text == reversed { 3 } else { 2 });
+            assert_eq!(
+                changes.last().unwrap().curves().1,
+                &owner.source().shells()[0].shell().edges[0].curve
+            );
+        }
+    }
+    let altered = source.replace("(1.,1.7320508075688772)", "(1.01,1.7320508075688772)");
+    assert_ne!(altered, source, "interior-only source mutation");
+    let mut table = Table::from_step(&altered).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let original = StepRepairSource::from_step_bytes(source.as_bytes()).unwrap();
+    let mismatched = table
+        .to_source_bound_solid_with_repair_checked(14, Some(15), &original)
+        .unwrap();
+    assert!(
+        mismatched
+            .complete_bound(0)
+            .unwrap_err()
+            .contains("mismatch")
+    );
+    assert!(
+        mismatched
+            .operations(0)
+            .all(|op| op.curve_change().is_none())
+    );
+    let failed = source.replace("(0.,1.,0.)", "(0.,1.05,0.)");
+    assert_ne!(failed, source);
+    let mut table = Table::from_step(&failed).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let original = StepRepairSource::from_step_bytes(failed.as_bytes()).unwrap();
+    assert!(
+        table
+            .to_source_bound_solid_with_repair_checked(14, Some(15), &original)
+            .is_err()
+    );
+    assert!(
+        table
+            .to_source_bound_solid_in_representation_checked(&table.manifold_solid_brep[&14], 15)
+            .is_err()
+    );
 }
 
 #[test]

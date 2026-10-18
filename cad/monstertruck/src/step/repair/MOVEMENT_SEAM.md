@@ -309,3 +309,13 @@ legacy preview with incomplete coverage. Consecutive stages sum, disjoint seam
 pieces max; source units/occurrence maps apply once. Numeric terms never authorize
 unknown source/master coverage. The existing census's two TrackPoint alternates
 are exactly `TP_Cap_Green_T430.step`; none of the twelve alternates gains proof.
+
+The concrete extension proof requires clamped source endpoints: the active domain
+must equal the outer knot extent. `try_concat::clamp` uses OUTER knot ends, so an
+unclamped carrier cannot borrow this domain-preservation claim. The added actual
+unclamped control selects the legacy alternate and stays Unsupported. No converter
+change or preview refusal is introduced. Native/Node import controls close the
+original one-edge fixture with an explicit chord and opposite face; the original
+open-boundary import refusal is preserved. Plane coefficients are used only when
+existing constructor equality authenticates recovery of the actual raw affine
+points and identity plane transform; other plane records remain Unsupported.

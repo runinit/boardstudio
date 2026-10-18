@@ -615,11 +615,20 @@ impl EdgeCurve {
                     return Err("declared STEP surface curve did not retain its master".into());
                 };
                 let trimmed = if repair.is_some() {
-                    source.try_trim_to_points_with_repair(p, q, bound.unwrap_or(TOLERANCE), preview, repair.as_deref_mut())
+                    source.try_trim_to_points_with_repair(
+                        p,
+                        q,
+                        bound.unwrap_or(TOLERANCE),
+                        preview,
+                        repair.as_deref_mut(),
+                    )
                 } else {
                     source.try_trim_to_points(p, q, bound.unwrap_or(TOLERANCE), preview)
                 };
-                Curve3D::SurfaceCurve(trimmed.ok_or("edge endpoints do not resolve a finite selected-master interval")?)
+                Curve3D::SurfaceCurve(
+                    trimmed
+                        .ok_or("edge endpoints do not resolve a finite selected-master interval")?,
+                )
             }
         };
         if !same_sense {
@@ -628,14 +637,17 @@ impl EdgeCurve {
                 .filter(|_| matches!(curve, Curve3D::Line(_)) && bound.is_some())
                 .and_then(|capture| capture.begin(&curve));
             let surface_before = repair.as_deref_mut().and_then(|trace| match &curve {
-                Curve3D::SurfaceCurve(c) if c.planar_spline_master() && !trace.changes.is_empty() => {
+                Curve3D::SurfaceCurve(c)
+                    if c.planar_spline_master() && !trace.changes.is_empty() =>
+                {
                     Some((trace.surface_begin(c), c.range_tuple()))
-                },
+                }
                 _ => None,
             });
             curve.invert();
             if let (Some(trace), Some((before, domain)), Curve3D::SurfaceCurve(after)) =
-                (repair.as_deref_mut(), surface_before, &curve) {
+                (repair.as_deref_mut(), surface_before, &curve)
+            {
                 trace.surface_inversion(before, domain, after);
             }
             if let Some(capture) = repair {

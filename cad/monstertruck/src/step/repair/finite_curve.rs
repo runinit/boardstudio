@@ -6,6 +6,8 @@ use num_rational::BigRational as Q;
 use num_traits::{One, Signed, Zero};
 type Polynomial = Vec<Q>;
 type Homogeneous = [Polynomial; 4];
+mod planar_seam;
+pub(super) use planar_seam::bound as planar_bound;
 
 fn scalar(value: f64) -> Result<Q, &'static str> {
     Q::from_float(value).ok_or("nonfinite finite-curve coefficient")
@@ -191,8 +193,18 @@ fn controls_bound(
     }
     let b = Spline::from_curve(after)?;
     let db = b.domain(after_domain)?;
+    polynomial_bound(&a, &da, &b, &db, &factor, placement)
+}
+fn polynomial_bound(
+    a: &Spline,
+    da: &(Q, Q),
+    b: &Spline,
+    db: &(Q, Q),
+    factor: &Q,
+    placement: Matrix4,
+) -> Result<f64, &'static str> {
     let mut breaks = vec![Q::zero(), Q::one()];
-    for (spline, domain) in [(&a, &da), (&b, &db)] {
+    for (spline, domain) in [(a, da), (b, db)] {
         breaks.extend(
             spline
                 .knots
@@ -209,8 +221,8 @@ fn controls_bound(
     let degree = a.degree + b.degree;
     let mut squared = Q::zero();
     for interval in breaks.windows(2) {
-        let a = a.piece(&da, &interval[0], &interval[1])?;
-        let b = b.piece(&db, &interval[0], &interval[1])?;
+        let a = a.piece(da, &interval[0], &interval[1])?;
+        let b = b.piece(db, &interval[0], &interval[1])?;
         let denominator = bernstein(&product(&a[3], &b[3]), degree);
         let lower = denominator.into_iter().min().unwrap();
         if !lower.is_positive() {
@@ -227,7 +239,7 @@ fn controls_bound(
             for col in 0..3 {
                 world[row] = add(
                     &world[row],
-                    &scale(&delta[col], &(scalar(placement[col][row])? * &factor)),
+                    &scale(&delta[col], &(scalar(placement[col][row])? * factor)),
                 );
             }
         }

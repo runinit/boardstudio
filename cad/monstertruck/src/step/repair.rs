@@ -450,6 +450,31 @@ impl Ledger {
         occurrence: usize,
     ) {
         for operation in owner.operations(shell) {
+            if operation.stage().starts_with("same-master-planar-pcurve-") {
+                let measured = operation
+                    .curve_change()
+                    .ok_or("planar same-call capture is incomplete")
+                    .and_then(|change| {
+                        finite_curve::planar_bound(operation.stage(), change, factor, placement)
+                    });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: operation.stage(),
+                    bound_mm: measured.map(|value| value.0),
+                    diagnostic_only: false,
+                });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: "planar-pcurve-numeric-conversion-v1",
+                    bound_mm: measured.map(|value| value.1),
+                    diagnostic_only: true,
+                });
+                continue;
+            }
             let numerical = operation.stage() == "numeric-conversion-v1";
             let attachment = operation.stage() == "native-line-attachment-projection-v1";
             let bound = operation.curve_change().map_or_else(

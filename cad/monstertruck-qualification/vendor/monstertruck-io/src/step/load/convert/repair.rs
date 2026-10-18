@@ -388,7 +388,8 @@ impl Table {
                             previous.insert(*id, (&change.after, change.after_domain))
                         {
                             valid &= *curve == change.before
-                                && (domain == change.before_domain || change.surface_restricts(domain));
+                                && (domain == change.before_domain
+                                    || change.surface_restricts(domain));
                         }
                     }
                     for (id, (curve, _)) in previous {
