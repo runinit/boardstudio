@@ -5,8 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 (async () => {
 const cad = await require('./load-provider.cjs')(process.argv[2]);
-const legacyPath = process.argv.slice(3).find(arg => arg !== '--web');
-const legacy = legacyPath && await require('./load-provider.cjs')(legacyPath, false);
+const legacyPath = process.argv.slice(3).find(arg => !arg.startsWith('--'));
+// Keep Node baselines as the default; an official WEB baseline needs initialization.
+const legacy = legacyPath && await require('./load-provider.cjs')(legacyPath, process.argv.includes('--legacy-web'));
 const source = fs.readFileSync(path.resolve(__dirname, '../../monstertruck/tests/fixtures/repair-planar-seam.step'), 'utf8');
 function replace(text, before, after) {
   assert.equal(text.split(before).length - 1, 1);

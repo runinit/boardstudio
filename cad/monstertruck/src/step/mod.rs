@@ -25,8 +25,8 @@ const TOLERANCE_MM: f64 = 0.1;
 const PREVIEW_FLOOR_MM: f64 = 0.02;
 const PREVIEW_DECLARED_MULTIPLIER: f64 = 2.0;
 
-struct SourceSolid<R = SourceBoundStepSolid> {
-    source: HashMap<u64, R>,
+struct SourceSolid {
+    source: HashMap<u64, SourceBoundStepSolid>,
     mm_per_unit: f64,
 }
 
@@ -284,7 +284,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     {
         return Err("empty or unreferenced exact geometry".into());
     }
-    let mut solids = HashMap::<u64, SourceSolid<repair::Conversion<'_>>>::new();
+    let mut repair_ledger = repair::Ledger::default();
+    let mut solids = HashMap::<u64, SourceSolid>::new();
     for (id, placement, representation) in &occurrences {
         units::validate_placement_matrix(*placement)?;
         let solid = solids.entry(*id).or_insert_with(|| SourceSolid {
@@ -357,7 +358,36 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             if source.source().shells().is_empty() {
                 return Err(format!("solid #{id} has no shells"));
             }
-            solid.source.insert(*representation, source);
+            // Consume this same-call report before putting ordinary geometry
+            // into the existing preview index. No second index or geometry clone
+            // coexists at finalization; each path's conversion stages still
+            // precede its later mesher stages.
+            for (occurrence, (_, placement, _)) in occurrences
+                .iter()
+                .enumerate()
+                .filter(|(_, (placed, _, owner))| placed == id && owner == representation)
+            {
+                units::validate_placement_matrix(*placement)?;
+                for shell_index in 0..source.source().shells().len() {
+                    repair_ledger.conversion(
+                        &repair_original,
+                        &source,
+                        solid.mm_per_unit,
+                        *placement,
+                        occurrence,
+                        shell_index,
+                    );
+                    repair_ledger.conversion_operations(
+                        source.operations(shell_index),
+                        source.complete_bound(shell_index).is_ok(),
+                        shell_index,
+                        solid.mm_per_unit,
+                        *placement,
+                        occurrence,
+                    );
+                }
+            }
+            solid.source.insert(*representation, source.into_source());
         }
     }
     let source_faces = source_face_catalogue(original_source, &solids)?;
@@ -376,11 +406,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             .map(|(_, _, representation)| *representation),
     );
     for solid in solids.values() {
-        for source in solid
-            .source
-            .values()
-            .flat_map(|source| source.source().shells())
-        {
+        for source in solid.source.values().flat_map(|source| source.shells()) {
             retained.extend(repair_original.retained_edge_ids(source));
         }
     }
@@ -392,7 +418,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         ]);
     }
     scene.require_complete_presentations(&retained)?;
-    let mut repair_ledger = repair::Ledger::default();
     // A complete proof is asset-scoped. A supported shell cannot qualify mixed
     // geometry, another occurrence, a defaulted unit or an unsupported presentation.
     let zero_candidate = if occurrences.len() == 1
@@ -402,7 +427,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         && !normalized
     {
         let (id, placement, representation) = occurrences[0];
-        match solids[&id].source[&representation].source().shells() {
+        match solids[&id].source[&representation].shells() {
             [source]
                 if placement == Matrix4::identity()
                     && solids[&id].mm_per_unit == 1.0
@@ -444,31 +469,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         units::validate_placement_matrix(*placement)?;
         let solid = &solids[id];
         let mut signed_volume = 0.0;
-        for (shell_index, source) in solid.source[representation]
-            .source()
-            .shells()
-            .iter()
-            .enumerate()
-        {
+        for (shell_index, source) in solid.source[representation].shells().iter().enumerate() {
             source_two_use &= require_complete_source_shell(source)? == SourceShellTopology::TwoUse;
-            repair_ledger.conversion(
-                &repair_original,
-                &solid.source[representation],
-                solid.mm_per_unit,
-                *placement,
-                occurrence,
-                shell_index,
-            );
-            repair_ledger.conversion_operations(
-                solid.source[representation].operations(shell_index),
-                solid.source[representation]
-                    .complete_bound(shell_index)
-                    .is_ok(),
-                shell_index,
-                solid.mm_per_unit,
-                *placement,
-                occurrence,
-            );
             let owner = precision
                 .iter()
                 .find(|p| p.representation_id == *representation)
@@ -660,24 +662,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     } else {
         repair_ledger.complete_bound_mm()
     };
-    // Consume all authority borrows/captures before moving the input parts and
-    // dropping the cached preview Table. Stored source has no authority handle.
-    let solids = solids
-        .into_iter()
-        .map(|(id, solid)| {
-            (
-                id,
-                SourceSolid {
-                    source: solid
-                        .source
-                        .into_iter()
-                        .map(|(representation, owner)| (representation, owner.into_source()))
-                        .collect(),
-                    mm_per_unit: solid.mm_per_unit,
-                },
-            )
-        })
-        .collect();
+    // Reports were consumed into the ordinary preview index after their ledger
+    // entries. No authority borrow/capture remains when the cached Table drops.
     drop(scene);
     drop(exchange);
     let (bytes, original_source) = input.into_parts();
@@ -892,7 +878,7 @@ fn reference(parameter: &Parameter) -> Result<u64, String> {
 
 fn source_face_catalogue(
     exchange: &Exchange,
-    solids: &HashMap<u64, SourceSolid<repair::Conversion<'_>>>,
+    solids: &HashMap<u64, SourceSolid>,
 ) -> Result<Vec<StepSourceFace>, String> {
     let records = source_records(exchange);
     let mut ids: Vec<_> = solids.keys().copied().collect();
@@ -905,12 +891,7 @@ fn source_face_catalogue(
             .keys()
             .min()
             .ok_or("source definition has no owner")?;
-        for (shell_index, shell) in solids[&solid_id].source[owner]
-            .source()
-            .shells()
-            .iter()
-            .enumerate()
-        {
+        for (shell_index, shell) in solids[&solid_id].source[owner].shells().iter().enumerate() {
             for face_id in shell.source_face_ids() {
                 let parts = records
                     .get(face_id)

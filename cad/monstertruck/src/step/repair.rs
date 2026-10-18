@@ -1406,6 +1406,41 @@ mod tests {
                 && op.bound_mm == 0.015625
                 && op.within(0.015625)));
             assert_ne!(movements[0].occurrence, movements[1].occurrence);
+            for occurrence in 0..2 {
+                let operations = model
+                    ._repair_ledger
+                    .0
+                    .iter()
+                    .filter(|op| op.occurrence == occurrence)
+                    .collect::<Vec<_>>();
+                let stage = |name| operations.iter().position(|op| op.stage == name).unwrap();
+                for name in ["source-binding-v1", "original conversion route coverage"] {
+                    assert_eq!(
+                        operations.iter().filter(|op| op.stage == name).count(),
+                        1,
+                        "{name}: same-call conversion recorded once per occurrence"
+                    );
+                }
+                assert_eq!(
+                    operations
+                        .iter()
+                        .filter(|op| op.stage == "native-line-attachment-projection-v1"
+                            && op.source_edge == Some(23))
+                        .count(),
+                    1,
+                    "the changed shared edge is recorded once per occurrence"
+                );
+                assert!(stage("source-binding-v1") < stage("native-line-attachment-projection-v1"));
+                assert!(
+                    stage("native-line-attachment-projection-v1")
+                        < stage("original conversion route coverage")
+                );
+                assert!(
+                    stage("original conversion route coverage")
+                        < stage("complete meshing route coverage"),
+                    "conversion stays before meshing on each occurrence path"
+                );
+            }
             assert_eq!(model.original_bytes(), text.as_bytes());
             assert_eq!(model.face_occurrences().len(), 8);
             let equality = import_step_with_options(
