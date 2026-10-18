@@ -1,7 +1,7 @@
 # 014: Validate mesh collisions and clearance with tolerance bands
 
 Status: claimed
-Owner: /root/luna_collision_scope_014 (private candidate; final integration waits007)
+Owner: /root (integration and remaining qualification)
 Type: build
 Blocked by: 007: Complete vendor STEP asset import
 Related: 010: Worker and browser integration; 013: Generated case and PCB geometry
@@ -20,6 +20,8 @@ Use pure-Rust `parry3d-f64` mesh queries for basic vendor-part collision validat
 - [ ] Verify analytic cube/sphere or equivalent independent fixtures, error-band boundary cases, retained part/face provenance, native/WASM and both review axes.010 delivers the results through the actual worker/browser validation flow with cancellation and revision checks.
 
 ## Comments
+
+2026-10-17 reviewed backend slice integrated through `0ca4f6c66` (source lane `921848949`). Independent Spec review found no blocking slice defects or scope creep. Standards found duplicated edge-incidence counting; the corrective shared helper preserves generated exact-bit/finite/signed-zero keys and the existing STEP rounded keys. Parent inspected that correction and verified integrated CAD source matches the tested lane. Focused checks pass: importer 58 (one ignored), collision 10, generated 4, topology/edge-incidence regressions, rebuilt actual WASM shared-contract producer, formatting and diff checks. The shared contract/fixture is retained once; 010 owns consumer delivery and parent owns combined-provider/browser acceptance. Source/mesh symmetric bounds, complete actual repair movement, numerical/contact-location bands and containment eligibility remain unqualified; all analysis bounds remain null. This accepts the bounded backend slice, not full ticket 014. Nonblocking placement-scale cleanup is deferred.
 
 The authoritative producer/consumer boundary is [ANALYSIS_CONTRACT.md](../../../../cad/wasm/src/model/generated/ANALYSIS_CONTRACT.md), which links the single shared JSON fixture. The actual WASM producer regression in `cad/wasm/tests/collision-analysis.cjs` invokes `analyze_generated_body` on that fixture's prepared body with default/refinement options and checks the exact direct field set, f64/u32 buffers, analytic bounds, complete resolvable generated provenance, identity/wrapper separation and unknown accuracy. 010 owns the consumer regression against the same fixture; both sides and root's integrated review/gates are required for boundary acceptance.
 
