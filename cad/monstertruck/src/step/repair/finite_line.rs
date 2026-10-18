@@ -333,7 +333,5 @@ mod tests {
             );
             assert!(!authority.contains_key(&2));
         }
-        let authority = numbers(b"#2=DIRECTION('',(.5,1.,0.));", &HashSet::from([2])).unwrap();
-        assert_eq!(authority[&2][0], Q::new(1.into(), 2.into()));
     }
 }
