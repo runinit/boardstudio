@@ -19,6 +19,29 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 ## Comments
 
+2026-10-18 B5 corrective fixture slice (`7335da4e`, descendant of recoverable WIP `8c5086e72`):
+removed the unsound general prism certificate and replaced it with a test-only comparison
+of actual emitted Part21 faces against authored reference trims. The unchanged Decimal VIK
+oracle, analytic reflected slot/circle/half-disc, and the current placed gasket tray/lid
+define the complete expected surface/trim sets; neither writer output snapshots nor kernel
+meshes supply expectations. Directed chains, shared vertices, supports/sweeps, units and
+surface associations are compared; harmless cyclic starts, numeric IDs and monotone
+collinear subdivisions are irrelevant. Both WIP false-acceptance controls now reject;
+gasket placement/depth, product ownership, lost trims, units and occurrence controls pass.
+A surface-independent direct-product reader preserves the original planar reader's
+Unsupported contract. Nine scoped tests, formatting, diff and scoped Clippy pass with the
+same inherited lint exceptions; the untouched 42-test export receipt is reused.
+The installed FreeCAD 1.1.4 / OCCT 7.9.3 probe was run **once** on six current emitted files:
+all eight solids are valid/closed; VIK volume is 946.578323499303 mm³, reflected slot
+638.683752280681 mm³, tracers 8π/4π, gasket bodies 9122 mm³ each. The
+[one-time receipt](../../../../.evidence/b5/FREECAD-CURRENT-RECEIPT.md) binds source commit,
+exact command, input hashes and ordinary output-byte hashes. Its raw VIK bounding box
+extends about 8.65e-6 mm beyond authored analytic bounds; no tolerance was widened or exact
+external-bound agreement claimed. See [scope, reference mapping and limits](../../../../.evidence/b5/BOUND-REFERENCE.md).
+Production, dependencies and public API are unchanged; no required C++/OCCT path was added.
+This is bounded fixture/reference coverage, not general B-rep validity or a new cone/stepped
+checker. Parent Standards/Spec review and full 008/006/013 closure remain pending.
+
 2026-10-18 B5 interrupted-candidate assessment: preserved the test-only raw-Part21 prism WIP;
 it is **not ready for integration or acceptance**. Current emitted Core VIK, reflected-offset
 slot, circle and half-disc positive checks pass against the unchanged source/analytic oracles.
