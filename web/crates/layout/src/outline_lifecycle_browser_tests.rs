@@ -318,6 +318,15 @@ fn mounted_outline_inspector_host() -> Element {
     let probe = use_context::<InspectorProbe>();
     let version = use_signal(|| 0u64);
     use_context_provider(|| version);
+    use_hook({
+        let runtime = probe.runtime.clone();
+        move || {
+            runtime.subscribe(Rc::new(move || {
+                let mut version = version;
+                version += 1;
+            }));
+        }
+    });
     let workspace = use_signal(|| "Layout");
     let generation = use_signal(|| 1u64);
     let selected = use_signal(|| {
