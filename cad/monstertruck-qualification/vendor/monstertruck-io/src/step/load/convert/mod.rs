@@ -9,7 +9,8 @@ use monstertruck_topology::compress::*;
 use std::collections::HashSet;
 mod repair;
 pub use repair::{
-    StepRepairConversion, StepRepairCurveChange, StepRepairOperation, StepRepairSource,
+    StepRepairBorrowedConversion, StepRepairConversion, StepRepairCurveChange, StepRepairInput,
+    StepRepairOperation, StepRepairSource,
 };
 
 /// A compressed shell in the STEP loader's concrete geometry types.
@@ -202,7 +203,7 @@ impl Table {
         shell: &ShellHolder,
         selection: ConnectivitySelection,
     ) -> Result<SourceMappedShell, StepConvertingError> {
-        self.compressed_shell_with_repair_reported(shell, selection, None)
+        self.compressed_shell_with_repair_reported(shell, selection, None, self.preview_tolerance)
     }
 
     fn compressed_shell_with_repair_reported(
@@ -210,12 +211,13 @@ impl Table {
         shell: &ShellHolder,
         selection: ConnectivitySelection,
         repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
+        tolerance: Option<PreviewTolerance>,
     ) -> Result<SourceMappedShell, StepConvertingError> {
-        let sink = LossSink::with_repair(repair);
+        let sink = LossSink::with_repair(repair).with_tolerance(tolerance);
         let connectivity = match selection {
             ConnectivitySelection::FromSource(representation) => self
                 .source_records
-                .shell_connectivity(self, shell, representation),
+                .shell_connectivity(self, shell, representation, tolerance),
             ConnectivitySelection::Disabled => Ok(None),
         };
         let (vertices, vidx_map) = self.shell_vertices(shell, &sink);
@@ -235,22 +237,15 @@ impl Table {
             source_ids,
         ))
     }
-    fn source_mapped_shell_at(
-        &self,
-        id: u64,
-        selection: ConnectivitySelection,
-    ) -> Result<SourceMappedShell, LoadError> {
-        self.source_mapped_shell_with_repair_at(id, selection, None)
-    }
-
     fn source_mapped_shell_with_repair_at(
         &self,
         id: u64,
         selection: ConnectivitySelection,
         repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
+        tolerance: Option<PreviewTolerance>,
     ) -> Result<SourceMappedShell, LoadError> {
         if let Some(shell) = self.shell.get(&id) {
-            return Ok(self.compressed_shell_with_repair_reported(shell, selection, repair)?);
+            return Ok(self.compressed_shell_with_repair_reported(shell, selection, repair, tolerance)?);
         }
         let oriented = self
             .oriented_shell
@@ -259,7 +254,7 @@ impl Table {
         let inner = Self::ref_id(&oriented.shell_element).ok_or("failed to reference shell")?;
         let shell = self.shell.get(&inner).ok_or("failed to reference shell")?;
         let (mut converted, report, ids) =
-            self.compressed_shell_with_repair_reported(shell, selection, repair)?;
+            self.compressed_shell_with_repair_reported(shell, selection, repair, tolerance)?;
         if !oriented.orientation {
             for face in &mut converted.faces {
                 face.orientation = !face.orientation;
@@ -457,7 +452,7 @@ impl Table {
                     return None;
                 }
             };
-            let preview = self.preview_tolerance.is_some();
+            let preview = sink.preview();
             let parsed = if sink.wants_repair() {
                 edge_curve
                     .parse_curve3d_for_repair(
@@ -1173,7 +1168,7 @@ impl Table {
                             surface,
                             point,
                             accuracy.bound(),
-                            self.preview_tolerance.is_some(),
+                            sink.preview(),
                         )
                         .map_err(|error| format!("vertex #{vertex_id}: {error}"))?;
                         attachments.push(report::ConnectivityAttachment {
@@ -1533,7 +1528,7 @@ impl Table {
         solid: &ManifoldSolidBrepHolder,
         selection: ConnectivitySelection,
     ) -> Result<SourceMappedSolid, LoadError> {
-        self.compressed_solid_with_repair_reported(solid, selection, None)
+        self.compressed_solid_with_repair_reported(solid, selection, None, self.preview_tolerance)
     }
 
     fn compressed_solid_with_repair_reported(
@@ -1541,16 +1536,15 @@ impl Table {
         solid: &ManifoldSolidBrepHolder,
         selection: ConnectivitySelection,
         repair: Option<std::rc::Rc<std::cell::Cell<usize>>>,
+        tolerance: Option<PreviewTolerance>,
     ) -> Result<SourceMappedSolid, LoadError> {
         let outer_id = Self::ref_id(&solid.outer).ok_or("failed to reference `solid.outer`")?;
         if !self.shell.contains_key(&outer_id) && !self.oriented_shell.contains_key(&outer_id) {
             return Err("failed to reference `solid.outer`".into());
         }
-        let (outer, report, ids) = if repair.is_some() {
-            self.source_mapped_shell_with_repair_at(outer_id, selection, repair.clone())?
-        } else {
-            self.source_mapped_shell_at(outer_id, selection)?
-        };
+        let (outer, report, ids) = self.source_mapped_shell_with_repair_at(
+            outer_id, selection, repair.clone(), tolerance,
+        )?;
         let mut boundaries = vec![outer];
         let mut reports = vec![report];
         let mut sources = vec![ids];
@@ -1560,11 +1554,9 @@ impl Table {
             if !self.oriented_shell.contains_key(&id) {
                 return Err("failed to reference an element of `solid.voids`".into());
             }
-            let (shell, report, ids) = if repair.is_some() {
-                self.source_mapped_shell_with_repair_at(id, selection, repair.clone())?
-            } else {
-                self.source_mapped_shell_at(id, selection)?
-            };
+            let (shell, report, ids) = self.source_mapped_shell_with_repair_at(
+                id, selection, repair.clone(), tolerance,
+            )?;
             boundaries.push(shell);
             reports.push(report);
             sources.push(ids);
@@ -2315,8 +2307,8 @@ impl StepShell for ShellHolder {
         ),
         StepConvertingError,
     > {
-        let sink = LossSink::default();
-        let connectivity = table.source_records.shell_connectivity(table, self, None);
+        let sink = LossSink::default().with_tolerance(table.preview_tolerance);
+        let connectivity = table.source_records.shell_connectivity(table, self, None, table.preview_tolerance);
         let (vertices, vidx_map) = table.shell_vertices(self, &sink);
         let (edges, eidx_map) = table.shell_edges(self, &vidx_map, &sink, &connectivity);
         let faces =

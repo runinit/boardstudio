@@ -7,17 +7,80 @@ use monstertruck_io::step::load::{
 const SOURCE: &[u8] = include_bytes!("partial_closed_spline/solid32377-source.step");
 
 #[test]
+fn repair_movement_shared_parse_call_tolerance_does_not_mutate_authority() {
+    use monstertruck_io::step::load::{PreviewTolerance, convert::StepRepairInput};
+    let bytes = include_bytes!("../../../../../monstertruck/tests/fixtures/repair-projected-line.step");
+    let input = StepRepairInput::parse(bytes.to_vec()).unwrap();
+    let actual_table = input.table() as *const Table;
+    // Strict conversion must still fail after a permissive call on the same input.
+    for floor in [0.02, 0.04] {
+        let tolerance = PreviewTolerance { floor_mm: floor, declared_multiplier: 0.0 };
+        let owner = input.convert_solid(101, Some(104), Some(tolerance)).unwrap();
+        let mut legacy = Table::from_step_bytes(bytes).unwrap();
+        legacy.set_preview_tolerance(tolerance);
+        let expected = legacy.to_source_bound_solid_in_representation_checked(&legacy.manifold_solid_brep[&101], 104).unwrap();
+        assert_eq!(owner.source().shells()[0].shell(), expected.shells()[0].shell());
+        assert!(owner.operations(0).any(|op| op.source_ids().2 == Some(23) && op.curve_change().is_some()));
+        assert_eq!(input.table().preview_tolerance, None);
+        assert_eq!(input.table() as *const Table, actual_table);
+        assert!(input.convert_solid(101, Some(104), None).is_err());
+        assert!(input.convert_solid(101, Some(104), Some(PreviewTolerance { floor_mm: 0.001, declared_multiplier: 0.0 })).is_err());
+    }
+}
+
+#[test]
+fn repair_movement_shared_parse_preserves_original_encoding_and_byte_cap() {
+    use monstertruck_io::step::load::convert::StepRepairInput;
+    let source = include_bytes!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
+    let mut bytes = source.to_vec();
+    bytes.extend_from_slice(b"/* latin1 \xe9 */");
+    let expected = bytes.clone();
+    let capacity = bytes.capacity();
+    let input = StepRepairInput::parse(bytes).unwrap();
+    assert_eq!(input.bytes(), expected);
+    let (bytes, _) = input.into_parts();
+    assert_eq!(bytes, expected);
+    assert_eq!(bytes.capacity(), capacity);
+    assert!(StepRepairInput::parse(vec![b' '; 32 * 1024 * 1024 + 1]).is_err());
+    assert!(StepRepairInput::parse(b"not STEP".to_vec()).is_err());
+}
+
+#[test]
+fn repair_movement_legacy_binding_includes_unselected_dummy_records() {
+    let text = std::str::from_utf8(SOURCE).unwrap();
+    let padded = text.replace("ENDSEC;END-ISO-10303-21;", "#999999=UNKNOWN_SCALAR('original',1.);ENDSEC;END-ISO-10303-21;");
+    assert_ne!(padded, text);
+    let original = StepRepairSource::from_step_bytes(padded.as_bytes()).unwrap();
+    let mut table = Table::from_step(&padded).unwrap();
+    table.set_preview_floor_mm(0.02);
+    let matching = table.to_source_bound_solid_with_repair_checked(32377, Some(17), &original).unwrap();
+    assert!(matching.operations(0).any(|op| op.curve_change().is_some()), "preview tolerance is the sole comparison exception");
+    assert!(table.dummy.remove(&999999).is_some());
+    let changed = table.to_source_bound_solid_with_repair_checked(32377, Some(17), &original).unwrap();
+    assert!(changed.complete_bound(0).unwrap_err().contains("mismatch"));
+    assert!(changed.operations(0).all(|op| op.curve_change().is_none()));
+}
+
+#[test]
 fn repair_movement_shared_parse_preserves_padded_actual_capture() {
     let original = include_str!("../../../../../monstertruck/tests/fixtures/repair-planar-seam.step");
     let text = original.replace("ENDSEC;END-ISO-10303-21;",
         &format!("/*{}*/ENDSEC;END-ISO-10303-21;", "padding".repeat(40000)));
     assert!(text.len() > 262144);
-    let mut table = Table::from_step(&text).unwrap();
-    table.set_preview_floor_mm(0.02);
-    let authority = StepRepairSource::from_step_bytes(text.as_bytes()).unwrap();
-    let owner = table.to_source_bound_solid_with_repair_checked(14, Some(15), &authority).unwrap();
+    let bytes = text.into_bytes();
+    let pointer = bytes.as_ptr();
+    let input = monstertruck_io::step::load::convert::StepRepairInput::parse(bytes).unwrap();
+    assert_eq!(input.bytes().as_ptr(), pointer);
+    assert!(std::ptr::eq(input.table(), input.table()));
+    let owner = input.convert_solid(14, Some(15), Some(monstertruck_io::step::load::PreviewTolerance { floor_mm: 0.02, declared_multiplier: 2.0 })).unwrap();
     assert!(owner.operations(0).any(|op| op.curve_change().is_some()),
         "unrelated padding must not erase actual finite capture on the shared-input route");
+    assert!(owner.complete_bound(0).is_err(), "capture is not mathematical completeness");
+    let source = owner.into_source();
+    let (bytes, exchange) = input.into_parts();
+    assert_eq!(bytes.as_ptr(), pointer);
+    assert_eq!(exchange.data.len(), 1);
+    assert_eq!(source.shells()[0].shell().faces.len(), 1);
 }
 
 #[test]

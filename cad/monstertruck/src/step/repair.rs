@@ -34,6 +34,26 @@ fn sqrt_upper(
     Ok(bound)
 }
 
+pub(super) enum Conversion<'input> {
+    Captured(StepRepairBorrowedConversion<'input>),
+    Normalized(SourceBoundStepSolid),
+}
+impl Conversion<'_> {
+    pub(super) fn source(&self) -> &SourceBoundStepSolid {
+        match self { Self::Captured(report) => report.source(), Self::Normalized(source) => source }
+    }
+    pub(super) fn operations(&self, shell: usize) -> impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'_>> {
+        let report = match self { Self::Captured(report) => Some(report), Self::Normalized(_) => None };
+        report.into_iter().flat_map(move |report| report.operations(shell))
+    }
+    pub(super) fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
+        match self { Self::Captured(report) => report.complete_bound(shell), Self::Normalized(_) => Err("untraced original/normalized exchange mismatch") }
+    }
+    pub(super) fn into_source(self) -> SourceBoundStepSolid {
+        match self { Self::Captured(report) => report.into_source(), Self::Normalized(source) => source }
+    }
+}
+
 struct NativeLineSource {
     points: [Point3; 2],
     origin: Point3,
@@ -250,8 +270,30 @@ impl OriginalGeometry {
         }
     }
 
+    pub(super) fn convert_input_with_refusal<'input>(
+        &self, input: &'input StepRepairInput, selection: (u64, Option<u64>),
+        tolerance: PreviewTolerance, frames: &[ProjectionFrame],
+    ) -> Result<Conversion<'input>, String> {
+        let converted = input.convert_solid(selection.0, selection.1, Some(tolerance)).map_err(|error| error.to_string())?;
+        self.check_projected_refusal(input.table(), converted.source(), frames)?;
+        Ok(Conversion::Captured(converted))
+    }
+
+    pub(super) fn convert_normalized_with_refusal(
+        &self, table: &Table, selection: (u64, Option<u64>), frames: &[ProjectionFrame],
+    ) -> Result<Conversion<'static>, String> {
+        let solid = table.manifold_solid_brep.get(&selection.0).ok_or("normalized solid identity missing")?;
+        let converted = match selection.1 {
+            Some(owner) => table.to_source_bound_solid_in_representation_checked(solid, owner),
+            None => table.to_source_bound_solid_without_connectivity_checked(solid),
+        }.map_err(|error| error.to_string())?;
+        self.check_projected_refusal(table, &converted, frames)?;
+        Ok(Conversion::Normalized(converted))
+    }
+
     // The result is created HERE from the same immutable input table: callers
     // cannot attach this refusal guard to an alternate caller-owned output.
+    #[cfg(test)]
     pub(super) fn convert_with_projected_refusal(
         &self,
         table: &Table,
@@ -262,7 +304,12 @@ impl OriginalGeometry {
         let converted = table
             .to_source_bound_solid_with_repair_checked(selection.0, selection.1, original)
             .map_err(|error| error.to_string())?;
-        for shell in converted.source().shells() {
+        self.check_projected_refusal(table, converted.source(), frames)?;
+        Ok(converted)
+    }
+
+    fn check_projected_refusal(&self, table: &Table, converted: &SourceBoundStepSolid, frames: &[ProjectionFrame]) -> Result<(), String> {
+        for shell in converted.shells() {
             let Some(ids) = self.bind_edges(shell) else {
                 continue;
             };
@@ -291,7 +338,7 @@ impl OriginalGeometry {
                 }
             }
         }
-        Ok(converted)
+        Ok(())
     }
 
     fn bind_edges(&self, source: &SourceBoundStepShell) -> Option<Vec<u64>> {
@@ -352,13 +399,14 @@ pub(super) struct Operation {
 pub(super) struct Ledger(
     Vec<Operation>,
     Vec<Result<finite_line::Movement, &'static str>>,
+    usize,
 );
 
 impl Ledger {
     pub(super) fn conversion(
         &mut self,
         original: &OriginalGeometry,
-        owner: &StepRepairConversion,
+        owner: &Conversion<'_>,
         factor: f64,
         placement: Matrix4,
         occurrence: usize,
@@ -441,15 +489,17 @@ impl Ledger {
         );
     }
 
-    pub(super) fn conversion_operations(
+    pub(super) fn conversion_operations<'a>(
         &mut self,
-        owner: &monstertruck_io::step::load::convert::StepRepairConversion,
+        operations: impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'a>>,
+        complete: bool,
         shell: usize,
         factor: f64,
         placement: Matrix4,
         occurrence: usize,
     ) {
-        for operation in owner.operations(shell) {
+        for operation in operations {
+            self.2 = self.2.saturating_add(usize::from(operation.curve_change().is_some()));
             if operation.stage().starts_with("same-master-planar-pcurve-") {
                 let measured = operation
                     .curve_change()
@@ -509,7 +559,7 @@ impl Ledger {
             });
         }
         // Even an empty/capped report must terminate in explicit incomplete coverage.
-        if owner.complete_bound(shell).is_err() {
+        if !complete {
             self.unknown(
                 occurrence,
                 "original conversion route coverage",
@@ -867,7 +917,7 @@ mod tests {
                 *counts.entry(name).or_default() += 1;
             };
             for (solid, _, representation) in &model.occurrences {
-                for source in model.solids[solid].source[representation].source().shells() {
+                for source in model.solids[solid].source[representation].shells() {
                     let ids = original
                         .bind_edges(source)
                         .expect("original edge identities remain complete");
@@ -947,18 +997,8 @@ mod tests {
             for operation in &model._repair_ledger.0 {
                 note(operation.stage);
             }
-            for (solid, _, representation) in &model.occurrences {
-                for shell in 0..model.solids[solid].source[representation]
-                    .source()
-                    .shells()
-                    .len()
-                {
-                    for operation in model.solids[solid].source[representation].operations(shell) {
-                        if operation.curve_change().is_some() {
-                            note("captured_actual_finite_curve_pair");
-                        }
-                    }
-                }
+            for _ in 0..model._repair_ledger.2 {
+                note("captured_actual_finite_curve_pair");
             }
             let movements: Vec<_> = model
                 ._repair_ledger
@@ -1006,7 +1046,7 @@ mod tests {
     fn projected_native_line_has_actual_nonzero_attachment_movement() {
         let text = projected_line_tetra("0.015625");
         let model = import_step(text.as_bytes().to_vec()).unwrap();
-        let source = model.solids[&101].source[&104].source();
+        let source = &model.solids[&101].source[&104];
         let shell = &source.shells()[0];
         let attachment = shell
             .connectivity_attachments()
@@ -1182,24 +1222,8 @@ mod tests {
                 assert_eq!(model.original_bytes(), text.as_bytes());
                 assert_eq!(model.face_occurrences().len(), 4);
                 assert_eq!(model.accuracy().max_repair_displacement_mm, None);
-                let owner = &model.solids[&101].source[&104];
-                if padded {
-                    assert!(
-                        owner
-                            .complete_bound(0)
-                            .unwrap_err()
-                            .contains("resource cap")
-                    );
-                    assert!(owner.operations(0).all(|op| op.curve_change().is_none()));
-                    assert!(
-                        model
-                            ._repair_ledger
-                            .1
-                            .iter()
-                            .filter_map(|op| op.as_ref().ok())
-                            .all(|op| op.edge != 23)
-                    );
-                }
+                assert!(model._repair_ledger.1.iter().filter_map(|op| op.as_ref().ok()).any(|op| op.edge == 23),
+                    "padding/order/unknown scalar must preserve the sealed actual capture");
             }
         }
     }
@@ -1459,6 +1483,7 @@ mod tests {
                 op(1, Some(1), 0.125),
             ],
             Vec::new(),
+            0,
         );
         assert_eq!(ledger.complete_bound_mm(), Some(0.25_f64.next_up()));
         assert!(
@@ -1622,7 +1647,7 @@ mod tests {
             altered.as_bytes(),
         );
         assert!(
-            raw.bind_edges(&model.solids[&101].source[&104].source().shells()[0])
+            raw.bind_edges(&model.solids[&101].source[&104].shells()[0])
                 .is_none()
         );
     }

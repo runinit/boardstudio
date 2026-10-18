@@ -693,11 +693,19 @@ impl fmt::Display for EntityLoadReport {
 pub(crate) struct LossSink(
     std::cell::RefCell<ShellLoadReport>,
     Option<std::rc::Rc<std::cell::Cell<usize>>>,
+    Option<super::PreviewTolerance>,
 );
 
 impl LossSink {
     pub(crate) fn with_repair(budget: Option<std::rc::Rc<std::cell::Cell<usize>>>) -> Self {
-        Self(std::cell::RefCell::default(), budget)
+        Self(std::cell::RefCell::default(), budget, None)
+    }
+    pub(super) fn with_tolerance(mut self, tolerance: Option<super::PreviewTolerance>) -> Self {
+        self.2 = tolerance;
+        self
+    }
+    pub(super) fn preview(&self) -> bool {
+        self.2.is_some()
     }
     pub(crate) fn wants_repair(&self) -> bool {
         self.1.is_some()

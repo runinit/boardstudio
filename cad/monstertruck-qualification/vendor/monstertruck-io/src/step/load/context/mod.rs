@@ -385,6 +385,7 @@ impl SourceRecords {
         table: &Table,
         shell: &ShellHolder,
         selected: Option<u64>,
+        tolerance: Option<PreviewTolerance>,
     ) -> Result<Option<ShellConnectivity>, String> {
         let ids = table
             .shell
@@ -470,7 +471,7 @@ impl SourceRecords {
             // an unsupported higher-precedence declaration cannot fall through.
             for id in &scope {
                 let bound = self.item_bound(*id, &rep, model_mm)?;
-                let bound = match table.preview_tolerance {
+                let bound = match tolerance {
                     Some(tolerance) => bound.map(|b| b.with_preview_tolerance(tolerance)),
                     None => bound,
                 };

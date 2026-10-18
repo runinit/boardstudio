@@ -25,8 +25,8 @@ const TOLERANCE_MM: f64 = 0.1;
 const PREVIEW_FLOOR_MM: f64 = 0.02;
 const PREVIEW_DECLARED_MULTIPLIER: f64 = 2.0;
 
-struct SourceSolid {
-    source: HashMap<u64, StepRepairConversion>,
+struct SourceSolid<R = SourceBoundStepSolid> {
+    source: HashMap<u64, R>,
     mm_per_unit: f64,
 }
 
@@ -217,8 +217,10 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         }
         None => TOLERANCE_MM,
     };
-    let text = units::decode_step_bytes(&bytes);
-    let original_source = parser::parse(&text).map_err(|error| format!("source AST: {error}"))?;
+    let input = StepRepairInput::parse(bytes).map_err(|error| format!("source AST: {error}"))?;
+    let bytes = input.bytes();
+    let text = units::decode_step_bytes(bytes);
+    let original_source = input.exchange();
     let precision = units::precision::resolve(&original_source)?;
     // The reviewed contextual producer currently supports simple declarations.
     // Other authenticated metadata remains diagnostic; strict construction must
@@ -239,18 +241,6 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let source_occurrence_ids = source_occurrence_ids(&text)?;
     let representation_units = units::resolve_mm_per_unit_by_representation(&text)?;
     let shape_items = units::shape_representation_items(&text)?;
-    let exchange = units::normalize_conical_angles(&text)?;
-    let mut table = Table::from_data_section(&exchange.data[0]);
-    let repair_source = StepRepairSource::from_step_bytes(&bytes)
-        .map_err(|error| format!("repair source capture: {error}"))?;
-    let repair_original = if exchange == original_source {
-        repair::OriginalGeometry::capture(&table, &bytes)
-    } else {
-        repair::OriginalGeometry::capture(
-            &Table::from_data_section(&original_source.data[0]),
-            &bytes,
-        )
-    };
     let preview_tolerance = match options.preview_repair_budget_mm {
         Some(budget) => PreviewTolerance {
             floor_mm: budget,
@@ -261,7 +251,17 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             declared_multiplier: PREVIEW_DECLARED_MULTIPLIER,
         },
     };
-    table.set_preview_tolerance(preview_tolerance);
+    let exchange = units::normalize_conical_exchange(original_source)?;
+    let normalized = exchange.as_ref() != original_source;
+    // Only the normalized legacy fallback keeps its existing mutable settings
+    // and per-representation clone. It cannot borrow sealed original captures.
+    let normalized_table = normalized.then(|| {
+        let mut table = Table::from_data_section(&exchange.data[0]);
+        table.set_preview_tolerance(preview_tolerance);
+        table
+    });
+    let table = normalized_table.as_ref().unwrap_or_else(|| input.table());
+    let repair_original = repair::OriginalGeometry::capture(table, bytes);
     table
         .entity_report
         .require_empty()
@@ -288,7 +288,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     {
         return Err("empty or unreferenced exact geometry".into());
     }
-    let mut solids = HashMap::<u64, SourceSolid>::new();
+    let mut solids = HashMap::<u64, SourceSolid<repair::Conversion<'_>>>::new();
     for (id, placement, representation) in &occurrences {
         units::validate_placement_matrix(*placement)?;
         let solid = solids.entry(*id).or_insert_with(|| SourceSolid {
@@ -321,49 +321,28 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             } else {
                 Vec::new()
             };
-            let source = if contextual {
-                if let Some(budget) = options.preview_repair_budget_mm {
-                    let max_scale = occurrences
-                        .iter()
-                        .filter(|(occ_id, _, occ_rep)| occ_id == id && occ_rep == representation)
-                        .map(|(_, occ_place, _)| {
-                            occ_place
-                                .x
-                                .truncate()
-                                .magnitude()
-                                .max(occ_place.y.truncate().magnitude())
-                                .max(occ_place.z.truncate().magnitude())
-                        })
-                        .fold(0.0_f64, f64::max);
-                    if !max_scale.is_finite() || max_scale <= 0.0 {
-                        return Err("invalid occurrence scale for previewRepairBudgetMm".into());
-                    }
+            let selection = (*id, contextual.then_some(*representation));
+            let tolerance = if contextual && options.preview_repair_budget_mm.is_some() {
+                let max_scale = occurrences.iter()
+                    .filter(|(occ_id, _, occ_rep)| occ_id == id && occ_rep == representation)
+                    .map(|(_, placement, _)| placement.x.truncate().magnitude()
+                        .max(placement.y.truncate().magnitude()).max(placement.z.truncate().magnitude()))
+                    .fold(0.0_f64, f64::max);
+                if !max_scale.is_finite() || max_scale <= 0.0 {
+                    return Err("invalid occurrence scale for previewRepairBudgetMm".into());
+                }
+                PreviewTolerance { floor_mm: options.preview_repair_budget_mm.unwrap() / max_scale, declared_multiplier: 0.0 }
+            } else { preview_tolerance };
+            let source = if normalized {
+                if contextual && options.preview_repair_budget_mm.is_some() {
                     let mut rep_table = table.clone();
-                    rep_table.set_preview_tolerance(PreviewTolerance {
-                        floor_mm: budget / max_scale,
-                        declared_multiplier: 0.0,
-                    });
-                    repair_original.convert_with_projected_refusal(
-                        &rep_table,
-                        &repair_source,
-                        (*id, Some(*representation)),
-                        &frames,
-                    )
+                    rep_table.set_preview_tolerance(tolerance);
+                    repair_original.convert_normalized_with_refusal(&rep_table, selection, &frames)
                 } else {
-                    repair_original.convert_with_projected_refusal(
-                        &table,
-                        &repair_source,
-                        (*id, Some(*representation)),
-                        &frames,
-                    )
+                    repair_original.convert_normalized_with_refusal(table, selection, &frames)
                 }
             } else {
-                repair_original.convert_with_projected_refusal(
-                    &table,
-                    &repair_source,
-                    (*id, None),
-                    &frames,
-                )
+                repair_original.convert_input_with_refusal(&input, selection, tolerance, &frames)
             }
             .map_err(|error| format!("solid #{id} representation #{representation}: {error}"))?;
             if source.source().shells().is_empty() {
@@ -411,7 +390,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         && curve_occurrences.is_empty()
         && ids.len() == 1
         && wireframe.is_empty()
-        && exchange == original_source
+        && !normalized
     {
         let (id, placement, representation) = occurrences[0];
         match solids[&id].source[&representation].source().shells() {
@@ -472,7 +451,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 shell_index,
             );
             repair_ledger.conversion_operations(
-                &solid.source[representation],
+                solid.source[representation].operations(shell_index),
+                solid.source[representation].complete_bound(shell_index).is_ok(),
                 shell_index,
                 solid.mm_per_unit,
                 *placement,
@@ -669,6 +649,15 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     } else {
         repair_ledger.complete_bound_mm()
     };
+    // Consume all authority borrows/captures before moving the input parts and
+    // dropping the cached preview Table. Stored source has no authority handle.
+    let solids = solids.into_iter().map(|(id, solid)| (id, SourceSolid {
+        source: solid.source.into_iter().map(|(representation, owner)| (representation, owner.into_source())).collect(),
+        mm_per_unit: solid.mm_per_unit,
+    })).collect();
+    drop(scene);
+    drop(exchange);
+    let (bytes, original_source) = input.into_parts();
     Ok(ImportedStep {
         original_bytes: bytes,
         analysis_options: options,
@@ -880,7 +869,7 @@ fn reference(parameter: &Parameter) -> Result<u64, String> {
 
 fn source_face_catalogue(
     exchange: &Exchange,
-    solids: &HashMap<u64, SourceSolid>,
+    solids: &HashMap<u64, SourceSolid<repair::Conversion<'_>>>,
 ) -> Result<Vec<StepSourceFace>, String> {
     let records = source_records(exchange);
     let mut ids: Vec<_> = solids.keys().copied().collect();

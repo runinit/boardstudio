@@ -202,8 +202,14 @@ pub fn resolve_mm_per_unit_by_representation(step: &str) -> Result<HashMap<u64, 
 /// Convert each supported conical semi-angle from its owning representation's
 /// declared plane-angle unit into radians before Monstertruck converts it.
 /// An absent angle unit keeps the importer’s existing radians interpretation.
+#[cfg(test)]
 pub fn normalize_conical_angles(step: &str) -> Result<Exchange, String> {
-    let mut exchange = parser::parse(step).map_err(|error| format!("STEP AST parse: {error}"))?;
+    let exchange = parser::parse(step).map_err(|error| format!("STEP AST parse: {error}"))?;
+    normalize_conical_exchange(&exchange).map(std::borrow::Cow::into_owned)
+}
+
+pub(super) fn normalize_conical_exchange(original: &Exchange) -> Result<std::borrow::Cow<'_, Exchange>, String> {
+    let exchange = original;
     if exchange.data.len() != 1 {
         return Err(format!(
             "angle resolver requires exactly one DATA section, got {}",
@@ -212,6 +218,22 @@ pub fn normalize_conical_angles(step: &str) -> Result<Exchange, String> {
     }
     let representation_factors = radians_per_unit_by_representation(&exchange)?;
     let cone_factors = conical_surface_factors(&exchange, &representation_factors)?;
+    let changed = exchange.data[0].entities.iter().any(|entity| {
+        let EntityInstance::Simple { id, record } = entity else { return false };
+        if record.name != "CONICAL_SURFACE" { return false; }
+        let Some(factor) = cone_factors.get(id) else { return false };
+        let Parameter::List(params) = &record.parameter else { return true };
+        match params.get(3) {
+            Some(Parameter::Real(value)) => { let result = *value * factor; !result.is_finite() || !result.tan().is_finite() || result != *value },
+            _ => true,
+        }
+    });
+    // Preserve complex-encoding refusal even when no scalar value would change.
+    if !changed && !exchange.data[0].entities.iter().any(|entity| matches!(entity,
+        EntityInstance::Complex { id, subsuper } if cone_factors.contains_key(id) && subsuper.0.iter().any(|r| r.name == "CONICAL_SURFACE"))) {
+        return Ok(std::borrow::Cow::Borrowed(original));
+    }
+    let mut exchange = original.clone();
     for entity in &mut exchange.data[0].entities {
         let (id, records, is_complex) = match entity {
             EntityInstance::Simple { id, record } => (*id, std::slice::from_mut(record), false),
@@ -260,7 +282,7 @@ pub fn normalize_conical_angles(step: &str) -> Result<Exchange, String> {
             }
         }
     }
-    Ok(exchange)
+    Ok(std::borrow::Cow::Owned(exchange))
 }
 
 fn radians_per_unit_by_representation(exchange: &Exchange) -> Result<HashMap<u64, f64>, String> {

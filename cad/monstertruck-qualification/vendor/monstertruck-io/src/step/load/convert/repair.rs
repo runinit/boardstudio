@@ -94,10 +94,89 @@ struct ShellTrace {
 /// Owns the actual checked conversion result and its immutable source authority.
 #[derive(Debug)]
 pub struct StepRepairConversion {
-    source: SourceBoundStepSolid,
+    report: RepairReport,
     _original: Arc<Original>,
+}
+#[derive(Debug)]
+struct RepairReport {
+    source: SourceBoundStepSolid,
     traces: Vec<ShellTrace>,
     failure: Option<&'static str>,
+}
+
+/// Immutable bytes and the actual preview parse; the table is built once on demand.
+#[derive(Debug)]
+pub struct StepRepairInput {
+    bytes: Vec<u8>,
+    exchange: step_p21::ast::Exchange,
+    table: std::sync::OnceLock<Table>,
+    // Existing preview allocations, not a report allocation bound.
+    _input_capacities: (usize, usize, usize),
+}
+impl StepRepairInput {
+    /// Parses the canonical preview input under the existing source byte limit.
+    pub fn parse(bytes: Vec<u8>) -> Result<Self, LoadError> {
+        if bytes.len() > SOURCE_CAP {
+            return Err("STEP input exceeds source byte limit".into());
+        }
+        let text = match std::str::from_utf8(&bytes) {
+            Ok(text) => std::borrow::Cow::Borrowed(text),
+            Err(_) => std::borrow::Cow::Owned(bytes.iter().map(|&byte| byte as char).collect::<String>()),
+        };
+        let decoded_capacity = match &text {
+            std::borrow::Cow::Borrowed(_) => 0,
+            std::borrow::Cow::Owned(text) => text.capacity(),
+        };
+        let exchange = step_p21::parser::parse(&text)?;
+        if exchange.data.len() != 1 {
+            return Err("STEP input requires exactly one DATA section".into());
+        }
+        let capacities = (bytes.capacity(), decoded_capacity, exchange.data.capacity());
+        Ok(Self { bytes, exchange, table: std::sync::OnceLock::new(), _input_capacities: capacities })
+    }
+    /// Canonical original bytes; no report copy or decoding round trip.
+    pub fn bytes(&self) -> &[u8] { &self.bytes }
+    /// The same immutable parse used to construct the actual table.
+    pub fn exchange(&self) -> &step_p21::ast::Exchange { &self.exchange }
+    /// Actual immutable conversion table, cached from the original parse.
+    pub fn table(&self) -> &Table {
+        self.table.get_or_init(|| Table::from_data_section(&self.exchange.data[0]))
+    }
+    /// Executes the conversion once with this call's tolerance, borrowing authority.
+    pub fn convert_solid(&self, solid_id: u64, representation: Option<u64>, tolerance: Option<PreviewTolerance>) -> Result<StepRepairBorrowedConversion<'_>, LoadError> {
+        let table = self.table();
+        Ok(StepRepairBorrowedConversion {
+            _input: self,
+            report: table.capture_repair(solid_id, representation, Some(table), 0, None, tolerance)?,
+        })
+    }
+    /// Moves preview inputs out after all borrowed reports have been consumed.
+    pub fn into_parts(self) -> (Vec<u8>, step_p21::ast::Exchange) { (self.bytes, self.exchange) }
+}
+
+/// Same-call output and captures whose authority cannot outlive the sealed input.
+#[derive(Debug)]
+pub struct StepRepairBorrowedConversion<'input> {
+    _input: &'input StepRepairInput,
+    report: RepairReport,
+}
+impl StepRepairBorrowedConversion<'_> {
+    /// Actual owned conversion result from this invocation.
+    pub fn source(&self) -> &SourceBoundStepSolid { self.report.source() }
+    /// Immutable stage views, borrowing only this report.
+    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> { self.report.operations(shell) }
+    /// Mathematical completeness, independent of source capture availability.
+    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> { self.report.complete_bound(shell) }
+    /// Drops captures and the authority borrow, retaining ordinary preview geometry.
+    pub fn into_source(self) -> SourceBoundStepSolid { self.report.source }
+}
+impl StepRepairConversion {
+    /// Actual owned conversion result from this invocation.
+    pub fn source(&self) -> &SourceBoundStepSolid { self.report.source() }
+    /// Immutable stage views, borrowing only this report.
+    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> { self.report.operations(shell) }
+    /// Complete mathematical repair bound, when supported by every stage.
+    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> { self.report.complete_bound(shell) }
 }
 /// Borrowed diagnostic view; callers cannot create a movement witness.
 #[derive(Debug)]
@@ -141,7 +220,7 @@ impl StepRepairOperation<'_> {
         self.operation.bound
     }
 }
-impl StepRepairConversion {
+impl RepairReport {
     /// The immutable result emitted by the same checked conversion invocation.
     pub fn source(&self) -> &SourceBoundStepSolid {
         &self.source
@@ -179,32 +258,170 @@ impl StepRepairConversion {
         if trace.operations.is_empty() {
             return Err("empty repair stage coverage");
         }
-        let mut paths = std::collections::HashMap::<(Option<u64>, Option<u64>), f64>::new();
         for operation in &trace.operations {
-            if matches!(operation.stage, Stage::Numerical) {
-                continue;
-            }
+            if matches!(operation.stage, Stage::Numerical) { continue; }
             let value = operation.bound?;
-            if !value.is_finite() || value < 0.0 {
-                return Err("invalid repair movement bound");
-            }
-            let path = paths.entry((operation.ids.1, operation.ids.2)).or_default();
-            *path = if *path == 0.0 {
-                value
-            } else if value == 0.0 {
-                *path
-            } else {
-                (*path + value).next_up()
-            };
-            if !path.is_finite() {
-                return Err("repair movement accumulation overflow");
-            }
+            if !value.is_finite() || value < 0.0 { return Err("invalid repair movement bound"); }
         }
-        Ok(paths.values().copied().fold(0.0, f64::max))
+        // Do not allocate a proof map outside the captured report's resource charge.
+        let mut maximum = 0.0_f64;
+        for (index, operation) in trace.operations.iter().enumerate() {
+            if matches!(operation.stage, Stage::Numerical)
+                || trace.operations[..index].iter().any(|prior| !matches!(prior.stage, Stage::Numerical) && prior.ids.1 == operation.ids.1 && prior.ids.2 == operation.ids.2) { continue; }
+            let mut path = 0.0_f64;
+            for next in &trace.operations[index..] {
+                if matches!(next.stage, Stage::Numerical) || next.ids.1 != operation.ids.1 || next.ids.2 != operation.ids.2 { continue; }
+                let value = next.bound?;
+                path = if path == 0.0 { value } else if value == 0.0 { path } else { (path + value).next_up() };
+                if !path.is_finite() { return Err("repair movement accumulation overflow"); }
+            }
+            maximum = maximum.max(path);
+        }
+        Ok(maximum)
     }
 }
 
 impl Table {
+    fn same_repair_input(&self, other: &Self) -> bool {
+        let Self {
+            source_records,
+            representation,
+            representation_item,
+            representation_context,
+            cartesian_point,
+            direction,
+            vector,
+            placement,
+            axis1_placement,
+            axis2_placement_2d,
+            axis2_placement_3d,
+            line,
+            polyline,
+            b_spline_curve_with_knots,
+            bezier_curve,
+            quasi_uniform_curve,
+            uniform_curve,
+            rational_b_spline_curve,
+            circle,
+            ellipse,
+            hyperbola,
+            parabola,
+            pcurve,
+            surface_curve,
+            plane,
+            spherical_surface,
+            cylindrical_surface,
+            toroidal_surface,
+            degenerate_toroidal_surface,
+            conical_surface,
+            b_spline_surface_with_knots,
+            uniform_surface,
+            quasi_uniform_surface,
+            bezier_surface,
+            rational_b_spline_surface,
+            surface_of_linear_extrusion,
+            surface_of_revolution,
+            vertex_point,
+            edge_curve,
+            oriented_edge,
+            edge_loop,
+            vertex_loop,
+            face_bound,
+            face_surface,
+            oriented_face,
+            shell,
+            oriented_shell,
+            shell_based_surface_model,
+            manifold_solid_brep,
+            application_context,
+            product_context,
+            product,
+            product_definition_formation,
+            product_definition_context,
+            product_definition,
+            product_definition_shape,
+            shape_definition_representation,
+            shape_representation,
+            context_dependent_shape_representation,
+            shape_representation_relationship,
+            shape_representation_relationship_with_transformation,
+            next_assembly_usage_occurrence,
+            item_defined_transformation,
+            geometric_curve_set,
+            definitional_representation,
+            dummy,
+            entity_report,
+            preview_tolerance: _,
+        } = self;
+        true
+            && source_records == &other.source_records
+            && representation == &other.representation
+            && representation_item == &other.representation_item
+            && representation_context == &other.representation_context
+            && cartesian_point == &other.cartesian_point
+            && direction == &other.direction
+            && vector == &other.vector
+            && placement == &other.placement
+            && axis1_placement == &other.axis1_placement
+            && axis2_placement_2d == &other.axis2_placement_2d
+            && axis2_placement_3d == &other.axis2_placement_3d
+            && line == &other.line
+            && polyline == &other.polyline
+            && b_spline_curve_with_knots == &other.b_spline_curve_with_knots
+            && bezier_curve == &other.bezier_curve
+            && quasi_uniform_curve == &other.quasi_uniform_curve
+            && uniform_curve == &other.uniform_curve
+            && rational_b_spline_curve == &other.rational_b_spline_curve
+            && circle == &other.circle
+            && ellipse == &other.ellipse
+            && hyperbola == &other.hyperbola
+            && parabola == &other.parabola
+            && pcurve == &other.pcurve
+            && surface_curve == &other.surface_curve
+            && plane == &other.plane
+            && spherical_surface == &other.spherical_surface
+            && cylindrical_surface == &other.cylindrical_surface
+            && toroidal_surface == &other.toroidal_surface
+            && degenerate_toroidal_surface == &other.degenerate_toroidal_surface
+            && conical_surface == &other.conical_surface
+            && b_spline_surface_with_knots == &other.b_spline_surface_with_knots
+            && uniform_surface == &other.uniform_surface
+            && quasi_uniform_surface == &other.quasi_uniform_surface
+            && bezier_surface == &other.bezier_surface
+            && rational_b_spline_surface == &other.rational_b_spline_surface
+            && surface_of_linear_extrusion == &other.surface_of_linear_extrusion
+            && surface_of_revolution == &other.surface_of_revolution
+            && vertex_point == &other.vertex_point
+            && edge_curve == &other.edge_curve
+            && oriented_edge == &other.oriented_edge
+            && edge_loop == &other.edge_loop
+            && vertex_loop == &other.vertex_loop
+            && face_bound == &other.face_bound
+            && face_surface == &other.face_surface
+            && oriented_face == &other.oriented_face
+            && shell == &other.shell
+            && oriented_shell == &other.oriented_shell
+            && shell_based_surface_model == &other.shell_based_surface_model
+            && manifold_solid_brep == &other.manifold_solid_brep
+            && application_context == &other.application_context
+            && product_context == &other.product_context
+            && product == &other.product
+            && product_definition_formation == &other.product_definition_formation
+            && product_definition_context == &other.product_definition_context
+            && product_definition == &other.product_definition
+            && product_definition_shape == &other.product_definition_shape
+            && shape_definition_representation == &other.shape_definition_representation
+            && shape_representation == &other.shape_representation
+            && context_dependent_shape_representation == &other.context_dependent_shape_representation
+            && shape_representation_relationship == &other.shape_representation_relationship
+            && shape_representation_relationship_with_transformation == &other.shape_representation_relationship_with_transformation
+            && next_assembly_usage_occurrence == &other.next_assembly_usage_occurrence
+            && item_defined_transformation == &other.item_defined_transformation
+            && geometric_curve_set == &other.geometric_curve_set
+            && definitional_representation == &other.definitional_representation
+            && dummy == &other.dummy
+            && entity_report == &other.entity_report
+    }
     /// Additive traced facade; the existing preview conversion executes exactly once.
     /// `None` selects the existing route without connectivity authority.
     pub fn to_source_bound_solid_with_repair_checked(
@@ -215,32 +432,22 @@ impl Table {
     ) -> Result<StepRepairConversion, LoadError> {
         let mut failure = original.inner.failure;
         if let Some(source) = &original.inner.table {
-            let mut expected = source.clone();
-            expected.preview_tolerance = self.preview_tolerance;
-            if expected != *self {
+            if !source.same_repair_input(self) {
                 // In particular, unauthenticated angle normalization must not
                 // borrow unchanged-carrier evidence from the original table.
                 failure = Some("original/conversion source mismatch or untraced normalization");
             }
         }
-        // Capture original raw definitions BEFORE the actual conversion. Unknown
-        // native trim/master choices remain unsupported, not reconstructed from
-        // final endpoints or from a second invocation of the converter.
-        let source_table = original.inner.table.as_ref();
-        let count = source_table.map_or(0, |table| table.edge_curve.len());
-        let storage = count
-            .checked_mul(std::mem::size_of::<u64>())
-            .and_then(|size| size.checked_add(original.inner.charged_bytes));
-        let mut captured = Vec::new();
-        if count > OPERATION_CAP || storage.is_none_or(|size| size > STORAGE_CAP) {
+        Ok(StepRepairConversion {
+            report: self.capture_repair(solid_id, representation, original.inner.table.as_ref(), original.inner.charged_bytes, failure, self.preview_tolerance)?,
+            _original: Arc::clone(&original.inner),
+        })
+    }
+
+    fn capture_repair(&self, solid_id: u64, representation: Option<u64>, source_table: Option<&Table>, charged_bytes: usize, mut failure: Option<&'static str>, tolerance: Option<PreviewTolerance>) -> Result<RepairReport, LoadError> {
+        let storage = charged_bytes.checked_add(3 * std::mem::size_of::<usize>());
+        if storage.is_none_or(|bytes| bytes > STORAGE_CAP) {
             failure = Some("repair capture storage resource cap");
-        } else if failure.is_none() {
-            if captured.try_reserve_exact(count).is_err() {
-                failure = Some("repair capture allocation failed");
-            } else {
-                captured.extend(source_table.unwrap().edge_curve.keys().copied());
-                captured.sort_unstable();
-            }
         }
         let solid = self
             .manifold_solid_brep
@@ -256,7 +463,7 @@ impl Table {
             ))
         });
         let converted =
-            self.compressed_solid_with_repair_reported(solid, selection, capture_budget.clone())?;
+            self.compressed_solid_with_repair_reported(solid, selection, capture_budget.clone(), tolerance)?;
         let mut source = self.bind_source_solid(converted)?;
         let mut traces = Vec::new();
         let mut charged = capture_budget
@@ -272,16 +479,15 @@ impl Table {
                 .and_then(|size| charged.checked_add(size))
                 .filter(|size| *size <= STORAGE_CAP)
             {
-                Some(size) if traces.try_reserve_exact(source.shells().len()).is_ok() => {
+                Some(size) if traces.try_reserve_exact(source.shells().len()).is_ok() && traces.capacity() <= source.shells().len() => {
                     charged = size
                 }
                 _ => failure = Some("repair shell trace storage resource cap"),
             }
         }
         if failure.is_some() {
-            return Ok(StepRepairConversion {
+            return Ok(RepairReport {
                 source,
-                _original: Arc::clone(&original.inner),
                 traces,
                 failure,
             });
@@ -305,7 +511,7 @@ impl Table {
                         .shell()
                         .edges
                         .len()
-                        .checked_mul(8 * std::mem::size_of::<u64>())
+                        .checked_mul(std::mem::size_of::<Option<u64>>() + 2 * std::mem::size_of::<u64>() + std::mem::size_of::<Option<usize>>())
                         .and_then(|ids| n.checked_add(ids))
                 });
             let resource_failure = failure.or_else(|| {
@@ -330,7 +536,7 @@ impl Table {
                     .then_some("finite carrier capture resource failure")),
             };
             if trace.failure.is_none() {
-                if trace.operations.try_reserve_exact(count.unwrap()).is_err() {
+                if trace.operations.try_reserve_exact(count.unwrap()).is_err() || trace.operations.capacity() > count.unwrap() {
                     trace.failure = Some("repair operation allocation failed");
                 } else {
                     trace.operations.push(Operation {
@@ -349,7 +555,7 @@ impl Table {
                             .as_ref()
                             .and_then(|ids| ids.as_slice().get(index))
                             .copied()
-                            .filter(|id| captured.binary_search(id).is_ok());
+                            .filter(|id| source_table.is_some_and(|table| table.edge_curve.contains_key(id)));
                         for stage in [Stage::NativeInterval, Stage::Master] {
                             trace.operations.push(Operation {
                                 stage,
@@ -367,36 +573,42 @@ impl Table {
                     // Exact structural chaining authenticates the actual output,
                     // independently of endpoints or sampled evaluations.
                     let captured_curves = std::mem::take(&mut shell.repair_curves);
-                    let mut previous = HashMap::<u64, (&Curve3D, (f64, f64))>::new();
+                    let mut previous = Vec::<Option<usize>>::new();
                     let mut valid = ids.is_some();
-                    for (id, change) in &captured_curves {
+                    if previous.try_reserve_exact(shell.shell().edges.len()).is_err()
+                        || previous.capacity() > shell.shell().edges.len() {
+                        trace.failure = Some("repair chain index allocation failed");
+                        traces.push(trace);
+                        continue;
+                    }
+                    previous.resize(shell.shell().edges.len(), None);
+                    for (ordinal, (id, change)) in captured_curves.iter().enumerate() {
                         valid &= change.surface_stage_valid();
                         if change.stage == "native-line-attachment-projection-v1" {
                             valid &= source_table
                                 .and_then(|table| {
                                     table.edge_curve.get(id).map(|edge| (table, edge))
                                 })
-                                .and_then(|(table, edge)| edge.clone().into_owned(table).ok())
-                                .is_some_and(|edge| {
+                                .is_some_and(|(table, edge)| {
                                     change
                                         .native_line
                                         .as_ref()
-                                        .is_some_and(|native| native.matches_original(&edge))
+                                        .is_some_and(|native| native.matches_original(table, edge))
                                 });
                         }
-                        if let Some((curve, domain)) =
-                            previous.insert(*id, (&change.after, change.after_domain))
-                        {
-                            valid &= *curve == change.before
-                                && (domain == change.before_domain
-                                    || change.surface_restricts(domain));
-                        }
+                        let index = ids.as_ref().and_then(|ids| ids.iter().position(|candidate| candidate == id));
+                        if let Some(index) = index {
+                            if let Some(prior) = previous[index].replace(ordinal) {
+                                let prior = &captured_curves[prior].1;
+                                valid &= prior.after == change.before
+                                    && (prior.after_domain == change.before_domain || change.surface_restricts(prior.after_domain));
+                            }
+                        } else { valid = false; }
                     }
-                    for (id, (curve, _)) in previous {
-                        valid &= ids
-                            .as_ref()
-                            .and_then(|ids| ids.iter().position(|candidate| *candidate == id))
-                            .is_some_and(|index| shell.shell().edges[index].curve == *curve);
+                    for (index, ordinal) in previous.into_iter().enumerate() {
+                        if let Some(ordinal) = ordinal {
+                            valid &= shell.shell().edges[index].curve == captured_curves[ordinal].1.after;
+                        }
                     }
                     if !valid {
                         trace.failure = Some("finite carrier source/output chain mismatch");
@@ -438,9 +650,8 @@ impl Table {
             }
             traces.push(trace);
         }
-        Ok(StepRepairConversion {
+        Ok(RepairReport {
             source,
-            _original: Arc::clone(&original.inner),
             traces,
             failure,
         })
@@ -448,7 +659,11 @@ impl Table {
 }
 
 fn bind_edges(table: &Table, source: &SourceBoundStepShell) -> Option<Vec<u64>> {
-    let mut ids = vec![None; source.shell().edges.len()];
+    let count = source.shell().edges.len();
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(count).ok()?;
+    if ids.capacity() > count { return None; }
+    ids.resize(count, None);
     if source.source_face_ids().len() != source.shell().faces.len() {
         return None;
     }
@@ -489,6 +704,13 @@ fn bind_edges(table: &Table, source: &SourceBoundStepShell) -> Option<Vec<u64>> 
             }
         }
     }
-    let ids = ids.into_iter().collect::<Option<Vec<_>>>()?;
-    (ids.iter().copied().collect::<HashSet<_>>().len() == ids.len()).then_some(ids)
+    let mut result = Vec::new();
+    let mut sorted = Vec::new();
+    result.try_reserve_exact(count).ok()?;
+    sorted.try_reserve_exact(count).ok()?;
+    if result.capacity() > count || sorted.capacity() > count { return None; }
+    for id in ids { result.push(id?); }
+    for &id in &result { sorted.push(id); }
+    sorted.sort_unstable();
+    (!sorted.windows(2).any(|pair| pair[0] == pair[1])).then_some(result)
 }

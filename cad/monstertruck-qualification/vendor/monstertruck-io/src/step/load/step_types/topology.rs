@@ -48,15 +48,29 @@ impl NativeLineProjection {
             native,
         })
     }
-    pub(in crate::step::load) fn matches_original(&self, edge: &EdgeCurve) -> bool {
-        let CurveAny::Line(source) = &edge.edge_geometry else {
-            return false;
+    pub(in crate::step::load) fn matches_original(&self, table: &Table, edge: &EdgeCurveHolder) -> bool {
+        fn resolve<'a, T>(value: &'a PlaceHolder<T>, map: &'a std::collections::HashMap<u64, T>) -> Option<&'a T> {
+            match value {
+                PlaceHolder::Ref(Name::Entity(id)) => map.get(id),
+                PlaceHolder::Owned(value) => Some(value),
+                _ => None,
+            }
+        }
+        let source = match &edge.edge_geometry {
+            PlaceHolder::Ref(Name::Entity(id)) => table.line.get(id),
+            PlaceHolder::Owned(CurveAnyHolder::Line(line)) => Some(line.as_ref()),
+            _ => None,
         };
-        source.pnt.coordinates.as_slice() == self.point
-            && source.dir.orientation.direction_ratios.as_slice() == self.direction
-            && source.dir.magnitude == self.magnitude
+        let Some((point, vector, direction)) = source.and_then(|source| {
+            let point = resolve(&source.pnt, &table.cartesian_point)?;
+            let vector = resolve(&source.dir, &table.vector)?;
+            Some((point, vector, resolve(&vector.orientation, &table.direction)?))
+        }) else { return false };
+        point.coordinates.as_slice() == self.point
+            && direction.direction_ratios.as_slice() == self.direction
+            && vector.magnitude == self.magnitude
             && edge.same_sense == self.same_sense
-            && self.native.0 == Point3::from(&source.pnt)
+            && self.native.0 == Point3::new(self.point[0], self.point[1], self.point[2])
     }
 }
 
