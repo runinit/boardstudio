@@ -343,7 +343,8 @@ mod tests {
         )
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn native_line_support_translation_is_measured_on_the_real_import_route() {
         let text = shifted_line_tetra();
         let model = import_step(text.clone().into_bytes()).unwrap();
@@ -362,7 +363,8 @@ mod tests {
         assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn support_measurement_uses_world_units_and_keeps_occurrences_separate() {
         let assembly = include_str!("../../tests/fixtures/two-occurrences-mm.step");
         let text = assembly
@@ -391,7 +393,8 @@ mod tests {
         assert_eq!(model.accuracy().max_repair_displacement_mm, None);
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn tilted_native_support_and_selected_pcurves_cannot_borrow_the_line_proof() {
         let tilted = shifted_line_tetra().replace(
             "#20=DIRECTION('',(2.,0.,0.));",
@@ -416,7 +419,8 @@ mod tests {
         assert_eq!(model.accuracy().analysis_error_bound_mm, None);
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn unchanged_parsed_line_support_does_not_certify_the_asset_or_source_trim() {
         let model =
             import_step(include_bytes!("../../tests/fixtures/tetra-mm.step").to_vec()).unwrap();
@@ -442,7 +446,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn original_topology_identity_mismatch_refuses_a_support_proof() {
         let text = shifted_line_tetra();
         let model = import_step(text.clone().into_bytes()).unwrap();
@@ -458,7 +463,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
     fn world_translation_bound_covers_reflection_scale_and_underflow() {
         let placement =
             Matrix4::from_translation(monstertruck_modeling::Vector3::new(1e10, 0., 0.))
