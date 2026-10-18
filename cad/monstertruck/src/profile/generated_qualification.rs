@@ -83,7 +83,6 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
     let origin = plane.origin();
     let axis_u = plane.axis_u();
     let axis_v = plane.axis_v();
-    let normal = plane.normal();
     if !origin.x.is_finite()
         || !origin.y.is_finite()
         || !origin.z.is_finite()
@@ -93,21 +92,6 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
         || !axis_v.x.is_finite()
         || !axis_v.y.is_finite()
         || !axis_v.z.is_finite()
-        || !normal.x.is_finite()
-        || !normal.y.is_finite()
-        || !normal.z.is_finite()
-    {
-        return None;
-    }
-    let normal_components = [normal.x.abs(), normal.y.abs(), normal.z.abs()];
-    if normal_components
-        .iter()
-        .filter(|value| **value == 1.0)
-        .count()
-        != 1
-        || normal_components
-            .iter()
-            .any(|value| *value != 0.0 && *value != 1.0)
     {
         return None;
     }
@@ -148,10 +132,6 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
         {
             return None;
         }
-        if (start_point - origin).dot(normal) != 0.0 || (end_point - origin).dot(normal) != 0.0 {
-            return None;
-        }
-
         if index == 0 {
             corners.push(start_point);
         } else if corners.last().copied() != Some(start_point) {
@@ -171,6 +151,53 @@ fn exact_plane_rectangle_corners(model: &ExactModel, key: NativeFaceKey) -> Opti
         .map(|point| [point.x.to_bits(), point.y.to_bits(), point.z.to_bits()])
         .collect();
     if distinct.len() != 4 {
+        return None;
+    }
+
+    // The supported plane is axis-aligned: one coordinate is fixed for all
+    // corners. Use the corners themselves, not a normalized normal, to identify
+    // that coordinate. Both retained parametric axes must be zero in it.
+    let fixed_axis = (0..3).find(|&axis| {
+        corners
+            .iter()
+            .map(|point| match axis {
+                0 => point.x.to_bits(),
+                1 => point.y.to_bits(),
+                _ => point.z.to_bits(),
+            })
+            .collect::<BTreeSet<_>>()
+            .len()
+            == 1
+    })?;
+    let fixed_coord = match fixed_axis {
+        0 => corners[0].x,
+        1 => corners[0].y,
+        _ => corners[0].z,
+    };
+    let origin_fixed = match fixed_axis {
+        0 => origin.x,
+        1 => origin.y,
+        _ => origin.z,
+    };
+    if origin_fixed != fixed_coord {
+        return None;
+    }
+    let axis_u_fixed = match fixed_axis {
+        0 => axis_u.x,
+        1 => axis_u.y,
+        _ => axis_u.z,
+    };
+    let axis_v_fixed = match fixed_axis {
+        0 => axis_v.x,
+        1 => axis_v.y,
+        _ => axis_v.z,
+    };
+    if axis_u_fixed != 0.0 || axis_v_fixed != 0.0 {
+        return None;
+    }
+    let axis_u_inplane = nonzero_axis(axis_u)?;
+    let axis_v_inplane = nonzero_axis(axis_v)?;
+    if axis_u_inplane == axis_v_inplane {
         return None;
     }
 
@@ -738,6 +765,32 @@ mod tests {
                     // Replace boundaries by creating a new face is not possible in place;
                     // set_curve already mutated the shared edge, so keep face.
                     let _ = (boundaries, surface);
+                }
+            }
+            solids.push(Solid::new_unchecked(shells));
+        }
+        model.solids = solids;
+        let result = qualify_generated(&model, &analysis);
+        assert!(matches!(result, GeneratedQualification::Unknown { .. }));
+    }
+
+    #[test]
+    fn tiny_off_plane_parametric_component_is_unknown() {
+        let original = plate_model();
+        let analysis = mesh_profile_for_analysis(&original, None).expect("mesh");
+        let mut model = original;
+        let mut solids = Vec::new();
+        for solid in model.solids {
+            let mut shells = solid.into_boundaries();
+            for shell in &mut shells {
+                for face in shell.face_iter_mut() {
+                    // Keep the same rectangular corners, but make one retained
+                    // parametric axis carry a tiny out-of-plane component.
+                    face.set_surface(Surface::Plane(Plane::new(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Point3::new(1.0, 0.0, 0.0),
+                        Point3::new(0.0, 1.0, 1e-12),
+                    )));
                 }
             }
             solids.push(Solid::new_unchecked(shells));
