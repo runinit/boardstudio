@@ -1,9 +1,10 @@
-// Untimed complete-surface admission; run against a fresh release Node provider.
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const root = path.resolve(__dirname, '../../..');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 
@@ -72,6 +73,7 @@ function check(bytes, expectedBounds, expectedFaces, solidId, occurrences = 1, u
     });
   }
   console.log(`PASS complete surface: ${expectedFaces} source faces, ${occurrences} occurrences; positive f64 coverage, original SHA, f32 identity, no solid/accuracy/movement eligibility`);
+  v.analysisHandle.free();
 }
 
 const file = path.join(root, 'ergogen/library/vendor/kicad/3d_models/Panasonic_EVQPUL_EVQPUC.step');
@@ -84,3 +86,5 @@ assert.deepEqual(fs.readFileSync(file), panasonic);
 const boxes = fs.readFileSync(path.join(root, 'cad/monstertruck/tests/fixtures/touching-unit-boxes.step'));
 check(boxes, [[0,0,0],[2,2,1]], 12, 2001, 1, true);
 console.log('PASS Panasonic V1 untimed functional preview admission; no triangle-count or performance oracle');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

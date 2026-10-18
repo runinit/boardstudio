@@ -56,6 +56,15 @@ class QuickSelectionTests(unittest.TestCase):
         self.assertTrue(selection.tooling)
         self.assertFalse(selection.rust)
 
+    def test_measurement_protocol_edits_keep_the_tooling_only_quick_selection(self):
+        for path in ("cad/scripts/test-measure-cad.py", "cad/scripts/test-measure-cad-runtime.cjs"):
+            with self.subTest(path=path):
+                selection = quick.select([path], PACKAGES)
+                self.assertEqual(check.quick_plan(selection, PACKAGES),
+                                 [("repo", check.STEPS["repo"][1]),
+                                  ("tooling", check.STEPS["tooling"][1])])
+                self.assertFalse(selection.rust)
+
     def test_page_sources_select_the_page_tests_by_file(self):
         selection = quick.select(["web/src/presentation/a.rs"], PACKAGES)
         self.assertEqual(selection.page_files, ["web/src/presentation/a.rs"])

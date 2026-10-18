@@ -1,10 +1,11 @@
-// Run against a wasm-pack --target nodejs build: node this-file /absolute/path/to/package.js
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const repoRoot = path.resolve(__dirname, '../../..');
 const fixturePath = path.join(repoRoot, 'cad/monstertruck/tests/fixtures/circular-segment-sliver-prism.step');
 
@@ -74,3 +75,6 @@ for (let a = 0; a < 3; a++) {
 }
 
 console.log('PASS step-face-completeness: sliver fixture retains', vs.surfacePositionsMmF64.length / 9, 'f64 triangles across', vs.sourceFaces.length, 'source faces');
+vs.analysisHandle.free();
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

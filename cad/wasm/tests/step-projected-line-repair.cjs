@@ -1,9 +1,10 @@
-// Actual rebuilt Node producer; no diagnostic/certificate constructor is exposed.
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const base = fs.readFileSync(path.resolve(__dirname,
   '../../monstertruck/tests/fixtures/repair-projected-line.step'), 'utf8');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -33,6 +34,7 @@ function read(source, options = {}, occurrences = 1,
   assert.equal(vendor.accuracy.maxRepairDisplacementMm, null);
   assert.equal(vendor.accuracy.analysisErrorBoundMm, null);
   assert.equal(vendor.sourceQualification.state, 'unknown');
+  result.vendorStep.analysisHandle.free();
   return result;
 }
 read(projected('0.015625'));
@@ -96,3 +98,5 @@ for (const padded of [false, true]) {
   read(text, {previewRepairBudgetMm: 0.03125}, 1, [[0, 0, 0], [4, 6, 8]]);
 }
 console.log('PASS actual projected finite LINE attachment: exact default/explicit bands, sense, metre/rotated occurrences, capped/unrelated entity monotonic refusal, immutable bytes and complete face inventory; asset remains Unknown');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

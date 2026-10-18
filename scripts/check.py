@@ -56,7 +56,8 @@ CARGO_TESTS: list[list[str]] = [
     ["cargo", "test", "-p", "boardstudio-footprints", "--locked"],
 ]
 TOOLING_TESTS = (
-    "cad/scripts/test-cad-build.py", "scripts/test-build-web.py", "scripts/test-serve-web.py",
+    "cad/scripts/test-cad-build.py", "cad/scripts/test-measure-cad.py",
+    "cad/scripts/test-measure-cad-runtime.cjs", "scripts/test-build-web.py", "scripts/test-serve-web.py",
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
@@ -82,6 +83,7 @@ def browser() -> list[Command]:
     return [
         DRAG_SMOKE,
         [PY, "scripts/check-wasm-tests.py"],
+        [PY, "cad/scripts/test-cad-provider.py"],
         [PY, "cad/scripts/test-cad-browser.py"],
         ["wasm-pack", "test", "--headless", "--chrome", "web/crates/host", "--locked", "--features", "page",
          "--lib"],
@@ -124,7 +126,9 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),
-    "tooling": (True, [[PY, "-B", script] for script in TOOLING_TESTS]),
+    "tooling": (True, [["node", "--version"], *[
+        ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
+        for script in TOOLING_TESTS]]),
     "lint": (True, LINT),
     # The routine build skips wasm-opt and the optimized Dioxus build; `release` keeps both.
     "build": (True, [[PY, "scripts/build-web.py", "--fast"]]),

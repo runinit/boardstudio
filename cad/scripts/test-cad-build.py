@@ -139,6 +139,72 @@ class CadBuildTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 build.test_cad()
 
+    def test_each_owner_failure_propagates_without_running_later_commands(self):
+        for index in range(len(build.OWNER_TESTS)):
+            with self.subTest(index=index), patch.object(build, "run", side_effect=[
+                *([None] * (index + 2)), subprocess.CalledProcessError(7, "cargo")
+            ]) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    build.test_cad()
+                self.assertEqual(run.call_count, index + 3)
+                targets = {call.kwargs["env"]["CARGO_TARGET_DIR"] for call in run.call_args_list[2:]}
+                self.assertEqual(targets, {str(self.root / "monstertruck-qualification/target")})
+
+    def test_provider_tests_are_registered_or_explicitly_opt_in(self):
+        scripts = {path.name for path in (REPO_ROOT / "cad/wasm/tests").glob("*.cjs")}
+        opt_in = {
+            "layered-adoption.cjs": "separate layered-adoption fixture corpus",
+            "layered-adoption-reachability.cjs": "Core adoption disposition replay prerequisite",
+            "keycap-print-legends.cjs": "separate printable keycap export regression",
+        }
+        self.assertEqual(scripts, set(build.PROVIDER_TESTS) | opt_in.keys() | {"load-provider.cjs"})
+        self.assertTrue(all(opt_in.values()))
+
+    def packaged_provider(self):
+        self.wasm_sources()
+        package = self.root / "wasm/pkg"
+        package.mkdir()
+        (package / "boardstudio_cad_wasm.js").write_text("// WEB bindings")
+        (package / "boardstudio_cad_wasm_bg.wasm").write_bytes(b"wasm")
+        stamp = self.root / ".cache/cad/wasm-build.sha256"
+        stamp.parent.mkdir(parents=True)
+        stamp.write_text(build.wasm_inputs_digest(no_opt=True))
+        return package, stamp
+
+    def test_provider_runner_requires_node_and_current_complete_web_package(self):
+        with patch.object(build.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "require Node"):
+                build.test_provider()
+        with patch.object(build.shutil, "which", return_value="node"), patch.object(build, "run") as run:
+            with self.assertRaisesRegex(RuntimeError, "missing"):
+                build.test_provider()
+            package, stamp = self.packaged_provider()
+            stamp.write_text("stale")
+            with self.assertRaisesRegex(RuntimeError, "stale"):
+                build.test_provider()
+            stamp.write_text(build.wasm_inputs_digest(no_opt=True))
+            (package / "boardstudio_cad_wasm.js").unlink()
+            with self.assertRaisesRegex(RuntimeError, "missing"):
+                build.test_provider()
+            run.assert_not_called()
+
+    def test_provider_runner_uses_web_package_and_propagates_regression_failures(self):
+        package, stamp = self.packaged_provider()
+        for no_opt in (True, False):
+            stamp.write_text(build.wasm_inputs_digest(no_opt=no_opt))
+            with self.subTest(no_opt=no_opt), patch.object(build.shutil, "which", return_value="node"), \
+                    patch.object(build, "run") as run:
+                build.test_provider()
+                self.assertEqual([call.args[0] for call in run.call_args_list], [
+                    ["node", str(self.root / "wasm/tests" / script),
+                     str(package / "boardstudio_cad_wasm.js"), "--web"] for script in build.PROVIDER_TESTS
+                ])
+        with patch.object(build.shutil, "which", return_value="node"), \
+                patch.object(build, "run", side_effect=subprocess.CalledProcessError(9, "node")) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                build.test_provider()
+            run.assert_called_once()
+
 
 class CadWorkspaceTests(unittest.TestCase):
     """cargo must find each CAD crate's own root, even when this checkout is nested in another."""

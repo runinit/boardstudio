@@ -1,8 +1,9 @@
-// Run against a wasm-pack --target nodejs build: node this-file /absolute/path/to/package.js
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const contract = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/generated-analysis-contract.json')));
 const fieldSet = value => Object.keys(value).sort();
 const isU32 = value => Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
@@ -47,6 +48,7 @@ function checkContract(payload, deflectionMm) {
   });
   assert.equal(referencedFaces.size, payload.sourceFaces.length);
   assert([...referencedOccurrences].every(index => index < payload.faceOccurrences.length));
+  if (qualified) payload.analysisHandle.free();
 }
 // The same JSON example is consumed by Host; arrays are transport syntax only.
 checkContract({...contract.directPayload,
@@ -91,7 +93,8 @@ assert(result.triangleFaceOccurrenceIndices instanceof Uint32Array);
 assert.equal(result.surfacePositionsMmF64.length, result.triangleFaceOccurrenceIndices.length * 9);
 assert.equal(result.analysisErrorBoundMm, result.sourceQualification.state === 'bounded' ? result.sourceQualification.totalBoundMm : null);
 assert.equal(result.deflectionMm, 0.1);
-assert.equal(cad.analyze_generated_body(body, {targetDeflectionMm: 0.01}).deflectionMm, 0.01);
+const refined = cad.analyze_generated_body(body, {targetDeflectionMm: 0.01});
+assert.equal(refined.deflectionMm, 0.01);
 for (const targetDeflectionMm of [0, -1, NaN, Infinity]) {
   assert.throws(() => cad.analyze_generated_body(body, {targetDeflectionMm}));
 }
@@ -153,4 +156,7 @@ assert.equal(imported.vendorStep.accuracy.maxRepairDisplacementMm, null);
 assert.equal(imported.vendorStep.accuracy.analysisErrorBoundMm, null);
 assert.equal(imported.vendorStep.importOptions.targetDeflectionMm, 0.01);
 assert(imported.vendorStep.faceOccurrences.every(face => face.repairDisplacementMm === null));
+for (const asset of [result, refined, pcbDefault, pcbRefined, imported.vendorStep]) asset.analysisHandle.free();
 console.log('WASM shared generated-analysis contract, vendor options, analytical collision fixtures and validation passed');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

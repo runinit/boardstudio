@@ -7,9 +7,7 @@ const crypto = require('node:crypto');
 const {performance} = require('node:perf_hooks');
 (async () => {
 const webBinding = process.argv.includes('--web');
-const packagePath = path.resolve(process.argv[2]);
-const cad = webBinding ? await import(require('node:url').pathToFileURL(packagePath)) : require(packagePath);
-if (webBinding) await cad.default({module_or_path: fs.readFileSync(packagePath.replace(/\.js$/, '_bg.wasm'))});
+const cad = await require('./load-provider.cjs')(process.argv[2], webBinding);
 const capSelection = process.argv.slice(3).find(arg => arg === 'triangle' || arg === 'exponent');
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/generated-analysis-contract.json')));
 const v2 = fixture.qualificationV2, activation = v2.activation;

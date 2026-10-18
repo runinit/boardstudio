@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const cad = require(path.resolve(process.argv[2]));
-const legacy = process.argv[3] && require(path.resolve(process.argv[3]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
+const legacyPath = process.argv.slice(3).find(arg => arg !== '--web');
+const legacy = legacyPath && await require('./load-provider.cjs')(legacyPath, false);
 const source = fs.readFileSync(path.resolve(__dirname, '../../monstertruck/tests/fixtures/repair-planar-seam.step'), 'utf8');
 function replace(text, before, after) {
   assert.equal(text.split(before).length - 1, 1);
@@ -66,3 +68,5 @@ check(replace(replace(closed, "#8=EDGE_CURVE('',#2,#32,#7,.T.);", "#8=EDGE_CURVE
 check(replace(closed, '(0.,1.,2.,3.)', '(0.1,0.4,1.1,1.4)'));
 check(replace(closed, 'ENDSEC;END-ISO-10303-21;', `/*${'padding'.repeat(40000)}*/ENDSEC;END-ISO-10303-21;`));
 console.log('PASS planar seam provider: default/explicit, metre, sense, numeric, capped, original bytes and two positive faces; asset bounds remain Unknown');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

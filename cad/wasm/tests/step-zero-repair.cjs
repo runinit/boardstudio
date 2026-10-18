@@ -1,11 +1,12 @@
-// Actual Node WASM producer: node this-file /absolute/path/to/package.js
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const fixtures = path.resolve(__dirname, '../../monstertruck/tests/fixtures');
 const box = fs.readFileSync(path.join(fixtures, 'zero-repair-cuboid-mm.step'));
 const offset = fs.readFileSync(path.join(fixtures, 'zero-repair-cuboid-offset-mm.step'));
@@ -43,6 +44,7 @@ function imported(bytes, options = {}) {
     assert(Number.isFinite(asset.surfacePositionsMmF64[i]));
     assert.equal(result.mesh.positions[i], Math.fround(asset.surfacePositionsMmF64[i]));
   }
+  result.vendorStep.analysisHandle.free();
   return result;
 }
 
@@ -160,3 +162,5 @@ test('styles of retained finite geometry preserve complete mixed and surface ass
     }
   }
 });
+
+})().catch(error => { console.error(error); process.exitCode = 1; });

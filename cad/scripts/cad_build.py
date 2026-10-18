@@ -3,6 +3,7 @@
 import hashlib
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 CAD_ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,24 @@ LIBRARY_TEST_ONLY_SOURCES = frozenset({
     "src/layered/tests.rs",
     "src/layered/pcb_tests.rs",
 })
+OWNER_TESTS = (
+    ("monstertruck-io", "--test", "input", "repair_movement"),
+    ("monstertruck-io", "--test", "input", "source_pcurve_active_view"),
+    ("monstertruck-io", "--test", "input", "preview_tolerance"),
+    ("monstertruck-meshing", "--lib", "repair_"),
+    ("monstertruck-meshing", "--test", "closed_trim_projection"),
+    ("monstertruck-meshing", "--lib", "seam_branch_tests"),
+)
+PROVIDER_TESTS = (
+    "step-repair-accounting.cjs",
+    "step-zero-repair.cjs",
+    "step-projected-line-repair.cjs",
+    "step-planar-seam-repair.cjs",
+    "step-face-completeness.cjs",
+    "step-complete-surface-preview.cjs",
+    "collision-analysis.cjs",
+    "qualified-analysis.cjs",
+)
 
 
 def run(command, **kwargs):
@@ -140,3 +159,23 @@ def test_cad():
         ],
         env=wasm_env,
     )
+    owner_env = dict(os.environ, CARGO_TARGET_DIR=str(CAD_ROOT / "monstertruck-qualification/target"))
+    # Select independent targets: IO's broad --lib has unrelated missing fixtures.
+    for package, *selection in OWNER_TESTS:
+        run(["cargo", "test", "--manifest-path", "monstertruck-qualification/Cargo.toml",
+             "-p", package, *selection, "--release", "--locked"], env=owner_env)
+
+
+def test_provider():
+    node = shutil.which("node")
+    if not node:
+        raise RuntimeError("CAD packaged-provider regressions require Node.js")
+    package = CAD_ROOT / "wasm/pkg" / f"{OUT_NAME}.js"
+    wasm = package.with_name(f"{OUT_NAME}_bg.wasm")
+    stamp = CAD_ROOT / ".cache/cad/wasm-build.sha256"
+    if not all(path.is_file() for path in (package, wasm, stamp)):
+        raise RuntimeError("CAD WEB package is missing; run python3 cad/scripts/build-cad-wasm.py --no-opt")
+    if stamp.read_text().strip() not in (wasm_inputs_digest(no_opt=True), wasm_inputs_digest()):
+        raise RuntimeError("CAD WEB package is stale; run python3 cad/scripts/build-cad-wasm.py --no-opt")
+    for script in PROVIDER_TESTS:
+        run([node, str(CAD_ROOT / "wasm/tests" / script), str(package), "--web"])

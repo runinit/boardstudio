@@ -1,9 +1,10 @@
-// Run against a release wasm-pack --target nodejs package; this does not expose the private ledger.
+// Actual packaged provider: node this-file /absolute/path/to/package.js [--web].
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const cad = require(path.resolve(process.argv[2]));
+(async () => {
+const cad = await require('./load-provider.cjs')(process.argv[2]);
 const fixtures = path.resolve(__dirname, '../../monstertruck/tests/fixtures');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function fixture(name) {
@@ -54,6 +55,7 @@ function check(text, options, expectedBounds, occurrences, sourceBounds = true) 
       assert(Math.abs(value - expectedBounds[index][axis]) < 1e-9, `${key}[${axis}]: ${value}`);
     });
   }
+  result.vendorStep.analysisHandle.free();
   return result;
 }
 const tetra = fixture('tetra-mm.step');
@@ -129,4 +131,7 @@ assert.equal(new Set(partial.vendorStep.triangleFaceOccurrenceIndices).size, 12)
 assert.equal(partial.vendorStep.accuracy.maxRepairDisplacementMm, null);
 assert.equal(partial.vendorStep.accuracy.analysisErrorBoundMm, null);
 assert.equal(partial.vendorStep.sourceQualification.state, 'unknown');
+partial.vendorStep.analysisHandle.free();
 console.log('PASS actual native spline 12-face path and complete finite LINE operation default/equality/nextdown budget enforcement; incomplete asset remains Unknown; repair accounting provider: original/shifted LINE, metre occurrences, default/.024 refusal, .03 admission, curved Unknown, computed SHA/provenance/bounds and null movement/accuracy');
+
+})().catch(error => { console.error(error); process.exitCode = 1; });
