@@ -59,7 +59,7 @@
   },
   "qualificationV2": {
     "status": "pending qualification v2; no active wire implementation",
-    "version": "planar-final-v1/aabb-interval-exact-v1",
+    "version": "planar-final-v2/aabb-interval-exact-v1",
     "source": "ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
     "expectedCensus": {
       "solids": 4,
@@ -70,11 +70,6 @@
     "sourcePrecisionMm": 0.01,
     "maximumDirectBoundMm": 1e-10,
     "pair": {
-      "rightTranslationMm": [
-        3,
-        0,
-        0
-      ],
       "nominalSourceDistanceMm": [
         1,
         1
@@ -87,15 +82,23 @@
       "expectedTightRelation": "unknown",
       "containmentMethod": "slab",
       "contactMustIncludeLeftPointMm": [
-        1,
         -0.625,
+        -2,
         0
       ],
       "contactMustIncludeRightPointMm": [
-        2,
         -0.625,
+        -1,
         0
-      ]
+      ],
+      "coordinateFrame": "native part frame before STEP assembly placement",
+      "nativeXTranslationMm": [
+        3,
+        0,
+        0
+      ],
+      "worldQueryOperandOrder": "translated instance first, original instance second for ordered +Y slab",
+      "contactCoordinateFrame": "world frame; source-inflated region includes nominal native end-face points"
     },
     "rotatedControl": {
       "cos30F64": 0.8660254037844386,
@@ -115,14 +118,18 @@
       "resource-cap",
       "exponent-cap",
       "unmeasured-repair-movement",
-      "capacitor-parity-ineligible"
+      "capacitor-parity-ineligible",
+      "reversed-source-frame-composition",
+      "unqualified-source-axis",
+      "general-mapped-assembly",
+      "no-world-axis-separating-slab"
     ],
     "generatedIdentityPrefix": "m1/generated-analysis-v2/",
     "vendorIdentityPrefix": "vendor-step-analysis-v2/",
     "sourceQualificationExample": {
       "state": "bounded",
       "class": "complete-native-line-plane",
-      "version": 1,
+      "version": 2,
       "directBoundMm": 1e-10,
       "sourcePrecisionMm": 0.01,
       "totalBoundMm": 0.010000000100000002,
@@ -141,9 +148,9 @@
       "containment": {
         "state": "ruledOut",
         "method": "slab",
-        "axis": 0,
-        "leftUpperMm": 1.010000001,
-        "rightLowerMm": 1.989999999
+        "axis": 1,
+        "leftUpperMm": -1.989999999,
+        "rightLowerMm": -1.010000001
       },
       "contactRegion": {
         "state": "boxes",
@@ -155,25 +162,25 @@
           {
             "leftMm": [
               [
-                -1.010000001,
                 -0.635000001,
+                -4.010000001,
                 -0.010000001
               ],
               [
-                1.010000001,
                 0.635000001,
+                -1.989999999,
                 1.360000001
               ]
             ],
             "rightMm": [
               [
-                1.989999999,
                 -0.635000001,
+                -1.010000001,
                 -0.010000001
               ],
               [
-                4.010000001,
                 0.635000001,
+                1.010000001,
                 1.360000001
               ]
             ]
@@ -218,6 +225,62 @@
         "value": 0,
         "reason": "invalid cap"
       }
-    ]
+    ],
+    "sourcePlacement": {
+      "kind": "one-planar-item-defined-transformation",
+      "composition": "parentFrame * inverse(childFrame)",
+      "childFrameId": "552",
+      "parentFrameId": "583",
+      "childOrigin": [
+        "0",
+        "0",
+        "0"
+      ],
+      "childAxis": [
+        "0",
+        "0",
+        "1"
+      ],
+      "childRefDirection": [
+        "1",
+        "0",
+        "0"
+      ],
+      "parentOrigin": [
+        "0",
+        "0",
+        "0"
+      ],
+      "parentAxis": [
+        "0",
+        "0",
+        "1"
+      ],
+      "parentRefDirection": [
+        "2.4980018054066e-16",
+        "-1",
+        "0"
+      ],
+      "normalization": "exact sqrt enclosure; frame order checked independently",
+      "expectedWorldNativeXTranslationMm": [
+        [
+          7.494005416219798e-16,
+          7.494005416219802e-16
+        ],
+        [
+          -3,
+          -2.999999999999999
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "privateSuppliedWorldTranslationMm": [
+        7.4940054162198e-16,
+        -3,
+        0
+      ]
+    }
   }
 }

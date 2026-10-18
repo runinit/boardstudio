@@ -106,7 +106,7 @@ created by this private checkpoint.
 Pending identities: `m1/generated-analysis-v2/` uses the existing prepared-body
 digest ownership; `vendor-step-analysis-v2/` binds the authenticated STEP SHA and
 selected import options through existing derived-cache identity machinery.
-Source proof versions are `planar-final-v1` and `analytic-generated-v1`; query
+Source proof versions are `planar-final-v2` and `analytic-generated-v1`; query
 algorithm is `aabb-interval-exact-v1`. Active v1 identities remain unchanged.
 
 ### Exact pending types and units
@@ -119,7 +119,7 @@ Every string below is nonempty; every reasons list is nonempty.
 ```text
 SourceQualification = {state:"unknown", reasons:[string,...]}
  | {state:"bounded", class:"complete-native-line-plane"|"analytic-generated",
-    version:1, directBoundMm:number, sourcePrecisionMm:number,
+    version:1|2, directBoundMm:number, sourcePrecisionMm:number,
     totalBoundMm:number, meshIdentity:string}
 QueryQualification = {version:1, algorithm:"aabb-interval-exact-v1",
  binding:Binding, limits:Limits, meshDistance:MeshDistance,
@@ -154,8 +154,12 @@ unvalidated JSON assertion cannot produce qualified containment.
 source surface set to FINAL exported f64 triangles/tags, after polygon fans,
 source placement/mirroring and render filtering. Missing source faces/occurrences
 or incomplete proof return unknown. The first vendor class is limited to
-consistent native LINE/plane geometry, millimetres and identity source assembly
-placements. It uses original decimal lexemes, rational plane/boundary
+consistent native LINE/plane geometry, millimetres and at most one independently
+checked planar source-frame placement per solid. `complete-native-line-plane`
+uses proof version 2; `analytic-generated` retains version 1. This source-proof
+version change corrects the previously mistaken identity-frame assumption; it
+does not activate a new wire format or change the query algorithm version.
+It uses original decimal lexemes, rational plane/boundary
 correspondence and complete source/mesh census; stage residuals alone are not
 proof. Generated qualification can use retained exact-body analytic parameters
 and actual emitted triangle/trim coverage. Cone sagitta alone omits the possible
@@ -170,6 +174,29 @@ repair and meshing error; never add those terms again. It does not separately
 measure repair movement: unmeasured `maxRepairDisplacementMm` and per-face
 `repairDisplacementMm` stay null. 007's actual-movement ledger and selected-budget
 enforcement remain required and unimplemented by this checkpoint.
+
+The bounded placement subset has one `ITEM_DEFINED_TRANSFORMATION`, Z axes
+`(0,0,1)` and finite nonzero XY reference directions. Read original decimal
+origins/axes/refdirs and authenticate the representation/occurrence links.
+Normalize each XY frame with an independently proved sqrt enclosure; compose
+child-to-parent as `parentFrame * inverse(childFrame)`, including frame origins
+in millimetres. Bound rational frame approximation versus the normalized source
+frame and compose that bound with final f64 transform rounding. Copying an
+unvalidated importer float matrix or comparing frame IDs is insufficient.
+General mapped/multiple-level assemblies and other frame classes stay unknown.
+
+For the actual capacitor, `#552` uses `#715=(0,0,0)`, `#586=(0,0,1)`,
+`#587=(1,0,0)`; `#583` uses `#850=(0,0,0)`, `#712=(0,0,1)`,
+`#713=(2.4980018054066e-16,-1,0)`. They are not identical. The nominal 3 mm
+translation and 1 mm gap are defined in the native part frame. The equivalent
+world translation along normalized native X is interval-valued in the fixture.
+Actual supplied f64 row translations and their differences from that reference
+must be accounted for; STEP assembly placement and the physical row each apply
+once. Slabs are tested on actual complete inflated **world-axis** hulls only.
+If necessary reorder both operands/bindings together before emitting the ordered
+slab form; a rotated native axis is not a world-axis slab certificate. The common
+30-degree physical-row control retains this distinction and independent numeric
+accounting. A case without world-axis separation stays unknown in this subset.
 
 For physical `T(x)=Ax+t`, scale asset-frame total by an outward `||A||_2`
 enclosure, e.g. `sqrt(||A||_1*||A||_infinity)`; maximum column length is insufficient
