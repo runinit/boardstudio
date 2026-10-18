@@ -331,6 +331,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
     let mut bounds_from_source_geometry = true;
     let mut mesh_closed_oriented = true;
+    let mut source_two_use = true;
     let mut relaxed_beyond_declared_precision = false;
     let mut sampled_support_checks = 0;
     let mut fallback_meshed_faces = 0;
@@ -348,7 +349,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         let solid = &solids[id];
         let mut signed_volume = 0.0;
         for (shell_index, source) in solid.source[representation].shells().iter().enumerate() {
-            require_complete_source_shell(source)?;
+            source_two_use &= require_complete_source_shell(source)? == SourceShellTopology::TwoUse;
             repair_ledger.conversion(
                 &repair_original,
                 source,
@@ -528,7 +529,11 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         "parsed f64 operation bounds do not cover original decimal conversion",
     );
     repair_ledger.trace();
-    let max_repair_displacement_mm = repair_ledger.complete_bound_mm();
+    let max_repair_displacement_mm = if source_two_use {
+        repair_ledger.complete_bound_mm()
+    } else {
+        None
+    };
     Ok(ImportedStep {
         original_bytes: bytes,
         _original_source: original_source,
@@ -548,7 +553,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             // Nominal meshing tolerance and support checks do not prove a symmetric bound.
             analysis_error_bound_mm: None,
             bounds_from_source_geometry,
-            mesh_closed_oriented,
+            mesh_closed_oriented: source_two_use && mesh_closed_oriented,
             preview_floor_mm: preview_tolerance.floor_mm,
             preview_declared_multiplier: preview_tolerance.declared_multiplier,
             selected_repair_budget_mm: options.preview_repair_budget_mm,
@@ -596,9 +601,18 @@ fn push_render_degraded_triangle(
     Ok(())
 }
 
-fn require_complete_source_shell(source: &SourceBoundStepShell) -> Result<(), String> {
+/// This is incidence classification, not certification of a native solid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SourceShellTopology {
+    TwoUse,
+    BalancedFourUse,
+}
+
+fn require_complete_source_shell(
+    source: &SourceBoundStepShell,
+) -> Result<SourceShellTopology, String> {
     let shell = source.shell();
-    let mut uses = vec![0usize; shell.edges.len()];
+    let mut uses = vec![Vec::new(); shell.edges.len()];
     if shell.faces.is_empty()
         || source
             .source_face_ids()
@@ -638,7 +652,7 @@ fn require_complete_source_shell(source: &SourceBoundStepShell) -> Result<(), St
                 }
                 first_start.get_or_insert(start);
                 previous_end = Some(end);
-                uses[edge_use.index] += 1;
+                uses[edge_use.index].push((face_index, edge_use.orientation == face.orientation));
             }
             if previous_end != first_start {
                 return Err(format!(
@@ -648,10 +662,35 @@ fn require_complete_source_shell(source: &SourceBoundStepShell) -> Result<(), St
             }
         }
     }
-    if uses.is_empty() || uses.iter().any(|count| *count != 2) {
+    if uses.is_empty() {
         return Err("incomplete or nonmanifold source shell edge uses".into());
     }
-    Ok(())
+    let mut topology = SourceShellTopology::TwoUse;
+    for (edge_uses, edge) in uses.into_iter().zip(&shell.edges) {
+        if edge_uses.len() == 2 {
+            continue;
+        }
+        // The bundled Panasonic has four distinct, balanced sheets at a LINE
+        // junction. Closed source loops and lossless face/trim conversion above
+        // remain mandatory; an even incidence count alone proves no coverage.
+        if edge_uses.len() != 4
+            || !matches!(
+                &edge.curve,
+                monstertruck_io::step::load::step_geometry::Curve3D::Line(_)
+            )
+            || edge_uses
+                .iter()
+                .map(|(face, _)| face)
+                .collect::<HashSet<_>>()
+                .len()
+                != 4
+            || edge_uses.iter().filter(|(_, forward)| *forward).count() != 2
+        {
+            return Err("incomplete or nonmanifold source shell edge uses".into());
+        }
+        topology = SourceShellTopology::BalancedFourUse;
+    }
+    Ok(topology)
 }
 
 type SourceRecords<'a> = HashMap<u64, Vec<&'a Record>>;

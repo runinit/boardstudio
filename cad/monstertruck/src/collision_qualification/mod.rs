@@ -65,6 +65,9 @@ fn qualify(
     tags: &[usize],
     row: [f64; 16],
 ) -> Check<QualifiedSurface> {
+    if !model.accuracy().mesh_closed_oriented {
+        return Err("unsupported nonmanifold or unoriented source surface");
+    }
     if positions.is_empty() || positions.len() != tags.len() * 3 || tags.len() > 4096 {
         return Err("final buffer shape or cap");
     }

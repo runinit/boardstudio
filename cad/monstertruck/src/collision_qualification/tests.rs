@@ -19,6 +19,24 @@ fn capacitor() -> ImportedStep {
     )
     .unwrap()
 }
+
+#[test]
+fn complete_nonmanifold_surface_preview_has_no_private_source_qualification() {
+    let model = crate::import_step(
+        include_bytes!("../../tests/fixtures/touching-unit-boxes.step").to_vec(),
+    )
+    .unwrap();
+    assert_eq!(
+        qualify(
+            &model,
+            model.preview_positions_f64(),
+            model.triangle_faces(),
+            IDENTITY
+        )
+        .err(),
+        Some("unsupported nonmanifold or unoriented source surface")
+    );
+}
 fn qualified(m: &ImportedStep, row: [f64; 16]) -> QualifiedSurface {
     qualify(m, m.preview_positions_f64(), m.triangle_faces(), row).unwrap()
 }
