@@ -1,6 +1,6 @@
 # 013: Build exact cases and PCB boards through layered 2.5D construction
 
-Status: ready-for-agent
+Status: resolved
 Type: prototype
 Blocked by: None
 Related: 006, 008 (Track A closure)
@@ -61,11 +61,11 @@ A solid built only from Z features has horizontal profile bands, with exact cont
 
 Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, first step. This prototype closes on its recorded recommendation; it does not wait for 006 to resolve every limitation.
 
-- [ ] **Recommendation.** Write the adoption recommendation under `## Answer`, linking the [adoption inventory](../../../research/cad/layered-adoption-inventory-2026-10-18.md) and the [ring-island implementation](../../../research/cad/ring-island-implementation-2026-10-18.md). Include the supported feature matrix (the six fixtures plus ring-island) and the named refusals: cone-wall crossing (rejected with the feature id), sealed voids or openings, and the fully enclosed round seat.
-- [ ] **Evidence still applies.** Run the affected layered and PCB native tests once at the current commit (48/48 at the ring-island integration). Fix only regressions.
-- [ ] **Performance.** Accept the recorded 2026-10-17 paired measurement (five alternating pairs, two fixtures) as the prototype's comparison. Cadrum has been removed and [011](011-integrated-cad-performance.md) owns integrated performance, so there is no rerun.
-- [ ] **Review.** The v5 both-axes review stands for the prototype; later changes are covered by the single Track A review in [008](008-step-export-independent-accuracy.md).
-- [ ] Set `Status: resolved` and update the map.
+- [x] **Recommendation.** Write the adoption recommendation under `## Answer`, linking the [adoption inventory](../../../research/cad/layered-adoption-inventory-2026-10-18.md) and the [ring-island implementation](../../../research/cad/ring-island-implementation-2026-10-18.md). Include the supported feature matrix (the six fixtures plus ring-island) and the named refusals: cone-wall crossing (rejected with the feature id), sealed voids or openings, and the fully enclosed round seat.
+- [x] **Evidence still applies.** Run the affected layered and PCB native tests once at the current commit (48/48 at the ring-island integration). Fix only regressions.
+- [x] **Performance.** Accept the recorded 2026-10-17 paired measurement (five alternating pairs, two fixtures) as the prototype's comparison. Cadrum has been removed and [011](011-integrated-cad-performance.md) owns integrated performance, so there is no rerun.
+- [x] **Review.** The v5 both-axes review stands for the prototype; later changes are covered by the single Track A review in [008](008-step-export-independent-accuracy.md).
+- [x] Set `Status: resolved` and update the map.
 
 Not required (cut by the rescope): implementing the named refusals, a new performance comparison, and a separate per-ticket review.
 
@@ -119,3 +119,29 @@ User approval is recorded below.013 is now the priority exact-construction route
 2026-10-18 B1 PCB checkpoint/scope correction: [Current classification and evidence](../../../research/cad/layered-adoption-inventory-2026-10-18.md#current-scope-correction-and-pcb-checkpoint) supersedes the prior inventory's claim that all seven direct-input refusals establish new production feature gaps. No reopened regression is demonstrated. Three raw-source PCB cut combinations now pass exact native/actual-WASM analytic checks; cone-wall and sealed voids retain their documented prototype dispositions, while the ring-island's specific assembled product reachability still needs verification. Existing fixes/fixtures/evidence remain intact. No other feature implementation, scope exclusion, ticket closure or independent review occurred; parent owns completed-slice review/integration and combined acceptance.
 
 2026-10-18 B1 ring-island integration: The reviewed chain `a5571b508`→`232b6560a`→`5ab672dd7`→`e67a3987f` is integrated on the shared branch as `4e1a9138d`→`4f789d956`→`89caa8265`→`1a051f69b`, on the already source-equivalent base `0c15db5d5`=`9953bb3e` (not re-picked). The only production change is the 15-line `layered/contours.rs` fix retaining both void-union ring signs through the existing `subtract_profile`/difference, restoring `R` (all prior holes) before the complete cutter; no new engine/topology/exporter/API or fixture analytic oracle. Round1 review: Spec no findings; Standards no hard violation, its disjoint-hole concern disproved on unchanged `5ab672dd7` by two controls. Fresh combined-parent checks pass: affected native layered/PCB **48/48** (46 + 2 new disjoint regressions), 4 public Core replays, scoped CAD/Core Clippy, fmt, JS syntax, doc links, repo and diff; and one fresh release/locked/no-opt Node WASM build covering both the vendor and ring production changes passes the ring product f64 analysis (164 mm³ removed, `40583.337010385345 mm³`, exact bounds, `meshClosedOriented:false`, `analysisErrorBoundMm:null`), the bare ring 1116 mm³, retained PCB cases byte-identical to the lane receipt, the vendor sliver and the shared generated-analysis contract (build (`../../../../.evidence/b1-ring-integration/parent-wasm-build.log`), reachability/product (`../../../../.evidence/b1-ring-integration/parent-wasm-reachability.log`), adoption (`../../../../.evidence/b1-ring-integration/parent-wasm-adoption.log`), native (`../../../../.evidence/b1-ring-integration/parent-native-layered.log`), pre-fix RED (`../../../../.evidence/b1-ring-integration/source-native-red.log`)). Limits: generated analysis accuracy/collision bands, independent STEP interoperability and browser/download delivery remain unqualified; the product `meshClosedOriented:false`/null accuracy is honest and not welded; cone-wall/enclosed-seat and the sealed-opening named refusal are unchanged. See [implementation](../../../research/cad/ring-island-implementation-2026-10-18.md). 013/006 remain open; no closure or full-gate claim.
+
+## Answer
+
+**Recommendation: adopt.** The layered 2.5D builder is the production exact-construction path for generated cases and PCB board solids. It was adopted through 010/012; this prototype closes on that recommendation and the evidence below.
+
+**Supported feature matrix** — the six prototype fixtures plus the ring island. All pass natively at this commit.
+
+| Feature | Test |
+| --- | --- |
+| Round-seat chain (the 006 failure case) | `original_round_seat_chain_matches_independent_volume_and_material` |
+| Boss with through-hole; one merged cylinder across floor and boss | `boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss` |
+| Round seat flush with the plate top (touching face) | `round_seat_touching_plate_top_preserves_material_without_boolean` |
+| Countersink as an exact cone with the analytic frustum integral | `countersink_uses_exact_cone_and_independent_frustum_integral` |
+| Cavity plus wall opening through exact horizontal profile differences | `cavity_and_wall_opening_keep_exact_horizontal_profile_differences` |
+| Nonconvex PCB outline with multiple exact circular drills | `pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact` |
+| Ring-island blind/through opening, both authoring orders | six `adoption_ring_island_*` controls |
+
+**Named refusals** are recorded in [006](006-complete-case-features.md): cone-wall crossing with the feature id, sealed voids (fully enclosed round seat, sealed polygon opening) with their refusal reason, and unrepresentable positive spans with the feature id. They are product decisions under this rescope, not missing features. See the [adoption inventory](../../../research/cad/layered-adoption-inventory-2026-10-18.md) and [ring-island implementation](../../../research/cad/ring-island-implementation-2026-10-18.md).
+
+**Evidence still applies.** One native pass at this commit: **360 passed / 0 failed / 2 ignored** for `cad/monstertruck`, including **64 layered/PCB tests** (40 builder, 24 PCB) and 52 export tests. The earlier 48/48 ring-island checkpoint is a subset of this run; the increase is the ring review's disjoint-hole countercases and the later PCB-cut controls. Log: `.evidence/closure/trackA-native.log`. No WASM, browser or census rerun is claimed.
+
+**Performance.** Accepted as recorded: the 2026-10-17 paired measurement (five alternating pairs, two fixtures) gives round-seat medians 0.818 ms layered vs 9.326 ms Cadrum, and flush-seat 0.184 ms vs 1.836 ms. Cadrum has been removed and [011](011-integrated-cad-performance.md) owns integrated performance; no rerun.
+
+**Review.** The v5 both-axes review remains the prototype review. Post-review changes (ring island, PCB cut composition) are covered by the single Track A Standards+Spec review recorded in [008](008-step-export-independent-accuracy.md). That review's `contours::difference` concern is answered by the proof and the three disjoint-hole controls in the ring-island implementation record above.
+
+Limits: generated analysis accuracy/collision bands, external STEP interoperability and browser/download delivery belong to 008/010/014. The product's `meshClosedOriented:false` and null analysis error bound are honest, not welded or widened.

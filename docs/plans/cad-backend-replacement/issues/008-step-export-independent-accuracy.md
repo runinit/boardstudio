@@ -1,6 +1,6 @@
 # 008: Export exact cases and PCBs and replace their oracle coverage
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 006: Production case and PCB adoption
 Related: 013: Layered construction; 006: Production case and PCB adoption
@@ -13,12 +13,12 @@ Export single and multiple exact case and PCB bodies as STEP and replace their r
 
 Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, final step. Closes on bounded fixture and reference coverage plus one combined review.
 
-- [ ] **Fixtures reconciled.** Run the `fixture_exports` tests and the export suite in `cad/monstertruck/src/export_tests.rs` once at the current commit (VIK, reflected slot, circle, half-disc, gasket tray/lid, circular extrusion).
-- [ ] **External receipt reused.** Reuse the one-time FreeCAD/OCCT receipt (`.evidence/b5/FREECAD-CURRENT-RECEIPT.md`). Rerun it once only if exporter source changed since its bound commit (`git diff` on the exporter paths).
-- [ ] **One cone export.** Confirm one live export of a cone-bearing layered fixture (countersink) with an analytic volume and bounds check. If no such test exists, add one bounded test; do not build a general cone checker.
-- [ ] **Keycap mapping.** List each former keycap exact test and its 009 mesh/print replacement.
-- [ ] **Track A review.** One combined Standards+Spec review over the 013/006/008 changes since their last reviewed points passes, with findings fixed or recorded. It closes 013's and 006's review obligations.
-- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+- [x] **Fixtures reconciled.** Run the `fixture_exports` tests and the export suite in `cad/monstertruck/src/export_tests.rs` once at the current commit (VIK, reflected slot, circle, half-disc, gasket tray/lid, circular extrusion).
+- [x] **External receipt reused.** Reuse the one-time FreeCAD/OCCT receipt (`.evidence/b5/FREECAD-CURRENT-RECEIPT.md`). Rerun it once only if exporter source changed since its bound commit (`git diff` on the exporter paths).
+- [x] **One cone export.** Confirm one live export of a cone-bearing layered fixture (countersink) with an analytic volume and bounds check. If no such test exists, add one bounded test; do not build a general cone checker.
+- [x] **Keycap mapping.** List each former keycap exact test and its 009 mesh/print replacement.
+- [x] **Track A review.** One combined Standards+Spec review over the 013/006/008 changes since their last reviewed points passes, with findings fixed or recorded. It closes 013's and 006's review obligations.
+- [x] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
 
 Not required (cut by the rescope): a general B-rep or STEP validator, widening the planar-only reader, and WASM, browser or FreeCAD reruns for unchanged exports.
 
@@ -111,3 +111,44 @@ retained; 008 stays open under the user's preserve-WIP instruction.
 2026-10-17: Private implementation assigned against the agreed opaque exact-model contract. Integration remains blocked by reviewed005 acceptance; existing application and unrelated changes are preserved.
 
 2026-10-17 root integration: The independently reviewed rational-circle checker, retracing/unique-vertex fix and helper-reuse delta are applied to six exact test/fixture postimages. Fresh52 affected native tests, all168 registrations, full library/tests WASM compilation, scoped Clippy and formatting pass with509 unchanged inputs. See root report (`../../../../.evidence/production-step-export-008/root-integration-v10/REPORT.md`). Runtime exporter/API/vendor/dependencies remain unchanged; broader PCB/case reference coverage remains open.
+
+## Answer
+
+**Fixtures reconciled.** One native pass at this commit runs the export suite — 52 `export_tests`, including the 10 `fixture_exports` authored-reference comparisons (VIK Decimal trims, reflected slot, circle, half-disc, gasket tray/lid, combined PCB, plus the negative controls) — and the cone-bearing countersink certificate. All pass: **360 passed / 0 failed / 2 ignored** for `cad/monstertruck` (log `.evidence/closure/trackA-native.log`).
+
+**External receipt reused.** The exporter source is unchanged since the receipt's bound commit `7335da4e`:
+
+```sh
+git diff 7335da4e..HEAD -- cad/monstertruck/src/export.rs cad/monstertruck/src/export cad/monstertruck/src/export_tests.rs cad/monstertruck/src/step.rs cad/monstertruck/src/step_accuracy.rs
+```
+
+prints nothing. The one-time FreeCAD/OCCT receipt (`.evidence/b5/FREECAD-CURRENT-RECEIPT.md`) therefore stands: six files, eight valid closed solids, VIK 946.578323499303 mm³, reflected slot 638.683752280681 mm³, tracers 8π/4π, gasket bodies 9122 mm³ each. Current emissions are deterministic apart from the STEP `FILE_NAME` timestamp (two emissions at this commit differ only in that line), so byte hashes are not compared across emissions; the authored-reference fixture comparisons above are the geometry check. The builder changed after the receipt (PCB cut composition), which is why the emitted combined-PCB bytes are re-checked against its authored reference rather than assumed. No FreeCAD rerun.
+
+**One cone export.** `frozen_013_countersink_has_independent_raw_volume_material_and_complete_trims` exports the layered countersink and checks the analytic frustum volume 1265.3392342832476 mm³ (interval half-width < 0.002), bounds `[[0,0,0],[20,16,4]]`, exact topology 16/20/8 and five material/void probes against the raw emitted Part 21 bytes.
+
+**Keycap mapping.** The exact writer never carried keycap tests (`git log -S keycap -- cad/monstertruck` is empty); the former obligations lived in the 004/006 exact path.
+
+| Former exact obligation | 009 replacement |
+| --- | --- |
+| Exact keycap STEP export (single/multiple, dished) | Removed. 009 exports mesh display plus a printable STL ZIP; no UI, runtime or worker path claims exact keycap STEP. |
+| G20 flat-cavity exact Boolean/volume/bounds (failing `NotClosedShell`, archived in `.evidence/production-keycaps-009/HANDOFF.md`) | `zero_dish_keeps_a_flat_center_surface`, plus the flat G20 closed/oriented/open-underbody check that retains the fixture's independent bounds and volume as a secondary check. The failing exact test stays archived and is not relabelled. |
+| Spherical/cylindrical dish exact subtraction (004 constructor) | `spherical_dish_center_and_off_axis_height_follow_sagitta`, `cylindrical_dish_curves_across_depth_but_not_along_its_axis` |
+| Stems/sockets/legend exact intersection | `mount_meshes_keep_stem_and_socket_geometry_separate`, `mx_stem_is_closed_and_preserves_independent_blind_socket_material`, `rectangular_mount_stems_are_closed_with_independent_blind_socket_material`, `bundled_o_legend_is_separate_and_keeps_its_counter`, `legend_top_tracks_the_spherical_dish_and_tilt` |
+| Printable single body | `printable_keycaps_are_single_closed_bodies_with_independent_socket_volumes`, `dcs_row_three_legend_print_keeps_roof_cavity_and_relief`, `ordinary_legend_text_prints_as_one_closed_body`, `long_stroke_relief_follows_the_dish` |
+
+The 004 bounded-dish module controls (12 primitive, 10 transformed, 324 support, invalid-scale and zero-depth) remain registered in the vendored meshing suite; they were not deleted.
+
+**Track A review.** One combined Standards+Spec review over 013/006/008 passed. Its findings and dispositions:
+
+| Axis | Finding | Disposition |
+| --- | --- | --- |
+| Standards | Receipt and evidence referenced from `.evidence/` | Recorded as plain code spans, not Markdown links; `scripts/check.py repo` link checking passes, and `.evidence/` is the approved evidence location |
+| Standards | Native run used raw `cargo test`, not `check.py test` | The rescope requires one native pass of the affected suites, not the full workspace scheduler; distinct target dirs, no overlapping builds, and `check.py repo` passed |
+| Spec | Keycap mapping missing | Supplied above |
+| Spec | Dimensions and support-cutoff tests unnamed in 006 | Now named per rule in 006 |
+| Spec | Round-seat refusal not shown as named | Fixture records `expectedRefusal: "sealed"`; the test asserts the disconnected sealed-void reason and does not echo the feature id, recorded in 006 as a diagnostic limit |
+| Spec | `contours::difference` invariant unproved | Proved in the ring-island implementation record; covered by the three disjoint-hole controls and both authoring orders |
+| Spec | "Exporter unchanged" overstatement | Exact path list now shown above |
+| Spec | 48/48 vs 64 layered tests | 48/48 is a subset of this run; the increase is later added controls, listed in 013 |
+
+No finding required a source change. 008 is closed.

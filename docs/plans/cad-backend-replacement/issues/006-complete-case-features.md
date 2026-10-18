@@ -1,6 +1,6 @@
 # 006: Adopt layered cases and PCBs and close remaining feature gaps
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: 013: Layered case and PCB construction
 Related: 008 (Track A closure)
@@ -13,7 +13,7 @@ Adopt the reviewed013 layered builder for production exact cases and PCB board s
 
 Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track A, second step. Closes on one explicit adoption decision with named limitations, not on universal feature coverage.
 
-- [ ] **Adoption decision.** Under `## Answer`, record that the layered builder is the production exact path for cases and PCBs (integrated through 010/012) and give the limitation table:
+- [x] **Adoption decision.** Under `## Answer`, record that the layered builder is the production exact path for cases and PCBs (integrated through 010/012) and give the limitation table:
 
   | Interaction | Disposition |
   |---|---|
@@ -23,9 +23,9 @@ Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-
   | Ring-island opening | Supported (integrated) |
   | Edge, intersecting and redundant PCB cuts; contained or height-clipped cones; PCB outline and drills | Supported |
 
-- [ ] **Refusals are visible.** Each named refusal is covered by an existing literal refused-feature fixture that asserts a named error through the public or Core path. Add a test only for a limitation without one.
-- [ ] **Preserved behaviour.** Name the existing tests covering dimensions, feature order, support cutoff, mount reordering and void ownership (the affected layered/PCB suite and Core replays). No new checks.
-- [ ] Set `Status: resolved` once 013 is resolved, and update the map. The final Track A review in 008 covers 006.
+- [x] **Refusals are visible.** Each named refusal is covered by an existing literal refused-feature fixture that asserts a named error through the public or Core path. Add a test only for a limitation without one.
+- [x] **Preserved behaviour.** Name the existing tests covering dimensions, feature order, support cutoff, mount reordering and void ownership (the affected layered/PCB suite and Core replays). No new checks.
+- [x] Set `Status: resolved` once 013 is resolved, and update the map. The final Track A review in 008 covers 006.
 
 Not required (cut by the rescope): a general 3D Boolean engine, implementing the named refusals, or reading blind-depth language as universal support.
 
@@ -75,3 +75,39 @@ Not required (cut by the rescope): a general 3D Boolean engine, implementing the
 2026-10-18 B1 PCB checkpoint/scope correction: [Current classification and evidence](../../../research/cad/layered-adoption-inventory-2026-10-18.md#current-scope-correction-and-pcb-checkpoint) supersedes the prior inventory's claim that all seven direct-input refusals establish new production feature gaps. No reopened regression is demonstrated. Three raw-source PCB cut combinations now pass exact native/actual-WASM analytic checks; cone-wall and sealed voids retain their documented prototype dispositions, while the ring-island's specific assembled product reachability still needs verification. Existing fixes/fixtures/evidence remain intact. No other feature implementation, scope exclusion, ticket closure or independent review occurred; parent owns completed-slice review/integration and combined acceptance.
 
 2026-10-18 B1 ring-island integration: The reviewed ring chain is integrated; the only production change is the 15-line `layered/contours.rs` void-union fix (source hashes in013). Blind/partial-depth behavior, feature order and material ownership are preserved; only the ring fixture's expected-refusal metadata changes (`material island`→`null`), geometry and independent volumes unchanged. Fresh combined-parent checks pass: affected native layered/PCB **48/48**, 4 Core replays, scoped Clippy/fmt/JS/docs/repo/diff, and one fresh release/locked/no-opt Node WASM build covering vendor+ring passes the ring product f64 analysis (164 mm³ removed, exact bounds), the bare ring, retained PCB cases, the vendor sliver and the shared generated contract. Analysis accuracy/collision bands, STEP interoperability and delivery remain unqualified; cone-wall/enclosed-seat and the sealed-opening refusal stay unchanged. See [implementation](../../../research/cad/ring-island-implementation-2026-10-18.md); 006/013 stay open.
+
+## Answer
+
+**Adoption decision: adopted.** The layered builder is the production exact path for cases and PCB board solids, integrated through 010/012. This ticket closes on one recorded decision with named limitations; no universal feature coverage is claimed.
+
+| Interaction | Disposition |
+| --- | --- |
+| Cone-wall crossing | Named refusal with the feature id (accepted adoption gap) |
+| Fully enclosed round seat | Named refusal |
+| Sealed polygon opening (reachable from Core) | Named refusal; never empty or positive output |
+| Ring-island opening | Supported (integrated) |
+| Edge, intersecting and redundant PCB cuts; contained or height-clipped cones; PCB outline and drills | Supported |
+
+**Refusals are visible.** Each refusal is asserted by an existing literal refused-feature fixture through the public/Core path; no test was added.
+
+| Refusal | Fixture | Test and asserted reason |
+| --- | --- | --- |
+| Cone-wall crossing | `cone-wall.json` (`expectedRefusal: "vertical wall"`) | `cone_crossing_vertical_wall_is_rejected_with_feature_identity` — names the feature id and "vertical wall" |
+| Fully enclosed round seat | `sealed-round-seat.json` (`expectedRefusal: "sealed"`) | `enclosed_void_is_refused_instead_of_emitting_a_second_body` — refuses the disconnected sealed-void shell. Unlike cone-wall, the message does not echo the feature id; recorded as a diagnostic limit, not a missing refusal. |
+| Sealed polygon opening | `sealed-opening.json` (`expectedRefusal: "sealed"`) | `reviewed_sealed_opening_is_refused_with_opening_context` — names `opening-0` and "sealed" |
+| Unrepresentable positive span | direct `PreparedCaseIR` | `reviewed_unrepresentable_positive_span_is_refused_with_feature_context` |
+| Empty PCB cut result | direct `PreparedCaseIR` | `adoption_pcb_cuts_cannot_return_empty_success` |
+
+Supported controls carrying the same interactions: the six `adoption_ring_island_*` tests, `adoption_pcb_edge_drill_keeps_exact_half_cylinder`, `adoption_pcb_overlapping_drills_subtract_their_exact_union`, `adoption_pcb_drill_within_slot_preserves_the_complete_slot_boundary`, `adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry`, `adoption_overlapping_openings_preserve_collinear_authored_segments`.
+
+**Preserved behaviour.** No new check was written; the affected layered/PCB suite and the Core replays already carry these rules.
+
+| Required rule | Existing coverage |
+| --- | --- |
+| Dimensions and independent analytic volume/material | `original_round_seat_chain_matches_independent_volume_and_material` (authored depths, analytic volume, material probes), `pcb_polygon_outline_and_authored_round_drill_are_exact`, `pcb_nonconvex_polygon_with_diagonal_and_multiple_drills_is_exact` |
+| Feature order and mount reordering (only under the existing safe proof) | `reviewed_authored_mount_order_preserves_later_boss_hole` |
+| Support cutoff | `core/tests/gasket_features.rs::support_owner_cutoff_is_exact_and_strict_for_prepared_inputs` (unchanged Core contract, strict at 1e-8 and permissive just below; not rerun in this pass) plus the direct CAD composition `prepared_wall_support_and_round_seat_preserve_clipped_circular_wall` |
+| Void ownership and source holes | `enclosed_void_is_refused_instead_of_emitting_a_second_body`, `source_contour_hole_ownership_is_preserved`, `source_declared_owner_is_not_silently_reassigned_to_nested_island` |
+| Core → CAD producer parity | four replays in `.evidence/b1-ring-integration/parent-core-replay.log` |
+
+**Evidence.** One native pass at this commit: 64 layered/PCB tests pass with 0 failures; 360 passed / 0 failed / 2 ignored overall for `cad/monstertruck`. The final Track A Standards+Spec review runs in [008](008-step-export-independent-accuracy.md) and covers this ticket.

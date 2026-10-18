@@ -1,6 +1,6 @@
 # 001: Certify closed STEP surface boundaries and retain trim coverage
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Related: 002 (joint Track B closure)
@@ -13,11 +13,11 @@ An imported finite closed STEP surface uses a source-certified seam and retains 
 
 Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track B, closed jointly with [002](002-preserve-shared-angular-meshing.md). Reuse the existing evidence; do not rerun the 34-asset census.
 
-- [ ] **Recovered faces are diagnostics.** For the four default meshes that recovered faces in choc-v41 (`.evidence/monstertruck-qualification/vendor-integration/choc-v41/REPORT.md`), record from the existing receipts that the volume change comes from previously missing faces that now mesh (before/after missing-face and triangle counts). Mesh volume on open shells is not an acceptance measure.
-- [ ] **No coverage regression.** From the existing choc-v41 30-mode prior-PASS replay, record that parts, bounds, loss accounting and source-edge use are unchanged and no face became missing or empty. If a row changed for an unexplained reason, investigate that row only.
-- [ ] **Regressions retained.** List the existing public regressions for the closed-chart, collapsed-pole (v49) and partial-closed-spline (v50) fixes, and confirm they are registered and pass in one native run of the vendored IO and meshing suites at the current commit.
-- [ ] **Joint review.** One combined Standards+Spec review covering 001 and 002 (Track B) passes, with findings fixed or recorded.
-- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+- [x] **Recovered faces are diagnostics.** For the four default meshes that recovered faces in choc-v41 (`.evidence/monstertruck-qualification/vendor-integration/choc-v41/REPORT.md`), record from the existing receipts that the volume change comes from previously missing faces that now mesh (before/after missing-face and triangle counts). Mesh volume on open shells is not an acceptance measure.
+- [x] **No coverage regression.** From the existing choc-v41 30-mode prior-PASS replay, record that parts, bounds, loss accounting and source-edge use are unchanged and no face became missing or empty. If a row changed for an unexplained reason, investigate that row only.
+- [x] **Regressions retained.** List the existing public regressions for the closed-chart, collapsed-pole (v49) and partial-closed-spline (v50) fixes, and confirm they are registered and pass in one native run of the vendored IO and meshing suites at the current commit.
+- [x] **Joint review.** One combined Standards+Spec review covering 001 and 002 (Track B) passes, with findings fixed or recorded.
+- [x] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
 
 Not required (cut by the rescope): a universal closed-boundary or trim certificate, the 007 34-asset replay, mesh-volume agreement on open shells, and repeated WASM or combined-source verification of unchanged code.
 
@@ -84,3 +84,30 @@ Superseded by the rescoped acceptance criteria above.
 - 2026-10-17 root: Integrated approved source-pole/XYZ retention and Processor endpoint transport as endpoint-v38, preserving prior test supplements. Combined verification: 559 native tests pass (19 inherited ignores), WASM passes, all 430 source hashes verify, and all 30 prior-PASS corpus modes pass with parts/assembly/bounds/loss accounting retained. Full Choc checked and checked/angular pass with zero mesh defects and eight parts; default still has 32 invalid edges. Remaining 19-file refresh and broader acceptance stay open. Receipt: `.evidence/monstertruck-qualification/vendor-integration/endpoint-v38/REPORT.md`.
 
 - 2026-10-17 root: Verified the eight remaining bounded-edge refusal source/fixture hashes, exact listed entity preservation and independently recomputed positive control-hull margins. All sampled curves already have clamped active domains. Six records have discrepancies within declared accuracy candidates; both C2 copies exceed the declaration by about 128 times. Context/unit association and faithful bounded-discrepancy handling are assigned to `/root/sol_step_bounded_trim`; no blanket tolerance increase, curve replacement or incomplete import acceptance. Evidence: `.evidence/monstertruck-qualification/step-v34-bounded-edge-refusals/root-source-fixture-verification.json`.
+
+## Answer
+
+Closed jointly with [002](002-preserve-shared-angular-meshing.md). Evidence is reused; the 34-asset census was not rerun.
+
+**Recovered faces are diagnostics.** In the choc-v41 receipts these four default-mode meshes gain previously missing faces. The C2 pair's formerly empty triangle face becomes non-empty. Mesh volume on these open shells is not an acceptance measure, and no stronger per-face causal claim is made than the receipts support.
+
+| File | Unmeshed faces | Empty triangle faces | Triangles | Invalid edges | Measured volume, mm³ |
+| --- | --- | --- | --- | --- | --- |
+| Trackball Mount Semi | 2 → 1 | 0 → 0 | 544,387 → 560,721 | 673 (unchanged) | 13,771.058877 → 13,761.750396 |
+| THQWGD001-rotation | 2 → 1 | 0 → 0 | 1,505,952 → 1,538,210 | 2,532 → 1,958 | 3,127.921851 → 3,183.626259 |
+| THQWGD001C-2pin | 3 → 2 | 1 → 0 | 1,410,880 → 1,508,114 | 2,331 → 1,233 | 3,688.252028 → 3,189.483037 |
+| THQWGD001C-4pin | 3 → 2 | 1 → 0 | 1,411,008 → 1,508,242 | 2,331 → 1,233 | 3,689.356161 → 3,190.587170 |
+
+All four remain strict ERROR for their unchanged reasons. Source: `.evidence/monstertruck-qualification/step-v41-remaining-corpus/REPORT.md`.
+
+**No coverage regression.** The choc-v41 30-mode prior-PASS replay preserves parts, assembly counts, bounds and loss accounting; the full Choc default/checked-only/checked-angular replays report zero missing or empty faces and no source-loss fields. Checked/angular counts are unchanged, and the largest volume summation difference outside the changed meshes is 7.276e-11 mm³. Source-edge use is read from the unchanged loss accounting, not from a separate per-edge inventory — that is the limit of the retained comparison. Besides the four rows above, no row changed.
+
+**Regressions retained and passing.** All named regressions are registered and pass in one native run of the vendored IO and meshing suites at this commit: **486 passed / 0 failed / 17 ignored / 1 filtered** (log `.evidence/closure/trackB-native.log`).
+
+- Closed chart: all 21 `closed_chart_certificate_tests` (including `closed_chart_certificate_accepts_source_unclamped_active_boundary`, `..._rejects_sample_aliased_open_seam`, `..._rejects_excess_endpoint_multiplicity`, `..._rejects_unequal_rational_weights`) and all seven `seam_branch_tests::*closed_chart*` cases.
+- Collapsed pole (v49): `strict_declared_pole_tests` (3), `declared_sphere_poles_preserve_interior_quads`, `source_endpoint_identity_keeps_thin_tiny_and_distinct_near_pole_facets`, `square_with_a_pole_style_slit_is_covered_with_exact_boundary_points`, `exact_parameter_search_maps_pole_longitude_hint`, `nearest_parameter_search_uses_canonical_pole_branch`.
+- Partial closed spline (v50): all 13 `partial_closed_spline::*` cases.
+
+The one filtered test is `table::read`, the pre-existing `source_records` snapshot blocker already disclosed under [007](007-strict-step-import.md) as a known broad-IO failure. It is not a 001 regression and no allowance was added.
+
+**Joint review.** One combined Standards+Spec review over 001 and 002 passed. Its findings and dispositions: the `.evidence/` references are plain code spans, not Markdown links, so the documented link rule holds and `check.py repo` passes; "source-edge use unchanged" was recorded above from the unchanged loss accounting, with that limitation stated; the individual v49/v50 public cases are now listed rather than summarised as "pole/affine/source controls"; and the recovered-face wording no longer claims more than the receipts show. No source change was required.

@@ -1,6 +1,6 @@
 # 002: Enforce shared-edge angular sampling without whole-model regressions
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Related: 001 (joint Track B closure)
@@ -13,11 +13,11 @@ STEP preview tessellation honors the requested topology-edge angular limit while
 
 Rescoped 2026-10-18 (user; see the [map rescope](../map.md#closure-rescope-2026-10-18-user)). Track B, closed jointly with [001](001-certify-closed-step-boundaries.md) and sharing its evidence.
 
-- [ ] **Invalid options.** Cite the existing `angular_invalid_options_refuse_edge_free_faces_in_every_lenient_route` test (`cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/tests.rs`) and the empty-shell behaviour it preserves. No new validation work.
-- [ ] **Failing edge fixed.** Name the existing regression showing that the original failing STEP edge meets its requested turn limit, and confirm it passes in the shared native run with 001.
-- [ ] **Baseline comparison.** Use 001's choc-v41 30-mode comparison as the affected-shell comparison (one comparison for both tickets). Record that edge-turn, face-normal and linear accuracy stay distinct checks and list any remaining diagnostics.
-- [ ] **Joint review.** Covered by 001's single Track B Standards+Spec review.
-- [ ] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
+- [x] **Invalid options.** Cite the existing `angular_invalid_options_refuse_edge_free_faces_in_every_lenient_route` test (`cad/monstertruck-qualification/vendor/monstertruck-meshing/src/tessellation/triangulation/tests.rs`) and the empty-shell behaviour it preserves. No new validation work.
+- [x] **Failing edge fixed.** Name the existing regression showing that the original failing STEP edge meets its requested turn limit, and confirm it passes in the shared native run with 001.
+- [x] **Baseline comparison.** Use 001's choc-v41 30-mode comparison as the affected-shell comparison (one comparison for both tickets). Record that edge-turn, face-normal and linear accuracy stay distinct checks and list any remaining diagnostics.
+- [x] **Joint review.** Covered by 001's single Track B Standards+Spec review.
+- [x] Record the outcome under `## Answer`, set `Status: resolved` and update the map.
 
 Not required (cut by the rescope): a new sampling framework, a broad source-domain accuracy certificate, the 007 34-asset replay, and a separate review.
 
@@ -73,3 +73,15 @@ Superseded by the rescoped acceptance criteria above.
 - 2026-10-17 root resumed after app interruption: v39 qualification-only Polyline Range repair passes 598 native tests, WASM and 30 prior-PASS corpus modes with unchanged mesh counts/parts/bounds. Choc checked-only passes; checked/angular hit the recorded 90-second timeout and was reaped. Performance diagnosis compares pinned v38/v39 binaries under matched conditions; no passing angular result is claimed. Current source and all 451 files are retained under `.evidence/monstertruck-qualification/vendor-integration/mesh-range-v39/`.
 
 - 2026-10-17 root: Shared Choc-v41 combined replay is complete: 612 native passes (19 inherited ignores), WASM release library compilation and normal gate build pass. Separate full Choc default, checked-only and checked/angular are all strict PASS with eight parts, zero mesh defects/missing/empty faces and no recorded source loss. All 30 prior-PASS corpus modes retain counts/parts/bounds/losses; original corpus remains 17/34 PASS per mode. All 71 invocations exit naturally/reaped without timeout. Four still-failing default meshes recover faces; their substantial volume changes remain unqualified. Root verifies 461 actual source files and copies, 98 remaining-corpus artifacts and every raw process/output/hash invariant. Broader trim/angular/source accuracy and production acceptance remain open; no acceptance checkbox is closed from strict mesh success. Receipt: `.evidence/monstertruck-qualification/vendor-integration/choc-v41/REPORT.md`.
+
+## Answer
+
+Closed jointly with [001](001-certify-closed-step-boundaries.md); it shares 001's comparison and review.
+
+**Invalid options.** `angular_invalid_options_refuse_edge_free_faces_in_every_lenient_route` covers parallel, serial, compressed-trimmed and isoparametric routes, including an edge-free face, and preserves the documented empty-shell behaviour where the API has no error channel. The valid control still produces its bounded untrimmed face. No new validation work.
+
+**Failing edge fixed.** `angular_sampling_detects_inflection_hidden_from_midpoint_distance` reproduces an interval that satisfies the 0.1 mm distance budget while violating the requested 0.5 rad turn budget, and asserts every output chord turn is ≤ 0.5 rad. On the real target edge (THQ C-2 source solid 32174, edge 167, faces 31127/31691) the original two-point interval had a 0.550297103634 rad midpoint turn; the fixed output has five points, exact original endpoints, a maximum turn of 0.288937272222 rad, and both incident faces emit. It passes in the shared native run recorded in [001](001-certify-closed-step-boundaries.md).
+
+**Baseline comparison.** 001's choc-v41 30-mode comparison is the affected-shell comparison for both tickets, so there is one comparison, not two. Edge-turn, face-normal and linear accuracy stay distinct checks: the angular option constrains only sampled output chord turn — a local sampled contract, not a source-surface or continuous error certificate. Remaining diagnostics, unchanged by the fix: the four default-mode meshes keep their disclosed invalid edges and remain ERROR; sampled facet/source-normal deviations are recorded for faces 58/59 (0.812 → 0.665 rad and 0.632 → 0.764 rad); source-edge endpoint mismatches between incident uses remain; and the 34-asset census was not rerun. Checked/angular counts are unchanged.
+
+**Joint review.** Covered by 001's single Track B Standards+Spec review; its dispositions are recorded there.
