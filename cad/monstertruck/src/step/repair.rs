@@ -561,6 +561,25 @@ impl Ledger {
                 });
                 continue;
             }
+            if let Some(raw) = operation.raw_spline_change() {
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: operation.stage(),
+                    bound_mm: finite_curve::raw_spline_bound(raw),
+                    diagnostic_only: false,
+                });
+                self.0.push(Operation {
+                    occurrence,
+                    shell: Some(shell),
+                    source_edge: operation.source_ids().2,
+                    stage: "raw-spline-normalization-numeric-v1",
+                    bound_mm: Err("normalized knot rounding is not bounded"),
+                    diagnostic_only: true,
+                });
+                continue;
+            }
             let numerical = operation.stage() == "numeric-conversion-v1";
             let attachment = operation.stage() == "native-line-attachment-projection-v1";
             let bound = operation.curve_change().map_or_else(
@@ -1212,6 +1231,55 @@ mod tests {
         assert_eq!(model.original_bytes(), text.as_bytes());
         assert_eq!(model.face_occurrences().len(), 4);
         assert_eq!(model._repair_ledger.complete_bound_mm(), None);
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn raw_spline_normalization_is_a_certified_identity_stage_and_keeps_asset_unknown() {
+        let text = include_str!("../../tests/fixtures/repair-raw-spline.step");
+        for reversed in [false, true] {
+            let text = if reversed {
+                text.replace(
+                    "#23=EDGE_CURVE('',#11,#12,#22,.T.);",
+                    "#23=EDGE_CURVE('',#12,#11,#22,.F.);",
+                )
+                .replace(
+                    "#52=ORIENTED_EDGE('',*,*,#23,.F.);",
+                    "#52=ORIENTED_EDGE('',*,*,#23,.T.);",
+                )
+                .replace(
+                    "#60=ORIENTED_EDGE('',*,*,#23,.T.);",
+                    "#60=ORIENTED_EDGE('',*,*,#23,.F.);",
+                )
+            } else {
+                text.to_string()
+            };
+            let model = import_step(text.as_bytes().to_vec()).unwrap();
+            assert_eq!(model.original_bytes(), text.as_bytes());
+            let stages = model
+                ._repair_ledger
+                .0
+                .iter()
+                .filter(|op| op.stage == "raw-spline-normalization-v1")
+                .collect::<Vec<_>>();
+            let [stage] = stages.as_slice() else {
+                panic!("exactly one raw normalization stage, reversed {reversed}");
+            };
+            assert_eq!(stage.source_edge, Some(23));
+            assert!(!stage.diagnostic_only);
+            assert_eq!(stage.bound_mm, Ok(0.0), "ideal positive affine knot map");
+            assert!(
+                model
+                    ._repair_ledger
+                    .0
+                    .iter()
+                    .any(|op| op.stage == "raw-spline-normalization-numeric-v1"
+                        && op.diagnostic_only
+                        && op.bound_mm.is_err()),
+                "knot rounding stays a separate unproved numeric term"
+            );
+            assert_eq!(model._repair_ledger.complete_bound_mm(), None);
+        }
     }
 
     fn projected_line_tetra(offset: &str) -> String {

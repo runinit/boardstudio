@@ -269,13 +269,55 @@ impl StepRepairCurveChange<'_> {
         (self.change.before_domain, self.change.after_domain)
     }
 }
+/// Immutable original raw B-spline data and its actual normalized intermediate.
+///
+/// Original numeric spellings stay bound through immutable source IDs/bytes, not
+/// these binary64 getters. This view is captured data, never a certificate.
+#[derive(Debug)]
+pub struct StepRepairRawSplineChange<'a> {
+    change: &'a FiniteCurveRepair,
+    raw: &'a RawSplineCapture,
+}
+impl StepRepairRawSplineChange<'_> {
+    /// Original parsed B-spline degree.
+    pub fn degree(&self) -> usize {
+        self.raw.degree
+    }
+    /// Checked expanded original parsed knot sequence.
+    pub fn knots(&self) -> &[f64] {
+        &self.raw.knots
+    }
+    /// Original control points in source order.
+    pub fn controls(&self) -> &[Point3] {
+        &self.raw.controls
+    }
+    /// Original full extent and actual normalized full extent.
+    pub fn domains(&self) -> ((f64, f64), (f64, f64)) {
+        self.raw.domains
+    }
+    /// Actual pre-trim normalized intermediate carrier.
+    pub fn after(&self) -> &Curve3D {
+        &self.change.after
+    }
+}
 impl StepRepairOperation<'_> {
     /// Captured data only: unresolved original selection remains unsupported.
+    /// Raw tiny-span normalization has no constructor-valid BEFORE and is exposed
+    /// only through [`Self::raw_spline_change`].
     pub fn curve_change(&self) -> Option<StepRepairCurveChange<'_>> {
         self.operation
             .curve
             .as_ref()
+            .filter(|change| change.raw_spline.is_none())
             .map(|change| StepRepairCurveChange { change })
+    }
+    /// Original raw spline and normalized intermediate for tiny-span normalization.
+    pub fn raw_spline_change(&self) -> Option<StepRepairRawSplineChange<'_>> {
+        let change = self.operation.curve.as_ref()?;
+        Some(StepRepairRawSplineChange {
+            change,
+            raw: change.raw_spline.as_ref()?,
+        })
     }
 
     /// Fixed identity of the owner stage.

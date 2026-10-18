@@ -10,7 +10,7 @@ use std::collections::HashSet;
 mod repair;
 pub use repair::{
     StepRepairBorrowedConversion, StepRepairConversion, StepRepairCurveChange, StepRepairInput,
-    StepRepairOperation, StepRepairSource,
+    StepRepairOperation, StepRepairRawSplineChange, StepRepairSource,
 };
 
 /// A compressed shell in the STEP loader's concrete geometry types.

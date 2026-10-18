@@ -1,7 +1,7 @@
 //! Whole-domain control algebra for captured concrete polynomial/rational stages.
 //! This proves only the supplied immediate mutation, never its earlier selection.
 use super::*;
-use monstertruck_io::step::load::convert::StepRepairCurveChange;
+use monstertruck_io::step::load::convert::{StepRepairCurveChange, StepRepairRawSplineChange};
 use num_rational::BigRational as Q;
 use num_traits::{One, Signed, Zero};
 type Polynomial = Vec<Q>;
@@ -413,4 +413,57 @@ mod tests {
         );
         assert!(controls_bound(&a, (-1., 1.), &b, (0., 1.), 1., Matrix4::identity()).is_err());
     }
+}
+
+/// Ideal tiny-span knot normalization of a clamped non-rational spline.
+///
+/// The positive affine map `(k - first) / (last - first)` relabels the parameter
+/// of every polynomial piece and moves no point of the carrier, so this repair
+/// term is zero when the captured intermediate keeps the original degree, control
+/// points, knot multiplicity pattern and the full `[0, 1]` extent. Binary64
+/// rounding of the normalized knots is a separate numerical term.
+pub(super) fn raw_spline_bound(raw: StepRepairRawSplineChange<'_>) -> Result<f64, &'static str> {
+    let (degree, knots, controls) = (raw.degree(), raw.knots(), raw.controls());
+    let ((first, last), normalized) = raw.domains();
+    if degree == 0
+        || degree > 16
+        || controls.len() > 8192
+        || controls.len() <= degree
+        || knots.len() != controls.len() + degree + 1
+    {
+        return Err("raw spline resource or shape limit");
+    }
+    if !knots.iter().all(|k| k.is_finite())
+        || knots.windows(2).any(|pair| pair[0] > pair[1])
+        || knots[0] != first
+        || knots[knots.len() - 1] != last
+        || !(first < last)
+        || knots[..=degree].iter().any(|k| *k != first)
+        || knots[controls.len()..].iter().any(|k| *k != last)
+    {
+        return Err("raw spline is not a clamped full-extent carrier");
+    }
+    let Curve3D::BsplineCurve(after) = raw.after() else {
+        return Err("normalized intermediate is not a non-rational spline");
+    };
+    let after_knots = after.knot_vector();
+    if normalized != (0., 1.)
+        || after.degree() != degree
+        || after.control_points().as_slice() != controls
+        || after_knots.len() != knots.len()
+        || after_knots[0] != 0.
+        || after_knots[knots.len() - 1] != 1.
+    {
+        return Err("normalized intermediate changed degree, controls or extent");
+    }
+    // Same multiplicity pattern and order: equal raw labels stay equal and the
+    // map stays strictly increasing between distinct labels.
+    for i in 1..knots.len() {
+        if (knots[i] == knots[i - 1]) != (after_knots[i] == after_knots[i - 1])
+            || after_knots[i] < after_knots[i - 1]
+        {
+            return Err("normalized intermediate changed the knot multiplicity pattern");
+        }
+    }
+    Ok(0.0)
 }

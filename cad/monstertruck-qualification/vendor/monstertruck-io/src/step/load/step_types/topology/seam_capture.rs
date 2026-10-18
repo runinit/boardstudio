@@ -335,6 +335,7 @@ impl FiniteCurveTrace {
             after,
             after_domain,
             native_line: None,
+            raw_spline: None,
             seam,
         });
     }

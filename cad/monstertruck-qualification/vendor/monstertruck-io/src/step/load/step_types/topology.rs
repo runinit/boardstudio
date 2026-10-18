@@ -18,7 +18,19 @@ pub(in crate::step::load) struct FiniteCurveRepair {
     pub(in crate::step::load) after: Curve3D,
     pub(in crate::step::load) after_domain: (f64, f64),
     pub(in crate::step::load) native_line: Option<NativeLineProjection>,
+    pub(in crate::step::load) raw_spline: Option<RawSplineCapture>,
     seam: Option<seam_capture::SeamCopy>,
+}
+
+/// Original parsed B-spline data and domains before tiny-span knot normalization.
+/// The pair carried by the owning change is the pre-trim normalized intermediate
+/// twice, because the raw carrier need not satisfy the ordinary constructor.
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::step::load) struct RawSplineCapture {
+    pub(in crate::step::load) degree: usize,
+    pub(in crate::step::load) knots: Vec<f64>,
+    pub(in crate::step::load) controls: Vec<Point3>,
+    pub(in crate::step::load) domains: ((f64, f64), (f64, f64)),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -143,6 +155,70 @@ impl FiniteCurveTrace {
             after,
             after_domain,
             native_line: None,
+            raw_spline: None,
+            seam: None,
+        });
+    }
+    /// Records the actual parsed raw carrier before tiny-span knot normalization.
+    /// `intermediate` is the normalized pre-trim carrier; it is stored as both
+    /// ends of the pair because the raw carrier need not be constructor-valid.
+    fn raw_spline_normalization(
+        &mut self,
+        source: &BsplineCurveWithKnots,
+        degree: usize,
+        extent: (f64, f64),
+        intermediate: &Curve3D,
+    ) {
+        let (Some(knot_count), Some(control_count)) = (
+            degree.checked_add(source.control_points_list.len()),
+            Some(source.control_points_list.len()),
+        ) else {
+            self.failed = true;
+            return;
+        };
+        let bytes = knot_count
+            .checked_add(1)
+            .and_then(|knots| knots.checked_mul(std::mem::size_of::<f64>()))
+            .zip(control_count.checked_mul(std::mem::size_of::<Point3>()))
+            .and_then(|(k, c)| k.checked_add(c))
+            .and_then(|b| b.checked_add(std::mem::size_of::<RawSplineCapture>()));
+        if !self.charge(bytes) {
+            return;
+        }
+        let mut knots = Vec::new();
+        let mut controls = Vec::new();
+        if knots.try_reserve_exact(knot_count + 1).is_err()
+            || controls.try_reserve_exact(control_count).is_err()
+        {
+            self.failed = true;
+            return;
+        }
+        for (knot, multiplicity) in source.knots.iter().zip(&source.knot_multiplicities) {
+            // Multiplicities were validated against the exact total by the caller.
+            knots.extend(std::iter::repeat_n(*knot, *multiplicity as usize));
+        }
+        controls.extend(source.control_points_list.iter().map(Point3::from));
+        if knots.len() != knot_count + 1 || knots.capacity() > knot_count + 1 {
+            self.failed = true;
+            return;
+        }
+        let (Some(before), Some(after)) = (self.begin(intermediate), self.begin(intermediate))
+        else {
+            return;
+        };
+        self.push(FiniteCurveRepair {
+            stage: "raw-spline-normalization-v1",
+            before,
+            before_domain: (0., 1.),
+            after,
+            after_domain: (0., 1.),
+            native_line: None,
+            raw_spline: Some(RawSplineCapture {
+                degree,
+                knots,
+                controls,
+                domains: (extent, (0., 1.)),
+            }),
             seam: None,
         });
     }
@@ -409,9 +485,26 @@ impl EdgeCurve {
             true => (p, q),
             false => (q, p),
         };
-        if let Some(mut curve) = try_normalized_edge_bspline(&self.edge_geometry, p, q, bound)? {
+        let mut repair = repair;
+        if let Some(mut curve) =
+            try_normalized_edge_bspline(&self.edge_geometry, p, q, bound, repair.as_deref_mut())?
+        {
             if !self.same_sense {
+                let before_domain = curve.range_tuple();
+                let before = repair
+                    .as_deref_mut()
+                    .and_then(|capture| capture.begin(&curve));
                 curve.invert();
+                if let Some(capture) = repair {
+                    let (a, b) = curve.range_tuple();
+                    capture.finish(
+                        "native-sense-inversion-v1",
+                        before,
+                        before_domain,
+                        &curve,
+                        (b, a),
+                    );
+                }
             }
             return Ok(curve);
         }
@@ -711,6 +804,7 @@ fn try_normalized_edge_bspline(
     p: Point3,
     q: Point3,
     bound: Option<f64>,
+    repair: Option<&mut FiniteCurveTrace>,
 ) -> Result<Option<Curve3D>, StepConvertingError> {
     let CurveAny::BoundedCurve(bounded) = curve else {
         return Ok(None);
@@ -812,13 +906,13 @@ fn try_normalized_edge_bspline(
         return Err("non-finite normalized B-spline knot value".into());
     }
     let normalized: BsplineCurve<Point3> = (&normalized).try_into()?;
-    bounded_trim::trim_edge_curve(
-        Curve3D::BsplineCurve(normalized),
-        p,
-        q,
-        bound.unwrap_or(TOLERANCE),
-    )
-    .map(Some)
+    let intermediate = Curve3D::BsplineCurve(normalized);
+    let mut repair = repair;
+    if let Some(capture) = repair.as_deref_mut() {
+        capture.raw_spline_normalization(source, degree, (first, last), &intermediate);
+    }
+    bounded_trim::trim_edge_curve_recorded(intermediate, p, q, bound.unwrap_or(TOLERANCE), repair)
+        .map(Some)
 }
 
 fn checked_knot_multiplicity_total(multiplicities: &[i64]) -> Result<usize, StepConvertingError> {
@@ -922,7 +1016,7 @@ mod edge_normalization_tests {
         let direct = small_curve();
         let (p, q) = endpoints();
         let Some(Curve3D::BsplineCurve(normalized)) =
-            try_normalized_edge_bspline(&direct, p, q, None).unwrap()
+            try_normalized_edge_bspline(&direct, p, q, None, None).unwrap()
         else {
             panic!("the direct small-span edge spline should normalize");
         };
@@ -961,20 +1055,82 @@ mod edge_normalization_tests {
         assert!(normalized.evaluate(1.0).distance2(q) < 1.0e-20);
     }
 
+    fn edge(same_sense: bool) -> EdgeCurve {
+        let vertex = |c: [f64; 3]| VertexPoint {
+            label: String::new(),
+            vertex_geometry: CartesianPoint {
+                label: String::new(),
+                coordinates: c.to_vec(),
+            },
+        };
+        EdgeCurve {
+            label: String::new(),
+            edge_start: vertex(if same_sense {
+                [0.0; 3]
+            } else {
+                [3.0, 0.0, 0.0]
+            }),
+            edge_end: vertex(if same_sense {
+                [3.0, 0.0, 0.0]
+            } else {
+                [0.0; 3]
+            }),
+            edge_geometry: small_curve(),
+            same_sense,
+        }
+    }
+
+    #[test]
+    fn repair_raw_spline_normalization_is_captured_with_original_data_and_chain() {
+        for same_sense in [true, false] {
+            let budget = std::rc::Rc::new(std::cell::Cell::new(1 << 20));
+            let (output, trace) = edge(same_sense)
+                .parse_curve3d_for_repair(None, true, budget)
+                .unwrap();
+            assert!(!trace.failed);
+            let stages: Vec<_> = trace.changes.iter().map(|c| c.stage).collect();
+            let mut expected = vec!["raw-spline-normalization-v1", "native-full-interval-v1"];
+            if !same_sense {
+                expected.push("native-sense-inversion-v1");
+            }
+            assert_eq!(stages, expected, "same_sense {same_sense}");
+            let raw = trace.changes[0].raw_spline.as_ref().expect("raw capture");
+            assert_eq!(raw.degree, 3);
+            assert_eq!(
+                raw.knots,
+                [START; 4]
+                    .into_iter()
+                    .chain([START + SPAN; 4])
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(raw.controls.len(), 4);
+            assert_eq!(raw.controls[1], Point3::new(1.0, 2.0, 0.5));
+            assert_eq!(raw.domains, ((START, START + SPAN), (0.0, 1.0)));
+            assert_eq!(trace.changes[0].after, trace.changes[0].before);
+            assert_eq!(trace.changes[0].after, trace.changes[1].before);
+            if same_sense {
+                assert_eq!(trace.changes[1].after, output);
+            } else {
+                assert_eq!(trace.changes[1].after, trace.changes[2].before);
+                assert_eq!(trace.changes[2].after, output);
+            }
+        }
+    }
+
     #[test]
     fn exact_zero_and_nonfinite_edge_domains_are_rejected() {
         let (p, q) = endpoints();
         let zero = curve(vec![START, START]);
-        assert!(try_normalized_edge_bspline(&zero, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&zero, p, q, None, None).is_err());
         let nonfinite = curve(vec![START, f64::NAN]);
-        assert!(try_normalized_edge_bspline(&nonfinite, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&nonfinite, p, q, None, None).is_err());
     }
 
     #[test]
     fn normalized_edge_spline_rejects_endpoint_mismatch() {
         let (p, mut q) = endpoints();
         q.x += 0.01;
-        assert!(try_normalized_edge_bspline(&small_curve(), p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&small_curve(), p, q, None, None).is_err());
     }
 
     #[test]
@@ -983,6 +1139,7 @@ mod edge_normalization_tests {
             &small_curve(),
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(3.0, 0.0, 0.0),
+            None,
             None,
         )
         .unwrap() else {
@@ -1010,7 +1167,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let line = CurveAny::Line(Box::default());
         assert!(
-            try_normalized_edge_bspline(&line, p, q, None)
+            try_normalized_edge_bspline(&line, p, q, None, None)
                 .unwrap()
                 .is_none()
         );
@@ -1030,7 +1187,7 @@ mod edge_normalization_tests {
         }));
         let (p, q) = endpoints();
         assert!(
-            try_normalized_edge_bspline(&wrapper, p, q, None)
+            try_normalized_edge_bspline(&wrapper, p, q, None, None)
                 .unwrap()
                 .is_none()
         );
@@ -1058,7 +1215,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).knot_multiplicities.push(1);
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1066,7 +1223,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).knot_multiplicities = vec![0, 4];
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1074,7 +1231,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).knot_multiplicities = vec![-1, 4];
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1082,7 +1239,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).knot_multiplicities = vec![4, 3];
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1096,7 +1253,7 @@ mod edge_normalization_tests {
             .extend((0..2).map(|_| extra_control.clone()));
         spline.knots = vec![START, START + SPAN / 2.0, START + SPAN / 2.0, START + SPAN];
         spline.knot_multiplicities = vec![4, 1, 1, 4];
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1111,7 +1268,7 @@ mod edge_normalization_tests {
         spline.knots = vec![START, START + SPAN / 2.0, START + SPAN];
         // The total is otherwise consistent: 4 + 5 + 4 == degree 3 + 9 controls + 1.
         spline.knot_multiplicities = vec![4, 5, 4];
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1119,7 +1276,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).degree = 0;
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1127,7 +1284,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).degree = 4;
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1135,7 +1292,7 @@ mod edge_normalization_tests {
         let (p, q) = endpoints();
         let mut value = small_curve();
         spline_mut(&mut value).control_points_list[1].coordinates[1] = f64::NAN;
-        assert!(try_normalized_edge_bspline(&value, p, q, None).is_err());
+        assert!(try_normalized_edge_bspline(&value, p, q, None, None).is_err());
     }
 
     #[test]
@@ -1145,8 +1302,10 @@ mod edge_normalization_tests {
         nonfinite_start.x = f64::NAN;
         let mut nonfinite_end = q;
         nonfinite_end.z = f64::INFINITY;
-        assert!(try_normalized_edge_bspline(&small_curve(), nonfinite_start, q, None).is_err());
-        assert!(try_normalized_edge_bspline(&small_curve(), p, nonfinite_end, None).is_err());
+        assert!(
+            try_normalized_edge_bspline(&small_curve(), nonfinite_start, q, None, None).is_err()
+        );
+        assert!(try_normalized_edge_bspline(&small_curve(), p, nonfinite_end, None, None).is_err());
     }
 
     #[test]

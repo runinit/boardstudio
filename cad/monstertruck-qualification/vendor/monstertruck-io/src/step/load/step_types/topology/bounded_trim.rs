@@ -1,13 +1,14 @@
 use super::*;
 use monstertruck_core::cgmath_extend_traits::control_point::ControlPoint;
 
-pub(super) fn trim_edge_curve(
+pub(super) fn trim_edge_curve_recorded(
     curve: Curve3D,
     p: Point3,
     q: Point3,
     accuracy: f64,
+    repair: Option<&mut FiniteCurveTrace>,
 ) -> Result<Curve3D, StepConvertingError> {
-    trim_edge_curve_impl(curve, p, q, accuracy, None, None)
+    trim_edge_curve_impl(curve, p, q, accuracy, None, repair)
 }
 
 pub(super) fn trim_edge_curve_in_native_frame(
@@ -487,6 +488,7 @@ fn finish_spline_change<P>(
         after: wrap(after),
         after_domain,
         native_line: None,
+        raw_spline: None,
         seam: None,
     });
 }
