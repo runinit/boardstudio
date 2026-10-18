@@ -231,18 +231,24 @@ class BuildBindingTests(unittest.TestCase):
 
 
 class PerformancePreparationTests(unittest.TestCase):
-    def test_initial_build_cycle_is_single_and_retained_upper_plan_is_explicit(self):
+    def test_default_schedule_is_monstertruck_only_with_one_session_and_one_build_cycle(self):
         schedule = PERF.schedule()
+        self.assertEqual({row["backend"] for row in schedule}, {"monstertruck"})
         builds = [row for row in schedule if row["workload"] == "build"]
-        self.assertEqual(len(builds), 12)
-        self.assertEqual(len([row for row in PERF.schedule(3) if row["workload"] == "build"]), 36)
+        self.assertEqual(len(builds), 6)
+        self.assertEqual(len([row for row in PERF.schedule(3) if row["workload"] == "build"]), 18)
         for profile in PERF.PROFILES:
-            for workload in PERF.PAIRED:
+            for workload in (*PERF.PAIRED, *PERF.UNPAIRED):
                 rows = [row for row in schedule if row["profile"] == profile
                         and row["workload"] == workload and row["pair"] > 0]
-                self.assertEqual([row["backend"] for row in rows],
-                                 ["cadrum", "monstertruck", "monstertruck", "cadrum",
-                                  "cadrum", "monstertruck", "monstertruck", "cadrum", "cadrum", "monstertruck"])
+                self.assertEqual([row["pair"] for row in rows], [1])
+
+    def test_historical_two_backend_schedule_remains_available_for_old_captures(self):
+        schedule = PERF.schedule(1, 2, ("cadrum", "monstertruck"))
+        rows = [row for row in schedule if row["profile"] == "checked"
+                and row["workload"] == "C1plate:preview" and row["pair"] > 0]
+        self.assertEqual([row["backend"] for row in rows],
+                         ["cadrum", "monstertruck", "monstertruck", "cadrum"])
         self.assertFalse(any(row["backend"] == "cadrum" and row["workload"] in PERF.UNPAIRED for row in schedule))
 
     def test_existing_artifact_receipt_rejects_changed_worker_and_changed_production(self):
@@ -295,6 +301,32 @@ class PerformancePreparationTests(unittest.TestCase):
         caps = json.loads((PERF.FIXTURES / "K1keycap.json").read_text())["specs"]
         self.assertEqual(len(caps), 25)
         self.assertTrue(all(spec["dishDepth"] == .65 and spec["legend"] == "O" for spec in caps))
+
+    def test_monstertruck_only_report_is_descriptive_without_pairs_or_baseline(self):
+        evidence = PERF.ROOT / ".evidence/011-preparation"
+        evidence.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=evidence) as temporary:
+            root = Path(temporary)
+            directory = root / "monstertruck"
+            directory.mkdir()
+            (directory / "command.log").write_text("command\nexit=0\n")
+            for name in ("binding-before.log", "binding-after.log"):
+                (directory / name).write_text("head=h\nsource_sha256=s\ndriver_head=d\nworkload_blob_C1plate.json=w\n")
+            fields = ("backend", "profile", "workload", "pair", "state", "ordinal", "metric", "value", "unit", "status")
+            PERF.write_csv(directory / "runtime.csv", fields, [
+                dict(backend="monstertruck", profile="checked", workload="C1plate:preview", pair=1,
+                     state="warm", ordinal=i, metric="dispatch-to-validated-reply", value=value, unit="ms",
+                     status="observed") for i, value in enumerate([20, 21, 24, 25, 26])])
+            output = root / "report"
+            output.mkdir()
+            PERF.summarize([directory], output)
+            with (output / "pairs.csv").open() as source:
+                self.assertEqual(list(csv.DictReader(source)), [])
+            with (output / "summary.csv").open() as source:
+                row, = list(csv.DictReader(source))
+            self.assertEqual((row["backend"], float(row["median"])), ("monstertruck", 24.0))
+            with (output / "coverage.csv").open() as source:
+                self.assertTrue({r["backend"] for r in csv.DictReader(source)} == {"monstertruck"})
 
     def test_report_pairs_session_medians_and_retains_failure(self):
         evidence = PERF.ROOT / ".evidence/011-preparation"

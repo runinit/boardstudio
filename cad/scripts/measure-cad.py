@@ -57,28 +57,31 @@ def write_csv(path, fields, rows):
         writer.writerows(rows)
 
 
-def schedule(build_cycles=1):
+def schedule(build_cycles=1, runs=1, backends=("monstertruck",)):
+    """Finite capture schedule. The default is the Monstertruck-only measurement
+    (one cold-plus-five-warm session per workload); a two-backend tuple keeps the
+    historical alternating comparison available for old captures."""
     rows = []
     for profile in PROFILES:
-        for pair in range(1, 6):
-            order = ("cadrum", "monstertruck") if pair % 2 else ("monstertruck", "cadrum")
+        for pair in range(1, runs + 1):
+            order = backends[::-1] if pair % 2 == 0 else backends
             for workload in (*PAIRED, "startup:cold", "startup:warm"):
                 for backend in order:
                     rows.append(dict(profile=profile, pair=pair, backend=backend,
                                      workload=workload, state="cold+5warm" if not
                                      workload.startswith("startup:") else workload.split(":")[1]))
-        for backend in ("cadrum", "monstertruck"):
+        for backend in backends:
             for workload in PAIRED:
                 rows.append(dict(profile=profile, pair=0, backend=backend,
                                  workload=workload, state="growth20"))
         for workload in UNPAIRED:
-            for pair in range(1, 6):
+            for pair in range(1, runs + 1):
                 rows.append(dict(profile=profile, pair=pair, backend="monstertruck",
                                  workload=workload, state="cold+5warm;unpaired"))
             rows.append(dict(profile=profile, pair=0, backend="monstertruck",
                              workload=workload, state="growth20;unpaired"))
         for pair in range(1, build_cycles + 1):
-            order = ("cadrum", "monstertruck") if pair % 2 else ("monstertruck", "cadrum")
+            order = backends[::-1] if pair % 2 == 0 else backends
             for backend in order:
                 for state in ("clean", "noop", "incremental"):
                     rows.append(dict(profile=profile, pair=pair, backend=backend,
@@ -290,7 +293,7 @@ def sizes(root, output):
     write_csv(output, ("group", "path", "bytes", "gzip9_bytes"), rows)
 
 
-def summarize(inputs, output, build_cycles=1):
+def summarize(inputs, output, build_cycles=1, runs=1):
     """Session medians keep five warm values from pretending to be five cold observations."""
     sessions = {}
     failures = []
@@ -376,7 +379,8 @@ def summarize(inputs, output, build_cycles=1):
              new_over_old=values["monstertruck"] / values["cadrum"] if values["cadrum"] else "undefined")
         for key, values in sorted(paired.items()) if set(values) == {"cadrum", "monstertruck"}])
     coverage = []
-    for row in schedule(build_cycles):
+    observed_backends = tuple(sorted({key[0] for key in sessions}, reverse=True)) or ("monstertruck",)
+    for row in schedule(build_cycles, runs, observed_backends):
         if row["workload"] == "build":
             phases = ((row["state"], "wall", "s", 1),)
         elif row["workload"].startswith("startup:"):
@@ -529,8 +533,10 @@ def main():
     parser.add_argument("--state", choices=("clean", "noop", "incremental"))
     parser.add_argument("--build-run", type=Path, help="successful measure-cad build capture directory for the served artifacts")
     parser.add_argument("--inputs", type=Path, nargs="+", help="completed capture directories for report")
-    parser.add_argument("--admission-note", type=Path, help="root's source/artifact-bound independent admission and quiet-window record")
+    parser.add_argument("--admission-note", type=Path, help="the actual environment and load record for this frozen source/artifacts; no quiet-window claim is implied")
     parser.add_argument("--artifact-receipt", type=Path, help="existing official integration artifact receipt, validation only")
+    parser.add_argument("--sessions", type=int, choices=range(1, 6), default=1,
+                        help="cold-plus-five-warm sessions per workload (default 1: descriptive single-backend measurement)")
     parser.add_argument("--build-cycles", type=int, choices=(1, 3), default=1,
                         help="one matched initial build cycle; three is the retained upper proposal, only after root requests it")
     args = parser.parse_args()
@@ -541,15 +547,16 @@ def main():
         parser.error("use a new output directory; failed observations are never overwritten")
     out.mkdir(parents=True)
     if args.action == "plan":
-        write_csv(out / "schedule.csv", ("profile", "pair", "backend", "workload", "state"), schedule(args.build_cycles))
+        write_csv(out / "schedule.csv", ("profile", "pair", "backend", "workload", "state"),
+                  schedule(args.build_cycles, args.sessions))
         print(f"Untimed finite schedule: {out / 'schedule.csv'}; root clearance/admission still required")
         return 0
     if args.action == "report":
         if not args.inputs or not args.admission_note or not args.admission_note.is_file():
             parser.error("report requires --inputs and --admission-note; an observed reply is not geometry admission")
         (out / "admission.log").write_text(args.admission_note.read_text())
-        summarize(args.inputs, out, args.build_cycles)
-        print(f"Descriptive samples: {out}; paired ratios are new/old, never a significance claim")
+        summarize(args.inputs, out, args.build_cycles, args.sessions)
+        print(f"Descriptive samples: {out}; Monstertruck-only unless historical two-backend captures were supplied")
         return 0
     before, current = binding(root, args.profile)
     (out / "binding-before.log").write_text("\n".join(before) + "\n")
