@@ -56,5 +56,168 @@
     "analysisErrorBoundMm": null,
     "meshClosedOriented": true,
     "deflectionMm": 0.1
+  },
+  "qualificationV2": {
+    "status": "pending qualification v2; no active wire implementation",
+    "version": "planar-final-v1/aabb-interval-exact-v1",
+    "source": "ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
+    "expectedCensus": {
+      "solids": 4,
+      "shells": 4,
+      "faces": 30,
+      "faceOccurrences": 30
+    },
+    "sourcePrecisionMm": 0.01,
+    "maximumDirectBoundMm": 1e-10,
+    "pair": {
+      "rightTranslationMm": [
+        3,
+        0,
+        0
+      ],
+      "nominalSourceDistanceMm": [
+        1,
+        1
+      ],
+      "maximumMeshIntervalWidthMm": 1e-10,
+      "clearanceThresholdMm": 0.5,
+      "defaultRequestedAccuracyMm": null,
+      "tightRequestedAccuracyMm": 0.01,
+      "expectedDefaultRelation": "clear",
+      "expectedTightRelation": "unknown",
+      "containmentMethod": "slab",
+      "contactMustIncludeLeftPointMm": [
+        1,
+        -0.625,
+        0
+      ],
+      "contactMustIncludeRightPointMm": [
+        2,
+        -0.625,
+        0
+      ]
+    },
+    "rotatedControl": {
+      "cos30F64": 0.8660254037844386,
+      "sin30F64": 0.5,
+      "nominalDistanceMm": 1,
+      "maximumNumericalDeviationMm": 1e-10
+    },
+    "unknownCases": [
+      "unsupported-source-surface",
+      "missing-source-face",
+      "missing-face-occurrence",
+      "missing-triangle-strip",
+      "filled-hole",
+      "invalid-triangle-index",
+      "non-finite-coordinate",
+      "degenerate-triangle",
+      "resource-cap",
+      "exponent-cap",
+      "unmeasured-repair-movement",
+      "capacitor-parity-ineligible"
+    ],
+    "generatedIdentityPrefix": "m1/generated-analysis-v2/",
+    "vendorIdentityPrefix": "vendor-step-analysis-v2/",
+    "sourceQualificationExample": {
+      "state": "bounded",
+      "class": "complete-native-line-plane",
+      "version": 1,
+      "directBoundMm": 1e-10,
+      "sourcePrecisionMm": 0.01,
+      "totalBoundMm": 0.010000000100000002,
+      "meshIdentity": "fixture-final-capacitor-left"
+    },
+    "queryExamples": {
+      "meshDistance": {
+        "state": "bounded",
+        "lowerMm": 1,
+        "upperMm": 1,
+        "witnessTriangles": [
+          0,
+          0
+        ]
+      },
+      "containment": {
+        "state": "ruledOut",
+        "method": "slab",
+        "axis": 0,
+        "leftUpperMm": 1.010000001,
+        "rightLowerMm": 1.989999999
+      },
+      "contactRegion": {
+        "state": "boxes",
+        "sourceInflationMm": [
+          0.010000000100000002,
+          0.010000000100000002
+        ],
+        "pairs": [
+          {
+            "leftMm": [
+              [
+                -1.010000001,
+                -0.635000001,
+                -0.010000001
+              ],
+              [
+                1.010000001,
+                0.635000001,
+                1.360000001
+              ]
+            ],
+            "rightMm": [
+              [
+                1.989999999,
+                -0.635000001,
+                -0.010000001
+              ],
+              [
+                4.010000001,
+                0.635000001,
+                1.360000001
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    "unknownExample": {
+      "state": "unknown",
+      "reasons": [
+        "source or query proof unavailable"
+      ]
+    },
+    "invalidMutations": [
+      {
+        "path": "meshDistance.upperMm",
+        "value": -1,
+        "reason": "reversed distance interval"
+      },
+      {
+        "path": "contactRegion.pairs",
+        "value": [],
+        "reason": "empty contact region"
+      },
+      {
+        "path": "containment.rightLowerMm",
+        "value": 1,
+        "reason": "overlapping slab"
+      },
+      {
+        "path": "sourceQualification.totalBoundMm",
+        "value": 0.001,
+        "reason": "precision omitted"
+      },
+      {
+        "path": "binding.leftMeshIdentity",
+        "value": "stale",
+        "reason": "identity mismatch"
+      },
+      {
+        "path": "limits.maxContactBoxes",
+        "value": 0,
+        "reason": "invalid cap"
+      }
+    ]
   }
 }
