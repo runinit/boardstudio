@@ -40,17 +40,34 @@ pub(super) enum Conversion<'input> {
 }
 impl Conversion<'_> {
     pub(super) fn source(&self) -> &SourceBoundStepSolid {
-        match self { Self::Captured(report) => report.source(), Self::Normalized(source) => source }
+        match self {
+            Self::Captured(report) => report.source(),
+            Self::Normalized(source) => source,
+        }
     }
-    pub(super) fn operations(&self, shell: usize) -> impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'_>> {
-        let report = match self { Self::Captured(report) => Some(report), Self::Normalized(_) => None };
-        report.into_iter().flat_map(move |report| report.operations(shell))
+    pub(super) fn operations(
+        &self,
+        shell: usize,
+    ) -> impl Iterator<Item = monstertruck_io::step::load::convert::StepRepairOperation<'_>> {
+        let report = match self {
+            Self::Captured(report) => Some(report),
+            Self::Normalized(_) => None,
+        };
+        report
+            .into_iter()
+            .flat_map(move |report| report.operations(shell))
     }
     pub(super) fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
-        match self { Self::Captured(report) => report.complete_bound(shell), Self::Normalized(_) => Err("untraced original/normalized exchange mismatch") }
+        match self {
+            Self::Captured(report) => report.complete_bound(shell),
+            Self::Normalized(_) => Err("untraced original/normalized exchange mismatch"),
+        }
     }
     pub(super) fn into_source(self) -> SourceBoundStepSolid {
-        match self { Self::Captured(report) => report.into_source(), Self::Normalized(source) => source }
+        match self {
+            Self::Captured(report) => report.into_source(),
+            Self::Normalized(source) => source,
+        }
     }
 }
 
@@ -271,22 +288,34 @@ impl OriginalGeometry {
     }
 
     pub(super) fn convert_input_with_refusal<'input>(
-        &self, input: &'input StepRepairInput, selection: (u64, Option<u64>),
-        tolerance: PreviewTolerance, frames: &[ProjectionFrame],
+        &self,
+        input: &'input StepRepairInput,
+        selection: (u64, Option<u64>),
+        tolerance: PreviewTolerance,
+        frames: &[ProjectionFrame],
     ) -> Result<Conversion<'input>, String> {
-        let converted = input.convert_solid(selection.0, selection.1, Some(tolerance)).map_err(|error| error.to_string())?;
+        let converted = input
+            .convert_solid(selection.0, selection.1, Some(tolerance))
+            .map_err(|error| error.to_string())?;
         self.check_projected_refusal(input.table(), converted.source(), frames)?;
         Ok(Conversion::Captured(converted))
     }
 
     pub(super) fn convert_normalized_with_refusal(
-        &self, table: &Table, selection: (u64, Option<u64>), frames: &[ProjectionFrame],
+        &self,
+        table: &Table,
+        selection: (u64, Option<u64>),
+        frames: &[ProjectionFrame],
     ) -> Result<Conversion<'static>, String> {
-        let solid = table.manifold_solid_brep.get(&selection.0).ok_or("normalized solid identity missing")?;
+        let solid = table
+            .manifold_solid_brep
+            .get(&selection.0)
+            .ok_or("normalized solid identity missing")?;
         let converted = match selection.1 {
             Some(owner) => table.to_source_bound_solid_in_representation_checked(solid, owner),
             None => table.to_source_bound_solid_without_connectivity_checked(solid),
-        }.map_err(|error| error.to_string())?;
+        }
+        .map_err(|error| error.to_string())?;
         self.check_projected_refusal(table, &converted, frames)?;
         Ok(Conversion::Normalized(converted))
     }
@@ -308,7 +337,12 @@ impl OriginalGeometry {
         Ok(converted)
     }
 
-    fn check_projected_refusal(&self, table: &Table, converted: &SourceBoundStepSolid, frames: &[ProjectionFrame]) -> Result<(), String> {
+    fn check_projected_refusal(
+        &self,
+        table: &Table,
+        converted: &SourceBoundStepSolid,
+        frames: &[ProjectionFrame],
+    ) -> Result<(), String> {
         for shell in converted.shells() {
             let Some(ids) = self.bind_edges(shell) else {
                 continue;
@@ -499,7 +533,9 @@ impl Ledger {
         occurrence: usize,
     ) {
         for operation in operations {
-            self.2 = self.2.saturating_add(usize::from(operation.curve_change().is_some()));
+            self.2 = self
+                .2
+                .saturating_add(usize::from(operation.curve_change().is_some()));
             if operation.stage().starts_with("same-master-planar-pcurve-") {
                 let measured = operation
                     .curve_change()
@@ -869,6 +905,114 @@ mod tests {
     use super::*;
 
     #[test]
+    fn normalized_legacy_preview_keeps_default_explicit_and_scaled_settings() {
+        let cylinder = include_str!("../../tests/fixtures/source-closed-cylinder-mm.step");
+        let surface = cylinder
+            .lines()
+            .find(|line| line.starts_with("#30="))
+            .unwrap();
+        let radians = cylinder
+            .replace(surface, "#30=CONICAL_SURFACE('',#44,1,0.7853981633974483);")
+            .replace(
+                "#63=ADVANCED_FACE('',(#62),#30,.F.);",
+                "#63=ADVANCED_FACE('',(#62),#30,.T.);",
+            )
+            .replace(
+                "#19=CARTESIAN_POINT('',(1,0,1));",
+                "#19=CARTESIAN_POINT('',(2,0,1));",
+            )
+            .replace("#47=CIRCLE('',#45,1);", "#47=CIRCLE('',#45,2);")
+            .replace(
+                "#50=VECTOR('',#42,1);",
+                "#74=DIRECTION('',(1,0,1));#50=VECTOR('',#74,1.4142135623730951);",
+            );
+        let degrees = radians
+            .replace("0.7853981633974483", "45.")
+            .replace("#83=(REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#80)));",
+                "#90=(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.));\
+                 #91=PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.017453292519943295),#90);\
+                 #92=(CONVERSION_BASED_UNIT('DEGREE',#91)NAMED_UNIT(#93)PLANE_ANGLE_UNIT());\
+                 #93=DIMENSIONAL_EXPONENTS(0.,0.,0.,0.,0.,0.,0.);\
+                 #94=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.000001),#80,'distance_accuracy_value','');\
+                 #83=(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#94))REPRESENTATION_CONTEXT('3D','MODEL')GLOBAL_UNIT_ASSIGNED_CONTEXT((#80,#92)));");
+        let original = StepRepairInput::parse(degrees.as_bytes().to_vec()).unwrap();
+        let normalized = units::normalize_conical_exchange(original.exchange()).unwrap();
+        assert_ne!(normalized.as_ref(), original.exchange());
+        let mapped = |text: &str| {
+            text.replace(
+                "#84=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#73),#83);",
+                "#84=SHAPE_REPRESENTATION('',(#73,#185),#83);\
+             #181=ADVANCED_BREP_SHAPE_REPRESENTATION('',(#73),#83);\
+             #182=REPRESENTATION_MAP(#44,#181);\
+             #184=CARTESIAN_TRANSFORMATION_OPERATOR_3D('','',$,$,#40,2.,$);\
+             #185=MAPPED_ITEM('',#182,#184);",
+            )
+        };
+        for (text, reference) in [
+            (&degrees, radians.clone()),
+            (&mapped(&degrees), mapped(&radians)),
+        ] {
+            let reference = import_step(reference.into_bytes()).unwrap();
+            for budget in [None, Some(0.02)] {
+                let model = import_step_with_options(
+                    text.as_bytes().to_vec(),
+                    StepImportOptions {
+                        preview_repair_budget_mm: budget,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                assert_eq!(model.original_bytes(), text.as_bytes());
+                assert_eq!(model.bounds(), reference.bounds());
+                assert_eq!(
+                    model.face_occurrences().len(),
+                    reference.face_occurrences().len()
+                );
+                assert_eq!(model.accuracy().max_repair_displacement_mm, None);
+                assert_eq!(
+                    model._repair_ledger.2, 0,
+                    "normalized preview cannot lend sealed original pairs"
+                );
+            }
+        }
+        let mut table = Table::from_data_section(&normalized.data[0]);
+        table.set_preview_floor_mm(0.02);
+        let original_geometry = OriginalGeometry::capture(&table, degrees.as_bytes());
+        let frame = ProjectionFrame {
+            occurrence: 0,
+            factor: 1.0,
+            placement: Matrix4::from_scale(2.0),
+            allowance: 0.02,
+        };
+        // This is the retained legacy scaled-settings branch. No original Table
+        // is constructed or used to lend captures to the normalized conversion.
+        let mut scaled = table.clone();
+        scaled.set_preview_tolerance(PreviewTolerance {
+            floor_mm: 0.01,
+            declared_multiplier: 0.0,
+        });
+        let converted = original_geometry
+            .convert_normalized_with_refusal(&scaled, (73, Some(84)), &[frame])
+            .unwrap();
+        assert!(
+            converted
+                .complete_bound(0)
+                .unwrap_err()
+                .contains("normalized")
+        );
+        assert_eq!(converted.operations(0).count(), 0);
+        assert_eq!(converted.source().shells()[0].shell().faces.len(), 3);
+        let over_budget = degrees.replace(
+            "#51=LINE('',#10,#50);",
+            "#190=CARTESIAN_POINT('',(1,0.020000000000000001,0));#51=LINE('',#190,#50);",
+        );
+        let error = import_step(over_budget.into_bytes())
+            .err()
+            .expect("normalization cannot erase the raw LINE refusal");
+        assert!(error.contains("finite LINE repair edge #54"), "{error}");
+    }
+
+    #[test]
     #[ignore = "requires the existing authoritative34 manifest and original corpus bytes"]
     fn approved_corpus_operation_census() {
         use monstertruck_io::step::load::step_geometry::{ElementarySurface, Surface};
@@ -1222,8 +1366,15 @@ mod tests {
                 assert_eq!(model.original_bytes(), text.as_bytes());
                 assert_eq!(model.face_occurrences().len(), 4);
                 assert_eq!(model.accuracy().max_repair_displacement_mm, None);
-                assert!(model._repair_ledger.1.iter().filter_map(|op| op.as_ref().ok()).any(|op| op.edge == 23),
-                    "padding/order/unknown scalar must preserve the sealed actual capture");
+                assert!(
+                    model
+                        ._repair_ledger
+                        .1
+                        .iter()
+                        .filter_map(|op| op.as_ref().ok())
+                        .any(|op| op.edge == 23),
+                    "padding/order/unknown scalar must preserve the sealed actual capture"
+                );
             }
         }
     }

@@ -310,7 +310,14 @@ mod tests {
             }
             assert_eq!(count, if reversed { 3 } else { 2 });
             let mut ledger = Ledger::default();
-            ledger.conversion_operations(owner.operations(0), owner.complete_bound(0).is_ok(), 0, 1000., Matrix4::from_scale(-2.), 7);
+            ledger.conversion_operations(
+                owner.operations(0),
+                owner.complete_bound(0).is_ok(),
+                0,
+                1000.,
+                Matrix4::from_scale(-2.),
+                7,
+            );
             assert!(ledger.enforce_finite_lines(7, 0.02).is_ok());
             assert!(
                 ledger.enforce_finite_lines(7, 0.).is_ok(),
@@ -352,7 +359,14 @@ mod tests {
         assert_eq!(world.0, 0.);
         assert!(world.1 >= local.1 * 2000. && world.1 <= (local.1 * 2000.).next_up());
         let mut ledger = Ledger::default();
-        ledger.conversion_operations(owner.operations(0), owner.complete_bound(0).is_ok(), 0, 1000., Matrix4::identity(), 3);
+        ledger.conversion_operations(
+            owner.operations(0),
+            owner.complete_bound(0).is_ok(),
+            0,
+            1000.,
+            Matrix4::identity(),
+            3,
+        );
         assert!(
             ledger
                 .0

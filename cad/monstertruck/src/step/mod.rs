@@ -221,7 +221,7 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     let bytes = input.bytes();
     let text = units::decode_step_bytes(bytes);
     let original_source = input.exchange();
-    let precision = units::precision::resolve(&original_source)?;
+    let precision = units::precision::resolve(original_source)?;
     // The reviewed contextual producer currently supports simple declarations.
     // Other authenticated metadata remains diagnostic; strict construction must
     // bypass discovery entirely rather than borrowing an unrelated owner.
@@ -266,18 +266,14 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
         .entity_report
         .require_empty()
         .map_err(|e| e.to_string())?;
-    validate_pds_definition_targets(&table)?;
+    validate_pds_definition_targets(table)?;
     let mut ids: Vec<_> = table.manifold_solid_brep.keys().copied().collect();
     ids.sort_unstable();
     let solid_units = units::solid_representation_units(&ids, &shape_items, &representation_units)?;
     let scene = scene::Scene::new(&exchange, &shape_items, &representation_units, &ids);
     scene.validate()?;
-    let all_occurrences = occurrences(
-        &table,
-        &scene,
-        &representation_units,
-        &source_occurrence_ids,
-    )?;
+    let all_occurrences =
+        occurrences(table, &scene, &representation_units, &source_occurrence_ids)?;
     let (occurrences, curve_occurrences): (Vec<_>, Vec<_>) = all_occurrences
         .into_iter()
         .partition(|(id, _, _)| table.manifold_solid_brep.contains_key(id));
@@ -322,17 +318,30 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                 Vec::new()
             };
             let selection = (*id, contextual.then_some(*representation));
-            let tolerance = if contextual && options.preview_repair_budget_mm.is_some() {
-                let max_scale = occurrences.iter()
-                    .filter(|(occ_id, _, occ_rep)| occ_id == id && occ_rep == representation)
-                    .map(|(_, placement, _)| placement.x.truncate().magnitude()
-                        .max(placement.y.truncate().magnitude()).max(placement.z.truncate().magnitude()))
-                    .fold(0.0_f64, f64::max);
-                if !max_scale.is_finite() || max_scale <= 0.0 {
-                    return Err("invalid occurrence scale for previewRepairBudgetMm".into());
-                }
-                PreviewTolerance { floor_mm: options.preview_repair_budget_mm.unwrap() / max_scale, declared_multiplier: 0.0 }
-            } else { preview_tolerance };
+            let tolerance =
+                if let Some(budget) = options.preview_repair_budget_mm.filter(|_| contextual) {
+                    let max_scale = occurrences
+                        .iter()
+                        .filter(|(occ_id, _, occ_rep)| occ_id == id && occ_rep == representation)
+                        .map(|(_, placement, _)| {
+                            placement
+                                .x
+                                .truncate()
+                                .magnitude()
+                                .max(placement.y.truncate().magnitude())
+                                .max(placement.z.truncate().magnitude())
+                        })
+                        .fold(0.0_f64, f64::max);
+                    if !max_scale.is_finite() || max_scale <= 0.0 {
+                        return Err("invalid occurrence scale for previewRepairBudgetMm".into());
+                    }
+                    PreviewTolerance {
+                        floor_mm: budget / max_scale,
+                        declared_multiplier: 0.0,
+                    }
+                } else {
+                    preview_tolerance
+                };
             let source = if normalized {
                 if contextual && options.preview_repair_budget_mm.is_some() {
                     let mut rep_table = table.clone();
@@ -351,10 +360,10 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             solid.source.insert(*representation, source);
         }
     }
-    let source_faces = source_face_catalogue(&original_source, &solids)?;
+    let source_faces = source_face_catalogue(original_source, &solids)?;
     let wireframe = wireframe::Wireframe::build(
-        &original_source,
-        &table,
+        original_source,
+        table,
         &curve_occurrences,
         &representation_units,
         &precision,
@@ -402,8 +411,8 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
                     && source.shell().faces.len() == 6 =>
             {
                 repair::Cuboid::from_original(
-                    &bytes,
-                    &original_source,
+                    bytes,
+                    original_source,
                     &repair_original,
                     id,
                     representation,
@@ -452,7 +461,9 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
             );
             repair_ledger.conversion_operations(
                 solid.source[representation].operations(shell_index),
-                solid.source[representation].complete_bound(shell_index).is_ok(),
+                solid.source[representation]
+                    .complete_bound(shell_index)
+                    .is_ok(),
                 shell_index,
                 solid.mm_per_unit,
                 *placement,
@@ -651,10 +662,22 @@ fn import(bytes: Vec<u8>, options: StepImportOptions) -> Result<ImportedStep, St
     };
     // Consume all authority borrows/captures before moving the input parts and
     // dropping the cached preview Table. Stored source has no authority handle.
-    let solids = solids.into_iter().map(|(id, solid)| (id, SourceSolid {
-        source: solid.source.into_iter().map(|(representation, owner)| (representation, owner.into_source())).collect(),
-        mm_per_unit: solid.mm_per_unit,
-    })).collect();
+    let solids = solids
+        .into_iter()
+        .map(|(id, solid)| {
+            (
+                id,
+                SourceSolid {
+                    source: solid
+                        .source
+                        .into_iter()
+                        .map(|(representation, owner)| (representation, owner.into_source()))
+                        .collect(),
+                    mm_per_unit: solid.mm_per_unit,
+                },
+            )
+        })
+        .collect();
     drop(scene);
     drop(exchange);
     let (bytes, original_source) = input.into_parts();

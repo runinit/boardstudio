@@ -21,10 +21,10 @@ struct Original {
 impl StepRepairSource {
     /// A resource-limited capture is incomplete; it is not a preview-input refusal.
     pub fn from_step_bytes(bytes: &[u8]) -> Result<Self, LoadError> {
-        // Before parsing/copying, charge a deliberately conservative bound for
-        // parsed records/holders, strings, hash-table spare capacity and the one
-        // temporary comparison clone. This authority never resolves references
-        // recursively into per-operation geometry copies.
+        // Legacy eligibility heuristic, not an authenticated allocation bound:
+        // nom/serde and holder growth are not precharged by this multiplier.
+        // Keep its conservative refusal policy for arbitrary caller tables.
+        // The sealed same-parse route below adds no second parser/table owner.
         let charged = bytes.len().checked_mul(1024);
         let failure = if bytes.len() > SOURCE_CAP {
             Some("repair source byte resource cap")
@@ -105,13 +105,33 @@ struct RepairReport {
 }
 
 /// Immutable bytes and the actual preview parse; the table is built once on demand.
+///
+/// Parser/holder allocations are existing preview input, not hard-capped report
+/// storage. Captures borrow this input and cannot extend its lifetime.
+///
+/// ```compile_fail
+/// use monstertruck_io::step::load::convert::StepRepairInput;
+/// let input = StepRepairInput::parse(Vec::new()).unwrap();
+/// let report = input.convert_solid(1, None, None).unwrap();
+/// let parts = input.into_parts();
+/// let _ = report.source(); // authority cannot outlive its immutable input
+/// ```
 #[derive(Debug)]
 pub struct StepRepairInput {
     bytes: Vec<u8>,
     exchange: step_p21::ast::Exchange,
     table: std::sync::OnceLock<Table>,
-    // Existing preview allocations, not a report allocation bound.
-    _input_capacities: (usize, usize, usize),
+    // Partial existing-preview diagnostics, not a total allocation bound. All
+    // actual AST/typed map/holder capacities remain owned by exchange/table;
+    // these scalars specifically retain the source/decode peak and DATA roots.
+    // Nested parser/serde allocations and allocator overhead remain unqualified.
+    _input_capacities: InputCapacities,
+}
+#[derive(Debug)]
+struct InputCapacities {
+    _source_bytes: usize,
+    _temporary_decoded_bytes: usize,
+    _data_sections: usize,
 }
 impl StepRepairInput {
     /// Parses the canonical preview input under the existing source byte limit.
@@ -121,7 +141,9 @@ impl StepRepairInput {
         }
         let text = match std::str::from_utf8(&bytes) {
             Ok(text) => std::borrow::Cow::Borrowed(text),
-            Err(_) => std::borrow::Cow::Owned(bytes.iter().map(|&byte| byte as char).collect::<String>()),
+            Err(_) => {
+                std::borrow::Cow::Owned(bytes.iter().map(|&byte| byte as char).collect::<String>())
+            }
         };
         let decoded_capacity = match &text {
             std::borrow::Cow::Borrowed(_) => 0,
@@ -131,27 +153,55 @@ impl StepRepairInput {
         if exchange.data.len() != 1 {
             return Err("STEP input requires exactly one DATA section".into());
         }
-        let capacities = (bytes.capacity(), decoded_capacity, exchange.data.capacity());
-        Ok(Self { bytes, exchange, table: std::sync::OnceLock::new(), _input_capacities: capacities })
+        let capacities = InputCapacities {
+            _source_bytes: bytes.capacity(),
+            _temporary_decoded_bytes: decoded_capacity,
+            _data_sections: exchange.data.capacity(),
+        };
+        Ok(Self {
+            bytes,
+            exchange,
+            table: std::sync::OnceLock::new(),
+            _input_capacities: capacities,
+        })
     }
     /// Canonical original bytes; no report copy or decoding round trip.
-    pub fn bytes(&self) -> &[u8] { &self.bytes }
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
     /// The same immutable parse used to construct the actual table.
-    pub fn exchange(&self) -> &step_p21::ast::Exchange { &self.exchange }
+    pub fn exchange(&self) -> &step_p21::ast::Exchange {
+        &self.exchange
+    }
     /// Actual immutable conversion table, cached from the original parse.
     pub fn table(&self) -> &Table {
-        self.table.get_or_init(|| Table::from_data_section(&self.exchange.data[0]))
+        self.table
+            .get_or_init(|| Table::from_data_section(&self.exchange.data[0]))
     }
     /// Executes the conversion once with this call's tolerance, borrowing authority.
-    pub fn convert_solid(&self, solid_id: u64, representation: Option<u64>, tolerance: Option<PreviewTolerance>) -> Result<StepRepairBorrowedConversion<'_>, LoadError> {
+    pub fn convert_solid(
+        &self,
+        solid_id: u64,
+        representation: Option<u64>,
+        tolerance: Option<PreviewTolerance>,
+    ) -> Result<StepRepairBorrowedConversion<'_>, LoadError> {
         let table = self.table();
         Ok(StepRepairBorrowedConversion {
             _input: self,
-            report: table.capture_repair(solid_id, representation, Some(table), 0, None, tolerance)?,
+            report: table.capture_repair(
+                solid_id,
+                representation,
+                Some(table),
+                0,
+                None,
+                tolerance,
+            )?,
         })
     }
     /// Moves preview inputs out after all borrowed reports have been consumed.
-    pub fn into_parts(self) -> (Vec<u8>, step_p21::ast::Exchange) { (self.bytes, self.exchange) }
+    pub fn into_parts(self) -> (Vec<u8>, step_p21::ast::Exchange) {
+        (self.bytes, self.exchange)
+    }
 }
 
 /// Same-call output and captures whose authority cannot outlive the sealed input.
@@ -162,21 +212,35 @@ pub struct StepRepairBorrowedConversion<'input> {
 }
 impl StepRepairBorrowedConversion<'_> {
     /// Actual owned conversion result from this invocation.
-    pub fn source(&self) -> &SourceBoundStepSolid { self.report.source() }
+    pub fn source(&self) -> &SourceBoundStepSolid {
+        self.report.source()
+    }
     /// Immutable stage views, borrowing only this report.
-    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> { self.report.operations(shell) }
+    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> {
+        self.report.operations(shell)
+    }
     /// Mathematical completeness, independent of source capture availability.
-    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> { self.report.complete_bound(shell) }
+    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
+        self.report.complete_bound(shell)
+    }
     /// Drops captures and the authority borrow, retaining ordinary preview geometry.
-    pub fn into_source(self) -> SourceBoundStepSolid { self.report.source }
+    pub fn into_source(self) -> SourceBoundStepSolid {
+        self.report.source
+    }
 }
 impl StepRepairConversion {
     /// Actual owned conversion result from this invocation.
-    pub fn source(&self) -> &SourceBoundStepSolid { self.report.source() }
+    pub fn source(&self) -> &SourceBoundStepSolid {
+        self.report.source()
+    }
     /// Immutable stage views, borrowing only this report.
-    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> { self.report.operations(shell) }
+    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> {
+        self.report.operations(shell)
+    }
     /// Complete mathematical repair bound, when supported by every stage.
-    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> { self.report.complete_bound(shell) }
+    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
+        self.report.complete_bound(shell)
+    }
 }
 /// Borrowed diagnostic view; callers cannot create a movement witness.
 #[derive(Debug)]
@@ -222,11 +286,11 @@ impl StepRepairOperation<'_> {
 }
 impl RepairReport {
     /// The immutable result emitted by the same checked conversion invocation.
-    pub fn source(&self) -> &SourceBoundStepSolid {
+    fn source(&self) -> &SourceBoundStepSolid {
         &self.source
     }
     /// Borrowed source-associated stage diagnostics for one shell.
-    pub fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> {
+    fn operations(&self, shell: usize) -> impl Iterator<Item = StepRepairOperation<'_>> {
         self.traces
             .get(shell)
             .into_iter()
@@ -234,7 +298,7 @@ impl RepairReport {
             .map(|operation| StepRepairOperation { operation })
     }
     /// Complete geometric repair only. Unknown numerical error is not zero repair.
-    pub fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
+    fn complete_bound(&self, shell: usize) -> Result<f64, &str> {
         if let Some(reason) = self.failure {
             return Err(reason);
         }
@@ -259,21 +323,45 @@ impl RepairReport {
             return Err("empty repair stage coverage");
         }
         for operation in &trace.operations {
-            if matches!(operation.stage, Stage::Numerical) { continue; }
+            if matches!(operation.stage, Stage::Numerical) {
+                continue;
+            }
             let value = operation.bound?;
-            if !value.is_finite() || value < 0.0 { return Err("invalid repair movement bound"); }
+            if !value.is_finite() || value < 0.0 {
+                return Err("invalid repair movement bound");
+            }
         }
         // Do not allocate a proof map outside the captured report's resource charge.
         let mut maximum = 0.0_f64;
         for (index, operation) in trace.operations.iter().enumerate() {
             if matches!(operation.stage, Stage::Numerical)
-                || trace.operations[..index].iter().any(|prior| !matches!(prior.stage, Stage::Numerical) && prior.ids.1 == operation.ids.1 && prior.ids.2 == operation.ids.2) { continue; }
+                || trace.operations[..index].iter().any(|prior| {
+                    !matches!(prior.stage, Stage::Numerical)
+                        && prior.ids.1 == operation.ids.1
+                        && prior.ids.2 == operation.ids.2
+                })
+            {
+                continue;
+            }
             let mut path = 0.0_f64;
             for next in &trace.operations[index..] {
-                if matches!(next.stage, Stage::Numerical) || next.ids.1 != operation.ids.1 || next.ids.2 != operation.ids.2 { continue; }
+                if matches!(next.stage, Stage::Numerical)
+                    || next.ids.1 != operation.ids.1
+                    || next.ids.2 != operation.ids.2
+                {
+                    continue;
+                }
                 let value = next.bound?;
-                path = if path == 0.0 { value } else if value == 0.0 { path } else { (path + value).next_up() };
-                if !path.is_finite() { return Err("repair movement accumulation overflow"); }
+                path = if path == 0.0 {
+                    value
+                } else if value == 0.0 {
+                    path
+                } else {
+                    (path + value).next_up()
+                };
+                if !path.is_finite() {
+                    return Err("repair movement accumulation overflow");
+                }
             }
             maximum = maximum.max(path);
         }
@@ -353,8 +441,7 @@ impl Table {
             entity_report,
             preview_tolerance: _,
         } = self;
-        true
-            && source_records == &other.source_records
+        true && source_records == &other.source_records
             && representation == &other.representation
             && representation_item == &other.representation_item
             && representation_context == &other.representation_context
@@ -412,9 +499,11 @@ impl Table {
             && product_definition_shape == &other.product_definition_shape
             && shape_definition_representation == &other.shape_definition_representation
             && shape_representation == &other.shape_representation
-            && context_dependent_shape_representation == &other.context_dependent_shape_representation
+            && context_dependent_shape_representation
+                == &other.context_dependent_shape_representation
             && shape_representation_relationship == &other.shape_representation_relationship
-            && shape_representation_relationship_with_transformation == &other.shape_representation_relationship_with_transformation
+            && shape_representation_relationship_with_transformation
+                == &other.shape_representation_relationship_with_transformation
             && next_assembly_usage_occurrence == &other.next_assembly_usage_occurrence
             && item_defined_transformation == &other.item_defined_transformation
             && geometric_curve_set == &other.geometric_curve_set
@@ -431,20 +520,35 @@ impl Table {
         original: &StepRepairSource,
     ) -> Result<StepRepairConversion, LoadError> {
         let mut failure = original.inner.failure;
-        if let Some(source) = &original.inner.table {
-            if !source.same_repair_input(self) {
-                // In particular, unauthenticated angle normalization must not
-                // borrow unchanged-carrier evidence from the original table.
-                failure = Some("original/conversion source mismatch or untraced normalization");
-            }
+        if let Some(source) = &original.inner.table
+            && !source.same_repair_input(self)
+        {
+            // In particular, unauthenticated angle normalization must not
+            // borrow unchanged-carrier evidence from the original table.
+            failure = Some("original/conversion source mismatch or untraced normalization");
         }
         Ok(StepRepairConversion {
-            report: self.capture_repair(solid_id, representation, original.inner.table.as_ref(), original.inner.charged_bytes, failure, self.preview_tolerance)?,
+            report: self.capture_repair(
+                solid_id,
+                representation,
+                original.inner.table.as_ref(),
+                original.inner.charged_bytes,
+                failure,
+                self.preview_tolerance,
+            )?,
             _original: Arc::clone(&original.inner),
         })
     }
 
-    fn capture_repair(&self, solid_id: u64, representation: Option<u64>, source_table: Option<&Table>, charged_bytes: usize, mut failure: Option<&'static str>, tolerance: Option<PreviewTolerance>) -> Result<RepairReport, LoadError> {
+    fn capture_repair(
+        &self,
+        solid_id: u64,
+        representation: Option<u64>,
+        source_table: Option<&Table>,
+        charged_bytes: usize,
+        mut failure: Option<&'static str>,
+        tolerance: Option<PreviewTolerance>,
+    ) -> Result<RepairReport, LoadError> {
         let storage = charged_bytes.checked_add(3 * std::mem::size_of::<usize>());
         if storage.is_none_or(|bytes| bytes > STORAGE_CAP) {
             failure = Some("repair capture storage resource cap");
@@ -462,8 +566,12 @@ impl Table {
                 STORAGE_CAP.saturating_sub(storage.unwrap_or(STORAGE_CAP)),
             ))
         });
-        let converted =
-            self.compressed_solid_with_repair_reported(solid, selection, capture_budget.clone(), tolerance)?;
+        let converted = self.compressed_solid_with_repair_reported(
+            solid,
+            selection,
+            capture_budget.clone(),
+            tolerance,
+        )?;
         let mut source = self.bind_source_solid(converted)?;
         let mut traces = Vec::new();
         let mut charged = capture_budget
@@ -479,7 +587,10 @@ impl Table {
                 .and_then(|size| charged.checked_add(size))
                 .filter(|size| *size <= STORAGE_CAP)
             {
-                Some(size) if traces.try_reserve_exact(source.shells().len()).is_ok() && traces.capacity() <= source.shells().len() => {
+                Some(size)
+                    if traces.try_reserve_exact(source.shells().len()).is_ok()
+                        && traces.capacity() <= source.shells().len() =>
+                {
                     charged = size
                 }
                 _ => failure = Some("repair shell trace storage resource cap"),
@@ -511,7 +622,11 @@ impl Table {
                         .shell()
                         .edges
                         .len()
-                        .checked_mul(std::mem::size_of::<Option<u64>>() + 2 * std::mem::size_of::<u64>() + std::mem::size_of::<Option<usize>>())
+                        .checked_mul(
+                            2 * (std::mem::size_of::<Option<u64>>()
+                                + 2 * std::mem::size_of::<u64>()
+                                + std::mem::size_of::<Option<usize>>()),
+                        )
                         .and_then(|ids| n.checked_add(ids))
                 });
             let resource_failure = failure.or_else(|| {
@@ -536,7 +651,9 @@ impl Table {
                     .then_some("finite carrier capture resource failure")),
             };
             if trace.failure.is_none() {
-                if trace.operations.try_reserve_exact(count.unwrap()).is_err() || trace.operations.capacity() > count.unwrap() {
+                if trace.operations.try_reserve_exact(count.unwrap()).is_err()
+                    || trace.operations.capacity() > count.unwrap()
+                {
                     trace.failure = Some("repair operation allocation failed");
                 } else {
                     trace.operations.push(Operation {
@@ -549,13 +666,29 @@ impl Table {
                     });
                     // Until a unique original edge/use domain is captured at
                     // the inverse/master branch, no final edge may fabricate it.
-                    let ids = source_table.and_then(|table| bind_edges(table, shell));
+                    // vec![value; n] requests precisely n elements (Vec's public
+                    // guarantee). Charge two layouts above for each workspace:
+                    // construction plus a possible into_boxed_slice shrink.
+                    // No growth policy or hash capacity is assumed. Allocator
+                    // bookkeeping is outside this requested-storage accounting.
+                    let mut id_storage = vec![0_u64; shell.shell().edges.len()].into_boxed_slice();
+                    let id_values = &mut *id_storage;
+                    let ids = if source_table
+                        .is_some_and(|table| bind_edges(table, shell, id_values).is_some())
+                    {
+                        Some(&*id_values)
+                    } else {
+                        None
+                    };
                     for (index, edge) in shell.shell().edges.iter().enumerate() {
-                        let id = ids
-                            .as_ref()
-                            .and_then(|ids| ids.as_slice().get(index))
-                            .copied()
-                            .filter(|id| source_table.is_some_and(|table| table.edge_curve.contains_key(id)));
+                        let id =
+                            ids.as_ref()
+                                .and_then(|ids| ids.get(index))
+                                .copied()
+                                .filter(|id| {
+                                    source_table
+                                        .is_some_and(|table| table.edge_curve.contains_key(id))
+                                });
                         for stage in [Stage::NativeInterval, Stage::Master] {
                             trace.operations.push(Operation {
                                 stage,
@@ -573,15 +706,10 @@ impl Table {
                     // Exact structural chaining authenticates the actual output,
                     // independently of endpoints or sampled evaluations.
                     let captured_curves = std::mem::take(&mut shell.repair_curves);
-                    let mut previous = Vec::<Option<usize>>::new();
+                    let mut previous_storage =
+                        vec![None::<usize>; shell.shell().edges.len()].into_boxed_slice();
+                    let previous = &mut *previous_storage;
                     let mut valid = ids.is_some();
-                    if previous.try_reserve_exact(shell.shell().edges.len()).is_err()
-                        || previous.capacity() > shell.shell().edges.len() {
-                        trace.failure = Some("repair chain index allocation failed");
-                        traces.push(trace);
-                        continue;
-                    }
-                    previous.resize(shell.shell().edges.len(), None);
                     for (ordinal, (id, change)) in captured_curves.iter().enumerate() {
                         valid &= change.surface_stage_valid();
                         if change.stage == "native-line-attachment-projection-v1" {
@@ -596,18 +724,24 @@ impl Table {
                                         .is_some_and(|native| native.matches_original(table, edge))
                                 });
                         }
-                        let index = ids.as_ref().and_then(|ids| ids.iter().position(|candidate| candidate == id));
+                        let index = ids
+                            .as_ref()
+                            .and_then(|ids| ids.iter().position(|candidate| candidate == id));
                         if let Some(index) = index {
                             if let Some(prior) = previous[index].replace(ordinal) {
                                 let prior = &captured_curves[prior].1;
                                 valid &= prior.after == change.before
-                                    && (prior.after_domain == change.before_domain || change.surface_restricts(prior.after_domain));
+                                    && (prior.after_domain == change.before_domain
+                                        || change.surface_restricts(prior.after_domain));
                             }
-                        } else { valid = false; }
+                        } else {
+                            valid = false;
+                        }
                     }
-                    for (index, ordinal) in previous.into_iter().enumerate() {
+                    for (index, ordinal) in previous.iter().enumerate() {
                         if let Some(ordinal) = ordinal {
-                            valid &= shell.shell().edges[index].curve == captured_curves[ordinal].1.after;
+                            valid &= shell.shell().edges[index].curve
+                                == captured_curves[*ordinal].1.after;
                         }
                     }
                     if !valid {
@@ -658,12 +792,14 @@ impl Table {
     }
 }
 
-fn bind_edges(table: &Table, source: &SourceBoundStepShell) -> Option<Vec<u64>> {
+// The caller precharges all simultaneous fixed-layout index workspaces.
+fn bind_edges(table: &Table, source: &SourceBoundStepShell, result: &mut [u64]) -> Option<()> {
     let count = source.shell().edges.len();
-    let mut ids = Vec::new();
-    ids.try_reserve_exact(count).ok()?;
-    if ids.capacity() > count { return None; }
-    ids.resize(count, None);
+    if result.len() != count {
+        return None;
+    }
+    let mut id_storage = vec![None::<u64>; count].into_boxed_slice();
+    let ids = &mut *id_storage;
     if source.source_face_ids().len() != source.shell().faces.len() {
         return None;
     }
@@ -704,13 +840,12 @@ fn bind_edges(table: &Table, source: &SourceBoundStepShell) -> Option<Vec<u64>> 
             }
         }
     }
-    let mut result = Vec::new();
-    let mut sorted = Vec::new();
-    result.try_reserve_exact(count).ok()?;
-    sorted.try_reserve_exact(count).ok()?;
-    if result.capacity() > count || sorted.capacity() > count { return None; }
-    for id in ids { result.push(id?); }
-    for &id in &result { sorted.push(id); }
+    let mut sorted_storage = vec![0_u64; count].into_boxed_slice();
+    let sorted = &mut *sorted_storage;
+    for ((result, sorted), id) in result.iter_mut().zip(sorted.iter_mut()).zip(ids.iter()) {
+        *result = (*id)?;
+        *sorted = *result;
+    }
     sorted.sort_unstable();
-    (!sorted.windows(2).any(|pair| pair[0] == pair[1])).then_some(result)
+    (!sorted.windows(2).any(|pair| pair[0] == pair[1])).then_some(())
 }

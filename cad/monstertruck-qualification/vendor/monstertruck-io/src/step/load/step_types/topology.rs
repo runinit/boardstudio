@@ -48,8 +48,15 @@ impl NativeLineProjection {
             native,
         })
     }
-    pub(in crate::step::load) fn matches_original(&self, table: &Table, edge: &EdgeCurveHolder) -> bool {
-        fn resolve<'a, T>(value: &'a PlaceHolder<T>, map: &'a std::collections::HashMap<u64, T>) -> Option<&'a T> {
+    pub(in crate::step::load) fn matches_original(
+        &self,
+        table: &Table,
+        edge: &EdgeCurveHolder,
+    ) -> bool {
+        fn resolve<'a, T>(
+            value: &'a PlaceHolder<T>,
+            map: &'a std::collections::HashMap<u64, T>,
+        ) -> Option<&'a T> {
             match value {
                 PlaceHolder::Ref(Name::Entity(id)) => map.get(id),
                 PlaceHolder::Owned(value) => Some(value),
@@ -64,8 +71,14 @@ impl NativeLineProjection {
         let Some((point, vector, direction)) = source.and_then(|source| {
             let point = resolve(&source.pnt, &table.cartesian_point)?;
             let vector = resolve(&source.dir, &table.vector)?;
-            Some((point, vector, resolve(&vector.orientation, &table.direction)?))
-        }) else { return false };
+            Some((
+                point,
+                vector,
+                resolve(&vector.orientation, &table.direction)?,
+            ))
+        }) else {
+            return false;
+        };
         point.coordinates.as_slice() == self.point
             && direction.direction_ratios.as_slice() == self.direction
             && vector.magnitude == self.magnitude

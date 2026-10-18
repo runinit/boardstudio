@@ -208,7 +208,9 @@ pub fn normalize_conical_angles(step: &str) -> Result<Exchange, String> {
     normalize_conical_exchange(&exchange).map(std::borrow::Cow::into_owned)
 }
 
-pub(super) fn normalize_conical_exchange(original: &Exchange) -> Result<std::borrow::Cow<'_, Exchange>, String> {
+pub(super) fn normalize_conical_exchange(
+    original: &Exchange,
+) -> Result<std::borrow::Cow<'_, Exchange>, String> {
     let exchange = original;
     if exchange.data.len() != 1 {
         return Err(format!(
@@ -216,15 +218,26 @@ pub(super) fn normalize_conical_exchange(original: &Exchange) -> Result<std::bor
             exchange.data.len()
         ));
     }
-    let representation_factors = radians_per_unit_by_representation(&exchange)?;
-    let cone_factors = conical_surface_factors(&exchange, &representation_factors)?;
+    let representation_factors = radians_per_unit_by_representation(exchange)?;
+    let cone_factors = conical_surface_factors(exchange, &representation_factors)?;
     let changed = exchange.data[0].entities.iter().any(|entity| {
-        let EntityInstance::Simple { id, record } = entity else { return false };
-        if record.name != "CONICAL_SURFACE" { return false; }
-        let Some(factor) = cone_factors.get(id) else { return false };
-        let Parameter::List(params) = &record.parameter else { return true };
+        let EntityInstance::Simple { id, record } = entity else {
+            return false;
+        };
+        if record.name != "CONICAL_SURFACE" {
+            return false;
+        }
+        let Some(factor) = cone_factors.get(id) else {
+            return false;
+        };
+        let Parameter::List(params) = &record.parameter else {
+            return true;
+        };
         match params.get(3) {
-            Some(Parameter::Real(value)) => { let result = *value * factor; !result.is_finite() || !result.tan().is_finite() || result != *value },
+            Some(Parameter::Real(value)) => {
+                let result = *value * factor;
+                !result.is_finite() || !result.tan().is_finite() || result != *value
+            }
             _ => true,
         }
     });

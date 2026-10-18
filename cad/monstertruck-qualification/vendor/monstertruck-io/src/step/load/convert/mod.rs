@@ -245,7 +245,9 @@ impl Table {
         tolerance: Option<PreviewTolerance>,
     ) -> Result<SourceMappedShell, LoadError> {
         if let Some(shell) = self.shell.get(&id) {
-            return Ok(self.compressed_shell_with_repair_reported(shell, selection, repair, tolerance)?);
+            return Ok(
+                self.compressed_shell_with_repair_reported(shell, selection, repair, tolerance)?
+            );
         }
         let oriented = self
             .oriented_shell
@@ -1543,7 +1545,10 @@ impl Table {
             return Err("failed to reference `solid.outer`".into());
         }
         let (outer, report, ids) = self.source_mapped_shell_with_repair_at(
-            outer_id, selection, repair.clone(), tolerance,
+            outer_id,
+            selection,
+            repair.clone(),
+            tolerance,
         )?;
         let mut boundaries = vec![outer];
         let mut reports = vec![report];
@@ -1554,9 +1559,8 @@ impl Table {
             if !self.oriented_shell.contains_key(&id) {
                 return Err("failed to reference an element of `solid.voids`".into());
             }
-            let (shell, report, ids) = self.source_mapped_shell_with_repair_at(
-                id, selection, repair.clone(), tolerance,
-            )?;
+            let (shell, report, ids) =
+                self.source_mapped_shell_with_repair_at(id, selection, repair.clone(), tolerance)?;
             boundaries.push(shell);
             reports.push(report);
             sources.push(ids);
@@ -2308,7 +2312,10 @@ impl StepShell for ShellHolder {
         StepConvertingError,
     > {
         let sink = LossSink::default().with_tolerance(table.preview_tolerance);
-        let connectivity = table.source_records.shell_connectivity(table, self, None, table.preview_tolerance);
+        let connectivity =
+            table
+                .source_records
+                .shell_connectivity(table, self, None, table.preview_tolerance);
         let (vertices, vidx_map) = table.shell_vertices(self, &sink);
         let (edges, eidx_map) = table.shell_edges(self, &vidx_map, &sink, &connectivity);
         let faces =
