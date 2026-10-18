@@ -3791,8 +3791,7 @@ mod tests {
             .as_string()
             .unwrap();
         let packet: serde_json::Value = serde_json::from_str(&serialized).unwrap();
-        let lines: Vec<f32> =
-            serde_json::from_value(packet["bodies"][0]["lines"].clone()).unwrap();
+        let lines: Vec<f32> = serde_json::from_value(packet["bodies"][0]["lines"].clone()).unwrap();
         assert_eq!(lines, [12.0, 26.0, 42.0, 18.0, 35.0, 54.0]);
     }
 
