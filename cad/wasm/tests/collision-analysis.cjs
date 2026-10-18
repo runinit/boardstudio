@@ -15,6 +15,13 @@ const body = {
   }],
 };
 const result = cad.analyze_generated_body(body, {});
+const pcb = JSON.parse(fs.readFileSync(path.join(__dirname, '../../monstertruck/tests/fixtures/pcb-source/circle-tracer.json')));
+const pcbDefault = cad.analyze_generated_body(pcb, {});
+const pcbRefined = cad.analyze_generated_body(pcb, {targetDeflectionMm: 0.01});
+assert.equal(pcbRefined.bodyId, pcb.body.id);
+assert.equal(pcbRefined.analysisErrorBoundMm, null);
+assert(pcbRefined.surfacePositionsMmF64.length > pcbDefault.surfacePositionsMmF64.length);
+assert(pcbRefined.sourceFaces.some(face => face.supportKind === 'REVOLUTION_SURFACE'));
 assert.equal(result.bodyId, body.body.id);
 assert.equal(result.revision, body.revision);
 assert.equal(result.vendorStep, undefined);

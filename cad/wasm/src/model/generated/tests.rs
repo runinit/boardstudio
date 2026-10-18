@@ -42,6 +42,34 @@ fn generated_analysis_keeps_body_geometry_and_face_tags_without_certification() 
     }
 }
 
+#[test]
+fn generated_pcb_analysis_uses_authored_circle_and_refines_only_when_requested() {
+    let input: PreparedCaseIR = serde_json::from_str(include_str!(
+        "../../../../monstertruck/tests/fixtures/pcb-source/circle-tracer.json"
+    ))
+    .unwrap();
+    let ordinary =
+        generated_body_analysis_data(&input, GeneratedBodyAnalysisOptions::default()).unwrap();
+    let refined = generated_body_analysis_data(
+        &input,
+        GeneratedBodyAnalysisOptions {
+            target_deflection_mm: Some(0.01),
+        },
+    )
+    .unwrap();
+    assert!(refined.positions_mm_f64.len() > ordinary.positions_mm_f64.len());
+    for mesh in [ordinary, refined] {
+        assert_eq!(mesh.analysis_error_bound_mm, None);
+        for point in mesh.positions_mm_f64.as_chunks::<3>().0 {
+            assert!(((point[0] - 10.0).hypot(point[1] - 8.0)) <= 2.0 + 1e-12);
+        }
+        assert!(mesh
+            .source_faces
+            .iter()
+            .any(|face| face.support_kind == "REVOLUTION_SURFACE"));
+    }
+}
+
 fn step_products(text: &str) -> Vec<(String, String)> {
     use step_p21::ast::{EntityInstance, Exchange, Parameter};
     let parsed: Exchange = text.parse().expect("independent Part21 syntax parser");
