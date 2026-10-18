@@ -272,6 +272,7 @@ pub fn new_project_id() -> Result<String, String> {
 type GeneratedAnalysisResult = Result<Rc<boardstudio_web_host::cad_jobs::CadGeneratedAnalysis>, String>;
 struct PendingGeneratedAnalysis {
     task: String,
+    batch: u64,
     waiters: Vec<futures_channel::oneshot::Sender<GeneratedAnalysisResult>>,
 }
 
@@ -3468,6 +3469,11 @@ impl Runtime {
         let (left_positions, left_tags) = left.mesh().ok_or("left analysis mesh is unavailable")?;
         let (right_positions, right_tags) =
             right.mesh().ok_or("right analysis mesh is unavailable")?;
+        let pair_bytes = left_positions.len().saturating_mul(8).saturating_add(left_tags.len().saturating_mul(4))
+            .saturating_add(right_positions.len().saturating_mul(8)).saturating_add(right_tags.len().saturating_mul(4));
+        if pair_bytes > boardstudio_web_host::cad_jobs::MAX_COLLISION_QUERY_BYTES {
+            return Err("collision pair exceeds the 64 MiB limit before copying".into());
+        }
         let worker = crate::case_model_lifecycle::case_model_worker(
             &self.cad_worker,
             &scope,
@@ -3855,6 +3861,10 @@ impl Runtime {
         }
         let receiver = {
             let mut pending = self.generated_analysis_pending.borrow_mut();
+            if pending.get(&cache_key).is_some_and(|entry| entry.batch != self.collision_batch.get())
+                && let Some(old) = pending.remove(&cache_key) {
+                for waiter in old.waiters { let _ = waiter.send(Err("generated analysis batch was retired".into())); }
+            }
             pending.get_mut(&cache_key).map(|pending| {
                 let (sender, receiver) = futures_channel::oneshot::channel();
                 pending.waiters.push(sender);
@@ -3891,7 +3901,7 @@ impl Runtime {
         self.native_model_jobs
             .borrow_mut()
             .insert(request.job_id.clone());
-        self.generated_analysis_pending.borrow_mut().insert(cache_key.clone(), PendingGeneratedAnalysis { task: request.job_id.clone(), waiters: Vec::new() });
+        self.generated_analysis_pending.borrow_mut().insert(cache_key.clone(), PendingGeneratedAnalysis { task: request.job_id.clone(), batch: self.collision_batch.get(), waiters: Vec::new() });
         let result: GeneratedAnalysisResult = async {
         let reply = worker.request(request.clone()).await;
         let active = self.native_model_jobs.borrow_mut().remove(&request.job_id);

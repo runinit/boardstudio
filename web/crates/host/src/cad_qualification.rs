@@ -277,7 +277,62 @@ pub fn add_up(a: f64, b: f64) -> f64 {
 pub fn add_down(a: f64, b: f64) -> f64 { -add_up(-a, -b) }
 fn mul_up(a: f64, b: f64) -> f64 {
     let product = a * b;
+    if !product.is_finite() || a == 0.0 || b == 0.0 { return product; }
+    if product < f64::MIN_POSITIVE {
+        // A subnormal residual can underflow even in FMA. Compare integer
+        // significands instead; their exact product occupies at most 106 bits.
+        fn parts(value: f64) -> (u128, i32) {
+            let bits = value.to_bits();
+            let exponent = ((bits >> 52) & 2047) as i32;
+            let fraction = (bits & ((1_u64 << 52) - 1)) as u128;
+            if exponent == 0 { (fraction, -1074) } else { (fraction | (1_u128 << 52), exponent - 1075) }
+        }
+        let (am, ae) = parts(a);
+        let (bm, be) = parts(b);
+        let (pm, pe) = parts(product);
+        let exact = am * bm;
+        let exact_bits = 128 - exact.leading_zeros() as i32;
+        let product_bits = 128 - pm.leading_zeros() as i32;
+        let exact_high = exact_bits + ae + be;
+        let product_high = product_bits + pe;
+        let rounded_down = pm == 0 || exact_high > product_high
+            || (exact_high == product_high && if ae + be < pe { exact > (pm << (pe - ae - be)) } else { (exact << (ae + be - pe)) > pm });
+        return if rounded_down { product.next_up() } else { product };
+    }
     if a.mul_add(b, -product) > 0.0 { product.next_up() } else { product }
+}
+
+// A short error-free expansion compares the exact sum, avoiding a second
+// rounding tax on a producer that rounded its complete contribution sum once.
+fn encloses_sum(bound: f64, terms: &[f64]) -> bool {
+    let mut expansion = vec![bound];
+    for term in terms {
+        let mut q = -*term;
+        let mut next = Vec::with_capacity(expansion.len() + 1);
+        for component in expansion {
+            let sum = q + component;
+            if !sum.is_finite() { return false; }
+            let virtual_component = sum - q;
+            let error = (q - (sum - virtual_component)) + (component - virtual_component);
+            if error != 0.0 { next.push(error); }
+            q = sum;
+        }
+        if q != 0.0 || next.is_empty() { next.push(q); }
+        expansion = next;
+    }
+    expansion.last().is_some_and(|value| *value >= 0.0)
+}
+
+fn encloses_scaled_plus_rounding(bound: f64, local: f64, norm: f64, rounding: f64) -> bool {
+    let product = local * norm;
+    if product < f64::MIN_POSITIVE && local > 0.0 && norm > 0.0 {
+        return encloses_sum(bound, &[mul_up(local, norm), rounding]);
+    }
+    product.is_finite() && encloses_sum(bound, &[product, local.mul_add(norm, -product), rounding])
+}
+
+pub fn pair_error_budget(lower: f64, upper: f64, left: f64, right: f64) -> f64 {
+    add_up(add_up(mul_up(add_up(upper, -lower), 0.5), left), right)
 }
 
 pub fn derivation_identity(source: &Source, mesh: &AnalysisMesh) -> String {
@@ -413,6 +468,7 @@ pub fn validate_query_qualification(report: QueryQualification, expected: &Bindi
         MeshDistance::Unknown { reasons } if reasons_valid(reasons) => {},
         MeshDistance::Bounded { lower_mm, upper_mm, witness_triangles }
             if nonnegative(*lower_mm) && nonnegative(*upper_mm) && lower_mm <= upper_mm
+                && add_up(*upper_mm, -*lower_mm) <= limits.requested_numerical_width_mm
                 && (witness_triangles[0] as usize) < meshes.left_triangle_face_occurrence_indices.len()
                 && (witness_triangles[1] as usize) < meshes.right_triangle_face_occurrence_indices.len()
                 && meshes.left_triangle_face_occurrence_indices.len() <= limits.max_triangles as usize
@@ -428,16 +484,16 @@ pub fn validate_query_qualification(report: QueryQualification, expected: &Bindi
                     || ![*direct_bound_mm, *source_precision_mm, *transform_rounding_mm, *total_bound_mm].into_iter().all(nonnegative) {
                     return Err("invalid world source contribution".into());
                 }
-                let minimum = match method.as_str() {
-                    "scaled-local-plus-row-rounding" => add_up(add_up(*direct_bound_mm, *source_precision_mm), *transform_rounding_mm),
-                    "direct-world" => add_up(*direct_bound_mm, *source_precision_mm),
+                let complete = match method.as_str() {
+                    "scaled-local-plus-row-rounding" => encloses_sum(*total_bound_mm, &[*direct_bound_mm, *source_precision_mm, *transform_rounding_mm]),
+                    "direct-world" => encloses_sum(*total_bound_mm, &[*direct_bound_mm, *source_precision_mm]),
                     _ => return Err("unknown world accounting method".into()),
                 };
-                if *total_bound_mm < minimum { return Err("world bound omits contributions".into()); }
+                if !complete { return Err("world bound omits contributions".into()); }
                 if let Some(sources) = sources {
                     let SourceQualification::Bounded { direct_bound_mm: direct, source_precision_mm: precision, total_bound_mm: total, .. } = sources[index] else { return Err("unknown asset cannot acquire world source proof".into()); };
                     if *source_precision_mm < mul_up(*precision, *norm_upper)
-                        || (method == "scaled-local-plus-row-rounding" && (*direct_bound_mm < mul_up(*direct, *norm_upper) || *total_bound_mm < add_up(mul_up(*total, *norm_upper), *transform_rounding_mm))) {
+                        || (method == "scaled-local-plus-row-rounding" && (*direct_bound_mm < mul_up(*direct, *norm_upper) || !encloses_scaled_plus_rounding(*total_bound_mm, *total, *norm_upper, *transform_rounding_mm))) {
                         return Err("world source bound loses asset contributions".into());
                     }
                 }

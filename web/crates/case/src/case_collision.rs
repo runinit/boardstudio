@@ -206,6 +206,7 @@ fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm
         BoardDisclosure { class: "m1-case-collision-provenance",
             heading: rsx! { summary { "Witness identity" } },
             for identity in finding.provenance_details() { p { "{identity}" } }
+            for detail in finding.qualification_details() { p { "{detail}" } }
         }
     }
 }

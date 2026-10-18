@@ -1385,6 +1385,37 @@ pub struct CadCollisionPairFinding {
 }
 
 impl CadCollisionPairFinding {
+    pub fn qualification_details(&self) -> Vec<String> {
+        use boardstudio_web_host::cad_qualification::{ContactRegion, Containment, ContainmentExclusion, WorldSourceBound};
+        let mut details = Vec::new();
+        if let Some([lower, upper]) = self.result.source_interval_mm {
+            details.push(format!("Source surface distance: [{lower:.9}, {upper:.9}] mm. This interval remains diagnostic when the finding is uncertain."));
+        }
+        if let Some(report) = &self.result.query_qualification {
+            for (side, bound) in ["Left", "Right"].into_iter().zip(&report.source_bounds) {
+                match bound {
+                    WorldSourceBound::Bounded { total_bound_mm, source_precision_mm, .. } => details.push(format!("{side} source allowance: {total_bound_mm:.9} mm, including declared source precision {source_precision_mm:.9} mm once.")),
+                    WorldSourceBound::Unknown { reasons } => details.push(format!("{side} source allowance unknown: {}", reasons.join("; "))),
+                }
+            }
+            match &report.contact_region {
+                ContactRegion::Boxes { pairs, .. } => {
+                    details.push(format!("Contact region: {} conservative box pairs.", pairs.len()));
+                    for pair in pairs { details.push(format!("Left box {:?} to {:?} mm; right box {:?} to {:?} mm.", pair.left_mm[0], pair.left_mm[1], pair.right_mm[0], pair.right_mm[1])); }
+                }
+                ContactRegion::Unknown { reasons } => details.push(format!("Contact region unknown: {}", reasons.join("; "))),
+            }
+            match &report.containment {
+                Containment::Unknown { reasons } => details.push(format!("Containment unknown: {}", reasons.join("; "))),
+                Containment::RuledOut { evidence: ContainmentExclusion::Slab { axis, .. } } => details.push(format!("Containment ruled out by separated source slabs on axis {axis}.")),
+                Containment::RuledOut { .. } => details.push("Containment ruled out by qualified global correspondence.".into()),
+                Containment::ContainedLeft { .. } | Containment::ContainedRight { .. } => details.push("Material overlap established; penetration depth remains unqualified.".into()),
+            }
+        }
+        if self.result.observation.is_some() { details.push("The raw mesh witness does not certify a unique source contact point, normal or penetration depth.".into()); }
+        details
+    }
+
     pub fn provenance_details(&self) -> [String; 2] {
         let describe = |id: &str, label: &str, provenance: &Option<CadSubjectFaceProvenance>| {
             let identity = match provenance {
@@ -1781,7 +1812,7 @@ pub fn assess_subject_collision_observation(
                 (MeshDistance::Bounded { lower_mm, upper_mm, .. }, [WorldSourceBound::Bounded { total_bound_mm: left, .. }, WorldSourceBound::Bounded { total_bound_mm: right, .. }]) => {
                     let lower = add_down(add_down(*lower_mm, -*left), -*right).max(0.0);
                     let upper = add_up(add_up(*upper_mm, *left), *right);
-                    let budget = add_up(add_up(add_up(*upper_mm, -*lower_mm) * 0.5, *left), *right);
+                    let budget = boardstudio_web_host::cad_qualification::pair_error_budget(*lower_mm, *upper_mm, *left, *right);
                     if lower.is_finite() && upper.is_finite() && budget.is_finite() {
                         source_interval_mm = Some([lower, upper]);
                         half_width = Some(budget);

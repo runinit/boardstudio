@@ -1368,6 +1368,16 @@ mod keycaps_worker_tests {
                     },
                   },
                 };
+                const q = input.collisionQuery;
+                const unknown = () => ({state:'unknown',reasons:['evidence-unavailable']});
+                result.queryQualification = {version:1,algorithm:'aabb-interval-exact-v1',limits:q.qualificationLimits,
+                  binding:{snapshotRevision:input.identity.revision,snapshot:{...input.identity,token:String(input.identity.token),sessionEpoch:String(input.identity.sessionEpoch)},
+                    workerGeneration:q.left.analysisRef.workerGeneration,leftModelId:q.left.modelId,rightModelId:q.right.modelId,
+                    leftMeshIdentity:q.left.analysisRef.meshIdentity,rightMeshIdentity:q.right.analysisRef.meshIdentity,
+                    leftAnalysis:q.left.analysisRef,rightAnalysis:q.right.analysisRef,leftMesh:q.left.analysisMesh,rightMesh:q.right.analysisMesh,
+                    leftRowTransformF64:q.left.rowTransformF64,rightRowTransformF64:q.right.rowTransformF64,
+                    clearanceThresholdMm:q.clearanceThresholdMm,requestedAccuracyMm:q.requestedAccuracyMm},
+                  meshDistance:unknown(),sourceBounds:[unknown(),unknown()],contactRegion:unknown(),containment:unknown()};
                 self.postMessage({ kind: "reply", frame, result });
               }
             };
@@ -1409,6 +1419,11 @@ mod keycaps_worker_tests {
         let id_mat = [
             1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ];
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../../cad/wasm/tests/fixtures/generated-analysis-contract.json")).unwrap();
+        let descriptor: qualification::AnalysisMesh = serde_json::from_value(fixture["qualificationV2"]["activation"]["descriptors"]["vendor"].clone()).unwrap();
+        let mut reference: qualification::AnalysisRef = serde_json::from_value(fixture["qualificationV2"]["activation"]["workerReferences"]["vendor"].clone()).unwrap();
+        reference.source = qualification::Source::VendorStep { source_sha256: sha_a.into(), import_options: CadStepImportOptions::default().into() };
+        reference.derivation_identity = qualification::derivation_identity(&reference.source, &descriptor);
         let collision_req = CadRequest {
             request_id: "col-1".into(),
             job_id: "col-job-1".into(),
@@ -1419,6 +1434,7 @@ mod keycaps_worker_tests {
             step_import_options: None,
             collision_query: Some(CadCollisionQuery {
                 left: CadCollisionOperand {
+                    analysis_ref: Some(reference.clone()), analysis_mesh: Some(descriptor.clone()),
                     model_id: "m1".into(),
                     source_sha256: Some(sha_a.into()),
                     generated_geometry_identity: None,
@@ -1426,6 +1442,7 @@ mod keycaps_worker_tests {
                     row_transform_f64: id_mat,
                 },
                 right: CadCollisionOperand {
+                    analysis_ref: Some(reference.clone()), analysis_mesh: Some(descriptor.clone()),
                     model_id: "m2".into(),
                     source_sha256: Some(sha_a.into()),
                     generated_geometry_identity: None,
@@ -1434,6 +1451,7 @@ mod keycaps_worker_tests {
                 },
                 clearance_threshold_mm: 0.5,
                 requested_accuracy_mm: None,
+                qualification_limits: Default::default(),
             }),
             generated_analysis_request: None,
             collision_meshes: Some(CadCollisionMeshPair {
@@ -1599,7 +1617,7 @@ impl WorkerQueue {
         if reference.worker_generation != self.generation { return Ok(None); }
         let Some(entry) = self.evidence.get(&reference.mesh_identity).cloned() else { return Ok(None); };
         if !same_scope(scope, &entry.scope) || &entry.reference != reference
-            || operand.analysis_mesh.as_ref() != Some(&entry.descriptor)
+            || serde_json::to_vec(&operand.analysis_mesh).ok() != serde_json::to_vec(&Some(&entry.descriptor)).ok()
             || entry.positions.len() != positions.len() || entry.tags != tags
             || entry.positions.iter().zip(positions).any(|(a,b)| a.to_bits() != b.to_bits()) {
             return Err("known analysis reference has mismatched scope/source/descriptor".into());
@@ -1638,9 +1656,10 @@ fn stage_analysis(queue: &Rc<RefCell<WorkerQueue>>, module: &JsValue, request: &
     let retained_bytes = if cost.is_null() { None } else {
         let number = cost.as_f64().ok_or("invalid retained storage cost")?;
         if !number.is_finite() || number < 0.0 || number.fract() != 0.0 || number > crate::cad_jobs::MAX_CAD_REVISION as f64 { return Err("invalid retained storage cost".into()); }
+        let metadata_bytes = serde_json::to_vec(&(&reference, &descriptor, &report, &request.identity)).map_err(|e| e.to_string())?.len();
         (number as usize).checked_add(positions.capacity().saturating_mul(8))
             .and_then(|n| n.checked_add(tags.capacity().saturating_mul(4)))
-            .and_then(|n| serde_json::to_vec(&reference).ok().and_then(|r| n.checked_add(r.len().saturating_mul(8))))
+            .and_then(|n| n.checked_add(metadata_bytes.saturating_mul(8)))
             .and_then(|n| n.checked_add(std::mem::size_of::<OwnedAnalysis>()))
     };
     Reflect::set(payload, &"analysisRef".into(), &js_sys::JSON::parse(&serde_json::to_string(&reference).map_err(|e| e.to_string())?).map_err(js_message)?).map_err(js_message)?;
@@ -2452,7 +2471,7 @@ mod generated_analysis_tests {
         let geometry_identity = generated_geometry_identity(&body).unwrap();
         assert!(
             geometry_identity
-                .starts_with(fixture["workerGeometryIdentityPrefix"].as_str().unwrap())
+                .starts_with(fixture["qualificationV2"]["generatedIdentityPrefix"].as_str().unwrap())
         );
         let metadata = CadGeneratedAnalysisRequest {
             body_id: body.body.id.clone(),
@@ -2674,21 +2693,7 @@ mod generated_analysis_tests {
             input_bytes: vec![],
         };
         let queue = Rc::new(RefCell::new(WorkerQueue::default()));
-        let module = Object::new();
-        let provider = Function::new_with_args(
-            "body, options",
-            r#"
-            if (body.body.id !== 'plate') throw new Error('selected body required');
-            return {bodyId: body.body.id, revision:body.revision,
-                surfacePositionsMmF64:new Float64Array([0,0,0,1,0,0,0,1,0]),
-                triangleFaceOccurrenceIndices:new Uint32Array([0]),
-                sourceFaces:[{solidIndex:0,shellIndex:0,faceIndex:4,supportKind:'plane'}],
-                faceOccurrences:[{sourceFaceIndex:0,solidOccurrenceIndex:0}],
-                analysisErrorBoundMm:null,meshClosedOriented:true,deflectionMm:options.targetDeflectionMm};
-        "#,
-        );
-        Reflect::set(&module, &"analyze_generated_body".into(), &provider).unwrap();
-        let module: JsValue = module.into();
+        let module = super::qualification_tests::controlled_provider(true);
         let (_, result) = run_request(&queue, &module, request.clone(), vec![])
             .await
             .unwrap_or_else(|(_, error, _)| panic!("{error}"));
@@ -2719,3 +2724,7 @@ mod generated_analysis_tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "cad_worker_qualification_tests.rs"]
+mod qualification_tests;
