@@ -74,6 +74,15 @@ const queryMs=performance.now()-queryAt;
 assert.equal(plane.observation.kind,'surface-separated');
 assert.equal(plane.observation.surfaceDistanceMm,1);
 const planeEvidence=plane.queryQualification;
+for(const [override,reason] of [[{maxTriangles:1},'triangle cap'],[{maximumExponent:0},'exponent cap']].filter(([,reason])=>!process.argv[3]||reason.startsWith(process.argv[3]))) {
+  const capped=clone(planeQuery);Object.assign(capped.qualificationLimits,override);
+  const response=checked(plate,plate,capped),q=response.queryQualification;
+  assert.equal(response.observation.kind,'surface-separated');assert.equal(response.observation.surfaceDistanceMm,1);
+  const states=[q.meshDistance,...q.sourceBounds,q.contactRegion,q.containment];
+  for(const state of states) assert.equal(state.state,'unknown',`${reason}: no certificate survives preflight refusal`);
+  for(const state of states) assert.deepEqual(state.reasons,[reason]);
+}
+
 const changedRow=clone(planeQuery);changedRow.right.rowTransformF64[14]=6;
 const changed=checked(plate,plate,changedRow).queryQualification;
 assert(changed.meshDistance.lowerMm<=4 && changed.meshDistance.upperMm>=4,'a different valid physical row is evaluated once');
@@ -156,6 +165,28 @@ assert(accuracy(vendorPair)<=0.1 && accuracy(vendorPair)>0.01);
 const wrongDerivation=clone(vendorQuery);wrongDerivation.left.analysisRef.derivationIdentity+='x';assert.throws(()=>invoke(vendor,vendor,wrongDerivation));
 const tight=clone(vendorQuery); tight.requestedAccuracyMm=0.01;
 assert(accuracy(checked(vendor,vendor,tight).queryQualification)>0.01,'tight budget remains Unknown in assessment');
+const unsupportedBytes=fs.readFileSync(path.resolve(__dirname,'../../monstertruck/tests/fixtures/touching-unit-boxes.step'));
+const unsupportedSha=crypto.createHash('sha256').update(unsupportedBytes).digest('hex');
+const unsupported=cad.read_step_model(new Uint8Array(unsupportedBytes),{sourceSha256:unsupportedSha}).vendorStep;
+assert.equal(unsupported.sourceQualification.state,'unknown');
+assert(unsupported.triangleFaceOccurrenceIndices.length>1);
+const unsupportedQuery=queryFrom(v2.queryExamples,unsupported,unsupported);
+for(const side of ['left','right']) {
+  unsupportedQuery[side].sourceSha256=unsupportedSha;
+  unsupportedQuery[side].analysisRef.source.sourceSha256=unsupportedSha;
+  unsupportedQuery[side].analysisRef.derivationIdentity='vendor-step-analysis-v2/'+unsupportedSha;
+}
+unsupportedQuery.qualificationLimits.maxTriangles=1;
+const unsupportedResponse=checked(unsupported,unsupported,unsupportedQuery);
+const rawMetadata=clone(unsupportedQuery);delete rawMetadata.qualificationLimits;
+for(const side of ['left','right']) {delete rawMetadata[side].analysisRef;delete rawMetadata[side].analysisMesh;}
+const rawUnsupported=cad.query_collision_mesh_pair(unsupported.surfacePositionsMmF64,unsupported.triangleFaceOccurrenceIndices,unsupported.surfacePositionsMmF64,unsupported.triangleFaceOccurrenceIndices,rawMetadata);
+assert.equal(rawUnsupported.kind,'surface-separated');
+assert.deepEqual(unsupportedResponse.observation,rawUnsupported);
+for(const state of [unsupportedResponse.queryQualification.meshDistance,...unsupportedResponse.queryQualification.sourceBounds,unsupportedResponse.queryQualification.contactRegion,unsupportedResponse.queryQualification.containment]) {
+  assert.deepEqual(state,{state:'unknown',reasons:['triangle cap']});
+}
+unsupported.analysisHandle.free();
 const reverse=clone(vendorQuery); [reverse.left.rowTransformF64,reverse.right.rowTransformF64]=[reverse.right.rowTransformF64,reverse.left.rowTransformF64];
 assert.equal(checked(vendor,vendor,reverse).queryQualification.containment.state,'unknown');
 const reduced=clone(vendorQuery); reduced.qualificationLimits.maxExactPairs=1;

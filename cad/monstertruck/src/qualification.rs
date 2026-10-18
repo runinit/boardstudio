@@ -255,6 +255,73 @@ mod tests {
         let body = serde_json::from_value(fixture()["preparedBody"].clone()).unwrap();
         prepare_generated_analysis(&crate::build_case(&body).unwrap(), None).unwrap()
     }
+    fn assert_cap_refusal(owner: &PreparedAnalysisMesh, limits: Limits, reason: &str) {
+        let mut raised = IDENTITY;
+        raised[14] = 3.;
+        let report = verify_analysis_pair(owner, owner, [IDENTITY, raised], limits);
+        assert!(report.world_positions().iter().all(|view| !view.is_empty()));
+        assert!(
+            matches!(&report.mesh_distance, MeshDistance::Unknown { .. }),
+            "{:?}",
+            report.mesh_distance
+        );
+        assert!(
+            report
+                .source_bounds
+                .iter()
+                .all(|bound| matches!(bound, WorldSourceBound::Unknown { .. })),
+            "{:?}",
+            report.source_bounds
+        );
+        assert!(
+            matches!(&report.containment, Containment::Unknown { .. }),
+            "{:?}",
+            report.containment
+        );
+        assert!(
+            matches!(&report.mesh_distance, MeshDistance::Unknown { reasons } if reasons == &[reason])
+        );
+        assert!(report.source_bounds.iter().all(
+            |bound| matches!(bound, WorldSourceBound::Unknown { reasons } if reasons == &[reason])
+        ));
+        assert!(
+            matches!(&report.contact_region, ContactRegion::Unknown { reasons } if reasons == &[reason])
+        );
+        assert!(
+            matches!(&report.containment, Containment::Unknown { reasons } if reasons == &[reason])
+        );
+        assert_eq!(report.query_counters(), [0, 0]);
+    }
+    #[test]
+    fn cap_preflight_refuses_triangle_budget_before_exact_work() {
+        let limits = Limits {
+            max_triangles: 1,
+            ..Limits::default()
+        };
+        assert_cap_refusal(&plate(), limits, "triangle cap");
+        let vendor = crate::import_step(
+            include_bytes!("../tests/fixtures/touching-unit-boxes.step").to_vec(),
+        )
+        .unwrap();
+        let unsupported = prepare_vendor_analysis(&vendor).unwrap();
+        assert!(matches!(
+            unsupported.source_qualification(),
+            SourceQualification::Unknown { .. }
+        ));
+        assert_cap_refusal(&unsupported, limits, "triangle cap");
+    }
+    #[test]
+    fn cap_preflight_refuses_exponent_budget_before_exact_work() {
+        assert_cap_refusal(
+            &plate(),
+            Limits {
+                maximum_exponent: 0,
+                ..Limits::default()
+            },
+            "exponent cap",
+        );
+    }
+
     #[test]
     fn real_preparations_bind_shared_activation_plate_vendor_and_mixed_pairs() {
         let plate = plate();

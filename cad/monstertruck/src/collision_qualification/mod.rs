@@ -213,14 +213,26 @@ pub(crate) fn asset_bound(model: &ImportedStep) -> Result<[f64; 3], Vec<String>>
     .map_err(|reason| vec![reason.into()])
 }
 
-fn owned_positions(owner: &crate::qualification::PreparedAnalysisMesh) -> Vec<FPoint> {
+fn local_positions(owner: &crate::qualification::PreparedAnalysisMesh) -> &[FPoint] {
     use crate::qualification::PreparedAnalysisView;
     match owner.export_view() {
-        PreparedAnalysisView::Generated(view) => {
-            view.emission.positions_mm_f64.as_chunks::<3>().0.to_vec()
-        }
-        PreparedAnalysisView::Vendor(view) => view.positions_mm_f64.to_vec(),
+        PreparedAnalysisView::Generated(view) => view.emission.positions_mm_f64.as_chunks::<3>().0,
+        PreparedAnalysisView::Vendor(view) => view.positions_mm_f64,
     }
+}
+fn final_triangle_count(owner: &crate::qualification::PreparedAnalysisMesh) -> Option<usize> {
+    use crate::qualification::PreparedAnalysisView;
+    let (positions, tags) = match owner.export_view() {
+        PreparedAnalysisView::Generated(view) => (
+            view.emission.positions_mm_f64.len(),
+            view.emission.triangle_face_occurrence_indices.len(),
+        ),
+        PreparedAnalysisView::Vendor(view) => (
+            view.positions_mm_f64.len().checked_mul(3)?,
+            view.triangle_face_occurrence_indices.len(),
+        ),
+    };
+    (positions != 0 && positions.is_multiple_of(9) && tags == positions / 9).then_some(tags)
 }
 fn world_surface(
     owner: &crate::qualification::PreparedAnalysisMesh,
@@ -234,7 +246,7 @@ fn world_surface(
     let (matrix, norm_squared) = affine(row)?;
     let norm_upper = sqrt_bounds(&norm_squared)?[1];
     let norm = Q::from_float(norm_upper).ok_or("row norm overflow")?;
-    let local = owned_positions(owner);
+    let local = local_positions(owner);
     let mut rounding = Q::zero();
     for (p, actual) in local.iter().zip(world) {
         let exact = transform(&point(*p)?, &matrix);
@@ -327,18 +339,47 @@ pub(crate) fn prepared_pair(
         world_positions: std::array::from_fn(|_| Vec::new()),
         counters: [0, 0],
     };
+    // Refuse effective caps before exact row arithmetic, source hulls or proof
+    // allocations. The float-only view remains available for raw observations.
+    let mut refusal = limits.validate().err();
+    if refusal.is_none() {
+        for owner in owners {
+            match final_triangle_count(owner) {
+                None => {
+                    refusal = Some("final buffer shape".into());
+                    break;
+                }
+                Some(count) if count > limits.max_triangles as usize => {
+                    refusal = Some("triangle cap".into());
+                    break;
+                }
+                Some(_) => (),
+            }
+        }
+    }
     let world: [Vec<FPoint>; 2] = std::array::from_fn(|side| {
-        owned_positions(owners[side])
-            .into_iter()
-            .map(|p| float_transform(p, &rows[side]))
+        local_positions(owners[side])
+            .iter()
+            .map(|&p| float_transform(p, &rows[side]))
             .collect()
     });
-    let mut report = unknown("query-proof-unavailable");
+    if refusal.is_none() {
+        let cap_min = 2f64.powi(limits.minimum_exponent);
+        let cap_max = 2f64.powi(limits.maximum_exponent);
+        let local = owners
+            .iter()
+            .flat_map(|owner| local_positions(owner).iter().flatten());
+        if local
+            .chain(rows.iter().flatten())
+            .chain(world.iter().flat_map(|points| points.iter().flatten()))
+            .any(|x| !x.is_finite() || (*x != 0. && !(cap_min..=cap_max).contains(&x.abs())))
+        {
+            refusal = Some("exponent cap".into());
+        }
+    }
+    let mut report = unknown(refusal.as_deref().unwrap_or("query-proof-unavailable"));
     report.world_positions = world.each_ref().map(|ps| ps.as_flattened().to_vec());
-    if let Err(reason) = limits.validate() {
-        report.mesh_distance = MeshDistance::Unknown {
-            reasons: vec![reason],
-        };
+    if refusal.is_some() {
         return report;
     }
     let [(bound_a, source_a), (bound_b, source_b)] = std::array::from_fn(|side| {
@@ -353,19 +394,6 @@ pub(crate) fn prepared_pair(
     });
     let [a, b] = world.map(|p| p.as_chunks::<3>().0.to_vec());
     report.source_bounds = [bound_a, bound_b];
-    let cap_min = 2f64.powi(limits.minimum_exponent);
-    let cap_max = 2f64.powi(limits.maximum_exponent);
-    if a.iter()
-        .chain(&b)
-        .flatten()
-        .flatten()
-        .any(|x| *x != 0. && !(cap_min..=cap_max).contains(&x.abs()))
-    {
-        report.mesh_distance = MeshDistance::Unknown {
-            reasons: vec!["exponent cap".into()],
-        };
-        return report;
-    }
     let sources = source_a
         .as_ref()
         .zip(source_b.as_ref())
