@@ -1,4 +1,6 @@
-use boardstudio_cad::{import_step, mesh_imported_step};
+use boardstudio_cad::{
+    StepImportOptions, import_step, import_step_with_options, mesh_imported_step,
+};
 
 const TETRA: &[u8] = include_bytes!("fixtures/tetra-mm.step");
 
@@ -565,7 +567,7 @@ fn declared_precision_is_typed_context_owned_and_unit_converted() {
             .iter()
             .all(|f| f.source_uncertainty_mm == Some(0.01))
     );
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    assert_eq!(model.accuracy().analysis_error_bound_mm, Some(0.01));
     let unassigned=tetra_with_precision("#300=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.01),#102,'distance_accuracy_value','test');").replace("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#300))","");
     let model = import_step(unassigned.into_bytes()).unwrap();
     assert!(
@@ -574,6 +576,7 @@ fn declared_precision_is_typed_context_owned_and_unit_converted() {
             .iter()
             .all(|p| p.uncertainty_mm().is_none())
     );
+    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
 }
 
 #[test]
@@ -606,7 +609,7 @@ fn mapped_precision_is_scaled_in_world_mm_without_borrowing_another_context() {
             Some(if face.occurrence == 0 { 0.001 } else { 0.002 })
         );
     }
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+    assert_eq!(model.accuracy().analysis_error_bound_mm, Some(0.002));
 }
 
 #[test]
@@ -675,8 +678,9 @@ fn owned_plane_support_allowance_keeps_original_source_and_unqualified_preview()
         model
             .face_occurrences()
             .iter()
-            .all(|f| f.source_uncertainty_mm == Some(0.01) && f.repair_displacement_mm == 0.)
+            .all(|f| f.source_uncertainty_mm == Some(0.01))
     );
+    assert!((model.accuracy().max_repair_displacement_mm - 0.001).abs() < 1e-12);
     let unknown = text.replace("GEOMETRIC_REPRESENTATION_CONTEXT(3) ", "");
     let error = import_step(unknown.into_bytes())
         .err()
@@ -993,7 +997,7 @@ fn selected_pcurve_cube_units_keep_full_original_parameter_extent() {
         assert_bounds(model.bounds(), [[0., 0., 0.], [10. * factor; 3]]);
         assert_eq!(model.original_bytes(), source.as_bytes());
         assert_eq!(model.source_faces().len(), 6);
-        assert_eq!(model.accuracy().analysis_error_bound_mm, None);
+        assert_eq!(model.accuracy().analysis_error_bound_mm, Some(1.0e-7 * factor));
         assert!(model.accuracy().bounds_from_source_geometry);
     }
 }
@@ -1118,6 +1122,78 @@ fn exactly_certified_geometry_records_no_sampled_checks() {
     let model = import_step(TETRA.to_vec()).unwrap();
     assert_eq!(model.accuracy().sampled_support_checks, 0);
     assert_eq!(model.accuracy().max_sampled_support_residual_mm, None);
+}
+
+#[test]
+fn explicit_preview_repair_budget_retains_declaration_selected_budget_and_actual_movement_without_certifying_analysis() {
+    let source = tetra_with_plane_gap("0.001", "0.025");
+    assert!(
+        import_step(source.clone().into_bytes()).is_err(),
+        "0.025 mm exceeds the default max(2 x 0.001, 0.02) mm allowance"
+    );
+    assert!(
+        import_step_with_options(
+            source.clone().into_bytes(),
+            StepImportOptions {
+                preview_repair_budget_mm: Some(0.024),
+                target_deflection_mm: None,
+            },
+        )
+        .is_err(),
+        "over-budget repair must refuse"
+    );
+    let model = import_step_with_options(
+        source.clone().into_bytes(),
+        StepImportOptions {
+            preview_repair_budget_mm: Some(0.03),
+            target_deflection_mm: None,
+        },
+    )
+    .expect("0.025 mm gap imports under an explicit 0.03 mm preview repair budget");
+    assert_eq!(model.original_bytes(), source.as_bytes());
+    assert_eq!(model.precision()[0].uncertainty_mm(), Some(0.001));
+    assert_eq!(model.accuracy().selected_repair_budget_mm, Some(0.03));
+    assert!((model.accuracy().max_repair_displacement_mm - 0.025).abs() < 1e-12);
+    assert!(model.accuracy().relaxed_beyond_declared_precision);
+    assert_eq!(
+        model.accuracy().analysis_error_bound_mm,
+        None,
+        "an explicit preview repair allowance is never an analysis error certificate"
+    );
+    assert!(
+        model
+            .face_occurrences()
+            .iter()
+            .all(|f| f.source_uncertainty_mm == Some(0.001))
+    );
+    assert!(
+        model
+            .face_occurrences()
+            .iter()
+            .any(|f| (f.repair_displacement_mm - 0.025).abs() < 1e-12)
+    );
+}
+
+#[test]
+fn on_demand_deflection_refinement_does_not_certify_a_nominal_tolerance() {
+    let cylinder = include_bytes!("fixtures/freecad-cylinder.step").to_vec();
+    let default_import = import_step(cylinder.clone()).expect("default cylinder import");
+    assert_eq!(default_import.accuracy().analysis_error_bound_mm, None);
+
+    let refined_import = import_step_with_options(
+        cylinder,
+        StepImportOptions {
+            preview_repair_budget_mm: None,
+            target_deflection_mm: Some(0.004),
+        },
+    )
+    .expect("refined cylinder import");
+    assert_eq!(refined_import.accuracy().analysis_error_bound_mm, None);
+    assert_eq!(refined_import.accuracy().preview_deflection_mm, 0.004);
+    assert!(
+        refined_import.mesh().positions.len() > default_import.mesh().positions.len(),
+        "tighter deflection refines curved cylinder mesh"
+    );
 }
 
 /// Faces the ordinary mesher cannot chart (pole and seam bands, sub-tolerance slivers) are

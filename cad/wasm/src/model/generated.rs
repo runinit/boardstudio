@@ -185,6 +185,49 @@ pub fn export_cached_assembly(input: JsValue, keys: JsValue) -> Result<JsValue, 
     Ok(result.into())
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct GeneratedBodyAnalysisOptions {
+    source_sha256: String,
+    #[serde(default)]
+    target_deflection_mm: Option<f64>,
+}
+
+pub(crate) fn build_generated_body_analysis_asset(
+    ir: &PreparedCaseIR,
+    key: &str,
+    source_sha256: String,
+    target_deflection_mm: Option<f64>,
+) -> Result<super::vendor_step::ReadStepAsset, String> {
+    let entry = cache::body(ir, key, false, &mut |_| Ok(()))?;
+    let analysis =
+        boardstudio_cad::mesh_profile_for_analysis(&entry.model, target_deflection_mm)?;
+    super::vendor_step::ReadStepAsset::from_generated_analysis(
+        source_sha256,
+        target_deflection_mm,
+        analysis,
+    )
+}
+
+#[wasm_bindgen]
+pub fn build_generated_body_analysis(
+    input: JsValue,
+    key: String,
+    options: JsValue,
+) -> Result<JsValue, JsValue> {
+    let ir: PreparedCaseIR = deserialize(input)?;
+    let options: GeneratedBodyAnalysisOptions = serde_wasm_bindgen::from_value(options)
+        .map_err(|error| js_error(format!("Invalid generated analysis options: {error}")))?;
+    build_generated_body_analysis_asset(
+        &ir,
+        &key,
+        options.source_sha256,
+        options.target_deflection_mm,
+    )
+    .map_err(js_error)?
+    .to_js_value()
+}
+
 #[cfg(test)]
 #[path = "generated/tests.rs"]
 mod tests;

@@ -8,13 +8,15 @@ mod profile;
 
 pub use mesh::MeshBuffers;
 pub use profile::{
-    ExactModel, ProfileInput, ProfileKind, ProfileRegion, build_profile, mesh_profile,
+    ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace, ProfileInput, ProfileKind,
+    ProfileRegion, build_profile, mesh_profile, mesh_profile_for_analysis,
 };
 
 mod step;
 pub use step::{
-    ImportedStep, StepAccuracy, StepFaceOccurrence, StepLineOccurrence, StepLinePresentation,
-    StepPrecision, StepSourceFace, StepUncertainty, import_step, mesh_imported_step,
+    ImportedStep, StepAccuracy, StepFaceOccurrence, StepImportOptions, StepLineOccurrence,
+    StepLinePresentation, StepPrecision, StepSourceFace, StepUncertainty, import_step,
+    import_step_with_options, mesh_imported_step,
 };
 
 #[cfg(test)]
