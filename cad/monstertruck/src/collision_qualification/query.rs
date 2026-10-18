@@ -229,7 +229,7 @@ pub(super) fn distance(
     a: &[FTriangle],
     b: &[FTriangle],
     seed: [usize; 2],
-    errors: Option<[f64; 2]>,
+    sources: Option<[&QualifiedSurface; 2]>,
     limits: Limits,
 ) -> Check<Distance> {
     if limits.max_triangles == 0
@@ -337,15 +337,18 @@ pub(super) fn distance(
     if !within_width(mm, limits.numerical_width_mm) {
         return Err("numerical refinement unavailable");
     }
-    let contact = match errors {
+    let contact = match sources {
         None => ContactRegion::Unknown("source certificates unavailable"),
-        Some(e) if e.iter().any(|x| !x.is_finite() || *x < 0.0) => {
-            return Err("invalid source bound");
+        Some(sources) => {
+            if sources[0].triangles != a || sources[1].triangles != b {
+                return Err("source certificate mesh mismatch");
+            }
+            let e = sources.map(|s| s.bound.total_mm);
+            match contact_boxes([a, b], [&ta, &tb], mm[1], e, limits, &mut node_pairs) {
+                Ok(x) => ContactRegion::Boxes(x),
+                Err(reason) => ContactRegion::Unknown(reason),
+            }
         }
-        Some(e) => match contact_boxes([a, b], [&ta, &tb], mm[1], e, limits, &mut node_pairs) {
-            Ok(x) => ContactRegion::Boxes(x),
-            Err(reason) => ContactRegion::Unknown(reason),
-        },
     };
     Ok(Distance {
         mm,

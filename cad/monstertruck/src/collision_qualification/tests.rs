@@ -113,7 +113,7 @@ fn capacitor_pair_uses_slab_and_keeps_broad_nonunique_contacts() {
         &a.triangles,
         &b.triangles,
         [0, 0],
-        Some([a.bound.total_mm, b.bound.total_mm]),
+        Some([&a, &b]),
         Limits {
             max_contact_boxes: 1,
             ..Limits::default()
@@ -144,6 +144,16 @@ fn capacitor_pair_uses_slab_and_keeps_broad_nonunique_contacts() {
         [0.625, -2., 1.35],
         [0.625, -1., 1.35]
     ));
+    assert!(
+        query::distance(
+            &a.triangles,
+            &b.triangles,
+            [0, 0],
+            Some([&b, &a]),
+            Limits::default(),
+        )
+        .is_err()
+    );
     let half_width = (result.mm[1] - result.mm[0]) / 2.0 + a.bound.total_mm + b.bound.total_mm;
     assert!(
         result.mm[0] - a.bound.total_mm - b.bound.total_mm <= 1.0
@@ -186,7 +196,7 @@ fn thirty_degree_affine_control_counts_exact_rounding_once() {
         &a.triangles,
         &b.triangles,
         [0, 0],
-        Some([a.bound.total_mm, b.bound.total_mm]),
+        Some([&a, &b]),
         Limits::default(),
     )
     .unwrap();
