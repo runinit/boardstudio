@@ -4,9 +4,9 @@ use super::*;
 mod adapter;
 mod lettering;
 mod mesh_template;
-mod printing;
 #[cfg(test)]
-mod print_coverage;
+mod print_legend_tests;
+mod printing;
 mod request;
 
 use request::Request;
