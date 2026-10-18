@@ -502,6 +502,8 @@ enum CacheSlot {
     Ready(Rc<ValidatedMesh>),
     Refreshing {
         task_token: u64,
+        batch: String,
+        is_current: Rc<dyn Fn() -> bool>,
     },
 }
 
@@ -608,18 +610,16 @@ impl ModelMeshCache {
                     self.touch(sha256);
                     return Ok(MeshCacheClaim::JoinPending { task_token });
                 }
-                CacheSlot::Pending { .. } => {}
-                CacheSlot::Refreshing { task_token } => {
-                    return Ok(MeshCacheClaim::JoinPending {
-                        task_token: *task_token,
-                    });
-                }
+                // An evidence batch does not carry a comparable preview owner.
+                CacheSlot::Pending { .. } | CacheSlot::Refreshing { .. } => {}
             }
         }
 
         let task_token = self.allocate_task_token()?;
         let superseded = match self.slots.get(sha256) {
-            Some(CacheSlot::Pending { task_token, .. }) => Some(EvictedTask {
+            Some(
+                CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. },
+            ) => Some(EvictedTask {
                 sha256: sha256.to_owned(),
                 task_token: *task_token,
             }),
@@ -643,7 +643,7 @@ impl ModelMeshCache {
 
     pub fn complete(&mut self, sha256: &str, task_token: u64, mesh: Rc<ValidatedMesh>) -> bool {
         let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current }) if *current == task_token);
+            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current, .. }) if *current == task_token);
         if current {
             self.slots.insert(sha256.to_owned(), CacheSlot::Ready(mesh));
             self.touch(sha256);
@@ -655,7 +655,7 @@ impl ModelMeshCache {
     /// task. A superseded task has no authority to evict the replacement.
     pub fn fail(&mut self, sha256: &str, task_token: u64) -> bool {
         let current = matches!(self.slots.get(sha256),
-            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current }) if *current == task_token);
+            Some(CacheSlot::Pending { task_token: current, .. } | CacheSlot::Refreshing { task_token: current, .. }) if *current == task_token);
         if current {
             self.slots.remove(sha256);
             self.recency.retain(|key| key != sha256);
@@ -671,13 +671,23 @@ impl ModelMeshCache {
         Ok(token)
     }
 
-    fn claim_evidence_refresh(&mut self, key: &str, batch: &str) -> Result<MeshCacheClaim, String> {
+    fn claim_evidence_refresh(
+        &mut self,
+        key: &str,
+        batch: &str,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<MeshCacheClaim, String> {
         if self.evidence_batch.as_deref() != Some(batch) {
             self.evidence_attempts.clear();
             self.evidence_batch = Some(batch.into());
         }
-        if let Some(CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token }) =
-            self.slots.get(key)
+        if let Some(CacheSlot::Refreshing {
+            task_token,
+            batch: owner,
+            is_current,
+        }) = self.slots.get(key)
+            && owner == batch
+            && is_current()
         {
             self.evidence_attempts.insert(key.into(), batch.into());
             return Ok(MeshCacheClaim::JoinPending {
@@ -695,14 +705,31 @@ impl ModelMeshCache {
             };
         }
         let task_token = self.allocate_task_token()?;
+        // Ordinary preview Pending has a typed preview owner, not an evidence
+        // batch. Without comparable ownership, neither path may join the other.
+        let superseded = match self.slots.get(key) {
+            Some(
+                CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. },
+            ) => Some(EvictedTask {
+                sha256: key.into(),
+                task_token: *task_token,
+            }),
+            _ => None,
+        };
         let evicted = self.make_room_for(key);
         self.evidence_attempts.insert(key.into(), batch.into());
-        self.slots
-            .insert(key.into(), CacheSlot::Refreshing { task_token });
+        self.slots.insert(
+            key.into(),
+            CacheSlot::Refreshing {
+                task_token,
+                batch: batch.into(),
+                is_current,
+            },
+        );
         self.touch(key);
         Ok(MeshCacheClaim::Start {
             task_token,
-            superseded: None,
+            superseded,
             evicted,
         })
     }
@@ -714,7 +741,7 @@ impl ModelMeshCache {
         let victim = self.recency.pop_front()?;
         let slot = self.slots.remove(&victim)?;
         match slot {
-            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token } => {
+            CacheSlot::Pending { task_token, .. } | CacheSlot::Refreshing { task_token, .. } => {
                 Some(EvictedTask {
                     sha256: victim,
                     task_token,
@@ -887,12 +914,15 @@ impl<T> WaitCell<T> {
     }
 
     fn settle(&self, value: T) {
-        let mut state = self.state.borrow_mut();
-        if state.value.is_some() {
-            return;
-        }
-        state.value = Some(value);
-        for waker in state.wakers.drain(..) {
+        let wakers = {
+            let mut state = self.state.borrow_mut();
+            if state.value.is_some() {
+                return;
+            }
+            state.value = Some(value);
+            std::mem::take(&mut state.wakers)
+        };
+        for waker in wakers {
             waker.wake();
         }
     }
@@ -926,6 +956,28 @@ pub struct ModelDeliveryAdapter {
     pending: Rc<std::cell::RefCell<PendingModelWaiters>>,
 }
 
+/// Only a START owner may retire its token when its caller drops the future.
+/// JOIN waiters never own this guard; old tokens cannot fail a replacement slot.
+struct RefreshProducer<'a> {
+    cache: &'a std::cell::RefCell<ModelMeshCache>,
+    pending: &'a std::cell::RefCell<PendingModelWaiters>,
+    task: &'a TaskKey,
+    armed: bool,
+}
+
+impl Drop for RefreshProducer<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.cache.borrow_mut().fail(&self.task.0, self.task.1);
+            settle_task(
+                self.pending,
+                self.task,
+                Err("evidence preparation cancelled".into()),
+            );
+        }
+    }
+}
+
 impl ModelDeliveryAdapter {
     /// A missing proof lease may replace a ready full asset once per check batch.
     /// Concurrent callers join the same task and only its token can settle it.
@@ -941,18 +993,25 @@ impl ModelDeliveryAdapter {
             return Err("evidence preparation became stale".into());
         }
         let key = derived_step_cache_key(sha, options)?;
-        let claim = self
-            .cache
-            .borrow_mut()
-            .claim_evidence_refresh(&key, batch)?;
+        let claim =
+            self.cache
+                .borrow_mut()
+                .claim_evidence_refresh(&key, batch, is_current.clone())?;
         let (task_token, start) = match claim {
             MeshCacheClaim::Reuse(asset) => return Ok(asset),
             MeshCacheClaim::JoinPending { task_token } => (task_token, false),
             MeshCacheClaim::Start {
                 task_token,
                 evicted,
-                ..
+                superseded,
             } => {
+                if let Some(task) = superseded {
+                    settle_pending(
+                        &self.pending,
+                        &task,
+                        Err("evidence preparation superseded".into()),
+                    );
+                }
                 if let Some(task) = evicted {
                     settle_pending(
                         &self.pending,
@@ -971,6 +1030,12 @@ impl ModelDeliveryAdapter {
             .or_default()
             .push(cell.clone());
         if start {
+            let mut producer = RefreshProducer {
+                cache: &self.cache,
+                pending: &self.pending,
+                task: &task,
+                armed: true,
+            };
             let result = load
                 .await
                 .and_then(|arrays| {
@@ -1008,6 +1073,7 @@ impl ModelDeliveryAdapter {
                 }
             };
             settle_task(&self.pending, &task, result);
+            producer.armed = false;
         }
         let result = WaitCellFuture { cell }.await;
         if !is_current() {
@@ -1290,7 +1356,8 @@ fn settle_task(
     key: &TaskKey,
     result: ModelResult,
 ) {
-    if let Some(waiters) = pending.borrow_mut().remove(key) {
+    let waiters = pending.borrow_mut().remove(key);
+    if let Some(waiters) = waiters {
         for waiter in waiters {
             waiter.settle(result.clone());
         }
@@ -3093,33 +3160,58 @@ mod tests {
             MeshCacheClaim::Start { task_token, .. } => task_token,
             _ => panic!("initial task"),
         };
-        assert!(
-            matches!(cache.claim_evidence_refresh("asset", "check-1").unwrap(), MeshCacheClaim::JoinPending { task_token } if task_token == token)
-        );
+        let refreshed = match cache
+            .claim_evidence_refresh("asset", "check-1", Rc::new(|| true))
+            .unwrap()
+        {
+            MeshCacheClaim::Start {
+                task_token,
+                superseded: Some(old),
+                ..
+            } => {
+                assert_eq!(old.task_token, token);
+                task_token
+            }
+            _ => panic!("an evidence batch cannot join an unrelated preview owner"),
+        };
         let mesh = Rc::new(ValidatedMesh::try_from(valid_arrays()).unwrap());
-        assert!(cache.complete("asset", token, mesh.clone()));
+        assert!(!cache.complete("asset", token, mesh.clone()));
+        assert!(cache.complete("asset", refreshed, mesh.clone()));
         assert!(matches!(
-            cache.claim_evidence_refresh("asset", "check-1").unwrap(),
+            cache
+                .claim_evidence_refresh("asset", "check-1", Rc::new(|| true))
+                .unwrap(),
             MeshCacheClaim::Reuse(_)
         ));
-        let newer = match cache.claim_evidence_refresh("asset", "check-2").unwrap() {
+        let newer = match cache
+            .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+            .unwrap()
+        {
             MeshCacheClaim::Start { task_token, .. } => task_token,
             _ => panic!("explicit refresh"),
         };
         assert!(!cache.complete("asset", token, mesh));
         assert!(cache.fail("asset", newer));
-        assert!(cache.claim_evidence_refresh("asset", "check-2").is_err());
+        assert!(
+            cache
+                .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+                .is_err()
+        );
         for index in 0..81 {
             cache
-                .claim_evidence_refresh(&format!("other-{index}"), "check-2")
+                .claim_evidence_refresh(&format!("other-{index}"), "check-2", Rc::new(|| true))
                 .unwrap();
         }
         assert!(
-            cache.claim_evidence_refresh("asset", "check-2").is_err(),
+            cache
+                .claim_evidence_refresh("asset", "check-2", Rc::new(|| true))
+                .is_err(),
             "LRU pressure cannot erase the attempt marker"
         );
         assert!(matches!(
-            cache.claim_evidence_refresh("asset", "check-3").unwrap(),
+            cache
+                .claim_evidence_refresh("asset", "check-3", Rc::new(|| true))
+                .unwrap(),
             MeshCacheClaim::Start { .. }
         ));
 
@@ -3158,6 +3250,362 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    fn refresh_arrays(sha: &str) -> MeshArrays {
+        use boardstudio_web_host::cad_jobs::{
+            CadBounds, CadStepAccuracy, CadStepFaceOccurrence, CadStepSourceFace, CadVendorStep,
+        };
+        let mut arrays = valid_arrays();
+        arrays.step_bounds = Some(CadBounds {
+            min: [0.; 3],
+            max: [0.; 3],
+        });
+        arrays.vendor_step = Some(Rc::new(CadVendorStep {
+            source_sha256: sha.into(),
+            surface_positions_mm_f64: vec![0.; 9],
+            source_faces: vec![CadStepSourceFace {
+                solid_id: "10".into(),
+                shell_index: 0,
+                face_id: "20".into(),
+                support_id: "30".into(),
+                support_kind: "PLANE".into(),
+            }],
+            face_occurrences: vec![CadStepFaceOccurrence {
+                source_face_index: 0,
+                solid_occurrence_index: 0,
+                representation_id: "40".into(),
+                source_uncertainty_mm: None,
+                repair_displacement_mm: None,
+            }],
+            triangle_face_occurrence_indices: vec![0],
+            accuracy: CadStepAccuracy {
+                preview_deflection_mm: 0.1,
+                preview_angular_rad: 0.5,
+                ..Default::default()
+            },
+            ..Default::default()
+        }));
+        arrays
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn dropped_refresh_producer_settles_owned_waiters_and_new_batch_recovers() {
+        let adapter = ModelDeliveryAdapter::default();
+        let sha = "a".repeat(64);
+        let (_release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut producer = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "batch-1",
+            Rc::new(|| true),
+            async { wait.await.unwrap() },
+        ));
+        let mut join = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "batch-1",
+            Rc::new(|| true),
+            async { panic!("a live same-batch join cannot prepare") },
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(producer.as_mut().poll(&mut context).is_pending());
+        assert!(join.as_mut().poll(&mut context).is_pending());
+        drop(producer);
+        assert!(
+            matches!(join.as_mut().poll(&mut context), Poll::Ready(Err(reason)) if reason.contains("cancelled")),
+            "dropping the refresh producer must settle its joined waiters"
+        );
+        assert!(adapter.pending.borrow().is_empty());
+        assert!(
+            block_on(adapter.refresh_step_evidence(
+                &sha,
+                Default::default(),
+                "batch-1",
+                Rc::new(|| true),
+                async { panic!("drop cannot authorize a same-batch retry") },
+            ))
+            .is_err()
+        );
+        let mut recovered = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "batch-2",
+            Rc::new(|| true),
+            async { Ok(refresh_arrays(&sha)) },
+        ));
+        assert!(
+            matches!(recovered.as_mut().poll(&mut context), Poll::Ready(Ok(_))),
+            "a new batch must complete rather than joining an abandoned token"
+        );
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn retired_refresh_is_superseded_before_old_producer_settles() {
+        let adapter = ModelDeliveryAdapter::default();
+        let sha = "a".repeat(64);
+        let live = Rc::new(std::cell::Cell::new(true));
+        let current = live.clone();
+        let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut old = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "old-scope",
+            Rc::new(move || current.get()),
+            async { wait.await.unwrap() },
+        ));
+        let mut old_join = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "old-scope",
+            Rc::new(|| true),
+            async { panic!("live matching refresh must join") },
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(old.as_mut().poll(&mut context).is_pending());
+        assert!(old_join.as_mut().poll(&mut context).is_pending());
+        live.set(false);
+        let mut same_batch = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "old-scope",
+            Rc::new(|| true),
+            async { panic!("retirement does not authorize a second same-batch preparation") },
+        ));
+        assert!(matches!(
+            same_batch.as_mut().poll(&mut context),
+            Poll::Ready(Err(_))
+        ));
+        let mut replacement = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new-scope",
+            Rc::new(|| true),
+            async { Ok(refresh_arrays(&sha)) },
+        ));
+        let Poll::Ready(Ok(current)) = replacement.as_mut().poll(&mut context) else {
+            panic!("a new batch must start before the retired producer settles");
+        };
+        assert!(matches!(
+            old_join.as_mut().poll(&mut context),
+            Poll::Ready(Err(_))
+        ));
+        release.send(Ok(refresh_arrays(&sha))).unwrap();
+        assert!(matches!(
+            old.as_mut().poll(&mut context),
+            Poll::Ready(Err(_))
+        ));
+        let reused = block_on(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new-scope",
+            Rc::new(|| true),
+            async { panic!("old settlement cannot remove the new ready slot") },
+        ))
+        .unwrap();
+        assert!(Rc::ptr_eq(&current, &reused));
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn dropped_refresh_join_and_old_owner_cannot_cancel_the_current_producer() {
+        let adapter = ModelDeliveryAdapter::default();
+        let sha = "a".repeat(64);
+        let (_old_release, old_wait) =
+            futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut old = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "old",
+            Rc::new(|| true),
+            async { old_wait.await.unwrap() },
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(old.as_mut().poll(&mut context).is_pending());
+        let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut producer = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new",
+            Rc::new(|| true),
+            async { wait.await.unwrap() },
+        ));
+        assert!(producer.as_mut().poll(&mut context).is_pending());
+        let mut dropped_join = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new",
+            Rc::new(|| true),
+            async { panic!("matching live producer must be shared") },
+        ));
+        assert!(dropped_join.as_mut().poll(&mut context).is_pending());
+        drop(dropped_join);
+        drop(old);
+        assert!(producer.as_mut().poll(&mut context).is_pending());
+        let mut surviving_join = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new",
+            Rc::new(|| true),
+            async { panic!("old cleanup must leave the replacement's waiters and slot intact") },
+        ));
+        assert!(surviving_join.as_mut().poll(&mut context).is_pending());
+        release.send(Ok(refresh_arrays(&sha))).unwrap();
+        let current = block_on(producer).unwrap();
+        assert!(Rc::ptr_eq(&current, &block_on(surviving_join).unwrap()));
+        assert!(adapter.pending.borrow().is_empty());
+        assert!(Rc::ptr_eq(
+            &current,
+            &block_on(adapter.refresh_step_evidence(
+                &sha,
+                Default::default(),
+                "new",
+                Rc::new(|| true),
+                async { panic!("successful settlement must disarm cleanup") },
+            ))
+            .unwrap()
+        ));
+    }
+
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+    #[cfg_attr(not(target_arch = "wasm32"), test)]
+    fn ordinary_delivery_and_refresh_supersede_incompatible_producers_without_cross_settlement() {
+        let bytes = b"controlled model delivery lifecycle".to_vec();
+        let sha = sha256_hex(&bytes);
+        let ports = ModelDeliveryPorts {
+            load_verified_bytes: Rc::new(move |asset| {
+                let bytes = bytes.clone();
+                Box::pin(async move { Ok(Some(VerifiedModelBytes::verify(bytes, &asset.sha256)?)) })
+            }),
+            decode_stl: Rc::new(|_| panic!("STEP lifecycle control")),
+            decode_wrl: Rc::new(|_| panic!("STEP lifecycle control")),
+            read_step: Rc::new(|bytes, _| {
+                Box::pin(async move { Ok(refresh_arrays(bytes.sha256())) })
+            }),
+        };
+        let models = [model("model", "U1", "body.step")];
+        let selections = BTreeMap::from([(
+            "model".into(),
+            AssetSelection::Archived(ResolvedModelAsset {
+                id: "asset".into(),
+                sha256: sha.clone(),
+                filename: "body.step".into(),
+                source: ModelAssetSource::Document,
+            }),
+        )]);
+        let old_batch = batch(1);
+        let new_batch = batch(2);
+        let adapter = ModelDeliveryAdapter::default();
+        let live = Rc::new(std::cell::Cell::new(true));
+        let current = live.clone();
+        let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let mut refresh = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "old-scope",
+            Rc::new(move || current.get()),
+            async { wait.await.unwrap() },
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        assert!(refresh.as_mut().poll(&mut context).is_pending());
+        live.set(false);
+        let mut delivery = Box::pin(adapter.deliver_models(
+            1,
+            &models,
+            &selections,
+            &ports,
+            &new_batch,
+            Rc::new(|| true),
+        ));
+        let Poll::Ready(Some(rows)) = delivery.as_mut().poll(&mut context) else {
+            panic!(
+                "ordinary delivery cannot join an evidence producer with unknown preview ownership"
+            );
+        };
+        assert_eq!(rows.delivered.len(), 1);
+        release.send(Ok(refresh_arrays(&sha))).unwrap();
+        assert!(matches!(
+            refresh.as_mut().poll(&mut context),
+            Poll::Ready(Err(_))
+        ));
+        let cached = block_on(adapter.deliver_models(
+            1,
+            &models,
+            &selections,
+            &ports,
+            &new_batch,
+            Rc::new(|| true),
+        ))
+        .unwrap();
+        assert!(Rc::ptr_eq(
+            &rows.delivered[0].mesh,
+            &cached.delivered[0].mesh
+        ));
+
+        // Reverse transition: an evidence batch has no comparable preview owner
+        // and must not join a still-running ordinary Pending task either.
+        let adapter = ModelDeliveryAdapter::default();
+        let (release, wait) = futures_channel::oneshot::channel::<Result<MeshArrays, String>>();
+        let gate = Rc::new(std::cell::RefCell::new(Some(wait)));
+        let mut gated_ports = ports.clone();
+        gated_ports.read_step = Rc::new(move |_, _| {
+            let wait = gate
+                .borrow_mut()
+                .take()
+                .expect("only the ordinary producer loads");
+            Box::pin(async { wait.await.unwrap() })
+        });
+        let live = Rc::new(std::cell::Cell::new(true));
+        let current = live.clone();
+        let mut delivery = Box::pin(adapter.deliver_models(
+            1,
+            &models,
+            &selections,
+            &gated_ports,
+            &old_batch,
+            Rc::new(move || current.get()),
+        ));
+        assert!(delivery.as_mut().poll(&mut context).is_pending());
+        let mut old_join = Box::pin(adapter.deliver_models(
+            1,
+            &models,
+            &selections,
+            &gated_ports,
+            &old_batch,
+            Rc::new(|| true),
+        ));
+        assert!(old_join.as_mut().poll(&mut context).is_pending());
+        live.set(false);
+        let mut replacement = Box::pin(adapter.refresh_step_evidence(
+            &sha,
+            Default::default(),
+            "new-scope",
+            Rc::new(|| true),
+            async { Ok(refresh_arrays(&sha)) },
+        ));
+        let Poll::Ready(Ok(current)) = replacement.as_mut().poll(&mut context) else {
+            panic!("evidence recovery must start before the unrelated preview settles");
+        };
+        assert!(
+            matches!(old_join.as_mut().poll(&mut context), Poll::Ready(Some(rows)) if rows.failures.len() == 1)
+        );
+        release.send(Ok(refresh_arrays(&sha))).unwrap();
+        assert!(matches!(
+            delivery.as_mut().poll(&mut context),
+            Poll::Ready(None)
+        ));
+        let cached = block_on(adapter.deliver_models(
+            1,
+            &models,
+            &selections,
+            &ports,
+            &new_batch,
+            Rc::new(|| true),
+        ))
+        .unwrap();
+        assert!(Rc::ptr_eq(&current, &cached.delivered[0].mesh));
     }
 
     fn block_on<F: Future>(future: F) -> F::Output {
