@@ -6,10 +6,9 @@ use super::*;
 use crate::step::tessellation::StepMesh;
 use monstertruck_io::step::load::step_geometry::{ElementarySurface, Surface};
 use monstertruck_modeling::Vector3;
-use std::collections::BTreeMap;
 
 type Point = [f64; 3];
-type FaceLoop = (u64, bool, Vec<(u64, bool)>);
+type FaceLoop = (u64, bool, [(u64, bool); 4]);
 
 struct Document<'a> {
     records: Vec<&'a EntityInstance>,
@@ -197,11 +196,11 @@ fn logical(p: &Parameter) -> Option<bool> {
     }
 }
 fn signed_axis(v: Point) -> Option<usize> {
-    let indices: Vec<_> = (0..3).filter(|&i| v[i] != 0.0).collect();
-    let [axis] = indices.as_slice() else {
+    let mut indices = (0..3).filter(|&i| v[i] != 0.0);
+    let (Some(axis), None) = (indices.next(), indices.next()) else {
         return None;
     };
-    (v[*axis].abs() == 1.0).then_some(*axis)
+    (v[axis].abs() == 1.0).then_some(axis)
 }
 fn point(p: Point3) -> Point {
     [p.x, p.y, p.z]
@@ -223,14 +222,14 @@ struct Face {
     normal: Point,
     axis: usize,
     sense: bool,
-    edges: Vec<u64>,
+    edges: [u64; 4],
 }
 
 pub(in crate::step) struct Cuboid<'a> {
     original: &'a OriginalGeometry,
-    vertices: HashMap<u64, Point>,
-    edges: HashMap<u64, Edge>,
-    faces: HashMap<u64, Face>,
+    vertices: [(u64, Point); 8],
+    edges: [(u64, Edge); 12],
+    faces: [(u64, Face); 6],
     bounds: [Point; 2],
 }
 
@@ -250,15 +249,11 @@ impl<'a> Cuboid<'a> {
         if source_faces.len() != 6 {
             return None;
         }
-        let mut result = Self {
-            original,
-            vertices: HashMap::new(),
-            edges: HashMap::new(),
-            faces: HashMap::new(),
-            bounds: [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]],
-        };
-        let mut loops = Vec::new();
-        for face_ref in source_faces {
+        let mut vertices = [None; 8];
+        let mut edges: [Option<(u64, Edge)>; 12] = std::array::from_fn(|_| None);
+        let mut faces: [Option<(u64, Face)>; 6] = std::array::from_fn(|_| None);
+        let mut loops = [(0, false, [(0, false); 4]); 6];
+        for (face_index, face_ref) in source_faces.iter().enumerate() {
             let id = reference(face_ref)?;
             let params = doc.params(id, "ADVANCED_FACE", 4)?;
             let [bound] = list(&params[1])? else {
@@ -270,22 +265,22 @@ impl<'a> Cuboid<'a> {
             if uses.len() != 4 {
                 return None;
             }
-            let mut oriented = Vec::new();
-            for edge_use in uses {
+            let mut oriented = [(0, false); 4];
+            for (use_index, edge_use) in uses.iter().enumerate() {
                 let params = doc.params(reference(edge_use)?, "ORIENTED_EDGE", 5)?;
                 if params[1] != Parameter::Omitted || params[2] != Parameter::Omitted {
                     return None;
                 }
                 let id = reference(&params[3])?;
-                if !result.edges.contains_key(&id) {
+                if !edges.iter().flatten().any(|(previous, _)| *previous == id) {
                     let edge = doc.params(id, "EDGE_CURVE", 5)?;
-                    let vertices = [reference(&edge[1])?, reference(&edge[2])?];
-                    let points = [doc.vertex(vertices[0])?, doc.vertex(vertices[1])?];
-                    if vertices[0] == vertices[1] || points[0] == points[1] {
+                    let vertex_ids = [reference(&edge[1])?, reference(&edge[2])?];
+                    let points = [doc.vertex(vertex_ids[0])?, doc.vertex(vertex_ids[1])?];
+                    if vertex_ids[0] == vertex_ids[1] || points[0] == points[1] {
                         return None;
                     }
-                    let axes: Vec<_> = (0..3).filter(|&i| points[0][i] != points[1][i]).collect();
-                    let [axis] = axes.as_slice() else {
+                    let mut axes = (0..3).filter(|&i| points[0][i] != points[1][i]);
+                    let (Some(axis), None) = (axes.next(), axes.next()) else {
                         return None;
                     };
                     let line = doc.params(reference(&edge[3])?, "LINE", 3)?;
@@ -296,30 +291,35 @@ impl<'a> Cuboid<'a> {
                         return None;
                     }
                     let direction = doc.triple(reference(&vec[1])?, "DIRECTION")?;
-                    if signed_axis(direction)? != *axis
+                    if signed_axis(direction)? != axis
                         || (0..3).any(|i| {
-                            i != *axis && (origin[i] != points[0][i] || origin[i] != points[1][i])
+                            i != axis && (origin[i] != points[0][i] || origin[i] != points[1][i])
                         })
                         || logical(&edge[4])?
-                            != ((points[1][*axis] > points[0][*axis]) == (direction[*axis] > 0.0))
+                            != ((points[1][axis] > points[0][axis]) == (direction[axis] > 0.0))
                     {
                         return None;
                     }
-                    for (id, p) in vertices.into_iter().zip(points) {
-                        if result.vertices.insert(id, p).is_some_and(|old| old != p) {
+                    for (id, p) in vertex_ids.into_iter().zip(points) {
+                        let slot = vertices
+                            .iter()
+                            .position(|entry| entry.is_some_and(|(previous, _)| previous == id))
+                            .or_else(|| vertices.iter().position(Option::is_none))?;
+                        if vertices[slot].is_some_and(|(_, previous)| previous != p) {
                             return None;
                         }
+                        vertices[slot] = Some((id, p));
                     }
-                    result.edges.insert(
+                    *edges.iter_mut().find(|entry| entry.is_none())? = Some((
                         id,
                         Edge {
-                            vertices,
+                            vertices: vertex_ids,
                             points,
-                            axis: *axis,
+                            axis,
                         },
-                    );
+                    ));
                 }
-                oriented.push((id, logical(&params[4])?));
+                oriented[use_index] = (id, logical(&params[4])?);
             }
             let plane = doc.params(reference(&params[2])?, "PLANE", 2)?;
             let frame = doc.params(reference(&plane[1])?, "AXIS2_PLACEMENT_3D", 4)?;
@@ -338,29 +338,58 @@ impl<'a> Cuboid<'a> {
                 normal,
                 axis,
                 sense: logical(&params[3])?,
-                edges: oriented.iter().map(|(id, _)| *id).collect(),
+                edges: oriented.map(|(id, _)| id),
             };
-            if result.faces.insert(id, face).is_some() {
+            if faces.iter().flatten().any(|(previous, _)| *previous == id) {
                 return None;
             }
-            loops.push((id, logical(&bound[2])?, oriented));
+            faces[face_index] = Some((id, face));
+            loops[face_index] = (id, logical(&bound[2])?, oriented);
         }
+        if vertices.iter().any(Option::is_none) || edges.iter().any(Option::is_none) {
+            return None;
+        }
+        let mut result = Self {
+            original,
+            vertices: vertices.map(Option::unwrap),
+            edges: edges.map(Option::unwrap),
+            faces: faces.map(Option::unwrap),
+            bounds: [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]],
+        };
         result.check_box(&loops)?;
         Some(result)
     }
 
+    fn vertex(&self, id: u64) -> Option<&Point> {
+        self.vertices
+            .iter()
+            .find(|(key, _)| *key == id)
+            .map(|(_, point)| point)
+    }
+
+    fn edge(&self, id: u64) -> Option<&Edge> {
+        self.edges
+            .iter()
+            .find(|(key, _)| *key == id)
+            .map(|(_, edge)| edge)
+    }
+
+    fn face(&self, id: u64) -> Option<&Face> {
+        self.faces
+            .iter()
+            .find(|(key, _)| *key == id)
+            .map(|(_, face)| face)
+    }
+
     fn check_box(&mut self, loops: &[FaceLoop]) -> Option<()> {
-        if self.vertices.len() != 8 || self.edges.len() != 12 || self.faces.len() != 6 {
-            return None;
-        }
-        for p in self.vertices.values() {
+        for (_, p) in &self.vertices {
             for (axis, value) in p.iter().enumerate() {
                 self.bounds[0][axis] = self.bounds[0][axis].min(*value);
                 self.bounds[1][axis] = self.bounds[1][axis].max(*value);
             }
         }
-        let mut corners = HashSet::new();
-        for p in self.vertices.values() {
+        let mut corners = 0_u8;
+        for (_, p) in &self.vertices {
             let mut corner = 0;
             for (axis, value) in p.iter().enumerate() {
                 if self.bounds[0][axis] == self.bounds[1][axis] {
@@ -372,45 +401,48 @@ impl<'a> Cuboid<'a> {
                     return None;
                 }
             }
-            if !corners.insert(corner) {
+            if corners & (1 << corner) != 0 {
                 return None;
             }
+            corners |= 1 << corner;
         }
-        let mut edge_pairs = HashSet::new();
-        for edge in self.edges.values() {
+        for (index, (_, edge)) in self.edges.iter().enumerate() {
             let mut pair = edge.vertices;
             pair.sort_unstable();
-            if !edge_pairs.insert(pair) {
+            if self.edges[..index].iter().any(|(_, edge)| {
+                let mut previous = edge.vertices;
+                previous.sort_unstable();
+                previous == pair
+            }) {
                 return None;
             }
         }
-        let mut sides = HashSet::new();
-        let mut shared = HashMap::<u64, Vec<bool>>::new();
+        let mut sides = 0_u8;
+        let mut shared = [[false; 2]; 12];
+        let mut use_counts = [0; 12];
         for (id, bound_orientation, uses) in loops {
-            let face = &self.faces[id];
-            let mut ring = Vec::new();
-            for &(id, orientation) in uses {
-                let ends = self.edges[&id].vertices;
-                ring.push(if orientation {
+            let face = self.face(*id)?;
+            let mut ring = [[0; 2]; 4];
+            let mut points = [[0.0; 3]; 4];
+            for (index, &(id, orientation)) in uses.iter().enumerate() {
+                let edge = self.edges.iter().position(|(key, _)| *key == id)?;
+                let ends = self.edges[edge].1.vertices;
+                ring[index] = if orientation {
                     ends
                 } else {
                     [ends[1], ends[0]]
-                });
-                shared
-                    .entry(id)
-                    .or_default()
-                    .push(orientation == *bound_orientation);
+                };
+                points[index] = *self.vertex(ring[index][0])?;
+                *shared[edge].get_mut(use_counts[edge])? = orientation == *bound_orientation;
+                use_counts[edge] += 1;
             }
             if (0..4).any(|i| ring[i][1] != ring[(i + 1) % 4][0]) {
                 return None;
             }
-            let points: Vec<_> = ring.iter().map(|e| self.vertices[&e[0]]).collect();
             if points
                 .iter()
-                .map(|p| p.map(f64::to_bits))
-                .collect::<HashSet<_>>()
-                .len()
-                != 4
+                .enumerate()
+                .any(|(index, point)| points[..index].contains(point))
                 || !points.contains(&face.origin)
                 || points
                     .iter()
@@ -425,22 +457,18 @@ impl<'a> Cuboid<'a> {
             } else {
                 return None;
             };
-            if !sides.insert((face.axis, side))
-                || ((face.normal[face.axis] > 0.0) == face.sense) != side
-            {
+            let side_bit = 1 << (face.axis * 2 + usize::from(side));
+            if sides & side_bit != 0 || ((face.normal[face.axis] > 0.0) == face.sense) != side {
                 return None;
             }
+            sides |= side_bit;
             let cross = (Vector3::from(points[1]) - Vector3::from(points[0]))
                 .cross(Vector3::from(points[2]) - Vector3::from(points[1]));
             if (cross[face.axis] > 0.0) != (side == *bound_orientation) {
                 return None;
             }
         }
-        if shared.len() != 12
-            || shared
-                .values()
-                .any(|uses| !matches!(uses.as_slice(), [a,b] if a != b))
-        {
+        if use_counts.iter().any(|count| *count != 2) || shared.iter().any(|[a, b]| a == b) {
             return None;
         }
         Some(())
@@ -479,9 +507,9 @@ impl<'a> Cuboid<'a> {
             return None;
         }
         let ids = self.original.bind_edges(source)?;
-        let mut vertices = HashMap::new();
+        let mut vertices = [None; 8];
         for (index, id) in ids.iter().enumerate() {
-            let raw = self.edges.get(id)?;
+            let raw = self.edge(*id)?;
             let edge = &shell.edges[index];
             let Curve3D::Line(line) = &edge.curve else {
                 return None;
@@ -493,24 +521,28 @@ impl<'a> Cuboid<'a> {
                 .into_iter()
                 .zip(raw.vertices)
             {
-                if point(*shell.vertices.as_slice().get(index)?) != self.vertices[&id]
-                    || vertices
-                        .insert(index, id)
-                        .is_some_and(|previous| previous != id)
+                let slot = vertices.get_mut(index)?;
+                if point(*shell.vertices.as_slice().get(index)?) != *self.vertex(id)?
+                    || slot.is_some_and(|previous| previous != id)
                 {
                     return None;
                 }
+                *slot = Some(id);
             }
             let emitted = &mesh.edges[index];
             if emitted.vertices != edge.vertices || !raw.proves_polyline(&emitted.curve) {
                 return None;
             }
         }
-        if vertices.values().copied().collect::<HashSet<_>>().len() != 8 {
+        if vertices
+            .iter()
+            .enumerate()
+            .any(|(index, id)| id.is_none() || vertices[..index].contains(id))
+        {
             return None;
         }
         for (index, id) in source.source_face_ids().iter().enumerate() {
-            let raw = self.faces.get(id)?;
+            let raw = self.face(*id)?;
             let face = &shell.faces[index];
             let Surface::ElementarySurface(ElementarySurface::Plane(plane)) = &face.surface else {
                 return None;
@@ -543,11 +575,24 @@ impl<'a> Cuboid<'a> {
         }) {
             return None;
         }
-        let mut incidence = BTreeMap::new();
+        struct Segment {
+            key: [[u64; 3]; 2],
+            edge: Option<usize>,
+            interval: [f64; 2],
+        }
+        let count = mesh.face_iter().try_fold(0_usize, |count, polygon| {
+            (polygon.len() >= 3).then_some(())?;
+            count.checked_add(polygon.len())
+        })?;
+        if count > 1_000_000 || count.checked_mul(size_of::<Segment>())? > 256 * 1024 * 1024 {
+            return None;
+        }
+        let mut segments = Vec::new();
+        segments.try_reserve_exact(count).ok()?;
+        if segments.capacity() > count {
+            return None;
+        }
         for polygon in mesh.face_iter() {
-            if polygon.len() < 3 {
-                return None;
-            }
             for i in 0..polygon.len() {
                 let a = point(*positions.as_slice().get(polygon[i].pos)?);
                 let b = point(
@@ -560,34 +605,51 @@ impl<'a> Cuboid<'a> {
                 }
                 let mut key = [a.map(key_component), b.map(key_component)];
                 key.sort_unstable();
-                *incidence.entry(key).or_insert(0_usize) += 1;
+                segments.push(Segment {
+                    key,
+                    edge: None,
+                    interval: [0.0; 2],
+                });
             }
         }
-        let mut intervals = HashMap::<u64, Vec<[f64; 2]>>::new();
-        for (segment, count) in incidence {
-            if count == 2 {
-                continue;
-            }
-            if count != 1 {
+        segments.sort_unstable_by_key(|segment| segment.key);
+        let mut index = 0;
+        while index < segments.len() {
+            let key = segments[index].key;
+            let end = index
+                + segments[index..]
+                    .iter()
+                    .take_while(|segment| segment.key == key)
+                    .count();
+            if end - index > 2 {
                 return None;
             }
-            let [a, b] = segment.map(|p| p.map(f64::from_bits));
-            let edge = face
-                .edges
-                .iter()
-                .find(|id| self.edges[id].contains_segment(a, b))?;
-            let axis = self.edges[edge].axis;
-            intervals
-                .entry(*edge)
-                .or_default()
-                .push([a[axis].min(b[axis]), a[axis].max(b[axis])]);
+            if end - index == 1 {
+                let [a, b] = key.map(|p| p.map(f64::from_bits));
+                let (edge, raw) = face.edges.iter().enumerate().find_map(|(index, id)| {
+                    self.edge(*id)
+                        .filter(|edge| edge.contains_segment(a, b))
+                        .map(|edge| (index, edge))
+                })?;
+                segments[index].edge = Some(edge);
+                segments[index].interval =
+                    [a[raw.axis].min(b[raw.axis]), a[raw.axis].max(b[raw.axis])];
+            }
+            index = end;
         }
-        for id in &face.edges {
-            let raw = &self.edges[id];
-            let intervals = intervals.get_mut(id)?;
-            intervals.sort_by(|a, b| a[0].total_cmp(&b[0]));
+        segments.sort_unstable_by(|a, b| {
+            a.edge
+                .cmp(&b.edge)
+                .then_with(|| a.interval[0].total_cmp(&b.interval[0]))
+        });
+        for (index, id) in face.edges.iter().enumerate() {
+            let raw = self.edge(*id)?;
             let mut end = raw.points[0][raw.axis].min(raw.points[1][raw.axis]);
-            for &[a, b] in intervals.iter() {
+            for segment in segments
+                .iter()
+                .filter(|segment| segment.edge == Some(index))
+            {
+                let [a, b] = segment.interval;
                 if a != end || b <= a {
                     return None;
                 }
@@ -676,6 +738,10 @@ mod tests {
                 .explicit_mm(304, 301)
                 .is_none()
         );
+
+        let duplicate = source.replace("#12047=PRODUCT(", "#10000=PRODUCT(");
+        let exchange = parser::parse(&duplicate).unwrap();
+        assert!(Document::new(duplicate.as_bytes(), &exchange).is_none());
     }
 
     #[test]
@@ -708,7 +774,12 @@ mod tests {
         let mut changed = mesh.clone();
         let points = &mut changed.edges[0].curve.0;
         let mut midpoint = points[0] + (points[points.len() - 1] - points[0]) * 0.5;
-        midpoint[(candidate.edges[&original.bind_edges(source).unwrap()[0]].axis + 1) % 3] += 0.001;
+        midpoint[(candidate
+            .edge(original.bind_edges(source).unwrap()[0])
+            .unwrap()
+            .axis
+            + 1)
+            % 3] += 0.001;
         points.insert(1, midpoint);
         assert!(
             !candidate.proves_output(source, &normalized, &changed, &[]),
@@ -716,7 +787,7 @@ mod tests {
         );
 
         let mut changed = mesh.clone();
-        let face = &candidate.faces[&source.source_face_ids()[0]];
+        let face = candidate.face(source.source_face_ids()[0]).unwrap();
         let vertex = changed.faces[0]
             .surface
             .as_mut()

@@ -76,7 +76,7 @@ impl Conversion<'_> {
 struct NativeLineSource {
     points: [Point3; 2],
     origin: Point3,
-    direction: Vec<f64>,
+    direction: [f64; 3],
     magnitude: f64,
     input: Option<LineInput>,
 }
@@ -243,41 +243,19 @@ fn source_boundaries(table: &Table, face: &FaceSurfaceHolder) -> Option<Vec<Sour
 impl OriginalGeometry {
     pub(super) fn capture(table: &Table, bytes: &[u8]) -> Self {
         let mut lines = HashMap::new();
-        for (&id, holder) in &table.edge_curve {
-            let PlaceHolder::Ref(Name::Entity(curve_id)) = &holder.edge_geometry else {
+        for &id in table.edge_curve.keys() {
+            let Some(input) = LineInput::read(table, id) else {
                 continue;
             };
-            if !table.line.contains_key(curve_id) {
-                continue;
-            }
-            let (PlaceHolder::Ref(Name::Entity(_)), PlaceHolder::Ref(Name::Entity(_))) =
-                (&holder.edge_start, &holder.edge_end)
-            else {
-                continue;
-            };
-            let Ok(edge) = holder.clone().into_owned(table) else {
-                continue;
-            };
-            let CurveAny::Line(line) = &edge.edge_geometry else {
-                continue;
-            };
-            if line.pnt.coordinates.len() != 3
-                || edge.edge_start.vertex_geometry.coordinates.len() != 3
-                || edge.edge_end.vertex_geometry.coordinates.len() != 3
-            {
-                continue;
-            }
+            let point = |[x, y, z]: [f64; 3]| Point3::new(x, y, z);
             lines.insert(
                 id,
                 NativeLineSource {
-                    points: [
-                        Point3::from(&edge.edge_start.vertex_geometry),
-                        Point3::from(&edge.edge_end.vertex_geometry),
-                    ],
-                    origin: Point3::from(&line.pnt),
-                    direction: line.dir.orientation.direction_ratios.clone(),
-                    magnitude: line.dir.magnitude,
-                    input: LineInput::read(table, id),
+                    points: [point(input.coordinates[2]), point(input.coordinates[3])],
+                    origin: point(input.coordinates[0]),
+                    direction: input.coordinates[1],
+                    magnitude: input.magnitude,
+                    input: Some(input),
                 },
             );
         }
@@ -1009,18 +987,17 @@ fn line_support_bound(
     // Restrict the proof to exact coordinate-axis supports; no tolerance tests,
     // inverse searches or endpoint samples can establish parallelism here.
     let direction = &raw.direction;
-    if direction.len() != 3
-        || !direction.iter().all(|v| v.is_finite())
+    if !direction.iter().all(|v| v.is_finite())
         || !raw.magnitude.is_finite()
         || raw.magnitude == 0.0
     {
         return Err("invalid original LINE direction");
     }
-    let axes: Vec<_> = (0..3).filter(|&axis| direction[axis] != 0.0).collect();
-    let [axis] = axes.as_slice() else {
+    let mut axes = (0..3).filter(|&axis| direction[axis] != 0.0);
+    let (Some(axis), None) = (axes.next(), axes.next()) else {
         return Err("native LINE support is not axis-aligned");
     };
-    if line.0[*axis] == line.1[*axis] || (0..3).any(|i| i != *axis && line.0[i] != line.1[i]) {
+    if line.0[axis] == line.1[axis] || (0..3).any(|i| i != axis && line.0[i] != line.1[i]) {
         return Err("emitted LINE support does not preserve the native axis");
     }
     // Both entire supports are parallel. Their transverse coordinate difference is
@@ -1034,7 +1011,7 @@ fn line_support_bound(
     }
     let mut delta = [0.0; 3];
     for (i, d) in delta.iter_mut().enumerate() {
-        if i != *axis {
+        if i != axis {
             *d = upper((line.0[i] - origin[i]).abs());
         }
     }
@@ -1098,6 +1075,27 @@ fn placed_translation_bound(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_line_authority_borrows_holder_graph_and_preserves_refusal() {
+        let fixture = include_str!("../../tests/fixtures/repair-finite-domain.step");
+        let source = fixture.replace(
+            "#23=EDGE_CURVE('',",
+            &format!("#23=EDGE_CURVE('{}',", "x".repeat(131_072)),
+        );
+        let table = Table::from_step_bytes(source.as_bytes()).unwrap();
+        let (original, largest) = crate::allocation_tests::largest_request(|| {
+            OriginalGeometry::capture(&table, source.as_bytes())
+        });
+        assert_eq!(original.lines.len(), 6);
+        assert!(original.lines[&23].input.is_some());
+        assert_eq!(
+            original.finite_lines[&23].projected_exceeds(1.0, Matrix4::identity(), 0.02),
+            Ok(true)
+        );
+        assert!(largest < 16_384, "LINE authority allocated {largest} bytes");
+    }
 
     #[test]
     fn normalized_legacy_preview_keeps_default_explicit_and_scaled_settings() {

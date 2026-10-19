@@ -27,6 +27,43 @@ Deferred quality follow-on under the user's revised cutover scope; packages 2–
 
 Known repair-limit enforcement, original bytes/geometry/provenance and local memory counters remain unchanged. The recorded 34-asset compatibility results remain valid within their source scope; do not run another census or mutation cycle merely to advance a deferred slice. Any future work resumes against the matrix and the applicable approval rules.
 
+## Current work — 2026-10-19
+
+Resumed under the user's request to implement 007. The current private storage
+feature removes decoded-source and entity-label copies from numeric authority:
+an allocation-free lexical span walk borrows original bytes, numeric values use
+three fixed slots, and exact decimal construction uses integer arithmetic without
+formatting intermediates. Comments, escaped strings, complex records, duplicate
+IDs and Latin-1 metadata have explicit controls.
+
+The cuboid authority uses one preflighted array of borrowed entity references,
+checks duplicate IDs and retains the full source-record census. Its topology is
+stored in fixed 8-vertex, 12-edge and 6-face arrays with fixed use/side bitsets.
+Polygon incidence and edge intervals share one segment workspace preflighted
+from polygon-use counts under the existing report byte/record limits. Native
+LINE authority now resolves its holder graph by borrow through the existing
+`LineInput` binding and keeps its three direction coefficients inline.
+
+Three genuine allocation-observing REDs reproduced largest individual requests
+of 1,048,576 bytes (numeric spelling), 135,184 bytes (cuboid census) and 131,072
+bytes (LINE holder labels). Their GREEN controls bound those requests and retain
+source census, duplicate refusal and independently proved over-budget refusal.
+All 43 focused repair tests pass (one existing ignored census). Logs are under
+`.evidence/implement-141-175-007/007-*`. All six mutation controls were killed
+(duplicates, comments, escaped strings, skipped census records and holder clones),
+with zero survivors or compile failures. Independent Spec and Standards reviews
+found no actionable findings. The full six-step repository check passes in
+550.7 seconds, including fresh CAD packaging, registered owner/provider suites,
+worker/browser smoke and all mounted/page suites; receipt:
+`.evidence/implement-141-175-007/full-current.json`. These are local requested-payload checks, not allocator/process peak
+measurements or corpus qualification.
+
+This feature does not close package 1 or 007. S2's authority/ledger counters and
+cap-safe aggregate enforcement, S3's precharged numeric-ID storage, S4's proof
+workspace preflight and S5 remain open, as do the unresolved owner routes in
+packages 2–6. No acceptance box, source asset, allowance, public declaration or
+existing visibility changed. The 34-asset replay waits for S2–S4 as planned.
+
 ## Current closure plan — 2026-10-18, reconciled at 68eb7c68
 
 User approval: the six-package closure plan and the exact additive API declarations and meanings below are approved. Approval covers these sealed borrowed views and structural-capture queries; it does not widen existing members, change geometry or allowances, or establish implementation/acceptance evidence.
@@ -111,8 +148,8 @@ Completed 94 corpus evidence is reused at 95 for unchanged geometry/provenance o
 | Slice | Owners | State |
 | --- | --- | --- |
 | S1 IO witness layouts and inverse workspace | IO `repair_storage.rs`, `seam_capture.rs` | **Delivered** at parent: requested-layout preflight and reconciliation (`475cc14fb`); temporary inverse carrier and knot scratch returned after comparison (this checkpoint). |
-| S2 native authority and ledger | `OriginalGeometry::capture`/`bind_edges`, `Ledger` in [repair.rs](../../../../cad/monstertruck/src/step/repair.rs) | Remaining, private. |
-| S3 numeric spelling and cuboid scans | [finite_line.rs](../../../../cad/monstertruck/src/step/repair/finite_line.rs), [cuboid.rs](../../../../cad/monstertruck/src/step/repair/cuboid.rs) | Remaining, private. |
+| S2 native authority and ledger | `OriginalGeometry::capture`/`bind_edges`, `Ledger` in [repair.rs](../../../../cad/monstertruck/src/step/repair.rs) | LINE holders borrowed (2026-10-19); authority/ledger counters remain. |
+| S3 numeric spelling and cuboid scans | [finite_line.rs](../../../../cad/monstertruck/src/step/repair/finite_line.rs), [cuboid.rs](../../../../cad/monstertruck/src/step/repair/cuboid.rs) | Borrowed spellings/cuboid arrays delivered (2026-10-19); numeric-ID precharge remains. |
 | S4 non-bigint exact-proof preflight and native inverse | [finite_curve.rs](../../../../cad/monstertruck/src/step/repair/finite_curve.rs), `planar_seam.rs` | Remaining, private. |
 | S5 observed-peak measurement | all | One run after S2–S4 over the 34-asset corpus. |
 | D2 consuming mesher output | `ShellRepairMesh` | Optional; the public member needs approval. |
