@@ -10,7 +10,7 @@ This note researches six already reproduced audit findings. Audit logs are ignor
 
 **Acceptance evidence.** Retest the exact depth-4,096 and 24-level repeated-reference fixtures through packaged WASM. Both should fail promptly with a stable limit error and bounded work; then decode a simple box on the same WASM instance to show it remains usable. Also retain a below-limit nested-group and repeated-reference fixture to prove ordinary traversal still works. Keep byte and position-output boundary tests. These cases validate parser resource boundaries, not general WRL conformance.
 
-**Dependencies.** Independent of the other five findings. The parser traversal owner should coordinate depth and visit accounting so nested child paths cannot bypass either budget.
+**Dependencies.** The user merged this finding and the polygon-admission finding into [ticket 170](../plans/typed-core-edits/issues/170-bound-wrl-traversal-work.md). The combined decoder slice has no blockers; coordinate depth and visit accounting so nested child paths cannot bypass either budget.
 
 ## 2. Geometry-script emissions allocate before the output limit is checked
 
@@ -30,7 +30,7 @@ This note researches six already reproduced audit findings. Audit logs are ignor
 
 **Acceptance evidence.** Retain the U-notch fixture and assert a documented unsupported error for its concave polygon; preserve a triangle with `convex FALSE` and a convex polygon as supported controls, plus multiple-face indexing. If implementing general triangulation, test concave polygons with several winding directions and vertices; these tests do not establish correctness for arbitrary non-planar or self-intersecting input, which VRML97 itself leaves undefined.
 
-**Dependencies.** Independent of the WRL resource-budget item; both touch the same decoder and should be integrated/reviewed together to avoid overlapping edits.
+**Dependencies.** At the user's request this finding shares [ticket 170](../plans/typed-core-edits/issues/170-bound-wrl-traversal-work.md) with WRL traversal budgets. Former ticket 172 is retired as merged, and both findings must be implemented and verified as one decoder slice.
 
 ## 4. Interrupted native tests can have a complete receipt
 

@@ -42,5 +42,5 @@ allocator usage or process peak memory.
 ## Comments
 
 Created from the user's audit findings after primary-source research. Independent
-of the other five tickets. Bound the existing emission collector; do not add a
+of the other four active tickets. Bound the existing emission collector; do not add a
 replacement scripting service or change unrelated script language behavior.

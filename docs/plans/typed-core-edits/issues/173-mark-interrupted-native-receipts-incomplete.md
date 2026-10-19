@@ -42,5 +42,5 @@ misleading completeness metadata.
 ## Comments
 
 Created from the user's audit findings after primary-source research. A focused
-follow-up to resolved 169, which remains unchanged. Independent of the other five
+follow-up to resolved 169, which remains unchanged. Independent of the other four active
 tickets; no replacement runner, external receipt service or new manifest scheme.

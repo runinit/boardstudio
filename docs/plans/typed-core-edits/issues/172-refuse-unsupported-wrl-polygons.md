@@ -1,10 +1,10 @@
 # 172: Refuse WRL polygons the preview cannot triangulate correctly
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)
-Related: [Input-boundary audit research](../../../research/audit-input-boundaries-2026-10-18.md)
+Related: [170: Combined WRL decoding correction](170-bound-wrl-traversal-work.md); [Research](../../../research/audit-input-boundaries-2026-10-18.md)
 
 ## What to build
 
@@ -19,25 +19,13 @@ the preview must either support it correctly or acknowledge its narrower subset.
 
 ## Acceptance criteria
 
-- [ ] First demonstrate the authored U-shaped face incorrectly covers a point
-  inside its empty notch. After the fix the model is explicitly refused, with no
-  accepted partial mesh or silent omission of the unsupported face.
-- [ ] Conservatively refuse nontriangular faces declared nonconvex before triangle
-  emission. Explain this supported-format limit in the error/documentation; a
-  nonconvex declaration does not prove that every face is geometrically concave.
-- [ ] Keep valid triangles and the existing supported convex polygon controls
-  working, including indexed per-vertex/per-face colors and transforms. Rejecting
-  a model must not alter the next decoded model in the same instance.
-- [ ] Regression inputs use independently authored expected geometry/admission,
-  not only a snapshot of the existing triangle fan. Include a default-convex
-  polygon, explicit convex declaration, a nonconvex-declared triangle and the
-  nonconvex-declared U-shaped polygon.
-- [ ] Run the affected renderer checks and a fresh packaged WASM decoder probe
-  proving the U-shaped refusal and supported controls. Confirm the model-loading
-  path surfaces the unsupported-input error instead of showing a filled notch.
+Moved into [170](170-bound-wrl-traversal-work.md), which owns implementation and
+verification of both WRL findings. Do not implement or claim this ticket separately.
 
 ## Comments
 
-Created from the user's audit findings after primary-source research. Independent
-of 170's traversal budgets; coordinate overlapping decoder edits. Does not claim
-complete VRML97 support or broaden CAD analysis to use display meshes.
+Created from the user's audit findings after primary-source research.
+
+2026-10-18: The user requested merging the two WRL findings. Retired as merged
+into 170; `wontfix` means no separate implementation, not rejection of the defect
+or a claim that it has been fixed. The original finding above remains for history.
