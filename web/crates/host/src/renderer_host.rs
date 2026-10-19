@@ -1,7 +1,7 @@
 //! Candidate production adoption of the accepted P2 renderer attachment lifetime.
 //! The caller supplies neutral provider-derived scenes; the host owns DOM/GPU cleanup.
 //! Production acceptance still requires the M1 renderer and exact-case browser gates.
-use js_sys::{Array, Function, Promise, Reflect};
+use js_sys::{Array, Float32Array, Function, Object, Promise, Reflect};
 use std::{
     cell::{Cell, RefCell},
     rc::{Rc, Weak},
@@ -124,14 +124,6 @@ impl RendererHost {
         Ok(Self { inner })
     }
 
-    pub fn update_scene(&self, input: JsValue) -> Result<(), String> {
-        if self.inner.disposed.get() || self.inner.context_lost.get() {
-            return Err("Renderer is no longer active".to_owned());
-        }
-        call_method(&self.inner.renderer, "setScene", &[input]).map_err(js_error)?;
-        schedule_frame(&self.inner).map_err(js_error)
-    }
-
     pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
         self.camera("orbit", &[delta_x.into(), delta_y.into()])
     }
@@ -163,6 +155,221 @@ impl Drop for RendererHost {
             (self.inner.status)(format!("Renderer disposal failed: {error}"));
         }
     }
+}
+
+/// Page adapter for sequence-checked scenes and interactive renderer operations.
+pub struct RendererPageHost {
+    host: RendererHost,
+    last_sequence: Cell<u64>,
+}
+
+impl RendererPageHost {
+    pub async fn mount(
+        canvas: HtmlCanvasElement,
+        input: JsValue,
+        sequence: u64,
+        status: Rc<dyn Fn(String)>,
+        is_current: Rc<dyn Fn() -> bool>,
+    ) -> Result<(Self, bool), String> {
+        let initial_sequence = sequence
+            .checked_sub(1)
+            .ok_or_else(|| "Renderer sequence must be positive".to_owned())?;
+        let initial_input = with_scene_sequence(&input, initial_sequence)?;
+        let host = RendererHost::mount(canvas, initial_input, status, is_current).await?;
+        let page_host = Self {
+            host,
+            last_sequence: Cell::new(initial_sequence),
+        };
+        let accepted = page_host.submit_scene(input, sequence)?;
+        Ok((page_host, accepted))
+    }
+
+    pub fn dispose(&self) -> Result<(), String> {
+        self.host.dispose()
+    }
+
+    pub fn submit_scene(&self, input: JsValue, sequence: u64) -> Result<bool, String> {
+        self.ensure_active()?;
+        if sequence <= self.last_sequence.get() {
+            return Err("Renderer scene sequence must increase".to_owned());
+        }
+        self.last_sequence.set(sequence);
+        let input = with_scene_sequence(&input, sequence)?;
+        let accepted = call_method(&self.host.inner.renderer, "setScene", &[input])
+            .map_err(js_error)?
+            .as_bool()
+            .ok_or_else(|| "Renderer setScene returned no scene acceptance result".to_owned())?;
+        if accepted {
+            schedule_frame(&self.host.inner).map_err(js_error)?;
+        }
+        Ok(accepted)
+    }
+
+    pub fn set_display_state(&self, state: JsValue) -> Result<(), String> {
+        self.ensure_active()?;
+        call_method(&self.host.inner.renderer, "setState", &[state]).map_err(js_error)?;
+        schedule_frame(&self.host.inner).map_err(js_error)
+    }
+
+    pub fn resize(&self) -> Result<(), String> {
+        self.ensure_active()?;
+        resize(&self.host.inner).map_err(js_error)
+    }
+
+    pub fn set_handles(&self, handles: JsValue) -> Result<u32, String> {
+        self.ensure_active()?;
+        let count = call_method(&self.host.inner.renderer, "setHandles", &[handles])
+            .map_err(js_error)?
+            .as_f64()
+            .ok_or_else(|| "Renderer returned no handle count".to_owned())?;
+        if !count.is_finite() || !(0.0..=f64::from(u32::MAX)).contains(&count) {
+            return Err("Renderer returned an invalid handle count".to_owned());
+        }
+        schedule_frame(&self.host.inner).map_err(js_error)?;
+        Ok(count as u32)
+    }
+
+    pub fn pick_at_client(&self, client_x: f64, client_y: f64) -> Result<Option<String>, String> {
+        self.ensure_active()?;
+        let (x, y) = self.renderer_coordinates(client_x, client_y)?;
+        let result = call_method(&self.host.inner.renderer, "pick", &[x.into(), y.into()])
+            .map_err(js_error)?;
+        if result.is_null() || result.is_undefined() {
+            return Ok(None);
+        }
+        result
+            .as_string()
+            .map(Some)
+            .ok_or_else(|| "Renderer returned a non-string pick result".to_owned())
+    }
+
+    pub fn point_on_plane_at_client(
+        &self,
+        client_x: f64,
+        client_y: f64,
+        z: f32,
+    ) -> Result<Option<[f32; 3]>, String> {
+        self.ensure_active()?;
+        let (x, y) = self.renderer_coordinates(client_x, client_y)?;
+        let value = call_method(
+            &self.host.inner.renderer,
+            "pointOnPlane",
+            &[x.into(), y.into(), z.into()],
+        )
+        .map_err(js_error)?;
+        let points = value
+            .dyn_into::<Float32Array>()
+            .map_err(|_| "Renderer returned an invalid world point buffer".to_owned())?;
+        match points.length() {
+            0 => Ok(None),
+            3 => {
+                let point = [
+                    points.get_index(0),
+                    points.get_index(1),
+                    points.get_index(2),
+                ];
+                point
+                    .iter()
+                    .all(|coordinate| coordinate.is_finite())
+                    .then_some(Some(point))
+                    .ok_or_else(|| "Renderer returned non-finite world coordinates".to_owned())
+            }
+            _ => Err("Renderer returned an invalid world point length".to_owned()),
+        }
+    }
+
+    pub fn orbit(&self, delta_x: f64, delta_y: f64) -> Result<(), String> {
+        self.host.orbit(delta_x, delta_y)
+    }
+
+    pub fn zoom(&self, factor: f64) -> Result<(), String> {
+        self.host.zoom(factor)
+    }
+
+    pub fn view(&self, preset: &str) -> Result<(), String> {
+        self.host.view(preset)
+    }
+
+    pub fn fit(&self) -> Result<(), String> {
+        self.host.fit()
+    }
+
+    pub fn focus_objects(&self, ids: &[String]) -> Result<bool, String> {
+        self.ensure_active()?;
+        let values = Array::new();
+        for id in ids {
+            values.push(&JsValue::from_str(id));
+        }
+        let focused = call_method(&self.host.inner.renderer, "focusObjects", &[values.into()])
+            .map_err(js_error)?;
+        schedule_frame(&self.host.inner).map_err(js_error)?;
+        focused
+            .as_bool()
+            .ok_or_else(|| "Renderer returned an invalid focus result".to_owned())
+    }
+
+    fn ensure_active(&self) -> Result<(), String> {
+        if self.host.inner.disposed.get() || self.host.inner.context_lost.get() {
+            Err("Renderer is no longer active".to_owned())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn renderer_coordinates(&self, client_x: f64, client_y: f64) -> Result<(f64, f64), String> {
+        self.ensure_active()?;
+        if !client_x.is_finite() || !client_y.is_finite() {
+            return Err("Pointer coordinates are not finite".to_owned());
+        }
+        let rect = self.host.inner.canvas.get_bounding_client_rect();
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return Err("Renderer canvas has no visible area".to_owned());
+        }
+        let x = (client_x - rect.left()) * f64::from(self.host.inner.canvas.width()) / rect.width();
+        let y =
+            (client_y - rect.top()) * f64::from(self.host.inner.canvas.height()) / rect.height();
+        if !x.is_finite() || !y.is_finite() {
+            return Err("Renderer pointer coordinates are invalid".to_owned());
+        }
+        Ok((x, y))
+    }
+}
+
+fn with_scene_sequence(input: &JsValue, sequence: u64) -> Result<JsValue, String> {
+    if !input.is_object() || input.is_null() {
+        return Err("Renderer scene update must be an object".to_owned());
+    }
+    let output = Object::new();
+    let keys = Object::keys(input.unchecked_ref::<Object>());
+    for index in 0..keys.length() {
+        let key = keys.get(index);
+        let value = Reflect::get(input, &key).map_err(js_error)?;
+        Reflect::set(&output, &key, &value).map_err(js_error)?;
+    }
+    Reflect::set(
+        &output,
+        &"revision".into(),
+        &JsValue::from_f64(sequence as f64),
+    )
+    .map_err(js_error)?;
+    let board = Reflect::get(input, &"board".into()).map_err(js_error)?;
+    if !board.is_null() && !board.is_undefined() {
+        let board_copy = Object::new();
+        let board_keys = Object::keys(board.unchecked_ref::<Object>());
+        for index in 0..board_keys.length() {
+            let key = board_keys.get(index);
+            let value = Reflect::get(&board, &key).map_err(js_error)?;
+            Reflect::set(&board_copy, &key, &value).map_err(js_error)?;
+        }
+        Reflect::set(
+            &board_copy,
+            &"revision".into(),
+            &JsValue::from_f64(sequence as f64),
+        )
+        .map_err(js_error)?;
+        Reflect::set(&output, &"board".into(), &board_copy).map_err(js_error)?;
+    }
+    Ok(output.into())
 }
 
 fn ensure_current(is_current: &Rc<dyn Fn() -> bool>) -> Result<(), String> {
@@ -501,13 +708,21 @@ mod lifecycle_tests {
             "fail",
             "const calls = { setScene: 0, fit: 0, resize: 0, render: 0, dispose: 0, free: 0, zoom: 0, args: {} };
              const hook = (name) => function () {
-               calls[name] += 1;
+               calls[name] = (calls[name] || 0) + 1;
                (calls.args[name] ||= []).push(Array.from(arguments));
                if (fail === name) { throw new Error(name + ' failed'); }
+               if (name === 'setScene') { return this.sceneAcceptance; }
+               if (name === 'setHandles') { return 0; }
+               if (name === 'pick') { return null; }
+               if (name === 'pointOnPlane') { return new Float32Array(); }
+               if (name === 'focusObjects') { return false; }
              };
              return { calls, setScene: hook('setScene'), fit: hook('fit'), resize: hook('resize'),
                       render: hook('render'), dispose: hook('dispose'), free: hook('free'),
-                      zoom: hook('zoom') };",
+                      zoom: hook('zoom'), orbit: hook('orbit'), view: hook('view'),
+                      setState: hook('setState'), setHandles: hook('setHandles'),
+                      pick: hook('pick'), pointOnPlane: hook('pointOnPlane'),
+                      focusObjects: hook('focusObjects') };",
         )
         .call1(&JsValue::NULL, &JsValue::from_str(fail))
         .unwrap()
@@ -687,6 +902,120 @@ mod lifecycle_tests {
 
     async fn settle() {
         gloo_timers::future::TimeoutFuture::new(120).await;
+    }
+
+    fn page_host(renderer: &JsValue, canvas: &HtmlCanvasElement) -> RendererPageHost {
+        let (status, _) = status_log();
+        RendererPageHost {
+            host: attach(renderer, canvas, status).unwrap(),
+            last_sequence: Cell::new(0),
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn scene_submission_requires_increasing_sequences_even_after_rejection() {
+        let renderer = scripted_renderer("");
+        Reflect::set(&renderer, &"sceneAcceptance".into(), &true.into()).unwrap();
+        let canvas = make_canvas();
+        let host = page_host(&renderer, &canvas);
+        let scene = js_sys::Object::new();
+        assert!(host.submit_scene(scene.clone().into(), 2).unwrap());
+        assert!(
+            host.submit_scene(scene.clone().into(), 2)
+                .unwrap_err()
+                .contains("increase")
+        );
+        assert!(
+            host.submit_scene(scene.clone().into(), 1)
+                .unwrap_err()
+                .contains("increase")
+        );
+        assert_eq!(
+            calls(&renderer, "setScene"),
+            2,
+            "stale submissions never reach the renderer"
+        );
+        Reflect::set(&renderer, &"sceneAcceptance".into(), &false.into()).unwrap();
+        assert!(!host.submit_scene(scene.clone().into(), 3).unwrap());
+        assert!(
+            host.submit_scene(scene.into(), 3)
+                .unwrap_err()
+                .contains("increase")
+        );
+        host.dispose().unwrap();
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn scene_submission_only_queues_frames_for_boolean_acceptance() {
+        let renderer = scripted_renderer("");
+        let canvas = make_canvas();
+        let host = page_host(&renderer, &canvas);
+        settle().await;
+        let renders = calls(&renderer, "render");
+        let scene = js_sys::Object::new();
+        Reflect::set(&renderer, &"sceneAcceptance".into(), &false.into()).unwrap();
+        assert!(!host.submit_scene(scene.clone().into(), 1).unwrap());
+        settle().await;
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "rejection must not queue a frame"
+        );
+        Reflect::set(&renderer, &"sceneAcceptance".into(), &JsValue::UNDEFINED).unwrap();
+        assert!(
+            host.submit_scene(scene.clone().into(), 2)
+                .unwrap_err()
+                .contains("acceptance")
+        );
+        settle().await;
+        assert_eq!(
+            calls(&renderer, "render"),
+            renders,
+            "non-boolean results must not queue a frame"
+        );
+        Reflect::set(&renderer, &"sceneAcceptance".into(), &true.into()).unwrap();
+        assert!(host.submit_scene(scene.into(), 3).unwrap());
+        settle().await;
+        assert_eq!(calls(&renderer, "render"), renders + 1);
+        host.dispose().unwrap();
+        canvas.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn page_operations_refuse_disposed_and_context_lost_renderers() {
+        for context_lost in [false, true] {
+            let renderer = scripted_renderer("");
+            let canvas = make_canvas();
+            let host = page_host(&renderer, &canvas);
+            settle().await;
+            if context_lost {
+                canvas
+                    .dispatch_event(&Event::new("webglcontextlost").unwrap())
+                    .unwrap();
+            } else {
+                host.dispose().unwrap();
+            }
+            let renders = calls(&renderer, "render");
+            let scenes = calls(&renderer, "setScene");
+            assert!(host.submit_scene(js_sys::Object::new().into(), 1).is_err());
+            assert!(host.set_display_state(JsValue::NULL).is_err());
+            assert!(host.resize().is_err());
+            assert!(host.set_handles(JsValue::NULL).is_err());
+            assert!(host.pick_at_client(1.0, 1.0).is_err());
+            assert!(host.point_on_plane_at_client(1.0, 1.0, 0.0).is_err());
+            assert!(host.focus_objects(&[]).is_err());
+            assert!(host.orbit(1.0, 1.0).is_err());
+            assert!(host.zoom(1.1).is_err());
+            assert!(host.view("top").is_err());
+            assert!(host.fit().is_err());
+            settle().await;
+            assert_eq!(calls(&renderer, "setScene"), scenes);
+            assert_eq!(calls(&renderer, "render"), renders);
+            assert_eq!(calls(&renderer, "zoom"), 0);
+            host.dispose().unwrap();
+            canvas.remove();
+        }
     }
 
     fn state(canvas: &HtmlCanvasElement) -> Option<String> {

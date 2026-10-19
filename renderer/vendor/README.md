@@ -15,6 +15,3 @@ The vendored source removes obsolete `#[inline]` attributes on macro calls and
 unreachable `simd` and `rustc-serialize` cfgs that emitted compiler warnings.
 The removed SIMD code was not a declared Cargo feature. The explicit Rust 2015
 edition matches Cargo's previous default.
-
-`cgmath-0.18.0/` retains the previous reviewed swap-only patch as an unused
-fallback. It is not in the active dependency graph.

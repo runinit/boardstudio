@@ -1,23 +1,25 @@
-//! The helper observing one Keymap controller's edits for one owner lifetime.
+//! The helper observing one controller's edits for one owner lifetime.
 //!
 //! A controller's requests all belong to the Scope and Scope generation they were
 //! admitted under, so a changed owner replaces the helper: the old observations retire
 //! silently while their Session edits still run. Request metadata travels in the keys,
 //! which compare by logical field or action; this holder only remembers which keys are
 //! still observed so presentation can project their pending values.
+use crate::pending_edit_helpers::PendingEditSignals;
 use boardstudio_application::Scope;
-use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 
-pub(super) struct OwnedEdits<K: PartialEq + Clone + 'static> {
+type BoundField<K> = (K, Signal<String>, Signal<Option<String>>);
+
+pub struct OwnedEdits<K: PartialEq + Clone + 'static> {
     pub helper: PendingEditSignals<K>,
     owner: Option<(Option<Scope>, u64)>,
     requests: Vec<K>,
     /// The bound field Signals of mounted components, kept so a replacement helper is
     /// bound the same way and the first edit after an owner change still restores its
     /// draft and places its failure.
-    fields: RefCell<Vec<(K, Signal<String>, Signal<Option<String>>)>>,
+    fields: RefCell<Vec<BoundField<K>>>,
 }
 
 impl<K: PartialEq + Clone + 'static> Default for OwnedEdits<K> {
@@ -73,7 +75,7 @@ impl<K: PartialEq + Clone + 'static> OwnedEdits<K> {
 
     /// Read the exact text currently shown by a mounted field before its typed
     /// request is submitted. The shared helper owns the submitted-value memory.
-    pub(super) fn bound_draft(&self, key: &K) -> Option<String> {
+    pub fn bound_draft(&self, key: &K) -> Option<String> {
         self.fields
             .borrow()
             .iter()
@@ -106,3 +108,7 @@ impl<K: PartialEq + Clone + 'static> OwnedEdits<K> {
         self.requests.retain(|key| helper.is_pending(key));
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "owned_edits_tests.rs"]
+mod tests;

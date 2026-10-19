@@ -7,7 +7,6 @@ mod encoder_inputs;
 mod layer_controller;
 mod macro_controller;
 mod macro_editor;
-mod owned_edits;
 mod panel;
 mod view;
 mod view_controls;

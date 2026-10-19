@@ -4,7 +4,6 @@ use super::binding_editor::{
     BindingMacroChoice, BindingTarget, EncoderInputIdentity,
 };
 use super::layer_controller::LayerSource;
-use super::owned_edits::OwnedEdits;
 use super::view::KeymapView;
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -12,6 +11,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{EditOperation, EncoderDirection, KeyBinding, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
 

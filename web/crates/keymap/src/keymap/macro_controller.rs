@@ -4,12 +4,12 @@ use super::macro_editor::{
     MacroEditChange, MacroEditFeedback, MacroEditRequest, MacroEditStatus, MacroEditTarget,
     MacroReadSource, MacroStepSequence,
 };
-use super::owned_edits::OwnedEdits;
 use crate::macro_edit::{PrecedingStructure, macro_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, Durability, Lifecycle};
 use boardstudio_core::model::{MacroChange, MacroStep};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 

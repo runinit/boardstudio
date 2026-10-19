@@ -1,5 +1,4 @@
 //! Editor-owned layer intents and ticket settlement.
-use super::owned_edits::OwnedEdits;
 use crate::layer_edit::{KeymapLayerFeedback, KeymapLayerOperation, layer_resolver};
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -7,6 +6,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{EditCommand, EditOperation, KeymapChange};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
 

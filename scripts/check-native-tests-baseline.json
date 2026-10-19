@@ -1226,8 +1226,7 @@
   "portable_archive::tests::selected_closure_matches_react_reference_buckets_and_deduplicates",
   "qualification_assessment_tests::qualified_default_plane_and_mixed_bands_keep_accuracy_separate_from_threshold",
   "qualification_assessment_tests::shared_cylinder_budget_controls_do_not_treat_selected_deflection_as_a_certificate",
-  "qualification_assessment_tests::unknown_contact_retains_scalar_diagnostic_and_unknown_containment_only_blocks_clear",
-  "renderer_host_source_sync::private_page_host_matches_normalized_library_host"
+  "qualification_assessment_tests::unknown_contact_retains_scalar_diagnostic_and_unknown_containment_only_blocks_clear"
  ],
  "boardstudio_web_ui_model": [
   "instance_selection::tests::automatic_navigation_waits_for_real_session_open_and_save",
@@ -1246,6 +1245,9 @@
  "boardstudio_web_ui_shared": [
   "footprint_forms::tests::projects_native_and_legacy_arcs_and_nested_keepouts",
   "footprint_forms::tests::projects_nested_graphics_into_pad_coordinates_and_decodes_text",
+  "owned_edits::tests::bound_draft_tracks_live_rebindings_and_forgets_unmounted_fields",
+  "owned_edits::tests::owner_replacement_retires_observations_and_rebinds_mounted_signals",
+  "owned_edits::tests::pending_requests_keep_latest_order_until_terminal_requests_are_pruned",
   "panels::policy::tests::finite_widths_clamp_at_each_sides_exact_limits",
   "panels::policy::tests::invalid_mode_keeps_and_clamps_a_valid_left_width",
   "panels::policy::tests::malformed_or_absent_fields_default_independently",

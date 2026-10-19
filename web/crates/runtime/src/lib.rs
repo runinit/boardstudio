@@ -45,6 +45,3 @@ pub mod runtime;
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 #[path = "runtime_test_stub.rs"]
 pub mod runtime;
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod renderer_host_source_sync;

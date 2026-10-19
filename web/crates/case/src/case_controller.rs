@@ -2,7 +2,6 @@
 use super::case_bodies::{
     CaseBoardSummary, CaseBodies, CaseBodyEdit, CaseBodyEditFeedback, CaseBodyRequest, CaseMismatch,
 };
-use crate::owned_edits::OwnedEdits;
 use crate::runtime::Runtime;
 #[cfg(test)]
 use boardstudio_application::Event;
@@ -13,6 +12,7 @@ use boardstudio_core::model::{
     CaseBody, CaseKind, EditCommand, EditOperation, Mount, MountKind, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::owned_edits::OwnedEdits;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
