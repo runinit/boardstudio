@@ -1,5 +1,8 @@
 # Handoff: ticket 04, refresh included keyboards
 
+Status: wontfix
+Type: build
+
 > Progress since this handoff is recorded in the ticket's [Outcome](04-refresh-included-keyboards.md#outcome); the draft below was reviewed, repaired and committed.
 
 Ticket: [04-refresh-included-keyboards.md](04-refresh-included-keyboards.md) (`Status: claimed`, claim commit `f6a6a3a46`)

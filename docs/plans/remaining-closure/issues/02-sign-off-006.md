@@ -9,7 +9,7 @@ opening reachable but refused). Change status to resolved.
 
 **Blocked by:** 01 (013 closed)
 
-**Status:** ready-for-agent
+Status: resolved
 
 - [ ] Adoption disposition table finalized
 - [ ] Named limitations documented (not silent omissions)

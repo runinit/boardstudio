@@ -1,6 +1,6 @@
 # 02: Drop GVP comparison (superseded by research)
 
-Status: done
+Status: wontfix
 Type: build
 
 ## What to build

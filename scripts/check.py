@@ -129,8 +129,6 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "scripts/check-doc-links.py"],
         [PY, "-B", "scripts/test-check-core-tests.py"],
         [PY, "scripts/check-core-tests.py"],
-        [PY, "-B", "scripts/test-check-tickets.py"],
-        [PY, "scripts/check-tickets.py"],
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
     ]),

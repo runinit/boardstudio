@@ -1,6 +1,6 @@
 # 05: Verify and close
 
-Status: ready
+Status: resolved
 Type: build
 
 ## What to build

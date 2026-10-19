@@ -1,6 +1,6 @@
 # 01: Audit current aggregate report usage
 
-Status: ready
+Status: resolved
 Type: build
 
 ## What to build

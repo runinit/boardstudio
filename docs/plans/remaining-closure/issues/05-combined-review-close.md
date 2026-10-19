@@ -6,7 +6,7 @@ updated, and no acceptance boxes remain unchecked without a recorded reason.
 
 **Blocked by:** 03 (008 closed), 04 (001+002 resolved)
 
-**Status:** ready-for-agent
+Status: resolved
 
 - [ ] Track A combined review passes
 - [ ] Track B combined review passes

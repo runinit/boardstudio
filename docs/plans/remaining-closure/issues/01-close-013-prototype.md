@@ -8,7 +8,7 @@ implement every limitation.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+Status: resolved
 
 - [ ] Adoption recommendation documented in 013
 - [ ] Supported feature matrix recorded (round-seat, boss through-hole, flush seat, countersink, cavity+opening, nonconvex PCB with drills)

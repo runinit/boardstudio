@@ -95,12 +95,13 @@ and for any bulk action a recorded decision permits.
   examples with no hardware or fabrication claims. The historical removal in
   [138](issues/138-retire-shipped-demos.md) remains accurate for the earlier shipped boards.
   Board-specific refresh, recipes, hardware research and sign-off tickets remain `wontfix`:
-  [04](issues/04-refresh-included-keyboards.md),
+  [04](issues/04-refresh-included-keyboards.md) ([handoff](issues/04-handoff.md)),
   [20](issues/20-recipes-build-one-half.md), [23](issues/23-redo-keyboard-04-on-native-halves.md),
   [25](issues/25-shipped-boards-review.md), [42](issues/42-global-key-spacing-preference.md),
   [43](issues/43-apply-key-spacing-on-creation.md), [45](issues/45-reversible-variant-substitution-decision.md),
   [46](issues/46-sofle-hardware-inputs.md), [56](issues/56-sofle-sign-off.md),
   [57](issues/57-measured-split-hardware-inputs.md), [79](issues/79-unibody-hardware-inputs.md),
+  [44](issues/44-native-recipe-assembly-profiles.md), [47](issues/47-sofle-v2-native-assembly.md), [48](issues/48-sofle-v2-real-components.md), [49](issues/49-sofle-v2-native-mechanics.md), [50](issues/50-sofle-rgb-native-assembly.md), [51](issues/51-sofle-rgb-real-components.md), [52](issues/52-sofle-rgb-native-mechanics.md), [53](issues/53-sofle-choc-native-assembly.md), [54](issues/54-sofle-choc-real-components.md), [55](issues/55-sofle-choc-native-mechanics.md), [58](issues/58-corne-native-assembly.md), [59](issues/59-corne-real-components.md), [60](issues/60-corne-native-mechanics.md), [61](issues/61-lily58-native-assembly.md), [62](issues/62-lily58-real-components.md), [63](issues/63-lily58-native-mechanics.md), [64](issues/64-klor-native-assembly.md), [65](issues/65-klor-real-components.md), [66](issues/66-klor-native-mechanics.md), [67](issues/67-sweep-native-assembly.md), [68](issues/68-sweep-real-components.md), [69](issues/69-sweep-native-mechanics.md), [70](issues/70-chocofi-native-assembly.md), [71](issues/71-chocofi-real-components.md), [72](issues/72-chocofi-native-mechanics.md), [73](issues/73-totem-native-assembly.md), [74](issues/74-totem-real-components.md), [75](issues/75-totem-native-mechanics.md), [76](issues/76-cantor-native-assembly.md), [77](issues/77-cantor-real-components.md), [78](issues/78-cantor-native-mechanics.md), [80](issues/80-gh60-native-assembly.md), [81](issues/81-gh60-real-components.md), [82](issues/82-gh60-native-mechanics.md), [83](issues/83-discipline-native-assembly.md), [84](issues/84-discipline-real-components.md), [85](issues/85-discipline-native-mechanics.md), [86](issues/86-mysterium-native-assembly.md), [87](issues/87-mysterium-real-components.md), [88](issues/88-mysterium-native-mechanics.md), [89](issues/89-voyager97-native-assembly.md), [90](issues/90-voyager97-real-components.md), [91](issues/91-voyager97-native-mechanics.md), [92](issues/92-voyager104-native-assembly.md), [93](issues/93-voyager104-real-components.md), [94](issues/94-voyager104-native-mechanics.md), [95](issues/95-plaid-native-assembly.md), [96](issues/96-plaid-real-components.md), [97](issues/97-plaid-native-mechanics.md), [98](issues/98-lumberjack-native-assembly.md), [99](issues/99-lumberjack-real-components.md), [100](issues/100-lumberjack-native-mechanics.md), [101](issues/101-reviung41-native-assembly.md), [102](issues/102-reviung41-real-components.md), [103](issues/103-reviung41-native-mechanics.md),
   [104](issues/104-preserve-reviung41-original-archive.md) and [118](issues/118-sofle-adaptation-hardware-contract.md).
   Their source evidence remains historical. Reopen only if the user brings board demos back into scope.
   Generic typed Core work remains active; mirrored-half tickets [21](issues/21-mirrored-half-web-adapter.md),
@@ -166,7 +167,7 @@ and for any bulk action a recorded decision permits.
 
   Tickets [21](issues/21-mirrored-half-web-adapter.md), [22](issues/22-mirrored-half-integrated-verification.md), [40](issues/40-set-companion-placement-operation.md) and [41](issues/41-inspector-companion-mode.md) are resolved. Ticket 22 verifies shared-board mechanical feature exceptions through save/reopen.
 
-  All mirrored-half Core reconciliation tickets ([19](issues/19-reconcile-mirrored-halves.md), [105](issues/105-mirrored-half-derivation-kernel.md), [106](issues/106-reconcile-mirrored-matrices-layouts-parts.md), [107](issues/107-reconcile-mirrored-hosted-electrical-items.md), 108–110, [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md), [111](issues/111-integrate-mirrored-half-reconciliation.md), 112, [113](issues/113-inverse-map-reviewed-outline-edits.md), [114](issues/114-mirrored-edit-compatibility-constraints.md), [115](issues/115-prepare-mirrored-edit-transaction.md), [116](issues/116-prepare-mirrored-open-repair.md), [117](issues/117-prepare-mirrored-preview-history-performance.md), [139](issues/139-generalized-mirrored-constraint-model.md)) are resolved and merged on `dev`.
+  All mirrored-half Core reconciliation tickets ([19](issues/19-reconcile-mirrored-halves.md), [105](issues/105-mirrored-half-derivation-kernel.md), [106](issues/106-reconcile-mirrored-matrices-layouts-parts.md), [107](issues/107-reconcile-mirrored-hosted-electrical-items.md), [108](issues/108-reconcile-mirrored-outlines-assemblies.md), [109](issues/109-mirrored-half-exceptions-unlink.md), [109b](issues/109b-mirror-only-replacement-parts-auto-pins.md), [110](issues/110-inverse-map-mirrored-half-edits.md), [111](issues/111-integrate-mirrored-half-reconciliation.md), [112](issues/112-inverse-map-hosted-electrical-edits.md), [113](issues/113-inverse-map-reviewed-outline-edits.md), [114](issues/114-mirrored-edit-compatibility-constraints.md), [115](issues/115-prepare-mirrored-edit-transaction.md), [116](issues/116-prepare-mirrored-open-repair.md), [117](issues/117-prepare-mirrored-preview-history-performance.md), [139](issues/139-generalized-mirrored-constraint-model.md)) are resolved and merged on `dev`.
 
 Companion placement: a column splay now carries authored companions with their keys (`30903fe4b`). [143](issues/143-part-offset-constraint.md) adds a `part-offset` constraint kind that holds a companion along its key's axes (design settled in [ADR-0011](../../adr/0011-part-offset-is-its-own-constraint-kind.md), ready to build), and [144](issues/144-set-matrix-carries-authored-companions.md) carries authored companions through whole-matrix edits. [143b](issues/143b-part-offset-review-fixes.md) closes the review findings on 143's series.
 
@@ -194,7 +195,7 @@ Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) re
   mutation evidence. One full sequential cohort batch passed all default steps in 539.1 s, including 70 presentation
   tests. Parent 106/19 remain open and unactivated; physical/system hardware follow-through is deferred under 138.
 
-- 31 companion placement modes, 32 mirrored-half labels and
+- [31](issues/31-companion-placement-modes.md) companion placement modes, [32](issues/32-mirrored-half-labels.md) mirrored-half labels and
   [39](issues/39-stabilisers-and-companion-fallback.md) stabiliser/companion fallback rules are independently
   verified and merged from lane B. Ticket 39 verification is `4227567ae`; its eight mutations failed meaningfully.
   Placement modes apply to switch companions only; independent parts keep the general mirror rule.
@@ -269,7 +270,7 @@ Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) re
   never lands). Everything else, including all of `parts`, moves to [37](issues/37-sleeps-layout-library-ui-page.md) under "Carried from 36".
   [Verification](issues/36-sleeps-case-pcb-parts.md#verification).
 
-- **Batch A boundary check** (tickets 18, 29, 30, 27, 26, 28; all Core and catalogue, the page compiles the shared
+- **Batch A boundary check** (tickets 18, 29, 30, 27, [26](issues/26-mirrored-half-linked-mechanical-and-unchanged-parameters.md), 28; all Core and catalogue, the page compiles the shared
   model), 2026-10-10 at `92adcd611` in the nested `tce-matrix` worktree, sandbox lifted, one sequential foreground
   `python3 scripts/check.py` (default steps, not `release`), started 04:41:09, finished 04:50:28: all passed.
   Step times: repo 0.1 s, tooling 7.9 s, lint 9.7 s, build 206.8 s, test 90.4 s, browser 243.9 s, total 558.8 s.
@@ -370,7 +371,7 @@ Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) re
 
 ## Ready for implementation
 
-- Open tickets in this plan: 140 (UI design refinement), [141](issues/141-mirrored-outline-gap-controls.md) (single-outline mirrored gap control diagnosis), and (on `dev`) `161-curated-library-launchpad-demos.md`. Historical parallel scheduling notes: [parallel streams](parallel-streams-review.md), [lane registry](lane-registry.md#coordinators).
+- Open tickets in this plan: [140](issues/140-ui-design-impeccable.md) (UI design refinement), [141](issues/141-mirrored-outline-gap-controls.md) (single-outline mirrored gap control diagnosis), and (on `dev`) `161-curated-library-launchpad-demos.md`. Historical parallel scheduling notes: [parallel streams](parallel-streams-review.md), [lane registry](lane-registry.md#coordinators).
 - Board artifact implementation/reintroduction is deferred under 138. Board-specific tickets
   04, 20, 23, 25, 42, 43, 45, 46, 56, 57, 79, 104 and 118 are `wontfix` for this scope;
   their source evidence remains historical. Generic mirror/Core and saved-user-project behavior
@@ -410,7 +411,7 @@ Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) re
   HIGH registry / CRITICAL schema consumer warnings are retained. Ticket 131 is resolved; physical 118 stays open.
 - The next nine-test browser inspector proposal is deferred: 1.08 s of scheduled waits is not a measured gain,
   and negative-case causal proof remains unresolved. Shared helper impacts are HIGH; no implementation lease.
-- Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup 35 and closure 24 remain last,
+- Browser 37 remains partial; 38 waits for its complete acceptance. Cleanup [35](issues/35-test-maintenance-cuts.md) and closure 24 remain last,
   after mirror work is integrated; generated goldens belong to the orchestrator.
 - The outline phase (11-15) is resolved. Remaining matrix tickets 04-11 are tracked in their own
   map. The separate included-board refresh [04](issues/04-refresh-included-keyboards.md) is deferred

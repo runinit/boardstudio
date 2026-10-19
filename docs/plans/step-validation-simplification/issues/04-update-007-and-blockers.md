@@ -1,6 +1,6 @@
 # 04: Update 007 ticket and blockers
 
-Status: ready
+Status: resolved
 Type: build
 
 ## What to build

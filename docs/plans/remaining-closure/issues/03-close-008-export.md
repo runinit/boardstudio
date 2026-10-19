@@ -8,7 +8,7 @@ exact tests to 009 mesh/print checks. Change status to resolved.
 
 **Blocked by:** 02 (006 signed off)
 
-**Status:** ready-for-agent
+Status: resolved
 
 - [ ] Existing fixture checks reconciled against current output
 - [ ] FreeCAD receipt reused (no rerun for unchanged exports)

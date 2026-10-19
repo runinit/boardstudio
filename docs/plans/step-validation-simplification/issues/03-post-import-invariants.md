@@ -1,6 +1,6 @@
 # 03: Post-import invariant suite
 
-Status: ready
+Status: resolved
 Type: build
 
 ## What to build

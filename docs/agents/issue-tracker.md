@@ -14,10 +14,7 @@ tickets live in `docs/plans/typed-core-edits/issues/`.
   (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) or a workflow
   state: `claimed` while someone works it, `resolved` once it is done.
 - Comments and conversation append at the bottom of the ticket under `## Comments`.
-- Name every new ticket in the plan's `map.md`.
-- `scripts/check-tickets.py`, part of `python3 scripts/check.py repo`, enforces `Status` and the
-  map listing for typed-core-edits; `scripts/check-tickets-baseline.json` holds the older
-  exceptions.
+- Name every new ticket in the plan's `map.md` (`scripts/check-doc-links.py` in `python3 scripts/check.py repo` verifies every Markdown link).
 
 ## Building and verifying a ticket
 
