@@ -155,11 +155,7 @@ fn gen_pad(
     }
     let turned = (rot > 0.0 && rot <= 180.0) || rot <= -180.0;
     let direction = if !label_at_bottom || layer == "B" {
-        if turned {
-            "right"
-        } else {
-            "left"
-        }
+        if turned { "right" } else { "left" }
     } else if turned {
         "left"
     } else {

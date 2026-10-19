@@ -396,7 +396,7 @@ fn exports_quoted_generator_text_and_active_labels_for_kicad() {
     let other = definition("infused-kim/text");
     let pads = definition("infused-kim/pads");
     let smd = definition("infused-kim/smd_0805");
-    let literal = "Board 12\" inch \\ path — ✓\nsecond line";
+    let literal = "Board 12\" inch \\ path — ✓\nsecond line\\nstays literal\tend";
     let plain = "Board 12 inch";
     let parts = [
         part(
@@ -430,10 +430,16 @@ fn exports_quoted_generator_text_and_active_labels_for_kicad() {
         ),
         part(&text, "plain", 60.0, "front", json!({ "text": plain })),
     ];
-    let board = export_board(
-        project(&[text, other, pads, smd], &parts, &[]),
+    let document = project(&[text, other, pads, smd], &parts, &[]);
+    let board = export_board(document.clone(), BTreeMap::new());
+    let preview = kicad::preview(request(
+        document,
+        ExportTarget::Board {
+            board_id: "main".into(),
+        },
         BTreeMap::new(),
-    );
+    ))
+    .expect("preview board");
 
     let forms = generators::parse_forms(&board).expect("exported board parses");
     let gr_text = text_values(&forms, "gr_text", None);
@@ -458,7 +464,43 @@ fn exports_quoted_generator_text_and_active_labels_for_kicad() {
         board.contains("Board 12\\\" inch \\\\ path"),
         "quotes and backslashes are serialized once"
     );
+    let preview_texts: Vec<&str> = preview
+        .surfaces
+        .iter()
+        .map(|surface| surface.text.as_str())
+        .collect();
+    assert_eq!(
+        preview_texts.iter().filter(|text| **text == literal).count(),
+        8,
+        "preview surfaces keep every visible literal text and label"
+    );
+    assert!(preview_texts.contains(&plain));
     assert!(kicad_parses(&board));
+}
+
+#[test]
+fn rejects_unsupported_control_text_in_generator_output() {
+    let text = definition("ceoloide/utility_text");
+    let part = part(
+        &text,
+        "control",
+        0.0,
+        "front",
+        json!({ "text": "bad\u{1}text" }),
+    );
+    let error = kicad::export(request(
+        project(&[text], &[part], &[]),
+        ExportTarget::Board {
+            board_id: "main".into(),
+        },
+        BTreeMap::new(),
+    ))
+    .expect_err("control text must be refused");
+    assert!(
+        error.message.contains("KiCad text contains a control character"),
+        "{}",
+        error.message
+    );
 }
 
 #[test]

@@ -98,6 +98,7 @@ const POINTS: [(f64, f64); 56] = [
 ];
 
 fn polygon(side: &str, layer: &str, scale: f64, mirrored: bool) -> String {
+    let layer = json_string(&format!("{side}.{layer}"));
     let points: Vec<String> = POINTS
         .iter()
         .map(|&(x, y)| {
@@ -111,7 +112,7 @@ fn polygon(side: &str, layer: &str, scale: f64, mirrored: bool) -> String {
         })
         .collect();
     format!(
-        "(fp_poly (pts {}) (stroke (width 0.01) (type solid)) (fill solid) (layer \"{side}.{layer}\"))\n",
+        "(fp_poly (pts {}) (stroke (width 0.01) (type solid)) (fill solid) (layer {layer}))\n",
         points.join(" ")
     )
 }

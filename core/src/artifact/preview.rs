@@ -10,6 +10,19 @@ fn error(message: impl Into<String>) -> ArtifactError {
 fn value(n: &Node, i: usize) -> &str {
     items(n).and_then(|v| v.get(i)).and_then(atom).unwrap_or("")
 }
+/// A quoted text value decoded from the raw source, so control escapes agree with
+/// the export instead of the CST's lossy generic unescaping.
+fn decoded(source: &str, n: &Node, i: usize) -> String {
+    items(n)
+        .and_then(|v| v.get(i))
+        .map(|item| match item {
+            Node::Atom { span, .. } => super::sexpr::kicad_quoted(source, *span)
+                .or_else(|| atom(item).map(str::to_owned))
+                .unwrap_or_default(),
+            Node::List { .. } => String::new(),
+        })
+        .unwrap_or_default()
+}
 fn number(n: &Node, i: usize, fallback: f64) -> Result<f64, ArtifactError> {
     let s = value(n, i);
     if s.is_empty() {
@@ -159,6 +172,7 @@ fn layers(n: &Node) -> Vec<String> {
     result
 }
 fn graphic(
+    source: &str,
     n: &Node,
     placement: &Pose2,
     out: &mut PcbPreview,
@@ -220,9 +234,9 @@ fn graphic(
             pose(n)?
         };
         let text = if tag == "fp_text" || tag == "property" {
-            value(n, 2)
+            decoded(source, n, 2)
         } else {
-            value(n, 1)
+            decoded(source, n, 1)
         };
         let size = child(n, "effects")
             .and_then(|n| child(n, "font"))
@@ -234,7 +248,7 @@ fn graphic(
             points: vec![transform(at.at, placement)],
             width: 0.,
             filled: true,
-            text: text.into(),
+            text,
             rotation: at.rotation,
             text_size: size,
         });
@@ -472,7 +486,7 @@ pub(super) fn board_source(
                             }
                         }
                         tag if tag.starts_with("fp_") || tag == "property" => {
-                            graphic(node, &fp, &mut out, &mut edges, false)?
+                            graphic(source, node, &fp, &mut out, &mut edges, false)?
                         }
                         _ => {}
                     }
@@ -509,7 +523,7 @@ pub(super) fn board_source(
                 }
             }
             tag if tag.starts_with("gr_") || tag == "segment" || tag == "arc" => {
-                graphic(n, &origin, &mut out, &mut edges, false)?
+                graphic(source, n, &origin, &mut out, &mut edges, false)?
             }
             _ => {}
         }
@@ -553,7 +567,7 @@ pub(super) fn footprint_surfaces(source: &str) -> Result<Vec<PcbSurface>, Artifa
     for node in items(root).unwrap_or(&[]).iter().skip(1) {
         let tag = head(node).unwrap_or("");
         if tag.starts_with("fp_") || tag == "property" {
-            graphic(node, &identity, &mut out, &mut edges, true)?;
+            graphic(source, node, &identity, &mut out, &mut edges, true)?;
         }
     }
     out.surfaces.retain(|surface| {
@@ -591,6 +605,17 @@ mod tests {
         );
         assert!(result.surfaces.iter().any(|s| s.layer == "B.Mask"));
     }
+    #[test]
+    fn decodes_escaped_text_whitespace_in_preview() {
+        let input = format!(
+            "(kicad_pcb {EDGE} (gr_text \"line\\nnext\\tend\" (at 0 0 0) (layer \"F.SilkS\")) (footprint \"switch\" (layer \"F.Cu\") (at 0 0) (fp_text user \"quote: \\\" slash: \\\\\" (at 0 0) (layer \"F.SilkS\"))))"
+        );
+        let result = board(&input, 0).unwrap();
+        let texts: Vec<&str> = result.surfaces.iter().map(|surface| surface.text.as_str()).collect();
+        assert!(texts.contains(&"line\nnext\tend"));
+        assert!(texts.contains(&"quote: \" slash: \\"));
+    }
+
     #[test]
     fn footprint_projection_includes_fab_without_changing_board_preview_layers() {
         let footprint = "(footprint \"resistor\" (layer \"B.Cu\") (at 0 0) (fp_line (start 0 0) (end 2 0) (stroke (width 0.1)) (layer \"B.SilkS\")) (fp_rect (start -1 -1) (end 1 1) (stroke (width 0.05)) (layer \"B.Fab\")))";

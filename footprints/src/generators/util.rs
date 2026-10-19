@@ -41,8 +41,9 @@ pub(crate) fn json_string(text: &str) -> String {
     serde_json::to_string(text).expect("strings serialize")
 }
 
-/// A bare atom for a token-safe reference, as older generator output wrote it,
-/// and a serialized string for anything that would change that token's meaning.
+/// A bare atom for a token-safe reference, as the point-debugger and switch-reset
+/// goldens under `footprints/tests/golden/generators/` record it, and a serialized
+/// string for anything that would change that token's meaning.
 pub(crate) fn atom_or_string(text: &str) -> String {
     if !text.is_empty()
         && text
@@ -56,11 +57,7 @@ pub(crate) fn atom_or_string(text: &str) -> String {
 }
 
 pub(crate) fn yes_no(flag: bool) -> &'static str {
-    if flag {
-        "yes"
-    } else {
-        "no"
-    }
+    if flag { "yes" } else { "no" }
 }
 
 /// `list.join(' ')` for a list of numbers.

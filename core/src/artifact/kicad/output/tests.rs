@@ -564,3 +564,13 @@ fn standalone_export_disambiguates_repeated_footprint_names() {
         assert!(file.content.starts_with(&format!("(footprint \"{stem}\"")));
     }
 }
+
+#[test]
+fn escapes_supported_control_whitespace_and_rejects_others() {
+    let form = "(gr_text \"a\nb\rc\td\" (layer \"F.SilkS\"))";
+    assert_eq!(
+        escape_quoted_controls(form).unwrap(),
+        "(gr_text \"a\\nb\\rc\\td\" (layer \"F.SilkS\"))"
+    );
+    assert!(escape_quoted_controls("(gr_text \"a\u{1}b\")").is_err());
+}

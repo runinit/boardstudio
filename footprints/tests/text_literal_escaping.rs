@@ -69,6 +69,27 @@ fn texts(forms: &[Expr], kind: &str) -> Vec<String> {
     out
 }
 
+fn layer_values(forms: &[Expr]) -> Vec<String> {
+    fn visit(node: &Expr, out: &mut Vec<String>) {
+        let Some(list) = node.as_list() else {
+            return;
+        };
+        if matches!(list.first(), Some(Expr::Atom(head)) if head == "layer")
+            && let Some(Expr::Str(layer)) = list.get(1)
+        {
+            out.push(layer.clone());
+        }
+        for item in list {
+            visit(item, out);
+        }
+    }
+    let mut out = Vec::new();
+    for form in forms {
+        visit(form, &mut out);
+    }
+    out
+}
+
 fn face_names(forms: &[Expr]) -> Vec<String> {
     fn visit(node: &Expr, out: &mut Vec<String>) {
         let Some(list) = node.as_list() else {
@@ -128,6 +149,20 @@ fn plain_text_controls_keep_their_existing_output() {
     assert_eq!(texts(&forms, ""), ["Board 12 inch"]);
     let form = forms[0].as_list().unwrap();
     assert_eq!(child(form, "layer").unwrap()[1], Expr::string("F.SilkS"));
+}
+
+#[test]
+fn logo_layer_parameter_is_literal_on_both_sides() {
+    let layer = "Silk\"S\\X";
+    let forms = render(
+        "ceoloide/utility_logo",
+        json!({ "layer": layer, "reversible": true }),
+        None,
+    )
+    .unwrap();
+    let layers = layer_values(&forms);
+    assert!(layers.contains(&format!("F.{layer}")));
+    assert!(layers.contains(&format!("B.{layer}")));
 }
 
 #[test]

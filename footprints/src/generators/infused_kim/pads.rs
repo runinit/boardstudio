@@ -73,11 +73,7 @@ fn pad(layout: &Layout, index: usize, count: usize, net: &str, label: &str, laye
     }
     let turned = (rotation > 0.0 && rotation <= 180.0) || rotation <= -180.0;
     let direction = if !label_at_bottom || layer == "B" {
-        if turned {
-            "right"
-        } else {
-            "left"
-        }
+        if turned { "right" } else { "left" }
     } else if turned {
         "left"
     } else {
