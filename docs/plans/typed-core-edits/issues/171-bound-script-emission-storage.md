@@ -83,6 +83,7 @@ document is unchanged. Normal scripts still emit `script/s/main/k1` and
 observations for these probes, not RSS or an allocator-wide peak.
 
 Evidence: `.evidence/ticket-171/` (`red-native.log`, `green-native.log`,
-`core-suite.log`, `clippy-fmt.log`, `probe.mjs`, `packaged-prefix.json`,
+`core-suite.log`, `clippy-fmt.log`, `final-focused.log`, `probe.mjs`, `packaged-prefix.json`,
 `packaged-fixed.json`). Not checked here: the integrated full `check.py` cohort
-(parent-owned).
+(parent-owned). The initial formatting attempt in `clippy-fmt.log` failed;
+the final clean formatting and focused regressions are in `final-focused.log`.

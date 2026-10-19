@@ -137,3 +137,9 @@ renderer module the production page imports; the wrapper code path (`decode_mode
 decoder `Err` to a delivery failure is covered by the existing native `decode rejected` test. The
 full `build-web.py --providers-only` provider set (workers, CAD wasm) was not rebuilt, only the
 renderer provider this ticket changes; the parent's integrated check owns the full build.
+
+Review clarification: the native RED summary captures the earlier 32-test set;
+the final 33-test GREEN set also guards the existing output-size refusal. The four
+new missing protections (depth, repeated-reference work, shared-root work and
+nonconvex polygon refusal) all failed in the retained RED capture; the later
+output-size guard is not claimed as an additional pre-fix failure.
