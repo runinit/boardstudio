@@ -1,3 +1,34 @@
+//! Complete Runtime collision-check browser tests.
+//!
+//! Adding or changing a complete-check test? Start from the existing fixture rather
+//! than reconstructing one: `complete_check_fixture` installs an accepted mechanical
+//! Case scene and a real `CadWorker` client backed by the controlled
+//! `COMPLETE_CHECK_WORKER`; `publish_collision_rows` captures and publishes the
+//! matching native-preview owner and lease plus its delivered model-delivery rows;
+//! `assert_complete_unordered_pairs` is the literal operand oracle. `mechanical_document`
+//! supplies the mechanical configuration and `fixture_document_mode` the accepted
+//! scene, scope and worker.
+//!
+//! Preserve the fixture's ownership and readiness prerequisites: a check is ready only
+//! when its scene is exact and current, the accepted token and revision still match,
+//! the installed scene is the captured instance, no Case gesture preview is active, and
+//! the captured preview/model rows are still the published values; a preview with models
+//! needs delivered rows and no pending work. `Runtime::check_collisions` also needs a
+//! live view predicate and a finite nonnegative clearance, and rechecks input and view
+//! currency while the async batch runs. Those rules are enforced by
+//! [collision_check.rs](collision_check.rs) (`CollisionCheckInput`,
+//! `Runtime::check_collisions`); that source is authoritative, not this summary.
+//!
+//! Expect the literal operand set `switch-1`, `switch-2`, `plate`, `bottom`,
+//! `plate-foam`, `bottom-foam`, `pcb-reference` as 21 unique unordered pairs.
+//! `assert_complete_unordered_pairs` rejects self-pairs and duplicate unordered pairs;
+//! keep the expected set literal, because deriving it from observed findings lets a
+//! missing operand vanish from both sides of the assertion.
+//!
+//! `COMPLETE_CHECK_WORKER` drives the real Runtime/CadWorker interface with controlled
+//! replies and leaves its geometry proof states `Unknown`. These tests cover the
+//! complete Runtime check; actual provider geometry qualification stays with
+//! packaged-page checks, and packaged-page acceptance likewise stays there.
 use super::*;
 use crate::model_delivery::{
     CadCollisionAssessment, CadCollisionSubject, DeliveredModel, IDENTITY_ROW_TRANSFORM_F64,

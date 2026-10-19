@@ -117,6 +117,19 @@ and exact Undo. Its success receipt and failure log are kept under `web/target/t
 CI installs the pinned `playwright-core` runner; local browser checks need it on `NODE_PATH` and a
 Chrome or Chromium executable available as `CHROME_BIN`.
 
+**Verification receipts.** Add `--receipt PATH` to any check invocation to write a JSON receipt at
+`PATH` and a reviewer summary at `PATH.md`, both derived only from the output that invocation
+already captured. The receipt keeps native `cargo test` binaries, direct `wasm-pack test` crate
+launches, the `web/src` page suite and the provider/product smoke checks in separate scopes, each
+with its full observed test names and outcomes, module-prefix group counts, and its own exit
+status, completeness and problems. Planned-but-unrun commands are `not_run`; malformed or
+interrupted output is incomplete, never zero failures, and a complete page run with a failing test
+is not reported as passing. The native section reuses the name guard's matched/missing/new
+retention semantics and identifies the guard list's recording revision and local changes.
+Before/after group deltas stay `unknown` unless a base run is supplied with `--base-receipt PATH`,
+which is then labelled reused with its original run and source identity. Provide the summary (or
+the receipt) at review handoff.
+
 ## Source layout
 
 | Directory | Purpose |

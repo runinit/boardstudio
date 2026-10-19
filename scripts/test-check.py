@@ -62,6 +62,26 @@ class CheckTests(unittest.TestCase):
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
 
+    def test_lint_runs_wasm_clippy_over_the_runtime_browser_targets(self):
+        # Native Clippy builds the runtime test stub, so the WASM-only `runtime` module
+        # (and its collision checks) needs its own explicit WASM-target Clippy command.
+        wasm_clippy = [command for command in check.LINT
+                       if command[:2] == ["cargo", "clippy"] and "wasm32-unknown-unknown" in command]
+        self.assertEqual(len(wasm_clippy), 1, "the lint step runs exactly one WASM-target Clippy command")
+        command = wasm_clippy[0]
+        self.assertEqual(command[command.index("--package") + 1], "boardstudio-web-runtime")
+        self.assertEqual(command[command.index("--target") + 1], "wasm32-unknown-unknown")
+        self.assertIn("--all-targets", command, "the library and browser-test target kinds are both linted")
+        self.assertNotIn("--workspace", command, "the WASM scope stays bounded to the runtime package")
+        self.assertIn("--locked", command)
+        self.assertIn("--no-deps", command)
+        self.assertEqual(command[command.index("--"):], ["--", "-D", "warnings"])
+        # The existing formatting and native workspace lint stay, and lint remains a default step.
+        self.assertEqual(check.LINT[0], ["cargo", "fmt", "--all", "--check"])
+        self.assertTrue(any(part == "--workspace" for part in check.LINT[1]))
+        self.assertIs(check.STEPS["lint"][1], check.LINT)
+        self.assertIn("lint", check.DEFAULT)
+
     def test_unknown_steps_are_rejected(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
             check.main(["nonsense"])

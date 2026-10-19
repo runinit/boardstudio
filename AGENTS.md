@@ -44,3 +44,7 @@ The five default roles, recorded as a ticket's `Status:`. See `docs/agents/triag
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
+### Orchestration model lookup
+
+- Selecting one provider/model for delegation: [model lookup](docs/agents/model-lookup.md).

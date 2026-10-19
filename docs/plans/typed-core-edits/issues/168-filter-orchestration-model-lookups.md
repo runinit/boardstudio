@@ -1,6 +1,6 @@
 # 168: Return compact orchestration model lookups
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Priority: P2
 Blocked by: None (can start immediately)

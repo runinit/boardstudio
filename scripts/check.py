@@ -47,6 +47,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import browser_tools  # noqa: E402  (needs the scripts directory on sys.path)
 import check_native_tests  # noqa: E402  (needs the scripts directory on sys.path)
+import verification_receipt  # noqa: E402  (needs the scripts directory on sys.path)
 
 PY = "python3"
 # One workspace invocation compiles Core once for every crate's tests. Footprints runs
@@ -61,6 +62,7 @@ TOOLING_TESTS = (
     "scripts/test-dev-web.py", "scripts/test-run-wasm-tests.py", "scripts/test-check-wasm-tests.py",
     "scripts/test-stage-ergogen-models.py", "scripts/test-check.py", "scripts/test-check-quick.py", "scripts/test-catalogue-tools.py", "scripts/test-gitnexus-refresh.py",
     "scripts/test-import-kicad-parts.py", "scripts/test-gitnexus-stop-hook.py",
+    "scripts/test-model-lookup.cjs", "scripts/test-verification-receipt.py",
     "scripts/test-check-native-tests.py", "scripts/test-mutation-check.py", "scripts/test-browser-tools.py",
 )
 WASM_PAGE = ["--no-default-features", "--features", "page"]
@@ -71,6 +73,8 @@ LAYOUT_TEST_CSS: list[str] = [
 ]
 
 Command = list[str]
+# The active opt-in receipt collector for `--receipt`; set by `main` and read by `run_plan`.
+_RECEIPT: verification_receipt.Collector | None = None
 
 
 def typecheck() -> list[Command]:
@@ -113,6 +117,10 @@ def browser() -> list[Command]:
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
+    # Native Clippy compiles the runtime test stub, so the WASM-only `runtime` module
+    # (the browser collision checks) is only linted under an explicit WASM target.
+    ["cargo", "clippy", "--package", "boardstudio-web-runtime", "--target", "wasm32-unknown-unknown",
+     "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
@@ -416,7 +424,9 @@ def run_serial(command: Command, environment: dict[str, str], cwd: Path = ROOT,
 
 def run_parallel(batch: list[Command], environment: dict[str, str],
                  captured: list[tuple[Command, str]] | None = None,
-                 outputs: list[tuple[Command, str]] | None = None) -> tuple[float, list[Command]]:
+                 outputs: list[tuple[Command, str]] | None = None,
+                 receipt: verification_receipt.Collector | None = None,
+                 step: str = "") -> tuple[float, list[Command]]:
     """Runs independent launches together, printing each one's output whole and in order."""
     def launch(command: Command) -> tuple[int, str, float]:
         started = time.monotonic()
@@ -439,6 +449,8 @@ def run_parallel(batch: list[Command], environment: dict[str, str],
                 captured.append((command, text))
             if outputs is not None:
                 outputs.append((command, text))
+            if receipt is not None:
+                receipt.observe(step, command, code, elapsed, text)
             if code:
                 failed.append(command)
     return time.monotonic() - started, failed
@@ -452,11 +464,12 @@ def _report_launch_failure(command: Command, text: str) -> None:
 
 def run_commands(name: str, commands: list[Command], environment: dict[str, str], cwd: Path = ROOT,
                  captured: list[tuple[Command, str]] | None = None,
-                 *, keep_going: bool = False) -> tuple[float, bool]:
+                 *, keep_going: bool = False,
+                 receipt: verification_receipt.Collector | None = None) -> tuple[float, bool]:
     """Runs a step's commands; consecutive crate launches in `browser`, and the independent
     workspaces of `test`, run together. `captured` collects each `cargo test` command's output."""
     if name == "test" and check_jobs() > 1 and len(commands) > 1:
-        elapsed, failed = run_parallel(commands, environment, captured)
+        elapsed, failed = run_parallel(commands, environment, captured, receipt=receipt, step=name)
         for command in failed:
             print("check: command failed: " + shlex.join(command), file=sys.stderr)
         return elapsed, not failed
@@ -471,7 +484,8 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             while end < len(commands) and is_crate_launch(commands[end]):
                 end += 1
             batch_outputs: list[tuple[Command, str]] = []
-            elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs)
+            elapsed, failed = run_parallel(commands[index:end], environment, outputs=batch_outputs,
+                                           receipt=receipt, step=name)
             total += elapsed
             if failed:
                 output_by_cmd = {tuple(cmd): text for cmd, text in batch_outputs}
@@ -483,8 +497,12 @@ def run_commands(name: str, commands: list[Command], environment: dict[str, str]
             index = end
             continue
         serial_outputs: list[tuple[Command, str]] = []
+        if receipt is not None:
+            receipt.prepare(command)
         elapsed, code = run_serial(command, environment, cwd, captured, serial_outputs)
         total += elapsed
+        if receipt is not None:
+            receipt.observe(name, command, code, elapsed, serial_outputs[-1][1] if serial_outputs else "")
         if code:
             text = serial_outputs[-1][1] if serial_outputs else ""
             if is_crate_launch(command):
@@ -520,6 +538,8 @@ def run(names: list[str], update_native_baseline: bool = False,
         return (run_plan(plan, update_native_baseline, keep_going=True)
                 if keep_going else run_plan(plan, update_native_baseline))
     # The real-page smoke needs a current packaged page, including for `check.py browser` alone.
+    if _RECEIPT is not None:
+        _RECEIPT.plan_commands([(name, STEPS[name][1]) for name in names])
     has_drag_smoke = any("scripts/run-drag-browser.py" in command for command in STEPS["browser"][1])
     smoke_indices = [index for index, step in enumerate(names)
                      if step == "drag-smoke" or (step == "browser" and has_drag_smoke)]
@@ -557,9 +577,22 @@ def guard_native_tests(commands: list[Command], captured: list[tuple[Command, st
 def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool = False,
              *, keep_going: bool = False, partial: bool = False) -> int:
     names = [name for name, _ in plan]
+    # `--only` and any named-step/quick selection are focused; only the full default plan is not.
+    focused = partial or tuple(names) != DEFAULT
     partial = partial or any(name.startswith("browser (only:") for name in names)
     baseline_written = False
     totals: dict[str, float] = {}
+    receipt = _RECEIPT
+    if receipt is not None:
+        receipt.plan_commands(plan)
+
+    def finish(code: int) -> int:
+        global _RECEIPT
+        if receipt is not None:
+            receipt.finish(code, partial=focused)
+        _RECEIPT = None
+        return code
+
     for name, commands in plan:
         print(f"== {name}", flush=True)
         environment = os.environ.copy()
@@ -576,18 +609,22 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
         elapsed, passed = run_commands(
             name, commands, environment, cwd, captured,
             keep_going=keep_going and is_browser_step(name),
+            receipt=receipt,
         )
         totals[name] = totals.get(name, 0.0) + elapsed
+        if captured and receipt is not None:
+            receipt.record_native([text for _, text in captured],
+                                  full=all(command in commands for command in CARGO_TESTS))
         if passed and captured:
             passed, written = guard_native_tests(commands, captured, update_native_baseline)
             baseline_written = baseline_written or written
         if not passed:
             print(f"check: step '{name}' failed", file=sys.stderr)
-            return 1
+            return finish(1)
     if update_native_baseline and not baseline_written:
         print("check: --update-native-baseline: no native `cargo test` ran, so the baseline is unchanged",
               file=sys.stderr)
-        return 1
+        return finish(1)
     print("check: step times: " + ", ".join(f"{name} {seconds:.1f}s" for name, seconds in totals.items())
           + f", total {sum(totals.values()):.1f}s")
     if partial:
@@ -595,7 +632,7 @@ def run_plan(plan: list[tuple[str, list[Command]]], update_native_baseline: bool
               + " (subset only; full browser gate not run)")
     else:
         print("check: all steps passed: " + ", ".join(dict.fromkeys(names)))
-    return 0
+    return finish(0)
 
 
 def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_quick.Package]") -> list[tuple[str, list[Command]]]:
@@ -650,7 +687,7 @@ def quick(files: list[str] | None, update_native_baseline: bool = False,
             if keep_going else run_plan(plan, update_native_baseline))
 
 
-def main(argv: list[str] | None = None) -> int:
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("steps", nargs="*", metavar="STEP", help="steps to run (default: the full check)")
     parser.add_argument("--list", action="store_true", help="print every step and its commands")
@@ -665,6 +702,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--update-native-baseline", action="store_true",
                         help="after the native tests pass, record the executed test names in "
                         "scripts/check-native-tests-baseline.json (for tests removed or renamed on purpose)")
+    parser.add_argument("--receipt", metavar="PATH",
+                        help="write an opt-in JSON verification receipt to PATH (and a reviewer summary "
+                        "to PATH.md) from this invocation's captured output")
+    parser.add_argument("--base-receipt", metavar="PATH",
+                        help="with --receipt: compare against a previously written receipt, marked "
+                        "reused with its original run/source identity")
     args = parser.parse_args(argv)
     if args.only is not None:
         if args.list:
@@ -685,6 +728,21 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--keep-going applies to the `browser` step (or `quick`, or a full check)")
     if args.update_native_baseline and args.steps and args.steps != ["quick"] and "test" not in args.steps:
         parser.error("--update-native-baseline applies to the `test` step (or `quick`, or a full check)")
+    if args.base_receipt and not args.receipt:
+        parser.error("--base-receipt requires --receipt")
+    if args.list and args.receipt:
+        parser.error("--receipt requires execution, not --list")
+    receipt = None
+    if args.receipt:
+        receipt = verification_receipt.Collector(
+            path=Path(args.receipt),
+            source=verification_receipt.source_identity(ROOT),
+            baseline_path=check_native_tests.BASELINE,
+            baseline_root=ROOT,
+            base_path=Path(args.base_receipt) if args.base_receipt else None,
+        )
+    global _RECEIPT
+    _RECEIPT = receipt
     if args.steps == ["quick"]:
         return quick(args.files, args.update_native_baseline, keep_going=args.keep_going)
     if args.files:
@@ -705,6 +763,25 @@ def main(argv: list[str] | None = None) -> int:
         only=only_crates,
         keep_going=args.keep_going,
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    global _RECEIPT
+    code = 1
+    try:
+        code = _main(argv)
+        return code
+    except KeyboardInterrupt:
+        code = 130
+        raise
+    except SystemExit as error:
+        code = error.code if isinstance(error.code, int) else 1
+        raise
+    finally:
+        receipt, _RECEIPT = _RECEIPT, None
+        if receipt is not None:
+            names = tuple(dict.fromkeys(step for step, _ in receipt.plan))
+            receipt.finish(code, partial=names != DEFAULT)
 
 
 if __name__ == "__main__":

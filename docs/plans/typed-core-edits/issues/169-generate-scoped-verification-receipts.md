@@ -1,6 +1,6 @@
 # 169: Generate scoped verification receipts for reviews
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Priority: P3
 Blocked by: None (can start immediately)

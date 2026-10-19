@@ -1,6 +1,6 @@
 # 166: Lint the WASM Runtime with Clippy
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)

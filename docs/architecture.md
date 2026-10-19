@@ -67,8 +67,10 @@ only while its captured inputs and cancellation batch remain current. Case retai
 field drafts, controls, pending display, result rendering and view-lifetime
 cancellation. Tight refinement and missing-evidence recovery retain separate bounded
 attempts, and unsupported accuracy remains uncertain. Controlled-worker tests exercise
-the complete Runtime check; mounted Case tests cover presentation, and packaged-page
-checks retain actual provider coverage.
+the complete Runtime check; the [collision browser-test fixture](../web/crates/runtime/src/runtime_collision_browser_tests.rs)
+states the ownership, readiness and literal operands a new complete check must preserve.
+Mounted Case tests cover presentation, and packaged-page checks retain actual provider
+coverage.
 
 The page is split into crates by workspace so each stays a manageable size. Lower
 crates never depend on higher ones:
