@@ -51,7 +51,7 @@ and for any bulk action a recorded decision permits.
     is retired as merged into 170, not an additional work item.
   - [173: Mark interrupted native receipts incomplete](issues/173-mark-interrupted-native-receipts-incomplete.md) — resolved.
   - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md) — resolved; literal generator text/labels now survive KiCad export (commits `0ea5b26d5`, `3d77c263c`).
-  - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md) — ready-for-agent.
+  - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md) — resolved; nonempty legacy timestamps retain precedence, modern UUIDs retain exact source identity, and fresh packaged Core/KiCad controls pass.
   **2026-10-19 implementation:** DeepSeek V4.1 Flash Free / High subagents
   implemented 170, 171 and 173 on `dev`; 172 remains merged into 170. Independent
   Standards and Spec reviews found no functional blockers; checklist/documentation
@@ -374,7 +374,8 @@ Laptop resource cap: [142](issues/142-forward-wasm-optimizer-resource-cap.md) re
 
 ## Ready for implementation
 
-- Open tickets in this plan: [140](issues/140-ui-design-impeccable.md) (UI design refinement), [141](issues/141-mirrored-outline-gap-controls.md) (single-outline mirrored gap control diagnosis), and (on `dev`) `161-curated-library-launchpad-demos.md`. Historical parallel scheduling notes: [parallel streams](parallel-streams-review.md), [lane registry](lane-registry.md#coordinators).
+- [141](issues/141-mirrored-outline-gap-controls.md) is resolved: an explicitly authored cross-axis bridge opts one feature into a connected perimeter; default and unrelated splits remain, and the real Inspector independently edits the two recesses. User-authorized Core implementation: `e89366a4d273780279d5daecbf01ef6727300ec5`; full repository/provider/browser gate and both reviews pass.
+- Open tickets in this plan: [140](issues/140-ui-design-impeccable.md) (UI design refinement), and (on `dev`) `161-curated-library-launchpad-demos.md`. Historical parallel scheduling notes: [parallel streams](parallel-streams-review.md), [lane registry](lane-registry.md#coordinators).
 - Board artifact implementation/reintroduction is deferred under 138. Board-specific tickets
   04, 20, 23, 25, 42, 43, 45, 46, 56, 57, 79, 104 and 118 are `wontfix` for this scope;
   their source evidence remains historical. Generic mirror/Core and saved-user-project behavior

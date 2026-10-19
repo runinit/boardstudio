@@ -1,6 +1,6 @@
 # 175: Import modern PCB outline UUIDs without losing source identity
 
-Status: claimed
+Status: resolved
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)
@@ -20,23 +20,23 @@ The IDs and outline geometry themselves are unchanged.
 
 ## Acceptance criteria
 
-- [ ] First reproduce refusal of a valid modern-ID board and success of its
+- [x] First reproduce refusal of a valid modern-ID board and success of its
   otherwise identical legacy-ID control. After the fix both import successfully
   with equivalent contours and the exact authored primitive IDs.
-- [ ] Accept a nonempty modern UUID or legacy timestamp identifier for each
+- [x] Accept a nonempty modern UUID or legacy timestamp identifier for each
   supported outline primitive. Keep deterministic identity handling when both
   keys are present, consistent with existing source-ID policy.
-- [ ] Missing/empty and duplicate source identities still fail explicitly.
+- [x] Missing/empty and duplicate source identities still fail explicitly.
   Include modern-only and mixed-identifier duplicate controls; do not synthesize
   replacement IDs or weaken the source provenance requirement.
-- [ ] Exercise supported outline primitive kinds and a placed/rotated/flipped
+- [x] Exercise supported outline primitive kinds and a placed/rotated/flipped
   board through physical source extraction. Apply the source placement once,
   preserve source geometry, and retain unsupported-geometry refusals.
-- [ ] Fresh packaged Core evidence imports a valid current BoardStudio export
+- [x] Fresh packaged Core evidence imports a valid current BoardStudio export
   through the real board-source/module import boundary and retains its physical
   outline/source IDs. A real KiCad load control establishes input validity;
   parser-only test doubles do not establish the complete import behavior.
-- [ ] Run affected physical PCB source, module import and export regression
+- [x] Run affected physical PCB source, module import and export regression
   checks. Existing drill/via identity behavior, fabrication blockers and CAD
   qualification uncertainty remain unchanged.
 
@@ -70,4 +70,10 @@ The packaged duplicate-UUID control refused import. Raw evidence is under
 `.evidence/implement-141-175-007/175-*`.
 
 Fresh independent Spec and Standards reviews of the scoped diff against
-`1458d1220` found no actionable findings. Final combined verification is pending.
+`1458d1220` found no actionable findings. The full six-step repository check passes
+in 550.7 seconds: 54/54 commands, all 2,074 retained native names plus five new
+tests, all 14 mounted crate launches, 77 page tests and actual
+provider/worker/browser smoke gates. Receipt:
+`.evidence/implement-141-175-007/full-current.json` (current dirty checkout,
+unrelated work preserved). Implementation checkpoint:
+`e89366a4d273780279d5daecbf01ef6727300ec5`.

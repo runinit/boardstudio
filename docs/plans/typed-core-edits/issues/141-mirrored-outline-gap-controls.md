@@ -1,6 +1,6 @@
 # 141 — Diagnose mirrored outline gap controls
 
-Status: claimed
+Status: resolved
 Type: task
 Blocked by: none
 
@@ -64,7 +64,7 @@ Connected-perimeter attempt STOP: first central bridge and one source-grounded u
 
 - Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
 
-## Current implementation — 2026-10-19
+## Answer — 2026-10-19
 
 The user explicitly authorized a scoped Core change in `core/src/geometry.rs`: an authored bridge across the mirror axis opts that outline into a connected perimeter, preserving the default split behavior and independent gap settings. This supersedes the earlier no-Core-edit restriction for that change only.
 
@@ -74,4 +74,6 @@ The actual mounted Inspector test passes both one-sided edits from fresh baselin
 
 Focused evidence: native connected-perimeter RED/GREEN; 13 linked-resolution tests; 80 layout native tests (one existing ignored); mounted Inspector 1/1 covering both baselines. Both bridge-policy mutants were killed with no compile failures. Raw logs and observations: `.evidence/implement-141-175-007/141-*`.
 
-Fresh independent Spec (Sol 6.1, medium) and Standards reviews of the scoped diff against `1458d1220` found no actionable findings. Final combined verification remains pending.
+The existing Core policy regression was reconciled with this authorization: malformed/non-crossing bridges still refuse, a strictly crossing bridge joins the perimeter, and another independent mirror axis remains split. All 29 Core outline tests pass. The first full check's obsolete cross-axis rejection expectation and the initial invalid chained-pair test setup are retained in the raw logs; the corrected independent-pair fixture passes.
+
+Fresh independent Spec (Sol 6.1, medium) and Standards reviews of the scoped diff against `1458d1220`, including the final policy test, found no actionable findings. The full six-step repository check passes in 550.7 seconds: 54/54 commands, all 2,074 retained native names plus five new tests, all 14 mounted crate launches, 77 page tests and the actual provider/worker/browser smoke gates. Receipt: `.evidence/implement-141-175-007/full-current.json` (current dirty checkout, unrelated work preserved). Implementation checkpoint: `e89366a4d273780279d5daecbf01ef6727300ec5`.
