@@ -24,6 +24,19 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- **2026-10-18 input-boundary audit:** six researched follow-up tickets are
+  **ready-for-agent**. Each is independently verifiable and has no blocking
+  prerequisite. Coordinate the two WRL decoder edits; overlap is not a logical
+  blocking edge. Primary-source findings and retained audit-evidence limits are
+  recorded in [the research note](../../research/audit-input-boundaries-2026-10-18.md).
+  - [170: Bound WRL traversal work](issues/170-bound-wrl-traversal-work.md).
+  - [171: Bound geometry-script emission storage](issues/171-bound-script-emission-storage.md).
+  - [172: Refuse unsupported WRL polygons](issues/172-refuse-unsupported-wrl-polygons.md).
+  - [173: Mark interrupted native receipts incomplete](issues/173-mark-interrupted-native-receipts-incomplete.md).
+  - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md).
+  - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md).
+  These tickets do not implement fixes or reopen resolved predecessor tickets.
+
 - **2026-10-18 retro follow-ups:** the user requested primary-source research and
   one ticket for each of four environment improvements. All four are **resolved**:
   implemented in `b4a4595b`, review corrections `4a49af46`. Four OpenCode Go DeepSeek
