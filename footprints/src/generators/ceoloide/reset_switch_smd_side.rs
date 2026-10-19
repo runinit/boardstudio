@@ -72,7 +72,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:reset_switch_smd_side"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0 0 {e3})
       (layer "{e0}.SilkS")
       {e4}
@@ -89,7 +89,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = n(p.rotation()),
         e4 = p.ref_hide(),
     );

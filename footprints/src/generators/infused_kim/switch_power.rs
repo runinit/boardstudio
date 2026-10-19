@@ -5,7 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{json_string, ModelDefaults, ModelParams, infused_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -54,7 +54,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 
     let front_switch = format!(
         r####"
-          (fp_text reference "{e0}" (at -3.6 0 {e1}) (layer F.SilkS) {e2}
+          (fp_text reference {e0} (at -3.6 0 {e1}) (layer F.SilkS) {e2}
             (effects (font (size 1 1) (thickness 0.15)))
           )
 
@@ -91,7 +91,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
           (pad "" smd rect (at 1.125 3.65 {e3}) (size 1 0.8) (layers F.Cu F.Paste F.Mask))
 
       "####,
-        e0 = p.reference(),
+        e0 = json_string(p.reference()),
         e1 = n(-90.0 + p.rotation()),
         e2 = p.ref_hide(),
         e3 = n(90.0 + p.rotation()),
@@ -102,7 +102,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     let back_switch = format!(
         r####"
         {e0}
-        (fp_text user "{e1}" (at -3.5 0 {e2}) (layer B.SilkS) {e3}
+        (fp_text user {e1} (at -3.5 0 {e2}) (layer B.SilkS) {e3}
         (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
         )
         (fp_line (start 2.595 -0.1) (end 1.295 -0.1) (layer B.Fab) (width 0.1))
@@ -137,7 +137,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (pad "" smd rect (at 1.125 3.65 {e4}) (size 1 0.8) (layers B.Cu B.Paste B.Mask))
         "####,
         e0 = "",
-        e1 = p.reference(),
+        e1 = json_string(p.reference()),
         e2 = n(90.0 + p.rotation()),
         e3 = p.ref_hide(),
         e4 = n(270.0 + p.rotation()),

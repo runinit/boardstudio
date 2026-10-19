@@ -420,11 +420,11 @@ fn socket_row(
             {
                 socket_row += &format!(
                     r####"
-    (fp_text user "{e0}" (at -{e1} {e2} {e3}) (layer "F.SilkS")
+    (fp_text user {e0} (at -{e1} {e2} {e3}) (layer "F.SilkS")
       (effects (font (size 1 1) (thickness 0.15)))
     )
             "####,
-                    e0 = net_silk_front_left,
+                    e0 = json_string(&net_silk_front_left),
                     e1 = n(if jumpers_here {
                         if net_silk_front_left.encode_utf16().count() > 2 {
                             1.45
@@ -445,11 +445,11 @@ fn socket_row(
             {
                 socket_row += &format!(
                     r####"
-    (fp_text user "{e0}" (at {e1} {e2} {e3}) (layer "F.SilkS")
+    (fp_text user {e0} (at {e1} {e2} {e3}) (layer "F.SilkS")
       (effects (font (size 1 1) (thickness 0.15)))
     )
             "####,
-                    e0 = net_silk_front_right,
+                    e0 = json_string(&net_silk_front_right),
                     e1 = n(if jumpers_here {
                         if net_silk_front_right.encode_utf16().count() > 2 {
                             1.45
@@ -472,11 +472,11 @@ fn socket_row(
             {
                 socket_row += &format!(
                     r####"
-    (fp_text user "{e0}" (at {e1}{e2} {e3} {e4}) (layer "B.SilkS")
+    (fp_text user {e0} (at {e1}{e2} {e3} {e4}) (layer "B.SilkS")
       (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
     )
             "####,
-                    e0 = net_silk_back_left,
+                    e0 = json_string(&net_silk_back_left),
                     e1 = if p.flag("reversible") {
                         "-".to_string()
                     } else {
@@ -502,11 +502,11 @@ fn socket_row(
             {
                 socket_row += &format!(
                     r####"
-    (fp_text user "{e0}" (at {e1}{e2} {e3} {e4}) (layer "B.SilkS")
+    (fp_text user {e0} (at {e1}{e2} {e3} {e4}) (layer "B.SilkS")
       (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
     )
             "####,
-                    e0 = net_silk_back_right,
+                    e0 = json_string(&net_silk_back_right),
                     e1 = if p.flag("reversible") {
                         "".to_string()
                     } else {
@@ -531,26 +531,26 @@ fn socket_row(
         socket_row += &format!(
             r####"
     {e0}
-    (fp_text user "{e1}" (at -3.262 {e2} {e3}) (layer "F.Fab")
+    (fp_text user {e1} (at -3.262 {e2} {e3}) (layer "F.Fab")
       (effects (font (size 0.5 0.5) (thickness 0.08)))
     )
-    (fp_text user "{e4}" (at 3.262 {e2} {e3}) (layer "F.Fab")
+    (fp_text user {e4} (at 3.262 {e2} {e3}) (layer "F.Fab")
       (effects (font (size 0.5 0.5) (thickness 0.08)))
     )
 
     {e5}
-    (fp_text user "{e1}" (at -3.262 {e2} {e6}) (layer "B.Fab")
+    (fp_text user {e1} (at -3.262 {e2} {e6}) (layer "B.Fab")
       (effects (font (size 0.5 0.5) (thickness 0.08)) (justify mirror))
     )
-    (fp_text user "{e4}" (at 3.262 {e2} {e6}) (layer "B.Fab")
+    (fp_text user {e4} (at 3.262 {e2} {e6}) (layer "B.Fab")
       (effects (font (size 0.5 0.5) (thickness 0.08)) (justify mirror))
     )
           "####,
             e0 = "",
-            e1 = via_label_left,
+            e1 = json_string(&via_label_left),
             e2 = n(-13.5 + row_offset_y),
             e3 = n(p.rotation()),
-            e4 = via_label_right,
+            e4 = json_string(&via_label_right),
             e5 = "",
             e6 = n(180.0 + p.rotation())
         );
@@ -647,7 +647,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:mcu_supermini_nrf52840"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0 -15 {e3})
       (layer "{e0}.SilkS")
       {e4}
@@ -669,7 +669,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = n(p.rotation()),
         e4 = p.ref_hide(),
         e5 = "",

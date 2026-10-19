@@ -5,7 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model, model_side};
+use crate::generators::util::{json_string, ModelDefaults, ModelParams, infused_model, model_side};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -155,7 +155,11 @@ fn gen_pad(
     }
     let turned = (rot > 0.0 && rot <= 180.0) || rot <= -180.0;
     let direction = if !label_at_bottom || layer == "B" {
-        if turned { "right" } else { "left" }
+        if turned {
+            "right"
+        } else {
+            "left"
+        }
     } else if turned {
         "left"
     } else {
@@ -204,14 +208,14 @@ fn gen_pad(
     if !net_label.is_empty() {
         pad += &format!(
             r####"
-              (fp_text user "{e0}" (at {e1} 0 {e2}) (layer {e3}.Fab)
+              (fp_text user {e0} (at {e1} 0 {e2}) (layer {e3}.Fab)
                 (effects (font (size 0.5 0.5) (thickness 0.08)) {e4})
               )
-              (fp_text user "{e0}" (at {e5} {e6} {e2}) (layer {e3}.SilkS)
+              (fp_text user {e0} (at {e5} {e6} {e2}) (layer {e3}.SilkS)
                   (effects (font (size 1 1) (thickness 0.1)) {e7})
                 )
               "####,
-            e0 = net_label,
+            e0 = json_string(net_label),
             e1 = n(0.0 + pos_x),
             e2 = n(90.0 + rot),
             e3 = layer,
@@ -286,7 +290,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             {e0}
             (attr smd)
 
-            (fp_text reference "{e1}" (at 0 3) (layer F.SilkS) {e2}
+            (fp_text reference {e1} (at 0 3) (layer F.SilkS) {e2}
               (effects (font (size 1 1) (thickness 0.15)))
             )
             {e3}
@@ -294,7 +298,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
           )
         "####,
         e0 = p.at(),
-        e1 = p.reference(),
+        e1 = json_string(p.reference()),
         e2 = p.ref_hide(),
         e3 = pads_front,
         e4 = pads_back

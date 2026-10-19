@@ -88,7 +88,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:rotary_encoder_ec11_ec12"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0 -8.5)
       (layer "{e0}.{e3}")
       {e4}
@@ -101,7 +101,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = if p.flag("include_silkscreen") {
             "SilkS".to_string()
         } else {
@@ -116,12 +116,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e6 = if p.flag("reversible") && !(!p.ref_hide().is_empty()) {
             format!(
                 r####"
-    (fp_text user "{e0}"
+    (fp_text user {e0}
       (at 0 -8.5)
       (layer "{e1}.{e2}")
       (effects (font (size 1 1) (thickness 0.15)){e3})
     )"####,
-                e0 = p.reference(),
+                e0 = json_string(p.reference()),
                 e1 = if p.side() == "B" {
                     "F".to_string()
                 } else {

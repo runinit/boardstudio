@@ -132,7 +132,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:switch_mx"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0 -7.5 180)
       (layer "{e0}.SilkS")
       {e3}
@@ -163,7 +163,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = p.ref_hide(),
         e4 = if !(p.flag("include_plated_holes")) {
             "np_thru_hole".to_string()

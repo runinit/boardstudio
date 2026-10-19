@@ -6,7 +6,7 @@
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{json_string, ModelDefaults, ModelParams, infused_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -83,12 +83,12 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         {e0}
         (attr virtual)
 
-        (fp_text reference "{e1}" (at 0 0) (layer {e2}.SilkS) {e3}
+        (fp_text reference {e1} (at 0 0) (layer {e2}.SilkS) {e3}
           (effects (font (size 1 1) (thickness 0.15)))
         )
     "####,
         e0 = p.at(),
-        e1 = p.reference(),
+        e1 = json_string(p.reference()),
         e2 = p.side(),
         e3 = p.ref_hide()
     );

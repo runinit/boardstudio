@@ -9,6 +9,7 @@
 //! printed "undefined"; the label is now empty.
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -43,7 +44,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:utility_point_debugger"
     (layer "F.Cu")
     {at}
-    (property "Reference" "{reference}"
+    (property "Reference" {reference}
       (at 0 2)
       (layer "Dwgs.User")
       {hide}
@@ -63,7 +64,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   )
 "#,
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         hide = p.ref_hide(),
         rotation = n(p.rotation()),
     ))

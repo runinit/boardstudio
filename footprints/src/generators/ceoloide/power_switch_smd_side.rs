@@ -57,7 +57,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:power_switch_smd_side"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at -3.6 0 {e3})
       (layer "{e0}.SilkS")
       {e4}
@@ -67,7 +67,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = n(-90.0 + p.rotation()),
         e4 = p.ref_hide(),
     );
@@ -93,7 +93,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
 
     let silkscreen_back = format!(
         r####"
-    (fp_text user "{e0}" (at -3.5 0 {e1}) (layer "B.SilkS") {e2}
+    (fp_text user {e0} (at -3.5 0 {e1}) (layer "B.SilkS") {e2}
       (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
     )
     (fp_text user "ON" (at 0 {e3}5 {e4}) (layer "B.SilkS")
@@ -108,7 +108,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     (fp_line (start -1.425 -1.6) (end -1.425 0.1) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
     (fp_line (start 1.425 -2.85) (end 1.425 2.85) (layer "B.SilkS") (stroke (width 0.12) (type solid)))
     "####,
-        e0 = p.reference(),
+        e0 = json_string(p.reference()),
         e1 = n(90.0 + p.rotation()),
         e2 = p.ref_hide(),
         e3 = if p.flag("invert_behavior") { "-" } else { "" },

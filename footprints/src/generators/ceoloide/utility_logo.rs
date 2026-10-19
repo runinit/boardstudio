@@ -9,6 +9,7 @@
 //! persisted identifier contains `ergogen`.
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::{js_number as n, js_to_fixed};
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -121,7 +122,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         "(footprint \"ceoloide:utility_logo\"
   (layer \"{side}.Cu\")
   {at}
-  (property \"Reference\" \"{reference}\"
+  (property \"Reference\" {reference}
     (at {label_x} 0 {rotation})
     (layer \"{side}.Fab\")
     {hide}
@@ -130,7 +131,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (attr exclude_from_pos_files exclude_from_bom)
 ",
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         label_x = n(scale * 4.572),
         rotation = n(p.rotation()),
         hide = p.ref_hide(),

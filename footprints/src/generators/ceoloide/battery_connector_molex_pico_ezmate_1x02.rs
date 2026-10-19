@@ -6,7 +6,7 @@
 //! Author: @infused-kim + @ceoloide improvements
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{join_numbers, xyz};
+use crate::generators::util::{json_string, join_numbers, xyz};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -62,7 +62,8 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             .vec3(&format!("{name}_3dmodel_xyz_rotation"))?
             .unwrap_or(rotation);
         Ok(format!(
-            "\n    (model \"{path}\"\n      (offset (xyz {}))\n      (scale (xyz {}))\n      (rotate (xyz {})))",
+            "\n    (model {}\n      (offset (xyz {}))\n      (scale (xyz {}))\n      (rotate (xyz {})))",
+            json_string(path),
             join_numbers(p.list(&format!("{name}_3dmodel_xyz_offset"))),
             join_numbers(p.list(&format!("{name}_3dmodel_xyz_scale"))),
             xyz(angles),
@@ -73,7 +74,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:battery_connector_molex_pico_ezmate_1x02"
     (layer "{e0}.Cu")
     {e1}
-    (property "Reference" "{e2}"
+    (property "Reference" {e2}
       (at 0.1 3.9 {e3})
       (layer "{e0}.SilkS")
       {e4}
@@ -83,7 +84,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     "####,
         e0 = p.side(),
         e1 = p.at(),
-        e2 = p.reference(),
+        e2 = json_string(p.reference()),
         e3 = n(p.rotation()),
         e4 = p.ref_hide()
     );

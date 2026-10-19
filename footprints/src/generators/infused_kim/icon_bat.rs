@@ -5,6 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -41,7 +42,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     if p.side() == "F" || p.flag("reverse") {
         out.push_str(&format!(
             r#"
-          (fp_text reference "{reference}" (at 0 3 {rotation}) (layer F.SilkS) {hide}
+          (fp_text reference {reference} (at 0 3 {rotation}) (layer F.SilkS) {hide}
             (effects (font (size 1 1) (thickness 0.15)))
           )
           (fp_circle (center {a} 0) (end {b} 0) (layer F.SilkS) (width 0.1))
@@ -51,7 +52,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
           (fp_circle (center {e} 0) (end {f}  0) (layer F.SilkS) (width 0.1))
           (fp_line (start {g} 0) (end {h} 0) (layer F.SilkS) (width 0.1))
       "#,
-            reference = p.reference(),
+            reference = json_string(p.reference()),
             hide = p.ref_hide(),
             a = n(-0.55 - adjust),
             b = n(-0.05 - adjust),

@@ -5,6 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
 use crate::types::PartKind;
@@ -31,16 +32,16 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
-    let (text, at) = (p.text("text"), p.at());
+    let (text, at) = (json_string(p.text("text")), p.at());
     let mut out = String::new();
     if p.side() == "F" || p.flag("reverse") {
         out.push_str(&format!(
-            "\n      (gr_text \"{text}\" {at} (layer F.SilkS)\n        (effects (font (size 1 1) (thickness 0.15)))\n      )\n"
+            "\n      (gr_text {text} {at} (layer F.SilkS)\n        (effects (font (size 1 1) (thickness 0.15)))\n      )\n"
         ));
     }
     if p.side() == "B" || p.flag("reverse") {
         out.push_str(&format!(
-            "\n      (gr_text \"{text}\" {at} (layer B.SilkS)\n        (effects (font (size 1 1) (thickness 0.15)) (justify mirror))\n      )\n"
+            "\n      (gr_text {text} {at} (layer B.SilkS)\n        (effects (font (size 1 1) (thickness 0.15)) (justify mirror))\n      )\n"
         ));
     }
     Ok(out)

@@ -6,6 +6,7 @@
 //! Authors: @infused-kim + @ceoloide & @dieseltravis improvements
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -47,9 +48,9 @@ fn text_on(p: &RenderContext<'_>, side: &str, align: &str, mirrored: bool) -> St
     let justify = format!("(justify {align} {})", if mirrored { "mirror" } else { "" });
     format!(
         r#"
-  (gr_text "{text}"
+  (gr_text {text}
     {at}
-    (layer "{side}.{layer}" {knockout})
+    (layer {layer} {knockout})
     (effects
       (font {face}
         (size {height} {width})
@@ -61,14 +62,14 @@ fn text_on(p: &RenderContext<'_>, side: &str, align: &str, mirrored: bool) -> St
     )
   )
 "#,
-        text = p.text("text"),
+        text = json_string(p.text("text")),
         at = p.at(),
-        layer = p.text("layer"),
+        layer = json_string(&format!("{side}.{}", p.text("layer"))),
         knockout = if p.flag("knockout") { "knockout" } else { "" },
         face = if face.is_empty() {
             String::new()
         } else {
-            format!("(face \"{face}\")")
+            format!("(face {})", json_string(face))
         },
         height = n(p.number("height")),
         width = n(p.number("width")),

@@ -5,7 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{atom_or_string, ModelDefaults, ModelParams, infused_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -94,7 +94,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         (pad 2 smd roundrect (at 0.6 -1.875 {e1}) (size 0.6 0.85) (layers F.Cu F.Paste F.Mask) (roundrect_rratio 0.25) {e3})
         (pad 1 smd roundrect (at -0.6 -1.875 {e1}) (size 0.6 0.85) (layers F.Cu F.Paste F.Mask) (roundrect_rratio 0.25) {e4})
       "####,
-        e0 = p.reference(),
+        e0 = atom_or_string(p.reference()),
         e1 = n(p.rotation()),
         e2 = p.ref_hide(),
         e3 = p.net("pad_2"),

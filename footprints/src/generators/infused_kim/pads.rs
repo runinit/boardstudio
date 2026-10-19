@@ -5,6 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -72,7 +73,11 @@ fn pad(layout: &Layout, index: usize, count: usize, net: &str, label: &str, laye
     }
     let turned = (rotation > 0.0 && rotation <= 180.0) || rotation <= -180.0;
     let direction = if !label_at_bottom || layer == "B" {
-        if turned { "right" } else { "left" }
+        if turned {
+            "right"
+        } else {
+            "left"
+        }
     } else if turned {
         "left"
     } else {
@@ -89,10 +94,11 @@ fn pad(layout: &Layout, index: usize, count: usize, net: &str, label: &str, laye
     );
     if !label.is_empty() {
         out.push_str(&format!(
-            "\n                (fp_text user \"{label}\" (at {} {} {}) (layer {layer}.SilkS)\n                  (effects (font (size 1 1) (thickness 0.1)) (justify {direction} {mirror}))\n                )\n              ",
+            "\n                (fp_text user {label} (at {} {} {}) (layer {layer}.SilkS)\n                  (effects (font (size 1 1) (thickness 0.1)) (justify {direction} {mirror}))\n                )\n              ",
             n(position),
             n(label_y),
             n(90.0 + rotation),
+            label = json_string(label),
         ));
     }
     out
@@ -150,7 +156,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
             {at}
             (attr smd)
 
-            (fp_text reference "{reference}" (at 0 2.2) (layer F.SilkS) {hide}
+            (fp_text reference {reference} (at 0 2.2) (layer F.SilkS) {hide}
               (effects (font (size 1 1) (thickness 0.15)))
             )
             {front}
@@ -158,7 +164,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
           )
         "#,
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         hide = p.ref_hide(),
     ))
 }

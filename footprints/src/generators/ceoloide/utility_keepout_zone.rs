@@ -7,7 +7,7 @@
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::{points_text, yes_no};
+use crate::generators::util::{json_string, points_text, yes_no};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -99,7 +99,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         name_form = if name.is_empty() {
             String::new()
         } else {
-            format!("(name \"{name}\")")
+            format!("(name {})", json_string(name))
         },
         outline_type = p.text("outline_type"),
         pitch = n(pitch),

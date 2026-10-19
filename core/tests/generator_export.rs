@@ -361,6 +361,106 @@ fn generator_failures_reach_the_caller_with_their_text() {
     );
 }
 
+fn text_values(forms: &[generators::Expr], head: &str, kind: Option<&str>) -> Vec<String> {
+    fn visit(node: &generators::Expr, head: &str, kind: Option<&str>, out: &mut Vec<String>) {
+        let Some(list) = node.as_list() else {
+            return;
+        };
+        let matched = match (list.first(), list.get(1)) {
+            (Some(generators::Expr::Atom(item)), _) if kind.is_none() && item == head => true,
+            (Some(generators::Expr::Atom(item)), Some(generators::Expr::Atom(name))) => {
+                item == head && kind == Some(name)
+            }
+            _ => false,
+        };
+        let position = if kind.is_some() { 2 } else { 1 };
+        if matched
+            && let Some(generators::Expr::Str(text)) = list.get(position)
+        {
+            out.push(text.clone());
+        }
+        for item in list {
+            visit(item, head, kind, out);
+        }
+    }
+    let mut out = Vec::new();
+    for form in forms {
+        visit(form, head, kind, &mut out);
+    }
+    out
+}
+
+#[test]
+fn exports_quoted_generator_text_and_active_labels_for_kicad() {
+    let text = definition("ceoloide/utility_text");
+    let other = definition("infused-kim/text");
+    let pads = definition("infused-kim/pads");
+    let smd = definition("infused-kim/smd_0805");
+    let literal = "Board 12\" inch \\ path — ✓\nsecond line";
+    let plain = "Board 12 inch";
+    let parts = [
+        part(
+            &text,
+            "txt-f",
+            0.0,
+            "front",
+            json!({ "text": literal, "reversible": true }),
+        ),
+        part(
+            &other,
+            "txt-b",
+            0.0,
+            "back",
+            json!({ "text": literal, "reverse": true }),
+        ),
+        part(
+            &pads,
+            "pads",
+            20.0,
+            "front",
+            json!({ "pads": 1, "reverse": true, "label_1": literal }),
+        ),
+        part(
+            &smd,
+            "smd",
+            40.0,
+            "front",
+            json!({ "components": 1, "reverse": true, "label_1": literal,
+                "component_1_3dmodel_filename": "" }),
+        ),
+        part(&text, "plain", 60.0, "front", json!({ "text": plain })),
+    ];
+    let board = export_board(
+        project(&[text, other, pads, smd], &parts, &[]),
+        BTreeMap::new(),
+    );
+
+    let forms = generators::parse_forms(&board).expect("exported board parses");
+    let gr_text = text_values(&forms, "gr_text", None);
+    assert_eq!(
+        gr_text,
+        vec![
+            literal.to_owned(),
+            literal.to_owned(),
+            literal.to_owned(),
+            literal.to_owned(),
+            plain.to_owned()
+        ],
+        "board text keeps every literal"
+    );
+    let labels = text_values(&forms, "fp_text", Some("user"));
+    assert_eq!(
+        labels,
+        vec![literal.to_owned(); 6],
+        "pad and SMD labels keep every literal"
+    );
+    assert!(
+        board.contains("Board 12\\\" inch \\\\ path"),
+        "quotes and backslashes are serialized once"
+    );
+    assert!(kicad_parses(&board));
+}
+
 #[test]
 fn previews_rotated_generators_on_both_faces_with_models_and_copper() {
     for source in [

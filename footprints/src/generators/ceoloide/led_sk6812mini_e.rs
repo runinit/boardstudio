@@ -68,7 +68,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:led_SK6812mini-e ({e0}{e1})" 
     (layer "{e2}.Cu")
     {e3}
-    (property "Reference" "{e4}"
+    (property "Reference" {e4}
       (at -4.75 0 {e5})
       (layer "{e2}.SilkS")
       {e6}
@@ -105,7 +105,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         },
         e2 = p.side(),
         e3 = p.at(),
-        e4 = p.reference(),
+        e4 = json_string(p.reference()),
         e5 = n(90.0 + p.rotation()),
         e6 = p.ref_hide(),
     );

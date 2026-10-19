@@ -59,7 +59,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:{e0}"
     (layer "{e1}.Cu")
     {e2}
-    (property "Reference" "{e3}"
+    (property "Reference" {e3}
       (at 0 14.2 {e4})
       (layer "{e1}.SilkS")
       {e5}
@@ -69,7 +69,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
         e0 = footprint_name,
         e1 = p.side(),
         e2 = p.at(),
-        e3 = p.reference(),
+        e3 = json_string(p.reference()),
         e4 = n(p.rotation()),
         e5 = p.ref_hide()
     );

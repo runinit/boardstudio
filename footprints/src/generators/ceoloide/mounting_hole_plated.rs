@@ -6,6 +6,7 @@
 //! Author: @infused-kim + @ceoloide improvements
 use crate::Result;
 use crate::context::RenderContext;
+use crate::generators::util::json_string;
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
@@ -53,7 +54,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
   (footprint "ceoloide:mounting_hole_plated"
     (layer "{side}.Cu")
     {at}
-    (property "Reference" "{reference}"
+    (property "Reference" {reference}
       (at 0 3 {rotation})
       (layer "{side}.SilkS")
       {hide}
@@ -61,7 +62,7 @@ fn body(p: &RenderContext<'_>) -> Result<String> {
     )
 "#,
         at = p.at(),
-        reference = p.reference(),
+        reference = json_string(p.reference()),
         rotation = n(p.rotation()),
         hide = p.ref_hide(),
     );
