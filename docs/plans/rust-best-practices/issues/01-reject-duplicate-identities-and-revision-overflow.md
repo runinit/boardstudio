@@ -6,9 +6,16 @@ Blocked by: None (can start immediately)
 
 **What to build:** Opening or replacing a project document validates that top-level entity identities (`parts`, `definitions`, `boards`, `matrices`, `nets`, `constraints`) are unique rather than allowing duplicate part IDs to silently overwrite earlier poses during constraint resolution and turn subsequent `MoveParts` edits into silent no-ops. Opening a document at `u64::MAX` revision or advancing a document revision at `u64::MAX` across any commit, undo/redo, or electrical remap review returns a clean error instead of panicking on integer overflow.
 
+## Research decision (2026-10-19)
+
+Keep: duplicate parts collapse during identity-keyed constraint resolution, and revision increments are unchecked. Constraint IDs already have a solver guard; preserve it rather than inventing a second policy. Validate incoming identities before normalization can hide duplicates, and preserve uniqueness when publishing generated output. Uniqueness is within each named collection, not across entity kinds. See [research 01](../../../research/rust-best-practices-ticket-validation.md#01--duplicate-identities-and-revision-overflow).
+
+Compute a checked next revision before mutating history or clearing a protected handoff. Rejecting max-revision Open alone is insufficient: a document accepted at `MAX-1` can reach `MAX`. Do not change successful previews, no-ops, or existing earlier validation errors when no revision advances.
+
 ## Acceptance criteria
 
 - [ ] Opening or replacing a document with duplicate `parts`, `definitions`, `boards`, `matrices`, `nets`, or `constraints` identities is rejected with a clear error message, leaving any previously accepted document intact.
 - [ ] A document with unique part IDs continues to open and move parts normally.
 - [ ] Opening a document with `revision == u64::MAX` or advancing a revision when at `u64::MAX` (on edit commit, undo/redo, and electrical remap review) returns a clean `CoreReply::Error` instead of panicking on `+ 1`.
-- [ ] Native unit/integration tests cover duplicate part ID rejection on open/replace and `u64::MAX` revision handling across open, commit, undo/redo, and remap review.
+- [ ] Every refusal preserves the accepted document, revision, outline cache, undo/redo contents and protected handoff. Tests exercise nonempty history and a matching remap fingerprint, not earlier guards that avoid the increment.
+- [ ] Native unit/integration tests cover each named collection's duplicate rejection on Open/replacement, and max-revision handling across Open, commit, undo/redo and remap review. Include successful `MAX-1` to `MAX` transitions followed by atomic rejection of the next advancing operation.

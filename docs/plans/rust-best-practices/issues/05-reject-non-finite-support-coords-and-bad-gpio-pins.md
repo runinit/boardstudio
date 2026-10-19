@@ -1,14 +1,16 @@
 # 05: Handle untrusted support-polygon floats and malformed firmware GPIO pins without panicking
 
-Status: ready-for-agent
+Status: wontfix
 Type: build
 Blocked by: None (can start immediately)
 
-**What to build:** Support-polygon validation and orientation checks reject non-finite (`NaN`, `±Inf`) coordinates with a validation error instead of panicking in rational conversion, and firmware devicetree generation falls back to its `/* unresolved GPIO ... */` marker when an imported `P<port>.<pin>` string has a non-numeric pin suffix instead of panicking.
+**Original proposal (not scheduled):** Reject non-finite support-polygon coordinates and make malformed imported GPIO pin strings produce an unresolved-GPIO comment rather than panic.
 
-## Acceptance criteria
+## Answer (2026-10-19)
 
-- [ ] Passing a polygon ring containing `NaN` or `±Inf` coordinates into the support-region validation/normalization API returns `Err` instead of panicking on `BigRational::from_float`.
-- [ ] Firmware generation with a malformed GPIO pin string such as `"P1.X"` in either direct-key or flags mode emits `/* unresolved GPIO P1.X */` instead of panicking on `u32` parsing.
-- [ ] Valid finite polygon rings and valid `P0.17` / `P1.02` GPIO strings continue to produce identical output.
-- [ ] Unit tests in `contracts` and `core` cover non-finite polygon rings and malformed GPIO pin strings.
+Not required as a product fix. [Research 05](../../../research/rust-best-practices-ticket-validation.md#05--non-finite-rings-and-malformed-gpio) traced the public boundaries:
+
+- Support-region/profile validation already rejects non-finite coordinates before rational conversion, which itself uses `ok_or`; an infinity regression already exists. The separate boolean self-intersection predicate guards non-finite coordinates before its private orientation assertion. Do not change that predicate's signature to satisfy a panic-removal heuristic.
+- Public firmware admission validates scan, UART and encoder GPIOs against the selected built-in controller profile before calling the formatting helpers. Malformed `P1.X` requests return `Err`; they must not become successful packages containing unresolved markers. No caller-provided controller table bypass was found.
+
+The original marker acceptance criterion would weaken existing validation. Leave production code and guarded invariants alone. If later work warrants additional regression coverage, test `NaN`/positive/negative infinity in exterior and hole validation, and malformed scan/encoder pins on both firmware halves returning `Err` without a package. Private helper fallback cleanup is optional maintenance, not a reason to reopen this bug. Reopen only with a reachable counterexample against the public APIs.
