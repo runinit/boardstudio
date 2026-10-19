@@ -111,7 +111,71 @@ running 3 tests
 test mirrored_half::reconcile::tests::alpha ... ok
 test mirrored_half::reconcile::tests::beta ... FAILED
 test mirrored_half::reconcile::tests::gamma ... ignored
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.02s
 """
+
+# The audit's interrupted case: a binary announced its tests, one passed, then the launch died
+# (exit 130) without libtest's terminal result summary. Names were never printed for the other 99.
+NATIVE_INTERRUPTED = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 100 tests
+test mirrored_half::reconcile::tests::alpha ... ok
+"""
+
+NATIVE_SECOND_BINARY = """\
+     Running tests/durable_session.rs (target/debug/deps/durable_session-fedcba9876543210)
+
+running 2 tests
+test restores_session ... ok
+test restores_keymap ... ignored
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+"""
+
+NATIVE_NO_SUMMARY = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 2 tests
+test mirrored_half::reconcile::tests::alpha ... ok
+test mirrored_half::reconcile::tests::beta ... ok
+"""
+
+NATIVE_SECOND_STARTED = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 2 tests
+test mirrored_half::reconcile::tests::alpha ... ok
+test mirrored_half::reconcile::tests::beta ... 
+"""
+
+NATIVE_UNANNOUNCED = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+test mirrored_half::reconcile::tests::alpha ... ok
+"""
+
+NATIVE_INCONSISTENT = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 3 tests
+test mirrored_half::reconcile::tests::alpha ... ok
+test mirrored_half::reconcile::tests::beta ... ok
+test mirrored_half::reconcile::tests::gamma ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+"""
+
+NATIVE_FILTERED_EMPTY = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s
+"""
+
+NATIVE_COMMAND = ["cargo", "test", "--workspace", "--locked"]
 
 PAGE_REPORT = {
     "schema_version": 1,
@@ -312,6 +376,96 @@ class ReceiptBoundaryTests(unittest.TestCase):
         self.assertIn("separate evidence scope", text)
         self.assertIn("unknown", text)
         self.assertNotIn("all tests passed", text)
+
+
+class NativeLaunchReconciliationTests(unittest.TestCase):
+    """Terminal completeness per launched native binary is separate from pass/fail."""
+
+    def command_record(self, output, *, exit_code=0):
+        built = receipt.build_receipt(
+            [("test", NATIVE_COMMAND)], [observation("test", NATIVE_COMMAND, output, exit_code=exit_code)],
+            source={"revision": "abc", "dirty": False}, exit_code=exit_code, partial=True)
+        return built, built["commands"][0]
+
+    def test_interrupted_native_launch_is_incomplete_and_keeps_its_one_observed_pass(self):
+        built, record = self.command_record(NATIVE_INTERRUPTED, exit_code=130)
+        self.assertEqual(record["status"], "ran")
+        self.assertEqual(record["exit_code"], 130)
+        self.assertFalse(record["passed"], "a nonzero exit stays failed")
+        self.assertFalse(record["complete"], "a launch with no terminal summary is incomplete")
+        self.assertEqual(record["counts"], {"passed": 1, "failed": 0, "ignored": 0, "incomplete": 0})
+        self.assertEqual([test["name"] for test in record["tests"]],
+                         ["mirrored_half::reconcile::tests::alpha"])
+        problems = " ".join(record["problems"])
+        self.assertIn("no terminal test-result summary", problems)
+        self.assertIn("announced 100 test(s) but 1 named outcome(s) were observed", problems)
+        self.assertEqual(len(record["tests"]), 1, "the 99 unseen tests are not given fabricated names")
+
+    def test_the_top_level_native_record_reports_the_same_incompleteness(self):
+        native = receipt.native_record([NATIVE_INTERRUPTED], full=False, baseline=None)
+        self.assertTrue(native["problems"])
+        self.assertIn("no terminal test-result summary", " ".join(native["problems"]))
+        self.assertIn("announced 100 test(s) but 1 named outcome(s) were observed",
+                      " ".join(native["problems"]))
+
+    def test_the_reviewer_summary_explains_the_interrupted_launch(self):
+        native = receipt.native_record([NATIVE_INTERRUPTED], full=False, baseline=None)
+        built = receipt.build_receipt(
+            [("test", NATIVE_COMMAND)], [observation("test", NATIVE_COMMAND, NATIVE_INTERRUPTED, exit_code=130)],
+            source={"revision": "abc", "dirty": False}, exit_code=130, partial=True, native=native)
+        text = receipt.render_summary(built)
+        self.assertIn("INCOMPLETE", text)
+        self.assertIn("announced 100 test(s) but 1 named outcome(s) were observed", text)
+        self.assertNotIn("all tests passed", text)
+
+    def test_another_binary_summary_and_a_zero_exit_cannot_complete_a_missing_one(self):
+        native = receipt.native_record([NATIVE_INTERRUPTED, NATIVE_SECOND_BINARY], full=False, baseline=None)
+        self.assertEqual([binary["name"] for binary in native["binaries"]],
+                         ["boardstudio_core", "durable_session"])
+        self.assertTrue(any("boardstudio_core" in problem for problem in native["problems"]))
+        self.assertFalse(any("durable_session" in problem for problem in native["problems"]),
+                         "the fully observed second binary is not blamed")
+        self.assertEqual(native["counts"], {"passed": 2, "failed": 0, "ignored": 1, "incomplete": 0})
+        _, record = self.command_record(NATIVE_NO_SUMMARY, exit_code=0)
+        self.assertFalse(record["complete"], "the command exit code does not stand in for a missing summary")
+        self.assertFalse(record["passed"], "a summary-less launch is not passing, even with matching counts")
+
+    def test_a_fully_observed_failing_suite_is_complete_while_failed(self):
+        native = receipt.native_record([NATIVE_CORE], full=False, baseline=None)
+        self.assertEqual(native["problems"], [])
+        self.assertEqual(native["counts"]["failed"], 1)
+        _, record = self.command_record(NATIVE_CORE, exit_code=101)
+        self.assertTrue(record["complete"], "terminal completeness is independent of test failures")
+        self.assertFalse(record["passed"])
+
+    def test_zero_test_and_filtered_launches_stay_complete(self):
+        native = receipt.native_record([NATIVE_FILTERED_EMPTY], full=False, baseline=None)
+        self.assertEqual(native["problems"], [])
+        self.assertEqual(native["counts"], {"passed": 0, "failed": 0, "ignored": 0, "incomplete": 0})
+        _, record = self.command_record(NATIVE_FILTERED_EMPTY)
+        self.assertTrue(record["complete"])
+        self.assertTrue(record["passed"])
+
+    def test_a_started_test_without_a_verdict_is_named_but_the_shortfall_is_not(self):
+        native = receipt.native_record([NATIVE_SECOND_STARTED], full=False, baseline=None)
+        self.assertEqual(native["counts"]["incomplete"], 1)
+        self.assertIn("without a terminal result", " ".join(native["problems"]))
+        self.assertIn("announced 2 test(s) but 1 named outcome(s) were observed",
+                      " ".join(native["problems"]))
+        names = [test["name"] for binary in native["binaries"] for test in binary["tests"]]
+        self.assertIn("mirrored_half::reconcile::tests::beta", names)
+
+    def test_a_launch_interrupted_before_announcing_tests_stays_incomplete(self):
+        native = receipt.native_record([NATIVE_UNANNOUNCED], full=False, baseline=None)
+        self.assertTrue(native["problems"])
+        self.assertIn("never announced a test count", " ".join(native["problems"]))
+        self.assertFalse(self.command_record(NATIVE_UNANNOUNCED)[1]["complete"])
+
+    def test_a_summary_that_disagrees_with_the_named_outcomes_is_incomplete(self):
+        native = receipt.native_record([NATIVE_INCONSISTENT], full=False, baseline=None)
+        self.assertTrue(native["problems"])
+        self.assertIn("summary reports 2 terminal test(s) but 3 named outcome(s) were observed",
+                      " ".join(native["problems"]))
 
 
 class CheckCliTests(unittest.TestCase):

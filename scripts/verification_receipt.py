@@ -192,47 +192,60 @@ def page_record(report: dict | None, *, path: str | None, exit_code: int | None)
     }
 
 
-def _native_outcomes(outputs: list[str]) -> dict[str, dict[str, str]]:
-    outcomes: dict[str, dict[str, str]] = {}
-    for output in outputs:
-        current: str | None = None
-        for line in output.splitlines():
-            if running := check_native_tests.RUNNING.match(line):
-                current = check_native_tests.binary_name(running.group(1))
-                outcomes.setdefault(current, {})
-            elif check_native_tests.DOC_TESTS.match(line):
-                current = None
-            elif current is not None:
-                if result := check_native_tests.RESULT.search(line):
-                    outcomes[current][result.group(1)] = _OUTCOMES[result.group(2)]
-                elif started := check_native_tests.STARTED.search(line):
-                    outcomes[current].setdefault(started.group(1), "started")
-    return outcomes
+def _launch_problems(launch: check_native_tests.Launch) -> list[str]:
+    """Why one launched binary is not terminally complete: summary, announcement and named outcomes."""
+    name = launch.name
+    terminal = {test: outcome for test, outcome in launch.outcomes.items() if outcome != "started"}
+    problems: list[str] = []
+    if launch.summary is None:
+        problems.append(f"native binary {name} has no terminal test-result summary; "
+                        "the launch is interrupted or its output is malformed")
+    else:
+        passed, failed, ignored, _measured, _filtered = launch.summary
+        if passed + failed + ignored != len(terminal):
+            problems.append(f"native binary {name}: its summary reports {passed + failed + ignored} "
+                            f"terminal test(s) but {len(terminal)} named outcome(s) were observed")
+    if launch.announced is None:
+        problems.append(f"native binary {name} never announced a test count; "
+                        "the launch was interrupted before it ran any test")
+    elif launch.announced != len(terminal):
+        problems.append(f"native binary {name}: announced {launch.announced} test(s) "
+                        f"but {len(terminal)} named outcome(s) were observed")
+    return problems
 
 
 def native_record(outputs: list[str], *, full: bool, baseline: dict[str, list[str]] | None,
                   provenance: dict | None = None) -> dict:
-    """Native binary counts, outcomes and the retention guard's matched/missing/new semantics."""
+    """Native binary counts, outcomes and the retention guard's matched/missing/new semantics.
+
+    Each launched binary is reconciled independently against its own announcement and terminal
+    summary, so a truncated launch stays incomplete even when another binary or the command's
+    exit code is complete. Only named tests without a terminal result are counted incomplete.
+    """
     run = check_native_tests.collect(outputs)
-    outcomes = _native_outcomes(outputs)
+    launches = check_native_tests.launches(outputs)
     known = {(binary, name) for binary, names in (baseline or {}).items() for name in names}
     executed = {(binary, name) for binary, names in run.executed.items() for name in names}
     gone = check_native_tests.missing(baseline, run, full) if baseline is not None else {}
+    merged: dict[str, dict[str, str]] = {}
+    for launch in launches:
+        merged.setdefault(launch.name, {}).update(launch.outcomes)
     counts = {"passed": 0, "failed": 0, "ignored": 0, "incomplete": 0}
-    for names in outcomes.values():
+    for names in merged.values():
         for outcome in names.values():
             counts[outcome if outcome in counts else "incomplete"] += 1
     binaries = []
-    for binary in sorted(outcomes):
+    for binary in sorted(merged):
         binary_counts = {"passed": 0, "failed": 0, "ignored": 0, "incomplete": 0}
-        for outcome in outcomes[binary].values():
+        for outcome in merged[binary].values():
             binary_counts[outcome if outcome in binary_counts else "incomplete"] += 1
         binaries.append({"name": binary, "counts": binary_counts,
-                         "groups": group_counts(list(outcomes[binary])),
+                         "groups": group_counts(list(merged[binary])),
                          "tests": [{"name": name, "outcome": outcome}
-                                   for name, outcome in sorted(outcomes[binary].items())]})
-    problems = [f"native binary {binary} has invoked test(s) without a terminal result"
-                for binary, names in outcomes.items() if "started" in names.values()]
+                                   for name, outcome in sorted(merged[binary].items())]})
+    problems = [f"native binary {launch.name} has invoked test(s) without a terminal result"
+                for launch in launches if "started" in launch.outcomes.values()]
+    problems += [problem for launch in launches for problem in _launch_problems(launch)]
     if not run.binaries:
         problems.append("no native binary results observed; output is incomplete or malformed")
     return {
@@ -373,9 +386,13 @@ def render_summary(receipt: dict) -> str:
     lines.append("## Native tests (`cargo test`)")
     if native:
         counts = native.get("counts") or {}
+        problems = native.get("problems") or []
         lines.append(f"- {len(native.get('binaries') or [])} binary run(s); {counts.get('passed', 0)} passed, "
                      f"{counts.get('failed', 0)} failed, {counts.get('ignored', 0)} ignored, "
-                     f"{counts.get('incomplete', 0)} incomplete")
+                     f"{counts.get('incomplete', 0)} incomplete"
+                     + ("; INCOMPLETE" if problems else ""))
+        for problem in problems:
+            lines.append(f"  - {problem}")
         baseline = native.get("baseline") or {}
         if baseline.get("available"):
             lines.append(f"- retention list `{baseline.get('path', 'check-native-tests-baseline.json')}` recorded at "

@@ -109,6 +109,67 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(run.executed["boardstudio_footprints"], {"generates"})
 
 
+INTERRUPTED = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 100 tests
+test mirrored_half::reconcile::tests::alpha ... ok
+"""
+
+
+class LaunchesTests(unittest.TestCase):
+    """Per-launch announced counts, named outcomes and terminal summaries."""
+
+    def test_each_binary_keeps_its_own_announced_count_and_summary(self):
+        found = guard.launches([CORE_OUTPUT])
+        self.assertEqual([launch.name for launch in found], ["boardstudio_core", "durable_session"])
+        self.assertEqual(found[0].announced, 4)
+        self.assertEqual(found[0].summary, (2, 1, 1, 0, 0))
+        self.assertEqual(found[0].outcomes["alpha::tests::needs_kicad"], "ignored")
+        self.assertEqual(found[1].announced, 1)
+        self.assertEqual(found[1].summary, (1, 0, 0, 0, 0))
+
+    def test_a_doc_tests_section_is_not_a_launched_binary(self):
+        start = CORE_OUTPUT.index("   Doc-tests boardstudio_core")
+        self.assertEqual(guard.launches([CORE_OUTPUT[start:]]), [])
+        self.assertEqual(len(guard.launches([CORE_OUTPUT])), 2, "the doc-test summary is not a third launch")
+
+    def test_an_interrupted_launch_keeps_its_pass_without_a_terminal_summary(self):
+        launch, = guard.launches([INTERRUPTED])
+        self.assertEqual(launch.name, "boardstudio_core")
+        self.assertEqual(launch.announced, 100)
+        self.assertEqual(launch.outcomes, {"mirrored_half::reconcile::tests::alpha": "passed"})
+        self.assertIsNone(launch.summary)
+
+    def test_a_launch_interrupted_before_announcing_tests_has_no_count(self):
+        output = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                  "test alpha::tests::one ... ok\n")
+        launch, = guard.launches([output])
+        self.assertIsNone(launch.announced)
+        self.assertIsNone(launch.summary)
+
+    def test_output_of_several_commands_keeps_each_launch_separate(self):
+        other = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                 "running 1 test\ntest only ... ok\n"
+                 "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n")
+        names = [launch.name for launch in guard.launches([CORE_OUTPUT, other, INTERRUPTED])]
+        self.assertEqual(names, ["boardstudio_core", "durable_session", "boardstudio_core", "boardstudio_core"])
+        self.assertIsNone(guard.launches([other, INTERRUPTED])[1].summary)
+
+    def test_a_zero_test_launch_is_announced_and_summarised(self):
+        output = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                  "running 0 tests\n\n"
+                  "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s\n")
+        launch, = guard.launches([output])
+        self.assertEqual(launch.announced, 0)
+        self.assertEqual(launch.summary, (0, 0, 0, 0, 88))
+
+    def test_the_name_guard_still_collects_the_same_executed_names(self):
+        self.assertEqual(sorted(guard.collect([CORE_OUTPUT, INTERRUPTED]).executed["boardstudio_core"]),
+                         ["alpha::tests::drops_pairs", "alpha::tests::keeps_pairs",
+                          "beta::roundtrip", "mirrored_half::reconcile::tests::alpha"])
+
+
 class VerifyTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

@@ -46,6 +46,50 @@ STARTED = re.compile(r"test (\S+)(?: - should panic)? \.\.\. ")
 HASH = re.compile(r"-[0-9a-f]{16}$")
 SHOWN = 20  # names listed per binary before "... and N more"
 
+# libtest's announcement before it runs, and the terminal summary it prints when the launch ends.
+# A launch without its summary (or without an announced count) is incomplete even when every
+# observed test passed; the announced and named counts are reconciled by the receipt.
+RUNNING_COUNT = re.compile(r"^running (\d+) tests?$", re.M)
+SUMMARY = re.compile(r"^test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; "
+                     r"(\d+) measured; (\d+) filtered out", re.M)
+OUTCOME = {"ok": "passed", "FAILED": "failed", "ignored": "ignored"}
+
+
+@dataclass
+class Launch:
+    """One launched native test binary: announced count, named outcomes and terminal summary."""
+    name: str
+    announced: int | None = None
+    # (passed, failed, ignored, measured, filtered out) from the `test result:` line.
+    summary: tuple[int, ...] | None = None
+    outcomes: dict[str, str] = field(default_factory=dict)  # name -> passed/failed/ignored/started
+
+
+def launches(outputs: list[str]) -> list[Launch]:
+    """One record per launched native test binary, in announcement order, across cargo outputs.
+
+    Doc-tests are excluded: their names carry line numbers and are not baselined.
+    """
+    found: list[Launch] = []
+    for output in outputs:
+        current: Launch | None = None
+        for line in output.splitlines():
+            if running := RUNNING.match(line):
+                current = Launch(binary_name(running.group(1)))
+                found.append(current)
+            elif DOC_TESTS.match(line):
+                current = None
+            elif current is not None:
+                if count := RUNNING_COUNT.match(line):
+                    current.announced = int(count.group(1))
+                elif summary := SUMMARY.search(line):
+                    current.summary = tuple(int(value) for value in summary.groups())
+                elif result := RESULT.search(line):
+                    current.outcomes[result.group(1)] = OUTCOME[result.group(2)]
+                elif started := STARTED.search(line):
+                    current.outcomes.setdefault(started.group(1), "started")
+    return found
+
 
 @dataclass
 class Run:
