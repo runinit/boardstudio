@@ -25,13 +25,17 @@ and for any bulk action a recorded decision permits.
 ## Decisions so far
 
 - **2026-10-18 retro follow-ups:** the user requested primary-source research and
-  one ticket for each of four environment improvements. Each is independently
-  startable and `ready-for-agent`; no implementation or gate completion is claimed:
+  one ticket for each of four environment improvements. All four are **resolved**:
+  implemented in `b4a4595b`, review corrections `4a49af46`. Four OpenCode Go DeepSeek
+  V4.1 Flash implementation lanes and separate Standards/Spec reviews were completed.
+  Confirmed review findings were fixed before the full six-gate check passed in
+  **526.6 s** at clean code revision `4a49af46`. The new receipt records 56/56 commands,
+  all retained native names and 103 fresh page tests passing. Remote CI was not run:
   - [166: Lint the WASM Runtime with Clippy](issues/166-lint-wasm-runtime-with-clippy.md).
   - [167: Guide authors to the complete collision-test fixture](issues/167-guide-complete-collision-test-fixtures.md).
   - [168: Return compact orchestration model lookups](issues/168-filter-orchestration-model-lookups.md).
   - [169: Generate scoped verification receipts for reviews](issues/169-generate-scoped-verification-receipts.md).
-  Each ticket links its research note, boundaries and executable acceptance criteria.
+  Each ticket records its research, implementation, RED/GREEN evidence and limits.
 
 - **2026-10-18 audit follow-ups:** the user requested a ticket for each finding
   from the recent-change audit at `f955050c3`. All four are **resolved**, integrated

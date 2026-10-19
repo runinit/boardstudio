@@ -1,6 +1,6 @@
 # 167: Guide authors to the complete collision-test fixture
 
-Status: claimed
+Status: resolved
 Type: build
 Priority: P2
 Blocked by: None (can start immediately)
@@ -23,23 +23,23 @@ existing reusable fixture; this ticket does not introduce another fixture framew
 
 ## Acceptance criteria
 
-- [ ] The module-level note identifies the existing complete-check fixture,
+- [x] The module-level note identifies the existing complete-check fixture,
   preview publication helper, controlled worker and literal operand oracle through
   portable file links and symbol names rather than fragile line anchors. The
   architecture's existing collision-ownership paragraph links to this note, making
   it reachable from established project navigation without global instruction growth.
-- [ ] Guidance explains matching preview owner/lease and delivered rows, a current
+- [x] Guidance explains matching preview owner/lease and delivered rows, a current
   accepted scene and view, and no pending model delivery before a check. It points
   to the enforcing source rather than creating a second authoritative contract.
-- [ ] Guidance identifies the current literal seven-operand, 21-unique-pair oracle,
+- [x] Guidance identifies the current literal seven-operand, 21-unique-pair oracle,
   including duplicate/self-pair rejection, and explains why expected membership
   must not be derived from observed results.
-- [ ] Controlled-worker coverage is explicitly distinguished from actual provider
+- [x] Controlled-worker coverage is explicitly distinguished from actual provider
   geometry qualification and packaged-page acceptance; Unknown remains Unknown.
-- [ ] Start a representative complete-check test walkthrough from the existing
+- [x] Start a representative complete-check test walkthrough from the existing
   architecture reference, follow its new inbound link, and locate all required
   helpers and prerequisites. Do not start at the new note or claim a time saving.
-- [ ] Run the repository documentation-link check, manually verify the module note's
+- [x] Run the repository documentation-link check, manually verify the module note's
   symbol references and links not covered by the Markdown check, and read the diff. No
   runtime behavior, visibility changes, new worker abstraction or retired workflow
   instructions are needed; if scope expands, identify that before implementation.
@@ -51,3 +51,23 @@ Independent of the other three retro follow-ups.
 
 Revised after Claude Opus audit: name the local landing point and inbound link,
 and verify discovery from an established reference rather than from the new note.
+
+## Answer — 2026-10-18
+
+Implemented in `b4a4595b`. The architecture's existing collision-ownership paragraph
+links to the collision browser-test module's header note. The note identifies the
+fixture, publication helper, controlled worker and literal oracle, then points to
+the enforcing readiness/current-input source. It preserves the seven-ID/21-pair
+expectation and the controlled-worker Unknown boundary.
+
+Parent verification started at the architecture reference, followed the inbound
+link, and located the helpers, oracle and enforcing source. Portable links and
+symbols were checked manually; the Markdown link check and actual workspace
+formatter passed. The child's standalone rustfmt drift report did not reproduce
+under the workspace formatter. No runtime behavior, visibility or fixtures changed.
+
+Both review axes checked this slice. The full six-gate check at clean code revision
+`4a49af46` passed in **526.6 s**, including Runtime 58 and Case 87 browser tests.
+These are existing suites, not tests added by this documentation change, and no
+measured onboarding-time saving is claimed. Evidence:
+`.evidence/retro-implementation/167/` and `parent-verification.md` in that effort's parent.
