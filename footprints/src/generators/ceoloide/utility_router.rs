@@ -42,7 +42,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@yanshay + @ceoloide improvements",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 type Position = [f64; 2];

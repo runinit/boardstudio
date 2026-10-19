@@ -234,7 +234,7 @@ fn synthetic(parameters: &'static [ParamSpec]) -> GeneratorSpec {
             spdx: "MIT",
             author: "test",
         },
-        body: unused_body,
+        body: boardstudio_footprints::registry::Body::Text(unused_body),
     }
 }
 

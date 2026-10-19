@@ -65,7 +65,7 @@ static SWITCH: GeneratorSpec = GeneratorSpec {
     }),
     parameters: &SWITCH_PARAMS,
     license: MIT,
-    body: switch_body,
+    body: boardstudio_footprints::registry::Body::Text(switch_body),
 };
 
 static BARE_PARAMS: [ParamSpec; 1] = [ParamSpec::SIDE];
@@ -82,7 +82,7 @@ static BARE: GeneratorSpec = GeneratorSpec {
     keycap_parameters: None,
     parameters: &BARE_PARAMS,
     license: MIT,
-    body: bare_body,
+    body: boardstudio_footprints::registry::Body::Text(bare_body),
 };
 
 static UTILITY: GeneratorSpec = GeneratorSpec {
@@ -93,7 +93,7 @@ static UTILITY: GeneratorSpec = GeneratorSpec {
     keycap_parameters: None,
     parameters: &BARE_PARAMS,
     license: MIT,
-    body: bare_body,
+    body: boardstudio_footprints::registry::Body::Text(bare_body),
 };
 
 fn registry() -> Registry {
@@ -151,7 +151,7 @@ fn the_registry_rejects_inconsistent_declarations() {
             keycap_parameters: None,
             parameters: Box::leak(parameters.into_boxed_slice()),
             license: MIT,
-            body: bare_body,
+            body: boardstudio_footprints::registry::Body::Text(bare_body),
         }))
     }
     let reason = |spec| Registry::new(&[spec]).err().expect("rejected").0;

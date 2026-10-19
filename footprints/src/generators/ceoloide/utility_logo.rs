@@ -33,7 +33,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@dieseltravis + @ceoloide improvements",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 /// Polygon outline in the logo's own units.

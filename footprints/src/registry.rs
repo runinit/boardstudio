@@ -13,7 +13,13 @@ use crate::types::{GeneratorRef, MatrixTerminals, PartKind, PartRef, Side};
 /// The one generator version this build understands.
 pub const GENERATOR_VERSION: &str = "bundled-1";
 
-pub type Body = fn(&RenderContext<'_>) -> Result<String>;
+/// How a generator produces its forms: legacy KiCad text that is parsed back,
+/// or an `Expr` tree built directly (see `crate::build`).
+#[derive(Clone, Copy)]
+pub enum Body {
+    Text(fn(&RenderContext<'_>) -> Result<String>),
+    Forms(fn(&RenderContext<'_>) -> Result<Vec<Expr>>),
+}
 
 /// Source licence and attribution, kept from the ported file's header.
 #[derive(Clone, Copy, Debug)]
@@ -235,9 +241,12 @@ impl Registry {
             mirrored,
             misuse: std::cell::RefCell::new(None),
         };
-        let text = (spec.body)(&context)?;
+        let forms = match spec.body {
+            Body::Text(body) => parse_forms(&body(&context)?)?,
+            Body::Forms(body) => body(&context)?,
+        };
         context.take_misuse()?;
-        parse_forms(&text)
+        Ok(forms)
     }
 
     pub fn matrix_terminals(&self, source: &str) -> Result<Option<MatrixTerminals>> {

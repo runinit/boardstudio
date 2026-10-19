@@ -39,7 +39,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim + @ceoloide & @dieseltravis improvements",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn text_on(p: &RenderContext<'_>, side: &str, align: &str, mirrored: bool) -> String {
