@@ -19,6 +19,7 @@ fn independent_tetrahedron_retains_exact_geometry_original_bytes_and_mm_mesh() {
     let bytes = TETRA.to_vec();
     let imported = import_step(bytes.clone()).expect("complete tetrahedron imports");
     drop(bytes);
+    assert!(imported.validate_invariants().is_ok());
     assert_eq!(imported.original_bytes(), TETRA);
     assert_eq!(imported.solid_count(), 1);
     assert_eq!(imported.occurrence_count(), 1);
@@ -305,14 +306,6 @@ fn non_ruled_source_patch_requires_closed_outer_and_source_witness_gaps() {
         import_step(include_bytes!("fixtures/tetra-with-degree2-source-face.step").to_vec())
             .unwrap();
     assert_bounds(model.bounds(), [[0., 0., 0.], [2., 3., 4.]]);
-}
-
-#[test]
-fn source_surface_curves_keep_native_3d_bounds_and_associated_pcurves() {
-    let bytes = include_bytes!("fixtures/source-pcurve-cube.step");
-    let model = import_step(bytes.to_vec()).unwrap();
-    assert_bounds(model.bounds(), [[0., 0., 0.], [10., 10., 10.]]);
-    assert_eq!(model.original_bytes(), bytes);
 }
 
 #[test]
@@ -753,25 +746,6 @@ fn source_face_boundary_must_retain_its_authored_oriented_closed_order() {
             "{error}"
         );
     }
-}
-
-#[test]
-fn finite_source_lines_share_the_asset_without_becoming_triangle_faces() {
-    let bytes = include_bytes!("fixtures/tetra-and-finite-wires.step").to_vec();
-    let model = import_step(bytes.clone())
-        .expect("complete finite source lines accompany the solid carrier");
-    assert_eq!(model.original_bytes(), bytes);
-    assert_eq!(model.solid_count(), 1);
-    assert_eq!(model.occurrence_count(), 1);
-    assert_eq!(model.source_faces().len(), 4);
-    assert_eq!(model.triangle_faces().len(), 4);
-    assert_eq!(model.mesh().positions.len(), 36);
-    assert_eq!(model.mesh().normals.len(), 36);
-    assert_bounds(model.bounds(), [[0., 0., 0.], [6., 10., 4.]]);
-    assert_eq!(model.accuracy().analysis_error_bound_mm, None);
-    let error = mesh_imported_step(&model)
-        .expect_err("triangle-only delivery cannot present the whole source asset");
-    assert!(error.contains("line-capable presentation"), "{error}");
 }
 
 #[test]
@@ -1337,9 +1311,3 @@ fn positive_area_fallback_faces_below_the_f32_render_grid_keep_their_f64_analysi
     assert_eq!(areas.len(), 4, "every source face keeps analysis coverage");
 }
 
-#[test]
-fn import_invariants_pass_for_valid_step() {
-    let bytes = include_bytes!("fixtures/tetra-mm.step").to_vec();
-    let model = import_step(bytes).expect("tetrahedron imports");
-    assert!(model.validate_invariants().is_ok());
-}

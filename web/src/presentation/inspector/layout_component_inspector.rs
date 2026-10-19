@@ -544,20 +544,13 @@ mod offset_axes_tests {
                 rotation: 7.0
             }
         );
-    }
-}
-
-#[cfg(test)]
-mod locked_position_tests {
-    use super::{position_commit_value, position_input_disabled};
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn locked_position_is_unavailable_and_cannot_dispatch_a_value() {
-        assert!(position_input_disabled(true));
-        assert_eq!(position_commit_value("124.73", true), None);
-
-        assert!(!position_input_disabled(false));
-        assert_eq!(position_commit_value("125.73", false), Some(125.73));
+        assert!(super::position_input_disabled(true));
+        assert!(!super::position_input_disabled(false));
+        assert_eq!(super::position_commit_value(true, "12.5"), None);
+        assert_eq!(
+            super::position_commit_value(false, "12.5"),
+            Some("12.5".into())
+        );
     }
 }
 

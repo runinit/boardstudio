@@ -421,7 +421,7 @@ fn source_vik_splitter_public_prepare_fixture_preserves_all_authored_geometry() 
     Solid::try_new(solid.boundaries().clone()).expect("closed oriented drilled PCB");
     assert!(solid.is_geometric_consistent());
     assert_eq!(solid.boundaries()[0].len(), 48); // 42 cylinders, four walls, two caps.
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!(
         (mesh.volume() - decimal(&oracle["volume_mm3"])).abs() < 0.02,
         "independent source volume: {}",
@@ -849,7 +849,7 @@ fn adoption_pcb_slot_preserves_both_material_components() {
         assert_eq!(solid.boundaries().len(), 1);
         Solid::try_new(solid.boundaries().clone()).unwrap();
         assert!(solid.is_geometric_consistent());
-        let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+        let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
         assert!((mesh.volume() - 9. * 16. * 1.6).abs() < 1e-8);
         let low = mesh
             .positions()

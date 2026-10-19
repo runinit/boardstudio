@@ -287,68 +287,6 @@ fn source_request(x: f64, y: f64, rotation: f64) -> Value {
     request
 }
 
-// ---- ledger --------------------------------------------------------------------------------
-
-#[test]
-fn every_family_of_this_slice_has_a_ledger_entry_and_linked_requests_are_rewritten() {
-    // Each request names a linked mirror item of the fixture, so `Translated` is not a
-    // pass-through: the operation that comes back differs from the one that went in.
-    let mut module_edit = module_request(module(
-        "right-module",
-        "right",
-        "inst-right",
-        180.0,
-        100.0,
-        connection("right/CONN", "right/bus", Some("right-up")),
-    ));
-    module_edit["instance"]["at"]["y"] = json!(7);
-    let linked = [
-        module_edit,
-        json!({"kind": "remove-mounted-module", "id": "right-module"}),
-        json!({"kind": "embed-module-circuit", "id": "right-extra",
-               "definition": circuit_definition(), "hostBoardId": "right",
-               "pose": {"at": {"x": 180, "y": 7}, "rotation": 100}, "side": "front",
-               "joins": {}}),
-        json!({"kind": "remove-embedded-circuit", "id": "right-circuit"}),
-        json!({"kind": "set-net", "net": {"id": "net-right", "name": "RENAMED",
-               "pins": [pin("right/FREE", "pad-f")]}}),
-        json!({"kind": "set-input-scan-mode", "partId": "matrix/right-keys/r0c0",
-               "mode": "direct"}),
-        json!({"kind": "set-wiring-mode", "boardId": "right", "mode": "direct"}),
-        json!({"kind": "set-keycap-board", "boardId": "right",
-               "change": {"kind": "color", "value": "#ffffff"}}),
-        json!({"kind": "set-matrix-keycaps", "matrixId": "right-keys",
-               "change": {"kind": "first-row", "value": 2}}),
-        json!({"kind": "set-keycap-key", "keyId": "matrix/right-keys/r0c0",
-               "change": {"kind": "legend", "value": "A"}}),
-        json!({"kind": "move-parts", "positions": [
-               {"id": "embedded/right-circuit/U1", "at": {"x": 180, "y": 9}}]}),
-        json!({"kind": "remove-parts", "ids": ["embedded/right-circuit/U1"]}),
-    ];
-    for request in linked {
-        let result = run(&fixture(), &request).unwrap_or_else(|error| panic!("{request}: {error}"));
-        assert_eq!(result.coverage, Coverage::Translated, "{request}");
-        assert_ne!(
-            serde_json::to_value(&result.operation).unwrap(),
-            serde_json::to_value(op(request.clone())).unwrap(),
-            "a linked mirror request must be rewritten: {request}"
-        );
-    }
-    // A request on a source or unpaired target is `Translated` and passes through.
-    let source = json!({"kind": "set-wiring-mode", "boardId": "left", "mode": "direct"});
-    assert_eq!(
-        run(&fixture(), &source).unwrap().coverage,
-        Coverage::Translated
-    );
-    unchanged(&fixture(), source);
-    // A shared definition executes once, untransformed.
-    let shared = json!({"kind": "set-module-definition", "definition": circuit_definition()});
-    assert!(
-        matches!(coverage(shared.clone()), Coverage::DeliberatelyUnchanged(reason) if !reason.is_empty())
-    );
-    unchanged(&fixture(), shared);
-}
-
 // ---- mounted modules ------------------------------------------------------------------------
 
 #[test]

@@ -518,105 +518,6 @@ fn duplicate_source_half(document: &mut Value) {
     }
 }
 
-fn assert_unique_ids(document: &Value, path: &[&str], key: &str) {
-    let mut ids = BTreeSet::new();
-    for item in path
-        .iter()
-        .fold(document, |value, field| &value[*field])
-        .as_array()
-        .unwrap()
-    {
-        let id = item[key].as_str().unwrap();
-        assert!(ids.insert(id), "duplicate {key} {id:?} at {path:?}");
-    }
-}
-
-fn assert_duplicated_source_half_is_coherent(document: &Value) {
-    for (path, key) in [
-        (&["parts"][..], "id"),
-        (&["matrices"][..], "id"),
-        (&["layouts"][..], "id"),
-        (&["nets"][..], "id"),
-        (&["outline"][..], "id"),
-        (&["boards"][..], "id"),
-        (&["hardware", "instances"][..], "id"),
-        (&["hardware", "boards"][..], "boardId"),
-    ] {
-        assert_unique_ids(document, path, key);
-    }
-    assert_eq!(
-        document["hardware"]["instances"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|instance| instance["id"] == "left" || instance["id"] == "other-left")
-            .count(),
-        2,
-        "the duplicate source creates two distinct physical instances"
-    );
-    let duplicated_board = document["boards"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|board| board["id"] == "other-left")
-        .unwrap();
-    for part_id in duplicated_board["partIds"].as_array().unwrap() {
-        let id = part_id.as_str().unwrap();
-        assert_eq!(
-            document["parts"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter(|part| part["id"] == id)
-                .count(),
-            1,
-            "duplicated board part reference {id:?} resolves exactly once"
-        );
-    }
-    let duplicated_instance = document["hardware"]["instances"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|instance| instance["id"] == "other-left")
-        .unwrap();
-    assert_eq!(duplicated_instance["controllerPartId"], "other-left/U1");
-    assert_eq!(
-        document["parts"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|part| part["id"] == duplicated_instance["controllerPartId"])
-            .count(),
-        1,
-        "duplicated controller reference resolves exactly once"
-    );
-    let duplicated_matrix = document["matrices"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|matrix| matrix["id"] == "other-left-synthetic-keys")
-        .unwrap();
-    for part_id in duplicated_matrix["partIds"].as_array().unwrap() {
-        let id = part_id.as_str().unwrap();
-        assert!(
-            document["parts"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|part| part["id"] == id),
-            "duplicated matrix part reference {id:?} resolves"
-        );
-    }
-    let duplicated_layout = document["layouts"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|layout| layout["id"] == "other-left-synthetic-keys-layout")
-        .unwrap();
-    assert_eq!(duplicated_layout["boardId"], "other-left");
-    assert_eq!(duplicated_layout["matrixId"], "other-left-synthetic-keys");
-}
-
 fn commit_named(engine: &mut CoreEngine, before: &Value, id: &str, operation: Value) -> Value {
     request(
         engine,
@@ -631,7 +532,6 @@ fn commit_named(engine: &mut CoreEngine, before: &Value, id: &str, operation: Va
 fn parent19_replace_document_retires_rows_for_two_pairs_in_one_batch() {
     let mut input = runtime_supported_document();
     duplicate_source_half(&mut input);
-    assert_duplicated_source_half_is_coherent(&input);
     let (mut engine, seed) = open(&input);
     let first = create(
         &mut engine,

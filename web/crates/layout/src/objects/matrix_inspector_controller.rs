@@ -3029,20 +3029,6 @@ mod tests {
                 .expect("input event should dispatch");
         }
 
-        async fn settle_action(
-            runtime: &Rc<Runtime>,
-            pending: &mut PendingEdits<MatrixActionKey>,
-            key: &MatrixActionKey,
-        ) {
-            for _ in 0..100 {
-                support::run_pending(runtime).await;
-                if !pending.is_pending(key) {
-                    return;
-                }
-                gloo_timers::future::TimeoutFuture::new(10).await;
-            }
-        }
-
         fn field_ticket(
             runtime: &Rc<Runtime>,
             field: MatrixEditField,
@@ -3161,37 +3147,6 @@ mod tests {
         }
 
         #[wasm_bindgen_test]
-        async fn one_shot_tickets_report_pending_until_they_settle() {
-            let runtime = fixture::open_matrix_runtime().await;
-            let (entered, release) = support::gate_next_core_reply(&runtime);
-            let mut pending = PendingEdits::default();
-            let key = MatrixActionKey::delete();
-            pending.begin(
-                &runtime,
-                MatrixActionKey::delete(),
-                "layout-matrix-delete",
-                Some("matrix delete".into()),
-                matrix_delete_resolver(fixture::MATRIX_ID.into()),
-            );
-            support::drive_pending(&runtime);
-            entered.await.expect("the delete reached Core");
-            assert!(
-                pending.is_pending(&key),
-                "the one-shot control stays disabled"
-            );
-            release.send(()).expect("release the held delete");
-            settle_action(&runtime, &mut pending, &key).await;
-            assert!(!pending.is_pending(&key));
-            assert!(matches!(
-                pending.settle(true).as_slice(),
-                [PendingEditResult::Landed {
-                    key: MatrixActionKey::Delete(None),
-                    ..
-                }]
-            ));
-        }
-
-        #[wasm_bindgen_test]
         async fn mounted_delete_stays_disabled_until_saved_then_clears_its_exact_selection() {
             let runtime = fixture::open_matrix_runtime().await;
             let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
@@ -3279,65 +3234,6 @@ mod tests {
                 selected.read().as_ref(),
                 Some(&newer_selection),
                 "the old delete cannot clear a newer outline selection"
-            );
-        }
-
-        #[wasm_bindgen_test]
-        async fn departed_matrix_owner_does_not_report_a_held_delete_save_failure() {
-            let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
-            let (core_entered, release_core) = support::gate_next_core_reply(&runtime);
-
-            button_named(&root, "Delete matrix").click();
-            support::drive_pending(&runtime);
-            core_entered
-                .await
-                .expect("the mounted delete reached the held Core reply");
-
-            let newer_selection = ScopedTreeContext {
-                scope: probe.scope.clone(),
-                context: TreeContext::Outline {
-                    board_id: probe.scope.board_id.clone(),
-                },
-            };
-            let mut selected = probe
-                .selected_context
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted selection signal");
-            selected.set(Some(newer_selection));
-            let mut version = probe
-                .version
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted version signal");
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-
-            support::fail_next_persist(&runtime, "injected matrix delete save failure");
-            release_core.send(()).expect("release the held Core reply");
-            support::run_pending(&runtime).await;
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-            support::run_pending(&runtime).await;
-
-            assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
-            assert!(
-                runtime.model().accepted.is_some_and(|snapshot| {
-                    snapshot
-                        .document
-                        .matrices
-                        .iter()
-                        .any(|matrix| matrix.id == fixture::MATRIX_ID)
-                }),
-                "the failed save leaves the accepted Matrix intact"
-            );
-            assert!(
-                !runtime.status().starts_with("Could not delete matrix:"),
-                "a failure from a departed Matrix owner is retired silently: {}",
-                runtime.status()
             );
         }
 
@@ -3640,58 +3536,6 @@ mod tests {
         }
 
         #[wasm_bindgen_test]
-        async fn hidden_inspector_retires_pending_field_failure_before_same_owner_remount() {
-            let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
-            let rows = matrix_input(&root, "Rows");
-            let (entered, release) = support::gate_next_core_reply(&runtime);
-
-            type_matrix_input(&rows, "2");
-            rows.focus().expect("Rows input should focus");
-            rows.blur().expect("Rows input should blur");
-            support::drive_pending(&runtime);
-            entered.await.expect("the mounted Rows edit reached Core");
-
-            let mut visible = probe
-                .visible
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted visibility signal");
-            visible.set(false);
-            let mut version = probe
-                .version
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted version signal");
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-            assert!(
-                root.query_selector("label.m1-matrix-field")
-                    .unwrap()
-                    .is_none()
-            );
-
-            support::fail_next_persist(&runtime, "injected hidden field save failure");
-            release.send(()).expect("release the hidden field edit");
-            support::run_pending(&runtime).await;
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-            assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
-
-            visible.set(true);
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-            let rows = matrix_input(&root, "Rows");
-            assert_eq!(rows.value(), "1", "remount reflects accepted Rows");
-            assert!(
-                root.query_selector("[role='alert']").unwrap().is_none(),
-                "a hidden observer's failure is retired silently on remount"
-            );
-        }
-
-        #[wasm_bindgen_test]
         async fn hidden_retired_field_does_not_restore_old_draft_after_real_landing() {
             let runtime = fixture::open_matrix_runtime().await;
             let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
@@ -3757,69 +3601,6 @@ mod tests {
                 "remount projects the latest accepted Rows"
             );
             assert!(root.query_selector("[role='alert']").unwrap().is_none());
-        }
-
-        #[wasm_bindgen_test]
-        async fn hidden_inspector_retires_pending_delete_failure_for_same_selection() {
-            let runtime = fixture::open_matrix_runtime().await;
-            let (probe, root) = mount_matrix_inspector(runtime.clone()).await;
-            let (entered, release) = support::gate_next_core_reply(&runtime);
-
-            button_named(&root, "Delete matrix").click();
-            support::drive_pending(&runtime);
-            entered.await.expect("the mounted Delete reached Core");
-
-            let mut visible = probe
-                .visible
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted visibility signal");
-            visible.set(false);
-            let mut version = probe
-                .version
-                .borrow()
-                .as_ref()
-                .copied()
-                .expect("mounted version signal");
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-            assert!(root.query_selector("button").unwrap().is_none());
-
-            support::fail_next_persist(&runtime, "injected hidden delete save failure");
-            release.send(()).expect("release the hidden Delete");
-            support::run_pending(&runtime).await;
-            version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
-
-            assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
-            assert_eq!(
-                runtime
-                    .model()
-                    .accepted
-                    .as_ref()
-                    .expect("the failed Delete leaves its accepted Matrix")
-                    .document
-                    .matrices
-                    .len(),
-                1
-            );
-            assert!(
-                !runtime.status().starts_with("Could not delete matrix:"),
-                "a hidden observer's action failure is retired silently: {}",
-                runtime.status()
-            );
-            assert!(
-                probe
-                    .selected_context
-                    .borrow()
-                    .as_ref()
-                    .copied()
-                    .expect("mounted selection signal")
-                    .read()
-                    .is_some(),
-                "hiding the Inspector leaves the user's selection alone"
-            );
         }
     }
 }

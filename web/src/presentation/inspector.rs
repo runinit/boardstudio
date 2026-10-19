@@ -453,82 +453,6 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn mounted_position_landing_preserves_a_newer_draft_at_the_original_coordinate() {
-        let (runtime, root) = mounted_position_inspector().await;
-        let x = root
-            .query_selector("#m1-position-x")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        let y = root
-            .query_selector("#m1-position-y")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        let apply = root
-            .query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
-        let bubbling = web_sys::EventInit::new();
-        bubbling.set_bubbles(true);
-        x.set_value("5");
-        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-            .unwrap();
-        support::run_pending(&runtime).await;
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        apply.click();
-        support::drive_pending(&runtime);
-        entered.await.expect("the position commit reached Core");
-        wait_until("the pending position edit disables Apply", || {
-            apply.has_attribute("disabled")
-        })
-        .await;
-        assert!(
-            apply.has_attribute("disabled"),
-            "Apply remains disabled while its edit is pending"
-        );
-
-        x.set_value("0");
-        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-            .unwrap();
-        release.send(()).expect("release the held position result");
-        wait_until_step(
-            "the position edit lands and preserves the newer draft",
-            async || {
-                support::run_pending(&runtime).await;
-                runtime.model().accepted.as_ref().is_some_and(|accepted| {
-                    accepted.document.parts[0].pose.at == Vec2 { x: 5.0, y: 0.0 }
-                }) && x.value() == "0"
-                    && !apply.has_attribute("disabled")
-            },
-        )
-        .await;
-        let accepted = runtime.model().accepted.unwrap();
-        assert_eq!(accepted.document.parts[0].pose.at, Vec2 { x: 5.0, y: 0.0 });
-        assert_eq!(
-            x.value(),
-            "0",
-            "landing preserves newer text even at the original coordinate"
-        );
-        assert_eq!(
-            y.value(),
-            "0",
-            "the clean axis projects its accepted coordinate"
-        );
-        assert!(
-            !apply.has_attribute("disabled"),
-            "Apply becomes available after settlement"
-        );
-        assert!(root.query_selector("[role='alert']").unwrap().is_none());
-        runtime.unsubscribe();
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
     async fn mounted_failed_position_restores_the_clean_axis_and_preserves_a_newer_draft() {
         let (runtime, root) = mounted_position_inspector().await;
         let x = root
@@ -574,12 +498,6 @@ mod tests {
             "the submitted Y stays visible while pending"
         );
         assert!(apply.has_attribute("disabled"));
-        assert_eq!(
-            y.value(),
-            "7",
-            "the submitted Y stays visible while pending"
-        );
-        assert!(apply.has_attribute("disabled"));
 
         release.send(()).expect("release the held position result");
         wait_until_step(
@@ -619,99 +537,6 @@ mod tests {
         assert!(
             alert.contains("legacy position durable write failure"),
             "{alert}"
-        );
-        runtime.unsubscribe();
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_position_reselection_discards_the_departed_draft() {
-        let (runtime, root) = mounted_position_inspector().await;
-        let x = root
-            .query_selector("#m1-position-x")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        let bubbling = web_sys::EventInit::new();
-        bubbling.set_bubbles(true);
-        x.set_value("5");
-        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-            .unwrap();
-        root.query_selector(".m1-inspector button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        wait_until_step("the position edit is accepted", async || {
-            support::run_pending(&runtime).await;
-            runtime
-                .model()
-                .accepted
-                .as_ref()
-                .is_some_and(|accepted| accepted.document.parts[0].pose.at.x == 5.0)
-        })
-        .await;
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.parts[0]
-                .pose
-                .at
-                .x,
-            5.0
-        );
-        x.set_value("9");
-        x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-            .unwrap();
-        support::run_pending(&runtime).await;
-        root.query_selector("#position-test-deselect")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        wait_until_step("deselecting removes the position Inspector", async || {
-            support::run_pending(&runtime).await;
-            root.query_selector("#m1-position-x")
-                .is_ok_and(|input| input.is_none())
-        })
-        .await;
-        assert!(root.query_selector("#m1-position-x").unwrap().is_none());
-        root.query_selector("#position-test-select-a")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        wait_until_step("reselection restores the accepted position", async || {
-            support::run_pending(&runtime).await;
-            root.query_selector("#m1-position-x")
-                .ok()
-                .flatten()
-                .is_some_and(|input| {
-                    input
-                        .dyn_ref::<HtmlInputElement>()
-                        .is_some_and(|input| input.value() == "5")
-                })
-        })
-        .await;
-        let reselected_x = root
-            .query_selector("#m1-position-x")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<HtmlInputElement>()
-            .unwrap();
-        assert_eq!(
-            reselected_x.value(),
-            "5",
-            "reselection projects the accepted coordinate after the previous owner leaves"
-        );
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.parts[0]
-                .pose
-                .at
-                .x,
-            5.0
         );
         runtime.unsubscribe();
         root.remove();

@@ -1,7 +1,6 @@
 use boardstudio_application::{
     AcceptedSnapshot, Completion, EditResolver, Effect, Event, ExecutorEpoch, Landing, Lifecycle,
-    OperationId, RequestId, Resolution, SaveAttemptId, SaveResult, SelectionMode, Session,
-    TerminalOutcome,
+    OperationId, RequestId, Resolution, SaveAttemptId, SaveResult, Session, TerminalOutcome,
 };
 use boardstudio_core::{CoreEngine, model::*};
 use std::cell::{Cell, RefCell};
@@ -498,6 +497,10 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
         0
     );
 
+    let (outcome, landing) = settled_landing(&effects, OperationId(2));
+    assert!(matches!(outcome, TerminalOutcome::PersistenceFailed(_)));
+    assert!(landing.is_none(), "a failed save has no landing");
+
     let effects = session.submit(Event::RetrySave {
         operation_id: OperationId(3),
     });
@@ -532,6 +535,20 @@ fn retry_persists_retained_commit_without_replaying_engine_edit() {
             ..
         }
     )));
+
+    let accepted = session.read_model().accepted.clone().unwrap();
+    let (retry_outcome, retry_landing) = settled_landing(&effects, OperationId(3));
+    let (original_outcome, original_landing) = settled_landing(&effects, OperationId(2));
+    assert_eq!(retry_outcome, TerminalOutcome::Completed);
+    assert_eq!(original_outcome, TerminalOutcome::Completed);
+    let retry_landing = retry_landing.expect("the retry reports where it landed");
+    assert_eq!(retry_landing.revision, accepted.document.revision);
+    assert_eq!(retry_landing.token, accepted.token);
+    assert_eq!(
+        original_landing,
+        Some(retry_landing),
+        "the original edit operation reports the same landing"
+    );
 
     let snapshot_request = CoreRequest::Snapshot {
         id: "inspect".into(),
@@ -1236,22 +1253,22 @@ fn selection_navigation_and_camera_updates_are_session_only() {
     });
     let token = session.read_model().accepted.as_ref().unwrap().token;
 
+    let effects = session.submit(Event::SelectParts {
+        operation_id: OperationId(51),
+        part_ids: vec!["key".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    assert!(effects.iter().any(|effect| matches!(
+        effect,
+        Effect::Settled {
+            outcome: TerminalOutcome::Completed,
+            ..
+        }
+    )));
     assert!(
-        session
-            .submit(Event::SelectParts {
-                operation_id: OperationId(51),
-                part_ids: vec!["key".into()],
-                range_part_ids: vec![],
-                mode: boardstudio_application::SelectionMode::Replace
-            })
-            .iter()
-            .any(|effect| matches!(
-                effect,
-                Effect::Settled {
-                    outcome: TerminalOutcome::Completed,
-                    ..
-                }
-            ))
+        settled_landing(&effects, OperationId(51)).1.is_none(),
+        "selection changes no document"
     );
     session.submit(Event::SelectParts {
         operation_id: OperationId(60),
@@ -1273,16 +1290,31 @@ fn selection_navigation_and_camera_updates_are_session_only() {
         range_part_ids: vec!["key".into(), "key-2".into()],
         mode: boardstudio_application::SelectionMode::Range,
     });
-    session.submit(Event::Navigate {
+    let effects = session.submit(Event::Navigate {
         operation_id: OperationId(53),
         board_id: "main".into(),
         instance_id: None,
     });
-    session.submit(Event::SetCamera {
+    assert!(
+        settled_landing(&effects, OperationId(53)).1.is_none(),
+        "navigation changes no document"
+    );
+    let effects = session.submit(Event::SetCamera {
         operation_id: OperationId(54),
         center: Vec2 { x: 10.0, y: 12.0 },
         zoom: 2.0,
     });
+    assert!(
+        settled_landing(&effects, OperationId(54)).1.is_none(),
+        "camera changes no document"
+    );
+    let effects = session.submit(Event::CancelGeneration {
+        operation_id: OperationId(55),
+    });
+    assert!(
+        settled_landing(&effects, OperationId(55)).1.is_none(),
+        "cancelling a job changes no document"
+    );
 
     assert_eq!(session.read_model().selected_part_ids, vec!["key", "key-2"]);
     assert_eq!(session.read_model().active_board_id, "main");
@@ -1614,6 +1646,8 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
         })
         .unwrap();
 
+    assert!(session.export_is_current(OperationId(71), old_token, &scope));
+
     let durable = session
         .read_model()
         .accepted
@@ -1635,6 +1669,7 @@ fn same_id_revision_reopen_invalidates_generation_and_export_tokens() {
             operation_id: OperationId(71)
         }
     )));
+    assert!(!session.export_is_current(OperationId(71), old_token, &scope));
     assert!(effects.iter().any(|effect| matches!(
         effect,
         Effect::Settled {
@@ -1822,46 +1857,6 @@ fn instance_navigation_updates_scope_and_cancels_in_flight_case_work() {
         )));
         assert_eq!(session.scope().unwrap(), canonical_scope);
     }
-}
-
-#[test]
-fn cancelled_export_is_no_longer_current_before_its_async_cancel_effect_runs() {
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    open_ready(&mut session, &mut engine);
-    let scope = session.scope().unwrap();
-    let effects = session.submit(Event::StartExport {
-        operation_id: OperationId(81),
-        scope: scope.clone(),
-    });
-    let token = effects
-        .iter()
-        .find_map(|effect| match effect {
-            Effect::RunExport { snapshot, .. } => Some(snapshot.token),
-            _ => None,
-        })
-        .expect("export dispatch captures the accepted snapshot");
-
-    assert!(session.export_is_current(OperationId(81), token, &scope));
-    let durable = session
-        .read_model()
-        .accepted
-        .as_ref()
-        .unwrap()
-        .document
-        .as_ref()
-        .clone();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(82),
-        document: durable,
-    });
-    assert!(effects.iter().any(|effect| matches!(
-        effect,
-        Effect::CancelExport {
-            operation_id: OperationId(81)
-        }
-    )));
-    assert!(!session.export_is_current(OperationId(81), token, &scope));
 }
 
 #[test]
@@ -2056,116 +2051,6 @@ fn document_completions_carry_the_landing_of_the_installed_snapshot() {
         redo_landing.token, undo_landing.token,
         "each landing names its own snapshot"
     );
-}
-
-#[test]
-fn retrying_a_failed_save_settles_the_retry_and_the_original_with_the_same_landing() {
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(1),
-        document: fixture(),
-    });
-    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
-
-    let effects = session.submit(resolved_edit(
-        OperationId(2),
-        rename_edit_command(0, "Renamed"),
-    ));
-    let (request_id, executor_epoch, request) = core_effect(&effects);
-    let reply = engine.handle(request);
-    let effects = session.complete(Completion::Core {
-        request_id,
-        executor_epoch,
-        reply: Box::new(reply),
-    });
-    let (save_attempt_id, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id,
-        result: SaveResult::Aborted("quota".into()),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(2));
-    assert!(matches!(outcome, TerminalOutcome::PersistenceFailed(_)));
-    assert!(landing.is_none(), "a failed save has no landing");
-
-    let effects = session.submit(Event::RetrySave {
-        operation_id: OperationId(3),
-    });
-    let (retry_save_id, _) = save_effect(&effects);
-    let effects = session.complete(Completion::Persist {
-        save_attempt_id: retry_save_id,
-        result: SaveResult::Committed,
-    });
-    let accepted = session.read_model().accepted.clone().unwrap();
-    let (retry_outcome, retry_landing) = settled_landing(&effects, OperationId(3));
-    let (original_outcome, original_landing) = settled_landing(&effects, OperationId(2));
-    assert_eq!(retry_outcome, TerminalOutcome::Completed);
-    assert_eq!(original_outcome, TerminalOutcome::Completed);
-    let retry_landing = retry_landing.expect("the retry reports where it landed");
-    assert_eq!(retry_landing.revision, accepted.document.revision);
-    assert_eq!(retry_landing.token, accepted.token);
-    assert_eq!(
-        original_landing,
-        Some(retry_landing),
-        "the original edit operation reports the same landing"
-    );
-}
-
-#[test]
-fn non_document_completions_carry_no_landing() {
-    let mut document = fixture();
-    document.boards.push(Board {
-        id: "main".into(),
-        name: "Main".into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    let mut session = Session::new();
-    let mut engine = CoreEngine::new();
-    let effects = session.submit(Event::Open {
-        operation_id: OperationId(1),
-        document,
-    });
-    let (_, _) = settle_core_and_save(&mut session, &mut engine, effects);
-
-    let effects = session.submit(Event::SelectParts {
-        operation_id: OperationId(2),
-        mode: SelectionMode::Replace,
-        part_ids: vec!["key".into()],
-        range_part_ids: Vec::new(),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(2));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "selection changes no document");
-
-    let effects = session.submit(Event::Navigate {
-        operation_id: OperationId(3),
-        board_id: "main".into(),
-        instance_id: None,
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(3));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "navigation changes no document");
-
-    let effects = session.submit(Event::SetCamera {
-        operation_id: OperationId(4),
-        center: Vec2 { x: 0.0, y: 0.0 },
-        zoom: 1.0,
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(4));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "camera changes no document");
-
-    let effects = session.submit(Event::CancelGeneration {
-        operation_id: OperationId(5),
-    });
-    let (outcome, landing) = settled_landing(&effects, OperationId(5));
-    assert_eq!(outcome, TerminalOutcome::Completed);
-    assert!(landing.is_none(), "cancelling a job changes no document");
 }
 
 #[test]

@@ -471,7 +471,8 @@ fn resolver_capacity_refuses_replacement_placement_and_rejoin_without_publicatio
     let mut accepted = omitted;
     let mut placed_count = 0;
     let mut placement_refusal = None;
-    let mut rejoin_capacity_refused = false;
+    // Exhaust the spare pins once; both the placement and Rejoin refusals run against this
+    // saturated controller.
     for index in 0..16 {
         let part_id = format!("right/CAPACITY{index}");
         let operation = add_mirror_spi_operation(&part_id, &nice_view.id);
@@ -526,42 +527,10 @@ fn resolver_capacity_refuses_replacement_placement_and_rejoin_without_publicatio
         board_config(&accepted_before_refusal, "right")["assignments"]
     );
 
-    // Use a fresh accepted document for Rejoin exhaustion. Start with the replacement already
-    // assigned, then consume real profile pins until the allocator refuses another placement.
-    let (mut engine, document, pair_id, ssd_id) = linked_display_fixture();
-    let source_before = source_projection(&document);
-    let omitted = omit_source_display(&mut engine, &document, &pair_id);
-    let replacement = assign_mirror_replacement(&mut engine, &omitted, &ssd_id);
-    let mut saturated = replacement;
-    for index in 0..16 {
-        let part_id = format!("right/REJOINCAPACITY{index}");
-        let attempt = edit(
-            &mut engine,
-            &saturated,
-            &format!("rejoin-capacity-fill-{index}"),
-            "commit",
-            add_mirror_spi_operation(&part_id, &nice_view.id),
-        );
-        if attempt["kind"] == "error" {
-            rejoin_capacity_refused = true;
-            assert_eq!(
-                snapshot(&mut engine),
-                saturated,
-                "failed capacity-fill placement is atomic"
-            );
-            break;
-        }
-        assert_eq!(attempt["kind"], "scene", "{attempt}");
-        saturated = attempt["document"].clone();
-    }
-    assert!(
-        rejoin_capacity_refused,
-        "profile-backed catalogue loads should exhaust the reviewed controller"
-    );
-    let accepted_before_rejoin = saturated.clone();
+    // Rejoin the omitted display against the same exhausted controller.
     let rejoin_preview = edit(
         &mut engine,
-        &accepted_before_rejoin,
+        &accepted_before_refusal,
         "replacement-rejoin-capacity-preview",
         "preview",
         exception(&pair_id, "right/NICEVIEW", "linked"),
@@ -571,13 +540,13 @@ fn resolver_capacity_refuses_replacement_placement_and_rejoin_without_publicatio
         rejoin_preview["message"]
             .as_str()
             .unwrap()
-            .starts_with("No available GPIO for i2c/SCL."),
-        "Rejoin Preview identifies the blocked I2C function: {rejoin_preview}"
+            .starts_with("No available GPIO for peripheral/right/CAPACITY0/CS."),
+        "Rejoin Preview identifies the saturated controller: {rejoin_preview}"
     );
-    assert_eq!(snapshot(&mut engine), accepted_before_rejoin);
+    assert_eq!(snapshot(&mut engine), accepted_before_refusal);
     let refused = edit(
         &mut engine,
-        &saturated,
+        &accepted_before_refusal,
         "replacement-rejoin-without-spare",
         "commit",
         exception(&pair_id, "right/NICEVIEW", "linked"),
@@ -585,10 +554,10 @@ fn resolver_capacity_refuses_replacement_placement_and_rejoin_without_publicatio
     assert_capacity_refusal(&refused, "Rejoin capacity refusal");
     assert_eq!(
         snapshot(&mut engine),
-        accepted_before_rejoin,
+        accepted_before_refusal,
         "Rejoin refusal is atomic"
     );
-    assert_eq!(source_projection(&accepted_before_rejoin), source_before);
+    assert_eq!(source_projection(&accepted_before_refusal), source_before);
 }
 
 #[test]

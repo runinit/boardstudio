@@ -7208,7 +7208,7 @@ fn deduplicate_outline_members(document: &mut ProjectDoc) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(in crate::mirrored_half) mod tests {
     mod outlines_tests {
         include!("reconcile/outlines/tests.rs");
     }
@@ -7226,7 +7226,7 @@ mod tests {
     };
     use crate::model::*;
 
-    fn fixture_mapping() -> Pose2 {
+    pub(in crate::mirrored_half) fn fixture_mapping() -> Pose2 {
         Pose2 {
             at: Vec2 { x: 80.0, y: -25.0 },
             rotation: 31.0,
@@ -7237,7 +7237,7 @@ mod tests {
         serde_json::to_vec(&document.hardware.as_ref().unwrap().pairs[0]).unwrap()
     }
 
-    fn fixture_board(id: &str) -> Board {
+    pub(in crate::mirrored_half) fn fixture_board(id: &str) -> Board {
         Board {
             id: id.into(),
             name: id.into(),
@@ -7250,7 +7250,9 @@ mod tests {
         }
     }
 
-    fn fixture_mechanical_configuration(board_id: &str) -> MechanicalConfiguration {
+    pub(in crate::mirrored_half) fn fixture_mechanical_configuration(
+        board_id: &str,
+    ) -> MechanicalConfiguration {
         let mut configuration: MechanicalConfiguration =
             serde_json::from_value(serde_json::json!({
                 "boardId": board_id,
@@ -7284,7 +7286,10 @@ mod tests {
         configuration
     }
 
-    fn fixture_instance(id: &str, board_id: &str) -> PhysicalBoardInstance {
+    pub(in crate::mirrored_half) fn fixture_instance(
+        id: &str,
+        board_id: &str,
+    ) -> PhysicalBoardInstance {
         PhysicalBoardInstance {
             id: id.into(),
             name: id.into(),
@@ -7299,7 +7304,7 @@ mod tests {
         }
     }
 
-    fn fixture_matrix(id: &str, board_id: &str) -> Matrix {
+    pub(in crate::mirrored_half) fn fixture_matrix(id: &str, board_id: &str) -> Matrix {
         Matrix {
             id: id.into(),
             name: None,
@@ -7336,7 +7341,7 @@ mod tests {
         }
     }
 
-    fn fixture_mounting_hole() -> PartDefinition {
+    pub(in crate::mirrored_half) fn fixture_mounting_hole() -> PartDefinition {
         serde_json::from_value(serde_json::json!({
             "id":"generator:ceoloide/mounting_hole_npth",
             "name":"mounting hole npth",
@@ -7351,7 +7356,7 @@ mod tests {
         .unwrap()
     }
 
-    fn fixture_document() -> Result<ProjectDoc, String> {
+    pub(in crate::mirrored_half) fn fixture_document() -> Result<ProjectDoc, String> {
         let source_board = "source-board";
         let mirror_board = "mirror-board";
         let mut document = ProjectDoc::empty("reconcile-fixture", "Reconcile fixture");
@@ -8212,216 +8217,6 @@ mod tests {
         let stale_before = stale.clone();
         assert!(reconcile(&mut stale, "pair-source-mirror", &stale_projection).is_err());
         assert_eq!(stale, stale_before);
-    }
-
-    #[test]
-    fn hosted_add_circuit_replay_binds_all_selected_identity_maps() {
-        fn prepared_add() -> (ProjectDoc, Projection) {
-            let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-            let mut unrelated_definition = document
-                .definitions
-                .iter()
-                .find(|definition| definition.id == "embedded/mirror-circuit/definition/u")
-                .unwrap()
-                .clone();
-            unrelated_definition.id = "unrelated-definition".into();
-            unrelated_definition.name = "Preserve this unrelated definition".into();
-            let mut unrelated_member = document
-                .parts
-                .iter()
-                .find(|part| part.id == "embedded/mirror-circuit/U1")
-                .unwrap()
-                .clone();
-            unrelated_member.id = "unrelated/member".into();
-            unrelated_member.reference = "U42".into();
-            unrelated_member.definition_id = unrelated_definition.id.clone();
-            document.definitions.push(unrelated_definition);
-            document.parts.push(unrelated_member.clone());
-            document.nets.push(Net {
-                id: "unrelated-net".into(),
-                name: "Preserve this unrelated net".into(),
-                pins: vec![Pin {
-                    part_id: unrelated_member.id.clone(),
-                    pad_id: "pad-1".into(),
-                }],
-            });
-            let mirror_board = document
-                .boards
-                .iter_mut()
-                .find(|board| board.id == "mirror-board")
-                .unwrap();
-            mirror_board.part_ids.push(unrelated_member.id.clone());
-            mirror_board.net_ids.push("unrelated-net".into());
-
-            document
-                .embedded_circuits
-                .retain(|circuit| circuit.id != "mirror-circuit");
-            document
-                .parts
-                .retain(|part| part.id != "embedded/mirror-circuit/U1");
-            document
-                .definitions
-                .retain(|definition| definition.id != "embedded/mirror-circuit/definition/u");
-            document
-                .nets
-                .retain(|net| net.id != "embedded/mirror-circuit/N$1");
-            let mirror_board = document
-                .boards
-                .iter_mut()
-                .find(|board| board.id == "mirror-board")
-                .unwrap();
-            mirror_board
-                .part_ids
-                .retain(|id| id != "embedded/mirror-circuit/U1");
-            mirror_board
-                .net_ids
-                .retain(|id| id != "embedded/mirror-circuit/N$1");
-            document.hardware.as_mut().unwrap().pairs[0]
-                .halves
-                .as_mut()
-                .unwrap()
-                .correspondences
-                .retain(|association| !match association.kind {
-                    MirroredItemKind::Part => association.source_id == "embedded/source-circuit/U1",
-                    MirroredItemKind::EmbeddedCircuit => association.source_id == "source-circuit",
-                    MirroredItemKind::Net => association.source_id == "embedded/source-circuit/N$1",
-                    _ => false,
-                });
-            projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-                source_id: "source-circuit".into(),
-                mirror_id: "mirror-circuit-added".into(),
-                member_ids: BTreeMap::from([(
-                    "embedded/source-circuit/U1".into(),
-                    "embedded/mirror-circuit-added/U1".into(),
-                )]),
-                member_references: BTreeMap::from([(
-                    "embedded/source-circuit/U1".into(),
-                    "U9".into(),
-                )]),
-                definition_ids: BTreeMap::from([(
-                    "embedded/source-circuit/definition/u".into(),
-                    "embedded/mirror-circuit-added/definition/u".into(),
-                )]),
-                net_ids: BTreeMap::from([
-                    (
-                        "embedded/source-circuit/N$1".into(),
-                        "embedded/mirror-circuit-added/N$1".into(),
-                    ),
-                    ("host-source-net".into(), "host-mirror-net".into()),
-                ]),
-                member_poses: BTreeMap::new(),
-            }];
-            (document, projection)
-        }
-
-        fn replay_map_is_bound(mutate: fn(&mut HostedTransition), label: &str) -> bool {
-            let (mut document, mut projection) = prepared_add();
-            crate::mechanical::halves::validate_document(&document)
-                .expect("the unpaired preservation controls leave a valid pair baseline");
-            reconcile(&mut document, "pair-source-mirror", &projection)
-                .expect("the selected AddCircuit operation creates its first output");
-            let first_document = document.clone();
-            let first_context = projection.applied_hosted_operations.borrow().clone();
-            let first_circuit_context =
-                projection.applied_hosted_circuit_additions.borrow().clone();
-            let pair_before = pair_state_bytes(&document);
-            mutate(&mut projection.hosted_transitions[0]);
-
-            let result = reconcile(&mut document, "pair-source-mirror", &projection);
-            if result.is_ok() {
-                return false;
-            }
-            assert_eq!(
-                document, first_document,
-                "changed {label} must refuse atomically"
-            );
-            assert_eq!(
-                *projection.applied_hosted_operations.borrow(),
-                first_context,
-                "a refused replay cannot alter its full private context"
-            );
-            assert_eq!(
-                *projection.applied_hosted_circuit_additions.borrow(),
-                first_circuit_context,
-                "a refused replay cannot alter bound AddCircuit provenance"
-            );
-            assert_eq!(pair_state_bytes(&document), pair_before);
-            assert!(document.definitions.iter().any(|definition| {
-                definition.id == "unrelated-definition"
-                    && definition.name == "Preserve this unrelated definition"
-            }));
-            assert!(
-                document
-                    .parts
-                    .iter()
-                    .any(|part| { part.id == "unrelated/member" && part.reference == "U42" })
-            );
-            assert!(document.nets.iter().any(|net| {
-                net.id == "unrelated-net"
-                    && net.name == "Preserve this unrelated net"
-                    && net.pins.iter().any(|pin| pin.part_id == "unrelated/member")
-            }));
-            true
-        }
-
-        let member_target = replay_map_is_bound(
-            |transition| {
-                let HostedTransition::AddCircuit { member_ids, .. } = transition else {
-                    unreachable!()
-                };
-                member_ids.insert(
-                    "embedded/source-circuit/U1".into(),
-                    "unrelated/member".into(),
-                );
-            },
-            "member target",
-        );
-        let member_reference = replay_map_is_bound(
-            |transition| {
-                let HostedTransition::AddCircuit {
-                    member_references, ..
-                } = transition
-                else {
-                    unreachable!()
-                };
-                member_references.insert("embedded/source-circuit/U1".into(), "U10".into());
-            },
-            "member reference",
-        );
-        let definition_target = replay_map_is_bound(
-            |transition| {
-                let HostedTransition::AddCircuit { definition_ids, .. } = transition else {
-                    unreachable!()
-                };
-                definition_ids.insert(
-                    "embedded/source-circuit/definition/u".into(),
-                    "unrelated-definition".into(),
-                );
-            },
-            "definition target",
-        );
-        let net_target = replay_map_is_bound(
-            |transition| {
-                let HostedTransition::AddCircuit { net_ids, .. } = transition else {
-                    unreachable!()
-                };
-                net_ids.insert("embedded/source-circuit/N$1".into(), "unrelated-net".into());
-            },
-            "net target",
-        );
-        assert!(
-            member_target && member_reference && definition_target && net_target,
-            "changed AddCircuit maps must not authenticate replay; accepted: {:?}",
-            [
-                (!member_target).then_some("member target"),
-                (!member_reference).then_some("member reference"),
-                (!definition_target).then_some("definition target"),
-                (!net_target).then_some("net target"),
-            ]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -9819,331 +9614,6 @@ mod tests {
         assert_eq!(
             *projection.applied_hosted_operations.borrow(),
             first_context
-        );
-    }
-
-    #[test]
-    fn adding_a_hosted_module_uses_the_selected_module_and_connector_ids() {
-        let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-        document
-            .modules
-            .retain(|module| module.id != "mirror-module");
-        document.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap()
-            .correspondences
-            .retain(|association| {
-                !(association.kind == MirroredItemKind::Module
-                    && association.source_id == "source-module")
-            });
-        projection.hosted_transitions = vec![HostedTransition::AddModule {
-            source_id: "source-module".into(),
-            mirror_id: "mirror-module-added".into(),
-        }];
-        let pair_before = pair_state_bytes(&document);
-
-        reconcile(&mut document, "pair-source-mirror", &projection)
-            .expect("the caller selects the new module identity explicitly");
-        assert_ne!(pair_state_bytes(&document), pair_before);
-        assert!(
-            document.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .correspondences
-                .iter()
-                .any(|association| {
-                    association.kind == MirroredItemKind::Module
-                        && association.source_id == "source-module"
-                        && association.mirror_id == "mirror-module-added"
-                })
-        );
-        assert!(projection.applied_hosted_operations.borrow().contains(&(
-            "module".into(),
-            "source-module".into(),
-            "mirror-module-added".into()
-        )));
-
-        let mirror = document
-            .modules
-            .iter()
-            .find(|module| module.id == "mirror-module-added")
-            .unwrap();
-        assert_eq!(mirror.host_board_id, "mirror-board");
-        assert_eq!(
-            mirror.connection.as_ref().unwrap().host_connector_part_id,
-            "matrix/mirror-matrix/r0c0"
-        );
-
-        let original_mirror_pose = mirror.at;
-        projection.hosted_transitions.clear();
-        projection.applied_hosted_operations.borrow_mut().clear();
-        projection
-            .applied_hosted_circuit_additions
-            .borrow_mut()
-            .clear();
-        let source_module = document
-            .modules
-            .iter_mut()
-            .find(|module| module.id == "source-module")
-            .unwrap();
-        source_module.at.x += 5.0;
-        source_module.gap = 0.75;
-        source_module.connection.as_mut().unwrap().bus_id = "updated-bus".into();
-        document
-            .modules
-            .iter_mut()
-            .find(|module| module.id == "mirror-module-added")
-            .unwrap()
-            .connection
-            .as_mut()
-            .unwrap()
-            .bus_id = "mirror-local-edit".into();
-
-        let changes = reconcile(&mut document, "pair-source-mirror", &projection)
-            .expect("the durable module correspondence supports later source and mirror edits");
-        assert!(changes.contains(&"mirror-module-added".to_owned()));
-        let projected = document
-            .modules
-            .iter()
-            .find(|module| module.id == "mirror-module-added")
-            .unwrap();
-        assert_ne!(projected.at, original_mirror_pose);
-        assert_eq!(projected.gap, 0.75);
-        assert_eq!(
-            projected.connection.as_ref().unwrap().bus_id,
-            "mirror-board/updated-bus"
-        );
-        assert_eq!(
-            projected
-                .connection
-                .as_ref()
-                .unwrap()
-                .host_connector_part_id,
-            "matrix/mirror-matrix/r0c0"
-        );
-        let normalized = document.clone();
-        assert!(
-            reconcile(&mut document, "pair-source-mirror", &projection)
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(document, normalized);
-        let serialized = serde_json::to_vec(&document).unwrap();
-        let mut reopened: ProjectDoc = serde_json::from_slice(&serialized).unwrap();
-        assert!(
-            reconcile(&mut reopened, "pair-source-mirror", &projection)
-                .unwrap()
-                .is_empty()
-        );
-        assert_eq!(reopened, normalized);
-    }
-
-    #[test]
-    fn adding_an_embedded_circuit_uses_the_selected_namespaced_id_maps() {
-        let (mut document, mut projection) = hosted_electrical_fixture().unwrap();
-        document
-            .embedded_circuits
-            .retain(|circuit| circuit.id != "mirror-circuit");
-        document
-            .parts
-            .retain(|part| part.id != "embedded/mirror-circuit/U1");
-        document
-            .definitions
-            .retain(|definition| definition.id != "embedded/mirror-circuit/definition/u");
-        document
-            .nets
-            .retain(|net| net.id != "embedded/mirror-circuit/N$1");
-        let mirror_board = document
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "mirror-board")
-            .unwrap();
-        mirror_board
-            .part_ids
-            .retain(|id| id != "embedded/mirror-circuit/U1");
-        mirror_board
-            .net_ids
-            .retain(|id| id != "embedded/mirror-circuit/N$1");
-        document.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap()
-            .correspondences
-            .retain(|association| !match association.kind {
-                MirroredItemKind::Part => association.source_id == "embedded/source-circuit/U1",
-                MirroredItemKind::EmbeddedCircuit => association.source_id == "source-circuit",
-                MirroredItemKind::Net => association.source_id == "embedded/source-circuit/N$1",
-                _ => false,
-            });
-        projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-            source_id: "source-circuit".into(),
-            mirror_id: "mirror-circuit".into(),
-            member_ids: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "embedded/mirror-circuit/U1".into(),
-            )]),
-            member_references: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "mirror-U1".into(),
-            )]),
-            definition_ids: BTreeMap::from([(
-                "embedded/source-circuit/definition/u".into(),
-                "embedded/mirror-circuit/definition/u".into(),
-            )]),
-            net_ids: BTreeMap::from([
-                (
-                    "embedded/source-circuit/N$1".into(),
-                    "embedded/mirror-circuit/N$1".into(),
-                ),
-                ("host-source-net".into(), "host-mirror-net".into()),
-            ]),
-            member_poses: BTreeMap::new(),
-        }];
-        let pair_before_add = pair_state_bytes(&document);
-
-        let before_collision = document.clone();
-        projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-            source_id: "source-circuit".into(),
-            mirror_id: "mirror-circuit".into(),
-            member_ids: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "geometry-probe".into(),
-            )]),
-            member_references: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "PROBE".into(),
-            )]),
-            definition_ids: BTreeMap::from([(
-                "embedded/source-circuit/definition/u".into(),
-                "embedded/mirror-circuit/definition/u".into(),
-            )]),
-            net_ids: BTreeMap::from([
-                (
-                    "embedded/source-circuit/N$1".into(),
-                    "embedded/mirror-circuit/N$1".into(),
-                ),
-                ("host-source-net".into(), "host-mirror-net".into()),
-            ]),
-            member_poses: BTreeMap::new(),
-        }];
-        assert!(
-            reconcile(&mut document, "pair-source-mirror", &projection).is_err(),
-            "an existing target Part cannot be claimed by a circuit addition"
-        );
-        assert_eq!(
-            document, before_collision,
-            "target collision refusal is atomic"
-        );
-        projection.hosted_transitions = vec![HostedTransition::AddCircuit {
-            source_id: "source-circuit".into(),
-            mirror_id: "mirror-circuit".into(),
-            member_ids: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "embedded/mirror-circuit/U1".into(),
-            )]),
-            member_references: BTreeMap::from([(
-                "embedded/source-circuit/U1".into(),
-                "mirror-U1".into(),
-            )]),
-            definition_ids: BTreeMap::from([(
-                "embedded/source-circuit/definition/u".into(),
-                "embedded/mirror-circuit/definition/u".into(),
-            )]),
-            net_ids: BTreeMap::from([
-                (
-                    "embedded/source-circuit/N$1".into(),
-                    "embedded/mirror-circuit/N$1".into(),
-                ),
-                ("host-source-net".into(), "host-mirror-net".into()),
-            ]),
-            member_poses: BTreeMap::new(),
-        }];
-
-        reconcile(&mut document, "pair-source-mirror", &projection)
-            .expect("the caller supplies a complete one-to-one circuit identity map");
-        assert_ne!(pair_state_bytes(&document), pair_before_add);
-        let admitted = document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap();
-        for (kind, source_id, mirror_id) in [
-            (
-                MirroredItemKind::EmbeddedCircuit,
-                "source-circuit",
-                "mirror-circuit",
-            ),
-            (
-                MirroredItemKind::Part,
-                "embedded/source-circuit/U1",
-                "embedded/mirror-circuit/U1",
-            ),
-            (
-                MirroredItemKind::Net,
-                "embedded/source-circuit/N$1",
-                "embedded/mirror-circuit/N$1",
-            ),
-        ] {
-            assert!(admitted.correspondences.iter().any(|association| {
-                association.kind == kind
-                    && association.source_id == source_id
-                    && association.mirror_id == mirror_id
-            }));
-        }
-        assert!(projection.applied_hosted_operations.borrow().contains(&(
-            "circuit".into(),
-            "source-circuit".into(),
-            "mirror-circuit".into()
-        )));
-
-        let mirror_member = document
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U1")
-            .unwrap();
-        assert_eq!(mirror_member.reference, "mirror-U1");
-        assert_eq!(
-            mirror_member.definition_id,
-            "embedded/mirror-circuit/definition/u"
-        );
-        assert!(
-            document
-                .definitions
-                .iter()
-                .any(|definition| definition.id == "embedded/mirror-circuit/definition/u")
-        );
-        assert!(
-            document
-                .nets
-                .iter()
-                .any(|net| net.id == "embedded/mirror-circuit/N$1")
-        );
-        let mirror_private = document
-            .nets
-            .iter()
-            .find(|net| net.id == "embedded/mirror-circuit/N$1")
-            .unwrap();
-        assert_eq!(
-            mirror_private.pins,
-            vec![Pin {
-                part_id: "embedded/mirror-circuit/U1".into(),
-                pad_id: "pad-1".into()
-            }]
-        );
-        assert!(document.nets.iter().any(|net| {
-            net.id == "host-mirror-net"
-                && net
-                    .pins
-                    .iter()
-                    .any(|pin| pin.part_id == "embedded/mirror-circuit/U1")
-        }));
-        assert!(
-            document
-                .embedded_circuits
-                .iter()
-                .any(|circuit| circuit.id == "mirror-circuit"
-                    && circuit.part_ids == vec!["embedded/mirror-circuit/U1"])
         );
     }
 
@@ -13352,53 +12822,6 @@ mod tests {
             &projection,
             "canonical matrix part association is missing",
         );
-    }
-
-    #[test]
-    fn valid_pair_fixture_materializes_both_matrices_and_passes_validators() {
-        let document = fixture_document().unwrap();
-
-        assert_eq!(document.matrices.len(), 2);
-        for matrix_id in ["source-matrix", "mirror-matrix"] {
-            let matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == matrix_id)
-                .unwrap();
-            assert_eq!(matrix.part_ids.len(), 2);
-            assert!(
-                matrix
-                    .part_ids
-                    .iter()
-                    .all(|id| document.parts.iter().any(|part| &part.id == id))
-            );
-        }
-        assert!(
-            document
-                .parts
-                .iter()
-                .any(|part| part.id == "matrix/source-matrix/r0c0")
-        );
-        assert!(
-            document
-                .parts
-                .iter()
-                .any(|part| part.id == "matrix/source-matrix/r0c1")
-        );
-        assert!(
-            document
-                .parts
-                .iter()
-                .any(|part| part.id == "matrix/mirror-matrix/r0c0")
-        );
-        assert!(
-            document
-                .parts
-                .iter()
-                .any(|part| part.id == "matrix/mirror-matrix/r0c1")
-        );
-        crate::mechanical::features::validate(&document).unwrap();
-        crate::mechanical::halves::validate_document(&document).unwrap();
     }
 
     #[test]
@@ -18836,89 +18259,6 @@ mod tests {
     }
 
     #[test]
-    fn independent_transition_accepts_inherited_local_child_provenance() {
-        let (before, _, mut context, _, _, _) = membership_compaction_fixture().unwrap();
-        assert!(crate::mechanical::halves::validate_document(&before).is_ok());
-        let parent = context
-            .associations
-            .iter_mut()
-            .find(|a| a.source_id == "matrix/source-matrix/r1c0")
-            .unwrap();
-        parent.state = TransitionState::Local;
-        parent.explicit_state = true;
-        {
-            let child = context
-                .associations
-                .iter_mut()
-                .find(|a| a.source_id == "matrix/source-matrix/r1c0/diode")
-                .unwrap();
-            child.state = TransitionState::Local;
-            child.explicit_state = false;
-        }
-        let constrained_parent = context
-            .associations
-            .iter_mut()
-            .find(|association| association.source_id == "matrix/source-matrix/r1c1")
-            .unwrap();
-        constrained_parent.state = TransitionState::Local;
-        constrained_parent.explicit_state = true;
-        let constrained_child = context
-            .associations
-            .iter_mut()
-            .find(|association| association.source_id == "matrix/source-matrix/r1c1/diode")
-            .unwrap();
-        constrained_child.state = TransitionState::Local;
-        constrained_child.explicit_state = false;
-        let child = context
-            .associations
-            .iter()
-            .find(|a| a.source_id == "matrix/source-matrix/r1c0/diode")
-            .unwrap();
-        assert_eq!(
-            child.parent_source_id.as_deref(),
-            Some("matrix/source-matrix/r1c0")
-        );
-        assert_eq!(
-            child.parent_mirror_id.as_deref(),
-            Some("matrix/mirror-matrix/r1c0")
-        );
-        let source_map = before
-            .matrices
-            .iter()
-            .find(|m| m.id == "source-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mirror_map = before
-            .matrices
-            .iter()
-            .find(|m| m.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let result = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &before,
-            post_source: &before,
-            context: &context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &context.owners,
-            explicit_removal_closure: &BTreeSet::new(),
-        });
-        assert!(
-            result.is_ok(),
-            "a child inheriting its explicit Local parent must be valid: {:?}",
-            result.err()
-        );
-    }
-
-    #[test]
     fn independent_transition_rejects_wrong_board_final_owner() {
         let (before, post_source, context, source_map, mut final_owners, closure) =
             membership_compaction_fixture().unwrap();
@@ -18946,23 +18286,6 @@ mod tests {
             final_owners: &final_owners,
             explicit_removal_closure: &closure,
         });
-        if let Ok(output) = &result {
-            let actual = output
-                .draft
-                .boards
-                .iter()
-                .find(|b| b.part_ids.contains(&id.to_owned()))
-                .unwrap();
-            assert_eq!(
-                actual.id, "mirror-board",
-                "the producer still registers the Part on its mirror board"
-            );
-            assert_eq!(
-                output.final_owners[id],
-                FinalOwner::Board("source-board".into()),
-                "the returned owner declaration contradicts the actual draft"
-            );
-        }
         assert!(
             result.is_err(),
             "a contradictory final owner for the second-row companion must be rejected"
@@ -19055,37 +18378,11 @@ mod tests {
         assert_eq!(context, context_snapshot);
     }
 
-    // Independent literal correction of the writer's compaction before fixture.
-    // No projector computes these mode/tweak expectations. B uses (2,3)@30;
-    // D reflects then applies (1,-2,+15), yielding (-1,1)@-15.
+    /// The compacted valid-before fixture a fresh repair starts from: the accepted compaction
+    /// with its second retained key offset normalized to the literal its poses materialize.
     fn repair_fresh_coherent_compaction_fixture() -> Result<CompactionFixture, String> {
         let (mut before, _, context, source_map, owners, closure) =
             membership_compaction_fixture()?;
-        let mut mirror = before
-            .matrices
-            .iter()
-            .find(|m| m.id == "mirror-matrix")
-            .unwrap()
-            .clone();
-        for cell in &mut mirror.cells {
-            let assembly = cell
-                .assemblies
-                .iter_mut()
-                .find(|a| a.id == "diode")
-                .unwrap();
-            match cell.column {
-                1 => {
-                    assembly.offset = Vec2 { x: 2.0, y: 3.0 };
-                    assembly.rotation = Some(30.0);
-                }
-                3 => {
-                    assembly.offset = Vec2 { x: -1.0, y: 1.0 };
-                    assembly.rotation = Some(-15.0);
-                }
-                _ => {}
-            }
-        }
-        crate::matrix::set_matrix(&mut before, &mirror)?;
         let Constraint::Offset {
             offset, rotation, ..
         } = before
@@ -19098,154 +18395,9 @@ mod tests {
         };
         *offset = Vec2 { x: 75.0, y: -47.0 };
         *rotation = 90.0;
-        crate::mechanical::halves::validate_document(&before)?;
-        for matrix in &before.matrices {
-            crate::matrix::valid_matrix(matrix, &before)?;
-        }
-        for (id, x, y, rotation) in [
-            ("matrix/mirror-matrix/r0c0/diode", 96.0, -37.0, 60.0),
-            ("matrix/mirror-matrix/r1c0/diode", 76.0, -37.0, 60.0),
-            ("matrix/mirror-matrix/r0c1/diode", 96.0, -43.0, 120.0),
-            ("matrix/mirror-matrix/r1c1/diode", 76.0, -43.0, 120.0),
-            ("matrix/mirror-matrix/r0c2/diode", 96.0, -57.0, 60.0),
-            ("matrix/mirror-matrix/r1c2/diode", 76.0, -57.0, 60.0),
-            ("matrix/mirror-matrix/r0c3/diode", 98.0, -66.0, 75.0),
-            ("matrix/mirror-matrix/r1c3/diode", 78.0, -66.0, 75.0),
-        ] {
-            let actual = before.parts.iter().find(|p| p.id == id).unwrap().pose;
-            assert!(
-                (actual.at.x - x).abs() < 1e-9
-                    && (actual.at.y - y).abs() < 1e-9
-                    && (actual.rotation - rotation).abs() < 1e-9,
-                "independent valid-before literal {id}: {actual:?}"
-            );
-        }
-        for part in &before.parts {
-            assert_eq!(before.parts.iter().filter(|p| p.id == part.id).count(), 1);
-            assert_eq!(
-                before
-                    .boards
-                    .iter()
-                    .filter(|b| b.part_ids.contains(&part.id))
-                    .count(),
-                1
-            );
-            assert!(
-                part.pose.at.x.is_finite()
-                    && part.pose.at.y.is_finite()
-                    && part.pose.rotation.is_finite()
-            );
-        }
-        for net in &before.nets {
-            for pin in &net.pins {
-                let part = before.parts.iter().find(|p| p.id == pin.part_id).unwrap();
-                let definition = before
-                    .definitions
-                    .iter()
-                    .find(|d| d.id == part.definition_id)
-                    .unwrap();
-                assert!(definition.pads.iter().any(|p| p.id == pin.pad_id));
-            }
-        }
-        for constraint in &before.constraints {
-            let source = before
-                .parts
-                .iter()
-                .find(|p| p.id == constraint.source())
-                .unwrap();
-            let target = before
-                .parts
-                .iter()
-                .find(|p| p.id == constraint.target())
-                .unwrap();
-            if let Constraint::Offset {
-                offset, rotation, ..
-            } = constraint
-            {
-                assert!((target.pose.at.x - source.pose.at.x - offset.x).abs() < 1e-9);
-                assert!((target.pose.at.y - source.pose.at.y - offset.y).abs() < 1e-9);
-                assert!((target.pose.rotation - source.pose.rotation - rotation).abs() < 1e-9);
-            }
-        }
         let mut post = before.clone();
         crate::matrix::deletion::remove_axis(&mut post, "source-matrix", 1, false)?;
         Ok((before, post, context, source_map, owners, closure))
-    }
-
-    #[test]
-    fn repair_fresh_corrected_literal_control_compacts_and_repeats() {
-        let (before, post, context, source_map, owners, closure) =
-            repair_fresh_coherent_compaction_fixture().unwrap();
-        let mirror_map = source_map
-            .iter()
-            .map(|(old, new)| {
-                (
-                    old.replace("matrix/source-matrix/", "matrix/mirror-matrix/"),
-                    new.as_ref()
-                        .map(|id| id.replace("matrix/source-matrix/", "matrix/mirror-matrix/")),
-                )
-            })
-            .collect();
-        let output = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &before,
-            post_source: &post,
-            context: &context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &owners,
-            explicit_removal_closure: &closure,
-        })
-        .unwrap();
-        for (id, x, y) in [
-            ("matrix/mirror-matrix/r0c2/diode", 98.0, -56.0),
-            ("matrix/mirror-matrix/r1c2/diode", 78.0, -56.0),
-        ] {
-            assert_eq!(
-                output.draft.parts.iter().find(|p| p.id == id).unwrap().pose,
-                Pose2 {
-                    at: Vec2 { x, y },
-                    rotation: 75.0
-                }
-            );
-        }
-        let source_map = output
-            .draft
-            .matrices
-            .iter()
-            .find(|m| m.id == "source-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mirror_map = output
-            .draft
-            .matrices
-            .iter()
-            .find(|m| m.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let repeated = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &output.draft,
-            post_source: &output.draft,
-            context: &output.context,
-            baseline_kind: BaselineKind::ChainedPrivateDraft,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &output.final_owners,
-            explicit_removal_closure: &BTreeSet::new(),
-        })
-        .unwrap();
-        assert_eq!(repeated.draft, output.draft);
-        assert_eq!(repeated.context, output.context);
-        assert!(repeated.changed_document_ids.is_empty());
-        assert!(repeated.changed_field_paths.is_empty());
     }
 
     #[test]
@@ -19445,84 +18597,6 @@ mod tests {
         assert!(
             result.is_err(),
             "the valid-before owner context must match the historical board registration, even when final owners are correct"
-        );
-    }
-
-    #[test]
-    fn repair_fresh_refuses_surviving_linked_key_constraint() {
-        let (mut before, _, context, source_map, owners, closure) =
-            repair_fresh_coherent_compaction_fixture().unwrap();
-        let constraint = Constraint::Offset {
-            id: "fresh-linked-C-key".into(),
-            source_part_id: "geometry-probe".into(),
-            target_part_id: "matrix/mirror-matrix/r0c2".into(),
-            offset: Vec2 { x: 95.0, y: -57.0 },
-            rotation: 90.0,
-        };
-        let key = before
-            .parts
-            .iter()
-            .find(|p| p.id == constraint.target())
-            .unwrap();
-        assert_eq!(
-            key.pose,
-            Pose2 {
-                at: Vec2 { x: 99.0, y: -55.0 },
-                rotation: 90.0
-            }
-        );
-        before.constraints.push(constraint);
-        let mut post = before.clone();
-        crate::matrix::deletion::remove_axis(&mut post, "source-matrix", 1, false).unwrap();
-        let mirror_map = source_map
-            .iter()
-            .map(|(old, new)| {
-                (
-                    old.replace("matrix/source-matrix/", "matrix/mirror-matrix/"),
-                    new.as_ref()
-                        .map(|id| id.replace("matrix/source-matrix/", "matrix/mirror-matrix/")),
-                )
-            })
-            .collect();
-        let before_snapshot = before.clone();
-        let post_snapshot = post.clone();
-        let context_snapshot = context.clone();
-        let result = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &before,
-            post_source: &post,
-            context: &context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &owners,
-            explicit_removal_closure: &closure,
-        });
-        assert_eq!(before, before_snapshot);
-        assert_eq!(post, post_snapshot);
-        assert_eq!(context, context_snapshot);
-        if let Ok(output) = &result {
-            let key = output
-                .draft
-                .parts
-                .iter()
-                .find(|p| p.id == "matrix/mirror-matrix/r0c1")
-                .unwrap();
-            let constraint = output
-                .draft
-                .constraints
-                .iter()
-                .find(|c| c.id() == "fresh-linked-C-key")
-                .unwrap();
-            assert_eq!(key.pose.at, Vec2 { x: 99.0, y: -45.0 });
-            assert_eq!(constraint.target(), key.id);
-            assert!(
-                matches!(constraint, Constraint::Offset { offset, .. } if *offset == Vec2 { x: 95.0, y: -57.0 })
-            );
-        }
-        assert!(
-            result.is_err(),
-            "surviving constrained linked keys must refuse; otherwise C moves while its retained constraint offset is stale"
         );
     }
 
@@ -19786,10 +18860,20 @@ mod tests {
         );
     }
 
-    #[test]
-    fn repair_fresh_refuses_unbound_planned_source_reference() {
+    type MembershipExpansionFixture = (
+        ProjectDoc,
+        ProjectDoc,
+        MembershipContext,
+        BTreeMap<String, Option<String>>,
+        BTreeMap<String, Option<String>>,
+        Vec<PlannedAddition>,
+        BTreeMap<String, FinalOwner>,
+    );
+
+    /// A valid pair whose source gains a fourth matrix column of materialized key+diode Parts.
+    fn membership_expansion_fixture() -> MembershipExpansionFixture {
         let (mut before, _, context, _, _, _) =
-            repair_fresh_coherent_compaction_fixture().expect("the linked matrix fixture is valid");
+            membership_compaction_fixture().expect("the linked matrix fixture is valid");
         before
             .constraints
             .retain(|c| c.id() != "retained-second-key-offset");
@@ -19891,6 +18975,28 @@ mod tests {
                 FinalOwner::Board("mirror-board".into()),
             );
         }
+        (
+            before,
+            post_source,
+            context,
+            source_identity_map,
+            mirror_identity_map,
+            additions,
+            final_owners,
+        )
+    }
+
+    #[test]
+    fn repair_fresh_refuses_unbound_planned_source_reference() {
+        let (
+            before,
+            post_source,
+            context,
+            source_identity_map,
+            mirror_identity_map,
+            mut additions,
+            final_owners,
+        ) = membership_expansion_fixture();
 
         additions[0].source_reference = "SUPPLIED_BUT_NOT_ACTUAL_SOURCE_REFERENCE".into();
 
@@ -19913,109 +19019,15 @@ mod tests {
 
     #[test]
     fn repair_fresh_refuses_missing_planned_child_parent() {
-        let (mut before, _, context, _, _, _) =
-            repair_fresh_coherent_compaction_fixture().expect("the linked matrix fixture is valid");
-        before
-            .constraints
-            .retain(|c| c.id() != "retained-second-key-offset");
-        let mut post_source = before.clone();
-        let source_matrix = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
-        let mut expanded = source_matrix.clone();
-        expanded.columns = 5;
-        for row in 0..2 {
-            expanded.cells.push(MatrixCell {
-                deleted: false,
-                row,
-                column: 4,
-                enabled: true,
-                definition_id: None,
-                variant: None,
-                offset: None,
-                rotation: None,
-                assemblies: vec![MatrixAssembly {
-                    id: "diode".into(),
-                    definition_id: "diode".into(),
-                    offset: Vec2 { x: 2.0, y: 3.0 },
-                    rotation: Some(30.0),
-                    side: Some(Side::Back),
-                }],
-                assemblies_local: None,
-            });
-        }
-        crate::matrix::set_matrix(&mut post_source, &expanded)
-            .expect("the planned source additions materialize");
-
-        let source_identity_map: BTreeMap<_, _> = source_matrix
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mirror_identity_map: BTreeMap<_, _> = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mut additions = Vec::new();
-        for row in 0..2 {
-            let source_key = format!("matrix/source-matrix/r{row}c4");
-            let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-            for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-                (
-                    source_key.clone(),
-                    mirror_key.clone(),
-                    None,
-                    None,
-                    format!("EXP_M_R{row}C4"),
-                ),
-                (
-                    format!("{source_key}/diode"),
-                    format!("{mirror_key}/diode"),
-                    Some(source_key.clone()),
-                    Some(mirror_key.clone()),
-                    format!("EXP_M_D_R{row}C4"),
-                ),
-            ] {
-                let source_part = post_source
-                    .parts
-                    .iter()
-                    .find(|part| part.id == source_id)
-                    .unwrap();
-                additions.push(PlannedAddition {
-                    source_id,
-                    mirror_id,
-                    source_reference: source_part.reference.clone(),
-                    mirror_reference,
-                    parent_source_id,
-                    parent_mirror_id,
-                });
-            }
-        }
-        let mut final_owners: BTreeMap<_, _> = post_source
-            .parts
-            .iter()
-            .map(|part| {
-                let board = post_source
-                    .boards
-                    .iter()
-                    .find(|board| board.part_ids.contains(&part.id))
-                    .unwrap();
-                (part.id.clone(), FinalOwner::Board(board.id.clone()))
-            })
-            .collect();
-        for addition in &additions {
-            final_owners.insert(
-                addition.mirror_id.clone(),
-                FinalOwner::Board("mirror-board".into()),
-            );
-        }
+        let (
+            before,
+            post_source,
+            context,
+            source_identity_map,
+            mirror_identity_map,
+            mut additions,
+            final_owners,
+        ) = membership_expansion_fixture();
 
         additions[1].parent_source_id = Some("matrix/source-matrix/r0c99".into());
         additions[1].parent_mirror_id = Some("matrix/mirror-matrix/r0c99".into());
@@ -20039,109 +19051,15 @@ mod tests {
 
     #[test]
     fn repair_fresh_refuses_duplicate_planned_mirror_references() {
-        let (mut before, _, context, _, _, _) =
-            repair_fresh_coherent_compaction_fixture().expect("the linked matrix fixture is valid");
-        before
-            .constraints
-            .retain(|c| c.id() != "retained-second-key-offset");
-        let mut post_source = before.clone();
-        let source_matrix = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
-        let mut expanded = source_matrix.clone();
-        expanded.columns = 5;
-        for row in 0..2 {
-            expanded.cells.push(MatrixCell {
-                deleted: false,
-                row,
-                column: 4,
-                enabled: true,
-                definition_id: None,
-                variant: None,
-                offset: None,
-                rotation: None,
-                assemblies: vec![MatrixAssembly {
-                    id: "diode".into(),
-                    definition_id: "diode".into(),
-                    offset: Vec2 { x: 2.0, y: 3.0 },
-                    rotation: Some(30.0),
-                    side: Some(Side::Back),
-                }],
-                assemblies_local: None,
-            });
-        }
-        crate::matrix::set_matrix(&mut post_source, &expanded)
-            .expect("the planned source additions materialize");
-
-        let source_identity_map: BTreeMap<_, _> = source_matrix
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mirror_identity_map: BTreeMap<_, _> = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mut additions = Vec::new();
-        for row in 0..2 {
-            let source_key = format!("matrix/source-matrix/r{row}c4");
-            let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-            for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-                (
-                    source_key.clone(),
-                    mirror_key.clone(),
-                    None,
-                    None,
-                    format!("EXP_M_R{row}C4"),
-                ),
-                (
-                    format!("{source_key}/diode"),
-                    format!("{mirror_key}/diode"),
-                    Some(source_key.clone()),
-                    Some(mirror_key.clone()),
-                    format!("EXP_M_D_R{row}C4"),
-                ),
-            ] {
-                let source_part = post_source
-                    .parts
-                    .iter()
-                    .find(|part| part.id == source_id)
-                    .unwrap();
-                additions.push(PlannedAddition {
-                    source_id,
-                    mirror_id,
-                    source_reference: source_part.reference.clone(),
-                    mirror_reference,
-                    parent_source_id,
-                    parent_mirror_id,
-                });
-            }
-        }
-        let mut final_owners: BTreeMap<_, _> = post_source
-            .parts
-            .iter()
-            .map(|part| {
-                let board = post_source
-                    .boards
-                    .iter()
-                    .find(|board| board.part_ids.contains(&part.id))
-                    .unwrap();
-                (part.id.clone(), FinalOwner::Board(board.id.clone()))
-            })
-            .collect();
-        for addition in &additions {
-            final_owners.insert(
-                addition.mirror_id.clone(),
-                FinalOwner::Board("mirror-board".into()),
-            );
-        }
+        let (
+            before,
+            post_source,
+            context,
+            source_identity_map,
+            mirror_identity_map,
+            mut additions,
+            final_owners,
+        ) = membership_expansion_fixture();
 
         additions[2].mirror_reference = additions[0].mirror_reference.clone();
 
@@ -20160,347 +19078,6 @@ mod tests {
             result.is_err(),
             "distinct planned additions cannot publish duplicate references"
         );
-    }
-
-    #[test]
-    fn repair_fresh_compaction_before_matches_approved_literals() {
-        let (before, _, _, _, _, _) = membership_compaction_fixture().unwrap();
-        let mut mismatches = Vec::new();
-        for (id, x, y, rotation) in [
-            ("matrix/mirror-matrix/r0c1/diode", 96.0, -43.0, 120.0),
-            ("matrix/mirror-matrix/r1c1/diode", 76.0, -43.0, 120.0),
-            ("matrix/mirror-matrix/r0c2/diode", 96.0, -57.0, 60.0),
-            ("matrix/mirror-matrix/r1c2/diode", 76.0, -57.0, 60.0),
-            ("matrix/mirror-matrix/r0c3/diode", 98.0, -66.0, 75.0),
-            ("matrix/mirror-matrix/r1c3/diode", 78.0, -66.0, 75.0),
-        ] {
-            let actual = before.parts.iter().find(|p| p.id == id).unwrap().pose;
-            if (actual.at.x - x).abs() > 1e-9
-                || (actual.at.y - y).abs() > 1e-9
-                || (actual.rotation - rotation).abs() > 1e-9
-            {
-                mismatches.push((
-                    id,
-                    actual,
-                    Pose2 {
-                        at: Vec2 { x, y },
-                        rotation,
-                    },
-                ));
-            }
-        }
-        assert!(
-            mismatches.is_empty(),
-            "the accepted compaction before fixture must materialize B/C/D according to their existing raw settings: {mismatches:?}"
-        );
-    }
-
-    #[test]
-    fn repair_fresh_chain_has_nonempty_both_local_child_dependencies() {
-        let _assert_pose = |document: &ProjectDoc, id: &str, expected: Pose2| {
-            let actual = document
-                .parts
-                .iter()
-                .find(|part| part.id == id)
-                .unwrap()
-                .pose;
-            assert!(
-                (actual.at.x - expected.at.x).abs() < 1e-9,
-                "{id}: {actual:?}"
-            );
-            assert!(
-                (actual.at.y - expected.at.y).abs() < 1e-9,
-                "{id}: {actual:?}"
-            );
-            assert!(
-                (actual.rotation - expected.rotation).abs() < 1e-9,
-                "{id}: {actual:?}"
-            );
-        };
-        let (mut before, _, mut context, _, _, _) =
-            membership_compaction_fixture().expect("the linked matrix fixture is valid");
-        crate::matrix::deletion::remove_axis(&mut before, "source-matrix", 3, false)
-            .expect("the source fixture narrows to three columns");
-        crate::matrix::deletion::remove_axis(&mut before, "mirror-matrix", 3, false)
-            .expect("the mirror fixture narrows to three columns");
-        let mut initial_source = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap()
-            .clone();
-        initial_source.origin = Vec2 { x: 3.0, y: -2.0 };
-        crate::matrix::set_matrix(&mut before, &initial_source)
-            .expect("the initial source frame materializes at the approved 2x3 origin");
-        let matrix_association = context
-            .pair_right
-            .correspondences
-            .iter()
-            .find(|association| association.kind == MirroredItemKind::Matrix)
-            .unwrap();
-        let projected_initial = project_matrix(
-            before
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "source-matrix")
-                .unwrap(),
-            before
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == "mirror-matrix")
-                .unwrap(),
-            matrix_association,
-            context.mapping,
-        )
-        .expect("the initial mirror frame is derived from the source frame");
-        let mut initial_mirror = projected_initial;
-        for (row, column, x, y) in [(0, 1, -93.0, 62.0), (1, 1, -113.0, 42.0)] {
-            let cell = initial_mirror
-                .cells
-                .iter_mut()
-                .find(|cell| cell.row == row && cell.column == column)
-                .unwrap();
-            cell.offset = Some(Vec2 { x, y });
-            cell.rotation = Some(-90.0);
-            let diode = cell
-                .assemblies
-                .iter_mut()
-                .find(|assembly| assembly.id == "diode")
-                .unwrap();
-            diode.offset = Vec2 { x: 2.0, y: 3.0 };
-            diode.rotation = Some(30.0);
-            diode.side = Some(Side::Back);
-        }
-        crate::matrix::set_matrix(&mut before, &initial_mirror)
-            .expect("both Local keys and diode children are materialized independently");
-        let mirror_members_now = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .clone();
-        before.nets.push(crate::model::Net {
-            id: "net-clean".into(),
-            name: "PROBE OMITTED LINKED".into(),
-            pins: vec![
-                crate::model::Pin {
-                    part_id: "geometry-probe".into(),
-                    pad_id: "pad-two".into(),
-                },
-                crate::model::Pin {
-                    part_id: "matrix/mirror-matrix/r0c2/diode".into(),
-                    pad_id: "pad-one".into(),
-                },
-                crate::model::Pin {
-                    part_id: "matrix/mirror-matrix/r1c2/diode".into(),
-                    pad_id: "pad-two".into(),
-                },
-            ],
-        });
-        before
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
-            .net_ids
-            .push("net-clean".into());
-        before.constraints.push(crate::model::Constraint::Offset {
-            id: "constraint-omit".into(),
-            source_part_id: "geometry-probe".into(),
-            target_part_id: "matrix/mirror-matrix/r0c2/diode".into(),
-            offset: Vec2 { x: 95.0, y: -57.0 },
-            rotation: 60.0,
-        });
-        let mut outline_members: Vec<_> = mirror_members_now.into_iter().collect();
-        outline_members.push("geometry-probe".into());
-        before
-            .outline
-            .push(crate::model::OutlineFeature::PartEnvelope {
-                id: "outline-mirror".into(),
-                connections: vec![
-                    OutlineConnection {
-                        id: "local-r0-connection".into(),
-                        width: 1.25,
-                        points: vec![OutlineControlPoint {
-                            at: Vec2 { x: 2.0, y: 3.0 },
-                            part_id: Some("matrix/mirror-matrix/r0c1/diode".into()),
-                        }],
-                    },
-                    OutlineConnection {
-                        id: "local-r1-connection".into(),
-                        width: 1.5,
-                        points: vec![OutlineControlPoint {
-                            at: Vec2 { x: 2.0, y: 3.0 },
-                            part_id: Some("matrix/mirror-matrix/r1c1/diode".into()),
-                        }],
-                    },
-                ],
-                settings: Default::default(),
-                part_ids: outline_members,
-                margin: 1.75,
-                operation: crate::model::Operation::Add,
-            });
-        before
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
-            .outline_ids
-            .push("outline-mirror".into());
-        before.outline.retain(|feature| {
-            !matches!(feature, crate::model::OutlineFeature::PartEnvelope { id, .. } if id == "retained-keys-envelope")
-        });
-        before
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
-            .outline_ids
-            .retain(|id| id != "retained-keys-envelope");
-        if let Some(crate::model::Constraint::Offset { offset, .. }) = before.constraints.iter_mut()
-            .find(|constraint| matches!(constraint, crate::model::Constraint::Offset { id, .. } if id == "retained-second-key-offset"))
-        {
-            *offset = Vec2 { x: 36.0, y: 68.0 };
-        }
-        let source_members = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap()
-            .part_ids
-            .clone();
-        let mirror_members = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .clone();
-        let halves = before.hardware.as_mut().unwrap().pairs[0]
-            .halves
-            .as_mut()
-            .unwrap();
-        halves.correspondences.retain(|association| {
-            association.kind == MirroredItemKind::Matrix
-                || source_members.contains(&association.source_id)
-        });
-        context.associations.retain(|association| {
-            association.kind == MirroredItemKind::Matrix
-                || source_members.contains(&association.source_id)
-                    && mirror_members.contains(&association.mirror_id)
-        });
-        context
-            .owners
-            .retain(|id, _| before.parts.iter().any(|part| part.id == *id));
-        context.pair_right = halves.clone();
-        for (source_id, state) in [
-            ("matrix/source-matrix/r0c1", TransitionState::Local),
-            ("matrix/source-matrix/r0c1/diode", TransitionState::Local),
-            ("matrix/source-matrix/r1c1", TransitionState::Local),
-            ("matrix/source-matrix/r1c1/diode", TransitionState::Local),
-            ("matrix/source-matrix/r0c2", TransitionState::Omitted),
-            ("matrix/source-matrix/r0c2/diode", TransitionState::Omitted),
-        ] {
-            let association = context
-                .associations
-                .iter_mut()
-                .find(|association| association.source_id == source_id)
-                .expect("the three-column context contains each state");
-            association.state = state;
-            association.explicit_state = !source_id.ends_with("/diode");
-        }
-        assert!(crate::mechanical::halves::validate_document(&before).is_ok());
-
-        for (id, part_id, pad_id) in [
-            ("net-local-r0", "matrix/mirror-matrix/r0c1/diode", "pad-one"),
-            ("net-local-r1", "matrix/mirror-matrix/r1c1/diode", "pad-two"),
-        ] {
-            before.nets.push(crate::model::Net {
-                id: id.into(),
-                name: format!("LOCAL DEPENDENCY {id}"),
-                pins: vec![Pin {
-                    part_id: part_id.into(),
-                    pad_id: pad_id.into(),
-                }],
-            });
-        }
-        before
-            .boards
-            .iter_mut()
-            .find(|board| board.id == "mirror-board")
-            .unwrap()
-            .net_ids
-            .extend(["net-local-r0".into(), "net-local-r1".into()]);
-        for (id, target_part_id, offset) in [
-            (
-                "constraint-local-r0",
-                "matrix/mirror-matrix/r0c1/diode",
-                Vec2 { x: 38.0, y: 51.0 },
-            ),
-            (
-                "constraint-local-r1",
-                "matrix/mirror-matrix/r1c1/diode",
-                Vec2 { x: 38.0, y: 71.0 },
-            ),
-        ] {
-            before.constraints.push(Constraint::Offset {
-                id: id.into(),
-                source_part_id: "geometry-probe".into(),
-                target_part_id: target_part_id.into(),
-                offset,
-                rotation: 30.0,
-            });
-        }
-        assert!(crate::mechanical::halves::validate_document(&before).is_ok());
-
-        let mut missing = Vec::new();
-        for id in [
-            "matrix/mirror-matrix/r0c1/diode",
-            "matrix/mirror-matrix/r1c1/diode",
-        ] {
-            if !before
-                .nets
-                .iter()
-                .any(|n| n.pins.iter().any(|p| p.part_id == id))
-            {
-                missing.push(format!("{id}: net pin"));
-            }
-            if !before
-                .constraints
-                .iter()
-                .any(|c| c.source() == id || c.target() == id)
-            {
-                missing.push(format!("{id}: constraint"));
-            }
-        }
-        assert!(
-            missing.is_empty(),
-            "both Local diodes require independent nonempty dependency preservation proof: {missing:?}"
-        );
-        for (part_id, net_id, pad_id) in [
-            ("matrix/mirror-matrix/r0c1/diode", "net-local-r0", "pad-one"),
-            ("matrix/mirror-matrix/r1c1/diode", "net-local-r1", "pad-two"),
-        ] {
-            let net = before.nets.iter().find(|net| net.id == net_id).unwrap();
-            assert_eq!(
-                net.pins,
-                vec![Pin {
-                    part_id: part_id.into(),
-                    pad_id: pad_id.into(),
-                }],
-                "each Local diode keeps its own nonempty actual-Pad dependency net"
-            );
-            assert!(
-                before
-                    .boards
-                    .iter()
-                    .find(|board| board.id == "mirror-board")
-                    .unwrap()
-                    .net_ids
-                    .contains(&net_id.to_owned())
-            );
-        }
     }
 
     #[test]
@@ -20532,109 +19109,15 @@ mod tests {
 
     #[test]
     fn repair_fresh_final_addition_copies_nondefault_source_parameters() {
-        let (mut before, _, context, _, _, _) =
-            repair_fresh_coherent_compaction_fixture().expect("the linked matrix fixture is valid");
-        before
-            .constraints
-            .retain(|c| c.id() != "retained-second-key-offset");
-        let mut post_source = before.clone();
-        let source_matrix = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "source-matrix")
-            .unwrap();
-        let mut expanded = source_matrix.clone();
-        expanded.columns = 5;
-        for row in 0..2 {
-            expanded.cells.push(MatrixCell {
-                deleted: false,
-                row,
-                column: 4,
-                enabled: true,
-                definition_id: None,
-                variant: None,
-                offset: None,
-                rotation: None,
-                assemblies: vec![MatrixAssembly {
-                    id: "diode".into(),
-                    definition_id: "diode".into(),
-                    offset: Vec2 { x: 2.0, y: 3.0 },
-                    rotation: Some(30.0),
-                    side: Some(Side::Back),
-                }],
-                assemblies_local: None,
-            });
-        }
-        crate::matrix::set_matrix(&mut post_source, &expanded)
-            .expect("the planned source additions materialize");
-
-        let source_identity_map: BTreeMap<_, _> = source_matrix
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mirror_identity_map: BTreeMap<_, _> = before
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-        let mut additions = Vec::new();
-        for row in 0..2 {
-            let source_key = format!("matrix/source-matrix/r{row}c4");
-            let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-            for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-                (
-                    source_key.clone(),
-                    mirror_key.clone(),
-                    None,
-                    None,
-                    format!("EXP_M_R{row}C4"),
-                ),
-                (
-                    format!("{source_key}/diode"),
-                    format!("{mirror_key}/diode"),
-                    Some(source_key.clone()),
-                    Some(mirror_key.clone()),
-                    format!("EXP_M_D_R{row}C4"),
-                ),
-            ] {
-                let source_part = post_source
-                    .parts
-                    .iter()
-                    .find(|part| part.id == source_id)
-                    .unwrap();
-                additions.push(PlannedAddition {
-                    source_id,
-                    mirror_id,
-                    source_reference: source_part.reference.clone(),
-                    mirror_reference,
-                    parent_source_id,
-                    parent_mirror_id,
-                });
-            }
-        }
-        let mut final_owners: BTreeMap<_, _> = post_source
-            .parts
-            .iter()
-            .map(|part| {
-                let board = post_source
-                    .boards
-                    .iter()
-                    .find(|board| board.part_ids.contains(&part.id))
-                    .unwrap();
-                (part.id.clone(), FinalOwner::Board(board.id.clone()))
-            })
-            .collect();
-        for addition in &additions {
-            final_owners.insert(
-                addition.mirror_id.clone(),
-                FinalOwner::Board("mirror-board".into()),
-            );
-        }
+        let (
+            before,
+            mut post_source,
+            context,
+            source_identity_map,
+            mirror_identity_map,
+            additions,
+            final_owners,
+        ) = membership_expansion_fixture();
 
         let source_id = additions[0].source_id.clone();
         let mirror_id = additions[0].mirror_id.clone();
@@ -20727,47 +19210,6 @@ mod tests {
             owners,
             BTreeSet::new(),
         ))
-    }
-
-    #[test]
-    fn consolidated_fresh_valid_identity_control() {
-        let (before, _, context, source_map, owners, _) =
-            consolidated_fresh_identity_fixture().unwrap();
-
-        let mirror_map: BTreeMap<_, _> = before
-            .matrices
-            .iter()
-            .find(|m| m.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-
-        let snapshot = before.clone();
-        let context_snapshot = context.clone();
-        let result = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &before,
-            post_source: &before,
-            context: &context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &owners,
-            explicit_removal_closure: &BTreeSet::new(),
-        });
-        assert_eq!(before, snapshot, "caller document remains unchanged");
-        assert_eq!(
-            context, context_snapshot,
-            "caller context remains unchanged"
-        );
-
-        let output = result.expect("coherent accepted identity fixture");
-        assert_eq!(output.draft, before);
-        assert_eq!(output.context, context);
-        assert!(output.changed_document_ids.is_empty());
-        assert!(output.changed_field_paths.is_empty());
     }
 
     #[test]
@@ -21049,55 +19491,6 @@ mod tests {
         assert!(
             result.is_err(),
             "historical retained Local geometry must be finite before every success"
-        );
-    }
-
-    #[test]
-    fn consolidated_fresh_refuses_nonfinite_historical_constraint() {
-        let (mut before, _, context, source_map, owners, _) =
-            consolidated_fresh_identity_fixture().unwrap();
-        let Constraint::Offset { offset, .. } = before
-            .constraints
-            .iter_mut()
-            .find(|c| c.id() == "retained-second-key-offset")
-            .unwrap()
-        else {
-            unreachable!()
-        };
-        offset.x = f64::INFINITY;
-
-        let mirror_map: BTreeMap<_, _> = before
-            .matrices
-            .iter()
-            .find(|m| m.id == "mirror-matrix")
-            .unwrap()
-            .part_ids
-            .iter()
-            .map(|id| (id.clone(), Some(id.clone())))
-            .collect();
-
-        let snapshot = before.clone();
-        let context_snapshot = context.clone();
-        let result = prepare_membership_transition(MembershipTransitionInput {
-            valid_before: &before,
-            post_source: &before,
-            context: &context,
-            baseline_kind: BaselineKind::MaterializedCurrentSchema,
-            source_identity_map: &source_map,
-            mirror_identity_map: &mirror_map,
-            planned_additions: &[],
-            final_owners: &owners,
-            explicit_removal_closure: &BTreeSet::new(),
-        });
-        assert_eq!(before, snapshot, "caller document remains unchanged");
-        assert_eq!(
-            context, context_snapshot,
-            "caller context remains unchanged"
-        );
-
-        assert!(
-            result.is_err(),
-            "historical touched constraint geometry must be finite before every success"
         );
     }
 

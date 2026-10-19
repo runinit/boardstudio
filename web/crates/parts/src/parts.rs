@@ -876,25 +876,6 @@ mod add_object_menu_tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    fn add_menu_search_excludes_retired_and_assembly_snapshot_definitions() {
-        let entries = vec![
-            entry("battery", "Battery connector", "connector"),
-            retired_entry(),
-            assembly_snapshot_entry(),
-        ];
-
-        let results = add_object_search_results(&entries, "battery");
-
-        assert_eq!(
-            results
-                .iter()
-                .map(|entry| entry.definition.id.as_str())
-                .collect::<Vec<_>>(),
-            ["battery"]
-        );
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
     fn key_assembly_search_hides_nonmatching_presets_without_losing_categories() {
         let all = matching_assembly_presets("");
         assert_eq!(all.len(), 8);

@@ -6,9 +6,7 @@ use super::{
     ConstraintLifecycleEffect, prepare_constraint_lifecycle_delta, retire_replacement_records,
 };
 use crate::constraints::{ConstraintEndpoint, ConstraintRelation, FramedConstraint};
-use crate::mirrored_half::{
-    MechanicalChange, MechanicalEdit, MechanicalFeatureCorrespondence, MechanicalTarget,
-};
+use crate::mirrored_half::reconcile::tests::fixture_document;
 use crate::model::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -889,96 +887,6 @@ fn prepared_unlink_publication_undo_redo_and_reopen_preserve_materialized_closur
 }
 
 #[test]
-fn prepared_unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
-    let accepted = reuse_board_unlink_document();
-    let before_effective: Vec<_> = ["source-instance", "mirror-instance"]
-        .into_iter()
-        .map(|instance_id| {
-            crate::mechanical::inputs::effective_inputs(
-                &accepted,
-                &[],
-                &MechanicalTarget::Instance {
-                    instance_id: instance_id.into(),
-                },
-            )
-            .unwrap()
-            .configuration
-        })
-        .collect();
-    let flipped_before = accepted.hardware.as_ref().unwrap().instances[1].flipped;
-    let operation: EditOperation = serde_json::from_value(json!({
-        "kind": "apply-mechanical-edit",
-        "edit": {
-            "target": {"kind": "instance", "instanceId": "source-instance"},
-            "change": {"unlink-mirror-pair": {"instance_id": "source-instance"}}
-        }
-    }))
-    .expect("the public UnlinkMirrorPair wire shape parses");
-
-    let (prepared, changed) = crate::mirrored_half::prepare_transaction(&accepted, &[], &operation)
-        .expect("prepared Unlink derives the reuse-board context internally");
-
-    let holes: Vec<_> = prepared
-        .parts
-        .iter()
-        .filter(|part| part.id.starts_with("case-closure/source-board/"))
-        .collect();
-    let hole_ids: BTreeSet<_> = holes.iter().map(|part| part.id.as_str()).collect();
-    assert_eq!(hole_ids.len(), 4);
-    assert_eq!(
-        hole_ids,
-        expected_closure_ids("source-board")
-            .iter()
-            .map(String::as_str)
-            .collect()
-    );
-    assert_eq!(prepared.boards.len(), 1);
-    assert_eq!(prepared.boards[0].part_ids.len(), 4);
-    assert_eq!(
-        prepared.boards[0]
-            .part_ids
-            .iter()
-            .filter(|id| hole_ids.contains(id.as_str()))
-            .count(),
-        hole_ids.len(),
-        "each generated closure hole is registered exactly once"
-    );
-    assert!(prepared.hardware.as_ref().unwrap().pairs.is_empty());
-    assert_eq!(
-        prepared.hardware.as_ref().unwrap().instances[1].flipped,
-        flipped_before
-    );
-    for (index, instance) in prepared
-        .hardware
-        .as_ref()
-        .unwrap()
-        .instances
-        .iter()
-        .enumerate()
-    {
-        let current = instance.mechanical.as_ref().unwrap();
-        assert_eq!(current, &before_effective[index]);
-        assert_eq!(
-            crate::mechanical::inputs::effective_inputs(
-                &prepared,
-                &[],
-                &MechanicalTarget::Instance {
-                    instance_id: instance.id.clone(),
-                },
-            )
-            .unwrap()
-            .configuration,
-            before_effective[index]
-        );
-    }
-    assert_eq!(
-        changed.into_iter().collect::<BTreeSet<_>>(),
-        unlink_diff_ids(&accepted, &prepared)
-    );
-    crate::mechanical::halves::validate_document(&prepared).unwrap();
-}
-
-#[test]
 fn unlink_reuse_board_keeps_one_nonempty_closure_set_and_flipped_geometry() {
     let mut document = reuse_board_unlink_document();
     let before = document.clone();
@@ -1590,216 +1498,6 @@ fn embedded_circuit_owner_transitions_keep_explicit_child_and_unrelated_module_l
     assert!(rejoined.pending_pair_baseline.is_none());
 }
 
-fn fixture_mapping() -> Pose2 {
-    Pose2 {
-        at: Vec2 { x: 80.0, y: -25.0 },
-        rotation: 31.0,
-    }
-}
-
-fn fixture_board(id: &str) -> Board {
-    Board {
-        id: id.into(),
-        name: id.into(),
-        outline_ids: vec![],
-        part_ids: vec![],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    }
-}
-
-fn fixture_mechanical_configuration(board_id: &str) -> MechanicalConfiguration {
-    let mut configuration: MechanicalConfiguration = serde_json::from_value(serde_json::json!({
-        "boardId": board_id,
-        "method": "printed",
-        "mount": "rigid",
-        "plateThickness": 1.5,
-        "plateFoamThickness": 0.5,
-        "pcbThickness": 1.6,
-        "bottomFoamThickness": 0.4,
-        "batteryHeight": 4.0,
-        "bottomThickness": 3.0,
-        "plateToPcb": 3.5,
-        "wallThickness": 2.0,
-        "clearance": 0.3,
-        "bottomStyle": "shell",
-        "middleFrame": false,
-        "openingAllowance": 0.25,
-        "mounts": [],
-        "closureMounts": [],
-        "profiles": []
-    }))
-    .unwrap();
-    configuration.mounts.push(Mount {
-        id: "mount-1".into(),
-        at: Vec2 { x: 2.0, y: 3.0 },
-        kind: MountKind::Hole,
-        hole_diameter: 2.2,
-        boss_diameter: None,
-        height: None,
-    });
-    configuration
-}
-
-fn fixture_instance(id: &str, board_id: &str) -> PhysicalBoardInstance {
-    PhysicalBoardInstance {
-        id: id.into(),
-        name: id.into(),
-        board_id: board_id.into(),
-        half: id.into(),
-        role: "controller".into(),
-        flipped: false,
-        controller_part_id: None,
-        mechanical: Some(fixture_mechanical_configuration(board_id)),
-        construction_ownership: MechanicalConstructionOwnership::Local,
-        mechanical_identity_reservation: None,
-    }
-}
-
-fn fixture_matrix(id: &str, board_id: &str) -> Matrix {
-    Matrix {
-        id: id.into(),
-        name: None,
-        rows: 1,
-        columns: 2,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "switch".into(),
-        part_ids: vec![],
-        board_id: Some(board_id.into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
-        cells: (0..2)
-            .map(|column| MatrixCell {
-                deleted: false,
-                row: 0,
-                column,
-                enabled: true,
-                definition_id: None,
-                variant: None,
-                offset: None,
-                rotation: None,
-                assemblies: vec![],
-                assemblies_local: None,
-            })
-            .collect(),
-    }
-}
-
-fn fixture_mounting_hole() -> PartDefinition {
-    serde_json::from_value(serde_json::json!({
-        "id":"generator:ceoloide/mounting_hole_npth",
-        "name":"mounting hole npth",
-        "kind":"custom",
-        "pads":[{"id":"pad-0","number":"","at":{"x":0,"y":0},
-            "size":{"x":2.2,"y":2.2},"shape":"circle","drill":2.2,"plated":false,"rotation":0}],
-        "courtyard":[{"x":-1.1,"y":-1.1},{"x":1.1,"y":-1.1},{"x":1.1,"y":1.1},{"x":-1.1,"y":1.1}],
-        "envelopeSource":{"courtyard":"generated"},
-        "envelopeNotice":"No closed courtyard is available; the outline uses physical graphics and pad extents.",
-        "generator":{"source":"ceoloide/mounting_hole_npth","version":"bundled-1","parameters":{}}
-    }))
-    .unwrap()
-}
-
-fn fixture_document() -> Result<ProjectDoc, String> {
-    let source_board = "source-board";
-    let mirror_board = "mirror-board";
-    let mut document = ProjectDoc::empty("reconcile-fixture", "Reconcile fixture");
-    document.boards = vec![fixture_board(source_board), fixture_board(mirror_board)];
-    document.definitions.push(
-        serde_json::from_value(serde_json::json!({
-            "id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]
-        }))
-        .unwrap(),
-    );
-    document.mechanical = Some(fixture_mechanical_configuration(source_board));
-    document.hardware = Some(HardwareConfiguration {
-        topology: HardwareTopology::Unibody,
-        transport: HardwareTransport::None,
-        instances: vec![
-            fixture_instance("left", source_board),
-            fixture_instance("right", mirror_board),
-        ],
-        boards: vec![],
-        shared_construction: None,
-        pairs: vec![],
-    });
-
-    crate::matrix::set_matrix(
-        &mut document,
-        &fixture_matrix("source-matrix", source_board),
-    )?;
-    crate::matrix::set_matrix(
-        &mut document,
-        &fixture_matrix("mirror-matrix", mirror_board),
-    )?;
-
-    crate::mechanical::edit::apply(
-        &mut document,
-        &[],
-        &MechanicalEdit {
-            target: MechanicalTarget::Board {
-                board_id: source_board.into(),
-            },
-            change: MechanicalChange::LinkMirrorPair {
-                pair_id: "pair-source-mirror".into(),
-                members: ["left".into(), "right".into()],
-                mapping: fixture_mapping(),
-                construction_source: "left".into(),
-                correspondences: vec![MechanicalFeatureCorrespondence {
-                    kind: MechanicalFeatureKind::Mount,
-                    first_feature_id: "mount-1".into(),
-                    second_feature_id: "mount-1".into(),
-                    source_instance_id: None,
-                }],
-            },
-            mounting_hole: Some(Box::new(fixture_mounting_hole())),
-        },
-    )?;
-
-    let correspondences = vec![
-        MirroredCorrespondence {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: MirroredItemKind::Matrix,
-            source_id: "source-matrix".into(),
-            mirror_id: "mirror-matrix".into(),
-        },
-        MirroredCorrespondence {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: MirroredItemKind::Part,
-            source_id: "matrix/source-matrix/r0c0".into(),
-            mirror_id: "matrix/mirror-matrix/r0c0".into(),
-        },
-        MirroredCorrespondence {
-            companion_mode: None,
-            companion_tweak: None,
-            kind: MirroredItemKind::Part,
-            source_id: "matrix/source-matrix/r0c1".into(),
-            mirror_id: "matrix/mirror-matrix/r0c1".into(),
-        },
-    ];
-    let halves = serde_json::from_value(serde_json::json!({
-        "sourceBoardId": source_board,
-        "mirrorBoardId": mirror_board,
-        "correspondences": correspondences,
-        "exceptions": []
-    }))
-    .map_err(|error| error.to_string())?;
-    document.hardware.as_mut().unwrap().pairs[0].halves = Some(halves);
-    Ok(document)
-}
-
 fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String> {
     let mut document = fixture_document()?;
     let mut diode = document.definitions[0].clone();
@@ -1968,38 +1666,6 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         local_transition_fixture().expect("the linked matrix fixture is valid");
     let source_id = "matrix/source-matrix/r1c1";
     let mirror_id = "matrix/mirror-matrix/r1c1";
-    let source_matrix = linked_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror_matrix = linked_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let source_identity_map: BTreeMap<_, _> = source_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mirror_identity_map: BTreeMap<_, _> = mirror_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let linked_owners: BTreeMap<_, _> = linked_before
-        .parts
-        .iter()
-        .map(|part| {
-            let owner = linked_before
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&part.id))
-                .unwrap();
-            (part.id.clone(), FinalOwner::Board(owner.id.clone()))
-        })
-        .collect();
     let local_context = super::transition_exception_context(
         &linked_context,
         MirroredItemKind::Part,
@@ -2008,18 +1674,8 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         TransitionState::Local,
     )
     .expect("the linked key and inherited child become one exact Local owner");
-    let local_output = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &linked_before,
-        post_source: &linked_before,
-        context: &local_context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_identity_map,
-        mirror_identity_map: &mirror_identity_map,
-        planned_additions: &[],
-        final_owners: &linked_owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    })
-    .expect("the real kernel transaction publishes the Local exception");
+    let local_output = commit_matrix_step(&linked_before, &linked_before, &local_context)
+        .expect("the real kernel transaction publishes the Local exception");
     let before = local_output.draft;
     let context = local_output.context;
     let persisted_halves = before.hardware.as_ref().unwrap().pairs[0]
@@ -2075,7 +1731,12 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         local_key_snapshot.properties.as_ref().unwrap()["layoutOverride"],
         serde_json::json!(1)
     );
-    let mut expanded = source_matrix.clone();
+    let mut expanded = before
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "source-matrix")
+        .unwrap()
+        .clone();
     expanded.columns = 5;
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
@@ -2106,71 +1767,8 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     crate::matrix::set_matrix(&mut post_source, &expanded)
         .expect("the planned source additions materialize");
 
-    let mut additions = Vec::new();
-    for row in 0..2 {
-        let source_key = format!("matrix/source-matrix/r{row}c4");
-        let mirror_key = format!("matrix/mirror-matrix/r{row}c4");
-        for (source_id, mirror_id, parent_source_id, parent_mirror_id, mirror_reference) in [
-            (
-                source_key.clone(),
-                mirror_key.clone(),
-                None,
-                None,
-                format!("EXP_M_R{row}C4"),
-            ),
-            (
-                format!("{source_key}/diode"),
-                format!("{mirror_key}/diode"),
-                Some(source_key.clone()),
-                Some(mirror_key.clone()),
-                format!("EXP_M_D_R{row}C4"),
-            ),
-        ] {
-            let source_part = post_source
-                .parts
-                .iter()
-                .find(|part| part.id == source_id)
-                .unwrap();
-            additions.push(PlannedAddition {
-                source_id,
-                mirror_id,
-                source_reference: source_part.reference.clone(),
-                mirror_reference,
-                parent_source_id,
-                parent_mirror_id,
-            });
-        }
-    }
-    let mut final_owners: BTreeMap<_, _> = post_source
-        .parts
-        .iter()
-        .map(|part| {
-            let board = post_source
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&part.id))
-                .unwrap();
-            (part.id.clone(), FinalOwner::Board(board.id.clone()))
-        })
-        .collect();
-    for addition in &additions {
-        final_owners.insert(
-            addition.mirror_id.clone(),
-            FinalOwner::Board("mirror-board".into()),
-        );
-    }
-    let output = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &before,
-        post_source: &post_source,
-        context: &context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_identity_map,
-        mirror_identity_map: &mirror_identity_map,
-        planned_additions: &additions,
-        final_owners: &final_owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    })
-    .expect("a complete planned expansion is projected atomically");
+    let output = commit_matrix_step(&before, &post_source, &context)
+        .expect("a complete planned expansion is projected atomically");
     assert_eq!(
         output
             .draft
@@ -2189,18 +1787,6 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
         .unwrap();
     assert_eq!((mirror.rows, mirror.columns), (2, 5));
     assert_eq!(mirror.part_ids.len(), 20);
-    for addition in &additions {
-        assert_eq!(
-            output
-                .draft
-                .parts
-                .iter()
-                .find(|part| part.id == addition.mirror_id)
-                .unwrap()
-                .reference,
-            addition.mirror_reference
-        );
-    }
     assert_eq!(output.context_delta.added.len(), 4);
     assert_eq!(output.context.associations.len(), 21);
     for added in &output.context_delta.added {
@@ -2236,52 +1822,9 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     )
     .expect("the exact Local exception can be Rejoined");
     let rejoin_before = output.draft.clone();
-    let rejoin_post_source = rejoin_before.clone();
-    let source_matrix = rejoin_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let mirror_matrix = rejoin_before
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let source_identity_map: BTreeMap<_, _> = source_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let mirror_identity_map: BTreeMap<_, _> = mirror_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let final_owners: BTreeMap<_, _> = rejoin_post_source
-        .parts
-        .iter()
-        .map(|part| {
-            let owner = rejoin_post_source
-                .boards
-                .iter()
-                .find(|board| board.part_ids.contains(&part.id))
-                .unwrap();
-            (part.id.clone(), FinalOwner::Board(owner.id.clone()))
-        })
-        .collect();
-    let rejoined = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &rejoin_before,
-        post_source: &rejoin_post_source,
-        context: &rejoined_context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_identity_map,
-        mirror_identity_map: &mirror_identity_map,
-        planned_additions: &[],
-        final_owners: &final_owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    })
-    .expect("Rejoin projects the current source into the former Local target");
-    let current_source = rejoin_post_source
+    let rejoined = commit_matrix_step(&rejoin_before, &rejoin_before, &rejoined_context)
+        .expect("Rejoin projects the current source into the former Local target");
+    let current_source = rejoin_before
         .parts
         .iter()
         .find(|part| part.id == source_id)
@@ -2314,40 +1857,8 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
             .as_ref()
             .is_none_or(|properties| !properties.contains_key("layoutOverride"))
     );
-    let repeated_source_matrix = rejoined
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "source-matrix")
-        .unwrap();
-    let repeated_mirror_matrix = rejoined
-        .draft
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "mirror-matrix")
-        .unwrap();
-    let repeated_source_map: BTreeMap<_, _> = repeated_source_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let repeated_mirror_map: BTreeMap<_, _> = repeated_mirror_matrix
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), Some(id.clone())))
-        .collect();
-    let repeated = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &rejoined.draft,
-        post_source: &rejoined.draft,
-        context: &rejoined.context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &repeated_source_map,
-        mirror_identity_map: &repeated_mirror_map,
-        planned_additions: &[],
-        final_owners: &rejoined.final_owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    })
-    .expect("the full Rejoined document and context converge on repeat");
+    let repeated = commit_matrix_step(&rejoined.draft, &rejoined.draft, &rejoined.context)
+        .expect("the full Rejoined document and context converge on repeat");
     assert_eq!(repeated.draft, rejoined.draft);
     assert_eq!(repeated.context, rejoined.context);
     assert!(repeated.changed_document_ids.is_empty());
@@ -3665,75 +3176,6 @@ fn matrixless_embedded_circuit_owner_supports_local_omit_and_rejoin() {
 }
 
 #[test]
-fn matrixless_connector_omit_keeps_module_and_clears_only_connector_reference() {
-    let (mut before, _) = circuit_lifecycle_fixture();
-    let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
-    remove_matrix_correspondence(&mut before);
-
-    let local = super::prepare_exception_intent(
-        &before,
-        &before,
-        &pair_id,
-        MirroredItemKind::Part,
-        "source-screen",
-        "mirror-screen",
-        TransitionState::Local,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let module_before = local
-        .draft
-        .modules
-        .iter()
-        .find(|module| module.id == "mirror-module")
-        .unwrap()
-        .clone();
-    assert_eq!(
-        module_before
-            .connection
-            .as_ref()
-            .map(|connection| connection.host_connector_part_id.as_str()),
-        before
-            .modules
-            .iter()
-            .find(|module| module.id == "mirror-module")
-            .unwrap()
-            .connection
-            .as_ref()
-            .map(|connection| connection.host_connector_part_id.as_str()),
-        "Making a connector Local must preserve the module's connector reference"
-    );
-    let omitted = super::prepare_exception_intent(
-        &local.draft,
-        &local.draft,
-        &pair_id,
-        MirroredItemKind::Part,
-        "source-screen",
-        "mirror-screen",
-        TransitionState::Omitted,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let module = omitted
-        .draft
-        .modules
-        .iter()
-        .find(|module| module.id == "mirror-module")
-        .unwrap();
-    assert_eq!(module.id, module_before.id);
-    assert!(module.connection.is_none());
-    assert!(
-        omitted
-            .draft
-            .parts
-            .iter()
-            .all(|part| part.id != "mirror-screen")
-    );
-}
-
-#[test]
 fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomically() {
     let (mut before, _) = independent_lifecycle_fixture();
     let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
@@ -4226,108 +3668,6 @@ fn omitted_target_on_a_different_board_is_not_absent() {
         crate::mechanical::halves::validate_document(&document).is_err(),
         "an Omitted target cannot alias live geometry on another board"
     );
-}
-
-#[test]
-fn whole_matrix_source_deletion_commits_retirement_and_detaches_local_parts() {
-    let (before, context) = local_transition_fixture().unwrap();
-    let pending = super::transition_exception_context(
-        &context,
-        MirroredItemKind::Part,
-        "matrix/source-matrix/r0c0",
-        "matrix/mirror-matrix/r0c0",
-        TransitionState::Local,
-    )
-    .unwrap();
-    let local = commit_matrix_step(&before, &before, &pending).unwrap();
-    let retained: Vec<_> = local
-        .draft
-        .parts
-        .iter()
-        .filter(|p| {
-            p.id == "matrix/mirror-matrix/r0c0" || p.id == "matrix/mirror-matrix/r0c0/diode"
-        })
-        .cloned()
-        .collect();
-    let mut post = local.draft.clone();
-    crate::apply(
-        &mut post,
-        &[],
-        &EditOperation::RemoveMatrix {
-            id: "source-matrix".into(),
-        },
-    )
-    .unwrap();
-    let source = local
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "source-matrix")
-        .unwrap();
-    let mirror = local
-        .draft
-        .matrices
-        .iter()
-        .find(|m| m.id == "mirror-matrix")
-        .unwrap();
-    let source_map: BTreeMap<_, _> = source
-        .part_ids
-        .iter()
-        .map(|id| (id.clone(), None))
-        .collect();
-    let mirror_map: BTreeMap<_, _> = mirror
-        .part_ids
-        .iter()
-        .map(|id| {
-            (
-                id.clone(),
-                retained.iter().any(|p| p.id == *id).then(|| id.clone()),
-            )
-        })
-        .collect();
-    let mut owners = local.context.owners.clone();
-    let mut closure = BTreeSet::new();
-    for (id, mapped) in source_map.iter().chain(&mirror_map) {
-        if mapped.is_none() {
-            owners.insert(id.clone(), FinalOwner::Absent);
-            closure.insert(id.clone());
-        }
-    }
-    let output = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &local.draft,
-        post_source: &post,
-        context: &local.context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &source_map,
-        mirror_identity_map: &mirror_map,
-        planned_additions: &[],
-        final_owners: &owners,
-        explicit_removal_closure: &closure,
-    })
-    .expect("the durable wrapper retires Local source associations after whole-owner deletion");
-    assert!(output.draft.matrices.is_empty());
-    assert_eq!(output.draft.parts, retained);
-    assert!(output.context.associations.is_empty());
-    assert!(output.context.pair_right.correspondences.is_empty());
-    assert!(output.context.pair_right.exceptions.is_empty());
-    let decoded: ProjectDoc =
-        serde_json::from_slice(&serde_json::to_vec(&output.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeated = prepare_membership_transition(MembershipTransitionInput {
-        valid_before: &decoded,
-        post_source: &decoded,
-        context: &output.context,
-        baseline_kind: BaselineKind::MaterializedCurrentSchema,
-        source_identity_map: &BTreeMap::new(),
-        mirror_identity_map: &BTreeMap::new(),
-        planned_additions: &[],
-        final_owners: &output.final_owners,
-        explicit_removal_closure: &BTreeSet::new(),
-    })
-    .unwrap();
-    assert_eq!(repeated.draft, decoded);
-    assert_eq!(repeated.context, output.context);
-    assert!(repeated.changed_document_ids.is_empty());
 }
 
 #[test]

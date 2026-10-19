@@ -1313,6 +1313,7 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
         )),
         "an edit for a half that was not converted still lands"
     );
+    assert_eq!(visible("third").unwrap().wall_thickness, 4.0);
     assert_eq!(
         ownership("third"),
         MechanicalConstructionOwnership::Legacy,
@@ -1372,73 +1373,4 @@ fn converting_a_legacy_halves_construction_materializes_it_without_moving_anythi
             "a rejected conversion mutates nothing"
         );
     }
-}
-
-/// A shared construction field edited on a legacy half reads back.
-///
-/// The overlay owns shared fields for a legacy half, so the write has to reach the shared
-/// source; otherwise the next effective read silently reverts what the user accepted.
-///
-/// Reproduction (recorded for the Core lane, 2026-10-09): three legacy halves with a
-/// shared-construction overlay and no per-instance configuration; apply
-/// `SetDimension { WallThickness, 4.0 }` targeted at one half. The edit lands (a new
-/// revision) and `hardware.shared_construction` still reads the old value, so the
-/// effective read returns the old wall thickness. Isolation: no pair, no conversion.
-/// Fixed by the Core lane (commit 3db8ba142): the Legacy branch of persist_edit now
-/// writes the shared source the effective read consults. Enabled at integration.
-#[test]
-fn a_legacy_halves_shared_field_edit_reads_back() {
-    use boardstudio_core::model::MechanicalConstructionOwnership;
-    let mut document = paired_document();
-    {
-        let hardware = document.hardware.as_mut().expect("hardware");
-        hardware.pairs.clear();
-        hardware.instances.truncate(3);
-        for instance in hardware.instances.iter_mut() {
-            instance.construction_ownership = MechanicalConstructionOwnership::Legacy;
-            instance.mechanical = None;
-        }
-    }
-    let runtime = open_document(document);
-    let mut scope = runtime.scope().expect("the open document has a scope");
-    scope.board_id = "board".into();
-    scope.instance_id = Some("third".into());
-    let mut edits = PendingEdits::default();
-    edits.begin(
-        &runtime,
-        1u8,
-        "mechanical",
-        Some("mechanical settings".into()),
-        mechanical_resolver(
-            scope,
-            MechanicalChange::SetDimension {
-                field: MechanicalDimension::WallThickness,
-                value: 4.0,
-            },
-            mounting_hole(),
-            Rc::new(Cell::new(false)),
-            Box::new(|_| true),
-        ),
-    );
-    let results = edits.settle(true);
-    assert!(
-        results
-            .iter()
-            .any(|result| matches!(result, PendingEditResult::Landed { .. })),
-        "the edit lands, got {results:?}"
-    );
-    let accepted = runtime.model().accepted.expect("accepted");
-    let configuration = boardstudio_core::mechanical::effective_inputs(
-        &accepted.document,
-        &accepted.scene.board_contours,
-        &MechanicalTarget::Instance {
-            instance_id: "third".into(),
-        },
-    )
-    .expect("the legacy half resolves")
-    .configuration;
-    assert_eq!(
-        configuration.wall_thickness, 4.0,
-        "a legacy half reads back the shared field the user accepted"
-    );
 }

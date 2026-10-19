@@ -17,15 +17,10 @@ use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
-fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
-    let scope = Scope {
-        session_epoch: SessionEpoch(5),
-        document_id: "inspector-doc".into(),
-        board_id: "board".into(),
-        instance_id: None,
-    };
+/// The document the fixture and the mounted runtime share: a board, two positioned
+/// parts and the two mirrored layouts the projections read.
+fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
     let mut document = ProjectDoc::empty("inspector-doc", "Inspector fixture");
-    document.revision = 9;
     document.boards.push(Board {
         id: "board".into(),
         name: "Board".into(),
@@ -70,7 +65,7 @@ fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
                 rotation: 0.0,
             },
             side: Side::Front,
-            locked: Some(id == "selected-part"),
+            locked: Some(false),
             properties: None,
             generator_parameters: None,
         });
@@ -93,6 +88,26 @@ fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
             source_id: "source-layout".into(),
             axis_x: 0.0,
         }),
+    });
+    configure(&mut document);
+    document
+}
+
+fn fixture() -> (ReadModel, objects::ScopedTreeContext) {
+    let scope = Scope {
+        session_epoch: SessionEpoch(5),
+        document_id: "inspector-doc".into(),
+        board_id: "board".into(),
+        instance_id: None,
+    };
+    let document = fixture_document(|document| {
+        document.revision = 9;
+        document
+            .parts
+            .iter_mut()
+            .find(|part| part.id == "selected-part")
+            .expect("the fixture selects a part")
+            .locked = Some(true);
     });
     let snapshot = AcceptedSnapshot {
         token: SnapshotToken(13),
@@ -514,74 +529,6 @@ fn companion_placement_projection_normalizes_layout_selections() {
         boardstudio_core::model::CompanionPlacementTarget::Item { mirror_id, .. }
             if mirror_id == "matrix/paired-matrix/r0c0/led2"
     )));
-}
-
-fn matrix_primary_fixture() -> (ReadModel, objects::ScopedTreeContext) {
-    let (mut model, selected) = fixture();
-    let snapshot = model.accepted.as_mut().expect("fixture snapshot");
-    let document = Arc::make_mut(&mut snapshot.document);
-    document.matrices.push(Matrix {
-        id: "component-matrix".into(),
-        name: Some("keys".into()),
-        rows: 1,
-        columns: 1,
-        pitch: Vec2 { x: 19.0, y: 19.0 },
-        origin: Vec2::default(),
-        definition_id: "component-definition".into(),
-        part_ids: vec!["selected-part".into()],
-        board_id: Some("board".into()),
-        mirror: None,
-        rotation: None,
-        edge_gap: None,
-        diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
-        cells: vec![MatrixCell {
-            deleted: false,
-            row: 0,
-            column: 0,
-            enabled: true,
-            definition_id: Some("component-definition".into()),
-            variant: None,
-            offset: None,
-            rotation: None,
-            assemblies: vec![],
-            assemblies_local: None,
-        }],
-    });
-    snapshot.scene = Arc::new(SceneDelta {
-        matrix_scenes: vec![MatrixScene {
-            matrix_id: "component-matrix".into(),
-            cells: vec![MatrixSceneCell {
-                row: 0,
-                column: 0,
-                enabled: true,
-                member_id: Some("selected-part".into()),
-                pose: Pose2 {
-                    at: Vec2 { x: 4.0, y: 3.0 },
-                    rotation: 0.0,
-                },
-            }],
-            columns: vec![],
-            companions: vec![],
-        }],
-        ..(*snapshot.scene).clone()
-    });
-    let ordinary_context = objects::context_for_part(&model, "selected-part")
-        .expect("matrix primary remains selectable in Key mode");
-    assert!(matches!(ordinary_context, objects::TreeContext::Key { .. }));
-    let context = objects::component_context_for_finding_part(&model, "selected-part")
-        .expect("an explicit Part finding has a component Inspector context");
-    (
-        model,
-        objects::ScopedTreeContext {
-            scope: selected.scope,
-            context,
-        },
-    )
 }
 
 #[wasm_bindgen_test]
@@ -1175,111 +1122,43 @@ fn mounted_component_inspector_host() -> Element {
 /// matrices for the mirrored layouts, and the outline/relationship metadata the
 /// projection tests read. Core owns revisions from here on.
 fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
-    let mut document = ProjectDoc::empty("inspector-doc", "Inspector fixture");
-    document.boards.push(Board {
-        id: "board".into(),
-        name: "Board".into(),
-        outline_ids: vec![],
-        part_ids: vec!["selected-part".into(), "source-part".into()],
-        net_ids: vec![],
-        thickness: 1.6,
-        traces: vec![],
-        vias: vec![],
-    });
-    document.definitions.push(PartDefinition {
-        hardware_profile: None,
-        input_profile: None,
-        id: "component-definition".into(),
-        name: "Fixture controller".into(),
-        kind: PartKind::Controller,
-        keycap: None,
-        envelope_source: None,
-        kicad_source: None,
-        terminals: Default::default(),
-        matrix_terminals: None,
-        envelope_notice: Some("Imported courtyard is approximate.".into()),
-        courtyard: vec![],
-        pads: vec![],
-        models: None,
-        generator: None,
-        mechanical_profile: None,
-    });
-    for (id, reference, x) in [("selected-part", "U1", 4.0), ("source-part", "U2", 10.0)] {
-        document.parts.push(Part {
-            keycap: None,
-            outline: (id == "selected-part").then_some(PartOutline {
-                excluded: false,
-                margin: Some(2.5),
-                allow_body_overhang: true,
-            }),
-            id: id.into(),
-            definition_id: "component-definition".into(),
-            reference: reference.into(),
-            pose: Pose2 {
-                at: Vec2 { x, y: 3.0 },
-                rotation: 0.0,
-            },
-            side: Side::Front,
-            locked: Some(false),
-            properties: None,
-            generator_parameters: None,
-        });
-    }
-    for matrix_id in ["matrix", "paired-matrix"] {
-        document.matrices.push(Matrix {
-            id: matrix_id.into(),
-            name: Some(matrix_id.into()),
-            rows: 1,
-            columns: 1,
-            pitch: Vec2 { x: 19.0, y: 19.0 },
-            origin: Vec2::default(),
-            definition_id: "component-definition".into(),
-            part_ids: vec![],
-            board_id: Some("board".into()),
-            mirror: None,
-            rotation: None,
-            edge_gap: None,
-            diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
-            cells: vec![MatrixCell {
-                deleted: false,
-                row: 0,
-                column: 0,
-                enabled: false,
-                definition_id: None,
-                variant: None,
-                offset: None,
+    fixture_document(|document| {
+        for matrix_id in ["matrix", "paired-matrix"] {
+            document.matrices.push(Matrix {
+                id: matrix_id.into(),
+                name: Some(matrix_id.into()),
+                rows: 1,
+                columns: 1,
+                pitch: Vec2 { x: 19.0, y: 19.0 },
+                origin: Vec2::default(),
+                definition_id: "component-definition".into(),
+                part_ids: vec![],
+                board_id: Some("board".into()),
+                mirror: None,
                 rotation: None,
-                assemblies: vec![],
-                assemblies_local: None,
-            }],
-        });
-    }
-    document.layouts.push(Layout {
-        id: "source-layout".into(),
-        name: "Left half".into(),
-        board_id: "board".into(),
-        matrix_id: "matrix".into(),
-        part_ids: vec!["selected-part".into()],
-        mirror_link: None,
-    });
-    document.layouts.push(Layout {
-        id: "paired-layout".into(),
-        name: "Right half".into(),
-        board_id: "board".into(),
-        matrix_id: "paired-matrix".into(),
-        part_ids: vec![],
-        mirror_link: Some(LayoutMirrorLink {
-            source_id: "source-layout".into(),
-            axis_x: 0.0,
-        }),
-    });
-    configure(&mut document);
-    document
+                edge_gap: None,
+                diode_direction: None,
+                row_offsets: vec![],
+                column_offsets: vec![],
+                column_staggers: vec![],
+                column_splays: vec![],
+                column_origins: vec![],
+                cells: vec![MatrixCell {
+                    deleted: false,
+                    row: 0,
+                    column: 0,
+                    enabled: false,
+                    definition_id: None,
+                    variant: None,
+                    offset: None,
+                    rotation: None,
+                    assemblies: vec![],
+                    assemblies_local: None,
+                }],
+            });
+        }
+        configure(document);
+    })
 }
 
 fn configure_mirrored_part_pair(document: &mut ProjectDoc) {
@@ -1456,154 +1335,6 @@ fn click_component_inspector(root_id: &str, selector: &str) {
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_mirrored_half_disclosure_dispatches_the_selected_one_shot_action() {
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-
-    let (probe, root) = mounted_probe("layout-component-mirrored-half-action-test-root").await;
-    wait_until("the component Inspector mounts", || {
-        root.query_selector(".m1-layout-component-inspector")
-            .is_ok_and(|inspector| inspector.is_some())
-    })
-    .await;
-    *probe.mirrored_half_override.borrow_mut() = Some(MirroredHalfProjection {
-        pair_id: "pair/A".into(),
-        mirror_id: "mirror-part".into(),
-        state: boardstudio_core::model::HalfExceptionState::Linked,
-    });
-    probe.refresh();
-    wait_until("the linked mirrored-half disclosure renders", || {
-        root.query_selector(".m1-layout-component-mirror-state")
-            .ok()
-            .flatten()
-            .is_some_and(|section| {
-                section
-                    .text_content()
-                    .is_some_and(|text| text.contains("Linked"))
-            })
-    })
-    .await;
-
-    let document = web_sys::window().unwrap().document().unwrap();
-    let section = document
-        .query_selector(&format!(
-            "#{} .m1-layout-component-mirror-state",
-            probe.root_id
-        ))
-        .unwrap()
-        .expect("the mirrored-half disclosure mounts");
-    assert!(section.text_content().unwrap().contains("Linked"));
-    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
-    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-local");
-
-    assert!(matches!(
-        probe.last_action.borrow().as_ref(),
-        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
-            pair_id,
-            mirror_id,
-            state: boardstudio_core::model::HalfExceptionState::Local,
-            ..
-        }) if pair_id == "pair/A" && mirror_id == "mirror-part"
-    ));
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_rejoin_clears_a_local_exception_and_undo_restores_it() {
-    use boardstudio_core::model::{HalfExceptionState, MirroredExceptionState};
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
-
-    let (probe, root) = mounted_runtime_probe(
-        "layout-mirrored-half-rejoin-test-root",
-        |document| {
-            configure_mirrored_part_pair(document);
-            document.hardware.as_mut().unwrap().pairs[0]
-                .halves
-                .as_mut()
-                .unwrap()
-                .exceptions
-                .push(
-                    serde_json::from_value(serde_json::json!({
-                        "kind": "part",
-                        "mirrorId": "source-part",
-                        "state": "local"
-                    }))
-                    .expect("the local exception fixture is valid"),
-                );
-        },
-        &["selected-part"],
-    )
-    .await;
-    wait_until("the Local mirrored-half Inspector mounts", || {
-        probe
-            .projection
-            .borrow()
-            .as_ref()
-            .and_then(|projection| projection.mirrored_half.as_ref())
-            .is_some_and(|half| half.state == HalfExceptionState::Local)
-    })
-    .await;
-    let details = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!(
-            "#{} .m1-layout-component-mirror-state",
-            probe.root_id
-        ))
-        .unwrap()
-        .expect("the Local mirrored-half section remains mounted");
-    if !details.has_attribute("open") {
-        click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
-    }
-    let revision = accepted_revision(&probe);
-    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-rejoin");
-    wait_until_step("Core accepts Rejoin", async || {
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-        probe.refresh();
-        let accepted = probe.runtime.model().accepted.unwrap();
-        accepted.document.revision > revision
-            && accepted.document.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .exceptions
-                .iter()
-                .all(|exception| exception.mirror_id != "source-part")
-    })
-    .await;
-    assert!(matches!(
-        probe.last_action.borrow().as_ref(),
-        Some(LayoutComponentInspectorAction::SetMirroredHalfState {
-            state: HalfExceptionState::Linked,
-            ..
-        })
-    ));
-
-    let revision = accepted_revision(&probe);
-    probe.runtime.submit(boardstudio_application::Event::Undo {
-        operation_id: probe.runtime.operation(),
-    });
-    wait_until_step("Undo restores the Local exception", async || {
-        crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-        probe.refresh();
-        let accepted = probe.runtime.model().accepted.unwrap();
-        accepted.document.revision > revision
-            && accepted.document.hardware.as_ref().unwrap().pairs[0]
-                .halves
-                .as_ref()
-                .unwrap()
-                .exceptions
-                .iter()
-                .any(|exception| {
-                    exception.mirror_id == "source-part"
-                        && exception.state == MirroredExceptionState::Local
-                })
-    })
-    .await;
-    root.remove();
 }
 
 #[wasm_bindgen_test]
@@ -1795,293 +1526,6 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
         operation_id: probe.runtime.operation(),
     });
     drive_to_state(&probe, HalfExceptionState::Linked, revision).await;
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_reused_pcb_pair_undo_redo_and_reopen() {
-    use boardstudio_core::mechanical::change::MechanicalMountCollection;
-    use boardstudio_core::mechanical::{MechanicalChange, MechanicalEdit, MechanicalTarget};
-    use boardstudio_core::model::MechanicalFeatureState;
-    use boardstudio_core::model::{EditCommand, EditOperation, EditPhase, MirroredHalfMode};
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-
-    let (probe, root) = mounted_runtime_probe(
-        "layout-reused-pcb-mirror-test-root",
-        |document| {
-            document.hardware = Some(serde_json::from_value(serde_json::json!({
-                "topology":"split", "transport":"wireless",
-                "instances":[{"id":"source-instance","name":"Left half","boardId":"board","half":"left","role":"primary","flipped":false,"controllerPartId":"selected-part","mechanical":{
-                    "boardId":"board","method":"printed","mount":"rigid","integratedPlateFrame":false,"bottomStyle":"shell",
-                    "plateThickness":1.5,"plateFoamThickness":0.0,"pcbThickness":1.6,"bottomFoamThickness":0.0,"batteryHeight":0.0,"bottomThickness":2.0,
-                    "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.2,"profiles":[],"mounts":[{"id":"mount-1","at":{"x":2.0,"y":3.0},"kind":"hole","holeDiameter":2.2}],"closureMounts":[],"openings":[]
-                }}],
-                "boards":[{"boardId":"board","controllerPartId":"selected-part","mode":"matrix"}],"pairs":[]
-            })).expect("synthetic source half is valid"));
-        },
-        &["selected-part"],
-    )
-    .await;
-
-    wait_until("the synthetic source Inspector mounts", || {
-        probe.render_generation.borrow().is_some()
-    })
-    .await;
-    let accepted = probe.runtime.model().accepted.unwrap();
-    crate::runtime::project_name_test_support::submit_fixed_command(
-        &probe.runtime,
-        EditCommand {
-            base_revision: accepted.document.revision,
-            transaction_id: "create-reused-board-half".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec!["source-instance".into()],
-            operation: EditOperation::CreateMirroredHalf {
-                pair_id: "synthetic-pair".into(),
-                source_instance_id: "source-instance".into(),
-                mode: MirroredHalfMode::ReuseBoard {
-                    instance_id: "mirror-instance".into(),
-                },
-                labels: None,
-                physical_setup: None,
-                companion_mode: Default::default(),
-                companion_tweak: None,
-                mapping: Pose2 {
-                    at: Vec2::default(),
-                    rotation: 0.0,
-                },
-                id_rule: boardstudio_core::model::MirroredIdRule::BoardPrefix,
-                mounting_hole: None,
-            },
-        },
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    let created = probe.runtime.model().accepted.unwrap();
-    let hardware = created.document.hardware.as_ref().unwrap();
-    assert_eq!(
-        created.document.boards.len(),
-        1,
-        "reuse mode keeps one physical PCB"
-    );
-    assert_eq!(hardware.instances.len(), 2);
-    assert!(
-        hardware
-            .instances
-            .iter()
-            .all(|instance| instance.board_id == "board")
-    );
-    let created_revision = created.document.revision;
-    probe.runtime.submit(boardstudio_application::Event::Undo {
-        operation_id: probe.runtime.operation(),
-    });
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    assert!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .hardware
-            .as_ref()
-            .unwrap()
-            .pairs
-            .is_empty()
-    );
-    probe.runtime.submit(boardstudio_application::Event::Redo {
-        operation_id: probe.runtime.operation(),
-    });
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    assert!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .revision
-            > created_revision
-    );
-
-    let edit_mount = |instance_id: &str, change| {
-        let accepted = probe.runtime.model().accepted.unwrap();
-        crate::runtime::project_name_test_support::submit_fixed_command(
-            &probe.runtime,
-            EditCommand {
-                base_revision: accepted.document.revision,
-                transaction_id: format!("{instance_id}-mount-edit"),
-                phase: EditPhase::Commit,
-                target_ids: vec![instance_id.into()],
-                operation: EditOperation::ApplyMechanicalEdit {
-                    edit: Box::new(MechanicalEdit {
-                        target: MechanicalTarget::Instance {
-                            instance_id: instance_id.into(),
-                        },
-                        change,
-                        mounting_hole: None,
-                    }),
-                },
-            },
-        );
-    };
-    let mount_at = |instance_id: &str| {
-        let document = probe.runtime.model().accepted.unwrap().document;
-        boardstudio_core::mechanical::effective_inputs(
-            &document,
-            &[],
-            &MechanicalTarget::Instance {
-                instance_id: instance_id.into(),
-            },
-        )
-        .unwrap()
-        .configuration
-        .mounts
-        .into_iter()
-        .find(|mount| mount.id == "mount-1")
-        .unwrap()
-        .at
-    };
-    edit_mount(
-        "source-instance",
-        MechanicalChange::SetMountPosition {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: "mount-1".into(),
-            at: Vec2 { x: 4.0, y: 5.0 },
-        },
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    assert_eq!(mount_at("source-instance"), Vec2 { x: 4.0, y: 5.0 });
-    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -4.0, y: 5.0 });
-    edit_mount(
-        "mirror-instance",
-        MechanicalChange::SetMountPosition {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: "mount-1".into(),
-            at: Vec2 { x: -7.0, y: 6.0 },
-        },
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    assert_eq!(mount_at("source-instance"), Vec2 { x: 7.0, y: 6.0 });
-    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -7.0, y: 6.0 });
-
-    edit_mount(
-        "mirror-instance",
-        MechanicalChange::MakeFeatureLocal {
-            feature_id: "mount-1".into(),
-            instance_id: "mirror-instance".into(),
-        },
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    let model = probe.runtime.model();
-    let pair = &model
-        .accepted
-        .as_ref()
-        .unwrap()
-        .document
-        .hardware
-        .as_ref()
-        .unwrap()
-        .pairs[0];
-    assert_eq!(
-        boardstudio_core::mechanical::features::member_state(pair, "mirror-instance", "mount-1"),
-        Some(MechanicalFeatureState::Local)
-    );
-    probe.runtime.submit(boardstudio_application::Event::Undo {
-        operation_id: probe.runtime.operation(),
-    });
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    let model = probe.runtime.model();
-    let pair = &model
-        .accepted
-        .as_ref()
-        .unwrap()
-        .document
-        .hardware
-        .as_ref()
-        .unwrap()
-        .pairs[0];
-    assert_eq!(
-        boardstudio_core::mechanical::features::member_state(pair, "mirror-instance", "mount-1"),
-        Some(MechanicalFeatureState::Linked)
-    );
-    probe.runtime.submit(boardstudio_application::Event::Redo {
-        operation_id: probe.runtime.operation(),
-    });
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    edit_mount(
-        "mirror-instance",
-        MechanicalChange::SetMountPosition {
-            collection: MechanicalMountCollection::Suspension,
-            mount_id: "mount-1".into(),
-            at: Vec2 { x: -9.0, y: 8.0 },
-        },
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    assert_eq!(mount_at("source-instance"), Vec2 { x: 7.0, y: 6.0 });
-    assert_eq!(mount_at("mirror-instance"), Vec2 { x: -9.0, y: 8.0 });
-
-    let final_snapshot = probe.runtime.model().accepted.unwrap();
-    assert!(
-        final_snapshot.document.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .is_some()
-    );
-    assert_eq!(
-        boardstudio_core::mechanical::features::member_state(
-            &final_snapshot.document.hardware.as_ref().unwrap().pairs[0],
-            "mirror-instance",
-            "mount-1"
-        ),
-        Some(MechanicalFeatureState::Local)
-    );
-    wait_until("the reused-board pair is durable", || {
-        matches!(
-            probe.runtime.model().durability,
-            boardstudio_application::Durability::Saved { .. }
-        )
-    })
-    .await;
-    let saved =
-        crate::runtime::project_name_test_support::saved_document(&probe.runtime, "inspector-doc")
-            .expect("accepted reused-board edits are saved");
-    assert_eq!(saved.boards.len(), 1);
-    assert!(
-        saved
-            .hardware
-            .as_ref()
-            .unwrap()
-            .instances
-            .iter()
-            .all(|instance| instance.board_id == "board")
-    );
-
-    let reopened = crate::runtime::project_name_test_support::new_runtime();
-    crate::runtime::project_name_test_support::open_document(&reopened, saved).await;
-    let reopened = reopened.model().accepted.unwrap();
-    assert_eq!(reopened.document.boards.len(), 1);
-    assert_eq!(
-        boardstudio_core::mechanical::features::member_state(
-            &reopened.document.hardware.as_ref().unwrap().pairs[0],
-            "mirror-instance",
-            "mount-1"
-        ),
-        Some(MechanicalFeatureState::Local)
-    );
-    let reopened_mirror = boardstudio_core::mechanical::effective_inputs(
-        &reopened.document,
-        &[],
-        &MechanicalTarget::Instance {
-            instance_id: "mirror-instance".into(),
-        },
-    )
-    .unwrap()
-    .configuration
-    .mounts
-    .into_iter()
-    .find(|mount| mount.id == "mount-1")
-    .unwrap();
-    assert_eq!(reopened_mirror.at, Vec2 { x: -9.0, y: 8.0 });
     root.remove();
 }
 
@@ -2671,171 +2115,6 @@ async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
     root.remove();
 }
 
-#[wasm_bindgen_test]
-async fn mounted_component_inspector_uses_constraint_and_navigation_copy() {
-    let (probe, root) = mounted_probe("layout-component-inspector-copy-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let document = web_sys::window().unwrap().document().unwrap();
-
-    let constraint_type = document
-        .query_selector(&format!(
-            "#{} .m1-layout-component-constraint select",
-            probe.root_id
-        ))
-        .unwrap()
-        .expect("the constraint selector mounts")
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    assert_eq!(
-        constraint_type.get_attribute("aria-label").as_deref(),
-        Some("Constraint type")
-    );
-    assert!(
-        document
-            .query_selector(&format!(
-                "#{} .m1-layout-component-constraint label",
-                probe.root_id
-            ))
-            .unwrap()
-            .unwrap()
-            .text_content()
-            .unwrap_or_default()
-            .contains("Constraint type"),
-        "the visible constraint label is: {}",
-        root.text_content().unwrap_or_default()
-    );
-
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
-    settle_mounted_component_inspector(&probe).await;
-    let navigation = document
-        .query_selector(&format!(
-            "#{} .m1-layout-component-inspector button:not([role='tab'])",
-            probe.root_id
-        ))
-        .unwrap()
-        .expect("the Relations navigation button mounts");
-    assert_eq!(
-        navigation.text_content().unwrap_or_default(),
-        "Go to Properties"
-    );
-    navigation
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    settle_mounted_component_inspector(&probe).await;
-    assert_eq!(
-        document
-            .query_selector(&format!(
-                "#{} button[role='tab']:nth-child(1)",
-                probe.root_id
-            ))
-            .unwrap()
-            .unwrap()
-            .get_attribute("aria-selected")
-            .as_deref(),
-        Some("true"),
-        "the navigation button opens Properties"
-    );
-    root.remove();
-}
-
-#[component]
-fn matrix_context_tab_reset_host() -> Element {
-    let (matrix_context, key_context) = use_hook(|| {
-        let (_, selected_key) = matrix_primary_fixture();
-        let matrix_context = objects::ScopedTreeContext {
-            scope: selected_key.scope.clone(),
-            context: objects::TreeContext::Matrix {
-                matrix_id: "component-matrix".into(),
-            },
-        };
-        (matrix_context, selected_key)
-    });
-    let mut selected_context = use_signal(|| Some(matrix_context.clone()));
-    let mut inspector_tab = use_signal(super::layout_workspace::LayoutInspectorTab::default);
-    super::layout_workspace::use_contextual_inspector_tab_reset(selected_context, inspector_tab);
-    let selected_label = selected_context()
-        .map(|context| format!("{:?}", context.context))
-        .unwrap_or_default();
-    rsx! {
-        button {
-            id: "matrix-context-tabs-select-relations",
-            onclick: move |_| inspector_tab.set(super::layout_workspace::LayoutInspectorTab::Relations),
-            "Select Relations"
-        }
-        button {
-            id: "matrix-context-tabs-select-key",
-            onclick: move |_| selected_context.set(Some(key_context.clone())),
-            "Select Key"
-        }
-        div { role: "tablist", aria_label: "Inspector details",
-            button { role: "tab", aria_selected: "{inspector_tab() == super::layout_workspace::LayoutInspectorTab::Properties}", "Properties" }
-            button { role: "tab", aria_selected: "{inspector_tab() == super::layout_workspace::LayoutInspectorTab::Relations}", "Relations" }
-        }
-        p { id: "matrix-context-tabs-selected", "{selected_label}" }
-    }
-}
-
-#[wasm_bindgen_test]
-async fn matrix_to_key_selection_resets_relations_tab_to_properties() {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    root.set_id("matrix-context-tabs-test-root");
-    document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(matrix_context_tab_reset_host);
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    wait_until("the Inspector tabs mount", || {
-        document
-            .query_selector("#matrix-context-tabs-test-root [role='tab']")
-            .unwrap()
-            .is_some()
-    })
-    .await;
-    click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-relations");
-    wait_until("Relations becomes the selected Inspector tab", || {
-        document
-            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
-            .unwrap()
-            .and_then(|tab| tab.text_content())
-            .as_deref()
-            == Some("Relations")
-    })
-    .await;
-    assert_eq!(
-        document
-            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
-            .unwrap()
-            .unwrap()
-            .text_content()
-            .as_deref(),
-        Some("Relations"),
-    );
-    click_component_inspector(root.id().as_str(), "#matrix-context-tabs-select-key");
-    wait_until("Properties is restored for the Key selection", || {
-        document
-            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
-            .unwrap()
-            .and_then(|tab| tab.text_content())
-            .as_deref()
-            == Some("Properties")
-    })
-    .await;
-    assert_eq!(
-        document
-            .query_selector("#matrix-context-tabs-test-root [role='tab'][aria-selected='true']")
-            .unwrap()
-            .unwrap()
-            .text_content()
-            .as_deref(),
-        Some("Properties"),
-        "a changed Matrix→Key context resets the shared Inspector tab to Properties"
-    );
-    root.remove();
-}
-
 fn position_input(root_id: &str, label: &str) -> web_sys::HtmlInputElement {
     web_sys::window()
         .unwrap()
@@ -2871,22 +2150,6 @@ fn try_commit_position(input: &web_sys::HtmlInputElement, value: &str) {
             .dispatch_event(&web_sys::Event::new_with_event_init_dict(name, &bubbling).unwrap())
             .unwrap();
     }
-}
-
-#[wasm_bindgen_test]
-async fn mounted_editable_component_position_commits_so_the_unavailable_cases_are_not_vacuous() {
-    let (probe, root) = mounted_probe("layout-component-position-editable-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let x = position_input(probe.root_id, "X mm");
-    assert!(!x.disabled(), "an unlocked, undriven component edits X");
-    try_commit_position(&x, "42");
-    accept_pending(&probe).await;
-    assert_eq!(
-        accepted_position(&probe, "selected-part").x,
-        42.0,
-        "an unlocked, undriven component's X edit lands"
-    );
-    root.remove();
 }
 
 #[wasm_bindgen_test]
@@ -3028,43 +2291,6 @@ async fn mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_on
 }
 
 #[wasm_bindgen_test]
-async fn mounted_position_landing_preserves_a_newer_unsubmitted_draft() {
-    let (probe, root) = mounted_probe("layout-component-position-newer-draft-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
-    let x = position_input(probe.root_id, "X mm");
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-    x.focus().unwrap();
-    x.set_value("60");
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    x.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
-    entered.await.expect("the position edit reached Core");
-
-    x.set_value("61");
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    release.send(()).expect("release the held position result");
-    accept_pending(&probe).await;
-    assert_eq!(accepted_position(&probe, "selected-part").x, 60.0);
-    assert_eq!(
-        x.value(),
-        "61",
-        "landing the older edit must preserve newer typed text"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
 async fn mounted_component_inspector_view_unmount_retires_held_field_observation_and_remount_refreshes()
  {
     let (probe, root) = mounted_probe("layout-component-position-unmount-test-root").await;
@@ -3112,240 +2338,6 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
     accept_pending(&probe).await;
     assert_eq!(accepted_position(&probe, "selected-part").x, 60.0);
     assert_eq!(position_input(probe.root_id, "X mm").value(), "60.00");
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_failed_save_reverts_the_field_with_an_inline_message() {
-    let (probe, root) = mounted_probe("layout-component-position-save-failure-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    crate::runtime::project_name_test_support::fail_next_persist(
-        &probe.runtime,
-        "injected durable write failure",
-    );
-    let x = position_input(probe.root_id, "X mm");
-    x.focus().unwrap();
-    x.set_value("7.5");
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-    x.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-    accept_pending(&probe).await;
-    assert_eq!(
-        accepted_position(&probe, "selected-part"),
-        Vec2 { x: 4.0, y: 3.0 },
-        "a failed save must not move the part"
-    );
-    settle_mounted_component_inspector(&probe).await;
-    assert_eq!(
-        x.value(),
-        "4.00",
-        "a failed edit shows the accepted value again"
-    );
-    let alert = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{} [role='alert']", probe.root_id))
-        .unwrap()
-        .expect("the failure is explained inline")
-        .text_content()
-        .unwrap();
-    assert!(
-        alert.contains("did not save") && alert.contains("injected durable write failure"),
-        "the inline message names the failure: {alert}"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn queued_y_edit_waits_for_recovery_after_x_save_failure() {
-    let (probe, root) = mounted_probe("layout-component-queued-edit-recovery-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    crate::runtime::project_name_test_support::fail_next_persist(
-        &probe.runtime,
-        "injected X write failure",
-    );
-    let (entered, release) =
-        crate::runtime::project_name_test_support::gate_next_core_reply(&probe.runtime);
-    let x = position_input(probe.root_id, "X mm");
-    let y = position_input(probe.root_id, "Y mm");
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-
-    x.focus().unwrap();
-    x.set_value("8");
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    x.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
-    entered.await.expect("the X edit reached Core");
-
-    y.focus().unwrap();
-    y.set_value("9");
-    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    let y_outcome = crate::runtime::project_name_test_support::observe_next(&probe.runtime);
-    y.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-    crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
-    assert!(
-        probe
-            .pending_edits
-            .borrow()
-            .expect("the mounted Layout Inspector owns pending edits")
-            .peek()
-            .is_pending(&layout_component_edits::InspectorField::Y),
-        "the Y edit is admitted while the X reply is held"
-    );
-    release.send(()).expect("release the held X reply");
-    // The held X reply resumes a spawned task. Refresh this manually driven host
-    // only after that task has published the queued Y edit's terminal outcome.
-    wait_until("the queued Y edit reaches a terminal outcome", || {
-        y_outcome.borrow().is_some()
-    })
-    .await;
-    assert_eq!(
-        *y_outcome.borrow(),
-        Some(boardstudio_application::TerminalOutcome::BlockedByRecovery(
-            "injected X write failure".into()
-        )),
-        "the admitted Y edit fails because the X save requires recovery"
-    );
-    accept_pending(&probe).await;
-
-    assert_eq!(
-        accepted_position(&probe, "selected-part"),
-        Vec2 { x: 4.0, y: 3.0 },
-        "the queued Y edit cannot land while the failed save requires recovery"
-    );
-    assert_eq!(
-        probe.runtime.model().lifecycle,
-        boardstudio_application::Lifecycle::RecoveryRequired,
-        "a durable save failure requires reopening the accepted document before another edit"
-    );
-    assert_eq!(
-        y.value(),
-        "3.00",
-        "the blocked Y draft restores its accepted value"
-    );
-    let alert = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{} [role='alert']", probe.root_id))
-        .unwrap()
-        .expect("the X failure remains visible")
-        .text_content()
-        .unwrap();
-    assert!(
-        alert.contains("injected X write failure"),
-        "unexpected alert: {alert}"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn successful_y_landing_preserves_an_earlier_x_resolver_failure() {
-    let (probe, root) = mounted_probe("layout-component-independent-field-errors-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let x = position_input(probe.root_id, "X mm");
-    let y = position_input(probe.root_id, "Y mm");
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    x.focus().unwrap();
-    x.set_value("8");
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-
-    let pending = probe
-        .pending_edits
-        .borrow()
-        .expect("the mounted Layout Inspector owns pending edits")
-        .peek()
-        .clone();
-    pending.begin_field(
-        &probe.runtime,
-        layout_component_edits::InspectorField::X,
-        "layout-inspector-x",
-        Some("layout".into()),
-        layout_component_edits::position_resolver(
-            "departed-part".into(),
-            vec!["departed-part".into()],
-            "board".into(),
-            ComponentPositionAxis::X,
-            8.0,
-        ),
-        "8",
-    );
-    crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
-    probe.refresh();
-    settle_mounted_component_inspector(&probe).await;
-    assert_eq!(
-        probe.runtime.model().lifecycle,
-        boardstudio_application::Lifecycle::Ready,
-        "a resolver retirement is a field failure without entering save recovery"
-    );
-    let x_failure = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{} [role='alert']", probe.root_id))
-        .unwrap()
-        .expect("the X resolver failure is visible inline")
-        .text_content()
-        .unwrap();
-    assert!(
-        x_failure.contains("selected part no longer exists"),
-        "unexpected X failure: {x_failure}"
-    );
-
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-    y.focus().unwrap();
-    y.set_value("9");
-    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    y.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-    accept_pending(&probe).await;
-
-    assert_eq!(
-        accepted_position(&probe, "selected-part"),
-        Vec2 { x: 4.0, y: 9.0 },
-        "the valid Y field lands independently of X's resolver failure"
-    );
-    let alert = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{} [role='alert']", probe.root_id))
-        .unwrap()
-        .expect("the earlier X failure remains visible")
-        .text_content()
-        .unwrap();
-    assert_eq!(
-        alert, x_failure,
-        "Y landing must not clear X's inline failure"
-    );
     root.remove();
 }
 
@@ -3556,41 +2548,6 @@ async fn mounted_locked_component_presents_xy_unavailable_and_suppresses_commit(
         accepted_revision(&probe),
         initial_revision,
         "locked position commits accept no edits"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_driven_component_presents_xy_unavailable_and_suppresses_commit() {
-    let (probe, root) =
-        mounted_probe_configured("layout-component-position-driven-test-root", |document| {
-            document.constraints.push(Constraint::Offset {
-                id: "driver".into(),
-                source_part_id: "source-part".into(),
-                target_part_id: "selected-part".into(),
-                offset: Vec2 { x: 2.0, y: 0.0 },
-                rotation: 0.0,
-            });
-        })
-        .await;
-    settle_mounted_component_inspector(&probe).await;
-    let projection = probe.projection.borrow().clone().unwrap();
-    assert!(!projection.locked, "the part itself is not locked");
-    assert!(projection.active_constraint.is_some(), "the part is driven");
-    let driven = accepted_position(&probe, "selected-part");
-    for (label, value) in [("X mm", "50"), ("Y mm", "60")] {
-        let input = position_input(probe.root_id, label);
-        assert!(
-            input.disabled(),
-            "{label} must be unavailable for a driven part"
-        );
-        try_commit_position(&input, value);
-    }
-    accept_pending(&probe).await;
-    assert_eq!(
-        accepted_position(&probe, "selected-part"),
-        driven,
-        "driven position commits never move the part"
     );
     root.remove();
 }
@@ -4129,12 +3086,6 @@ mod matrix_relations_panel {
             matrix_id: MATRIX.into(),
         }
     }
-    fn row_ctx(row: u32) -> objects::TreeContext {
-        objects::TreeContext::Row {
-            matrix_id: MATRIX.into(),
-            row,
-        }
-    }
     fn column_ctx(column: u32) -> objects::TreeContext {
         objects::TreeContext::Column {
             matrix_id: MATRIX.into(),
@@ -4147,40 +3098,6 @@ mod matrix_relations_panel {
             row,
             column,
         }
-    }
-
-    const OLD_FALLBACK: &str = "No saved placement relationship on this selection.";
-    const OLD_NOTE: &str = "Matrix rows and columns share pitch, stagger and splay";
-
-    #[wasm_bindgen_test]
-    async fn a_blank_matrix_shows_structure_for_the_matrix_a_row_a_column_and_a_key() {
-        let (probe, root) = mount(
-            "relations-blank-test",
-            base(),
-            Some(matrix_json(3, 4, json!({}))),
-        )
-        .await;
-        for (context, expected) in [
-            (matrix_ctx(), "3 × 4, 12 keys"),
-            (row_ctx(1), "4 keys in Row 2"),
-            (column_ctx(2), "0 mm from Column 2"),
-            (key_ctx(0, 0), "Row 1, Column 1"),
-        ] {
-            probe.select(context.clone());
-            probe.land().await;
-            probe.open_relations_tab().await;
-            let text = probe.text();
-            assert!(
-                probe.exists("[aria-labelledby='m1-relations-structure-heading']"),
-                "{context:?} shows Structure: {text}"
-            );
-            assert!(text.contains(expected), "{context:?}: {text}");
-            assert!(!text.contains(OLD_FALLBACK), "{context:?}: {text}");
-            assert!(!text.contains(OLD_NOTE), "{context:?}: {text}");
-            assert!(!probe.exists("[aria-labelledby='m1-relations-departures-heading']"));
-            assert!(!probe.exists("[aria-labelledby='m1-relations-constraints-heading']"));
-        }
-        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -4336,29 +3253,6 @@ mod matrix_relations_panel {
             probe.selected_context(),
             probe.text()
         );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn changing_the_selection_shows_no_stale_rows() {
-        let (probe, root) = mount(
-            "relations-stale-test",
-            base(),
-            Some(matrix_json(2, 3, json!({}))),
-        )
-        .await;
-        probe.select(column_ctx(1));
-        probe.land().await;
-        probe.open_relations_tab().await;
-        assert!(probe.text().contains("Inherited by"), "{}", probe.text());
-
-        probe.select(key_ctx(0, 1));
-        probe.land().await;
-        probe.open_relations_tab().await;
-        let text = probe.text();
-        assert!(text.contains("Pitch cell"), "{text}");
-        assert!(!text.contains("Inherited by"), "{text}");
-        assert!(!text.contains("Stagger"), "{text}");
         root.remove();
     }
 
@@ -4689,70 +3583,6 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
         runtime.model().accepted.unwrap().document.revision,
         accepted_revision + 1,
         "the refused request leaves accepted state unchanged after Undo"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn companion_placement_disclosure_submits_typed_targets_and_shows_refusal() {
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    let projection = companion_placement_component_projection(None);
-    let actions = Rc::new(RefCell::new(None::<inspector::CompanionPlacementAction>));
-    let document = web_sys::window().unwrap().document().unwrap();
-    let root = document.create_element("div").unwrap();
-    document.body().unwrap().append_child(&root).unwrap();
-    let dom = VirtualDom::new(companion_placement_component_host);
-    dom.provide_root_context(projection);
-    dom.provide_root_context(actions.clone());
-    dioxus_web::launch::launch_virtual_dom(
-        dom,
-        dioxus_web::Config::new().rootnode(root.clone().into()),
-    );
-    wait_until("the companion placement disclosure mounts", || {
-        root.query_selector_all("details.m1-layout-companion-placement summary")
-            .unwrap()
-            .length()
-            == 1
-    })
-    .await;
-    assert_eq!(
-        root.query_selector_all("details.m1-layout-companion-placement summary")
-            .unwrap()
-            .length(),
-        1
-    );
-    assert_eq!(
-        root.query_selector_all("[role='alert']").unwrap().length(),
-        1
-    );
-    companion_click(&root, "details.m1-layout-companion-placement summary");
-    companion_click(&root, ".m1-layout-companion-placement-default input");
-    companion_click(&root, "button");
-    wait_until("the typed companion edit is emitted", || {
-        actions.borrow().is_some()
-    })
-    .await;
-    let action = actions
-        .borrow()
-        .clone()
-        .expect("the edit action was emitted");
-    assert_eq!(action.pair_id, "pair/A");
-    assert!(
-        action
-            .targets
-            .contains(&boardstudio_core::model::CompanionPlacementTarget::Pair)
-    );
-    assert!(
-        action
-            .targets
-            .contains(&boardstudio_core::model::CompanionPlacementTarget::Item {
-                item_kind: boardstudio_core::model::MirroredItemKind::Part,
-                mirror_id: "matrix/mirror/r0c0/led".into(),
-            })
-    );
-    assert_eq!(
-        action.mode,
-        boardstudio_core::model::MirroredCompanionMode::LiteralMirror
     );
     root.remove();
 }

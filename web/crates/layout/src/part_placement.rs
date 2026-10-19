@@ -2755,24 +2755,6 @@ mod tests {
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn retained_object_action_cannot_start_for_a_refreshed_snapshot() {
-        let (probe, mut dom) = hook_mounted().await;
-        let retained = probe.latest.borrow().as_ref().unwrap().on_place_component;
-        let mut refreshed = accepted_document(&probe);
-        refreshed.name.push_str(" refreshed");
-        replace_accepted_document(&probe, refreshed).await;
-
-        retained.call(ComponentPlacementAction::AddObject {
-            definition_id: "imported:stale-owner".into(),
-            kind: PartKind::Passive,
-        });
-        let_hook_tasks_run().await;
-        flush_hook(&mut dom);
-        assert!(probe.loader_waker.borrow().is_none());
-        assert!(!probe.latest.borrow().as_ref().unwrap().busy);
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
     async fn parts_inspector_action_does_not_apply_to_a_key_selected_after_loading_started() {
         let (probe, mut dom) = hook_mounted().await;
         let mut document = accepted_document(&probe);
@@ -3078,39 +3060,6 @@ mod tests {
         let_hook_tasks_run().await;
         probe.latest.borrow_mut().take();
         drop(dom);
-        assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    async fn production_hook_registers_the_observer_before_synchronous_submit_settlement() {
-        let (probe, mut dom) = hook_mounted().await;
-        resolve_loader(&probe, Ok(controller_definition("catalog:controller")));
-        let outcome = observe_next_operation(&probe);
-        probe
-            .latest
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .on_choose_controller
-            .call(());
-        flush_hook(&mut dom);
-        probe
-            .latest
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .on_place_controller
-            .call("catalog:controller".into());
-        let_hook_tasks_run().await;
-        flush_hook(&mut dom);
-        probe
-            .latest
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .on_commit
-            .call(Vec2 { x: 2.0, y: 1.0 });
-        run_pending_runtime(&probe).await;
         assert_eq!(*outcome.borrow(), Some(TerminalOutcome::Completed));
     }
 
@@ -3449,65 +3398,6 @@ mod tests {
             panic!("placement must be one ReplaceDocument edit");
         };
         *document
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn controller_creation_is_one_document_edit_with_board_and_envelope_membership() {
-        let accepted = fixture();
-        let definition = controller_definition("catalog:controller");
-        let placed = part(&definition.id, "part-controller", "U1");
-
-        let proposed = replacement(
-            placement_operation(&accepted, "board-main", &definition, &placed, None).unwrap(),
-        );
-
-        assert_eq!(proposed.revision, accepted.revision);
-        assert_eq!(proposed.definitions, vec![definition]);
-        assert_eq!(proposed.parts, vec![placed]);
-        assert_eq!(proposed.boards[0].part_ids, vec!["part-controller"]);
-        let OutlineFeature::PartEnvelope { part_ids, .. } = &proposed.outline[0] else {
-            panic!("fixture outline is an envelope");
-        };
-        assert_eq!(part_ids, &["part-controller"]);
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn controller_creation_adds_selected_layout_membership_and_keeps_other_layouts_untouched() {
-        let mut accepted = fixture();
-        accepted.layouts = vec![
-            boardstudio_core::model::Layout {
-                id: "layout-main".into(),
-                name: "Main".into(),
-                board_id: "board-main".into(),
-                matrix_id: "matrix-main".into(),
-                part_ids: vec![],
-                mirror_link: None,
-            },
-            boardstudio_core::model::Layout {
-                id: "layout-other".into(),
-                name: "Other".into(),
-                board_id: "board-main".into(),
-                matrix_id: "matrix-other".into(),
-                part_ids: vec![],
-                mirror_link: None,
-            },
-        ];
-        let definition = controller_definition("catalog:controller");
-        let placed = part(&definition.id, "part-controller", "U1");
-
-        let proposed = replacement(
-            placement_operation(
-                &accepted,
-                "board-main",
-                &definition,
-                &placed,
-                Some("layout-main"),
-            )
-            .unwrap(),
-        );
-
-        assert_eq!(proposed.layouts[0].part_ids, vec!["part-controller"]);
-        assert!(proposed.layouts[1].part_ids.is_empty());
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -3977,20 +3867,6 @@ mod tests {
         );
         assert!(missing_layout.is_err());
         assert!(original.parts.is_empty());
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn controller_references_follow_existing_u_sequence_without_reusing_occupied_numbers() {
-        let mut document = fixture();
-        document.parts = vec![
-            part("existing", "one", "U1"),
-            part("existing", "two", "R3"),
-            part("existing", "three", "U3"),
-        ];
-        assert_eq!(
-            next_component_reference(&document, &PartKind::Controller),
-            "U2"
-        );
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]

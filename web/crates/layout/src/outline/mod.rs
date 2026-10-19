@@ -30,11 +30,11 @@ pub(crate) use crate::{coordinates, keycaps_fit, objects, selection};
 #[allow(unused_imports)] // The included browser suite builds typed edits through the adapter.
 use adapter::outline_edit;
 #[cfg(all(test, target_arch = "wasm32"))]
-use hook::{OutlineActionContext, action_resolver, editable_perimeter};
+use hook::{OutlineActionContext, editable_perimeter};
 #[cfg(all(test, target_arch = "wasm32"))]
 use overlays::{OutlineCoordinate, OutlineDimension};
 #[cfg(all(test, target_arch = "wasm32"))]
-use planner::{move_connection_point, unique_outline_entity_id, unique_outline_version_id};
+use planner::move_connection_point;
 
 #[cfg(all(test, target_arch = "wasm32"))]
 #[allow(unused_imports)] // The included browser suite imports these through `super::*`.

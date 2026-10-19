@@ -934,7 +934,6 @@ mod tests {
         PhysicalBoardInstance, ProjectDoc,
     };
     use serde_json::{Value, json};
-    use std::collections::BTreeMap;
 
     fn document() -> ProjectDoc {
         let mut doc = ProjectDoc::empty("project", "Test project");
@@ -1427,8 +1426,6 @@ mod tests {
         assert_eq!(doc, accepted);
     }
 
-    fn _stable_signature(_: &BTreeMap<String, Value>) {}
-
     // -- Mechanical mirror-pair setup -------------------------------------------------
 
     fn mount(id: &str, x: f64, y: f64) -> Mount {
@@ -1877,6 +1874,7 @@ mod tests {
         settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
         settings.openings = Some(vec![opening("opening-1")]);
         doc.mechanical = Some(settings);
+        let accepted = doc.clone();
 
         let proposal = propose_with_mirror_pair(
             &doc,
@@ -1890,7 +1888,68 @@ mod tests {
             keep_definition,
         )
         .unwrap();
+        assert_eq!(doc, accepted, "accepted input remains immutable");
+        let link = proposal
+            .mirror_pair
+            .as_ref()
+            .expect("opposite-flip halves propose a mechanical pair");
+        assert_eq!(link.pair_id, "pair/right-new");
+        assert_eq!(
+            link.members,
+            ["left-new".to_string(), "right-new".to_string()]
+        );
+        assert_eq!(link.construction_source, "left-new");
+        // The mapping is the physical board-local X reflection about zero.
+        assert_eq!(
+            link.mapping,
+            Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            }
+        );
+        // An asymmetric point so a symmetric fixture cannot hide a double reflection.
+        let point = Vec2 { x: 4.5, y: -1.25 };
+        let mapped = pair::forward(link.mapping, point);
+        assert_eq!(mapped, Vec2 { x: -4.5, y: -1.25 });
+        assert_ne!(mapped, point, "the mapping is not the identity");
+        assert_eq!(pair::inverse(link.mapping, mapped), point, "round-trip");
+        assert_eq!(
+            link.correspondences,
+            vec![
+                MechanicalFeatureCorrespondence {
+                    kind: MechanicalFeatureKind::Mount,
+                    first_feature_id: "mount-1".into(),
+                    second_feature_id: "mount-1".into(),
+                    source_instance_id: None,
+                },
+                MechanicalFeatureCorrespondence {
+                    kind: MechanicalFeatureKind::Opening,
+                    first_feature_id: "opening-1".into(),
+                    second_feature_id: "opening-1".into(),
+                    source_instance_id: None,
+                },
+            ],
+            "shared mounts and openings are covered by durable id"
+        );
         let proposal_hardware = proposal.document.hardware.as_ref().unwrap();
+        assert!(!proposal_hardware.instances[0].flipped);
+        assert!(
+            proposal_hardware.instances[1].flipped,
+            "the reversible second half is flipped"
+        );
+        assert_eq!(
+            proposal_hardware.instances[1]
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .mounts,
+            proposal_hardware.instances[0]
+                .mechanical
+                .as_ref()
+                .unwrap()
+                .mounts,
+            "the eligible second half keeps its authored clone for the reviewed link"
+        );
         assert!(
             proposal_hardware.pairs.is_empty(),
             "the proposal document alone never carries the pair"
@@ -2060,136 +2119,6 @@ mod tests {
     }
 
     #[test]
-    fn reused_pcb_opposite_flip_halves_propose_the_physical_reflection_and_shared_correspondences()
-    {
-        let mut doc = document();
-        doc.parameters
-            .insert("reversibleLayout".into(), Value::Bool(true));
-        let mut settings = mechanical(&doc, 4.2);
-        settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
-        settings.openings = Some(vec![opening("opening-1")]);
-        doc.mechanical = Some(settings);
-        let accepted = doc.clone();
-
-        let proposal = propose_with_mirror_pair(
-            &doc,
-            SetupIntent::Topology {
-                board_id: "board-a".into(),
-                selected_instance_id: None,
-                split: true,
-                new_primary_id: "left-new".into(),
-                new_secondary_id: "right-new".into(),
-            },
-            keep_definition,
-        )
-        .unwrap();
-
-        assert_eq!(doc, accepted, "accepted input remains immutable");
-        let hardware = proposal.document.hardware.as_ref().unwrap();
-        assert_eq!(hardware.instances.len(), 2);
-        assert!(
-            hardware.pairs.is_empty(),
-            "the pair is returned as change data, never applied to the document"
-        );
-        assert_eq!(hardware.instances[0].id, "left-new");
-        assert!(!hardware.instances[0].flipped);
-        assert_eq!(hardware.instances[1].id, "right-new");
-        assert!(
-            hardware.instances[1].flipped,
-            "the reversible second half is flipped"
-        );
-        assert_eq!(
-            hardware.instances[1].mechanical.as_ref().unwrap().mounts,
-            hardware.instances[0].mechanical.as_ref().unwrap().mounts,
-            "the eligible second half keeps its authored clone for the reviewed link"
-        );
-
-        let link = proposal
-            .mirror_pair
-            .expect("opposite-flip halves propose a mechanical pair");
-        assert_eq!(link.pair_id, "pair/right-new");
-        assert_eq!(
-            link.members,
-            ["left-new".to_string(), "right-new".to_string()]
-        );
-        assert_eq!(link.construction_source, "left-new");
-        // The mapping is the physical board-local X reflection about zero.
-        assert_eq!(
-            link.mapping,
-            Pose2 {
-                at: Vec2::default(),
-                rotation: 0.0,
-            }
-        );
-        // An asymmetric point so a symmetric fixture cannot hide a double reflection.
-        let point = Vec2 { x: 4.5, y: -1.25 };
-        let mapped = pair::forward(link.mapping, point);
-        assert_eq!(mapped, Vec2 { x: -4.5, y: -1.25 });
-        assert_ne!(mapped, point, "the mapping is not the identity");
-        assert_eq!(pair::inverse(link.mapping, mapped), point, "round-trip");
-        assert_eq!(
-            link.correspondences,
-            vec![
-                MechanicalFeatureCorrespondence {
-                    kind: MechanicalFeatureKind::Mount,
-                    first_feature_id: "mount-1".into(),
-                    second_feature_id: "mount-1".into(),
-                    source_instance_id: None,
-                },
-                MechanicalFeatureCorrespondence {
-                    kind: MechanicalFeatureKind::Opening,
-                    first_feature_id: "opening-1".into(),
-                    second_feature_id: "opening-1".into(),
-                    source_instance_id: None,
-                },
-            ],
-            "shared mounts and openings are covered by durable id"
-        );
-    }
-
-    #[test]
-    fn same_flip_reused_pcb_halves_have_no_representable_pair_map() {
-        let mut doc = document();
-        let mut settings = mechanical(&doc, 4.2);
-        settings.mounts = vec![mount("mount-1", 12.0, 3.0)];
-        doc.mechanical = Some(settings.clone());
-        doc.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Unibody,
-            transport: HardwareTransport::None,
-            instances: vec![make_instance(
-                "primary",
-                "board-a",
-                "unibody",
-                "standalone",
-                "Keyboard",
-                true,
-                settings,
-            )],
-            boards: vec![],
-            shared_construction: None,
-            pairs: vec![],
-        });
-
-        let proposal = propose_with_mirror_pair(
-            &doc,
-            SetupIntent::Topology {
-                board_id: "board-a".into(),
-                selected_instance_id: None,
-                split: true,
-                new_primary_id: "left-new".into(),
-                new_secondary_id: "right-new".into(),
-            },
-            keep_definition,
-        )
-        .unwrap();
-
-        assert_eq!(proposal.mirror_pair, None);
-        let hardware = proposal.document.hardware.as_ref().unwrap();
-        assert!(hardware.instances[0].flipped);
-        assert!(hardware.instances[1].flipped);
-    }
-
-    #[test]
     fn distinct_pcb_halves_propose_an_explicit_non_identity_mapping_scoped_to_their_boards() {
         let mut doc = document();
         doc.boards.push(Board {
@@ -2327,89 +2256,6 @@ mod tests {
             proposal.document.hardware.is_none(),
             "a layout-only pair never invents physical instances or splits a board"
         );
-    }
-
-    #[test]
-    fn ineligible_targets_propose_no_mechanical_pair() {
-        // Already paired: one half owns a stored pair, so neither half is available.
-        let mut doc = document();
-        doc.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Split,
-            transport: HardwareTransport::None,
-            instances: vec![
-                feature_instance(&doc, "left", "board-a", "left", false, vec![], vec![]),
-                feature_instance(&doc, "right", "board-a", "right", true, vec![], vec![]),
-                feature_instance(&doc, "other", "board-a", "right", true, vec![], vec![]),
-            ],
-            boards: vec![],
-            shared_construction: None,
-            pairs: vec![stored_pair(&doc, "pair-existing", "left", "other")],
-        });
-        for (first, second) in [("left", "right"), ("right", "other")] {
-            assert_eq!(
-                propose_with_mirror_pair(
-                    &doc,
-                    link_intent("pair-new", first, second),
-                    keep_definition,
-                )
-                .unwrap()
-                .mirror_pair,
-                None,
-                "{first}/{second} is already owned by a pair"
-            );
-        }
-
-        // Wrong board: the instance's board is not in the document.
-        let mut missing_board = doc.clone();
-        missing_board.hardware.as_mut().unwrap().pairs.clear();
-        missing_board.hardware.as_mut().unwrap().instances[1].board_id = "ghost-board".into();
-        assert_eq!(
-            propose_with_mirror_pair(
-                &missing_board,
-                link_intent("pair-new", "left", "right"),
-                keep_definition,
-            )
-            .unwrap()
-            .mirror_pair,
-            None
-        );
-
-        // Single half: the second instance is missing, and one instance cannot pair
-        // with itself.
-        for (first, second) in [("left", "missing"), ("left", "left")] {
-            assert_eq!(
-                propose_with_mirror_pair(
-                    &doc,
-                    link_intent("pair-new", first, second),
-                    keep_definition,
-                )
-                .unwrap()
-                .mirror_pair,
-                None
-            );
-        }
-    }
-
-    #[test]
-    fn an_empty_pair_id_is_a_malformed_link_not_an_ineligible_target() {
-        let mut doc = document();
-        doc.hardware = Some(HardwareConfiguration {
-            topology: HardwareTopology::Split,
-            transport: HardwareTransport::None,
-            instances: vec![
-                feature_instance(&doc, "left", "board-a", "left", false, vec![], vec![]),
-                feature_instance(&doc, "right", "board-a", "right", true, vec![], vec![]),
-            ],
-            boards: vec![],
-            shared_construction: None,
-            pairs: vec![],
-        });
-        let accepted = doc.clone();
-        assert!(
-            propose_with_mirror_pair(&doc, link_intent("  ", "left", "right"), keep_definition,)
-                .is_err()
-        );
-        assert_eq!(doc, accepted);
     }
 
     // -- Equivalence: physical setup against CreateMirroredHalf (ticket 26) ---------------

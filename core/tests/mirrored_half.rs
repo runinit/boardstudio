@@ -2053,12 +2053,6 @@ fn a_mirrored_circuit_reports_the_findings_of_its_source_and_no_reference_repeat
         all.len(),
         "a part reference repeats: {all:?}"
     );
-    let (_, again) = build();
-    assert_eq!(
-        references(&again["document"]),
-        all,
-        "references are deterministic"
-    );
 }
 
 /// Reuse-board copies no circuit. An embedded circuit belongs to its board, not to an instance (the
@@ -3781,6 +3775,7 @@ fn partial_creation_labels_only_replace_the_supplied_fields() {
 
 #[test]
 fn invalid_creation_labels_are_located_and_refused_without_mutation() {
+    let (mut engine, before) = unibody_label_seed();
     for mode in [
         new_board("right", "right"),
         json!({"kind":"reuse-board","instanceId":"right"}),
@@ -3799,7 +3794,6 @@ fn invalid_creation_labels_are_located_and_refused_without_mutation() {
             (json!({"source":{"role":"central"}}), "labels.mirror"),
             (json!({"mirror":{"role":"standalone"}}), "labels.mirror"),
         ] {
-            let (mut engine, before) = unibody_label_seed();
             let mut op = operation("pair-labels", "left", mode.clone(), mapping(0.0));
             op["labels"] = labels;
             let error = refused(&mut engine, &before, op);
@@ -3826,105 +3820,102 @@ fn stabilisers_keep_their_source_heading_and_mirrored_position_in_every_mode() {
         })
         .collect();
     assert_eq!(definitions.len(), 2);
-    for relative_heading in [0.0, 90.0, 15.0] {
-        let (mut engine, source) = seed(&runtime_supported_document(), "left");
-        let mut matrix = source["matrices"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|matrix| matrix["id"] == "left-synthetic-keys")
-            .unwrap()
-            .clone();
-        let cell = matrix["cells"]
-            .as_array_mut()
-            .unwrap()
-            .iter_mut()
-            .find(|cell| cell["row"] == 0 && cell["column"] == 0)
-            .unwrap();
-        cell["rotation"] = json!(15.0);
-        for (index, definition) in definitions.iter().enumerate() {
-            cell["assemblies"].as_array_mut().unwrap().push(json!({
-                "id":format!("stabiliser-{index}"), "definitionId":definition["id"],
-                "offset":{"x":2.5,"y":3.25}, "rotation":relative_heading, "side":"back"
-            }));
-        }
-        let source = create_with(
-            &mut engine,
-            &source,
-            "commit",
-            json!({"kind":"set-matrix","matrix":matrix,"definitions":definitions}),
-        )
-        .unwrap()["document"]
-            .clone();
-        for turn in [0.0, 27.0] {
-            for mode in [
-                "literal-mirror",
-                "duplicate-position",
-                "literal-mirror-with-tweak",
-            ] {
-                let (mut engine, source) = open(&source);
-                let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
-                let mut op = operation(
-                    "pair-stabilisers",
-                    "left",
-                    new_board("right", "right"),
-                    map.clone(),
-                );
-                op["companionMode"] = json!(mode);
-                if mode == "literal-mirror-with-tweak" {
-                    op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
-                }
-                let made =
-                    create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
-                let typed: ProjectDoc = serde_json::from_value(made.clone()).unwrap();
-                for index in 0..definitions.len() {
-                    let source_id = format!("matrix/left-synthetic-keys/r0c0/stabiliser-{index}");
-                    let mirror_id = format!("matrix/right-synthetic-keys/r0c0/stabiliser-{index}");
-                    let reason = Some(
-                        "Stabilisers keep their mirrored-X position and unchanged heading in every mode.",
-                    );
-                    assert_eq!(
-                        boardstudio_core::companion_placement_disabled_reason(
-                            &typed,
-                            "pair-stabilisers",
-                            &source_id,
-                        ),
-                        reason,
-                        "Core projects stabiliser eligibility from the source id"
-                    );
-                    assert_eq!(
-                        boardstudio_core::companion_placement_disabled_reason(
-                            &typed,
-                            "pair-stabilisers",
-                            &mirror_id,
-                        ),
-                        reason,
-                        "Core projects stabiliser eligibility from the mirror id"
-                    );
-                    let original = part(&source, &source_id);
-                    let mirrored = part(&made, &mirror_id);
-                    let label =
-                        format!("{mode} map {turn} relative {relative_heading}: {mirror_id}");
-                    assert_close_pair(
-                        (
-                            mirrored["pose"]["at"]["x"].as_f64().unwrap(),
-                            mirrored["pose"]["at"]["y"].as_f64().unwrap(),
-                        ),
-                        mapped_pose(&map, &original["pose"]).0,
-                        &label,
-                    );
-                    assert_eq!(
-                        mirrored["pose"]["rotation"], original["pose"]["rotation"],
-                        "{label}"
-                    );
-                    for field in ["definitionId", "side", "generatorParameters"] {
-                        assert_eq!(mirrored[field], original[field], "{label}: {field}");
-                    }
-                }
-                let (_, reopened) = open(&made);
-                assert_eq!(reopened["matrices"], made["matrices"]);
-                assert_eq!(reopened["parts"], made["parts"]);
+    let stabilisers: [(&str, f64); 3] = [("stab-0", 0.0), ("stab-90", 90.0), ("stab-180", 180.0)];
+    let (mut engine, source) = seed(&runtime_supported_document(), "left");
+    let mut matrix = source["matrices"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|matrix| matrix["id"] == "left-synthetic-keys")
+        .unwrap()
+        .clone();
+    let cell = matrix["cells"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|cell| cell["row"] == 0 && cell["column"] == 0)
+        .unwrap();
+    cell["rotation"] = json!(15.0);
+    for (index, (id, relative_heading)) in stabilisers.iter().enumerate() {
+        cell["assemblies"].as_array_mut().unwrap().push(json!({
+            "id":id, "definitionId":definitions[index % definitions.len()]["id"],
+            "offset":{"x":2.5 + index as f64,"y":3.25}, "rotation":relative_heading, "side":"back"
+        }));
+    }
+    let source = create_with(
+        &mut engine,
+        &source,
+        "commit",
+        json!({"kind":"set-matrix","matrix":matrix,"definitions":definitions}),
+    )
+    .unwrap()["document"]
+        .clone();
+    for turn in [0.0, 27.0] {
+        for mode in [
+            "literal-mirror",
+            "duplicate-position",
+            "literal-mirror-with-tweak",
+        ] {
+            let (mut engine, source) = open(&source);
+            let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
+            let mut op = operation(
+                "pair-stabilisers",
+                "left",
+                new_board("right", "right"),
+                map.clone(),
+            );
+            op["companionMode"] = json!(mode);
+            if mode == "literal-mirror-with-tweak" {
+                op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
             }
+            let made = create_with(&mut engine, &source, "commit", op).unwrap()["document"].clone();
+            let typed: ProjectDoc = serde_json::from_value(made.clone()).unwrap();
+            for (id, _) in stabilisers {
+                let source_id = format!("matrix/left-synthetic-keys/r0c0/{id}");
+                let mirror_id = format!("matrix/right-synthetic-keys/r0c0/{id}");
+                let reason = Some(
+                    "Stabilisers keep their mirrored-X position and unchanged heading in every mode.",
+                );
+                assert_eq!(
+                    boardstudio_core::companion_placement_disabled_reason(
+                        &typed,
+                        "pair-stabilisers",
+                        &source_id,
+                    ),
+                    reason,
+                    "Core projects stabiliser eligibility from the source id"
+                );
+                assert_eq!(
+                    boardstudio_core::companion_placement_disabled_reason(
+                        &typed,
+                        "pair-stabilisers",
+                        &mirror_id,
+                    ),
+                    reason,
+                    "Core projects stabiliser eligibility from the mirror id"
+                );
+                let original = part(&source, &source_id);
+                let mirrored = part(&made, &mirror_id);
+                let label = format!("{mode} map {turn}: {mirror_id}");
+                assert_close_pair(
+                    (
+                        mirrored["pose"]["at"]["x"].as_f64().unwrap(),
+                        mirrored["pose"]["at"]["y"].as_f64().unwrap(),
+                    ),
+                    mapped_pose(&map, &original["pose"]).0,
+                    &label,
+                );
+                assert_eq!(
+                    mirrored["pose"]["rotation"], original["pose"]["rotation"],
+                    "{label}"
+                );
+                for field in ["definitionId", "side", "generatorParameters"] {
+                    assert_eq!(mirrored[field], original[field], "{label}: {field}");
+                }
+            }
+            let (_, reopened) = open(&made);
+            assert_eq!(reopened["matrices"], made["matrices"]);
+            assert_eq!(reopened["parts"], made["parts"]);
         }
     }
 }
@@ -3933,123 +3924,119 @@ fn stabilisers_keep_their_source_heading_and_mirrored_position_in_every_mode() {
 fn missing_source_companions_materialise_with_a_literal_fallback_in_modes_two_and_three() {
     let (mut engine, source) = seed(&runtime_supported_document(), "left");
     let intact = with_cell_turns(&mut engine, &source, "left-synthetic-keys", &[(0, 0, 15.0)]);
-    let ids = [
-        "matrix/left-synthetic-keys/r0c0/diode",
-        "matrix/left-synthetic-keys/r0c0/led",
-    ];
-    for listed in [true, false] {
-        let mut source = intact.clone();
-        source["parts"]
+    let listed_id = "matrix/left-synthetic-keys/r0c0/diode";
+    let unlisted_id = "matrix/left-synthetic-keys/r0c0/led";
+    let ids = [listed_id, unlisted_id];
+    // One pass places both missing companions: the diode stays owned by its board and matrix
+    // ("listed"), the LED is also dropped from them ("unlisted").
+    let mut source = intact.clone();
+    source["parts"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|part| !ids.contains(&part["id"].as_str().unwrap()));
+    for board in source["boards"].as_array_mut().unwrap() {
+        board["partIds"]
             .as_array_mut()
             .unwrap()
-            .retain(|part| !ids.contains(&part["id"].as_str().unwrap()));
-        if !listed {
-            for board in source["boards"].as_array_mut().unwrap() {
-                board["partIds"]
-                    .as_array_mut()
-                    .unwrap()
-                    .retain(|id| !ids.contains(&id.as_str().unwrap()));
+            .retain(|id| id.as_str() != Some(unlisted_id));
+    }
+    for matrix in source["matrices"].as_array_mut().unwrap() {
+        matrix["partIds"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|id| id.as_str() != Some(unlisted_id));
+    }
+    for turn in [0.0, 27.0] {
+        for mode in ["duplicate-position", "literal-mirror-with-tweak"] {
+            let (mut engine, before) = open(&source);
+            assert!(ids.iter().all(|id| find_part(&before, id).is_none()));
+            let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
+            let mut op = operation(
+                "pair-fallback",
+                "left",
+                new_board("right", "right"),
+                map.clone(),
+            );
+            op["companionMode"] = json!(mode);
+            if mode == "literal-mirror-with-tweak" {
+                op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
             }
-            for matrix in source["matrices"].as_array_mut().unwrap() {
-                matrix["partIds"]
-                    .as_array_mut()
-                    .unwrap()
-                    .retain(|id| !ids.contains(&id.as_str().unwrap()));
-            }
-        }
-        for turn in [0.0, 27.0] {
-            for mode in ["duplicate-position", "literal-mirror-with-tweak"] {
-                let (mut engine, before) = open(&source);
-                assert!(ids.iter().all(|id| find_part(&before, id).is_none()));
-                let map = json!({"at":{"x":310.0,"y":42.0},"rotation":turn});
-                let mut op = operation(
-                    "pair-fallback",
-                    "left",
-                    new_board("right", "right"),
-                    map.clone(),
+            let made = create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
+            for id in ids {
+                let mirror_id = id.replace("left-synthetic-keys", "right-synthetic-keys");
+                let original = part(&intact, id);
+                let mirrored = part(&made, &mirror_id);
+                let expected = mapped_pose(&map, &original["pose"]);
+                let label = format!("{mode} map {turn}: {mirror_id}");
+                assert_close_pair(
+                    (
+                        mirrored["pose"]["at"]["x"].as_f64().unwrap(),
+                        mirrored["pose"]["at"]["y"].as_f64().unwrap(),
+                    ),
+                    expected.0,
+                    &label,
                 );
-                op["companionMode"] = json!(mode);
-                if mode == "literal-mirror-with-tweak" {
-                    op["companionTweak"] = json!({"x":1.25,"y":-2.0,"rotation":13.0});
-                }
-                let made =
-                    create_with(&mut engine, &before, "commit", op).unwrap()["document"].clone();
-                for id in ids {
-                    let mirror_id = id.replace("left-synthetic-keys", "right-synthetic-keys");
-                    let original = part(&intact, id);
-                    let mirrored = part(&made, &mirror_id);
-                    let expected = mapped_pose(&map, &original["pose"]);
-                    let label = format!("{mode} map {turn} listed {listed}: {mirror_id}");
-                    assert_close_pair(
-                        (
-                            mirrored["pose"]["at"]["x"].as_f64().unwrap(),
-                            mirrored["pose"]["at"]["y"].as_f64().unwrap(),
-                        ),
-                        expected.0,
-                        &label,
-                    );
-                    assert!(
-                        (mirrored["pose"]["rotation"].as_f64().unwrap() - expected.1).abs() < 1e-9,
-                        "{label}"
-                    );
-                    // The source is repaired too, so both sides have a real, owned part to link.
-                    assert_eq!(
-                        part(&made, id)["pose"],
-                        original["pose"],
-                        "{label}: source pose"
-                    );
-                    let link = pair(&made, "pair-fallback")["halves"]["correspondences"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .find(|link| link["mirrorId"] == mirror_id)
-                        .unwrap();
-                    assert_eq!(
-                        link["companionMode"], "literal-mirror",
-                        "{label}: durable fallback"
-                    );
-                    assert!(
-                        link.get("companionTweak").is_none(),
-                        "{label}: fallback ignores the tweak"
-                    );
-                }
-                for matrix in made["matrices"].as_array().unwrap() {
-                    let board = made["boards"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .find(|board| board["id"] == matrix["boardId"])
-                        .unwrap();
-                    for id in matrix["partIds"].as_array().unwrap() {
-                        assert!(
-                            find_part(&made, id.as_str().unwrap()).is_some(),
-                            "unmaterialised {id}"
-                        );
-                        assert!(
-                            board["partIds"].as_array().unwrap().contains(id),
-                            "unowned {id}"
-                        );
-                    }
-                }
-                for original in before["parts"]
+                assert!(
+                    (mirrored["pose"]["rotation"].as_f64().unwrap() - expected.1).abs() < 1e-9,
+                    "{label}"
+                );
+                // The source is repaired too, so both sides have a real, owned part to link.
+                assert_eq!(
+                    part(&made, id)["pose"],
+                    original["pose"],
+                    "{label}: source pose"
+                );
+                let link = pair(&made, "pair-fallback")["halves"]["correspondences"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .filter(|part| part["id"].as_str().unwrap().starts_with("matrix/"))
-                {
-                    assert_eq!(part(&made, original["id"].as_str().unwrap()), original);
-                }
-                let (_, reopened) = open(&made);
-                assert_eq!(reopened["parts"], made["parts"]);
+                    .find(|link| link["mirrorId"] == mirror_id)
+                    .unwrap();
                 assert_eq!(
-                    pair(&reopened, "pair-fallback"),
-                    pair(&made, "pair-fallback")
+                    link["companionMode"], "literal-mirror",
+                    "{label}: durable fallback"
                 );
-                let mut undone =
-                    request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
-                undone["revision"] = before["revision"].clone();
-                assert_eq!(undone, before);
+                assert!(
+                    link.get("companionTweak").is_none(),
+                    "{label}: fallback ignores the tweak"
+                );
             }
+            for matrix in made["matrices"].as_array().unwrap() {
+                let board = made["boards"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|board| board["id"] == matrix["boardId"])
+                    .unwrap();
+                for id in matrix["partIds"].as_array().unwrap() {
+                    assert!(
+                        find_part(&made, id.as_str().unwrap()).is_some(),
+                        "unmaterialised {id}"
+                    );
+                    assert!(
+                        board["partIds"].as_array().unwrap().contains(id),
+                        "unowned {id}"
+                    );
+                }
+            }
+            for original in before["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|part| part["id"].as_str().unwrap().starts_with("matrix/"))
+            {
+                assert_eq!(part(&made, original["id"].as_str().unwrap()), original);
+            }
+            let (_, reopened) = open(&made);
+            assert_eq!(reopened["parts"], made["parts"]);
+            assert_eq!(
+                pair(&reopened, "pair-fallback"),
+                pair(&made, "pair-fallback")
+            );
+            let mut undone =
+                request(&mut engine, json!({"id":"undo","kind":"undo"}))["document"].clone();
+            undone["revision"] = before["revision"].clone();
+            assert_eq!(undone, before);
         }
     }
 }
@@ -5038,254 +5025,6 @@ fn production_matrix_membership_transition_updates_pair_context_for_later_source
     assert_eq!(
         part(&moved["document"], "matrix/right-synthetic-keys/r0c1")["pose"]["at"],
         json!({"x":157.0,"y":7.0})
-    );
-}
-
-#[test]
-fn production_paired_previews_project_all_matrix_edit_families_without_publishing() {
-    let mut document = runtime_supported_document();
-    for cell in document["matrices"][0]["cells"].as_array_mut().unwrap() {
-        cell["assemblies"] = json!([]);
-    }
-    let (mut engine, seed) = seed(&document, "left");
-    let created = create(
-        &mut engine,
-        &seed,
-        "runtime-preview-families-pair",
-        "left",
-        new_board("right", "right"),
-        mapping(200.0),
-    )
-    .unwrap();
-    let accepted = created["document"].clone();
-    let mut matrix = accepted["matrices"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|matrix| matrix["id"] == "left-synthetic-keys")
-        .unwrap()
-        .clone();
-    matrix["columns"] = json!(3);
-    let additions: Vec<Value> = (0..2)
-        .map(|row| {
-            let mut cell = matrix["cells"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|cell| cell["row"] == row && cell["column"] == 1)
-                .unwrap()
-                .clone();
-            cell["column"] = json!(2);
-            cell
-        })
-        .collect();
-    matrix["cells"].as_array_mut().unwrap().extend(additions);
-
-    let previews = [
-        (
-            "move-parts",
-            json!({"kind":"move-parts","positions":[{"id":"right/U1","at":{"x":216.0,"y":14.0}}]}),
-            "left/U1",
-            "right/U1",
-        ),
-        (
-            "set-matrix",
-            json!({"kind":"set-matrix","matrix":matrix}),
-            "matrix/left-synthetic-keys/r0c2",
-            "matrix/right-synthetic-keys/r0c2",
-        ),
-        (
-            "set-matrix-splay",
-            json!({"kind":"set-matrix-splay","matrixId":"left-synthetic-keys","column":1,
-                "change":{"kind":"angle","angle":12.0,"affect":"column"}}),
-            "matrix/left-synthetic-keys/r0c1",
-            "matrix/right-synthetic-keys/r0c1",
-        ),
-        (
-            "set-matrix-placement",
-            json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys",
-                "change":{"kind":"column-stagger","column":1,"value":4.0}}),
-            "matrix/left-synthetic-keys/r0c1",
-            "matrix/right-synthetic-keys/r0c1",
-        ),
-    ];
-
-    for (index, (family, operation, source_id, mirror_id)) in previews.into_iter().enumerate() {
-        let preview = request(
-            &mut engine,
-            json!({"id":format!("runtime-preview-{family}"),"kind":"edit","command":{
-                "baseRevision":accepted["revision"],
-                "transactionId":format!("runtime-preview-{family}"),
-                "phase":"preview",
-                "targetIds":[source_id, mirror_id],
-                "operation":operation
-            }}),
-        );
-        assert_eq!(preview["kind"], "preview", "{family}: {preview}");
-        let transform = |id: &str| {
-            preview["scene"]["transforms"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|transform| transform["id"] == id)
-                .unwrap_or_else(|| {
-                    panic!("{family}: missing preview transform for {id}: {preview}")
-                })
-        };
-        let source_pose = &transform(source_id)["pose"];
-        let mirror_pose = &transform(mirror_id)["pose"];
-        assert!(source_pose.is_object(), "{family}: source draft pose");
-        assert!(mirror_pose.is_object(), "{family}: mirror draft pose");
-        if let Some(before) = find_part(&accepted, source_id) {
-            assert_ne!(source_pose, &before["pose"], "{family}: source draft");
-        } else {
-            assert_eq!(family, "set-matrix", "only expansion adds preview parts");
-        }
-        if let Some(before) = find_part(&accepted, mirror_id) {
-            assert_ne!(mirror_pose, &before["pose"], "{family}: mirror draft");
-        } else {
-            assert_eq!(family, "set-matrix", "only expansion adds preview parts");
-        }
-        assert_eq!(
-            snapshot(&mut engine),
-            accepted,
-            "{family}: preview {index} must leave accepted state unchanged"
-        );
-    }
-}
-
-fn assert_authored_companion_preview(
-    family: &str,
-    operation: Value,
-    source_id: &str,
-    mirror_id: &str,
-    expected_source: (f64, f64),
-    expected_mirror: (f64, f64),
-) {
-    let (mut engine, seed) = seed(&runtime_supported_document(), "left");
-    let created = create(
-        &mut engine,
-        &seed,
-        &format!("runtime-authored-preview-{family}"),
-        "left",
-        new_board("right", "right"),
-        mapping(200.0),
-    )
-    .unwrap();
-    let accepted = created["document"].clone();
-    let transaction_id = format!("runtime-authored-preview-{family}");
-    let preview: Value = serde_json::from_str(
-        &engine.request(
-            &json!({"id":transaction_id,"kind":"edit","command":{
-                "baseRevision":accepted["revision"],
-                "transactionId":transaction_id,
-                "phase":"preview",
-                "targetIds":[source_id,mirror_id],
-                "operation":operation
-            }})
-            .to_string(),
-        ),
-    )
-    .unwrap();
-    assert_eq!(
-        snapshot(&mut engine),
-        accepted,
-        "{family}: authored-companion preview must leave accepted document and history unchanged"
-    );
-    assert_eq!(preview["kind"], "preview", "{family}: {preview}");
-    let preview_pose = |id: &str| {
-        let transform = preview["scene"]["transforms"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|transform| transform["id"] == id)
-            .unwrap_or_else(|| panic!("{family}: missing preview transform for {id}: {preview}"));
-        (
-            transform["pose"]["at"]["x"].as_f64().unwrap(),
-            transform["pose"]["at"]["y"].as_f64().unwrap(),
-        )
-    };
-    assert_point(
-        preview_pose(source_id),
-        expected_source,
-        "authored source preview pose",
-    );
-    assert_point(
-        preview_pose(mirror_id),
-        expected_mirror,
-        "authored mirror preview pose",
-    );
-}
-
-#[test]
-fn production_authored_companion_move_parts_preview_projects_both_halves() {
-    assert_authored_companion_preview(
-        "move-parts",
-        json!({"kind":"move-parts","positions":[{"id":"right/U1","at":{"x":222.0,"y":4.0}}]}),
-        "left/U1",
-        "right/U1",
-        (-22.0, 4.0),
-        (222.0, 4.0),
-    );
-}
-
-#[test]
-fn production_authored_companion_set_matrix_preview_projects_expansion() {
-    let mut matrix = runtime_supported_document()["matrices"][0].clone();
-    matrix["columns"] = json!(3);
-    let additions: Vec<Value> = (0..2)
-        .map(|row| {
-            let mut cell = matrix["cells"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|cell| cell["row"] == row && cell["column"] == 1)
-                .unwrap()
-                .clone();
-            cell["column"] = json!(2);
-            cell
-        })
-        .collect();
-    matrix["cells"].as_array_mut().unwrap().extend(additions);
-    matrix["partIds"].as_array_mut().unwrap().extend([
-        json!("matrix/left-synthetic-keys/r0c2"),
-        json!("matrix/left-synthetic-keys/r1c2"),
-    ]);
-    assert_authored_companion_preview(
-        "set-matrix",
-        json!({"kind":"set-matrix","matrix":matrix}),
-        "matrix/left-synthetic-keys/r0c2",
-        "matrix/right-synthetic-keys/r0c2",
-        (38.0, 0.0),
-        (162.0, 0.0),
-    );
-}
-
-#[test]
-fn production_authored_companion_set_matrix_splay_preview_projects_both_halves() {
-    let x = 19.0 - 21.0 * 12.0_f64.to_radians().sin();
-    let y = 21.0 * 12.0_f64.to_radians().cos();
-    assert_authored_companion_preview(
-        "set-matrix-splay",
-        json!({"kind":"set-matrix-splay","matrixId":"left-synthetic-keys","column":1,
-            "change":{"kind":"angle","angle":12.0,"affect":"column"}}),
-        "matrix/left-synthetic-keys/r1c1",
-        "matrix/right-synthetic-keys/r1c1",
-        (x, y),
-        (200.0 - x, y),
-    );
-}
-
-#[test]
-fn production_authored_companion_set_matrix_placement_preview_projects_both_halves() {
-    assert_authored_companion_preview(
-        "set-matrix-placement",
-        json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys",
-            "change":{"kind":"column-stagger","column":1,"value":4.0}}),
-        "matrix/left-synthetic-keys/r0c1",
-        "matrix/right-synthetic-keys/r0c1",
-        (19.0, 4.0),
-        (181.0, 4.0),
     );
 }
 

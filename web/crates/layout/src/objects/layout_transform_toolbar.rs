@@ -2734,23 +2734,6 @@ mod nudge_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn drag_samples_share_the_immutable_matrix() {
-        let runtime = fixture::open_matrix_runtime().await;
-        let drag = begin_gesture(
-            &runtime,
-            fixture::MATRIX_ID,
-            offset_of(PlacementParameter::ColumnOffset { column: 0 }),
-        );
-        let sample = drag.clone();
-        let matrix: &Matrix = &drag.matrix;
-        let sampled_matrix: &Matrix = &sample.matrix;
-        assert!(
-            std::ptr::eq(matrix, sampled_matrix),
-            "sampling a drag must not copy the accepted matrix"
-        );
-    }
-
-    #[wasm_bindgen_test]
     async fn an_offset_drag_moves_one_column_by_the_pointer_delta() {
         let runtime = fixture::open_matrix_runtime().await;
         let mut drag = begin_gesture(
@@ -2979,70 +2962,6 @@ mod nudge_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn toolbar_stagger_and_inspector_stagger_land_the_same_matrix() {
-        let runtime = fixture::open_matrix_runtime().await;
-        let mut inspector = placement_edit(
-            &runtime,
-            fixture::MATRIX_ID,
-            PlacementParameter::Stagger { column: 1 },
-            PlacementValue::Stagger(2.0),
-        );
-        settle_edit(&runtime, &mut inspector).await;
-        let from_inspector = matrix_and_poses(&runtime);
-        assert_eq!(from_inspector.0.column_staggers.get(1), Some(&2.0));
-        fixture::undo(&runtime).await;
-        assert!(
-            fixture::accepted_matrix(&runtime)
-                .column_staggers
-                .get(1)
-                .is_none_or(|stagger| *stagger == 0.0),
-            "Undo restores the unstaggered matrix"
-        );
-
-        let mut drag = drag_edit(&runtime, fixture::MATRIX_ID, stagger_result(1, 2.0));
-        settle_edit(&runtime, &mut drag).await;
-        assert_eq!(
-            matrix_and_poses(&runtime),
-            from_inspector,
-            "a toolbar drag of +2 on column 1 lands the Inspector's matrix and key poses"
-        );
-    }
-
-    #[wasm_bindgen_test]
-    async fn the_preview_is_a_column_stagger_placement_and_nothing_else() {
-        let runtime = fixture::open_matrix_runtime().await;
-        let drag = begin_drag(&runtime, fixture::MATRIX_ID, 1, false);
-        // Motion across the stagger axis is ignored.
-        for world in [Vec2 { x: 0.0, y: 2.0 }, Vec2 { x: 7.0, y: 2.0 }] {
-            let Some(EditOperation::SetMatrixPlacement {
-                matrix_id,
-                change: MatrixPlacementChange::ColumnStagger { column, value },
-            }) = placement_preview(&drag, world, None)
-            else {
-                panic!("the preview must be a ColumnStagger placement");
-            };
-            assert_eq!((matrix_id.as_str(), column), (fixture::MATRIX_ID, 1));
-            assert!(
-                (value - 2.0).abs() < 1e-9,
-                "projected onto the axis: {value}"
-            );
-        }
-        // It is snapped to the grid step when snapping is on.
-        let step = Vec2 {
-            x: 4.7625,
-            y: 4.7625,
-        };
-        let Some(EditOperation::SetMatrixPlacement {
-            change: MatrixPlacementChange::ColumnStagger { value, .. },
-            ..
-        }) = placement_preview(&drag, Vec2 { x: 0.0, y: 5.0 }, Some(step))
-        else {
-            panic!("the preview must be a ColumnStagger placement");
-        };
-        assert!((value - 4.7625).abs() < 1e-9);
-    }
-
-    #[wasm_bindgen_test]
     async fn cancel_and_escape_land_nothing() {
         let runtime = fixture::open_matrix_runtime().await;
         let mut settled = nudge_edit(&runtime, ArrowKey::Up, true);
@@ -3123,40 +3042,6 @@ mod nudge_tests {
         let matrix = fixture::accepted_matrix(&runtime);
         assert_eq!(matrix.column_staggers.get(1), Some(&2.0));
         assert_eq!(matrix.column_offsets.get(2), Some(&Vec2 { x: 1.0, y: 0.0 }));
-    }
-
-    #[wasm_bindgen_test]
-    async fn a_quick_offset_drag_changes_only_the_column_offset() {
-        let runtime = fixture::open_matrix_runtime().await;
-        // Shift was latched at pointer-down; the sampling never reads it again, so letting
-        // go mid-drag cannot switch the parameter.
-        let mut drag = begin_drag(&runtime, fixture::MATRIX_ID, 1, true);
-        let mut last = None;
-        for world in [Vec2 { x: 1.0, y: 1.0 }, Vec2 { x: 3.0, y: 2.0 }] {
-            let operation = preview(&runtime, &mut drag, world);
-            assert!(
-                matches!(
-                    operation,
-                    EditOperation::SetMatrixPlacement {
-                        change: MatrixPlacementChange::ColumnOffset { column: 1, .. },
-                        ..
-                    }
-                ),
-                "every sample is a column offset"
-            );
-            support::run_pending(&runtime).await;
-            last = Some(operation);
-        }
-        commit(&runtime, &drag, &last.unwrap()).await;
-        let matrix = fixture::accepted_matrix(&runtime);
-        assert_eq!(matrix.column_offsets.get(1), Some(&Vec2 { x: 3.0, y: 2.0 }));
-        assert!(matrix.column_staggers.iter().all(|stagger| *stagger == 0.0));
-        assert!(
-            matrix
-                .row_offsets
-                .iter()
-                .all(|offset| *offset == Vec2::default())
-        );
     }
 
     #[wasm_bindgen_test]

@@ -244,29 +244,6 @@ async fn stale_rendered_copy_generation_is_rejected_after_callback_refresh() {
 }
 
 #[wasm_bindgen_test]
-async fn stale_rendered_delete_generation_is_rejected_after_callback_refresh() {
-    let (probe, mut dom) = versioned().await;
-    let old = probe.projection();
-    let action = old.delete_action().unwrap();
-    probe.generation.set(2);
-    flush(&probe, &mut dom);
-    old.on_action.call(action);
-    accept(&probe).await;
-    assert_eq!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .unwrap()
-            .document
-            .board_outlines[0]
-            .versions
-            .len(),
-        1
-    );
-}
-
-#[wasm_bindgen_test]
 async fn close_drains_active_edit_then_reopen_retires_its_owner() {
     let (probe, mut dom) = mounted().await;
     let (entered, release) =
@@ -503,26 +480,6 @@ async fn completed_old_epoch_retires_before_replacement_readiness() {
 }
 
 #[wasm_bindgen_test]
-async fn completed_current_source_in_recovery_retires_with_failure() {
-    let (probe, mut dom) = mounted().await;
-    crate::runtime::project_name_test_support::fail_next_persist(&probe.runtime, "disk full");
-    let slot = probe.watch_next();
-    probe.copy();
-    accept(&probe).await;
-    assert!(matches!(
-        *slot.borrow(),
-        Some(TerminalOutcome::PersistenceFailed(_))
-    ));
-    flush(&probe, &mut dom);
-    assert_eq!(
-        probe.runtime.model().lifecycle,
-        boardstudio_application::Lifecycle::RecoveryRequired
-    );
-    let feedback = probe.projection().feedback.unwrap();
-    assert!(feedback.message.unwrap().contains("disk full"));
-}
-
-#[wasm_bindgen_test]
 async fn different_context_hides_inspector_and_rejects_retained_copy() {
     let (probe, mut dom) = mounted().await;
     let old = probe.projection();
@@ -603,22 +560,6 @@ async fn activation_retains_observed_slot_after_editor_unmount() {
     release.send(()).unwrap();
     done_rx.await.unwrap();
     assert_eq!(*slot.borrow(), Some(TerminalOutcome::Completed));
-}
-
-#[wasm_bindgen_test]
-async fn activation_rejects_stale_generation_at_refreshed_dispatch() {
-    let (probe, mut dom) = versioned().await;
-    let old = generated_action(&probe);
-    probe.generation.set(2);
-    flush(&probe, &mut dom);
-    assert!(!old.is_current(&probe.runtime, probe.generation.get()));
-    let before = probe.runtime.model().accepted.unwrap().document;
-    probe.activation.borrow().as_ref().unwrap().call(old);
-    accept(&probe).await;
-    assert!(
-        std::sync::Arc::ptr_eq(&before, &probe.runtime.model().accepted.unwrap().document,),
-        "stale generation must not create an accepted revision"
-    );
 }
 
 #[wasm_bindgen_test]

@@ -1067,55 +1067,6 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
 }
 
 #[wasm_bindgen_test]
-async fn hidden_transform_inspector_retires_a_held_failure_before_remount() {
-    let (document, context) = fixture();
-    let (probe, root) = mount_selection_probe(
-        "matrix-transform-hidden-failure-test",
-        document,
-        context,
-        &["key-part"],
-    )
-    .await;
-    settle(&probe).await;
-
-    let input = root
-        .query_selector("input[aria-label='Local X']")
-        .unwrap()
-        .expect("the key offset field is mounted")
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    support::fail_next_core_reply(&probe.runtime, "held transform failure");
-    input.set_value("5");
-    let event = DomEvent::new("input").unwrap();
-    event.init_event_with_bubbles("input", true);
-    input.dispatch_event(&event).unwrap();
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_bubbles(true);
-    enter.set_key("Enter");
-    input
-        .dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-        )
-        .unwrap();
-
-    // Hide the actual inspector while its Core result is still held. The controller's
-    // inspector-mounted marker must retire the request even though the selected key stays.
-    let mut selected_signal = probe.selected_context.borrow().as_ref().unwrap().clone();
-    selected_signal.set(None);
-    settle(&probe).await;
-    support::run_pending(&probe.runtime).await;
-    settle(&probe).await;
-    selected_signal.set(Some(probe.selected.clone()));
-    settle(&probe).await;
-
-    assert!(
-        root.query_selector("[role='alert']").unwrap().is_none(),
-        "a held failure from the hidden owner must not surface after remount"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
 async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the_selected_replacement()
  {
     let (document, context) = fixture();
@@ -1410,70 +1361,6 @@ async fn row_and_column_delete_controls_submit_structural_removal() {
     }
 }
 
-#[wasm_bindgen_test]
-async fn explicitly_reselecting_same_disabled_key_discards_previous_bulk_selection() {
-    let (document, _) = two_key_fixture(false);
-    let context = TreeContext::Key {
-        matrix_id: "matrix".into(),
-        row: 0,
-        column: 1,
-    };
-    let (probe, root) = mount_selection_probe(
-        "matrix-transform-disabled-reselect-test",
-        document,
-        context.clone(),
-        &["matrix/matrix/r0c0", "matrix/matrix/r0c1"],
-    )
-    .await;
-    settle(&probe).await;
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    let enabled = root
-        .query_selector("input[aria-label='Key enabled']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    enabled.set_checked(false);
-    enabled
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
-    support::run_pending(&probe.runtime).await;
-    let mut version = probe.version.borrow().expect("Editor version signal");
-    let next = version.peek().saturating_add(1);
-    version.set(next);
-    settle(&probe).await;
-    let adapter = probe.adapter.borrow().as_ref().unwrap().clone();
-    crate::presentation::selection::submit_context(
-        &probe.runtime,
-        &adapter,
-        crate::presentation::selection::ContextRequest {
-            scope: probe.selected.scope.clone(),
-            context,
-            mode: SelectionMode::Replace,
-        },
-    );
-    settle(&probe).await;
-    let enabled = root
-        .query_selector("input[aria-label='Key enabled']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    enabled.set_checked(true);
-    enabled
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
-    support::run_pending(&probe.runtime).await;
-    settle(&probe).await;
-    assert!(
-        !accepted_cell(&probe, 0).enabled,
-        "reselected single key cannot revive the old bulk target"
-    );
-    assert!(accepted_cell(&probe, 1).enabled);
-    root.remove();
-}
-
 fn column_context(column: u32) -> TreeContext {
     TreeContext::Column {
         matrix_id: "matrix".into(),
@@ -1524,6 +1411,12 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     )
     .await;
     settle(&probe).await;
+    let label = root
+        .query_selector(".m1-matrix-field-context")
+        .unwrap()
+        .expect("the column context label is mounted")
+        .text_content();
+    assert_eq!(label.as_deref(), Some("Column 1"));
     // The fixture's key poses were never laid out by Core; the first edit syncs them, so
     // measure the second change from that synced state.
     set_numeric_field(&root, "Stagger", "1");
@@ -1570,26 +1463,6 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
         "one Undo reverts the whole second stagger edit"
     );
     assert!((second_column_y(&probe.runtime) - before).abs() < 1e-9);
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn the_column_context_label_is_one_based() {
-    let (document, _) = two_key_fixture(false);
-    let (probe, root) = mount_selection_probe(
-        "matrix-transform-column-label-test",
-        document,
-        column_context(0),
-        &[],
-    )
-    .await;
-    settle(&probe).await;
-    let label = root
-        .query_selector(".m1-matrix-field-context")
-        .unwrap()
-        .expect("the column context label is mounted")
-        .text_content();
-    assert_eq!(label.as_deref(), Some("Column 1"));
     root.remove();
 }
 

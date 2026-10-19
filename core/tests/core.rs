@@ -2036,62 +2036,51 @@ fn mirror_only_part_refuses_reusing_an_existing_part_identity_atomically() {
 
 #[test]
 fn mirror_only_part_refuses_ids_owned_by_other_document_entities_atomically() {
-    let (_, document) = public_native_pair();
-    let mirror_board_id = document.hardware.as_ref().unwrap().pairs[0]
+    let (mut engine, accepted) = public_native_pair();
+    let mirror_board_id = accepted.hardware.as_ref().unwrap().pairs[0]
         .halves
         .as_ref()
         .unwrap()
         .mirror_board_id
         .clone();
     let reused_ids = [
-        ("board", mirror_board_id),
-        ("matrix", document.matrices[0].id.clone()),
-        ("layout", document.layouts[0].id.clone()),
-        ("outline", document.outline[0].id().to_owned()),
-        ("net", document.nets[0].id.clone()),
+        ("board", mirror_board_id.clone()),
+        ("matrix", accepted.matrices[0].id.clone()),
+        ("layout", accepted.layouts[0].id.clone()),
+        ("outline", accepted.outline[0].id().to_owned()),
+        ("net", accepted.nets[0].id.clone()),
     ];
+    let mut prior = accepted.parts[0].clone();
+    prior.id = "mirror/prior-redo".into();
+    prior.reference = "PRIOR".into();
+    scene(engine.handle(edit(
+        accepted.revision,
+        EditPhase::Commit,
+        EditOperation::AddMirrorOnlyPart {
+            part: prior,
+            board_id: mirror_board_id.clone(),
+            definition: None,
+            layout_id: None,
+        },
+    )));
+    let (_, before_refusal) = scene(engine.handle(CoreRequest::Snapshot {
+        id: "before-identity-refusals".into(),
+    }));
 
-    for (index, (kind, reused_id)) in reused_ids.into_iter().enumerate() {
+    for (kind, reused_id) in reused_ids {
         assert!(
-            document.parts.iter().all(|part| part.id != reused_id),
+            accepted.parts.iter().all(|part| part.id != reused_id),
             "the {kind} fixture identity must not already belong to a Part"
         );
-        let (mut engine, accepted) = public_native_pair();
-        let mirror_board_id = accepted.hardware.as_ref().unwrap().pairs[0]
-            .halves
-            .as_ref()
-            .unwrap()
-            .mirror_board_id
-            .clone();
-        let mut prior = accepted.parts[0].clone();
-        prior.id = format!("mirror/prior-redo-{index}");
-        prior.reference = format!("PRIOR{index}");
-        scene(engine.handle(edit(
-            accepted.revision,
-            EditPhase::Commit,
-            EditOperation::AddMirrorOnlyPart {
-                part: prior.clone(),
-                board_id: mirror_board_id.clone(),
-                definition: None,
-                layout_id: None,
-            },
-        )));
-        scene(engine.handle(CoreRequest::Undo {
-            id: format!("undo-before-{kind}-identity-refusal"),
-        }));
-        let (_, before_refusal) = scene(engine.handle(CoreRequest::Snapshot {
-            id: format!("before-{kind}-identity-refusal"),
-        }));
-
         let mut part = accepted.parts[0].clone();
-        part.id = reused_id.clone();
-        part.reference = format!("COLL{index}");
+        part.id = reused_id;
+        part.reference = format!("COLL-{kind}");
         let reply = engine.handle(edit(
             before_refusal.revision,
             EditPhase::Commit,
             EditOperation::AddMirrorOnlyPart {
                 part,
-                board_id: mirror_board_id,
+                board_id: mirror_board_id.clone(),
                 definition: None,
                 layout_id: None,
             },
@@ -2107,17 +2096,17 @@ fn mirror_only_part_refuses_ids_owned_by_other_document_entities_atomically() {
             after_refusal, before_refusal,
             "refusal preserves the full document and revision for {kind} identity reuse"
         );
-        let (_, redone) = scene(engine.handle(CoreRequest::Redo {
-            id: format!("redo-after-{kind}-identity-refusal"),
-        }));
-        assert!(
-            redone
-                .parts
-                .iter()
-                .any(|candidate| candidate.id == prior.id),
-            "refusal preserves the existing Redo entry for {kind} identity reuse"
-        );
     }
+
+    let (_, undone) = scene(engine.handle(CoreRequest::Undo {
+        id: "undo-after-identity-refusals".into(),
+    }));
+    let mut expected = accepted.clone();
+    expected.revision = undone.revision;
+    assert_eq!(
+        undone, expected,
+        "every refusal preserves the seeded commit's Undo entry"
+    );
 }
 
 #[test]
@@ -4399,25 +4388,45 @@ fn grouped_matrix_cell_actions_deduplicate_linked_halves_and_reject_deleted_targ
 #[test]
 fn undo_retains_only_the_latest_hundred_commits() {
     let mut engine = CoreEngine::new();
+    let mut seed = ProjectDoc::empty("bounded-history", "0");
+    seed.parts.push(Part {
+        id: "part-0".into(),
+        definition_id: "catalog:unused".into(),
+        reference: "P0".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 0.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        keycap: None,
+        outline: None,
+        locked: None,
+        properties: None,
+        generator_parameters: None,
+    });
     let (_, mut document) = scene(engine.handle(CoreRequest::Open {
         id: "open".into(),
-        document: ProjectDoc::empty("bounded-history", "0"),
+        document: seed,
     }));
     for index in 1..=101 {
-        let mut next = document.clone();
-        next.name = index.to_string();
         (_, document) = scene(engine.handle(edit(
             document.revision,
             EditPhase::Commit,
-            EditOperation::ReplaceDocument {
-                document: Box::new(next),
+            EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: "part-0".into(),
+                    at: Vec2 {
+                        x: index as f64,
+                        y: 0.0,
+                    },
+                }],
             },
         )));
     }
     for _ in 0..100 {
         (_, document) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     }
-    assert_eq!(document.name, "1");
+    assert_eq!(document.parts[0].pose.at.x, 1.0);
     assert!(matches!(
         engine.handle(CoreRequest::Undo {
             id: "too-old".into()
@@ -4427,17 +4436,18 @@ fn undo_retains_only_the_latest_hundred_commits() {
     for _ in 0..100 {
         (_, document) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     }
-    assert_eq!(document.name, "101");
+    assert_eq!(document.parts[0].pose.at.x, 101.0);
     (_, document) = scene(engine.handle(CoreRequest::Undo {
         id: "branch".into(),
     }));
-    let mut branch = document.clone();
-    branch.name = "Branch".into();
     scene(engine.handle(edit(
         document.revision,
         EditPhase::Commit,
-        EditOperation::ReplaceDocument {
-            document: Box::new(branch),
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "part-0".into(),
+                at: Vec2 { x: 0.5, y: 0.0 },
+            }],
         },
     )));
     assert!(matches!(

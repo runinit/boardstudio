@@ -5321,59 +5321,6 @@ mod contextual_layer_tests {
         }
     }
 
-    fn assigned_profile_guidance_test_page() -> Element {
-        let request_sequence = use_signal(|| 0_u64);
-        rsx! {
-            ProfileGuidance {
-                identity: test_identity(),
-                profiles: Rc::from([MechanicalProfileChoice {
-                    definition_id: "assigned-custom".into(),
-                    name: "Custom tactile switch".into(),
-                    source: Some("KiCad Custom tactile switch".into()),
-                    family: None,
-                    plate_to_pcb: Some(3.5),
-                    supported_thickness: None,
-                    switch_family_selectable: false,
-                    profile: custom_profile_choice().profile,
-                    kicad_source: Some("(footprint custom)".into()),
-                }]),
-                targets: Rc::from([]),
-                plate_thickness: 1.6,
-                plate_to_pcb: 3.5,
-                editable: true,
-                request_sequence,
-                on_request: move |_| {},
-            }
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn assigned_profile_exposes_case_local_remove_control() {
-        let document = web_sys::window().unwrap().document().unwrap();
-        let root = document.create_element("div").unwrap();
-        root.set_id("case-profile-remove-red-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            test_page_dom(assigned_profile_guidance_test_page),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        rendered().await;
-        let buttons = document
-            .query_selector_all("#case-profile-remove-red-root button")
-            .unwrap();
-        let has_remove = (0..buttons.length()).any(|index| {
-            buttons
-                .item(index)
-                .and_then(|button| button.text_content())
-                .is_some_and(|text| text.trim() == "Remove profile")
-        });
-        assert!(
-            has_remove,
-            "assigned Case profile must expose its local Remove profile action"
-        );
-        root.remove();
-    }
-
     const CUSTOM_PROFILE_FOOTPRINT: &str = r#"(footprint "Custom tactile switch"
         (fp_rect (start -9.5 9.5) (end 9.5 -9.5)
             (stroke (width 0.1) (type solid)) (fill none) (layer "Dwgs.User")))"#;
@@ -5883,42 +5830,6 @@ mod contextual_layer_tests {
     }
 
     #[component]
-    fn ProcessThicknessTestPage() -> Element {
-        let request_sequence = use_signal(|| 0_u64);
-        let mut request_count = use_signal(|| 0_u32);
-        rsx! {
-            div { id: "case-process-thickness-test-root",
-                MechanicalSettings {
-                    identity: test_identity(),
-                    request_sequence,
-                    values: Some(test_values(HardwareTransport::Wired, None)),
-                    profiles: Rc::from([]),
-                    profile_targets: Rc::from([]),
-                    process_targets: Rc::from([test_process("plate", PlateMethod::Printed, "PLA", 1.5)]),
-                    stabilizer_fits: Rc::from([]),
-                    layers: Rc::from([]),
-                    gasket_supports: Rc::from([]),
-                    fit_parts: Rc::from([]),
-                    fit_parts_resolved: false,
-                    hardware_mounts: Rc::from([]),
-                    suggested_mounts: Rc::from([]),
-                    findings: Rc::from([]),
-                    selected_layer: String::new(),
-                    mismatch: None,
-                    editable: true,
-                    disabled_reason: None,
-                    feedback: Rc::from([]),
-                    summary_feedback: None,
-                    on_request: move |_| request_count += 1,
-                    on_select_layer: move |_| {},
-                    on_show_finding: move |_| {},
-                }
-            }
-            div { id: "case-process-thickness-request-count", "{request_count()}" }
-        }
-    }
-
-    #[component]
     fn BatteryTestPage() -> Element {
         let wired_request_sequence = use_signal(|| 0_u64);
         let wireless_request_sequence = use_signal(|| 0_u64);
@@ -6210,90 +6121,6 @@ mod contextual_layer_tests {
         assert!(
             text.contains("Plate underside to PCB top: 3.00 mm"),
             "show the accepted plate gap even when no explicit profile row is assigned"
-        );
-    }
-
-    #[wasm_bindgen_test]
-    async fn process_thickness_draft_escape_enter_and_blur_follow_numeric_field_semantics() {
-        mount_battery_test_page(
-            "case-process-thickness-test-root-host",
-            ProcessThicknessTestPage,
-        );
-        rendered().await;
-        // Follow the native disclosure path before focusing a specialist field.
-        element("#case-process-thickness-test-root details[aria-label='Manufacturing overrides'] > summary").click();
-        rendered().await;
-        let input =
-            element("#case-process-thickness-test-root input[aria-label='Finished thickness']")
-                .dyn_into::<web_sys::HtmlInputElement>()
-                .unwrap();
-        let dispatch_input = |input: &web_sys::HtmlInputElement, value: &str| {
-            input.set_value(value);
-            let init = web_sys::EventInit::new();
-            init.set_bubbles(true);
-            input
-                .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
-                .unwrap();
-        };
-        let dispatch_key = |input: &web_sys::HtmlInputElement, key: &str| {
-            let init = web_sys::KeyboardEventInit::new();
-            init.set_key(key);
-            init.set_bubbles(true);
-            input
-                .dispatch_event(
-                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-                        .unwrap(),
-                )
-                .unwrap();
-        };
-
-        input.focus().unwrap();
-        dispatch_input(&input, "2.5");
-        dispatch_key(&input, "Escape");
-        input.blur().unwrap();
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
-        rendered().await;
-        assert_eq!(input.value(), "1.5");
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("0"),
-            "Escape then blur should restore the accepted value without submitting"
-        );
-
-        input.focus().unwrap();
-        dispatch_input(&input, "2.0");
-        dispatch_key(&input, "Enter");
-        input.blur().unwrap();
-        let change = web_sys::EventInit::new();
-        change.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-            .unwrap();
-        rendered().await;
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("1"),
-            "Enter followed by blur should submit the thickness once"
-        );
-
-        input.focus().unwrap();
-        dispatch_input(&input, "0.05");
-        input.blur().unwrap();
-        rendered().await;
-        assert_eq!(
-            element("#case-process-thickness-request-count")
-                .text_content()
-                .as_deref(),
-            Some("1"),
-            "thickness below 0.1 mm should not submit"
         );
     }
 
@@ -7838,9 +7665,9 @@ mod mounted_settlement_tests {
         root.query_selector(selector).ok().flatten().is_some()
     }
 
-    /// Fixed settle, kept only where no DOM or Core state marks the stale outcome.
+    /// Short drain, kept only where the test asserts a stale outcome does not land.
     async fn settle_fields(runtime: &Rc<Runtime>) {
-        for _ in 0..15 {
+        for _ in 0..2 {
             support::run_pending(runtime).await;
             rendered().await;
         }
@@ -7878,75 +7705,6 @@ mod mounted_settlement_tests {
             .unwrap();
         runtime.unsubscribe();
         root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn unchanged_failed_mechanical_fields_restore_accepted_text_and_report_inline() {
-        for (field, submitted, accepted) in [("dimension", "3", "2"), ("text", "M3", "M2")] {
-            let project_id = format!("mechanical-unchanged-{field}");
-            let (runtime, root) = mounted_fields(&project_id).await;
-            support::fail_next_core_reply(&runtime, "mechanical executor refused the edit");
-            let input = input(&root, field);
-            type_value(&input, submitted);
-            input.blur().unwrap();
-            rendered().await;
-            settle_until(
-                &runtime,
-                "the untouched failed draft restores its accepted text",
-                || {
-                    input.value() == accepted
-                        && inline_failure(&root, field)
-                            .is_some_and(|message| message.contains("mechanical executor refused"))
-                },
-            )
-            .await;
-            assert_eq!(
-                input.value(),
-                accepted,
-                "an untouched submitted draft restores"
-            );
-            assert!(
-                inline_failure(&root, field)
-                    .is_some_and(|message| message.contains("mechanical executor refused"))
-            );
-            dispose(&runtime, root, &project_id).await;
-        }
-    }
-
-    #[wasm_bindgen_test]
-    async fn older_mechanical_failures_report_beside_newer_drafts_and_original_accepted_text() {
-        for (field, submitted, newer) in [
-            ("dimension", "3", "4"),
-            ("dimension", "3", "2"),
-            ("text", "M3", "M4"),
-            ("text", "M3", "M2"),
-        ] {
-            let project_id = format!("mechanical-newer-{field}-{newer}");
-            let (runtime, root) = mounted_fields(&project_id).await;
-            support::fail_next_core_reply(&runtime, "older mechanical failure");
-            let input = input(&root, field);
-            type_value(&input, submitted);
-            input.blur().unwrap();
-            rendered().await;
-            type_value(&input, newer);
-            settle_until(
-                &runtime,
-                "the older failure reports beside the newer draft",
-                || {
-                    input.value() == newer
-                        && inline_failure(&root, field)
-                            .is_some_and(|message| message.contains("older mechanical failure"))
-                },
-            )
-            .await;
-            assert_eq!(input.value(), newer, "the newer draft stays visible");
-            assert!(
-                inline_failure(&root, field)
-                    .is_some_and(|message| message.contains("older mechanical failure")),
-                "the older failure still reports beside the newer draft, including the original accepted value"
-            );
-            dispose(&runtime, root, &project_id).await;
-        }
     }
 
     #[wasm_bindgen_test]

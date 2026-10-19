@@ -53,10 +53,9 @@ async fn fixture_document(document: ProjectDoc) -> (Rc<Runtime>, Rc<CadScene>, S
     fixture_document_mode(document, "unknown").await
 }
 
-async fn fixture_document_mode(
+async fn fixture_document_scene(
     document: ProjectDoc,
-    mode: &str,
-) -> (Rc<Runtime>, Rc<CadScene>, String) {
+) -> (Rc<Runtime>, Rc<CadScene>, serde_json::Value) {
     let runtime = project_name_test_support::new_runtime();
     project_name_test_support::open_document(&runtime, document).await;
     project_name_test_support::navigate(&runtime, "main-board").await;
@@ -103,6 +102,14 @@ async fn fixture_document_mode(
         contours: vec![],
     });
     runtime.set_cad_scene_test(Some(scene.clone()));
+    (runtime, scene, data)
+}
+
+async fn fixture_document_mode(
+    document: ProjectDoc,
+    mode: &str,
+) -> (Rc<Runtime>, Rc<CadScene>, String) {
+    let (runtime, scene, data) = fixture_document_scene(document).await;
     // Real Runtime/CadWorker client and transferable messages, with a controlled
     // provider reply. The parent owns combined acceptance against the CAD WASM.
     let source = format!(
@@ -173,7 +180,7 @@ async fn fixture_document_mode(
     let url = Url::create_object_url_with_blob(&blob).unwrap();
     let worker = Rc::new(CadWorker::new(&url).unwrap());
     worker.ready().await.unwrap();
-    *runtime.cad_worker.borrow_mut() = Some((scope, worker));
+    *runtime.cad_worker.borrow_mut() = Some((scene.scope.clone(), worker));
     (runtime, scene, url)
 }
 
@@ -447,72 +454,6 @@ async fn physical_pcb_preparation_cancellation_rejects_analysis_and_recovers() {
             .iter()
             .any(|subject| subject.id() == "pcb-reference" && subject.mesh().is_some())
     );
-    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
-    Url::revoke_object_url(&url).unwrap();
-}
-
-#[wasm_bindgen_test]
-async fn mechanical_collision_flow_analyzes_physical_pcb_and_reports_case_pair_provenance() {
-    let (runtime, scene, url) = fixture_document(mechanical_document()).await;
-    assert!(scene.mechanical.is_some());
-    assert!(
-        scene
-            .prepared
-            .bodies
-            .iter()
-            .all(|body| body.body.id != "pcb-reference"),
-        "render preparation deliberately excludes the physical PCB"
-    );
-    let (subjects, errors) = runtime
-        .generated_collision_subjects(&scene, None, Rc::new(|| true))
-        .await;
-    assert!(errors.is_empty(), "{errors:?}");
-    let pcb = subjects
-        .iter()
-        .find(|subject| subject.id() == "pcb-reference")
-        .expect("production collision flow must request physical PCB analysis");
-    assert!(
-        pcb.mesh().is_some(),
-        "PCB must reach analyze-generated-body, not an unavailable placeholder"
-    );
-    assert!(
-        runtime
-            .generated_analysis_cache
-            .borrow()
-            .values()
-            .any(|analysis| analysis.body_id == "pcb-reference")
-    );
-    let case = subjects
-        .iter()
-        .find(|subject| subject.id() == "bottom")
-        .unwrap();
-    let result = runtime
-        .query_collision_subjects(
-            pcb,
-            case,
-            0.1,
-            None,
-            scene.scope.clone(),
-            scene.token,
-            scene.snapshot.document.revision,
-            Rc::new(|| true),
-        )
-        .await
-        .unwrap();
-    let finding = crate::model_delivery::CadCollisionPairFinding {
-        left_id: pcb.id().into(),
-        left_label: pcb.label().into(),
-        right_id: case.id().into(),
-        right_label: case.label().into(),
-        result,
-    };
-    assert!(finding.summary(0.1).contains("pcb-reference"));
-    assert!(finding.provenance_details()[0].contains("generated body pcb-reference"));
-    assert!(finding.provenance_details()[1].contains("generated body bottom"));
-    assert!(matches!(
-        finding.result.assessment,
-        CadCollisionAssessment::Unknown { .. }
-    ));
     runtime.cad_worker.borrow_mut().take().unwrap().1.close();
     Url::revoke_object_url(&url).unwrap();
 }
@@ -829,9 +770,7 @@ async fn missing_generated_lease_prepares_once_per_batch_joins_pending_and_secon
 // Controlled STEP reader at the worker transport seam; it certifies no geometry.
 async fn vendor_refinement_fixture() -> (Rc<Runtime>, Rc<CadScene>, String, CadCollisionSubject) {
     use boardstudio_web_host::cad_jobs::{CadStepFaceOccurrence, CadStepSourceFace, CadVendorStep};
-    let (runtime, scene, old_url) = fixture().await;
-    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
-    Url::revoke_object_url(&old_url).unwrap();
+    let (runtime, scene, _) = fixture_document_scene(in_process_support::board_document()).await;
     let bytes = b"controlled vendor STEP source".to_vec();
     let sha = Sha256::digest(&bytes)
         .iter()
@@ -953,57 +892,6 @@ fn vendor_asset(
         panic!("missing vendor asset")
     };
     asset
-}
-
-#[wasm_bindgen_test]
-async fn tight_vendor_refinement_shares_one_preparation_without_merging_placements() {
-    let (runtime, scene, url, left) = vendor_refinement_fixture().await;
-    let mut right = left.clone();
-    if let CadCollisionSubject::VendorModel {
-        id,
-        reference,
-        row_transform_f64,
-        ..
-    } = &mut right
-    {
-        *id = "switch-2".into();
-        *reference = "SW2".into();
-        row_transform_f64[12] = 19.;
-    }
-    let first = runtime
-        .refine_collision_vendor(&scene, &left, 0.01, Rc::new(|| true))
-        .await
-        .unwrap();
-    let second = runtime
-        .refine_collision_vendor(&scene, &right, 0.01, Rc::new(|| true))
-        .await
-        .unwrap();
-    assert_eq!(
-        vendor_asset(&second).accuracy.sampled_support_checks,
-        1,
-        "one preparation request for repeated source/settings"
-    );
-    assert!(Rc::ptr_eq(vendor_asset(&first), vendor_asset(&second)));
-    assert_eq!(first.id(), "switch-1");
-    assert_eq!(second.id(), "switch-2");
-    assert_eq!(second.label(), "SW2");
-    let CadCollisionSubject::VendorModel {
-        row_transform_f64, ..
-    } = second
-    else {
-        unreachable!()
-    };
-    assert_eq!(row_transform_f64[12], 19.);
-    assert_eq!(
-        vendor_asset(&first).source_faces,
-        vendor_asset(&left).source_faces
-    );
-    assert_eq!(
-        vendor_asset(&first).face_occurrences,
-        vendor_asset(&left).face_occurrences
-    );
-    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
-    Url::revoke_object_url(&url).unwrap();
 }
 
 #[wasm_bindgen_test]
@@ -1421,9 +1309,7 @@ fn publish_collision_rows(
 /// A real Runtime/CadWorker complete-check fixture: one mechanical Case scene with
 /// generated subjects, one physical PCB and two placements of one vendor source.
 async fn complete_check_fixture() -> (Rc<Runtime>, Rc<CadScene>, String, CollisionCheckInput) {
-    let (runtime, scene, old_url) = fixture_document_mode(mechanical_document(), "unknown").await;
-    runtime.cad_worker.borrow_mut().take().unwrap().1.close();
-    Url::revoke_object_url(&old_url).unwrap();
+    let (runtime, scene, _) = fixture_document_scene(mechanical_document()).await;
     let bytes = b"controlled complete-check vendor source".to_vec();
     let sha = Sha256::digest(&bytes)
         .iter()

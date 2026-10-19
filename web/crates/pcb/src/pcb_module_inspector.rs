@@ -1181,6 +1181,7 @@ mod mounted_save_replacement_tests {
         Completion, Effect, OperationId, SaveResult, Scope as AppScope, Session,
     };
     use boardstudio_core::{CoreEngine, model::*};
+    use boardstudio_web_ui_shared::test_wait::wait_until_step;
     use gloo_timers::future::TimeoutFuture;
     use std::{collections::VecDeque, rc::Rc};
     use wasm_bindgen::JsCast;
@@ -1450,38 +1451,34 @@ mod mounted_save_replacement_tests {
         settle().await;
         assert_eq!(x.value(), "9.5");
         release.send(()).unwrap();
-        for _ in 0..12 {
+        wait_until_step("the queued placement commits land", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            9.5
-        );
-        assert_eq!(x.value(), "9.5");
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 9.5 && x.value() == "9.5"
+        })
+        .await;
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            7.25
-        );
-        assert_eq!(x.value(), "7.25");
+        wait_until_step(
+            "the first Undo restores the earlier accepted coordinate",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 7.25
+                    && x.value() == "7.25"
+            },
+        )
+        .await;
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            1.0
-        );
+        wait_until_step(
+            "the second Undo restores the baseline coordinate",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+            },
+        )
+        .await;
         root.remove();
     }
 
@@ -1555,10 +1552,27 @@ mod mounted_save_replacement_tests {
         sibling.set_attribute("disabled", "").unwrap();
         settle().await;
         release.send(()).unwrap();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
+        wait_until_step(
+            "the circuit removal lands and its siblings re-enable",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime
+                    .model()
+                    .accepted
+                    .unwrap()
+                    .document
+                    .embedded_circuits
+                    .len()
+                    == 1
+                    && root
+                        .query_selector_all(".m1-pcb-module-circuit-copy")
+                        .unwrap()
+                        .length()
+                        == 1
+                    && !sibling.has_attribute("disabled")
+            },
+        )
+        .await;
         let accepted = runtime.model().accepted.unwrap();
         assert_eq!(
             accepted
@@ -1640,14 +1654,14 @@ mod mounted_save_replacement_tests {
             .unwrap();
         settle().await;
         release.send(()).unwrap();
-        for _ in 0..12 {
-            support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            7.0
-        );
+        wait_until_step(
+            "the earlier accepted placement commits under the newer draft",
+            async || {
+                support::run_pending(&runtime).await;
+                runtime.model().accepted.unwrap().document.modules[0].at.x == 7.0
+            },
+        )
+        .await;
         assert_eq!(
             x.value(),
             "1",
@@ -1657,23 +1671,20 @@ mod mounted_save_replacement_tests {
         runtime.submit(boardstudio_application::Event::Undo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
+        wait_until_step("the Undo restores the baseline coordinate", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            1.0
-        );
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+        })
+        .await;
         assert_eq!(x.value(), "1");
         runtime.submit(boardstudio_application::Event::Redo {
             operation_id: runtime.operation(),
         });
-        for _ in 0..8 {
+        wait_until_step("the clean draft follows Undo and Redo", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(x.value(), "7", "a clean draft still follows Undo and Redo");
+            x.value() == "7"
+        })
+        .await;
 
         let _external = boardstudio_web_runtime::edit_ticket::EditTicket::begin(
             &runtime,
@@ -1692,19 +1703,11 @@ mod mounted_save_replacement_tests {
                 )
             }),
         );
-        for _ in 0..8 {
+        wait_until_step("the external accepted update lands", async || {
             support::run_pending(&runtime).await;
-            settle().await;
-        }
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.modules[0].at.x,
-            9.0
-        );
-        assert_eq!(
-            x.value(),
-            "9",
-            "a clean draft follows an external accepted update"
-        );
+            runtime.model().accepted.unwrap().document.modules[0].at.x == 9.0 && x.value() == "9"
+        })
+        .await;
         runtime.unsubscribe();
         root.remove();
     }
@@ -1765,24 +1768,18 @@ mod mounted_save_replacement_tests {
                 .unwrap();
                 settle().await;
             }
-            for _ in 0..12 {
-                support::run_pending(&runtime).await;
-                settle().await;
-            }
-            assert_eq!(
-                runtime.model().accepted.unwrap().document.modules[0].at.x,
-                1.0
-            );
-            assert_eq!(
-                x.value(),
-                if preserve_draft { "8" } else { "1" },
-                "failure restores the committed draft and preserves later typing"
-            );
-            let text = root.text_content().unwrap();
-            assert!(
-                text.contains("injected placement refusal"),
-                "mounted text: {text}"
-            );
+            wait_until_step(
+                "the failed placement restores the accepted coordinate",
+                async || {
+                    support::run_pending(&runtime).await;
+                    runtime.model().accepted.unwrap().document.modules[0].at.x == 1.0
+                        && x.value() == if preserve_draft { "8" } else { "1" }
+                        && root
+                            .text_content()
+                            .is_some_and(|text| text.contains("injected placement refusal"))
+                },
+            )
+            .await;
             runtime.unsubscribe();
             root.remove();
         }

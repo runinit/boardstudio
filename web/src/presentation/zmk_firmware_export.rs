@@ -214,16 +214,6 @@ mod tests {
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
-    #[component]
-    fn row_render_fixture() -> Element {
-        let no_op = use_callback(|()| {});
-        rsx! {
-            style { {include_str!("../../assets/m1.css")} }
-            ZmkFirmwareExportRow { ready: false, on_export: no_op }
-            ZmkFirmwareExportRow { ready: true, on_export: no_op }
-        }
-    }
-
     #[derive(Clone)]
     struct ProductionExportProbe {
         runtime: Rc<Runtime>,
@@ -504,21 +494,6 @@ mod tests {
         root.remove();
     }
 
-    fn mount_row_fixture() -> web_sys::Element {
-        let document = web_sys::window().unwrap().document().unwrap();
-        if let Some(previous) = document.get_element_by_id("zmk-export-row-test-root") {
-            previous.remove();
-        }
-        let root = document.create_element("div").unwrap();
-        root.set_id("zmk-export-row-test-root");
-        document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(
-            VirtualDom::new(row_render_fixture),
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        root
-    }
-
     fn identity() -> WiringPlanIdentity {
         WiringPlanIdentity {
             scope: Scope {
@@ -764,101 +739,5 @@ mod tests {
             identity.executor_epoch + 1,
             &resolution,
         ));
-    }
-
-    #[wasm_bindgen_test]
-    async fn row_renders_reference_copy_accessible_name_and_ready_marker() {
-        let root = mount_row_fixture();
-        wait_until("the ZMK export rows render", || {
-            root.query_selector_all(".m1-export-row")
-                .is_ok_and(|rows| rows.length() == 2)
-        })
-        .await;
-        let document = web_sys::window().unwrap().document().unwrap();
-        let rows = document
-            .query_selector_all("#zmk-export-row-test-root .m1-export-row")
-            .unwrap();
-        assert_eq!(rows.length(), 2);
-
-        let unavailable = rows
-            .item(0)
-            .unwrap()
-            .dyn_into::<web_sys::Element>()
-            .unwrap();
-        assert_eq!(
-            unavailable
-                .query_selector("strong")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("ZMK firmware")
-        );
-        assert_eq!(
-            unavailable
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .get_attribute("aria-label")
-                .as_deref(),
-            Some("Export ZMK firmware")
-        );
-        assert!(
-            unavailable
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        assert_eq!(
-            unavailable
-                .query_selector(".m1-export-reason")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Review the layout and resolve controller wiring in PCB.")
-        );
-        assert!(
-            !unavailable
-                .query_selector(".m1-export-ready-dot")
-                .unwrap()
-                .unwrap()
-                .get_attribute("class")
-                .unwrap_or_default()
-                .contains("is-ready")
-        );
-
-        let ready = rows
-            .item(1)
-            .unwrap()
-            .dyn_into::<web_sys::Element>()
-            .unwrap();
-        assert!(
-            !ready
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .has_attribute("disabled")
-        );
-        assert_eq!(
-            ready
-                .query_selector("button")
-                .unwrap()
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Export firmware")
-        );
-        assert!(
-            ready
-                .query_selector(".m1-export-ready-dot")
-                .unwrap()
-                .unwrap()
-                .get_attribute("class")
-                .unwrap_or_default()
-                .contains("is-ready")
-        );
-        root.remove();
     }
 }

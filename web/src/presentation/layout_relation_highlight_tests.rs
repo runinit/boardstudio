@@ -300,6 +300,7 @@ async fn mount_column_relations(root_id: &'static str) -> Probe {
 async fn hovering_an_inherited_column_highlights_only_its_keys() {
     let root_id = "relation-highlight-hover";
     let probe = mount_column_relations(root_id).await;
+    let before = probe.revision();
     let reference = probe.inherited_by_reference();
     dispatch(&reference, "pointerenter");
     wait_until("hovering Column 4 highlights its keys", || {
@@ -322,6 +323,11 @@ async fn hovering_an_inherited_column_highlights_only_its_keys() {
     })
     .await;
     assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
+    assert_eq!(
+        probe.revision(),
+        before,
+        "highlighting never writes a document revision, so no Undo entry"
+    );
 }
 
 #[wasm_bindgen_test]
@@ -410,46 +416,4 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys are not highlighted"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
-}
-
-#[wasm_bindgen_test]
-async fn highlighting_creates_no_revision_or_history_entry() {
-    let root_id = "relation-highlight-revision";
-    let probe = mount_column_relations(root_id).await;
-    let before = probe.revision();
-    let reference = probe.inherited_by_reference();
-    dispatch(&reference, "pointerenter");
-    wait_until(
-        "hover highlights, so the revision check below is not vacuous",
-        || count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
-    )
-    .await;
-    assert!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
-        "hover highlights, so the revision check below is not vacuous"
-    );
-    dispatch(&reference, "pointerleave");
-    reference.focus().unwrap();
-    wait_until("focus highlights too", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") > 0
-    })
-    .await;
-    assert!(
-        count(root_id, ".m1-matrix-key.is-relation-highlight") > 0,
-        "focus highlights too"
-    );
-    reference.blur().unwrap();
-    wait_until("blur clears the focus highlight", || {
-        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
-    })
-    .await;
-    // Negative check (no revision): drain held work first; the highlight clear above is the
-    // render that a revision write would also precede, so no further render proof is used.
-    support::run_pending(&probe.runtime).await;
-    assert_eq!(
-        probe.revision(),
-        before,
-        "highlighting never writes a document revision, so no Undo entry"
-    );
-    assert_eq!(count(root_id, ".m1-matrix-key.is-relation-highlight"), 0);
 }

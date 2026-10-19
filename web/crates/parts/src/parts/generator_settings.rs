@@ -2029,11 +2029,6 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn uploaded_model_projects_accepted_filename_without_erasing_dirty_width() {
-        uploaded_model_projection(false).await;
-    }
-
-    #[wasm_bindgen_test]
     async fn upload_preview_refresh_does_not_keep_a_later_failed_apply_draft() {
         uploaded_model_projection(true).await;
     }

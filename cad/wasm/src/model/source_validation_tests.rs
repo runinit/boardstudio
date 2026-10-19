@@ -308,19 +308,25 @@ fn vik_display_transform_aligns_board_and_asymmetric_h1_h2_rims() {
     }
 }
 
-const THQ_MODELS: [(&str, [f64; 3], [f64; 3]); 3] = [
+const THQ_MODELS: [(&str, &str, &[&str], [f64; 3], [f64; 3]); 3] = [
     (
+        "thqwgd001:rotation-reversible",
         "THQWGD001-rotation.stp",
+        &["A", "B", "C"],
         [-9.216318757, -8.812124802, -3.5],
         [9.166318857, 9.183731752, 20.372216785],
     ),
     (
+        "thqwgd001:c-2pin-reversible",
         "THQWGD001C-2pin.stp",
+        &["A", "B", "C", "1", "2"],
         [-9.064170501, -8.952765450, -3.461776741],
         [9.554079635, 9.042790450, 20.066001209],
     ),
     (
+        "thqwgd001:c-4pin-reversible",
         "THQWGD001C-4pin.stp",
+        &["A", "B", "C", "1", "2"],
         [-9.064170501, -8.952765450, -3.461776741],
         [10.3549875, 9.042790450, 20.066001209],
     ),
@@ -331,144 +337,137 @@ fn thq_path(filename: &str) -> String {
 }
 
 #[test]
-fn thq_source_assemblies_keep_tight_bounds_and_meshes() {
-    for (filename, expected_min, expected_max) in THQ_MODELS {
-        let model = read_step_model_data(bytes(&thq_path(filename)))
-            .unwrap_or_else(|e| panic!("{filename}: {e}"));
-        let (min, max) = positions_bounds(&model.mesh.positions);
-        for axis in 0..3 {
-            assert!(
-                (min[axis] - expected_min[axis]).abs() < 0.03,
-                "{filename} mesh min axis {axis}: {}",
-                min[axis]
-            );
-            assert!(
-                (max[axis] - expected_max[axis]).abs() < 0.03,
-                "{filename} mesh max axis {axis}: {}",
-                max[axis]
-            );
-            assert!(
-                model.min[axis] <= min[axis] + 1e-6 && model.max[axis] >= max[axis] - 1e-6,
-                "{filename} imported bounds contain mesh"
-            );
-        }
-        assert!(model.mesh.positions.len() > 10_000);
-        assert_eq!(model.mesh.positions.len(), model.mesh.normals.len());
-        assert!(model.min[2] < -3.0, "THQ leads remain below the PCB plane");
-    }
-}
-
-#[test]
 fn thq_pins_align_with_leads_and_front_back_transform_oracle() {
     let catalogue = json("catalogue/parts/imported-parts.json");
     let oracle = json("cad/test/fixtures/thqwgd001-transform-oracle.json");
-    let configurations: [(&str, &str, &[&str]); 3] = [
-        (
-            "thqwgd001:rotation-reversible",
-            "THQWGD001-rotation.stp",
-            &["A", "B", "C"],
-        ),
-        (
-            "thqwgd001:c-2pin-reversible",
-            "THQWGD001C-2pin.stp",
-            &["A", "B", "C", "1", "2"],
-        ),
-        (
-            "thqwgd001:c-4pin-reversible",
-            "THQWGD001C-4pin.stp",
-            &["A", "B", "C", "1", "2"],
-        ),
-    ];
     let pose = &oracle["pose"];
     let yaw = pose["yawDegrees"].as_f64().unwrap().to_radians();
     let (sn, cs) = yaw.sin_cos();
     let tx = pose["at"][0].as_f64().unwrap();
     let ty = pose["at"][1].as_f64().unwrap();
     let board_z = pose["boardThickness"].as_f64().unwrap();
-    for (index, (definition_id, filename, contacts)) in configurations.iter().enumerate() {
-        let entry = catalogue["parts"]
-            .as_array()
-            .unwrap()
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = THQ_MODELS
             .iter()
-            .find(|e| e["definition"]["id"] == *definition_id)
-            .unwrap();
-        let pads = entry["definition"]["pads"].as_array().unwrap();
-        let model = read_step_model_data(bytes(&thq_path(filename))).unwrap();
-        let lead_xy = model
-            .mesh
-            .positions
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .filter(|p| p[2] < -3.0)
-            .map(|p| [f64::from(p[0]), f64::from(p[1])])
-            .collect::<Vec<_>>();
-        let holes = pads
-            .iter()
-            .filter(|p| {
-                p["drill"].is_number()
-                    && contacts.contains(&p["number"].as_str().unwrap_or(""))
-                    && (!["A", "B", "C"].contains(&p["number"].as_str().unwrap_or(""))
-                        || p["at"]["x"].as_f64().unwrap() > -6.0)
-            })
-            .collect::<Vec<_>>();
-        assert!(!holes.is_empty());
-        for hole in holes {
-            let x = hole["at"]["x"].as_f64().unwrap();
-            let y = hole["at"]["y"].as_f64().unwrap();
-            let nearest = lead_xy
-                .iter()
-                .map(|p| (p[0] - x).hypot(p[1] - y))
-                .fold(f64::INFINITY, f64::min);
-            assert!(
-                nearest < 0.19,
-                "{filename} lead {nearest:.3} mm from footprint hole {}",
-                hole["id"]
-            );
+            .enumerate()
+            .map(
+                |(index, (definition_id, filename, contacts, expected_min, expected_max))| {
+                    let catalogue = &catalogue;
+                    let oracle = &oracle;
+                    scope.spawn(move || {
+                        let source_bytes = bytes(&thq_path(filename));
+                        let model = read_step_model_data(source_bytes.clone())
+                            .unwrap_or_else(|e| panic!("{filename}: {e}"));
+                        let (min, max) = positions_bounds(&model.mesh.positions);
+                        for axis in 0..3 {
+                            assert!(
+                                (min[axis] - expected_min[axis]).abs() < 0.03,
+                                "{filename} mesh min axis {axis}: {}",
+                                min[axis]
+                            );
+                            assert!(
+                                (max[axis] - expected_max[axis]).abs() < 0.03,
+                                "{filename} mesh max axis {axis}: {}",
+                                max[axis]
+                            );
+                            assert!(
+                                model.min[axis] <= min[axis] + 1e-6
+                                    && model.max[axis] >= max[axis] - 1e-6,
+                                "{filename} imported bounds contain mesh"
+                            );
+                        }
+                        assert!(model.mesh.positions.len() > 10_000);
+                        assert_eq!(model.mesh.positions.len(), model.mesh.normals.len());
+                        assert!(model.min[2] < -3.0, "THQ leads remain below the PCB plane");
+                        let entry = catalogue["parts"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|e| e["definition"]["id"] == *definition_id)
+                            .unwrap();
+                        let pads = entry["definition"]["pads"].as_array().unwrap();
+                        let lead_xy = model
+                            .mesh
+                            .positions
+                            .as_chunks::<3>()
+                            .0
+                            .iter()
+                            .filter(|p| p[2] < -3.0)
+                            .map(|p| [f64::from(p[0]), f64::from(p[1])])
+                            .collect::<Vec<_>>();
+                        let holes = pads
+                            .iter()
+                            .filter(|p| {
+                                p["drill"].is_number()
+                                    && contacts.contains(&p["number"].as_str().unwrap_or(""))
+                                    && (!["A", "B", "C"].contains(&p["number"].as_str().unwrap_or(""))
+                                        || p["at"]["x"].as_f64().unwrap() > -6.0)
+                            })
+                            .collect::<Vec<_>>();
+                        assert!(!holes.is_empty());
+                        for hole in holes {
+                            let x = hole["at"]["x"].as_f64().unwrap();
+                            let y = hole["at"]["y"].as_f64().unwrap();
+                            let nearest = lead_xy
+                                .iter()
+                                .map(|p| (p[0] - x).hypot(p[1] - y))
+                                .fold(f64::INFINITY, f64::min);
+                            assert!(
+                                nearest < 0.19,
+                                "{filename} lead {nearest:.3} mm from footprint hole {}",
+                                hole["id"]
+                            );
+                        }
+                        let source = &oracle["models"][index];
+                        assert_eq!(
+                            sha256(&source_bytes),
+                            source["modelSource"]["sha256"].as_str().unwrap(),
+                            "{filename} pinned source hash"
+                        );
+                        for side in ["front", "back"] {
+                            let mut min = [f64::INFINITY; 3];
+                            let mut max = [f64::NEG_INFINITY; 3];
+                            for p in model.mesh.positions.as_chunks::<3>().0 {
+                                let x = f64::from(p[0]) * if side == "back" { -1.0 } else { 1.0 };
+                                let y = f64::from(p[1]);
+                                let z = f64::from(p[2]);
+                                let point = [
+                                    tx + x * cs - y * sn,
+                                    ty + x * sn + y * cs,
+                                    if side == "front" { board_z + z } else { -z },
+                                ];
+                                for axis in 0..3 {
+                                    min[axis] = min[axis].min(point[axis]);
+                                    max[axis] = max[axis].max(point[axis]);
+                                }
+                            }
+                            let expected = &source["placements"][side]["exactTransformedSolidBounds"];
+                            let expected_min = triple(&expected["min"]);
+                            let expected_max = triple(&expected["max"]);
+                            // At 37 deg yaw, the inscribed 0.1 mm-deflection mesh chords recess
+                            // off-cardinal cylinder extrema by up to 0.039 mm while remaining inside
+                            // the exact transformed solid bounds.
+                            for axis in 0..3 {
+                                assert!(
+                                    (min[axis] - expected_min[axis]).abs() < 0.05,
+                                    "{filename} {side} min axis {axis}: {}",
+                                    min[axis]
+                                );
+                                assert!(
+                                    (max[axis] - expected_max[axis]).abs() < 0.05,
+                                    "{filename} {side} max axis {axis}: {}",
+                                    max[axis]
+                                );
+                            }
+                        }
+                    })
+                },
+            )
+            .collect();
+        for handle in handles {
+            handle.join().unwrap();
         }
-        let source = &oracle["models"][index];
-        assert_eq!(
-            sha256(&bytes(&thq_path(filename))),
-            source["modelSource"]["sha256"].as_str().unwrap(),
-            "{filename} pinned source hash"
-        );
-        for side in ["front", "back"] {
-            let mut min = [f64::INFINITY; 3];
-            let mut max = [f64::NEG_INFINITY; 3];
-            for p in model.mesh.positions.as_chunks::<3>().0 {
-                let x = f64::from(p[0]) * if side == "back" { -1.0 } else { 1.0 };
-                let y = f64::from(p[1]);
-                let z = f64::from(p[2]);
-                let point = [
-                    tx + x * cs - y * sn,
-                    ty + x * sn + y * cs,
-                    if side == "front" { board_z + z } else { -z },
-                ];
-                for axis in 0..3 {
-                    min[axis] = min[axis].min(point[axis]);
-                    max[axis] = max[axis].max(point[axis]);
-                }
-            }
-            let expected = &source["placements"][side]["exactTransformedSolidBounds"];
-            let expected_min = triple(&expected["min"]);
-            let expected_max = triple(&expected["max"]);
-            // At 37 deg yaw, the inscribed 0.1 mm-deflection mesh chords recess
-            // off-cardinal cylinder extrema by up to 0.039 mm while remaining inside
-            // the exact transformed solid bounds.
-            for axis in 0..3 {
-                assert!(
-                    (min[axis] - expected_min[axis]).abs() < 0.05,
-                    "{filename} {side} min axis {axis}: {}",
-                    min[axis]
-                );
-                assert!(
-                    (max[axis] - expected_max[axis]).abs() < 0.05,
-                    "{filename} {side} max axis {axis}: {}",
-                    max[axis]
-                );
-            }
-        }
-    }
+    });
 }
 
 #[test]

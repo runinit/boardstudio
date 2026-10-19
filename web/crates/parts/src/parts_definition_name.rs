@@ -734,7 +734,7 @@ mod mounted_tests {
     }
 
     async fn settle() {
-        gloo_timers::future::TimeoutFuture::new(80).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
     }
 
     /// Open `document` through the real Session and Core on a fresh Runtime and return what the
@@ -791,14 +791,6 @@ mod mounted_tests {
 
     fn courtyard_height_input(root: &web_sys::Element) -> HtmlInputElement {
         root.query_selector("input[aria-label='Courtyard height']")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
-    }
-
-    fn pad_x_input(root: &web_sys::Element) -> HtmlInputElement {
-        root.query_selector("input[aria-label='Pad 1 X']")
             .unwrap()
             .unwrap()
             .dyn_into()
@@ -1021,166 +1013,6 @@ mod mounted_tests {
             accepted.document.revision
         );
         crate::parts_custom_definition::clear_pad_number_draft_for_test();
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_definition_owner_switch_retires_dirty_courtyard_pad_and_error_state() {
-        let mut document = ProjectDoc::empty("parts-name-mounted", "Parts name mounted");
-        let mut first = definition("first", "First");
-        let mut second = definition("second", "Second");
-        for definition in [&mut first, &mut second] {
-            definition.courtyard = vec![
-                boardstudio_core::model::Vec2 { x: -5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: -3.0 },
-                boardstudio_core::model::Vec2 { x: 5.0, y: 3.0 },
-                boardstudio_core::model::Vec2 { x: -5.0, y: 3.0 },
-            ];
-            definition.pads = serde_json::from_value(serde_json::json!([
-                {"id":"shared-pad","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
-            ])).unwrap();
-        }
-        document.definitions = vec![first, second];
-        let (runtime, snapshot, scope) = opened(document).await;
-        let state = Rc::new(RefCell::new(None));
-        let seed = Rc::new(Seed {
-            snapshot: snapshot.clone(),
-            scope: scope.clone(),
-            selection: Some((scope.clone(), "first".into())),
-            definition: snapshot.document.definitions[0].clone(),
-            state: state.clone(),
-        });
-        let root = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .create_element("div")
-            .unwrap();
-        let root_index = NEXT_ROOT.with(|next| next.replace(next.get() + 1));
-        root.set_id(&format!("parts-name-mounted-regression-{root_index}"));
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .body()
-            .unwrap()
-            .append_child(&root)
-            .unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(seed);
-        dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        settle().await;
-        root.query_selector("details summary")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
-        settle().await;
-        let pad_id = pad_id_input(&root);
-        type_value(&pad_id, "");
-        settle().await;
-        let _ = courtyard_width_input(&root).focus();
-        settle().await;
-        assert!(root.query_selector("[role='alert']").unwrap().is_some());
-        type_value(&courtyard_width_input(&root), "12");
-        settle().await;
-
-        let mut controls = state.borrow().as_ref().unwrap().clone();
-        controls
-            .selection
-            .set(Some((scope.clone(), "second".into())));
-        controls
-            .definition
-            .set(snapshot.document.definitions[1].clone());
-        settle().await;
-
-        assert_eq!(courtyard_width_input(&root).value(), "10");
-        assert!(root.query_selector("[role='alert']").unwrap().is_none());
-
-        // Accepted sibling fields synchronize independently. A refreshed
-        // height must not discard the local width draft.
-        type_value(&courtyard_width_input(&root), "12");
-        settle().await;
-        let mut refreshed_doc = runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .as_ref()
-            .clone();
-        refreshed_doc.definitions[1].courtyard = vec![
-            boardstudio_core::model::Vec2 { x: -5.0, y: -4.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: -4.0 },
-            boardstudio_core::model::Vec2 { x: 5.0, y: 4.0 },
-            boardstudio_core::model::Vec2 { x: -5.0, y: 4.0 },
-        ];
-        let refreshed = support::replace_document(
-            &runtime,
-            "parts-name-mounted-height-refresh",
-            "second",
-            refreshed_doc,
-        )
-        .await;
-        controls.snapshot.set(refreshed.clone());
-        controls
-            .definition
-            .set(refreshed.document.definitions[1].clone());
-        settle().await;
-        assert_eq!(courtyard_width_input(&root).value(), "12");
-        assert_eq!(courtyard_height_input(&root).value(), "8");
-
-        // A different definition may reuse the same pad ID. Its local draft
-        // must reset when the owner changes, even though the pad identity is
-        // otherwise identical.
-        type_value(&pad_x_input(&root), "9");
-        settle().await;
-        // Anything the focus change submitted lands before the next accepted refresh, so the
-        // refresh below is built on the Session's latest accepted document.
-        support::run_pending(&runtime).await;
-        let latest = runtime.model().accepted.as_ref().unwrap().clone();
-        let mut refreshed_pad_doc = latest.document.as_ref().clone();
-        refreshed_pad_doc.definitions[1].pads[0].at.y = 4.0;
-        let refreshed_pad = support::replace_document(
-            &runtime,
-            "parts-name-mounted-pad-refresh",
-            "second",
-            refreshed_pad_doc,
-        )
-        .await;
-        controls.snapshot.set(refreshed_pad.clone());
-        controls
-            .definition
-            .set(refreshed_pad.document.definitions[1].clone());
-        settle().await;
-        assert_eq!(pad_x_input(&root).value(), "9");
-        assert_eq!(pad_y_input(&root).value(), "4");
-
-        controls
-            .selection
-            .set(Some((scope.clone(), "first".into())));
-        controls
-            .definition
-            .set(refreshed_pad.document.definitions[0].clone());
-        settle().await;
-        assert_eq!(courtyard_width_input(&root).value(), "10");
-        assert_eq!(pad_x_input(&root).value(), "0");
-        let _ = courtyard_width_input(&root).blur();
-        let _ = pad_x_input(&root).blur();
-        settle().await;
-        assert!(
-            support::take_held_effects(&runtime).is_empty(),
-            "dirty values owned by the prior definition cannot commit into the next owner"
-        );
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.revision,
-            refreshed_pad.document.revision
-        );
         root.remove();
     }
 
@@ -1754,38 +1586,6 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn mounted_landed_pad_number_keeps_a_newer_draft_returning_to_baseline() {
-        let mut document = courtyard_document("Pad draft");
-        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
-            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
-        ]))
-        .unwrap();
-        let (runtime, _snapshot, _scope, state, root) = mount_panel(document, true).await;
-        let controls = state.borrow().as_ref().unwrap().clone();
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-        type_value(&pad_number_input(&root), "7");
-        let _ = pad_number_input(&root).blur();
-        settle().await;
-        support::drive_pending(&runtime);
-        entered.await.expect("the pad number edit reaches Core");
-
-        type_value(&pad_number_input(&root), "1");
-        settle().await;
-        release.send(()).expect("release the held pad number reply");
-        accept_edits(&runtime, &controls).await;
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.definitions[0].pads[0].number,
-            "7"
-        );
-        assert_eq!(
-            pad_number_input(&root).value(),
-            "1",
-            "the newer pad draft survives its accepted refresh"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
     async fn mounted_landed_courtyard_keeps_a_newer_draft_then_clean_undo_redo_syncs() {
         let (runtime, _snapshot, _scope, state, root) =
             mount_panel(courtyard_document("Courtyard"), false).await;
@@ -1842,6 +1642,63 @@ mod mounted_tests {
             "a clean field follows Redo"
         );
         root.remove();
+        let mut document = courtyard_document("Pad draft");
+        document.definitions[0].pads = serde_json::from_value(serde_json::json!([
+            {"id":"a","number":"1","at":{"x":0.0,"y":0.0},"size":{"x":2.0,"y":2.0},"shape":"circle"}
+        ]))
+        .unwrap();
+        let (runtime, _snapshot, _scope, state, root) = mount_panel(document, true).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        type_value(&pad_number_input(&root), "7");
+        let _ = pad_number_input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered.await.expect("the pad number edit reaches Core");
+
+        type_value(&pad_number_input(&root), "1");
+        settle().await;
+        release.send(()).expect("release the held pad number reply");
+        accept_edits(&runtime, &controls).await;
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].pads[0].number,
+            "7"
+        );
+        assert_eq!(
+            pad_number_input(&root).value(),
+            "1",
+            "the newer pad draft survives its accepted refresh"
+        );
+        root.remove();
+        let (runtime, _snapshot, _scope, state, root) =
+            mount_panel(courtyard_document("Original name"), false).await;
+        let controls = state.borrow().as_ref().unwrap().clone();
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+
+        type_value(&input(&root), "Renamed");
+        let _ = input(&root).blur();
+        settle().await;
+        support::drive_pending(&runtime);
+        entered
+            .await
+            .expect("the rename reaches Core before the newer draft");
+
+        // Returning to the old accepted text is still a newer user draft.
+        type_value(&input(&root), "Original name");
+        settle().await;
+        release.send(()).expect("release the held rename reply");
+        accept_edits(&runtime, &controls).await;
+
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.definitions[0].name,
+            "Renamed"
+        );
+        assert_eq!(
+            input(&root).value(),
+            "Original name",
+            "the accepted refresh preserves the newer draft"
+        );
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -1896,39 +1753,6 @@ mod mounted_tests {
         assert!(
             root.query_selector("[role='alert']").unwrap().is_none(),
             "old owner failures never reach the replacement definition"
-        );
-        root.remove();
-    }
-
-    #[wasm_bindgen_test]
-    async fn mounted_landed_name_keeps_a_newer_draft_returning_to_the_original_name() {
-        let (runtime, _snapshot, _scope, state, root) =
-            mount_panel(courtyard_document("Original name"), false).await;
-        let controls = state.borrow().as_ref().unwrap().clone();
-        let (entered, release) = support::gate_next_core_reply(&runtime);
-
-        type_value(&input(&root), "Renamed");
-        let _ = input(&root).blur();
-        settle().await;
-        support::drive_pending(&runtime);
-        entered
-            .await
-            .expect("the rename reaches Core before the newer draft");
-
-        // Returning to the old accepted text is still a newer user draft.
-        type_value(&input(&root), "Original name");
-        settle().await;
-        release.send(()).expect("release the held rename reply");
-        accept_edits(&runtime, &controls).await;
-
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.definitions[0].name,
-            "Renamed"
-        );
-        assert_eq!(
-            input(&root).value(),
-            "Original name",
-            "the accepted refresh preserves the newer draft"
         );
         root.remove();
     }

@@ -24,6 +24,19 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- **2026-10-19 test-suite speed & bloat audit:** six approved tickets slice the
+  20 audit findings across disjoint crate boundaries (`176`–`180` in
+  parallel, `181` blocked by `176`–`180` for the page suite, native baseline
+  refresh, and full verification gate). All six are **resolved** (-9,440 net
+  lines; full 56/56 `check.py` gate passed in 470.0 s, receipt
+  `.evidence/ticket-181-full-receipt.json`):
+  - [176: Speed up CAD layered, PCB, and STEP validation tests and prune STEP oracle self-tests](issues/176-speed-up-cad-and-step-tests.md) — resolved.
+  - [177: Prune duplicate and no-op Core unit tests in mirrored_half and mechanical::edit](issues/177-prune-duplicate-core-unit-tests.md) — resolved.
+  - [178: Trim redundant CreateMirroredHalf, ReplaceDocument, and pin-capacity loops in Core integration tests](issues/178-trim-core-integration-test-loops.md) — resolved.
+  - [179: Replace remaining fixed timer sleeps and trim duplicate browser tests in PCB, Parts, Case, Runtime, and Host](issues/179-trim-sleeps-and-duplicates-in-web-crates.md) — resolved.
+  - [180: Trim duplicate browser mounts, pure unit tests in WASM, and CSS assertions in web/crates/layout and ui-shared](issues/180-trim-layout-and-ui-shared-browser-tests.md) — resolved.
+  - [181: Trim non-DOM and duplicate browser tests in the web/src page suite and refresh the native test baseline](issues/181-trim-page-suite-and-update-baseline.md) — resolved.
+
 - **2026-10-18 input-boundary audit:** five researched follow-up tickets were
   created. Each is independently verifiable and has no blocking
   prerequisite. At the user's request, the two WRL findings share one decoder

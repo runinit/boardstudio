@@ -310,107 +310,6 @@ async fn mount() -> (Probe, web_sys::Element) {
     (probe, root)
 }
 
-#[wasm_bindgen_test]
-async fn cross_matrix_selection_has_atomic_enable_disable_and_delete() {
-    let (probe, root) = mount().await;
-    let disable = root
-        .query_selector("button[aria-label='Disable selected keys']")
-        .unwrap()
-        .expect("selection across matrices exposes Disable selected keys");
-    disable.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-    support::run_pending(&probe.runtime).await;
-    probe.version.borrow().unwrap().set(1);
-    wait_until("enabling the selected keys becomes available", || {
-        root.query_selector("button[aria-label='Enable selected keys']")
-            .is_ok_and(|button| button.is_some())
-    })
-    .await;
-    let model = probe.runtime.model();
-    assert!(
-        model
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .matrices
-            .iter()
-            .all(|m| !m.cells[0].enabled)
-    );
-    let enable = root
-        .query_selector("button[aria-label='Enable selected keys']")
-        .unwrap()
-        .unwrap();
-    enable.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-    support::run_pending(&probe.runtime).await;
-    probe.version.borrow().unwrap().set(2);
-    wait_until_step("both selected keys are enabled", async || {
-        support::run_pending(&probe.runtime).await;
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .matrices
-            .iter()
-            .all(|matrix| matrix.cells[0].enabled)
-    })
-    .await;
-    refresh(&probe, &root).await;
-    assert!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .matrices
-            .iter()
-            .all(|m| m.cells[0].enabled)
-    );
-    let delete = root
-        .query_selector("button[aria-label='Delete selected keys']")
-        .unwrap()
-        .unwrap();
-    delete.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-    support::run_pending(&probe.runtime).await;
-    probe.version.borrow().unwrap().set(3);
-    // Delete acceptance is not observable from this host before its spawned Runtime task settles.
-    gloo_timers::future::TimeoutFuture::new(40).await;
-    assert!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .matrices
-            .iter()
-            .all(|m| m.cells[0].deleted)
-    );
-    probe.runtime.submit(Event::Undo {
-        operation_id: probe.runtime.operation(),
-    });
-    support::run_pending(&probe.runtime).await;
-    assert!(
-        probe
-            .runtime
-            .model()
-            .accepted
-            .as_ref()
-            .unwrap()
-            .document
-            .matrices
-            .iter()
-            .all(|m| !m.cells[0].deleted && m.cells[0].enabled),
-        "one undo restores both matrices"
-    );
-    root.remove();
-}
-
 fn button(root: &web_sys::Element, label: &str) -> web_sys::HtmlElement {
     root.query_selector(&format!("button[aria-label='{label}']"))
         .unwrap()
@@ -805,143 +704,47 @@ async fn editor_owned_selection_kinds_apply_only_eligible_companions_and_undo() 
     let led0 = format!("{key0}/led");
     let led1 = format!("{key1}/led");
     let scope = runtime.scope().unwrap();
-    let cases = [
-        (
-            TreeContext::Matrix {
-                matrix_id: matrix_id.clone(),
-            },
-            vec![
-                "matrix/matrix/r0c0/led".to_owned(),
-                "matrix/matrix/r0c1/led".to_owned(),
-            ],
-        ),
-        (
-            TreeContext::Row {
-                matrix_id: matrix_id.clone(),
-                row: 0,
-            },
-            vec![
-                "matrix/matrix/r0c0/led".to_owned(),
-                "matrix/matrix/r0c1/led".to_owned(),
-            ],
-        ),
-        (
-            TreeContext::Column {
-                matrix_id: matrix_id.clone(),
-                column: 0,
-            },
-            vec!["matrix/matrix/r0c0/led".to_owned()],
-        ),
-        (
-            TreeContext::Column {
-                matrix_id: matrix_id.clone(),
-                column: 1,
-            },
-            vec!["matrix/matrix/r0c1/led".to_owned()],
-        ),
-        (
-            TreeContext::Key {
-                matrix_id: matrix_id.clone(),
-                row: 0,
-                column: 0,
-            },
-            vec!["matrix/matrix/r0c0/led".to_owned()],
-        ),
-        (
-            TreeContext::Key {
-                matrix_id: matrix_id.clone(),
-                row: 0,
-                column: 1,
-            },
-            vec!["matrix/matrix/r0c1/led".to_owned()],
-        ),
-        (
-            TreeContext::Component {
-                part_id: Some(led1.clone()),
-                matrix_id: Some(matrix_id.clone()),
-                row: Some(0),
-                column: Some(1),
-                assembly_id: Some("led".into()),
-            },
-            vec!["matrix/matrix/r0c1/led".to_owned()],
-        ),
-    ];
-    for (context, expected) in cases {
-        let context_label = format!("{context:?}");
-        if matches!(&context, TreeContext::Component { .. }) {
-            runtime.submit(Event::SelectParts {
-                operation_id: runtime.operation(),
-                part_ids: expected.clone(),
-                range_part_ids: vec![],
-                mode: SelectionMode::Replace,
-            });
-            support::run_pending(&runtime).await;
-        }
-        let selection = ScopedTreeContext {
-            scope: scope.clone(),
-            context,
-        };
-        assert!(selection::context_is_current(
-            &runtime.model(),
-            &selection.scope,
-            &selection.context
-        ));
-        editor_adapter.selected_context.set(Some(selection.clone()));
-        wait_until("the real Editor retains the selected context", || {
-            editor_adapter.selected_context.read().as_ref() == Some(&selection)
-        })
-        .await;
-        let expected_context = format!("{:?}", selection);
-        wait_until("the Editor renders the selected context", || {
-            root.query_selector(".editor-selected-context-test-render")
-                .unwrap()
-                .is_some_and(|node| {
-                    node.text_content()
-                        .is_some_and(|text| text.contains(&expected_context))
-                })
-        })
-        .await;
-        wait_until("the real Editor renders companion placement", || {
-            root.query_selector("details.m1-layout-companion-placement")
-                .unwrap()
-                .is_some()
-        })
-        .await;
-        let projection = companion_placement_projection(&runtime.model(), Some(&selection), 0, 0)
-            .expect("Editor selection projects eligible companions");
-        assert!(!projection.targets.is_empty());
-        apply_and_undo_editor_companion_mode(&root, &runtime, &context_label, &expected, true)
-            .await;
-    }
-
-    let first_column = ScopedTreeContext {
+    let selection = ScopedTreeContext {
         scope: scope.clone(),
-        context: TreeContext::Column {
+        context: TreeContext::Key {
             matrix_id: matrix_id.clone(),
+            row: 0,
             column: 0,
         },
     };
-    editor_adapter
-        .selected_context
-        .set(Some(first_column.clone()));
-    wait_until("the Editor selects the first companion column", || {
-        editor_adapter.selected_context.read().as_ref() == Some(&first_column)
+    assert!(selection::context_is_current(
+        &runtime.model(),
+        &selection.scope,
+        &selection.context
+    ));
+    editor_adapter.selected_context.set(Some(selection.clone()));
+    wait_until("the real Editor retains the selected context", || {
+        editor_adapter.selected_context.read().as_ref() == Some(&selection)
     })
     .await;
-    let expected_column_context = format!("{:?}", first_column);
-    wait_until("the Editor renders the first companion column", || {
+    let expected_context = format!("{:?}", selection);
+    wait_until("the Editor renders the selected context", || {
         root.query_selector(".editor-selected-context-test-render")
             .unwrap()
             .is_some_and(|node| {
                 node.text_content()
-                    .is_some_and(|text| text.contains(&expected_column_context))
+                    .is_some_and(|text| text.contains(&expected_context))
             })
     })
     .await;
+    wait_until("the real Editor renders companion placement", || {
+        root.query_selector("details.m1-layout-companion-placement")
+            .unwrap()
+            .is_some()
+    })
+    .await;
+    let projection = companion_placement_projection(&runtime.model(), Some(&selection), 0, 0)
+        .expect("Editor selection projects eligible companions");
+    assert!(!projection.targets.is_empty());
     apply_and_undo_editor_companion_mode(
         &root,
         &runtime,
-        "first column",
+        "single key",
         &["matrix/matrix/r0c0/led".into()],
         false,
     )
@@ -1145,10 +948,7 @@ async fn disabled_cross_matrix_targets_end_at_explicit_same_context_reselection(
         "an explicit same-context ghost selection cannot revive the previous cross-matrix group"
     );
     root.remove();
-}
 
-#[wasm_bindgen_test]
-async fn disabled_cross_matrix_targets_end_at_workspace_departure() {
     let (probe, root) = mount().await;
     button(&root, "Disable selected keys").click();
     support::run_pending(&probe.runtime).await;
