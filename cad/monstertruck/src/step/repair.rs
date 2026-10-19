@@ -3,6 +3,7 @@ mod conic;
 mod cuboid;
 mod finite_curve;
 mod finite_line;
+mod spelling;
 use super::*;
 pub(super) use cuboid::Cuboid;
 use monstertruck_io::step::load::step_geometry::{Conic3D, Curve3D};

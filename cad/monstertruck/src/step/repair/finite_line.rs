@@ -41,41 +41,70 @@ fn decimal(literal: &str) -> Option<Q> {
         return None;
     }
     let fraction = mantissa.split_once('.').map_or(0, |(_, tail)| tail.len());
-    let digits = mantissa.replace('.', "");
-    let power = exponent - i32::try_from(fraction).ok()?;
-    let value = if power >= 0 {
-        format!("{}{}", digits, "0".repeat(power as usize))
-    } else {
-        format!("{digits}/1{}", "0".repeat((-power) as usize))
+    let (negative, mantissa) = match mantissa.as_bytes().first() {
+        Some(b'-') => (true, &mantissa[1..]),
+        Some(b'+') => (false, &mantissa[1..]),
+        _ => (false, mantissa),
     };
-    value.parse().ok()
-}
-
-fn numeric_values(mut entity: &str) -> Option<Vec<Q>> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(3).ok()?;
-    while !entity.is_empty() {
-        if let Ok((rest, _)) = parser::combinator::separator(entity) {
-            entity = rest;
-        } else if entity.starts_with('\'') {
-            entity = parser::token::string(entity).ok()?.0;
-        } else if entity.starts_with('#') {
-            entity = parser::token::entity_instance_name(entity).ok()?.0;
-        } else if entity.as_bytes()[0].is_ascii_uppercase() {
-            entity = parser::token::standard_keyword(entity).ok()?.0;
-        } else if matches!(entity.as_bytes()[0], b'+' | b'-' | b'.' | b'0'..=b'9') {
-            if values.len() == 3 {
+    let mut digits = Q::zero().to_integer();
+    let mut count = 0;
+    let mut dots = 0;
+    for byte in mantissa.bytes() {
+        if byte == b'.' {
+            dots += 1;
+            if dots > 1 {
                 return None;
             }
-            let rest = parser::token::real(entity)
-                .map(|(rest, _)| rest)
-                .or_else(|_| parser::token::integer(entity).map(|(rest, _)| rest))
-                .ok()?;
-            // The outer parser has already sealed this entity span. Failure is
-            // local to its source ID; other complete authority survives.
-            values.push(decimal(&entity[..entity.len() - rest.len()])?);
+        } else if byte.is_ascii_digit() {
+            digits *= 10;
+            digits += byte - b'0';
+            count += 1;
+        } else {
+            return None;
+        }
+    }
+    if count == 0 {
+        return None;
+    }
+    let power = exponent - i32::try_from(fraction).ok()?;
+    let digits = if negative { -digits } else { digits };
+    Some(Q::from_integer(digits) * Q::from_integer(10.into()).pow(power))
+}
+
+struct Scalars {
+    values: [Q; 3],
+    len: usize,
+}
+impl Scalars {
+    fn as_slice(&self) -> &[Q] {
+        &self.values[..self.len]
+    }
+    fn point(&self) -> Option<Point> {
+        (self.len == 3).then(|| self.values.clone())
+    }
+}
+
+fn numeric_values(mut entity: &[u8]) -> Option<Scalars> {
+    let mut values = Scalars {
+        values: std::array::from_fn(|_| Q::zero()),
+        len: 0,
+    };
+    while !entity.is_empty() {
+        entity = spelling::separators(entity)?;
+        if entity.is_empty() {
+            break;
+        }
+        if entity.starts_with(b"'") {
+            entity = spelling::string(entity)?;
+        } else if entity.starts_with(b"#") {
+            entity = spelling::reference(entity)?.0;
+        } else if matches!(entity[0], b'+' | b'-' | b'0'..=b'9') {
+            let slot = values.values.get_mut(values.len)?;
+            let (rest, literal) = spelling::number(entity)?;
+            *slot = decimal(literal)?;
+            values.len += 1;
             entity = rest;
-        } else if matches!(entity.as_bytes()[0], b'(' | b')' | b',' | b'=' | b';') {
+        } else if matches!(entity[0], b'(' | b')' | b',') {
             entity = &entity[1..];
         } else {
             return None;
@@ -84,43 +113,22 @@ fn numeric_values(mut entity: &str) -> Option<Vec<Q>> {
     Some(values)
 }
 
-// Part21's own parsers delimit instances/tokens; strings/comments/references never
-// become coordinate authority. Keep the original numeric spelling, not AST f64.
-fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Vec<Q>>> {
-    let text = units::decode_step_bytes(bytes);
-    let mut input = text.as_str();
+// Only source IDs requested by the parsed Table can supply numeric authority.
+// Strings, comments and complex records never supply coordinates.
+fn numbers(bytes: &[u8], needed: &HashSet<u64>) -> Option<HashMap<u64, Scalars>> {
     let mut result = HashMap::new();
     let mut seen = HashSet::new();
-    while !input.is_empty() {
-        if let Ok((rest, _)) = parser::combinator::separator(input) {
-            input = rest;
-        } else if input.starts_with('\'') {
-            input = parser::token::string(input).ok()?.0;
-        } else if input.starts_with('#') {
-            let (rest, instance) = parser::exchange::entity_instance(input).ok()?;
-            let (id, record) = match instance {
-                EntityInstance::Simple { id, record } => (id, Some(record)),
-                EntityInstance::Complex { id, .. } => (id, None),
-            };
-            let wanted = needed.contains(&id);
-            let unique = !wanted || seen.insert(id);
-            if wanted && !unique {
-                result.remove(&id);
-            }
-            if wanted
-                && unique
-                && let Some(record) = record
-                && matches!(
-                    record.name.as_str(),
-                    "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
-                )
-                && let Some(values) = numeric_values(&input[..input.len() - rest.len()])
-            {
-                result.insert(id, values);
-            }
-            input = rest;
-        } else {
-            input = &input[input.chars().next()?.len_utf8()..];
+    for instance in spelling::instances(bytes) {
+        let instance = instance?;
+        if !needed.contains(&instance.id) {
+            continue;
+        }
+        if !seen.insert(instance.id) {
+            result.remove(&instance.id);
+        } else if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR")
+            && let Some(values) = numeric_values(instance.parameters)
+        {
+            result.insert(instance.id, values);
         }
     }
     Some(result)
@@ -157,7 +165,7 @@ pub(super) fn capture(table: &Table, bytes: &[u8]) -> HashMap<u64, Source> {
     let Some(numbers) = numbers(bytes, &needed) else {
         return HashMap::new();
     };
-    let point = |id| -> Option<Point> { numbers.get(&id)?.clone().try_into().ok() };
+    let point = |id| -> Option<Point> { numbers.get(&id)?.point() };
     let vertex = |holder: &PlaceHolder<VertexPointHolder>| -> Option<Point> {
         point(entity_id(
             &table.vertex_point.get(&entity_id(holder)?)?.vertex_geometry,
@@ -372,6 +380,70 @@ impl Source {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn numeric_authority_does_not_copy_ignored_labels_or_source_text() {
+        let label = "x".repeat(131_072);
+        let source = format!(
+            "#1=CARTESIAN_POINT('{label}',(0.,1.,2.));\n\
+             /* {label} #1=CARTESIAN_POINT('',(9.,9.,9.)); */\n\
+             #99=IGNORED('{label}'';#1=CARTESIAN_POINT('''',(9.,9.,9.));');\n\
+             #2=DIRECTION('',(0.,1.,0.));\n\
+             #2=(DIRECTION('',(0.,1.,0.))VECTOR('',#1,1.));"
+        );
+        let needed = HashSet::from([1, 2]);
+        let (authority, largest) =
+            crate::allocation_tests::largest_request(|| numbers(source.as_bytes(), &needed));
+        let authority = authority.unwrap();
+        assert_eq!(
+            authority[&1].as_slice(),
+            &[
+                Q::zero(),
+                Q::from_integer(1.into()),
+                Q::from_integer(2.into())
+            ]
+        );
+        assert!(!authority.contains_key(&2));
+        assert!(largest < 4096, "numeric spelling allocated {largest} bytes");
+    }
+
+    #[test]
+    fn numeric_spelling_keeps_exact_decimals_and_opaque_metadata() {
+        for (literal, rational) in [
+            ("+12.50E-1", "5/4"),
+            ("-0.025", "-1/40"),
+            ("1.E+2", "100"),
+            ("0.E-64", "0"),
+        ] {
+            assert_eq!(decimal(literal), Some(rational.parse::<Q>().unwrap()));
+        }
+        for literal in ["1.E65", "1.E-65", "1..0", ".", "+", "1 0"] {
+            assert!(decimal(literal).is_none(), "{literal}");
+        }
+        assert!(decimal(&"1".repeat(81)).is_none());
+
+        let mut bytes = b"HEADER(('ignore #1=VECTOR('',#2,4.);'));/* #1= */\n\
+            #001 /* label */ = CARTESIAN_POINT('a'';#1=\xff',(-0.025,+12.50E-1,1.E+2));\n\
+            #2=(DIRECTION('',(0.,1.,0.))VECTOR('',#1,1.));\n\
+            #3=VECTOR('',#1,2.);\n\
+            #3=IGNORED('duplicate');"
+            .to_vec();
+        let needed = HashSet::from([1, 2, 3]);
+        let authority = numbers(&bytes, &needed).unwrap();
+        assert_eq!(authority.len(), 1);
+        assert_eq!(
+            authority[&1].as_slice(),
+            &[
+                "-1/40".parse().unwrap(),
+                "5/4".parse().unwrap(),
+                "100".parse().unwrap()
+            ]
+        );
+        bytes.extend_from_slice(b"/* unterminated");
+        assert!(numbers(&bytes, &needed).is_none());
+    }
+
     #[test]
     fn unsupported_or_ambiguous_scalar_entities_do_not_erase_other_authority() {
         let clear = "#1=CARTESIAN_POINT('',(0.,1.,2.));";
@@ -384,8 +456,8 @@ mod tests {
             let source = format!("{clear}{other}");
             let authority = numbers(source.as_bytes(), &HashSet::from([1, 2])).unwrap();
             assert_eq!(
-                authority[&1],
-                vec![
+                authority[&1].as_slice(),
+                &[
                     Q::zero(),
                     Q::from_integer(1.into()),
                     Q::from_integer(2.into())

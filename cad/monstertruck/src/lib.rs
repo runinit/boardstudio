@@ -28,6 +28,9 @@ mod export_tests;
 #[cfg(test)]
 mod step_accuracy;
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod allocation_tests;
+
 mod collision_qualification;
 
 /// Immutable final-mesh qualification and bounded exact queries.

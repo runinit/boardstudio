@@ -12,33 +12,47 @@ type Point = [f64; 3];
 type FaceLoop = (u64, bool, Vec<(u64, bool)>);
 
 struct Document<'a> {
-    records: HashMap<u64, Vec<&'a Record>>,
-    integers: HashMap<u64, Vec<f64>>,
+    records: Vec<&'a EntityInstance>,
+    bytes: &'a [u8],
 }
 
 impl<'a> Document<'a> {
-    fn new(bytes: &[u8], original: &'a Exchange) -> Option<Self> {
+    fn new(bytes: &'a [u8], original: &'a Exchange) -> Option<Self> {
         let [data] = original.data.as_slice() else {
             return None;
         };
-        let mut records = HashMap::new();
-        for instance in &data.entities {
-            let (id, parts) = match instance {
-                EntityInstance::Simple { id, record } => (*id, vec![record]),
-                EntityInstance::Complex { id, subsuper } => (*id, subsuper.0.iter().collect()),
-            };
-            if records.insert(id, parts).is_some() {
-                return None;
-            }
+        let count = data.entities.len();
+        if count > 1_000_000 || count.checked_mul(size_of::<&EntityInstance>())? > 256 * 1024 * 1024
+        {
+            return None;
         }
-        Some(Self {
-            records,
-            integers: lexemes::integers(bytes)?,
-        })
+        let mut records = Vec::new();
+        records.try_reserve_exact(count).ok()?;
+        records.extend(&data.entities);
+        if records.capacity() > count {
+            return None;
+        }
+        records.sort_unstable_by_key(|instance| parts(instance).0);
+        if records
+            .windows(2)
+            .any(|pair| parts(pair[0]).0 == parts(pair[1]).0)
+        {
+            return None;
+        }
+        lexemes::validate(bytes)?;
+        Some(Self { records, bytes })
+    }
+
+    fn parts(&self, id: u64) -> Option<&[Record]> {
+        let index = self
+            .records
+            .binary_search_by_key(&id, |instance| parts(instance).0)
+            .ok()?;
+        Some(parts(self.records[index]).1)
     }
 
     fn params(&self, id: u64, name: &str, count: usize) -> Option<&[Parameter]> {
-        let [record] = self.records.get(&id)?.as_slice() else {
+        let [record] = self.parts(id)? else {
             return None;
         };
         if record.name != name {
@@ -52,7 +66,7 @@ impl<'a> Document<'a> {
         if list(&params[1])?.len() != 3 {
             return None;
         }
-        self.integers.get(&id)?.as_slice().try_into().ok()
+        lexemes::values(self.bytes, id)?.as_slice().try_into().ok()
     }
 
     fn vertex(&self, id: u64) -> Option<Point> {
@@ -70,7 +84,8 @@ impl<'a> Document<'a> {
         // filter. Unknown records retain the asset's unknown movement result.
         // A rounded assembly/map identity is not original identity authority.
         let mut representations = 0;
-        for (&id, parts) in &self.records {
+        for instance in &self.records {
+            let (id, parts) = parts(instance);
             for part in parts {
                 match part.name.as_str() {
                     "ADVANCED_BREP_SHAPE_REPRESENTATION" => {
@@ -128,12 +143,11 @@ impl<'a> Document<'a> {
         if reference(item)? != solid {
             return None;
         }
-        let context = self.records.get(&reference(&params[2])?)?;
-        let assigned: Vec<_> = context
+        let context = self.parts(reference(&params[2])?)?;
+        let mut assigned = context
             .iter()
-            .filter(|r| r.name == "GLOBAL_UNIT_ASSIGNED_CONTEXT")
-            .collect();
-        let [assigned] = assigned.as_slice() else {
+            .filter(|r| r.name == "GLOBAL_UNIT_ASSIGNED_CONTEXT");
+        let (Some(assigned), None) = (assigned.next(), assigned.next()) else {
             return None;
         };
         let [set] = list(&assigned.parameter)? else {
@@ -142,7 +156,7 @@ impl<'a> Document<'a> {
         let [unit] = list(set)? else {
             return None;
         };
-        let parts = self.records.get(&reference(unit)?)?;
+        let parts = self.parts(reference(unit)?)?;
         if parts.len() != 3
             || !parts.iter().any(|r| r.name == "LENGTH_UNIT" && list(&r.parameter) == Some(&[][..]))
             || !parts.iter().any(|r| r.name == "NAMED_UNIT" && list(&r.parameter) == Some(&[Parameter::Omitted][..]))
@@ -151,6 +165,13 @@ impl<'a> Document<'a> {
             return None;
         }
         Some(())
+    }
+}
+
+fn parts(instance: &EntityInstance) -> (u64, &[Record]) {
+    match instance {
+        EntityInstance::Simple { id, record } => (*id, std::slice::from_ref(record)),
+        EntityInstance::Complex { id, subsuper } => (*id, &subsuper.0),
     }
 }
 
@@ -271,7 +292,7 @@ impl<'a> Cuboid<'a> {
                     let origin = doc.triple(reference(&line[1])?, "CARTESIAN_POINT")?;
                     let vector_id = reference(&line[2])?;
                     let vec = doc.params(vector_id, "VECTOR", 3)?;
-                    if doc.integers.get(&vector_id)?.as_slice() != [1.0] {
+                    if lexemes::values(doc.bytes, vector_id)?.as_slice() != [1.0] {
                         return None;
                     }
                     let direction = doc.triple(reference(&vec[1])?, "DIRECTION")?;
@@ -624,6 +645,38 @@ impl Edge {
 mod tests {
     use super::*;
     use monstertruck_meshing::tessellation::TessellationOptions;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cuboid_census_borrows_large_unrelated_records() {
+        let original = include_str!("../../../tests/fixtures/zero-repair-cuboid-mm.step");
+        let label = "x".repeat(1024);
+        let mut padding = String::new();
+        for id in 10_000..12_048 {
+            padding.push_str(&format!("#{id}=PRODUCT('{label}','','',());\n"));
+        }
+        let end = original.rfind("ENDSEC;").unwrap();
+        let source = format!("{}{padding}{}", &original[..end], &original[end..]);
+        let exchange = parser::parse(&source).unwrap();
+        let (document, largest) = crate::allocation_tests::largest_request(|| {
+            Document::new(source.as_bytes(), &exchange)
+        });
+        let document = document.unwrap();
+        assert!(document.explicit_mm(304, 301).is_some());
+        assert!(
+            largest <= exchange.data[0].entities.len() * size_of::<&EntityInstance>(),
+            "cuboid census allocated {largest} bytes"
+        );
+
+        let unsupported = source.replace("#10000=PRODUCT(", "#10000=UNKNOWN_GEOMETRY(");
+        let exchange = parser::parse(&unsupported).unwrap();
+        assert!(
+            Document::new(unsupported.as_bytes(), &exchange)
+                .unwrap()
+                .explicit_mm(304, 301)
+                .is_none()
+        );
+    }
 
     #[test]
     fn real_tessellation_requires_whole_boundaries_and_unchanged_normalization() {

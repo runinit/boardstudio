@@ -1,71 +1,69 @@
-//! Recover numeric spellings with the existing Part21 token/instance parsers.
-//! This is a strict integer authority for points, directions and vectors, not a STEP parser.
+//! Integer authority for the narrow cuboid proof, borrowed from original spellings.
 use super::*;
 
-pub(super) fn integers(bytes: &[u8]) -> Option<HashMap<u64, Vec<f64>>> {
+pub(super) struct Scalars {
+    values: [f64; 3],
+    len: usize,
+}
+impl Scalars {
+    pub(super) fn as_slice(&self) -> &[f64] {
+        &self.values[..self.len]
+    }
+}
+
+pub(super) fn validate(bytes: &[u8]) -> Option<()> {
     if !bytes.is_ascii() {
         return None;
     }
-    let mut input = std::str::from_utf8(bytes).ok()?;
-    let mut result = HashMap::new();
-    while !input.is_empty() {
-        if let Ok((rest, _)) = parser::combinator::separator(input) {
-            input = rest;
-        } else if input.starts_with('\'') {
-            input = parser::token::string(input).ok()?.0;
-        } else if input.starts_with('#') {
-            let (rest, instance) = parser::exchange::entity_instance(input).ok()?;
-            if let EntityInstance::Simple { id, record } = instance
-                && matches!(
-                    record.name.as_str(),
-                    "CARTESIAN_POINT" | "DIRECTION" | "VECTOR"
-                )
-            {
-                let values = geometry_numbers(&input[..input.len() - rest.len()])?;
-                if result.insert(id, values).is_some() {
-                    return None;
-                }
-            }
-            input = rest;
-        } else if input.starts_with('"') {
-            return None;
-        } else {
-            input = &input[1..];
+    for instance in spelling::instances(bytes) {
+        let instance = instance?;
+        if matches!(instance.kind, b"CARTESIAN_POINT" | b"DIRECTION" | b"VECTOR") {
+            geometry_numbers(instance.parameters)?;
         }
     }
-    Some(result)
+    Some(())
 }
 
-fn geometry_numbers(mut input: &str) -> Option<Vec<f64>> {
-    let mut result = Vec::new();
+pub(super) fn values(bytes: &[u8], id: u64) -> Option<Scalars> {
+    // Document checked every parsed ID for uniqueness and every numeric record
+    // before these lookups; retain no per-entity numeric map or label copies.
+    for instance in spelling::instances(bytes) {
+        let instance = instance?;
+        if instance.id == id {
+            return geometry_numbers(instance.parameters);
+        }
+    }
+    None
+}
+
+fn geometry_numbers(mut input: &[u8]) -> Option<Scalars> {
+    let mut result = Scalars {
+        values: [0.0; 3],
+        len: 0,
+    };
     while !input.is_empty() {
-        if let Ok((rest, _)) = parser::combinator::separator(input) {
-            input = rest;
-        } else if input.starts_with('\'') {
-            input = parser::token::string(input).ok()?.0;
-        } else if input.starts_with('#') {
-            input = parser::token::entity_instance_name(input).ok()?.0;
-        } else if input.as_bytes()[0].is_ascii_uppercase() {
-            input = parser::token::standard_keyword(input).ok()?.0;
-        } else if matches!(input.as_bytes()[0], b'+' | b'-' | b'0'..=b'9') {
-            let (rest, parsed) = parser::token::real(input)
-                .or_else(|_| {
-                    parser::token::integer(input).map(|(rest, value)| (rest, value as f64))
-                })
-                .ok()?;
-            let literal = &input[..input.len() - rest.len()];
+        input = spelling::separators(input)?;
+        if input.is_empty() {
+            break;
+        }
+        if input.starts_with(b"'") {
+            input = spelling::string(input)?;
+        } else if input.starts_with(b"#") {
+            input = spelling::reference(input)?.0;
+        } else if matches!(input[0], b'+' | b'-' | b'0'..=b'9') {
+            let (rest, literal) = spelling::number(input)?;
             let (whole, fraction) = literal.split_once('.').unwrap_or((literal, ""));
             if !fraction.bytes().all(|b| b == b'0') {
                 return None;
             }
             let integer = whole.parse::<i64>().ok()?;
-            // Exact binary64 integers and bounded differences/products in this class.
-            if !(-(1 << 20)..=(1 << 20)).contains(&integer) || parsed != integer as f64 {
+            if !(-(1 << 20)..=(1 << 20)).contains(&integer) {
                 return None;
             }
-            result.push(integer as f64);
+            *result.values.get_mut(result.len)? = integer as f64;
+            result.len += 1;
             input = rest;
-        } else if matches!(input.as_bytes()[0], b'(' | b')' | b',' | b'=' | b';') {
+        } else if matches!(input[0], b'(' | b')' | b',') {
             input = &input[1..];
         } else {
             return None;
