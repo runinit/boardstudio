@@ -6,6 +6,7 @@
 //! crate as a whole is mixed-licence once they land).
 #![forbid(unsafe_code)]
 
+pub mod build;
 pub mod context;
 pub mod definition;
 pub mod error;

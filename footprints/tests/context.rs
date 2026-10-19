@@ -105,7 +105,7 @@ static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "test",
     },
-    body,
+    body: boardstudio_footprints::registry::Body::Text(body),
 };
 
 fn render(case: &Value) -> (Result<Vec<String>>, Option<Vec<ReservedNet>>) {

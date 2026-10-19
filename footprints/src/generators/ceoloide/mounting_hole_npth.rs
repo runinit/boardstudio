@@ -8,7 +8,8 @@
 //! `hole_size` and `hole_drill` are numbers; the source declared them as strings.
 use crate::Result;
 use crate::context::RenderContext;
-use crate::number::js_number as n;
+use crate::Expr;
+use crate::build::{at, atom, effects, form, layer, nums, placement, string};
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
 use crate::types::PartKind;
@@ -31,35 +32,39 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@ceoloide",
     },
-    body,
+    body: crate::registry::Body::Forms(body),
 };
 
-fn body(p: &RenderContext<'_>) -> Result<String> {
-    let side = p.side();
-    let size = n(p.number("hole_size"));
-    Ok(format!(
-        r#"
-  (footprint "ceoloide:mounting_hole_npth"
-    (layer "{side}.Cu")
-    {at}
-    (property "Reference" "{reference}"
-      (at 0 2.55 {rotation})
-      (layer "{side}.SilkS")
-      {hide}
-      (effects (font (size 1 1) (thickness 0.15)))
-    )
-    (pad "" np_thru_hole circle
-      (at 0 0 {rotation})
-      (size {size} {size})
-      (drill {drill})
-      (layers "*.Cu" "*.Mask")
-    )
-  )
-"#,
-        at = p.at(),
-        reference = p.reference(),
-        rotation = n(p.rotation()),
-        hide = p.ref_hide(),
-        drill = n(p.number("hole_drill")),
-    ))
+fn body(p: &RenderContext<'_>) -> Result<Vec<Expr>> {
+    let size = p.number("hole_size");
+    Ok(vec![form(
+        "footprint",
+        [
+            string("ceoloide:mounting_hole_npth"),
+            layer(p, "Cu"),
+            placement(p),
+            form(
+                "property",
+                [
+                    string("Reference"),
+                    string(p.reference()),
+                    at(0.0, 2.55, p.rotation()),
+                    layer(p, "SilkS"),
+                    effects(1.0, 0.15),
+                ],
+            ),
+            form(
+                "pad",
+                [
+                    string(""),
+                    atom("np_thru_hole"),
+                    atom("circle"),
+                    at(0.0, 0.0, p.rotation()),
+                    nums("size", &[size, size]),
+                    nums("drill", &[p.number("hole_drill")]),
+                    form("layers", [string("*.Cu"), string("*.Mask")]),
+                ],
+            ),
+        ],
+    )])
 }

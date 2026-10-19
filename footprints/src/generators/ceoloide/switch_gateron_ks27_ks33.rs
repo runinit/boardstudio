@@ -67,7 +67,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "MIT",
         author: "@nxtk",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {

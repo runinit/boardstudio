@@ -30,7 +30,7 @@ pub static SPEC: GeneratorSpec = GeneratorSpec {
         spdx: "CC-BY-NC-SA-4.0",
         author: "@infused-kim",
     },
-    body,
+    body: crate::registry::Body::Text(body),
 };
 
 fn body(p: &RenderContext<'_>) -> Result<String> {
