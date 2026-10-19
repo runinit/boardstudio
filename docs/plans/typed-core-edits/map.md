@@ -24,6 +24,15 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
+- **2026-10-18 retro follow-ups:** the user requested primary-source research and
+  one ticket for each of four environment improvements. Each is independently
+  startable and `ready-for-agent`; no implementation or gate completion is claimed:
+  - [166: Lint the WASM Runtime with Clippy](issues/166-lint-wasm-runtime-with-clippy.md).
+  - [167: Guide authors to the complete collision-test fixture](issues/167-guide-complete-collision-test-fixtures.md).
+  - [168: Return compact orchestration model lookups](issues/168-filter-orchestration-model-lookups.md).
+  - [169: Generate scoped verification receipts for reviews](issues/169-generate-scoped-verification-receipts.md).
+  Each ticket links its research note, boundaries and executable acceptance criteria.
+
 - **2026-10-18 audit follow-ups:** the user requested a ticket for each finding
   from the recent-change audit at `f955050c3`. All four are **resolved**, integrated
   through `ed7fe9d5f`. Full `scripts/check.py` passed all six gates (1005.7 s), fresh
