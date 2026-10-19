@@ -21,6 +21,14 @@ pub(crate) use endpoints::ConstraintEndpoint;
 pub(crate) use endpoints::{FramedConstraint, compile_legacy};
 pub(crate) use relation::ConstraintRelation;
 
+/// Conservative bound on concurrently active constraint dependencies.
+///
+/// Every dependency edge (source authority, framed source/target owner and implicit
+/// assembly parent) recurses through [`pose`], so one named budget covers them all. The
+/// value is chosen and pinned by below/at/above boundary tests on both native and packaged
+/// WASM while leaving ordinary design chains ample room.
+const MAX_DEPENDENCY_DEPTH: usize = 256;
+
 /// Outcome for the mirrored edit preparer when a moved target has an owner-dependent view.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PreparedTargetRetune {
@@ -553,9 +561,17 @@ fn pose(
     if let Some(value) = resolved.get(id) {
         return Ok(*value);
     }
-    if !visiting.insert(id.to_string()) {
+    // Report a repeated active node as a cycle even when the path is already at the
+    // budget, so cycle detection keeps its precedence over depth exhaustion.
+    if visiting.contains(id) {
         return Err(format!("Constraint cycle includes part {id}"));
     }
+    if visiting.len() >= MAX_DEPENDENCY_DEPTH {
+        return Err(format!(
+            "Constraint dependency depth exceeds the limit of {MAX_DEPENDENCY_DEPTH} active parts"
+        ));
+    }
+    visiting.insert(id.to_string());
     // An explicit framed relation outranks the implicit companion placement, as a stored one
     // does: the accepted design's "Compiler, solver and canonical edit flow" step 3
     // (docs/plans/typed-core-edits/design/139-generalized-mirrored-constraint-model.md) keeps
@@ -791,5 +807,228 @@ mod tests {
                 assert_eq!(doc, before, "a missing {missing} changed the document");
             }
         }
+    }
+
+    fn chain_id(index: usize) -> String {
+        format!("p{index:05}")
+    }
+
+    fn chain_parts(count: usize) -> BTreeMap<String, Pose2> {
+        (0..count)
+            .map(|index| {
+                (
+                    chain_id(index),
+                    Pose2 {
+                        at: Vec2 {
+                            x: index as f64 * 10.0,
+                            y: 0.0,
+                        },
+                        rotation: 0.0,
+                    },
+                )
+            })
+            .collect()
+    }
+
+    fn linear_drivers<'a>(
+        count: usize,
+        relation: &'a ConstraintRelation,
+    ) -> BTreeMap<String, Driver<'a>> {
+        (0..count - 1)
+            .map(|index| {
+                (
+                    chain_id(index),
+                    Driver::Framed(Framed {
+                        id: "linear",
+                        source_authority: chain_id(index + 1),
+                        source_frame: EndpointFrame::Identity,
+                        target_frame: EndpointFrame::Identity,
+                        source_owner: None,
+                        target_owner: None,
+                        relation,
+                    }),
+                )
+            })
+            .collect()
+    }
+
+    fn resolve_active_chain(count: usize) -> Result<Pose2, String> {
+        let parts = chain_parts(count);
+        let relation = ConstraintRelation::Offset {
+            offset: Vec2 { x: 10.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        let constraints = linear_drivers(count, &relation);
+        let assemblies = BTreeMap::new();
+        let mut resolved = BTreeMap::new();
+        let mut visiting = BTreeSet::new();
+        pose(
+            &chain_id(0),
+            &parts,
+            &constraints,
+            &assemblies,
+            &mut resolved,
+            &mut visiting,
+        )
+    }
+
+    #[test]
+    fn active_dependency_depth_accepts_below_and_at_budget_and_refuses_above() {
+        assert!(resolve_active_chain(MAX_DEPENDENCY_DEPTH - 1).is_ok());
+        assert!(resolve_active_chain(MAX_DEPENDENCY_DEPTH).is_ok());
+        let refused = resolve_active_chain(MAX_DEPENDENCY_DEPTH + 1).unwrap_err();
+        assert!(
+            refused.contains("depth exceeds")
+                && refused.contains(&MAX_DEPENDENCY_DEPTH.to_string()),
+            "{refused}"
+        );
+    }
+
+    #[test]
+    fn a_twelve_thousand_part_acyclic_chain_is_refused_without_a_stack_overflow() {
+        let refused = resolve_active_chain(12_000).unwrap_err();
+        assert!(refused.contains("depth exceeds"), "{refused}");
+    }
+
+    #[test]
+    fn source_owner_and_target_owner_edges_share_the_active_depth_budget() {
+        let relation = ConstraintRelation::Offset {
+            offset: Vec2 { x: 1.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        for source_side in [true, false] {
+            let count = MAX_DEPENDENCY_DEPTH;
+            let parts = chain_parts(count);
+            let mut constraints = BTreeMap::new();
+            // The owner chain is itself linear, so every recursion step has one
+            // active dependency and the budget counts it.
+            for index in 0..count - 1 {
+                constraints.insert(
+                    chain_id(index),
+                    Driver::Framed(Framed {
+                        id: "owner-chain",
+                        source_authority: chain_id(index + 1),
+                        source_frame: EndpointFrame::Identity,
+                        target_frame: EndpointFrame::Identity,
+                        source_owner: None,
+                        target_owner: None,
+                        relation: &relation,
+                    }),
+                );
+            }
+            constraints.insert(
+                "target".into(),
+                Driver::Framed(Framed {
+                    id: "owner-edge",
+                    source_authority: "source".into(),
+                    source_frame: EndpointFrame::Identity,
+                    target_frame: EndpointFrame::Identity,
+                    source_owner: source_side.then(|| chain_id(0)),
+                    target_owner: (!source_side).then(|| chain_id(0)),
+                    relation: &relation,
+                }),
+            );
+            let mut owner_parts = parts;
+            owner_parts.insert(
+                "source".into(),
+                Pose2 {
+                    at: Vec2 { x: 0.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+            );
+            owner_parts.insert(
+                "target".into(),
+                Pose2 {
+                    at: Vec2 { x: 1.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+            );
+            let mut resolved = BTreeMap::new();
+            let mut visiting = BTreeSet::new();
+            let refused = pose(
+                "target",
+                &owner_parts,
+                &constraints,
+                &BTreeMap::new(),
+                &mut resolved,
+                &mut visiting,
+            )
+            .unwrap_err();
+            assert!(
+                refused.contains("depth exceeds"),
+                "{} owner edge: {refused}",
+                if source_side { "source" } else { "target" }
+            );
+        }
+    }
+
+    #[test]
+    fn implicit_assembly_parents_share_the_active_depth_budget() {
+        let count = MAX_DEPENDENCY_DEPTH + 1;
+        let parts = chain_parts(count);
+        let assemblies: BTreeMap<_, _> = (0..count - 1)
+            .map(|index| {
+                (
+                    chain_id(index),
+                    AssemblyPlacement {
+                        parent_id: chain_id(index + 1),
+                        local_pose: Pose2 {
+                            at: Vec2 { x: 1.0, y: 0.0 },
+                            rotation: 0.0,
+                        },
+                        authored_pose: None,
+                        mode: MatrixCompanionMode::Follows,
+                    },
+                )
+            })
+            .collect();
+        let mut resolved = BTreeMap::new();
+        let mut visiting = BTreeSet::new();
+        let refused = pose(
+            &chain_id(0),
+            &parts,
+            &BTreeMap::new(),
+            &assemblies,
+            &mut resolved,
+            &mut visiting,
+        )
+        .unwrap_err();
+        assert!(refused.contains("depth exceeds"), "{refused}");
+    }
+
+    #[test]
+    fn a_cycle_still_reports_as_a_cycle_at_the_depth_budget() {
+        let count = MAX_DEPENDENCY_DEPTH;
+        let parts = chain_parts(count);
+        let relation = ConstraintRelation::Offset {
+            offset: Vec2 { x: 1.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        let mut constraints = linear_drivers(count, &relation);
+        constraints.insert(
+            chain_id(count - 1),
+            Driver::Framed(Framed {
+                id: "cycle",
+                source_authority: chain_id(0),
+                source_frame: EndpointFrame::Identity,
+                target_frame: EndpointFrame::Identity,
+                source_owner: None,
+                target_owner: None,
+                relation: &relation,
+            }),
+        );
+        let mut resolved = BTreeMap::new();
+        let mut visiting = BTreeSet::new();
+        let error = pose(
+            &chain_id(0),
+            &parts,
+            &constraints,
+            &BTreeMap::new(),
+            &mut resolved,
+            &mut visiting,
+        )
+        .unwrap_err();
+        assert!(error.contains("cycle"), "{error}");
+        assert!(!error.contains("depth"), "{error}");
     }
 }

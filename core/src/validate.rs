@@ -1,6 +1,34 @@
 use crate::model::{CaseKind, Finding, HardwareOutput, MountKind, ProjectDoc, Scope, Severity};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Rejects duplicate identities in each top-level identity collection.
+///
+/// Duplicates are compared within one collection, not across entity kinds. Admission runs
+/// this before scripts or layout normalization, and publication runs it again on the
+/// generated document, so a later stage cannot hide or introduce an ambiguous identity.
+pub(crate) fn duplicate_top_level_identity(doc: &ProjectDoc) -> Option<String> {
+    fn duplicate<'a>(kind: &str, ids: impl Iterator<Item = &'a str>) -> Option<String> {
+        let mut seen = BTreeSet::new();
+        for id in ids {
+            if !seen.insert(id) {
+                return Some(format!("Duplicate {kind} identity {id:?}"));
+            }
+        }
+        None
+    }
+    duplicate("part", doc.parts.iter().map(|entry| entry.id.as_str()))
+        .or_else(|| {
+            duplicate(
+                "definition",
+                doc.definitions.iter().map(|entry| entry.id.as_str()),
+            )
+        })
+        .or_else(|| duplicate("board", doc.boards.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("matrix", doc.matrices.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("net", doc.nets.iter().map(|entry| entry.id.as_str())))
+        .or_else(|| duplicate("constraint", doc.constraints.iter().map(|entry| entry.id())))
+}
+
 fn error(scope: Scope, id: String, message: &str, targets: Vec<String>) -> Finding {
     Finding {
         id,

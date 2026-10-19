@@ -250,10 +250,7 @@ fn pack(files: &[(&str, &[u8])], limit: Option<usize>) -> Result<Vec<u8>, String
             return Err("Duplicate archive entry".into());
         }
     }
-    let output = BoundedWriter {
-        inner: Cursor::new(Vec::new()),
-        limit,
-    };
+    let output = BoundedWriter::new(limit);
     let mut writer = ZipWriter::new(output);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     for (name, bytes) in files {
@@ -262,30 +259,62 @@ fn pack(files: &[(&str, &[u8])], limit: Option<usize>) -> Result<Vec<u8>, String
             .map_err(|error| error.to_string())?;
         writer.write_all(bytes).map_err(|error| error.to_string())?;
     }
-    Ok(writer
-        .finish()
-        .map_err(|error| error.to_string())?
-        .inner
-        .into_inner())
+    let output = writer.finish().map_err(|error| error.to_string())?;
+    if output.exhausted {
+        return Err(SIZE_ERROR.into());
+    }
+    Ok(output.inner.into_inner())
 }
 
+/// A size-bounded sink with sticky exhaustion.
+///
+/// The first write past the limit returns the size error. Later writes are discarded
+/// while advancing a logical position, so `ZipWriter`'s fallible Drop finalization
+/// succeeds against the exhausted sink and never writes its diagnostic to process
+/// stderr. The backing buffer is never grown by those teardown writes.
 struct BoundedWriter {
     inner: Cursor<Vec<u8>>,
     limit: Option<usize>,
+    position: u64,
+    length: u64,
+    exhausted: bool,
+}
+
+impl BoundedWriter {
+    fn new(limit: Option<usize>) -> Self {
+        Self {
+            inner: Cursor::new(Vec::new()),
+            limit,
+            position: 0,
+            length: 0,
+            exhausted: false,
+        }
+    }
 }
 
 impl Write for BoundedWriter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        if self.limit.is_some_and(|limit| {
-            self.inner
-                .position()
-                .checked_add(bytes.len() as u64)
-                .is_none_or(|end| end > limit as u64)
-        }) {
+        let len = bytes.len() as u64;
+        if self.exhausted {
+            self.position = self.position.saturating_add(len);
+            self.length = self.length.max(self.position);
+            return Ok(bytes.len());
+        }
+        let end = self.position.checked_add(len).ok_or_else(|| {
+            self.exhausted = true;
+            std::io::Error::other(SIZE_ERROR)
+        })?;
+        if self.limit.is_some_and(|limit| end > limit as u64) {
+            self.exhausted = true;
             return Err(std::io::Error::other(SIZE_ERROR));
         }
-        self.inner.write(bytes)
+        std::io::Seek::seek(&mut self.inner, std::io::SeekFrom::Start(self.position))?;
+        let written = self.inner.write(bytes)?;
+        self.position = self.position.saturating_add(written as u64);
+        self.length = self.length.max(self.position);
+        Ok(written)
     }
+
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
@@ -293,7 +322,19 @@ impl Write for BoundedWriter {
 
 impl std::io::Seek for BoundedWriter {
     fn seek(&mut self, position: std::io::SeekFrom) -> std::io::Result<u64> {
-        std::io::Seek::seek(&mut self.inner, position)
+        let target = match position {
+            std::io::SeekFrom::Start(offset) => offset,
+            std::io::SeekFrom::Current(offset) => self
+                .position
+                .checked_add_signed(offset)
+                .ok_or_else(|| std::io::Error::other("Archive position overflow"))?,
+            std::io::SeekFrom::End(offset) => self
+                .length
+                .checked_add_signed(offset)
+                .ok_or_else(|| std::io::Error::other("Archive position overflow"))?,
+        };
+        self.position = target;
+        Ok(target)
     }
 }
 
@@ -678,6 +719,111 @@ mod tests {
             r#"{"format":"boardstudio/v2","parts":[],"boards":[],"assets":null}"#,
         ] {
             assert!(pack_project(json.into(), &[], LIMITS).is_err());
+        }
+    }
+
+    /// Child-process probe: packs one limit case and reports the error on stdout, so the
+    /// parent can inspect the process's direct stderr separately from libtest capture.
+    #[test]
+    #[ignore = "spawned by the archive teardown regression tests"]
+    fn archive_child_probe() {
+        let Ok(case) = std::env::var("BOARDSTUDIO_ARCHIVE_LIMIT_CASE") else {
+            return;
+        };
+        let incompressible: Vec<u8> = (0..4096).map(|index| (index % 251) as u8).collect();
+        let result = match case.as_str() {
+            "header" => pack(&[("project.json", b"payload")], Some(0)),
+            "data" => pack(
+                &[("project.json", &incompressible), ("second.txt", b"next")],
+                Some(80),
+            ),
+            "central-directory" => pack(&[("project.json", b"hello")], Some(80)),
+            other => {
+                eprintln!("unknown archive limit case {other}");
+                std::process::exit(2);
+            }
+        };
+        match result {
+            Ok(_) => {
+                eprintln!("an over-limit pack returned an archive");
+                std::process::exit(4);
+            }
+            Err(message) => {
+                println!("ARCHIVE_RESULT={message}");
+                if !message.contains(SIZE_ERROR) {
+                    std::process::exit(3);
+                }
+            }
+        }
+    }
+
+    fn archive_child(case: &str) -> std::process::Output {
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("archive::tests::archive_child_probe")
+            .arg("--ignored")
+            .arg("--nocapture")
+            .env("BOARDSTUDIO_ARCHIVE_LIMIT_CASE", case)
+            .output()
+            .unwrap()
+    }
+
+    fn assert_clean_limit_failure(case: &str) {
+        let output = archive_child(case);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            output.status.success(),
+            "{case}: child failed\nstdout:\n{stdout}\nstderr:\n{stderr}"
+        );
+        assert!(
+            stdout.contains("ARCHIVE_RESULT=") && stdout.contains(SIZE_ERROR),
+            "{case}: the size-limit error was not reported\nstdout:\n{stdout}"
+        );
+        assert!(
+            !stderr.contains("ZipWriter::drop"),
+            "{case}: ZipWriter wrote a Drop diagnostic to stderr:\n{stderr}"
+        );
+        assert!(
+            !stderr.contains(SIZE_ERROR),
+            "{case}: the Drop diagnostic leaked the production error:\n{stderr}"
+        );
+    }
+
+    #[test]
+    fn bounded_writer_discards_teardown_writes_without_growing_past_the_cap() {
+        let mut writer = BoundedWriter::new(Some(8));
+        writer.write_all(b"12345").unwrap();
+        assert!(writer.write_all(b"6789").is_err());
+        assert_eq!(
+            writer.inner.get_ref().len(),
+            5,
+            "the refused write grew the buffer"
+        );
+
+        // Teardown writes after exhaustion are discarded but keep logical positions
+        // coherent, so a finalizing ZipWriter sees a successful sink.
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::Start(100)).unwrap(),
+            100
+        );
+        writer.write_all(&[0; 10]).unwrap();
+        assert_eq!(writer.inner.get_ref().len(), 5, "teardown grew the buffer");
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::End(0)).unwrap(),
+            110
+        );
+        assert_eq!(
+            std::io::Seek::seek(&mut writer, std::io::SeekFrom::Current(-10)).unwrap(),
+            100
+        );
+        assert!(writer.exhausted);
+    }
+
+    #[test]
+    fn limit_failures_do_not_write_zipwriter_drop_diagnostics() {
+        for case in ["header", "data", "central-directory"] {
+            assert_clean_limit_failure(case);
         }
     }
 

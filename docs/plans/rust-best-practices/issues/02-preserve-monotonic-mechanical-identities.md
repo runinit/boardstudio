@@ -1,6 +1,6 @@
 # 02: Preserve monotonic mechanical feature identities across removal, undo, and overflow
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 
@@ -19,3 +19,32 @@ Keep allocation authority in Core. Preserve high-water reservations outside Undo
 - [ ] Reservations remain owner-scoped and survive Undo/Redo, undo of configuration creation, and disable/re-enable; separate owners do not share an accidental counter. A failed Open preserves reservations and a successful explicit Open resets the session boundary.
 - [ ] Imported live suffixes and stored reservation counters seed allocation. Tests cover sparse IDs, `MAX-1`, `MAX` counters and suffixes, and clean exhaustion for all five namespaces; do not saturate into reusable identities.
 - [ ] Exhaustion during allocation or reservation capture/merging (disable, targeted replacement, pair dissolution/materialization) returns a clean error with unchanged accepted state. Native Core/application tests cover these transitions; browser tests cover affected queued-edit behavior.
+
+## Answer
+
+Resolved on `t3/implement-rust-best-practices` (base `c071dedcf`).
+
+- `CoreEngine` owns a session `MechanicalIdentityLedger` outside Undo snapshots, seeded from
+  live IDs and stored counters by a successful explicit Open. It is not reset by failed Open,
+  preview, failed edit, Undo/Redo, disable/re-enable or panel remount.
+- The ledger floors are merged into mechanical allocation through
+  `apply_with_ledger` / `prepare_transaction_with_ledger`. Opening, vertex, critical-fit,
+  hardware and mount allocation is counter-based and checked; `u64::MAX` is the exhausted
+  sentinel and is never saturated into a reusable identity. Owner scopes are board, physical
+  instance, and per-opening vertex. Mount exhaustion still excludes Part and Case-body mount
+  collisions, now restricted to the canonical `case-mechanical-mount-N` namespace.
+- New counters are persisted on `MechanicalConfiguration` and
+  `MechanicalIdentityReservation`; absent/zero means unset, so no format migration is needed.
+  A successful Open starts a new session and reseeds from the received document. Reservation
+  capture and pair merge return clean errors on exhausted floors; edits remain staged.
+- Tests: `core/tests/mechanical_identity_monotonic.rs` (five kinds remove+add, add+undo+add,
+  stale setters, sparse IDs, MAX-1/MAX counters and suffixes, owners, disable/re-enable,
+  stored reservations, failed/successful Open, redo and undo of creation),
+  `core/src/mechanical/edit.rs` merge unit tests,
+  `core/tests/mechanical_integration.rs` pair-dissolution exhaustion,
+  `application/tests/durable_session.rs` real queued resolvers for first-gap and history reuse
+  (production `evaluate_edit` -> Submit -> Core rejection shape), and
+  `web/crates/case/src/mechanical_settings_controller.rs` browser queued-setter coverage.
+
+Evidence: Core lib 794 passed; application suite passed; case browser crate 82 passed; host
+41 passed; `check.py test --receipt` 2057 native tests with zero ZipWriter diagnostics.

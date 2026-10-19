@@ -41,7 +41,9 @@ mod derive;
 mod inverse;
 mod matrix_addition;
 mod reconcile;
-pub(crate) use reconcile::{prepare_open, prepare_transaction};
+#[cfg(test)]
+pub(crate) use reconcile::prepare_transaction;
+pub(crate) use reconcile::{prepare_open, prepare_transaction_with_ledger};
 
 /// Generated closure-clearance parts. They are regenerated from the pair, never copied.
 const GENERATED_CLOSURE_PREFIX: &str = "case-closure/";

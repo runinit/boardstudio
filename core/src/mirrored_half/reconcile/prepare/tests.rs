@@ -2923,8 +2923,9 @@ fn ambiguous_mirror_board_target_is_refused_before_prepared_addition() {
     let canonical = crate::mirrored_half::inverse::canonicalize(&accepted, &operation)
         .expect("the Add request canonicalizes before target selection");
     let mut draft = accepted.clone();
-    let refusal = super::apply_canonical(&mut draft, &accepted, &[], &canonical)
-        .expect_err("two pairs with this target board are ambiguous");
+    let refusal =
+        super::apply_canonical(&mut draft, &accepted, &[], &canonical, &Default::default())
+            .expect_err("two pairs with this target board are ambiguous");
     assert!(refusal.contains("matched 2 pairs"), "{refusal}");
     assert_eq!(draft, accepted, "the private prepared stage is atomic");
     assert_eq!(serde_json::to_vec(&accepted).unwrap(), before);

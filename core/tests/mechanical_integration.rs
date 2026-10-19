@@ -2591,6 +2591,9 @@ fn a_legacy_instance_serializes_without_an_identity_reservation() {
         Some(boardstudio_core::model::MechanicalIdentityReservation {
             next_opening_identity: 4,
             next_vertex_identity: 7,
+            next_critical_fit_identity: 0,
+            next_hardware_identity: 0,
+            next_mount_identity: 0,
         });
     let reloaded: ProjectDoc =
         serde_json::from_str(&serde_json::to_string(&document).unwrap()).unwrap();
@@ -3856,4 +3859,40 @@ fn case_findings_are_clear_is_scoped_to_the_target() {
     link_pair(&mut clean);
     let clean = effective_inputs(&clean, &[], &instance_target("right")).unwrap();
     assert!(clean.case_findings_are_clear(), "{:?}", clean.findings);
+}
+
+#[test]
+fn pair_dissolution_refuses_an_exhausted_linked_identity_and_keeps_the_pair() {
+    let max_id = format!("opening-{}", u64::MAX);
+    let mut document = pair_document();
+    for instance in document.hardware.as_mut().unwrap().instances.iter_mut() {
+        instance.mechanical.as_mut().unwrap().openings = Some(vec![opening_json(&max_id)]);
+    }
+    link_with_correspondences(
+        &mut document,
+        vec![correspondence(
+            MechanicalFeatureKind::Opening,
+            &max_id,
+            &max_id,
+            Some("right"),
+        )],
+    )
+    .expect("the max-identity opening links");
+    let before = document.clone();
+
+    let error = boardstudio_core::mechanical::edit::apply(
+        &mut document,
+        &[],
+        &MechanicalEdit {
+            target: instance_target("right"),
+            change: MechanicalChange::UnlinkMirrorPair {
+                instance_id: "right".into(),
+            },
+            mounting_hole: Some(Box::new(template())),
+        },
+    )
+    .unwrap_err();
+
+    assert!(error.contains("exhausted"), "{error}");
+    assert_eq!(document, before, "a refused dissolution changed the pair");
 }

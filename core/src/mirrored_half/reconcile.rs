@@ -21,7 +21,7 @@ mod lifecycle;
 #[allow(dead_code)] // Ticket 111 activates this prepared transaction in production.
 mod prepare;
 #[allow(unused_imports)] // The crate-only seam is intentionally dormant until ticket 111.
-pub(crate) use prepare::{prepare_open, prepare_transaction};
+pub(crate) use prepare::{prepare_open, prepare_transaction, prepare_transaction_with_ledger};
 mod outlines;
 mod settings;
 // Ticket 147: keycap settings and plain nets follow their source after creation.

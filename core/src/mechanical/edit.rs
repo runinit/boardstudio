@@ -19,6 +19,7 @@ use super::change::{
 };
 use super::features;
 use super::inputs::{effective_document, effective_inputs};
+use std::collections::BTreeMap;
 
 mod replacement;
 
@@ -51,10 +52,26 @@ pub fn apply(
     board_contours: &[BoardContours],
     edit: &MechanicalEdit,
 ) -> Result<Vec<String>, String> {
+    apply_with_ledger(
+        doc,
+        board_contours,
+        edit,
+        &MechanicalIdentityLedger::default(),
+    )
+}
+
+/// Applies one mechanical edit with the owning Core session's identity high-water
+/// marks. The public [`apply`] path supplies an empty ledger for standalone callers.
+pub(crate) fn apply_with_ledger(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    edit: &MechanicalEdit,
+    identities: &MechanicalIdentityLedger,
+) -> Result<Vec<String>, String> {
     // Stage the whole edit on a clone so any later failure leaves the accepted
     // document - configuration, initialization and projection - untouched.
     let mut next = doc.clone();
-    let changed = apply_staged(&mut next, board_contours, edit)?;
+    let changed = apply_staged(&mut next, board_contours, edit, identities)?;
     *doc = next;
     Ok(changed)
 }
@@ -113,7 +130,12 @@ pub fn evaluate_edit(
         return Ok(MechanicalEditDisposition::Retire);
     }
     let mut next = document.clone();
-    match apply_staged(&mut next, board_contours, edit) {
+    match apply_staged(
+        &mut next,
+        board_contours,
+        edit,
+        &MechanicalIdentityLedger::default(),
+    ) {
         Ok(changed) if changed.is_empty() => Ok(MechanicalEditDisposition::Unchanged),
         Ok(_) => Ok(MechanicalEditDisposition::Changed),
         Err(message) => Err(message),
@@ -188,6 +210,7 @@ fn apply_staged(
     doc: &mut ProjectDoc,
     board_contours: &[BoardContours],
     edit: &MechanicalEdit,
+    identities: &MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
     let board_id = target_board_id(doc, &edit.target)?;
     match &edit.change {
@@ -207,7 +230,7 @@ fn apply_staged(
         MechanicalChange::MakeFeatureLocal { .. }
         | MechanicalChange::OmitFeatureMember { .. }
         | MechanicalChange::RejoinFeatureMember { .. } => apply_feature_lifecycle(doc, edit),
-        change => apply_settings(doc, board_contours, edit, change, &board_id),
+        change => apply_settings(doc, board_contours, edit, change, &board_id, identities),
     }
 }
 
@@ -303,6 +326,7 @@ fn apply_settings(
     edit: &MechanicalEdit,
     change: &MechanicalChange,
     board_id: &str,
+    identities: &MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
     // A supplied template is validated even when the edit is settings-only and the
     // projection never runs, so a malformed catalogue entry is always an error.
@@ -313,7 +337,8 @@ fn apply_settings(
     let mut configuration = inputs.configuration;
     let before = configuration.clone();
     let mut changed = Vec::new();
-    let identity_floor = reserved_identity_floor(doc, &edit.target);
+    let identity_floor =
+        reserved_identity_floor(doc, &edit.target).merged(identities.floors(&edit.target));
     apply_change(
         &mut configuration,
         change,
@@ -1566,7 +1591,7 @@ fn materialize_survivor(
                 instance_id: instance_id.to_string(),
             },
         );
-        merge_identity_floor(&mut configuration, floor);
+        merge_identity_floor(&mut configuration, floor)?;
         instance.mechanical = Some(configuration);
     }
     instance.construction_ownership = MechanicalConstructionOwnership::Local;
@@ -1633,7 +1658,7 @@ fn dissolve_pair_ownership(
         // linked geometry, shared construction and local hardware, so writing it
         // locally makes that model authoritative without moving anything.
         let mut configuration = effective_inputs(doc, &[], &target)?.configuration;
-        merge_identity_floor(&mut configuration, reserved_identity_floor(doc, &target));
+        merge_identity_floor(&mut configuration, reserved_identity_floor(doc, &target))?;
         persist(doc, &target, configuration)?;
         let hardware = doc
             .hardware
@@ -2259,6 +2284,9 @@ pub(crate) fn default_configuration(
         closure_mounts: None,
         board_id: board_id.to_string(),
         next_opening_identity: 0,
+        next_critical_fit_identity: 0,
+        next_hardware_identity: 0,
+        next_mount_identity: 0,
         integrated_plate_frame: false,
         battery: None,
         mounts: Vec::new(),
@@ -2282,7 +2310,7 @@ fn apply_change(
     change: &MechanicalChange,
     document: &ProjectDoc,
     board_id: &str,
-    identity_floor: (u64, u64),
+    identity_floor: IdentityFloor,
     changed: &mut Vec<String>,
 ) -> Result<(), String> {
     let previous = configuration.clone();
@@ -2496,25 +2524,32 @@ fn apply_change(
             if part_id.is_empty() {
                 return Err("A generated part must be selected for a critical fit.".into());
             }
-            let fits = configuration.critical_fits.get_or_insert_with(Vec::new);
-            let mut suffix = 1_u64;
-            let fit_id = loop {
-                let candidate = format!("case-critical-fit-{suffix}");
-                if !fits.iter().any(|fit| fit.id == candidate) {
-                    break candidate;
-                }
-                suffix = suffix
-                    .checked_add(1)
-                    .ok_or_else(|| "Critical fit identity is exhausted.".to_owned())?;
-            };
-            fits.push(MechanicalCriticalFit {
-                id: fit_id.clone(),
-                part_id: part_id.clone(),
-                label: "Critical dimension".into(),
-                from: Vec2 { x: 0.0, y: 0.0 },
-                to: Vec2 { x: 10.0, y: 0.0 },
-                tolerance: "±0.2 mm".into(),
-            });
+            let highest = configuration
+                .critical_fits
+                .as_ref()
+                .into_iter()
+                .flatten()
+                .filter_map(|fit| identity_index_for(&fit.id, "case-critical-fit"))
+                .max()
+                .unwrap_or(0);
+            let fit_id = reserve_identity(
+                &mut configuration.next_critical_fit_identity,
+                highest,
+                identity_floor.critical_fit,
+                "case-critical-fit",
+                "Critical fit",
+            )?;
+            configuration
+                .critical_fits
+                .get_or_insert_with(Vec::new)
+                .push(MechanicalCriticalFit {
+                    id: fit_id.clone(),
+                    part_id: part_id.clone(),
+                    label: "Critical dimension".into(),
+                    from: Vec2 { x: 0.0, y: 0.0 },
+                    to: Vec2 { x: 10.0, y: 0.0 },
+                    tolerance: "±0.2 mm".into(),
+                });
             changed.push(fit_id);
         }
         MechanicalChange::RemoveCriticalFit { fit_id } => {
@@ -2580,28 +2615,34 @@ fn apply_change(
             if part_id.is_empty() || feature_id.is_empty() {
                 return Err("Link the hardware to a generated mount feature.".into());
             }
-            let entries = configuration.hardware.get_or_insert_with(Vec::new);
-            let mut suffix = 1_u64;
-            let hardware_id = loop {
-                let candidate = format!("case-mechanical-hardware-{suffix}");
-                if !entries.iter().any(|entry| entry.id == candidate) {
-                    break candidate;
-                }
-                suffix = suffix
-                    .checked_add(1)
-                    .ok_or_else(|| "Hardware identity is exhausted.".to_owned())?;
-            };
-            entries.push(MechanicalHardwareSpecification {
-                id: hardware_id.clone(),
-                part_id: part_id.clone(),
-                feature_id: feature_id.clone(),
-                designation: "Socket screw".into(),
-                thread: "M2 × 0.4".into(),
-                length: 6.0,
-                quantity: 4,
-                notes: Some(String::new()),
-                tolerance: None,
-            });
+            let highest = configuration
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flatten()
+                .filter_map(|entry| identity_index_for(&entry.id, "case-mechanical-hardware"))
+                .max()
+                .unwrap_or(0);
+            let hardware_id = reserve_identity(
+                &mut configuration.next_hardware_identity,
+                highest,
+                identity_floor.hardware,
+                "case-mechanical-hardware",
+                "Hardware",
+            )?;
+            configuration.hardware.get_or_insert_with(Vec::new).push(
+                MechanicalHardwareSpecification {
+                    id: hardware_id.clone(),
+                    part_id: part_id.clone(),
+                    feature_id: feature_id.clone(),
+                    designation: "Socket screw".into(),
+                    thread: "M2 × 0.4".into(),
+                    length: 6.0,
+                    quantity: 4,
+                    notes: Some(String::new()),
+                    tolerance: None,
+                },
+            );
             changed.push(hardware_id);
         }
         MechanicalChange::RemoveHardware { hardware_id } => {
@@ -2671,7 +2712,7 @@ fn apply_change(
             changed.push(hardware_id.clone());
         }
         MechanicalChange::AddOpening => {
-            let id = reserve_opening_identity(configuration, identity_floor.0);
+            let id = reserve_opening_identity(configuration, identity_floor.opening)?;
             let mut opening = MechanicalOpening {
                 id: id.clone(),
                 vertices: Vec::new(),
@@ -2685,7 +2726,7 @@ fn apply_change(
                 Vec2 { x: 2.5, y: 2.5 },
                 Vec2 { x: -2.5, y: 2.5 },
             ] {
-                let vertex_id = reserve_vertex_identity(&mut opening, identity_floor.1);
+                let vertex_id = reserve_vertex_identity(&mut opening, identity_floor.vertex)?;
                 opening.vertices.push(MechanicalOpeningVertex {
                     id: vertex_id,
                     point,
@@ -2720,7 +2761,7 @@ fn apply_change(
                 .ok_or("The selected access opening is no longer available.")?;
             // Reserved from the opening's own monotonic counter, so a removed vertex
             // id can never be handed out again within that opening.
-            let vertex_id = reserve_vertex_identity(opening, identity_floor.1);
+            let vertex_id = reserve_vertex_identity(opening, identity_floor.vertex)?;
             opening.vertices.push(MechanicalOpeningVertex {
                 id: vertex_id.clone(),
                 point: Vec2 { x: 0.0, y: 0.0 },
@@ -2834,25 +2875,31 @@ fn apply_change(
             {
                 return Err("Adding closure screws is unavailable with an internal gasket.".into());
             }
-            let mut ordinal = 1usize;
-            let id = loop {
-                let candidate = format!("case-mechanical-mount-{ordinal}");
-                let used = configuration
-                    .mounts
-                    .iter()
-                    .chain(configuration.closure_mounts.iter().flatten())
-                    .any(|mount| mount.id == candidate)
-                    || document.parts.iter().any(|part| part.id == candidate)
-                    || document
+            // The old first-gap search skipped ids used by the whole document. Keeping
+            // those collision exclusions as the high-water mark makes the next id
+            // monotonic without ever colliding with a Part or Case-body mount.
+            let highest = configuration
+                .mounts
+                .iter()
+                .chain(configuration.closure_mounts.iter().flatten())
+                .chain(
+                    document
                         .case_bodies
                         .iter()
-                        .flat_map(|body| body.mounts.iter().flatten())
-                        .any(|mount| mount.id == candidate);
-                if !used {
-                    break candidate;
-                }
-                ordinal += 1;
-            };
+                        .flat_map(|body| body.mounts.iter().flatten()),
+                )
+                .map(|mount| &mount.id)
+                .chain(document.parts.iter().map(|part| &part.id))
+                .filter_map(|id| identity_index_for(id, "case-mechanical-mount"))
+                .max()
+                .unwrap_or(0);
+            let id = reserve_identity(
+                &mut configuration.next_mount_identity,
+                highest,
+                identity_floor.mount,
+                "case-mechanical-mount",
+                "Mount",
+            )?;
             mount_collection_mut(configuration, *collection).push(Mount {
                 id: id.clone(),
                 at: Vec2 { x: 0.0, y: 0.0 },
@@ -3672,6 +3719,52 @@ fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
     Ok(())
 }
 
+/// The reserved high-water marks an edit's allocation must not hand out again.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct IdentityFloor {
+    opening: u64,
+    vertex: u64,
+    critical_fit: u64,
+    hardware: u64,
+    mount: u64,
+}
+
+impl IdentityFloor {
+    fn merged(self, other: Self) -> Self {
+        Self {
+            opening: self.opening.max(other.opening),
+            vertex: self.vertex.max(other.vertex),
+            critical_fit: self.critical_fit.max(other.critical_fit),
+            hardware: self.hardware.max(other.hardware),
+            mount: self.mount.max(other.mount),
+        }
+    }
+}
+
+fn exhausted_identity(kind: &str) -> String {
+    format!("{kind} identity is exhausted.")
+}
+
+/// Allocates the next monotonic identity from `counter`.
+///
+/// `counter` is the next free number; `u64::MAX` means the namespace can never
+/// advance again. A live or reserved `MAX` is refused rather than saturated into a
+/// reusable identity.
+fn reserve_identity(
+    counter: &mut u64,
+    highest: u64,
+    floor: u64,
+    prefix: &str,
+    kind: &str,
+) -> Result<String, String> {
+    if *counter == u64::MAX || highest == u64::MAX || floor == u64::MAX {
+        return Err(exhausted_identity(kind));
+    }
+    let next = (*counter).max(1).max(highest + 1).max(floor + 1);
+    *counter = next.saturating_add(1);
+    Ok(format!("{prefix}-{next}"))
+}
+
 /// Reserves the next authored opening or vertex identity for a configuration.
 ///
 /// The stored reservation is monotonic, so a removed opening or vertex identity is
@@ -3679,7 +3772,10 @@ fn validate_openings(openings: &[MechanicalOpening]) -> Result<(), String> {
 /// addition. The first reservation for a configuration that predates the field
 /// normalizes to the highest identity it already carries, which preserves existing
 /// geometry and ids.
-fn reserve_opening_identity(configuration: &mut MechanicalConfiguration, floor: u64) -> String {
+fn reserve_opening_identity(
+    configuration: &mut MechanicalConfiguration,
+    floor: u64,
+) -> Result<String, String> {
     let highest = configuration
         .openings
         .as_ref()
@@ -3688,29 +3784,29 @@ fn reserve_opening_identity(configuration: &mut MechanicalConfiguration, floor: 
         .map(|opening| identity_index(&opening.id))
         .max()
         .unwrap_or(0);
-    let next = configuration
-        .next_opening_identity
-        .max(highest + 1)
-        .max(floor + 1)
-        .max(1);
-    configuration.next_opening_identity = next + 1;
-    format!("opening-{next}")
+    reserve_identity(
+        &mut configuration.next_opening_identity,
+        highest,
+        floor,
+        "opening",
+        "Opening",
+    )
 }
 
-fn reserve_vertex_identity(opening: &mut MechanicalOpening, floor: u64) -> String {
+fn reserve_vertex_identity(opening: &mut MechanicalOpening, floor: u64) -> Result<String, String> {
     let highest = opening
         .vertices
         .iter()
         .map(|vertex| identity_index(&vertex.id))
         .max()
         .unwrap_or(0);
-    let next = opening
-        .next_vertex_identity
-        .max(highest + 1)
-        .max(floor + 1)
-        .max(1);
-    opening.next_vertex_identity = next + 1;
-    format!("vertex-{next}")
+    reserve_identity(
+        &mut opening.next_vertex_identity,
+        highest,
+        floor,
+        "vertex",
+        "Vertex",
+    )
 }
 
 /// The identities a target's member reserves for its pair-owned features.
@@ -3720,24 +3816,55 @@ fn reserve_vertex_identity(opening: &mut MechanicalOpening, floor: u64) -> Strin
 /// identities keeps a new local addition from taking one the pair owns for this member,
 /// which would otherwise let a rejoin produce two openings under one identity or let a
 /// queued intent reach the wrong opening.
-fn reserved_identity_floor(document: &ProjectDoc, target: &MechanicalTarget) -> (u64, u64) {
+fn reserved_identity_floor(document: &ProjectDoc, target: &MechanicalTarget) -> IdentityFloor {
     let MechanicalTarget::Instance { instance_id } = target else {
-        return (0, 0);
+        return IdentityFloor::default();
     };
     let Some(hardware) = document.hardware.as_ref() else {
-        return (0, 0);
+        return IdentityFloor::default();
     };
-    let floor = |prefix: &str| {
+    let member_features = || {
         hardware
             .pairs
             .iter()
             .flat_map(|pair| pair.features.iter())
-            .flat_map(|feature| feature.members.iter())
-            .filter(|member| member.instance_id == *instance_id)
-            .filter_map(|member| identity_index_for(&member.feature_id, prefix))
+            .filter_map(move |feature| {
+                feature
+                    .members
+                    .iter()
+                    .find(|member| member.instance_id == *instance_id)
+                    .map(|member| (feature, member))
+            })
+    };
+    let floor = |prefix: &str| {
+        member_features()
+            .filter_map(|(_, member)| identity_index_for(&member.feature_id, prefix))
             .max()
             .unwrap_or(0)
     };
+    let mount = member_features()
+        .filter(|(feature, _)| {
+            matches!(
+                feature.kind,
+                MechanicalFeatureKind::Mount | MechanicalFeatureKind::ClosureMount
+            )
+        })
+        .filter_map(|(feature, member)| {
+            let mount_id = match &feature.value {
+                MechanicalFeatureValue::Mount { mount } => Some(mount.id.as_str()),
+                _ => None,
+            };
+            identity_index_for(&member.feature_id, "case-mechanical-mount")
+                .into_iter()
+                .chain(
+                    mount_id
+                        .into_iter()
+                        .filter_map(|id| identity_index_for(id, "case-mechanical-mount")),
+                )
+                .max()
+        })
+        .max()
+        .unwrap_or(0);
     // A half that outlived its own configuration (a disabled half) keeps the highest
     // identity it ever reserved, so re-enabling cannot reuse a removed one.
     let stored = hardware
@@ -3746,10 +3873,312 @@ fn reserved_identity_floor(document: &ProjectDoc, target: &MechanicalTarget) -> 
         .find(|instance| instance.id == *instance_id)
         .and_then(|instance| instance.mechanical_identity_reservation)
         .unwrap_or_default();
-    (
-        floor("opening").max(stored.next_opening_identity.saturating_sub(1)),
-        floor("vertex").max(stored.next_vertex_identity.saturating_sub(1)),
-    )
+    IdentityFloor {
+        opening: floor("opening").max(reservation_floor(stored.next_opening_identity)),
+        vertex: floor("vertex").max(reservation_floor(stored.next_vertex_identity)),
+        critical_fit: reservation_floor(stored.next_critical_fit_identity),
+        hardware: reservation_floor(stored.next_hardware_identity),
+        mount: mount.max(reservation_floor(stored.next_mount_identity)),
+    }
+}
+
+/// A stored `next == MAX` is the exhausted sentinel: no further identity is handed out.
+fn reservation_floor(next: u64) -> u64 {
+    if next == u64::MAX {
+        u64::MAX
+    } else {
+        next.saturating_sub(1)
+    }
+}
+
+/// Who owns a mechanical configuration's identity namespace.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum IdentityConfigOwner {
+    Board(String),
+    Instance(String),
+}
+
+/// The per-opening vertex namespace. Vertex identities only need to stay unique
+/// within their owning opening, so two openings may both use `vertex-1`.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct IdentityVertexOwner {
+    config: IdentityConfigOwner,
+    opening_id: String,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct IdentityCounter {
+    next: u64,
+    exhausted: bool,
+}
+
+impl IdentityCounter {
+    fn merged(self, other: Self) -> Self {
+        Self {
+            next: self.next.max(other.next),
+            exhausted: self.exhausted || other.exhausted,
+        }
+    }
+
+    fn floor(self) -> u64 {
+        if self.exhausted {
+            u64::MAX
+        } else {
+            self.next.saturating_sub(1)
+        }
+    }
+
+    /// A live `MAX` identity leaves no further number; a stored `MAX` counter
+    /// without a live `MAX` still has `MAX` available.
+    fn captured(stored: u64, highest: u64) -> Self {
+        Self {
+            next: stored.max(highest.saturating_add(1)),
+            exhausted: stored == u64::MAX || highest == u64::MAX,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct IdentityCounters {
+    opening: IdentityCounter,
+    vertex: IdentityCounter,
+    critical_fit: IdentityCounter,
+    hardware: IdentityCounter,
+    mount: IdentityCounter,
+}
+
+impl IdentityCounters {
+    fn merged(self, other: Self) -> Self {
+        Self {
+            opening: self.opening.merged(other.opening),
+            vertex: self.vertex.merged(other.vertex),
+            critical_fit: self.critical_fit.merged(other.critical_fit),
+            hardware: self.hardware.merged(other.hardware),
+            mount: self.mount.merged(other.mount),
+        }
+    }
+
+    fn from_reservation(reservation: MechanicalIdentityReservation) -> Self {
+        Self {
+            opening: IdentityCounter {
+                next: reservation.next_opening_identity,
+                exhausted: reservation.next_opening_identity == u64::MAX,
+            },
+            vertex: IdentityCounter {
+                next: reservation.next_vertex_identity,
+                exhausted: reservation.next_vertex_identity == u64::MAX,
+            },
+            critical_fit: IdentityCounter {
+                next: reservation.next_critical_fit_identity,
+                exhausted: reservation.next_critical_fit_identity == u64::MAX,
+            },
+            hardware: IdentityCounter {
+                next: reservation.next_hardware_identity,
+                exhausted: reservation.next_hardware_identity == u64::MAX,
+            },
+            mount: IdentityCounter {
+                next: reservation.next_mount_identity,
+                exhausted: reservation.next_mount_identity == u64::MAX,
+            },
+        }
+    }
+}
+
+/// Session high-water marks for mechanical identities that outlive Undo snapshots,
+/// disabled configurations and temporarily absent owners.
+///
+/// Core owns allocation; this ledger only raises reservations and never mints an
+/// identity. A successful explicit Open starts a new ledger (a new document session);
+/// failed opens, previews, failed edits, undo/redo, panel remounts and disable/re-enable
+/// keep it.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MechanicalIdentityLedger {
+    configs: BTreeMap<IdentityConfigOwner, IdentityCounters>,
+    vertices: BTreeMap<IdentityVertexOwner, IdentityCounter>,
+}
+
+impl MechanicalIdentityLedger {
+    /// A ledger seeded from every live identity and stored counter in `document`.
+    pub(crate) fn seeded(document: &ProjectDoc) -> Self {
+        let mut ledger = Self::default();
+        ledger.capture(document);
+        ledger
+    }
+
+    /// Raises the ledger to cover every identity and counter currently in `document`.
+    pub(crate) fn capture(&mut self, document: &ProjectDoc) {
+        if let Some(configuration) = &document.mechanical {
+            self.capture_config(
+                IdentityConfigOwner::Board(configuration.board_id.clone()),
+                configuration,
+            );
+        }
+        let Some(hardware) = &document.hardware else {
+            return;
+        };
+        for instance in &hardware.instances {
+            let owner = IdentityConfigOwner::Instance(instance.id.clone());
+            if let Some(configuration) = &instance.mechanical {
+                self.capture_config(owner.clone(), configuration);
+            }
+            if let Some(reservation) = instance.mechanical_identity_reservation {
+                let counters = IdentityCounters::from_reservation(reservation);
+                self.configs
+                    .entry(owner)
+                    .and_modify(|entry| *entry = entry.merged(counters))
+                    .or_insert(counters);
+            }
+        }
+        // A linked opening is stored only in the pair's authored value; its vertex
+        // counter still belongs to each member's vertex namespace.
+        for pair in &hardware.pairs {
+            for feature in &pair.features {
+                let MechanicalFeatureValue::Opening { opening } = &feature.value else {
+                    continue;
+                };
+                let counter = IdentityCounter::captured(
+                    opening.next_vertex_identity,
+                    opening
+                        .vertices
+                        .iter()
+                        .map(|vertex| identity_index(&vertex.id))
+                        .max()
+                        .unwrap_or(0),
+                );
+                for member in &feature.members {
+                    let key = IdentityVertexOwner {
+                        config: IdentityConfigOwner::Instance(member.instance_id.clone()),
+                        opening_id: member.feature_id.clone(),
+                    };
+                    self.vertices
+                        .entry(key)
+                        .and_modify(|entry| *entry = entry.merged(counter))
+                        .or_insert(counter);
+                }
+            }
+        }
+    }
+
+    fn capture_config(
+        &mut self,
+        owner: IdentityConfigOwner,
+        configuration: &MechanicalConfiguration,
+    ) {
+        let highest_opening = configuration
+            .openings
+            .iter()
+            .flatten()
+            .map(|opening| identity_index(&opening.id))
+            .max()
+            .unwrap_or(0);
+        let highest_vertex = configuration
+            .openings
+            .iter()
+            .flatten()
+            .flat_map(|opening| opening.vertices.iter())
+            .map(|vertex| identity_index(&vertex.id))
+            .max()
+            .unwrap_or(0);
+        let highest_critical_fit = configuration
+            .critical_fits
+            .iter()
+            .flatten()
+            .filter_map(|fit| identity_index_for(&fit.id, "case-critical-fit"))
+            .max()
+            .unwrap_or(0);
+        let highest_hardware = configuration
+            .hardware
+            .iter()
+            .flatten()
+            .filter_map(|entry| identity_index_for(&entry.id, "case-mechanical-hardware"))
+            .max()
+            .unwrap_or(0);
+        let highest_mount = configuration
+            .mounts
+            .iter()
+            .chain(configuration.closure_mounts.iter().flatten())
+            .filter_map(|mount| identity_index_for(&mount.id, "case-mechanical-mount"))
+            .max()
+            .unwrap_or(0);
+        let counters = IdentityCounters {
+            opening: IdentityCounter::captured(
+                configuration.next_opening_identity,
+                highest_opening,
+            ),
+            vertex: IdentityCounter::captured(
+                configuration
+                    .openings
+                    .iter()
+                    .flatten()
+                    .map(|opening| opening.next_vertex_identity)
+                    .max()
+                    .unwrap_or(0),
+                highest_vertex,
+            ),
+            critical_fit: IdentityCounter::captured(
+                configuration.next_critical_fit_identity,
+                highest_critical_fit,
+            ),
+            hardware: IdentityCounter::captured(
+                configuration.next_hardware_identity,
+                highest_hardware,
+            ),
+            mount: IdentityCounter::captured(configuration.next_mount_identity, highest_mount),
+        };
+        self.configs
+            .entry(owner.clone())
+            .and_modify(|entry| *entry = entry.merged(counters))
+            .or_insert(counters);
+        for opening in configuration.openings.iter().flatten() {
+            let key = IdentityVertexOwner {
+                config: owner.clone(),
+                opening_id: opening.id.clone(),
+            };
+            let counter = IdentityCounter::captured(
+                opening.next_vertex_identity,
+                opening
+                    .vertices
+                    .iter()
+                    .map(|vertex| identity_index(&vertex.id))
+                    .max()
+                    .unwrap_or(0),
+            );
+            self.vertices
+                .entry(key)
+                .and_modify(|entry| *entry = entry.merged(counter))
+                .or_insert(counter);
+        }
+    }
+
+    /// The session high-water floors for one target's allocation.
+    ///
+    /// Allocation merges these with the document's live identities and persisted
+    /// counters, so Undo, a disabled configuration or a temporarily absent owner
+    /// cannot make a removed identity available again.
+    pub(crate) fn floors(&self, target: &MechanicalTarget) -> IdentityFloor {
+        let owner = match target {
+            MechanicalTarget::Board { board_id } => IdentityConfigOwner::Board(board_id.clone()),
+            MechanicalTarget::Instance { instance_id } => {
+                IdentityConfigOwner::Instance(instance_id.clone())
+            }
+        };
+        let counters = self.configs.get(&owner).copied().unwrap_or_default();
+        let vertex = self
+            .vertices
+            .iter()
+            .filter(|(key, _)| key.config == owner)
+            .map(|(_, counter)| counter.floor())
+            .max()
+            .unwrap_or(0)
+            .max(counters.vertex.floor());
+        IdentityFloor {
+            opening: counters.opening.floor(),
+            vertex,
+            critical_fit: counters.critical_fit.floor(),
+            hardware: counters.hardware.floor(),
+            mount: counters.mount.floor(),
+        }
+    }
 }
 
 /// The highest opening and vertex identity a configuration can already hand out.
@@ -3771,14 +4200,48 @@ fn identity_reservation_of(
         .max()
         .unwrap_or(0);
     MechanicalIdentityReservation {
-        next_opening_identity: configuration.next_opening_identity.max(highest_opening + 1),
+        next_opening_identity: configuration
+            .next_opening_identity
+            .max(highest_opening.saturating_add(1)),
         next_vertex_identity: openings
             .into_iter()
             .flatten()
             .map(|opening| opening.next_vertex_identity)
             .max()
             .unwrap_or(0)
-            .max(highest_vertex + 1),
+            .max(highest_vertex.saturating_add(1)),
+        next_critical_fit_identity: configuration.next_critical_fit_identity.max(
+            configuration
+                .critical_fits
+                .as_ref()
+                .into_iter()
+                .flatten()
+                .map(|fit| identity_index_for(&fit.id, "case-critical-fit").unwrap_or(0))
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        ),
+        next_hardware_identity: configuration.next_hardware_identity.max(
+            configuration
+                .hardware
+                .as_ref()
+                .into_iter()
+                .flatten()
+                .map(|entry| identity_index_for(&entry.id, "case-mechanical-hardware").unwrap_or(0))
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        ),
+        next_mount_identity: configuration.next_mount_identity.max(
+            configuration
+                .mounts
+                .iter()
+                .chain(configuration.closure_mounts.iter().flatten())
+                .filter_map(|mount| identity_index_for(&mount.id, "case-mechanical-mount"))
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        ),
     }
 }
 
@@ -3787,13 +4250,58 @@ fn identity_reservation_of(
 /// Used when ownership ends and a half keeps the model it showed: the persisted counters
 /// then cover every identity that was visible through the pair, so a later local addition
 /// cannot take one of them.
-fn merge_identity_floor(configuration: &mut MechanicalConfiguration, floor: (u64, u64)) {
-    configuration.next_opening_identity = configuration.next_opening_identity.max(floor.0 + 1);
+fn merge_identity_floor(
+    configuration: &mut MechanicalConfiguration,
+    floor: IdentityFloor,
+) -> Result<(), String> {
+    let raised = |current: u64, floor: u64, kind: &str| -> Result<u64, String> {
+        if floor == u64::MAX {
+            if current == u64::MAX {
+                return Ok(current);
+            }
+            return Err(exhausted_identity(kind));
+        }
+        Ok(current.max(floor + 1))
+    };
+    configuration.next_opening_identity = raised(
+        configuration.next_opening_identity,
+        floor.opening,
+        "Opening",
+    )?;
+    if floor.critical_fit > 0 {
+        configuration.next_critical_fit_identity = raised(
+            configuration.next_critical_fit_identity,
+            floor.critical_fit,
+            "Critical fit",
+        )?;
+    }
+    if floor.hardware > 0 {
+        configuration.next_hardware_identity = raised(
+            configuration.next_hardware_identity,
+            floor.hardware,
+            "Hardware",
+        )?;
+    }
+    // Live mounts already seed allocation from their highest ordinal; only a
+    // reserved mount that is not visible here needs a persisted counter.
+    let highest_live_mount = configuration
+        .mounts
+        .iter()
+        .chain(configuration.closure_mounts.iter().flatten())
+        .filter_map(|mount| identity_index_for(&mount.id, "case-mechanical-mount"))
+        .max()
+        .unwrap_or(0);
+    if floor.mount > 0 && floor.mount > highest_live_mount {
+        configuration.next_mount_identity =
+            raised(configuration.next_mount_identity, floor.mount, "Mount")?;
+    }
     if let Some(openings) = configuration.openings.as_mut() {
         for opening in openings {
-            opening.next_vertex_identity = opening.next_vertex_identity.max(floor.1 + 1);
+            opening.next_vertex_identity =
+                raised(opening.next_vertex_identity, floor.vertex, "Vertex")?;
         }
     }
+    Ok(())
 }
 
 /// The numeric suffix of a `prefix-N` identity, or `None` for another prefix.
@@ -5254,5 +5762,84 @@ mod tests {
         };
         assert_eq!(document.hardware, before.hardware);
         assert_eq!(document.mechanical, before.mechanical);
+    }
+}
+
+#[cfg(test)]
+mod identity_merge_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn configuration() -> MechanicalConfiguration {
+        serde_json::from_value(json!({
+            "boardId":"board","method":"printed","mount":"rigid",
+            "plateThickness":1.5,"plateFoamThickness":0.5,"pcbThickness":1.6,
+            "bottomFoamThickness":0.4,"batteryHeight":4.0,"bottomThickness":3.0,
+            "plateToPcb":3.5,"wallThickness":2.0,"clearance":0.3,
+            "mounts":[],"closureMounts":[],"profiles":[]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn reservation_merging_refuses_an_exhausted_floor() {
+        for (label, floor) in [
+            (
+                "mount",
+                IdentityFloor {
+                    mount: u64::MAX,
+                    ..IdentityFloor::default()
+                },
+            ),
+            (
+                "vertex",
+                IdentityFloor {
+                    vertex: u64::MAX,
+                    ..IdentityFloor::default()
+                },
+            ),
+            (
+                "critical fit",
+                IdentityFloor {
+                    critical_fit: u64::MAX,
+                    ..IdentityFloor::default()
+                },
+            ),
+            (
+                "hardware",
+                IdentityFloor {
+                    hardware: u64::MAX,
+                    ..IdentityFloor::default()
+                },
+            ),
+        ] {
+            let mut configuration = configuration();
+            if label == "vertex" {
+                configuration.openings = Some(vec![MechanicalOpening {
+                    id: "opening-1".into(),
+                    vertices: vec![],
+                    z: 0.0,
+                    height: 1.0,
+                    next_vertex_identity: 1,
+                }]);
+            }
+            let error = merge_identity_floor(&mut configuration, floor).unwrap_err();
+            assert!(error.contains("exhausted"), "{label}: {error}");
+        }
+    }
+
+    #[test]
+    fn merging_an_already_exhausted_counter_is_a_no_op() {
+        let mut configuration = configuration();
+        configuration.next_mount_identity = u64::MAX;
+        merge_identity_floor(
+            &mut configuration,
+            IdentityFloor {
+                mount: u64::MAX,
+                ..IdentityFloor::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(configuration.next_mount_identity, u64::MAX);
     }
 }

@@ -1,6 +1,6 @@
 # 06: Prevent ZipWriter drop stderr output from corrupting parallel test receipts
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 
@@ -18,3 +18,24 @@ Prefer a local bounded-sink teardown fix. A candidate is sticky exhaustion: retu
 - [ ] Child-process stderr regression tests cover limit failures during header/start, compressed data/entry close and central-directory finish. Each returns the size-limit error, no archive and no Drop diagnostic; the backing buffer never grows past the configured cap, including teardown writes.
 - [ ] Successful archive roundtrip and shared-asset controls stay green. `cargo test -p boardstudio_core --locked` produces zero ZipWriter Drop diagnostics.
 - [ ] `python3 scripts/check.py test --receipt .evidence/rust-best-practices-06.json` records complete terminal observations for invoked tests, including Core, with no ZipWriter Drop diagnostics. Cargo alone does not create a BoardStudio receipt; do not weaken receipt completeness checks.
+
+## Answer
+
+Resolved on `t3/implement-rust-best-practices` (base `c071dedcf`).
+
+- `archive::BoundedWriter` now has sticky exhaustion: the first over-limit write returns the
+  original size error, later teardown writes are discarded while advancing a coherent logical
+  position, and the backing buffer never grows past the cap. `pack` returns the size error if
+  `finish` "succeeds" against the exhausted sink, so no partial archive is ever returned.
+- Child-process tests (`archive::tests::limit_failures_do_not_write_zipwriter_drop_diagnostics`)
+  cover a limit reached at the header, compressed data/entry close and central-directory
+  finish. Each asserts the child succeeds only with the size error, returns no archive, and
+  writes no `ZipWriter::drop` diagnostic. A unit test asserts sink buffer length and
+  Write/Seek coherence after exhaustion. Successful archive roundtrip/shared-asset controls
+  remain green.
+- `cargo test -p boardstudio_core --locked` and
+  `python3 scripts/check.py test --receipt .evidence/rust-best-practices-06.json` produced no
+  ZipWriter Drop diagnostics; the final receipt records complete observations for every
+  invoked scope, including Core (794 passed), with zero failures/incomplete records.
+
+Evidence: `.evidence/rust-best-practices-06.json` and `.json.md`; `check.py test` exit 0.

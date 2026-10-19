@@ -34,3 +34,11 @@ and `halves` to mechanical mirror pairs. The version 4 to 5 step changes only `f
 no data is rewritten and a pair without the new fields stays unpaired. An older build refuses a
 version 5 document, so it cannot drop the record silently. Core's `Open` refuses a record that
 names a missing board or item, or repeats a correspondence, with a message that locates it.
+
+Format version 6 adds optional mechanical identity reservation counters for critical fits,
+hardware and mounts. They are omitted at zero, so absence is the same unset state as zero;
+a successful Open starts a new document session and seeds them from the live identities it
+receives. No migration step or version bump was needed because an older build dropping these
+bookkeeping counters cannot change accepted geometry, and reloading is a new session in which
+the previous session's removed identities may be reused. An explicit `u64::MAX` counter is
+the exhausted sentinel and never allocates again.
