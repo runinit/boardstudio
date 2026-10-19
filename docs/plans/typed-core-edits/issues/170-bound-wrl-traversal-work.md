@@ -1,6 +1,6 @@
 # 170: Bound WRL decoding and refuse unsupported polygons
 
-Status: claimed
+Status: resolved
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)
@@ -29,35 +29,35 @@ face; the preview must acknowledge its narrower supported subset.
 
 ## Acceptance criteria
 
-- [ ] First reproduce the nesting and acyclic repeated-reference regressions
+- [x] First reproduce the nesting and acyclic repeated-reference regressions
   through the real decoder, then demonstrate deterministic bounded refusal.
-- [ ] Enforce a finite traversal depth before descending, and a cumulative
+- [x] Enforce a finite traversal depth before descending, and a cumulative
   expanded-occurrence/work budget shared across the whole decode. Empty groups,
   repeated references and separate roots consume work even without triangles.
-- [ ] A limit breach returns an input-specific error without a WASM trap, accepted
+- [x] A limit breach returns an input-specific error without a WASM trap, accepted
   partial model, silent truncation or unbounded expansion. Cycle and output-size
   refusals remain effective; do not replace them with only the new limits.
-- [ ] Boundary tests cover admitted versus refused depths/work, noncyclic shared
+- [x] Boundary tests cover admitted versus refused depths/work, noncyclic shared
   nodes, multiple roots, cyclic references and a normal colored/transformed model.
   Choose and document finite limits against representative supported assets.
-- [ ] First demonstrate the authored U-shaped face incorrectly covers a point
+- [x] First demonstrate the authored U-shaped face incorrectly covers a point
   inside its empty notch. After the fix the model is explicitly refused, with no
   accepted partial mesh or silent omission of the unsupported face.
-- [ ] Conservatively refuse nontriangular faces declared nonconvex before triangle
+- [x] Conservatively refuse nontriangular faces declared nonconvex before triangle
   emission. Explain this supported-format limit in the error/documentation; a
   nonconvex declaration does not prove that every face is geometrically concave.
-- [ ] Keep valid triangles and supported convex polygons working, including
+- [x] Keep valid triangles and supported convex polygons working, including
   indexed per-vertex/per-face colors and transforms. Independently authored
   controls cover default-convex and explicitly convex polygons, a nonconvex-declared
   triangle and the nonconvex-declared U-shaped polygon.
-- [ ] Fresh packaged WASM evidence uses one module instance: reject each hostile
+- [x] Fresh packaged WASM evidence uses one module instance: reject each hostile
   input, then successfully decode a normal box in that same instance. Verify the
   application model-loading path reports refusal without poisoning subsequent
   model use; creating a new decoder for the control is insufficient.
-- [ ] The fresh packaged decoder probe also proves U-shaped refusal and supported
+- [x] The fresh packaged decoder probe also proves U-shaped refusal and supported
   polygon controls. The application model-loading path surfaces that refusal
   instead of showing a filled notch, and subsequent model use remains healthy.
-- [ ] Run affected renderer checks. Resource assertions use bounded counters and
+- [x] Run affected renderer checks. Resource assertions use bounded counters and
   behavior, not sleeps, weakened limits or a machine-specific speed threshold.
 
 ## Comments
@@ -99,3 +99,41 @@ executed end-to-end (needs the packaged page and renderer asset URL in a browser
 the same packaged module the wrapper imports, with the wrapper's exact call/accessor shape and a
 shared instance, and the wrapper is a stateless `Err(String)` mapping. Ticket left `claimed` for
 the parent's integrated check to confirm the in-app path.
+
+### Application-boundary evidence (DeepSeek V4.1 Flash Free sub-agent)
+
+The retained gap is closed by a page browser test that calls the real application decoder,
+`boardstudio_web_runtime::renderer_host_page::decode_wrl` — the exact function `Runtime` supplies
+as the model-delivery `decode_wrl` port. The test runs in the page bin suite, so the packaged
+renderer asset `web/assets/renderer/boardstudio_renderer_wasm.js` is served from the crate root
+(the `wasm-bindgen-test-runner` asset fallback) and the wrapper's own `resource_url` import path
+is exercised.
+
+- `web/src/model_decode_boundary_tests.rs`, test
+  `model_decode_boundary_tests::refuses_hostile_wrl_at_the_application_decoder_without_poisoning_the_shared_module`.
+- One shared module instance for the whole test: `decode_wrl` caches its imported renderer in the
+  `RENDERER_MODULE` thread-local, so every case below runs on that same instance. After each
+  hostile input a `Box { size 10 8 4 }` must still decode to 108 positions/normals.
+- Cases: 4096 nested groups refused (`depth`), the 24-level doubling reference graph refused
+  (`work`), the U-shaped nonconvex face refused (`convex`); supported controls (default-convex and
+  explicitly convex polygons, a `convex FALSE` triangle, a colored/transformed triangle) decode.
+
+RED (`red-app-boundary.log`, pre-fix `web/assets/renderer` build 2026-10-18 22:39): the depth-4096
+case surfaces the raw trap `memory access out of bounds` through the wrapper instead of a depth
+refusal — the test fails on `unexpected depth refusal: memory access out of bounds`. That build's
+wasm does not contain the decoder limit strings (`renderer/pkg` does).
+
+GREEN (`green-app-boundary.log`, `green-app-boundary.json`): `executed 1, failed 0`,
+`passed_count 1, failed_count 0, incomplete_count 0, complete true, problems []`. The fresh
+renderer was staged by the documented provider flow: `wasm-pack build renderer --target web
+--out-dir pkg --out-name boardstudio_renderer_wasm --release --locked` followed by the
+`stage_runtime_assets` copy `renderer/pkg -> web/assets/renderer` (`green-provider-staging.log`);
+staged wasm SHA-256 `74bcd861…e0f9e` matches `renderer/pkg`. `cargo fmt --all --check` clean
+(`green-fmt.log`); `check-wasm-tests.py` reports no new wasm-only plain `#[test]`.
+
+Scope limits: the outer WASM module is the page test binary, which imports the same packaged
+renderer module the production page imports; the wrapper code path (`decode_model` -> `decodeWrl`
+-> read `positions`/`normals`/`colors`) runs unmodified. `ModelDeliveryPorts::decode` mapping a
+decoder `Err` to a delivery failure is covered by the existing native `decode rejected` test. The
+full `build-web.py --providers-only` provider set (workers, CAD wasm) was not rebuilt, only the
+renderer provider this ticket changes; the parent's integrated check owns the full build.
