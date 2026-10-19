@@ -50,7 +50,7 @@ and for any bulk action a recorded decision permits.
   - [172: Unsupported WRL polygons](issues/172-refuse-unsupported-wrl-polygons.md)
     is retired as merged into 170, not an additional work item.
   - [173: Mark interrupted native receipts incomplete](issues/173-mark-interrupted-native-receipts-incomplete.md) — resolved.
-  - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md) — resolved; literal generator text/labels now survive KiCad export (commit `0ea5b26d5`).
+  - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md) — resolved; literal generator text/labels now survive KiCad export (commits `0ea5b26d5`, `3d77c263c`).
   - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md) — ready-for-agent.
   **2026-10-19 implementation:** DeepSeek V4.1 Flash Free / High subagents
   implemented 170, 171 and 173 on `dev`; 172 remains merged into 170. Independent

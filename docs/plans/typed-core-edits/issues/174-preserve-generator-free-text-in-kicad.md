@@ -73,7 +73,7 @@ neither treated this first structured-output port as a fix for 174.
 
 ## Outcome
 
-Implemented on `dev` in commit `0ea5b26d5`.
+Implemented on `dev` in commits `0ea5b26d5` and `3d77c263c`.
 
 Generator free text is serialized once with the existing JSON-compatible
 `json_string` helper at emission: both text generators (`text`, font `face`,
@@ -88,7 +88,10 @@ through unchanged.
 Core's generated-form canonicalization decoded quoted escapes and then wrote
 control characters literally. `escape_quoted_controls` now emits `\n`, `\r` and
 `\t` escapes (and rejects other control characters), and board objects keep the
-validated canonical form instead of parsing it lossily a second time.
+validated canonical form instead of parsing it lossily a second time. The same
+decoder now reads JSON `\uXXXX` escapes, so unsupported control characters are
+rejected instead of becoming literal `\u0001` text. Preview text uses the raw
+source span decode, so preview whitespace and labels agree with export.
 
 Verification:
 
@@ -99,18 +102,21 @@ Verification:
   output, and bare-vs-quoted references.
 - `.evidence/174-footprints-suite.log`: all 17 footprints test binaries pass
   (including the golden baseline, 820 recorded cases).
-- `.evidence/174-core-lib-suite.log`: 794 core lib tests pass, 4 ignored.
-  `.evidence/174-core-generator-export-suite.log`: 9 generator export tests
+- `.evidence/174-core-lib-suite.log`: 797 core lib tests pass, 4 ignored.
+  `.evidence/174-core-generator-export-suite.log`: 10 generator export tests
   pass. `.evidence/174-kicad-integration.log`: 23 KiCad integration tests pass.
   `.evidence/174-clippy.log`: clippy with `-D warnings` passes for both crates.
 - Fresh packaged Core WASM (`wasm-pack build --dev --target web --out-name
   m1_core_worker --no-default-features --features core-worker`) exported the
   same quoted/backslash/Unicode/newline labels through `artifact_request`.
   `.evidence/174-packaged/probe.json` asserts 5 exact `gr_text` values and 6
-  exact labels; `.evidence/174-kicad-probe/packaged-load.log` records KiCad
-  10.0.7 accepting that board (exit 0) with a plain-text control in the same
-  board. The native export control is also asserted in
+  exact labels, including literal `\n` text and newline/tab whitespace;
+  `.evidence/174-kicad-probe/packaged-load.log` records KiCad 10.0.7 accepting
+  that board (exit 0) with a plain-text control in the same board. The native export control is also asserted in
   `generator_export::exports_quoted_generator_text_and_active_labels_for_kicad`.
+- Preview/export agreement is asserted in the native export test; a preview
+  unit test covers newline/tab and quote/backslash decoding, and the generated
+  `utility_logo` layer parameter is covered in the footprints literal test.
 - KiCad CLI had to run with the T3 Code AppImage's `APPDIR`, `LD_LIBRARY_PATH`
   and related variables unset; otherwise the launcher looks for
   `_pcbnew.kiface` inside the stale AppImage mount.
