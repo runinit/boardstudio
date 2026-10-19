@@ -1,6 +1,6 @@
 # 163: Refuse unsupported via spans in physical PCB geometry
 
-Status: claimed
+Status: resolved
 Type: build
 Priority: P2
 Blocked by: None (can start immediately)
@@ -21,23 +21,23 @@ through the board thickness.
 
 ## Acceptance criteria
 
-- [ ] Public Core regressions reproduce the current incorrect acceptance of blind
+- [x] Public Core regressions reproduce the current incorrect acceptance of blind
   and microvias with partial layer spans. Include a buried span and an ordinary
   front-to-back through-via control.
-- [ ] Inspect both via type and layer span before emitting a physical drill.
+- [x] Inspect both via type and layer span before emitting a physical drill.
   Unsupported or unresolved depth produces a diagnostic naming the source feature
   and reason, using existing source-geometry errors or mechanical gates.
-- [ ] Through-vias retain their authored center and diameter, including transformed
+- [x] Through-vias retain their authored center and diameter, including transformed
   PCB sources. Existing round pad drills and slots retain their behavior.
-- [ ] Direct board-source reads and module/physical-PCB preparation propagate the
+- [x] Direct board-source reads and module/physical-PCB preparation propagate the
   refusal. No affected source can become an exportable exact PCB or a successful
   collision operand with an invented through-hole.
-- [ ] Preserve original source data and existing independent layout/preview
+- [x] Preserve original source data and existing independent layout/preview
   availability where the current mechanical-gate policy permits it. The fix requires
   no new partial-depth geometry schema or public API.
-- [ ] Run affected Core source/module-import tests and native physical-PCB tests.
+- [x] Run affected Core source/module-import tests and native physical-PCB tests.
   Add focused Runtime or worker verification for any changed propagation boundary.
-- [ ] Complete one combined Standards+Spec review of the finished geometry behavior
+- [x] Complete one combined Standards+Spec review of the finished geometry behavior
   under the CAD review policy; record checks and supported via limits.
 
 ## Comments
@@ -45,33 +45,30 @@ through the board thickness.
 Created from audit finding 2 at the user's request. The smallest delivery is an
 explicit refusal for unsupported depth, with ordinary through-holes preserved.
 
-### CURRENT — 2026-10-18 implementation complete; parent verification pending
+## Answer — 2026-10-18
 
-- Public Core now refuses blind/buried (`blind`), micro and unknown via types, and
-  partial, missing, unknown, wildcard or ambiguous layer spans, naming the via and
-  reason. Physical drills require an omitted via type and exactly one F.Cu/B.Cu
-  endpoint pair (either order); legacy `locked` flags remain supported. Via identity
-  retains `tstamp` or `uuid`. No public API/member visibility or pad/slot parser changed.
-- Public reads/module imports cover refusal, transformed through-via centre/diameter,
-  retained slots, source provenance and independent layout/circuit availability.
-  Existing mechanical gates suppress exact module geometry. Runtime browser tests
-  prove physical preparation refuses a collision operand and exact export refuses
-  without nominal fallback. Source bytes and Unknown thickness policy are unchanged.
-- RED: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock cargo test -p boardstudio_core --release --test integration direct_board_source_refuses_unsupported_via_depths`
-  failed as expected: blind via returned `read-board-source` with an invented round
-  drill (`red-core.log`). The same command then passed (`green-core-via-types.log`).
-- GREEN: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock cargo test -p boardstudio_core --release --test integration module_import::`
-  passed all 22 tests (`green-core-module-import-final.log`). The initial group run
-  exposed a new test's incorrect assumption that an empty `roundDrills` field was
-  serialized; asserting the returned typed definition fixed that test assumption.
-- GREEN: `cargo test --manifest-path cad/monstertruck/Cargo.toml --release --lib layered::pcb_tests`
-  passed all 14 native physical-PCB tests (`green-cad-pcb.log`).
-- GREEN: `flock /home/chris/.cache/boardstudio-target/audit162-165-root.lock env CARGO_TARGET_DIR=/home/chris/01_Projects/ts-boardstudio2/target wasm-pack test --headless --chrome web/crates/runtime --lib -- source_pcb_export_tests::`
-  passed both browser tests (`green-runtime-source-pcb.log`). Targets were inspected
-  before builds; native targets are worktree-local, browser compilation used the
-  shared root target under the shared lock. Logs live in `.evidence/ticket-163/`.
-- `rustfmt --check --edition 2024 core/src/artifact/mechanical_extract/board_source.rs core/tests/module_import.rs web/crates/runtime/src/source_pcb_export_tests.rs`
-  and `git diff --check` passed. Three native test names added; none removed/renamed.
-- Pending parent gates: integrate the commit, run the final full native suite and
-  combined Standards+Spec geometry review, then determine ticket resolution.
-  No independent reviewer was spawned and acceptance boxes remain open.
+Implemented in `76ec07481`: physical drills accept only omitted via type with
+exactly one F.Cu/B.Cu span, either order. Blind/buried, micro, unknown types and
+missing, partial, wildcard or ambiguous spans return a named source refusal.
+Legacy locked flags and tstamp/uuid identity remain supported. Through-via
+center/diameter and transformed source geometry, pad drills and slots are kept.
+
+Public Core RED reproduced the invented through-drill. GREEN includes 22 module
+import tests, 14 native PCB tests and two Runtime source-PCB browser tests.
+Mechanical gates preserve independent source/layout/circuit data while refusing
+exact physical preparation and export; no nominal fallback or public API change.
+The parent also checked the upstream KiCad via grammar.
+
+Integrated verification at `ed7fe9d5f`: `python3 scripts/check.py` passed
+**repo, tooling, lint, build, test and browser** in **1005.7 s**, including native
+name guards and freshly built provider/page artifacts. Logs: `.evidence/tickets162-165/full-check.log`;
+stream RED/GREEN and mutation receipts: `.evidence/tickets162-165/streams/`.
+
+Claude Opus medium combined closure review: **Standards zero findings; Spec
+zero blocking findings**. The initial low eviction concern was withdrawn after
+reviewing the existing bounded retry policy and LRU regression. Its optional
+error-wording suggestion remains outside this slice; the capacity behavior is
+recorded in ticket 164. Reports: `.evidence/tickets162-165/opus-final-review-round1.md`
+and `opus-final-review-round2.md`. Review used source inspection and parent test
+evidence. Broader CAD migration and performance acceptance remain outside these
+four tickets.

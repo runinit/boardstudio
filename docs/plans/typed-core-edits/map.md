@@ -25,8 +25,12 @@ and for any bulk action a recorded decision permits.
 ## Decisions so far
 
 - **2026-10-18 audit follow-ups:** the user requested a ticket for each finding
-  from the recent-change audit at `f955050c3`. All four are `claimed` for parallel implementation and
-  have no blocking edges between them:
+  from the recent-change audit at `f955050c3`. All four are **resolved**, integrated
+  through `ed7fe9d5f`. Full `scripts/check.py` passed all six gates (1005.7 s), fresh
+  occurrence-budget worker smoke passed 7 checks, and Claude Opus medium completed
+  the combined Standards/Spec closure review with no blocking findings. The existing
+  80-asset cache and bounded same-check refusal policy remain; broader CAD acceptance
+  is unchanged. Implementation, RED/GREEN and review limits are recorded per ticket:
   - [162: Bound STEP occurrence expansion before geometry work](issues/162-bound-step-occurrence-expansion.md).
   - [163: Refuse unsupported via spans in physical PCB geometry](issues/163-refuse-unsupported-pcb-via-spans.md).
   - [164: Share tight collision refinement across repeated model placements](issues/164-share-tight-collision-refinement.md).
