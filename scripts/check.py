@@ -732,6 +732,11 @@ def _main(argv: list[str] | None = None) -> int:
         parser.error("--base-receipt requires --receipt")
     if args.list and args.receipt:
         parser.error("--receipt requires execution, not --list")
+    if args.files and args.steps != ["quick"]:
+        parser.error("--files applies to `quick` only")
+    unknown = [name for name in args.steps if name not in STEPS]
+    if args.steps != ["quick"] and unknown:
+        parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
     receipt = None
     if args.receipt:
         receipt = verification_receipt.Collector(
@@ -745,11 +750,6 @@ def _main(argv: list[str] | None = None) -> int:
     _RECEIPT = receipt
     if args.steps == ["quick"]:
         return quick(args.files, args.update_native_baseline, keep_going=args.keep_going)
-    if args.files:
-        parser.error("--files applies to `quick` only")
-    unknown = [name for name in args.steps if name not in STEPS]
-    if unknown:
-        parser.error(f"unknown step(s): {', '.join(unknown)}; choose from {', '.join(STEPS)}")
     if args.list:
         for name, (included, commands) in STEPS.items():
             print(f"{name}{'*' if included else ''}")

@@ -163,5 +163,8 @@ const probeResult = [
 const PROBE_EXPECTED = '[{"ok":true,"providerInstanceId":"p","id":"m","label":"L","options":[{"id":"o","value":"v","choices":["v","w"]}]},{"ok":false,"code":"duplicate-match","message":"2 entries match p/m"},{"ok":false,"code":"model-not-found","message":"provider p has no model absent"}]';
 console.log(`recipe probe: ${JSON.stringify(probeResult)}`);
 check('the recipe probe literal matches the tested helper', JSON.stringify(probeResult) === PROBE_EXPECTED);
+const recipe = fs.readFileSync(path.join(__dirname, '../docs/agents/model-lookup.md'), 'utf8');
+check('the documented behavior probe stays in sync with the tested literal',
+  recipe.includes(`const PROBE_EXPECTED = '${PROBE_EXPECTED}';`));
 
 assert.deepEqual(failures, [], failures.join('\n'));

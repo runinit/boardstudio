@@ -242,6 +242,9 @@ class ReceiptBoundaryTests(unittest.TestCase):
                                       page_loader=lambda path: None)
         record = built["commands"][0]
         self.assertFalse(record["complete"])
+        summary = receipt.render_summary(built)
+        self.assertNotIn("(fresh)", summary)
+        self.assertIn("counts unavailable", summary)
         self.assertTrue(record["problems"])
 
         def refuse(path):  # a cached file must never be read for a command that did not run
@@ -516,6 +519,14 @@ class CheckCliTests(unittest.TestCase):
                 self.assertFalse(record["complete"])
                 self.assertFalse(record["passed"])
                 self.assertTrue(record["problems"])
+
+    def test_invalid_cli_arguments_do_not_create_an_empty_receipt(self):
+        for arguments in (["nonsense"], ["repo", "--files", "README.md"]):
+            path = Path(self.temporary.name) / "invalid.json"
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                check.main([*arguments, "--receipt", str(path)])
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse(path.exists(), "a rejected invocation is not a check run")
 
 
 if __name__ == "__main__":

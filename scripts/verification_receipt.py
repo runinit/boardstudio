@@ -399,7 +399,10 @@ def render_summary(receipt: dict) -> str:
     crates = [record for record in receipt.get("commands", []) if record["scope"] == WASM_CRATE]
     if crates:
         for record in crates:
-            counts = record.get("counts") or {}
+            counts = record.get("counts")
+            if counts is None:
+                lines.append(f"- web/crates/{record.get('crate')}: {record['status']}; counts unavailable")
+                continue
             lines.append(f"- web/crates/{record.get('crate')}: {record['status']} exit {record['exit_code']}; "
                          f"{counts.get('passed', 0)} passed, {counts.get('failed', 0)} failed, "
                          f"{counts.get('ignored', 0)} ignored, {counts.get('incomplete', 0)} incomplete; "
@@ -415,10 +418,14 @@ def render_summary(receipt: dict) -> str:
     pages = [record for record in receipt.get("commands", []) if record["scope"] == PAGE_SUITE]
     if pages:
         for record in pages:
-            counts = record.get("counts") or {}
-            lines.append(f"- {record.get('result_json')} (fresh); "
+            counts = record.get("counts")
+            freshness = "fresh" if record.get("fresh") else "freshness unverified"
+            lines.append(f"- {record.get('result_json')} ({freshness}); {record['status']}; "
                          f"{'complete' if record.get('complete') else 'INCOMPLETE'}; "
                          f"{'gate accepted' if record.get('accepted') else 'gate NOT accepted'}")
+            if counts is None:
+                lines.append("  - counts unavailable; no current, usable page results")
+                continue
             lines.append(f"  - {counts.get('passed', 0)} passed, {counts.get('failed', 0)} failed, "
                          f"{counts.get('incomplete', 0)} incomplete of {counts.get('expected', 0)} expected")
             if record.get("raw_failures"):
@@ -520,7 +527,6 @@ class Collector:
         self.native_inputs: tuple[list[str], bool] | None = None
         self.page_before: dict[str, tuple | None] = {}
         self.page_results: dict[str, dict | None] = {}
-        self.written: tuple[Path, Path] | None = None
 
     def plan_commands(self, plan: list[tuple[str, list[list[str]]]]) -> None:
         self.plan = [(step, list(command)) for step, commands in plan for command in commands]
@@ -572,5 +578,5 @@ class Collector:
         built = build_receipt(self.plan, self.observations, source=self.source, exit_code=exit_code,
                               partial=partial, native=self._native(), base=base, base_path=self.base_path,
                               page_loader=lambda path: self.page_results.get(path))
-        self.written = write_receipt(self.path, built)
+        write_receipt(self.path, built)
         return built
