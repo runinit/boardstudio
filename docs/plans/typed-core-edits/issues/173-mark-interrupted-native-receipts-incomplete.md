@@ -75,3 +75,36 @@ and writes a partial receipt whose native command is `complete: false`, exit 130
 `passed: false`, one named pass, zero fabricated names, and both problems in JSON and in its
 `.md` summary (`.evidence/ticket-173/smoke.json`, `smoke.log`, `smoke.json.md`). No browser or
 CAD rebuild was run; the parent owns the integrated full six-gate check.
+
+### Follow-up: per-outcome reconciliation and truncated summaries
+
+A diff read of the first implementation found `_launch_problems` compared only the summary
+*total* (`passed + failed + ignored`) with the named terminal count. A summary that mislabelled
+an outcome (`0 passed; 1 failed; 0 ignored` against one observed `ok`) therefore passed as
+complete, and the `FAILED`/`ok` status token was never checked against `failed`. The summary
+regex also accepted a truncated line (`… filtered out` with no `; finished in N.NNs`).
+
+`check_native_tests.SUMMARY` now requires libtest's own `; finished in N.NNs` tail, so a launch
+killed while printing its summary has no terminal summary, and `Launch.summary` retains the
+status token. `_launch_problems` reconciles each named outcome (passed/failed/ignored) with the
+summary's own count and requires the status token to agree with the failed count; the announced
+count check is unchanged, and the total check is subsumed by the per-outcome one. Filtered-out
+and measured tests are still not executed tests. The retention list, known-exclusion and
+reused-evidence rules are untouched.
+
+RED/GREEN at the real seam (`.evidence/ticket-173/followup-repro.py`, calling the public
+`build_receipt`/`native_record`): against the pre-fix `HEAD` (`f209af58b`) all three cases —
+mislabelled outcome, `FAILED` with zero failed, and a truncated summary — return
+`complete: true, passed: true`; after the fix each returns `complete: false, passed: false` with
+its own problem, while a complete consistent summary stays `complete: true, passed: true`
+(`followup-red.json`, `followup-green.json`).
+
+Tests: 34 native-output parser, 37 receipt, 31 check-runner, 15 quick-runner, all passing
+(`.evidence/ticket-173/followup-green-tests.log`). Bounded invocation smoke with a stand-in
+`cargo` printing a truncated summary exits 1 (default behavior preserved) and writes a partial
+receipt whose native command is `complete: false`, exit 101, `passed: false`, one named pass,
+zero fabricated names, the truncated-summary problem in JSON and `INCOMPLETE` in its `.md`
+(`smoke-truncated.json`, `smoke-truncated.log`, `smoke-truncated.json.md`). Not covered: the
+analogous `WASM_SUMMARY` in `verification_receipt.crate_record` still accepts a `filtered out`
+line without `finished in` (wasm-pack launches, out of this ticket's native scope); no browser or
+CAD rebuild was run.
