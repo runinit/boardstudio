@@ -1847,6 +1847,122 @@ mod adapter_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn a_stale_critical_fit_setter_cannot_mutate_the_monotonic_replacement() {
+        use boardstudio_core::mechanical::change::{
+            MechanicalChange, MechanicalCriticalFitTextField, MechanicalEdit,
+        };
+        use boardstudio_core::model::{EditCommand, EditPhase, MechanicalCriticalFit};
+
+        fn command(base_revision: u64, transaction: &str, change: MechanicalChange) -> EditCommand {
+            EditCommand {
+                base_revision,
+                transaction_id: transaction.into(),
+                phase: EditPhase::Commit,
+                target_ids: vec!["board".into()],
+                operation: EditOperation::ApplyMechanicalEdit {
+                    edit: Box::new(MechanicalEdit {
+                        target: MechanicalTarget::Board {
+                            board_id: "board".into(),
+                        },
+                        change,
+                        mounting_hole: Some(Box::new(template())),
+                    }),
+                },
+            }
+        }
+
+        let mut document = fixture_document("adapter-stale-fit");
+        document.mechanical.as_mut().unwrap().critical_fits = Some(vec![MechanicalCriticalFit {
+            id: "case-critical-fit-1".into(),
+            part_id: "case-closure/part".into(),
+            label: "Critical dimension".into(),
+            from: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+            to: boardstudio_core::model::Vec2 { x: 10.0, y: 0.0 },
+            tolerance: "±0.2 mm".into(),
+        }]);
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let accepted = runtime.model().accepted.expect("accepted fixture");
+        let port = RecordingPort::default();
+        let feedback = Rc::new(RefCell::new(Vec::new()));
+        let current = current(&accepted, None);
+        let identity = current.identity.clone();
+        let controller = controller(
+            current,
+            TestCatalogue::default(),
+            port.clone(),
+            feedback.clone(),
+        );
+        assert!(controller.submit(request(
+            identity,
+            1,
+            MechanicalSettingsPatch::SetCriticalFitText {
+                fit_id: "case-critical-fit-1".into(),
+                field: MechanicalCriticalFitTextField::Label,
+                value: "stale value".into(),
+            },
+        )));
+        loaded().await;
+        let resolver = port.resolutions.borrow()[0].clone();
+
+        let revision = accepted.document.revision;
+        support::submit_fixed_command(
+            &runtime,
+            command(
+                revision,
+                "remove-fit",
+                MechanicalChange::RemoveCriticalFit {
+                    fit_id: "case-critical-fit-1".into(),
+                },
+            ),
+        );
+        support::run_pending(&runtime).await;
+        let revision = runtime
+            .model()
+            .accepted
+            .expect("removal accepted")
+            .document
+            .revision;
+        support::submit_fixed_command(
+            &runtime,
+            command(
+                revision,
+                "add-fit",
+                MechanicalChange::AddCriticalFit {
+                    part_id: "case-closure/part".into(),
+                },
+            ),
+        );
+        support::run_pending(&runtime).await;
+        let accepted = runtime.model().accepted.expect("addition accepted");
+
+        match resolver.resolve(&accepted) {
+            Resolution::Retire(_) => {}
+            Resolution::Submit(edit) => {
+                support::submit_fixed_command(&runtime, edit);
+                support::run_pending(&runtime).await;
+            }
+            other => panic!("unexpected stale resolution: {other:?}"),
+        }
+
+        let accepted = runtime.model().accepted.expect("accepted document");
+        let fits = accepted
+            .document
+            .mechanical
+            .as_ref()
+            .unwrap()
+            .critical_fits
+            .as_ref()
+            .unwrap();
+        assert_eq!(fits.len(), 1);
+        assert_eq!(fits[0].id, "case-critical-fit-2");
+        assert_eq!(
+            fits[0].label, "Critical dimension",
+            "the stale setter must never change the replacement's value"
+        );
+    }
+
+    #[wasm_bindgen_test]
     async fn a_catalogue_failure_reports_without_submitting() {
         let (_runtime, accepted) = accepted_fixture("adapter-catalogue-failure").await;
         let (release, reply) = oneshot::channel();

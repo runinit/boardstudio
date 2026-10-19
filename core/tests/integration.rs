@@ -11,12 +11,16 @@ mod boundary_parity;
 mod case;
 #[path = "closure_generator_parameters.rs"]
 mod closure_generator_parameters;
+#[path = "constraint_depth.rs"]
+mod constraint_depth;
 #[path = "contracts.rs"]
 mod contracts;
 #[path = "core.rs"]
 mod core_engine;
 #[path = "current_schema.rs"]
 mod current_schema;
+#[path = "document_integrity.rs"]
+mod document_integrity;
 #[path = "electrical_wiring.rs"]
 mod electrical_wiring;
 #[path = "encoder_inputs.rs"]
@@ -43,6 +47,8 @@ mod keymap_workflow;
 mod kicad_integration;
 #[path = "legacy_archive_migration.rs"]
 mod legacy_archive_migration;
+#[path = "mechanical_identity_monotonic.rs"]
+mod mechanical_identity_monotonic;
 #[path = "mechanical_integration.rs"]
 mod mechanical_integration;
 #[path = "mechanical_settings_edits.rs"]

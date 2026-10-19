@@ -98,7 +98,7 @@ fn replace_instance_staged(
         effective_inputs(document, board_contours, target)?.configuration
     };
     validate_unambiguous_feature_ids(&before, "accepted")?;
-    preserve_identity_reservations(document, target, &before, &mut after);
+    preserve_identity_reservations(document, target, &before, &mut after)?;
     reject_omitted_reintroduction(document, target, &before, &after)?;
 
     let projection_required = disabled_unpaired || replacement_affects_projection(&before, &after);
@@ -187,21 +187,33 @@ fn preserve_identity_reservations(
     target: &MechanicalTarget,
     before: &MechanicalConfiguration,
     after: &mut MechanicalConfiguration,
-) {
+) -> Result<(), String> {
     let accepted = identity_reservation_of(before);
     let requested = identity_reservation_of(after);
     let reserved = reserved_identity_floor(document, target);
-    let floor = (
-        reserved
-            .0
+    let floor = IdentityFloor {
+        opening: reserved
+            .opening
             .max(accepted.next_opening_identity.saturating_sub(1))
             .max(requested.next_opening_identity.saturating_sub(1)),
-        reserved
-            .1
+        vertex: reserved
+            .vertex
             .max(accepted.next_vertex_identity.saturating_sub(1))
             .max(requested.next_vertex_identity.saturating_sub(1)),
-    );
-    merge_identity_floor(after, floor);
+        critical_fit: reserved
+            .critical_fit
+            .max(accepted.next_critical_fit_identity.saturating_sub(1))
+            .max(requested.next_critical_fit_identity.saturating_sub(1)),
+        hardware: reserved
+            .hardware
+            .max(accepted.next_hardware_identity.saturating_sub(1))
+            .max(requested.next_hardware_identity.saturating_sub(1)),
+        mount: reserved
+            .mount
+            .max(accepted.next_mount_identity.saturating_sub(1))
+            .max(requested.next_mount_identity.saturating_sub(1)),
+    };
+    merge_identity_floor(after, floor)
 }
 
 fn validate_unambiguous_feature_ids(
@@ -814,6 +826,48 @@ mod tests {
     }
 
     #[test]
+    fn replacement_refuses_an_exhausted_linked_identity_without_mutating() {
+        let max_id = format!("opening-{}", u64::MAX);
+        let mut document = document(false);
+        let feature = MechanicalFeature {
+            id: "relationship-opening".into(),
+            kind: MechanicalFeatureKind::Opening,
+            author: "left".into(),
+            value: MechanicalFeatureValue::Opening {
+                opening: serde_json::from_value(json!({
+                    "id": max_id,
+                    "vertices": [
+                        {"id":"vertex-1","point":{"x":-2,"y":-2}},
+                        {"id":"vertex-2","point":{"x":2,"y":-2}},
+                        {"id":"vertex-3","point":{"x":2,"y":2}}
+                    ],
+                    "z":0.0,"height":1.0
+                }))
+                .unwrap(),
+            },
+            members: vec!["left", "right"]
+                .into_iter()
+                .map(|instance_id| MechanicalFeatureMember {
+                    instance_id: instance_id.into(),
+                    feature_id: max_id.clone(),
+                    state: MechanicalFeatureState::Linked,
+                })
+                .collect(),
+        };
+        document.hardware.as_mut().unwrap().pairs = vec![pair(Some(feature))];
+        let replacement = effective(&document, "right");
+        let before = document.clone();
+
+        let error = replace(&mut document, "right", Some(replacement)).unwrap_err();
+
+        assert!(error.contains("exhausted"), "{error}");
+        assert_eq!(
+            document, before,
+            "a refused replacement changed the document"
+        );
+    }
+
+    #[test]
     fn supplied_configuration_enables_a_disabled_unpaired_instance() {
         let mut document = document(false);
         let hardware = document.hardware.as_mut().unwrap();
@@ -827,6 +881,9 @@ mod tests {
         right.mechanical_identity_reservation = Some(MechanicalIdentityReservation {
             next_opening_identity: 9,
             next_vertex_identity: 12,
+            next_critical_fit_identity: 0,
+            next_hardware_identity: 0,
+            next_mount_identity: 0,
         });
         let mut requested = config("right-board");
         requested.battery_height = 9.25;

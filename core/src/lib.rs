@@ -42,6 +42,8 @@ pub struct CoreEngine {
     contours: Vec<Contour>,
     findings: Vec<Finding>,
     outline_cache: OutlineCache,
+    /// Session high-water marks; not part of any Undo snapshot or saved document.
+    identity_ledger: mechanical::edit::MechanicalIdentityLedger,
 }
 
 #[wasm_bindgen]
@@ -194,6 +196,7 @@ impl Default for CoreEngine {
             contours: vec![],
             findings: vec![],
             outline_cache: OutlineCache::default(),
+            identity_ledger: mechanical::edit::MechanicalIdentityLedger::default(),
         }
     }
 }
@@ -242,11 +245,24 @@ impl CoreEngine {
                 if document.format_version != migrate::CURRENT_VERSION {
                     return self.error(id, "Document must be migrated before it is opened");
                 }
+                if document.revision == u64::MAX {
+                    return self.error(id, "Document revision is exhausted");
+                }
+                if let Some(message) = validate::duplicate_top_level_identity(&document) {
+                    return self.error(id, &message);
+                }
                 let (document, repaired_findings) =
                     match mirrored_half::prepare_open(&document, &[]) {
                         Ok(prepared) => prepared,
                         Err(message) => return self.error(id, &message),
                     };
+                if let Some(message) = validate::duplicate_top_level_identity(&document) {
+                    return self.error(id, &message);
+                }
+                // A successful explicit Open starts a new document session. Failed
+                // opens (above) leave the previous session's reservations intact.
+                self.identity_ledger =
+                    mechanical::edit::MechanicalIdentityLedger::seeded(&document);
                 self.document = document;
                 self.undo.clear();
                 self.redo.clear();
@@ -393,6 +409,9 @@ impl CoreEngine {
                 if base_revision != self.document.revision {
                     return self.error(id, "Stale base revision");
                 }
+                let Some(revision) = self.document.revision.checked_add(1) else {
+                    return self.error(id, "Document revision is exhausted");
+                };
                 let Some(config) = self.document.hardware.as_mut().and_then(|hardware| {
                     hardware
                         .boards
@@ -410,7 +429,7 @@ impl CoreEngine {
                     return self.error(id, "The PCB handoff changed; review it again");
                 }
                 config.protected_handoff = None;
-                self.document.revision += 1;
+                self.document.revision = revision;
                 self.scene(
                     id,
                     SceneInput {
@@ -492,6 +511,13 @@ impl CoreEngine {
         if command.base_revision != self.document.revision {
             return self.error(id, "Stale base revision");
         }
+        // A wholesale replacement is validated before scripts or layout can normalize
+        // the incoming identities; publication validates its generated result again.
+        if let EditOperation::ReplaceDocument { document } = &command.operation
+            && let Some(message) = validate::duplicate_top_level_identity(document)
+        {
+            return self.error(id, &message);
+        }
         let prepared_route = uses_prepared_transaction(&self.document, &command.operation);
         if command.phase == EditPhase::Preview && prepared_route {
             return self.preview_prepared_edit(id, command);
@@ -557,10 +583,11 @@ impl CoreEngine {
             } else {
                 &[]
             };
-            match mirrored_half::prepare_transaction(
+            match mirrored_half::prepare_transaction_with_ledger(
                 &self.document,
                 board_contours,
                 &command.operation,
+                &self.identity_ledger,
             ) {
                 Ok((draft, prepared_changed)) => {
                     next = draft;
@@ -581,7 +608,12 @@ impl CoreEngine {
                 } else {
                     &[]
                 };
-            let raw_changed = match apply(&mut raw_next, board_contours, &command.operation) {
+            let raw_changed = match apply_with_ledger(
+                &mut raw_next,
+                board_contours,
+                &command.operation,
+                &self.identity_ledger,
+            ) {
                 Ok(changed) => changed,
                 Err(message) => return self.error(id, &message),
             };
@@ -706,7 +738,13 @@ impl CoreEngine {
             contours,
             findings,
         } = prepared;
-        next.revision = self.document.revision + 1;
+        if let Some(message) = validate::duplicate_top_level_identity(&next) {
+            return self.error(id, &message);
+        }
+        let Some(revision) = self.document.revision.checked_add(1) else {
+            return self.error(id, "Document revision is exhausted");
+        };
+        next.revision = revision;
         outline_versions::refresh_recovery(&mut next, &cache);
         // Keep the latest 100 committed edits without retaining an unbounded document history.
         if self.undo.len() == 100 {
@@ -715,6 +753,7 @@ impl CoreEngine {
         self.undo.push(self.document.clone());
         self.redo.clear();
         self.document = next;
+        self.identity_ledger.capture(&self.document);
         self.contours = contours;
         self.findings = findings;
         self.outline_cache = cache;
@@ -747,10 +786,11 @@ impl CoreEngine {
         } else {
             &[]
         };
-        let (draft, changed) = match mirrored_half::prepare_transaction(
+        let (draft, changed) = match mirrored_half::prepare_transaction_with_ledger(
             &self.document,
             board_contours,
             &command.operation,
+            &self.identity_ledger,
         ) {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
@@ -776,7 +816,13 @@ impl CoreEngine {
         let backup = PreviewBackup::capture(&self.document, &command.operation);
         let attachments = outline_controls::attached_parts(&self.document);
         let before_parts = self.document.parts.clone();
-        let result = apply(&mut self.document, &[], &command.operation).and_then(|mut changed| {
+        let result = apply_with_ledger(
+            &mut self.document,
+            &[],
+            &command.operation,
+            &self.identity_ledger,
+        )
+        .and_then(|mut changed| {
             layout::validate(&self.document)?;
             changed.extend(constraints::resolve_edit(
                 &mut self.document,
@@ -820,18 +866,27 @@ impl CoreEngine {
     }
 
     fn history(&mut self, id: String, direction: History) -> CoreReply {
-        let (from, to) = match direction {
-            History::Undo => (&mut self.undo, &mut self.redo),
-            History::Redo => (&mut self.redo, &mut self.undo),
+        let Some(revision) = self.document.revision.checked_add(1) else {
+            return self.error(id, "Document revision is exhausted");
         };
-        let Some(mut next) = from.pop() else {
+        let Some(mut next) = match direction {
+            History::Undo => self.undo.last(),
+            History::Redo => self.redo.last(),
+        }
+        .cloned() else {
             return self.error(id, "History is empty");
         };
         let changed = changed_ids(&self.document, &next);
         electrical::preserve_handoff(&self.document, &mut next);
+        let (from, to) = match direction {
+            History::Undo => (&mut self.undo, &mut self.redo),
+            History::Redo => (&mut self.redo, &mut self.undo),
+        };
+        from.pop();
         to.push(self.document.clone());
-        next.revision = self.document.revision + 1;
+        next.revision = revision;
         self.document = next;
+        self.identity_ledger.capture(&self.document);
         self.recompute();
         let transaction = match direction {
             History::Undo => "undo",
@@ -1560,6 +1615,20 @@ fn apply(
     board_contours: &[BoardContours],
     op: &EditOperation,
 ) -> Result<Vec<String>, String> {
+    apply_with_ledger(
+        doc,
+        board_contours,
+        op,
+        &mechanical::edit::MechanicalIdentityLedger::default(),
+    )
+}
+
+fn apply_with_ledger(
+    doc: &mut ProjectDoc,
+    board_contours: &[BoardContours],
+    op: &EditOperation,
+    identities: &mechanical::edit::MechanicalIdentityLedger,
+) -> Result<Vec<String>, String> {
     match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
@@ -2099,7 +2168,7 @@ fn apply(
             Ok(vec![id.clone()])
         }
         EditOperation::ApplyMechanicalEdit { edit } => {
-            crate::mechanical::edit::apply(doc, board_contours, edit)
+            crate::mechanical::edit::apply_with_ledger(doc, board_contours, edit, identities)
         }
         EditOperation::ApplyOutlineEdit { edit } => crate::outline_edit::apply(doc, edit),
         EditOperation::SetHalfException { .. }

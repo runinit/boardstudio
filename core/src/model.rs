@@ -1075,6 +1075,12 @@ pub struct MechanicalIdentityReservation {
     pub next_opening_identity: u64,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub next_vertex_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_critical_fit_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_hardware_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_mount_identity: u64,
 }
 
 impl MechanicalIdentityReservation {
@@ -1083,6 +1089,13 @@ impl MechanicalIdentityReservation {
         Self {
             next_opening_identity: self.next_opening_identity.max(other.next_opening_identity),
             next_vertex_identity: self.next_vertex_identity.max(other.next_vertex_identity),
+            next_critical_fit_identity: self
+                .next_critical_fit_identity
+                .max(other.next_critical_fit_identity),
+            next_hardware_identity: self
+                .next_hardware_identity
+                .max(other.next_hardware_identity),
+            next_mount_identity: self.next_mount_identity.max(other.next_mount_identity),
         }
     }
 }
@@ -2808,6 +2821,19 @@ pub struct MechanicalConfiguration {
     /// queued intent naming a removed opening can never reach a later addition.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub next_opening_identity: u64,
+    /// Monotonic reservations for identities that have no per-entity counter.
+    ///
+    /// Zero means nothing has been reserved yet: the first allocation normalizes to the
+    /// highest identity the configuration already carries. Once reserved, a removed
+    /// identity is never handed out again within the document session. Absence needs no
+    /// format migration: it is the same unset state as zero, and a successful Open starts
+    /// a new session that seeds these counters from the live identities it receives.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_critical_fit_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_hardware_identity: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_mount_identity: u64,
     #[serde(default)]
     pub integrated_plate_frame: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]

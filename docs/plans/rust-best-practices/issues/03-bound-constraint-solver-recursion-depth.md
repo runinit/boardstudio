@@ -1,6 +1,6 @@
 # 03: Bound constraint solver recursion depth
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 
@@ -19,3 +19,22 @@ The deep fixture must force traversal: the lexicographically first target should
 - [ ] Cyclic constraint graphs continue to be detected and rejected with a cycle error.
 - [ ] Native tests cover below/at/above-budget chains, both framed-owner dependency edges, and implicit assembly parents. Deliberately reverse-ordered deep IDs prove that memoization cannot bypass the fixture's active-depth test.
 - [ ] Refused Open/edit preserves the previously accepted document and history. Packaged-WASM tests exercise the boundary and deep refusal without a stack trap, establishing that the selected budget is conservative for both targets.
+
+## Answer
+
+Resolved on `t3/implement-rust-best-practices` (base `c071dedcf`).
+
+- `constraints::pose` checks a repeated active node for a cycle first, then enforces one named
+  conservative active-dependency budget (`MAX_DEPENDENCY_DEPTH = 256`) before inserting the
+  node. Every recursion edge (source authority, framed source/target owner and implicit
+  assembly parent) goes through `pose`, so the budget covers them all while completed-node
+  memoization and precedence are unchanged.
+- Native unit tests cover below/at/above budget, a 12,000-part reverse-ordered chain, both
+  framed-owner edges, assembly parents, and cycle precedence at the budget. Public Core tests
+  cover a 12,000-part Open refusal, at-budget Open plus above-budget edit refusal with
+  preserved document/history, and a refused deep Open. The packaged-WASM host test exercises
+  the 256/257 boundary and a 2,000-part refusal without a trap.
+
+Evidence: `cargo test -p boardstudio_core --locked --lib constraints::tests` (10 passed),
+`--test integration constraint_depth` (4 passed), host browser crate 41 passed including
+`wasm_constraint_depth_boundary_is_conservative`.

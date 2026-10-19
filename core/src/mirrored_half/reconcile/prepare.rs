@@ -604,6 +604,23 @@ pub(crate) fn prepare_transaction(
     board_contours: &[BoardContours],
     operation: &EditOperation,
 ) -> Result<(ProjectDoc, Vec<String>), String> {
+    prepare_transaction_with_ledger(
+        accepted,
+        board_contours,
+        operation,
+        &crate::mechanical::edit::MechanicalIdentityLedger::default(),
+    )
+}
+
+/// Builds a complete document draft while consulting the owning session's identity
+/// reservations, so a later addition never reuses an identity hidden by Undo or a
+/// disabled configuration.
+pub(crate) fn prepare_transaction_with_ledger(
+    accepted: &ProjectDoc,
+    board_contours: &[BoardContours],
+    operation: &EditOperation,
+    identities: &crate::mechanical::edit::MechanicalIdentityLedger,
+) -> Result<(ProjectDoc, Vec<String>), String> {
     crate::mechanical::halves::validate_document(accepted)?;
     let mut canonical =
         inverse::canonicalize(accepted, operation).map_err(|refusal| refusal.to_string())?;
@@ -611,7 +628,8 @@ pub(crate) fn prepare_transaction(
         super::lifecycle::retire_replacement_records(accepted, document)?;
     }
     let mut draft = accepted.clone();
-    let mut changed = apply_canonical(&mut draft, accepted, board_contours, &canonical)?;
+    let mut changed =
+        apply_canonical(&mut draft, accepted, board_contours, &canonical, identities)?;
     let lifecycle_before_resolution = matches!(
         canonical.operation,
         EditOperation::SetMechanical {
@@ -1052,6 +1070,7 @@ fn apply_canonical(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],
     canonical: &Canonical,
+    identities: &crate::mechanical::edit::MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
     if let EditOperation::AddMirrorOnlyPart { board_id, part, .. } = &canonical.operation {
         if id_exists_outside_parts(accepted, &part.id) {
@@ -1110,7 +1129,8 @@ fn apply_canonical(
             configuration.as_deref().cloned(),
         );
     }
-    let changed = crate::apply(draft, board_contours, &canonical.operation)?;
+    let changed =
+        crate::apply_with_ledger(draft, board_contours, &canonical.operation, identities)?;
     for addition in &canonical.hosted.circuits {
         for (member_id, pose) in &addition.member_poses {
             let member = draft
