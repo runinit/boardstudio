@@ -24,19 +24,33 @@ and for any bulk action a recorded decision permits.
 
 ## Decisions so far
 
-- **2026-10-18 input-boundary audit:** five researched follow-up tickets are
-  **ready-for-agent**. Each is independently verifiable and has no blocking
+- **2026-10-18 input-boundary audit:** five researched follow-up tickets were
+  created. Each is independently verifiable and has no blocking
   prerequisite. At the user's request, the two WRL findings share one decoder
   ticket. Primary-source findings and retained audit-evidence limits are
   recorded in [the research note](../../research/audit-input-boundaries-2026-10-18.md).
-  - [170: Bound WRL decoding and refuse unsupported polygons](issues/170-bound-wrl-traversal-work.md).
-  - [171: Bound geometry-script emission storage](issues/171-bound-script-emission-storage.md).
+  - [170: Bound WRL decoding and refuse unsupported polygons](issues/170-bound-wrl-traversal-work.md) — resolved.
+  - [171: Bound geometry-script emission storage](issues/171-bound-script-emission-storage.md) — resolved.
   - [172: Unsupported WRL polygons](issues/172-refuse-unsupported-wrl-polygons.md)
     is retired as merged into 170, not an additional work item.
-  - [173: Mark interrupted native receipts incomplete](issues/173-mark-interrupted-native-receipts-incomplete.md).
-  - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md).
-  - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md).
-  These tickets do not implement fixes or reopen resolved predecessor tickets.
+  - [173: Mark interrupted native receipts incomplete](issues/173-mark-interrupted-native-receipts-incomplete.md) — resolved.
+  - [174: Preserve generator free text in KiCad](issues/174-preserve-generator-free-text-in-kicad.md) — ready-for-agent.
+  - [175: Accept PCB outline UUID identities](issues/175-accept-pcb-outline-uuid-identities.md) — ready-for-agent.
+  **2026-10-19 implementation:** DeepSeek V4.1 Flash Free / High subagents
+  implemented 170, 171 and 173 on `dev`; 172 remains merged into 170. Independent
+  Standards and Spec reviews found no functional blockers; checklist/documentation
+  findings were corrected, and a final delta review accepted the real application
+  decoder browser regression. Native RED evidence covers the four new WRL refusals;
+  the later output-size test guards existing behavior, not another pre-fix failure.
+  The full six-step check passed in **525.0 s**: 56/56 commands, 2,077 native tests
+  passed, 11 ignored, all 1,992 retained names matched, and 104 fresh page tests
+  passed, plus mounted-crate and provider/product checks. Receipt:
+  `.evidence/implement-170-173-full.json` and its `.json.md` reviewer summary,
+  recorded at `a516109d7` with local documentation changes; subsequent commits
+  only clarify documentation. Packaged WASM probes demonstrate shared-instance
+  WRL recovery and bounded script refusal without accepted document changes.
+  No remote CI, release optimization or extra mutation run was performed.
+  These fixes do not reopen resolved predecessor tickets.
 
 - **2026-10-18 retro follow-ups:** the user requested primary-source research and
   one ticket for each of four environment improvements. All four are **resolved**:
