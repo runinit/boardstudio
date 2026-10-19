@@ -6,22 +6,9 @@
 //! Ported from `scripts/check-rust-boundaries.mjs`.
 #![allow(dead_code)]
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::support::synthetic_half;
-#[cfg(target_arch = "wasm32")]
-use boardstudio_core::migrate::CURRENT_VERSION;
+use crate::support::{replacement_electrical, synthetic_half};
 use boardstudio_core::model::ProjectDoc;
 use serde_json::{Value, json};
-
-#[cfg(target_arch = "wasm32")]
-#[path = "synthetic_half.rs"]
-mod synthetic_half;
-
-#[cfg(not(target_arch = "wasm32"))]
-use crate::support::replacement_electrical;
-#[cfg(target_arch = "wasm32")]
-#[path = "replacement_electrical.rs"]
-mod replacement_electrical;
 
 /// SHA-256 of [`ASSET`]; the native test recomputes it to guard the constant.
 pub const ASSET: &[u8] = b"STEP fixture bytes\n";

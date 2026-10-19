@@ -72,7 +72,6 @@ pub fn use_layout_findings_state(
     }));
     use_effect(use_reactive((&pending(), &owner, &workspace()), {
         let mut pending = pending;
-        let resume = resume;
         move |(request, owner, current_workspace)| {
             let Some(request) = request else {
                 return;

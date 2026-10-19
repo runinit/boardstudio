@@ -1,6 +1,6 @@
 # 08: Reject missing prepared input at the CAD worker receiver boundary
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 
@@ -16,7 +16,14 @@ Tickets 01/02 do not supply this boundary validation; 07 provides wider lint cov
 
 ## Acceptance criteria
 
-- [ ] A raw worker Preview frame with no keycaps/prepared input produces a descriptive failed reply carrying the captured request ID, job ID, operation and snapshot identity, without a WASM panic or unresolved pending request.
-- [ ] Worker/browser regression tests bypass the page-client validator, observe queue settlement, then complete a valid request on the same worker. Retain successful prepared-case and keycap Preview controls.
-- [ ] Use the current worker failure path, cancellation semantics and error types; unrelated guarded unwraps and protocol/enum redesigns stay out of scope.
-- [ ] Native host tests, affected worker/browser tests and native/WASM lint checks pass. Record the focused commands and evidence; do not claim client-only tests exercise the raw receiver.
+- [x] A raw worker Preview frame with no keycaps/prepared input produces a descriptive failed reply carrying the captured request ID, job ID, operation and snapshot identity, without a WASM panic or unresolved pending request.
+- [x] Worker/browser regression tests bypass the page-client validator, observe queue settlement, then complete a valid request on the same worker. Retain successful prepared-case and keycap Preview controls.
+- [x] Use the current worker failure path, cancellation semantics and error types; unrelated guarded unwraps and protocol/enum redesigns stay out of scope.
+- [x] Native host tests, affected worker/browser tests and native/WASM lint checks pass. Record the focused commands and evidence; do not claim client-only tests exercise the raw receiver.
+
+## Answer
+
+Resolved in `web/crates/host/src/cad_worker.rs`:
+- Replaced `request.prepared.as_ref().expect("request validated")` in `run_request`'s `CadOperation::Preview` branch with `.ok_or_else(|| (request.clone(), "CAD request omitted prepared case".to_owned(), false))?`, returning a `CadReplyOutcome::Failed` `WireReply` through `pump_worker` with captured `request_id`, `job_id`, `operation`, and `identity`.
+- Added browser regression `raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_worker_recovers` driving `receive_worker_message` directly with a raw `Preview` frame omitting both `keycaps` and `prepared`, verifying queue settlement and failed reply delivery, then completing both a prepared-case `Preview` and a keycaps `Preview` on the same worker queue.
+- Verified RED (`expect_failed` WASM trap in `.evidence/08-red.log`) → GREEN (`python3 scripts/check.py browser --only host` in `.evidence/08-host-browser.log`, 45 passed).

@@ -2232,7 +2232,7 @@ mod queued_settings_tests {
         let actions = use_keycaps_settings_actions(runtime, source, workspace, generation);
         *probe.actions.borrow_mut() = actions.clone();
         let edit_context = use_context::<KeycapsEditsContext>();
-        *probe.edits.borrow_mut() = Some(edit_context.clone());
+        *probe.edits.borrow_mut() = Some(edit_context);
         let edits = edit_context.edits.read();
         let render_generation = if probe.retirement.borrow().is_some() {
             let mut generation = retirement_render_generation.borrow_mut();

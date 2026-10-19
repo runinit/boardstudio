@@ -1172,7 +1172,7 @@ mod tests {
     #[component]
     fn parts_renderer_failure_host() -> Element {
         let fixture = use_context::<PartsMountedFixture>();
-        let mut selection = use_signal(|| None::<(Option<Scope>, String)>);
+        let selection = use_signal(|| None::<(Option<Scope>, String)>);
         let selected_context = use_signal(|| None);
         let anchor_scope = use_signal(|| None::<Scope>);
         let generation = use_signal(|| 1_u64);

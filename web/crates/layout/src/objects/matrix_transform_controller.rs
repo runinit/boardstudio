@@ -441,7 +441,7 @@ pub fn use_workspace_matrix_transform(
     });
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_hook(|| PendingEditSignals::<TransformPendingKey>::new());
+    let pending = use_hook(PendingEditSignals::<TransformPendingKey>::new);
     let one_shot_fields = use_hook(|| {
         [
             MatrixTransformField::RowOffsetReset,
@@ -651,7 +651,6 @@ pub fn use_workspace_matrix_transform(
             let mut feedback = feedback;
             let pending = pending.clone();
             let alive = alive.clone();
-            let inspector_mounted = inspector_mounted;
             move |(_, current_workspace, _, _)| {
                 let owner_is_live = alive.get()
                     && (inspector_mounted() || canvas_mounted())

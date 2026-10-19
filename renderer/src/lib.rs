@@ -103,6 +103,71 @@ mod tests {
         );
     }
 
+    fn assert_outward_unit_normals(mesh: &ModelMesh) {
+        assert!(!mesh.positions.is_empty());
+        assert_eq!(mesh.positions.len(), mesh.normals.len());
+        for (pos, norm) in mesh
+            .positions
+            .as_chunks::<9>()
+            .0
+            .iter()
+            .zip(mesh.normals.as_chunks::<9>().0.iter())
+        {
+            let centroid = [
+                (pos[0] + pos[3] + pos[6]) / 3.0,
+                (pos[1] + pos[4] + pos[7]) / 3.0,
+                (pos[2] + pos[5] + pos[8]) / 3.0,
+            ];
+            let n = [norm[0], norm[1], norm[2]];
+            let length = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+            assert!(
+                (length - 1.0).abs() < 1e-4,
+                "expected unit normal, got {n:?}"
+            );
+            let dot = centroid[0] * n[0] + centroid[1] * n[1] + centroid[2] * n[2];
+            assert!(
+                dot > 0.0,
+                "expected outward normal at {centroid:?}, got {n:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn decodes_wrl_sphere_with_finite_outward_normals() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry Sphere { radius 1 } }",
+        ))
+        .unwrap();
+        assert_outward_unit_normals(&mesh);
+    }
+
+    #[test]
+    fn assigns_per_face_colors_by_face_index_without_color_index() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 0 1 0, 0 0 1 ] } coordIndex [ 0 1 2 -1, 0 2 3 -1 ] color Color { color [ 1 0 0, 0 1 0 ] } colorPerVertex FALSE } }",
+        ))
+        .unwrap();
+        let colors = mesh.colors.as_ref().unwrap();
+        assert_eq!(
+            &colors[0..9],
+            &[1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+        );
+        assert_eq!(
+            &colors[9..18],
+            &[0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
+        );
+    }
+
+    #[test]
+    fn winds_wrl_box_triangles_with_outward_normals() {
+        let mesh = decode_wrl(&bytes(
+            "#VRML V2.0 utf8\nShape { geometry Box { size 10 8 4 } }",
+        ))
+        .unwrap();
+        assert_eq!(mesh.positions.len(), 12 * 9);
+        assert_outward_unit_normals(&mesh);
+    }
+
     #[test]
     fn applies_static_wrl_translation_and_axis_rotation() {
         let mesh = decode_wrl(&bytes(

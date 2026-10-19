@@ -78,7 +78,7 @@ pub fn use_board_setup(
     generation: Signal<u64>,
     on_navigate: EventHandler<(Scope, String, Option<String>)>,
 ) -> BoardSetupMount {
-    let pending = use_hook(|| PendingEditSignals::<BoardAction>::new());
+    let pending = use_hook(PendingEditSignals::<BoardAction>::new);
     let pending_add = use_signal(|| false);
     pending.bind_one_shot(BoardAction::Add, pending_add);
     let mut pending_owner = use_signal(|| None::<(BoardCreateOwner, String)>);

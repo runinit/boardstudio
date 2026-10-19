@@ -209,10 +209,10 @@ pub fn stage_statuses(
             && current_nets.len() == plan.nets.len()
             && configuration.mode == plan.mode
             && configuration.controller_part_id == plan.controller_part_id
-            && plan.nets.iter().all(|net| {
-                current_nets.iter().any(|current| *current == net)
-                    && board.net_ids.contains(&net.id)
-            })
+            && plan
+                .nets
+                .iter()
+                .all(|net| current_nets.contains(&net) && board.net_ids.contains(&net.id))
     });
     let wiring_stage_ready = wiring_current && wiring_ready && wiring_applied;
     let case_configured = document

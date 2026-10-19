@@ -249,7 +249,6 @@ thread_local! {
 
 /// Reuse the normalized bundled catalogue for project-owned closure projection.
 /// Project overrides never replace this generator template.
-
 pub async fn load_horizontal_host_connector_definition()
 -> Result<boardstudio_core::model::PartDefinition, String> {
     modules_catalogue::load_horizontal_host_connector_definition().await
@@ -1337,7 +1336,7 @@ pub fn PartsInspectorPanel(
                 definitions: snapshot.document.definitions.iter().cloned().chain(catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone())).collect(),
                 preset_definitions: catalogue.entries.as_ref().into_iter().flat_map(|entries| entries.iter()).map(|entry| (*entry.definition).clone()).collect(),
                 selected_context,
-                on_place: on_place_assembly.clone(),
+                on_place: on_place_assembly,
                 on_board_placed,
             }
             if let Some(module_id) = selected_module_id.as_deref() {

@@ -454,15 +454,14 @@ pub fn use_macro_operations(
             {
                 return;
             }
-            if let Some(sequence) = request.step_sequence.as_ref() {
-                if !request
+            if let Some(sequence) = request.step_sequence.as_ref()
+                && !request
                     .macro_id
                     .as_ref()
                     .and_then(|id| sequence_cache.by_macro.borrow().get(id).cloned())
                     .is_some_and(|current| Rc::ptr_eq(sequence, &current))
-                {
-                    return;
-                }
+            {
+                return;
             }
             // Structural one-shots share the macro sequence's control gate. At most
             // one can precede a field, so its positional effect can be captured purely.

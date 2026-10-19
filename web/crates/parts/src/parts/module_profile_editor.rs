@@ -445,8 +445,6 @@ pub fn ModuleProfileEditor(
         let mut error = error;
         let owner = owner.clone();
         let selected = selected;
-        let workspace = workspace;
-        let selection_generation = selection_generation;
         move |_| {
             if module_profile_owner_is_current(
                 &runtime_for_add,
@@ -558,8 +556,6 @@ pub fn ModuleProfileEditor(
         let mut failure = failure;
         let mut error = error;
         let selected = selected;
-        let selection_generation = selection_generation;
-        let workspace = workspace;
         move |rotary_override: Option<Option<RotaryProfile>>| {
             if module_profile_owner_is_current(
                 &runtime,

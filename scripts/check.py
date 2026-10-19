@@ -113,14 +113,26 @@ def browser() -> list[Command]:
     ]
 
 
+def launch_crate(command: Command) -> str | None:
+    """The `web/crates/<name>` target of a presentation-crate `wasm-pack test` launch."""
+    if command[:2] != ["wasm-pack", "test"]:
+        return None
+    return next((part.removeprefix("web/crates/") for part in command if part.startswith("web/crates/")), None)
+
+
+WEB_WASM_PACKAGES: tuple[str, ...] = (
+    "boardstudio-web",
+    *dict.fromkeys(f"boardstudio-web-{crate}" for cmd in browser() if (crate := launch_crate(cmd))),
+)
+
 # `--no-deps` keeps Clippy off the vendored cgmath fork; its lints are audited separately.
 LINT: list[list[str]] = [
     ["cargo", "fmt", "--all", "--check"],
     ["cargo", "clippy", "--workspace", "--locked", "--all-targets", "--no-deps", "--", "-D", "warnings"],
-    # Native Clippy compiles the runtime test stub, so the WASM-only `runtime` module
-    # (the browser collision checks) is only linted under an explicit WASM target.
-    ["cargo", "clippy", "--package", "boardstudio-web-runtime", "--target", "wasm32-unknown-unknown",
-     "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
+    # Native Clippy compiles non-WASM stubs for browser-gated modules and tests, so all
+    # web workspace crates are also linted under an explicit WASM target.
+    ["cargo", "clippy", *[arg for pkg in WEB_WASM_PACKAGES for arg in ("--package", pkg)],
+     "--target", "wasm32-unknown-unknown", "--all-targets", "--locked", "--no-deps", "--", "-D", "warnings"],
 ]
 
 STEPS: dict[str, tuple[bool, list[Command]]] = {
@@ -160,13 +172,6 @@ FAILURE_HEADER_RE = re.compile(r"^---- (\S+) output ----$")
 PANICKED_AT_RE = re.compile(r"^\s*panicked at ([^:\n]+:\d+:\d+):\s*(.*)$")
 RUNTIME_ERROR_RE = re.compile(r"^\s*RuntimeError:\s*(.+)$")
 WASM_FRAME_RE = re.compile(r"^\s*at [^\s(]+\.wasm\.([^\s(]+)")
-
-
-def launch_crate(command: Command) -> str | None:
-    """The `web/crates/<name>` target of a presentation-crate `wasm-pack test` launch."""
-    if command[:2] != ["wasm-pack", "test"]:
-        return None
-    return next((part.removeprefix("web/crates/") for part in command if part.startswith("web/crates/")), None)
 
 
 def is_crate_launch(command: Command) -> bool:

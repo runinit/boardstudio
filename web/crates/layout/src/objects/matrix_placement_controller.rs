@@ -104,7 +104,7 @@ pub fn use_matrix_placement(
     let request_id = use_signal(|| 0u64);
     let preparing = use_signal(|| None::<MatrixPlacementOwner>);
     let placement = use_signal(|| None::<MatrixPlacementProjection>);
-    let pending = use_hook(|| PendingEditSignals::<PlacementAction>::new());
+    let pending = use_hook(PendingEditSignals::<PlacementAction>::new);
     let pending_place = use_signal(|| false);
     pending.bind_one_shot(PlacementAction::Place, pending_place);
     let pending_follow_up = use_signal(|| None::<PlacementFollowUp>);

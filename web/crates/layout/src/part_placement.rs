@@ -453,7 +453,7 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
     let preparing = use_signal(|| None::<PlacementOwner>);
     let committing = use_signal(|| false);
     let key_edit_disabled = use_signal(|| false);
-    let pending_edits = use_hook(|| PendingEditSignals::<PlacementPendingKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<PlacementPendingKey>::new);
     pending_edits.bind_one_shot(PlacementPendingKey::Placement, committing);
     pending_edits.bind_one_shot(PlacementPendingKey::KeyComponent, key_edit_disabled);
     let error = use_signal(|| None::<String>);
@@ -670,10 +670,10 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                     let reversible_document = (*snapshot.document).clone();
                     let runtime = runtime.clone();
                     let load_definition = load_definition.clone();
-                    let mut error = error.clone();
+                    let mut error = error;
                     let current_context = adapter_for_async.selected_context;
-                    let workspace_for_load = workspace.clone();
-                    let generation_for_load = generation.clone();
+                    let workspace_for_load = workspace;
+                    let generation_for_load = generation;
                     let pending_edits_for_key = pending_edits.clone();
                     let alive = alive.clone();
                     spawn_local(async move {
@@ -733,10 +733,9 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                         error.set(None);
                         let runtime = runtime.clone();
                         let pending_edits = pending_edits_for_key.clone();
-                        let mut error = error.clone();
                         let current_context = current_context;
-                        let workspace_for_key = workspace.clone();
-                        let generation_for_key = generation.clone();
+                        let workspace_for_key = workspace_for_load;
+                        let generation_for_key = generation_for_load;
                         let alive = alive.clone();
                         spawn_local(async move {
                             loop {
@@ -801,17 +800,17 @@ pub fn use_controller_placement(host: PartPlacementHost) -> PartPlacementMount {
                 let accepted = snapshot.clone();
                 let reversible_document = (*snapshot.document).clone();
                 let runtime = runtime.clone();
-                let mut workspace = workspace.clone();
-                let mut active = active.clone();
-                let mut error = error.clone();
+                let mut workspace = workspace;
+                let mut active = active;
+                let mut error = error;
                 let alive = alive.clone();
                 let mut adapter = adapter_for_async.clone();
-                let guide = guide_preferences.clone();
-                let mut query = query.clone();
-                let mut preparing = preparing.clone();
-                let workspace_for_preparation = workspace.clone();
-                let generation_for_preparation = generation.clone();
-                let guide_for_preparation = guide.clone();
+                let guide = guide_preferences;
+                let mut query = query;
+                let mut preparing = preparing;
+                let workspace_for_preparation = workspace;
+                let generation_for_preparation = generation;
+                let guide_for_preparation = guide;
                 let load_definition = load_definition.clone();
                 let source_definition = source_definition.clone();
                 spawn_local(async move {
@@ -1899,6 +1898,59 @@ pub fn next_component_reference(document: &ProjectDoc, kind: &PartKind) -> Strin
         .find(|candidate| !occupied.contains(candidate))
         .unwrap_or(1);
     format!("{prefix}{next}")
+}
+
+/// What a Layout view-mode switch must cancel before entering 3D.
+pub struct LayoutPlacementCancellation {
+    pub parts: PartPlacementMount,
+    pub matrices: crate::objects::MatrixPlacementMount,
+    pub interactions: crate::canvas_interaction::CanvasInteractionArbiter,
+}
+
+pub fn layout_view_mode_handler(
+    is_owner_current: impl Fn() -> bool + 'static,
+    is_assembly_3d: Signal<bool>,
+    mut set_assembly_3d: impl FnMut(bool) + 'static,
+    placements: LayoutPlacementCancellation,
+    before_placement_cancel: impl Fn() + 'static,
+    mut after_placement_cancel: impl FnMut() + 'static,
+) -> EventHandler<bool> {
+    EventHandler::new(move |assembly_3d| {
+        if !is_owner_current() {
+            return;
+        }
+        if assembly_3d && !is_assembly_3d() {
+            before_placement_cancel();
+            if placements.parts.busy || placements.parts.projection.is_some() {
+                placements.parts.on_cancel.call(());
+            }
+            after_placement_cancel();
+            match placements.interactions.current() {
+                Some(CanvasInteractionOwner::PartPlacement) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::PartPlacement);
+                }
+                Some(CanvasInteractionOwner::OutlinePerimeter) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::OutlinePerimeter);
+                }
+                Some(CanvasInteractionOwner::MatrixPlacement) => {
+                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
+                        placements.matrices.on_cancel.call(owner);
+                    }
+                }
+                Some(CanvasInteractionOwner::MatrixTransform) => {
+                    placements
+                        .interactions
+                        .release(CanvasInteractionOwner::MatrixTransform);
+                }
+                Some(CanvasInteractionOwner::MirroredPair) | None => {}
+            }
+        }
+        set_assembly_3d(assembly_3d);
+    })
 }
 
 #[cfg(test)]
@@ -3528,7 +3580,7 @@ mod tests {
             ),
             Ok(EditOperation::ReplaceDocument { .. })
         ));
-        assert!(matches!(
+        assert!(
             placement_operation_for_intent(
                 &accepted,
                 "board-main",
@@ -3536,9 +3588,9 @@ mod tests {
                 &placed,
                 None,
                 PlacementIntent::MirrorOnly,
-            ),
-            Err(_)
-        ));
+            )
+            .is_err()
+        );
         let mut ambiguous = accepted.clone();
         let duplicate_pair = ambiguous.hardware.as_ref().unwrap().pairs[0].clone();
         ambiguous
@@ -3547,7 +3599,7 @@ mod tests {
             .unwrap()
             .pairs
             .push(duplicate_pair);
-        assert!(matches!(
+        assert!(
             placement_operation_for_intent(
                 &ambiguous,
                 "board-mirror",
@@ -3555,9 +3607,9 @@ mod tests {
                 &placed,
                 None,
                 PlacementIntent::LinkedCatalogueDefault,
-            ),
-            Err(_)
-        ));
+            )
+            .is_err()
+        );
         assert!(matches!(
             placement_operation_for_intent(
                 &accepted,
@@ -4048,57 +4100,4 @@ mod tests {
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("other"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("project"), false));
     }
-}
-
-/// What a Layout view-mode switch must cancel before entering 3D.
-pub struct LayoutPlacementCancellation {
-    pub parts: PartPlacementMount,
-    pub matrices: crate::objects::MatrixPlacementMount,
-    pub interactions: crate::canvas_interaction::CanvasInteractionArbiter,
-}
-
-pub fn layout_view_mode_handler(
-    is_owner_current: impl Fn() -> bool + 'static,
-    is_assembly_3d: Signal<bool>,
-    mut set_assembly_3d: impl FnMut(bool) + 'static,
-    placements: LayoutPlacementCancellation,
-    before_placement_cancel: impl Fn() + 'static,
-    mut after_placement_cancel: impl FnMut() + 'static,
-) -> EventHandler<bool> {
-    EventHandler::new(move |assembly_3d| {
-        if !is_owner_current() {
-            return;
-        }
-        if assembly_3d && !is_assembly_3d() {
-            before_placement_cancel();
-            if placements.parts.busy || placements.parts.projection.is_some() {
-                placements.parts.on_cancel.call(());
-            }
-            after_placement_cancel();
-            match placements.interactions.current() {
-                Some(CanvasInteractionOwner::PartPlacement) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::PartPlacement);
-                }
-                Some(CanvasInteractionOwner::OutlinePerimeter) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::OutlinePerimeter);
-                }
-                Some(CanvasInteractionOwner::MatrixPlacement) => {
-                    if let Some(owner) = placements.matrices.cancel_owner.clone() {
-                        placements.matrices.on_cancel.call(owner);
-                    }
-                }
-                Some(CanvasInteractionOwner::MatrixTransform) => {
-                    placements
-                        .interactions
-                        .release(CanvasInteractionOwner::MatrixTransform);
-                }
-                Some(CanvasInteractionOwner::MirroredPair) | None => {}
-            }
-        }
-        set_assembly_3d(assembly_3d);
-    })
 }

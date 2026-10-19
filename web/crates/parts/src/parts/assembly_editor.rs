@@ -336,7 +336,7 @@ pub fn SavedAssembliesEditor(
     let has_preset_definitions = !preset_definitions.is_empty();
     let mut editing = use_signal(|| None::<AssemblyDraft>);
     let mut editor_generation = use_signal(|| 0_u64);
-    let pending_edits = use_hook(|| PendingEditSignals::<AssemblyKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<AssemblyKey>::new);
     let mut pending = use_signal(Vec::<AssemblyAction>::new);
     let owner_seen = use_signal(|| None::<AssemblyOwner>);
     let preparing_apply = use_signal(|| false);
@@ -502,7 +502,6 @@ pub fn SavedAssembliesEditor(
     });
     let customize_preset = {
         let runtime = runtime.clone();
-        let workspace = workspace;
         let snapshot = snapshot.clone();
         let scope = scope.clone();
         let pending_edits = pending_edits.clone();
@@ -599,12 +598,10 @@ pub fn SavedAssembliesEditor(
 
     let apply_to_matrix = EventHandler::new({
         let runtime = runtime.clone();
-        let workspace = workspace;
         let scope = scope.clone();
         let snapshot = snapshot.clone();
         let selected_context = selected_context;
         let definitions = definitions.clone();
-        let preparing_apply = preparing_apply;
         let pending_edits = pending_edits.clone();
         let pending = pending;
         let feedback = feedback;
@@ -628,7 +625,6 @@ pub fn SavedAssembliesEditor(
 
     let place_on_board = EventHandler::new({
         let runtime = runtime.clone();
-        let workspace = workspace;
         let scope = scope.clone();
         let snapshot = snapshot.clone();
         let definitions = definitions.clone();
@@ -749,7 +745,7 @@ pub fn SavedAssembliesEditor(
                     place_pending: preparing_place() || pending_edits.is_pending(&AssemblyKey::Place),
                     matrix_pending: preparing_apply() || pending_edits.is_pending(&AssemblyKey::Matrix),
                     selected_context,
-                    on_place: on_place.clone(),
+                    on_place,
                     on_place_board: place_on_board,
                     on_apply: apply_to_matrix,
                     on_change: move |updated: AssemblyDraft| { editing.set(Some(updated)); feedback.set(None); },
@@ -1111,8 +1107,8 @@ fn AssemblyDraftFields(
         section { class: "m1-parts-assembly-editor", "aria-label": "Assembly editor",
             h3 { "Assembly editor" }
             label { class: "m1-parts-assembly-field", "Name"
-                { let name_draft = draft.clone(); let name_change = on_change.clone();
-                rsx! { input { value: "{render_value.name}", disabled: controls_disabled, oninput: move |event| { let mut value = value; value.with_mut(|value| value.name = event.value()); publish_draft(value, assets, &name_draft, name_change.clone()); } } }
+                { let name_draft = draft.clone();
+                rsx! { input { value: "{render_value.name}", disabled: controls_disabled, oninput: move |event| { let mut value = value; value.with_mut(|value| value.name = event.value()); publish_draft(value, assets, &name_draft, on_change); } } }
                 }
             }
             for member in render_value.members.clone() {
@@ -1126,10 +1122,10 @@ fn AssemblyDraftFields(
                     assets,
                     disabled: controls_disabled,
                     import_pending,
-                    on_change: on_change.clone(),
+                    on_change,
                 }
             }
-            { let add_draft = draft.clone(); let add_change = on_change.clone();
+            { let add_draft = draft.clone();
               let mut add_value = value; let add_assets = assets;
               rsx! { BoardButton { r#type: "button", disabled: controls_disabled, onclick: move |_| {
                   if let Some(id) = member_id(&add_value()) {
@@ -1142,7 +1138,7 @@ fn AssemblyDraftFields(
                           side: Side::Front,
                           models: Vec::new(),
                       }));
-                      publish_draft(add_value, add_assets, &add_draft, add_change.clone());
+                      publish_draft(add_value, add_assets, &add_draft, on_change);
                   }
               }, "Add component" } }
             }
@@ -1285,13 +1281,6 @@ fn AssemblyMemberFields(
     let rotation_draft = draft.clone();
     let mode_draft = draft.clone();
     let remove_draft = draft.clone();
-    let definition_change = on_change.clone();
-    let side_change = on_change.clone();
-    let x_change = on_change.clone();
-    let y_change = on_change.clone();
-    let rotation_change = on_change.clone();
-    let mode_change = on_change.clone();
-    let remove_change = on_change.clone();
     let mut component_value = value;
     let add_model_draft = draft.clone();
 
@@ -1308,7 +1297,6 @@ fn AssemblyMemberFields(
         let assets = assets;
         let mut import_pending = import_pending;
         let mut import_feedback = import_feedback;
-        let on_change = on_change.clone();
         move |event: FormEvent| {
             let Some(input) = event
                 .data()
@@ -1334,7 +1322,6 @@ fn AssemblyMemberFields(
             let mut assets = assets;
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;
-            let on_change = on_change.clone();
             spawn_local(async move {
                 if !assembly_owner_current(&runtime, &draft, workspace()) {
                     import_feedback.set(Some("The project or Parts scope changed. Reopen the assembly before importing a model.".into()));
@@ -1436,8 +1423,6 @@ fn AssemblyMemberFields(
         let assets = assets;
         let mut import_pending = import_pending;
         let mut import_feedback = import_feedback;
-        let on_change = on_change.clone();
-        let workspace = workspace;
         move |_| {
             let Some(mut definition) = definition.clone() else {
                 return;
@@ -1455,7 +1440,6 @@ fn AssemblyMemberFields(
             let assets = assets;
             let mut import_pending = import_pending;
             let mut import_feedback = import_feedback;
-            let on_change = on_change.clone();
             spawn_local(async move {
                 if !assembly_owner_current(&runtime, &draft, workspace()) {
                     if mounted.get() {
@@ -1522,7 +1506,7 @@ fn AssemblyMemberFields(
                 select {
                     value: member.definition_id.as_deref().unwrap_or(""),
                     disabled,
-                    onchange: move |event| update_member(value, assets, definition_draft.clone(), definition_change.clone(), definition_id.clone(), MemberPatch::Definition(event.value())),
+                    onchange: move |event| update_member(value, assets, definition_draft.clone(), on_change, definition_id.clone(), MemberPatch::Definition(event.value())),
                     {component_options(&definition_options, member.definition_id.as_deref())}
                 }
             }
@@ -1530,12 +1514,12 @@ fn AssemblyMemberFields(
                 && let Some(parameters) = member.parameters.as_ref() {
                 { let checked = parameters.get("hotswap").and_then(serde_json::Value::as_bool).unwrap_or(false);
                   let mut params = parameters.clone();
-                  let hotswap_id = member.id.clone(); let hotswap_draft = draft.clone(); let hotswap_change = on_change.clone();
+                  let hotswap_id = member.id.clone(); let hotswap_draft = draft.clone();
                   rsx! { label { class: "m1-parts-assembly-toggle", "Hotswap socket"
                     BoardCheckbox { checked, disabled, onchange: move |event: FormEvent| {
                         params.insert("hotswap".into(), serde_json::Value::Bool(event.checked()));
                         params.insert("solder".into(), serde_json::Value::Bool(!event.checked()));
-                        update_member(value, assets, hotswap_draft.clone(), hotswap_change.clone(), hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
+                        update_member(value, assets, hotswap_draft.clone(), on_change, hotswap_id.clone(), MemberPatch::Parameters(Some(params.clone())));
                     } }
                   } }
                 }
@@ -1544,15 +1528,15 @@ fn AssemblyMemberFields(
                 select {
                     value: if matches!(&member.side, Side::Back) { "back" } else { "front" },
                     disabled,
-                    onchange: move |event| update_member(value, assets, side_draft.clone(), side_change.clone(), side_id.clone(), MemberPatch::Side(event.value() == "back")),
+                    onchange: move |event| update_member(value, assets, side_draft.clone(), on_change, side_id.clone(), MemberPatch::Side(event.value() == "back")),
                     option { value: "front", "Front" }
                     option { value: "back", "Back" }
                 }
             }
             div { class: "m1-parts-assembly-transform",
-                label { "X (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), x_change.clone(), x_id.clone(), MemberPatch::X(event.value())) } }
-                label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), y_change.clone(), y_id.clone(), MemberPatch::Y(event.value())) } }
-                label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled, oninput: move |event| update_member(value, assets, rotation_draft.clone(), rotation_change.clone(), rotation_id.clone(), MemberPatch::Rotation(event.value())) } }
+                label { "X (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), on_change, x_id.clone(), MemberPatch::X(event.value())) } }
+                label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), on_change, y_id.clone(), MemberPatch::Y(event.value())) } }
+                label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled, oninput: move |event| update_member(value, assets, rotation_draft.clone(), on_change, rotation_id.clone(), MemberPatch::Rotation(event.value())) } }
             }
             label { class: "m1-parts-assembly-field", "3D models"
                 select {
@@ -1561,7 +1545,7 @@ fn AssemblyMemberFields(
                     onchange: move |event| {
                         let custom = event.value() == "custom";
                         let models = if custom && current_models.is_empty() { model_defaults.clone() } else { current_models.clone() };
-                        update_member(value, assets, mode_draft.clone(), mode_change.clone(), mode_id.clone(), MemberPatch::ModelMode(custom, models));
+                        update_member(value, assets, mode_draft.clone(), on_change, mode_id.clone(), MemberPatch::ModelMode(custom, models));
                     },
                     option { value: "defaults", "Use component defaults" }
                     option { value: "custom", "Custom model bindings" }
@@ -1582,7 +1566,7 @@ fn AssemblyMemberFields(
                         assets,
                         options: options.clone(),
                         disabled,
-                        on_change: on_change.clone(),
+                        on_change,
                     }
                 }
             } else if definition.is_some() {
@@ -1594,7 +1578,7 @@ fn AssemblyMemberFields(
             if is_custom {
                 BoardButton { r#type: "button", disabled: disabled || options.is_empty(), onclick: move |_| {
                     if let Some(option) = options.first() {
-                        update_member(value, assets, add_model_draft.clone(), on_change.clone(), add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
+                        update_member(value, assets, add_model_draft.clone(), on_change, add_model_id.clone(), MemberPatch::AddModel(default_model(option.id.clone())));
                     }
                 }, "Add model" }
             }
@@ -1604,7 +1588,7 @@ fn AssemblyMemberFields(
             if let Some(message) = import_feedback.read().as_ref() {
                 p { class: "m1-parts-load-error", role: "alert", "{message}" }
             }
-            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
+            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveMember), "Remove component" }
         }
     }
 }
@@ -1624,15 +1608,10 @@ fn AssemblyModelFields(
     let asset_options = options.clone();
     let asset_id = member_id.clone();
     let asset_draft = draft.clone();
-    let asset_change = on_change.clone();
     let offset_draft = draft.clone();
     let rotation_draft = draft.clone();
     let scale_draft = draft.clone();
-    let offset_change = on_change.clone();
-    let rotation_change = on_change.clone();
-    let scale_change = on_change.clone();
     let remove_draft = draft.clone();
-    let remove_change = on_change.clone();
     let remove_id = member_id.clone();
     rsx! {
         BoardDisclosure { class: "m1-parts-assembly-model", open: true,
@@ -1641,14 +1620,14 @@ fn AssemblyModelFields(
                 select {
                     value: "{model.asset_id}",
                     disabled,
-            onchange: move |event| update_member(value, assets, asset_draft.clone(), asset_change.clone(), asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
+            onchange: move |event| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
                     {model_asset_options(&asset_options, &model.asset_id)}
                 }
             }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change: offset_change }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change: rotation_change }
-            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change: scale_change }
-            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), remove_change.clone(), remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
+            ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Scale, draft: scale_draft, value, assets, disabled, on_change }
+            BoardButton { r#type: "button", disabled, onclick: move |_| update_member(value, assets, remove_draft.clone(), on_change, remove_id.clone(), MemberPatch::RemoveModel(index)), "Remove model" }
         }
     }
 }
@@ -1677,16 +1656,13 @@ fn ModelVectorFields(
     let x_draft = draft.clone();
     let y_draft = draft.clone();
     let z_draft = draft.clone();
-    let x_change = on_change.clone();
-    let y_change = on_change.clone();
-    let z_change = on_change.clone();
     rsx! {
         div { class: "m1-parts-assembly-model-vector",
             strong { "{label}" }
             div { class: "m1-parts-assembly-transform",
-                label { "X" input { r#type: "number", step: "0.1", value: "{vector.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), x_change.clone(), axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) } }
-                label { "Y" input { r#type: "number", step: "0.1", value: "{vector.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), y_change.clone(), axis_y_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Y, event.value())) } }
-                label { "Z" input { r#type: "number", step: "0.1", value: "{vector.z}", disabled, oninput: move |event| update_member(value, assets, z_draft.clone(), z_change.clone(), axis_z_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Z, event.value())) } }
+                label { "X" input { r#type: "number", step: "0.1", value: "{vector.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), on_change, axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) } }
+                label { "Y" input { r#type: "number", step: "0.1", value: "{vector.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), on_change, axis_y_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Y, event.value())) } }
+                label { "Z" input { r#type: "number", step: "0.1", value: "{vector.z}", disabled, oninput: move |event| update_member(value, assets, z_draft.clone(), on_change, axis_z_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Z, event.value())) } }
             }
         }
     }

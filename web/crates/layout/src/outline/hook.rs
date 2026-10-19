@@ -409,7 +409,7 @@ pub fn use_outline_lifecycle(
 ) {
     let version = use_context::<Signal<u64>>()();
     let captured_generation = scope_generation();
-    let pending = use_hook(|| PendingEditSignals::<OutlinePendingKey>::new());
+    let pending = use_hook(PendingEditSignals::<OutlinePendingKey>::new);
     let feedback = use_signal(|| None::<OutlineFeedback>);
     let one_shot_pending = use_signal(|| false);
     let version_name_draft = use_signal(String::new);
@@ -897,8 +897,6 @@ fn project_inspector(
     ) && model.display_preview.is_none()
         && model.gesture.is_none();
     let one_shot_pending = one_shot_pending();
-    let version_name_draft = version_name_draft;
-    let version_name_failure = version_name_failure;
     let visible_feedback = feedback
         .read()
         .as_ref()

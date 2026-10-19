@@ -234,7 +234,7 @@ pub fn use_key_size(
     };
     let request_sequence = use_signal(|| 0u64);
     let last_request = use_signal(|| 0u64);
-    let pending = use_hook(|| PendingEditSignals::<KeySizeEditKey, Vec2>::new());
+    let pending = use_hook(PendingEditSignals::<KeySizeEditKey, Vec2>::new);
     let feedback = use_signal(|| None::<KeySizeFeedback>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let inspector_mounted = use_signal(|| false);

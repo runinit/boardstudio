@@ -118,7 +118,7 @@ pub fn use_mirrored_pair(
     let error = use_signal(|| None::<String>);
     let status = use_signal(|| None::<String>);
     let placement = use_signal(|| None::<ActivePair>);
-    let pending = use_hook(|| PendingEditSignals::<PairAction>::new());
+    let pending = use_hook(PendingEditSignals::<PairAction>::new);
     let pending_create = use_signal(|| false);
     pending.bind_one_shot(PairAction::Create, pending_create);
     let pair_follow_up = use_signal(|| None::<PairFollowUp>);

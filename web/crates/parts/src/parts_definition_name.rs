@@ -40,7 +40,7 @@ mod ui {
         let mut draft = use_signal(|| definition.name.clone());
         let mut draft_dirty = use_signal(|| false);
         let mut failure = use_signal(|| None::<String>);
-        let pending = use_hook(|| PendingEditSignals::<NameFieldKey>::new());
+        let pending = use_hook(PendingEditSignals::<NameFieldKey>::new);
         // Subscribe to the workspace's runtime-change version: outcomes settle outside
         // Dioxus (Core replies, saves), so this read is what wakes the settle pass below
         // even when the accepted document did not change (for example a failed save).

@@ -43,7 +43,7 @@ pub fn ModuleAttachment(
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
     let mut pending = use_signal(|| false);
-    let pending_edits = use_hook(|| PendingEditSignals::<AttachKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<AttachKey>::new);
     // The mounted-module identity this panel's attachment was submitted with; the
     // Landed follow-up selects exactly that module.
     let attached_module_id = use_signal(|| None::<String>);
@@ -87,7 +87,6 @@ pub fn ModuleAttachment(
         let mut feedback = feedback;
         let selected = selected;
         let mut attached_module_id = attached_module_id;
-        let on_attached = on_attached.clone();
         let scope = owner_scope.clone();
         let definition = definition.clone();
         let expected_selection = expected_selection.clone();

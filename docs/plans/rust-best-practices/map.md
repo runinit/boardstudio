@@ -8,7 +8,7 @@ Core rejects ambiguous document identities, overflowing revisions and over-depth
 
 ## Notes
 
-- Domain terms: [CONTEXT.md](../../../CONTEXT.md) (accepted document, pending edit, field edit, one-shot action).
+- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md) (accepted document, pending edit, field edit, one-shot action).
 - Skills: `rust-best-practices`, `tdd` for build tickets, `code-review` before resolving.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 - Out of scope (by design): sweeping `Result<_, String>` to `thiserror` rewrites where callers only display error text; removing transactional whole-document clones on edit paths; refactoring single-threaded `RefCell` caches in `mirrored_half::reconcile`; repo-wide `#![deny(missing_docs)]`.
@@ -35,19 +35,19 @@ No hard dependencies remain among the open tickets. Prefer 01 (document integrit
 - [01: Reject duplicate document identities and overflowing revisions on open and commit](issues/01-reject-duplicate-identities-and-revision-overflow.md) — `resolved`.
 - [02: Preserve monotonic mechanical feature identities across removal, undo, and overflow](issues/02-preserve-monotonic-mechanical-identities.md) — `resolved`.
 - [03: Bound constraint solver recursion depth](issues/03-bound-constraint-solver-recursion-depth.md) — `resolved`.
-- [04: Fix WRL primitive tessellation, per-face color indexing, and box normal winding](issues/04-fix-wrl-primitives-colors-and-box-normals.md) — `ready-for-agent`.
+- [04: Fix WRL primitive tessellation, per-face color indexing, and box normal winding](issues/04-fix-wrl-primitives-colors-and-box-normals.md) — `resolved`.
 - [05: Handle untrusted support-polygon floats and malformed firmware GPIO pins without panicking](issues/05-reject-non-finite-support-coords-and-bad-gpio-pins.md) — `wontfix` (existing public guards; see Answer).
 - [06: Prevent ZipWriter drop stderr output from corrupting parallel test receipts](issues/06-silence-zipwriter-drop-stderr-on-limit-errors.md) — `resolved`.
-- [07: Fix WASM Clippy warnings across workspace crates and widen the lint gate](issues/07-fix-wasm-clippy-warnings-and-widen-lint-gate.md) — `ready-for-agent`.
-- [08: Reject missing prepared input at the CAD worker receiver boundary](issues/08-replace-fragile-unwraps-and-unreachables.md) — `ready-for-agent`.
+- [07: Fix WASM Clippy warnings across workspace crates and widen the lint gate](issues/07-fix-wasm-clippy-warnings-and-widen-lint-gate.md) — `resolved`.
+- [08: Reject missing prepared input at the CAD worker receiver boundary](issues/08-replace-fragile-unwraps-and-unreachables.md) — `resolved`.
 
 ## Implementation outcomes (2026-10-19)
 
 Tickets [01](issues/01-reject-duplicate-identities-and-revision-overflow.md),
 [02](issues/02-preserve-monotonic-mechanical-identities.md),
-[03](issues/03-bound-constraint-solver-recursion-depth.md) and
-[06](issues/06-silence-zipwriter-drop-stderr-on-limit-errors.md) are `resolved` on
-`t3/implement-rust-best-practices` against base `c071dedcf`. Each ticket's Answer records the
-public seam and focused evidence; the shared final evidence is `check.py test --receipt
-.evidence/rust-best-practices-06.json` (2057 native tests, Core 794) plus the host/case browser
-launches. Tickets 04/05/07/08 are unchanged.
+[03](issues/03-bound-constraint-solver-recursion-depth.md),
+[04](issues/04-fix-wrl-primitives-colors-and-box-normals.md),
+[06](issues/06-silence-zipwriter-drop-stderr-on-limit-errors.md),
+[07](issues/07-fix-wasm-clippy-warnings-and-widen-lint-gate.md), and
+[08](issues/08-replace-fragile-unwraps-and-unreachables.md) are `resolved` (with [05](issues/05-reject-non-finite-support-coords-and-bad-gpio-pins.md) `wontfix`). Each ticket's Answer records the
+public seam and focused evidence.

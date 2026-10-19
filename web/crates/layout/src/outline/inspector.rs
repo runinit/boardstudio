@@ -774,10 +774,10 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     let connection_id = connection_id.clone();
                                     move |value| {
                                         let mut after = before.clone();
-                                        if let OutlineFeature::PartEnvelope { connections, .. } = &mut after {
-                                            if let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id) {
-                                                connection.width = value;
-                                            }
+                                        if let OutlineFeature::PartEnvelope { connections, .. } = &mut after
+                                            && let Some(connection) = connections.iter_mut().find(|connection| connection.id == connection_id)
+                                        {
+                                            connection.width = value;
                                         }
                                         on_action.call(action_context.set_feature(version_id.clone(), before.clone(), after));
                                     }

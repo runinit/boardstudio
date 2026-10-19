@@ -178,12 +178,7 @@ fn set_model_axis(model: &mut PartModel, field: VectorField, axis: Axis, value: 
 }
 
 fn submit_model_transform(
-    runtime: &Rc<Runtime>,
-    owner: &ModelEditorOwner,
-    selected: &PartsSelection,
-    selection_generation: u64,
-    scope_generation: u64,
-    workspace: &Signal<&'static str>,
+    live: bool,
     original: &PartDefinition,
     project_owned_at_start: bool,
     asset_id: &str,
@@ -191,17 +186,11 @@ fn submit_model_transform(
     axis: Axis,
     value: f64,
 ) -> Result<EditResolver, String> {
-    current_snapshot(
-        runtime,
-        owner,
-        selected,
-        selection_generation,
-        scope_generation,
-        workspace,
-    )
-    .ok_or_else(|| {
-        "The selected component changed. Re-select it before editing its model.".to_owned()
-    })?;
+    if !live {
+        return Err(
+            "The selected component changed. Re-select it before editing its model.".to_owned(),
+        );
+    }
     let asset_id = asset_id.to_owned();
     let resolver = model_resolver(
         original.clone(),
@@ -232,27 +221,16 @@ fn submit_model_transform(
 }
 
 fn submit_remove_model(
-    runtime: &Rc<Runtime>,
-    owner: &ModelEditorOwner,
-    selected: &PartsSelection,
-    selection_generation: u64,
-    scope_generation: u64,
-    workspace: &Signal<&'static str>,
+    live: bool,
     original: &PartDefinition,
     project_owned_at_start: bool,
     asset_id: &str,
 ) -> Result<EditResolver, String> {
-    current_snapshot(
-        runtime,
-        owner,
-        selected,
-        selection_generation,
-        scope_generation,
-        workspace,
-    )
-    .ok_or_else(|| {
-        "The selected component changed. Re-select it before removing its model.".to_owned()
-    })?;
+    if !live {
+        return Err(
+            "The selected component changed. Re-select it before removing its model.".to_owned(),
+        );
+    }
     let asset_id = asset_id.to_owned();
     let resolver = model_resolver(
         original.clone(),
@@ -306,7 +284,7 @@ pub fn ComponentModelEditor(
     let mut error = use_signal(|| None::<ModelEditorMessage>);
     let mut notice = use_signal(|| None::<ModelEditorMessage>);
     let mut uploading = use_signal(|| false);
-    let pending_edits = use_hook(|| PendingEditSignals::<ModelKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<ModelKey>::new);
     let submit_owner = use_signal(|| None::<ModelEditorOwner>);
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     let request_generation = use_hook(|| Rc::new(Cell::new(0_u64)));
@@ -333,7 +311,6 @@ pub fn ComponentModelEditor(
     use_effect(use_reactive((&version(),), {
         let runtime = runtime.clone();
         let pending_edits = pending_edits.clone();
-        let submit_owner = submit_owner;
         let mut error = error;
         let mut notice = notice;
         move |_| {
@@ -586,21 +563,22 @@ pub fn ComponentModelEditor(
         let owner = owner.clone();
         let original = definition.clone();
         let selected = selected;
-        let workspace = workspace;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
         let mut error = error;
         let mut notice = notice;
         move |(field, axis, _submitted, value): (VectorField, Axis, String, f64)| {
-            let Some(asset_id) = asset_id.as_deref() else {
-                return None;
-            };
-            match submit_model_transform(
+            let asset_id = asset_id.as_deref()?;
+            let live = current_snapshot(
                 &runtime,
                 &owner,
                 &selected,
                 selection_generation(),
                 scope_generation(),
                 &workspace,
+            )
+            .is_some();
+            match submit_model_transform(
+                live,
                 &original,
                 project_owned,
                 asset_id,
@@ -628,7 +606,6 @@ pub fn ComponentModelEditor(
         let owner = owner.clone();
         let original = definition.clone();
         let selected = selected;
-        let workspace = workspace;
         let asset_id = binding.as_ref().map(|model| model.asset_id.clone());
         let pending_edits = pending_edits.clone();
         let mut submit_owner = submit_owner;
@@ -641,17 +618,16 @@ pub fn ComponentModelEditor(
             if pending_edits.is_pending(&ModelKey::Remove) {
                 return;
             }
-            match submit_remove_model(
+            let live = current_snapshot(
                 &runtime,
                 &owner,
                 &selected,
                 selection_generation(),
                 scope_generation(),
                 &workspace,
-                &original,
-                project_owned,
-                asset_id,
-            ) {
+            )
+            .is_some();
+            match submit_remove_model(live, &original, project_owned, asset_id) {
                 Ok(resolver) => {
                     error.set(None);
                     notice.set(None);
@@ -734,7 +710,7 @@ fn ModelVectorEditor(
     // This editor's own collection: the editor is remounted per owner (its parent keys
     // it by the model owner), so its lifetime is the owner lifetime and it settles its
     // own axes here, like the render-body settlement it replaces.
-    let pending = use_hook(|| PendingEditSignals::<ModelKey>::new());
+    let pending = use_hook(PendingEditSignals::<ModelKey>::new);
     let axes = [Axis::X, Axis::Y, Axis::Z];
     let current = vector_values(value);
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
@@ -842,20 +818,20 @@ fn ModelVectorEditor(
                                 dirty.write()[index] = false;
                                 return;
                             }
-                            if !already_submitted {
-                                if let Some(resolver) = on_commit.call((axis, raw.clone(), number)) {
-                                    // The helper remembers the submitted axis text, so an
-                                    // older outcome can never clobber a newer draft.
-                                    pending.begin_field(
-                                        &runtime,
-                                        ModelKey::Transform { field, axis },
-                                        "parts-component-model",
-                                        Some("component model".into()),
-                                        resolver,
-                                        &raw,
-                                    );
-                                    submitted.write()[index] = Some(raw);
-                                }
+                            if !already_submitted
+                                && let Some(resolver) = on_commit.call((axis, raw.clone(), number))
+                            {
+                                // The helper remembers the submitted axis text, so an
+                                // older outcome can never clobber a newer draft.
+                                pending.begin_field(
+                                    &runtime,
+                                    ModelKey::Transform { field, axis },
+                                    "parts-component-model",
+                                    Some("component model".into()),
+                                    resolver,
+                                    &raw,
+                                );
+                                submitted.write()[index] = Some(raw);
                             }
                         },
                         onkeydown: move |event: KeyboardEvent| {

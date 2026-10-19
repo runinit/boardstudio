@@ -297,10 +297,7 @@ pub fn use_controller(
                             &intent,
                             operation,
                             settlement,
-                            &activity,
-                            instance_selection,
-                            generation,
-                            &mut ui,
+                            (&activity, instance_selection, generation, &mut ui),
                         );
                         break;
                     }
@@ -456,56 +453,6 @@ fn expected_case_reassignment_owner(
     current_owner.generation = next_generation;
     current_owner.scope_transition = Some(transition);
     Some(current_owner)
-}
-
-#[cfg(test)]
-mod case_reassignment_scope_transition_tests {
-    use super::*;
-    use boardstudio_application::SessionEpoch;
-
-    fn owner() -> OwnerIdentity {
-        OwnerIdentity {
-            context: OwnerContext::CaseInspector,
-            session_epoch: SessionEpoch(3),
-            document_id: "project".into(),
-            board_id: "board-a".into(),
-            instance_id: Some("right-half".into()),
-            token: SnapshotToken(41),
-            revision: 8,
-            generation: 12,
-            scope_transition: None,
-        }
-    }
-
-    #[wasm_bindgen_test::wasm_bindgen_test]
-    fn only_the_accepted_reassignment_scope_transition_admits_followup_navigation() {
-        let owner = owner();
-        let accepted_token = SnapshotToken(42);
-        let normalized_owner =
-            expected_case_reassignment_owner(&owner, "board-b", accepted_token, 13)
-                .expect("one accepted scope normalization advances generation once");
-        let expected = normalized_owner
-            .scope_transition
-            .as_ref()
-            .expect("reassignment identity carries its exact transition");
-
-        assert!(expected.matches_current(Some(expected), Some(accepted_token), 13));
-
-        let mut user_cleared = expected.clone();
-        user_cleared.next_token = Some(owner.token);
-        assert!(!expected.matches_current(Some(&user_cleared), Some(accepted_token), 13));
-
-        let mut user_navigated = expected.clone();
-        user_navigated.next_scope = Some(Scope {
-            instance_id: Some("left-half".into()),
-            ..expected
-                .next_scope
-                .clone()
-                .expect("same-board scope exists")
-        });
-        assert!(!expected.matches_current(Some(&user_navigated), Some(accepted_token), 13));
-        assert!(!expected.matches_current(Some(expected), Some(accepted_token), 12));
-    }
 }
 
 fn current_source(
@@ -735,10 +682,12 @@ fn finish_operation(
     intent: &PhysicalSetupIntent,
     operation_id: OperationId,
     settlement: PendingEditResult<OwnerIdentity>,
-    activity: &OwnerActivity,
-    instance_selection: super::super::InstanceSelection,
-    generation: Signal<u64>,
-    ui: &mut OperationUi,
+    (activity, instance_selection, generation, ui): (
+        &OwnerActivity,
+        super::super::InstanceSelection,
+        Signal<u64>,
+        &mut OperationUi,
+    ),
 ) {
     if !ui.alive.get() {
         return;
@@ -848,4 +797,54 @@ fn fresh_id(document: &ProjectDoc, prefix: &str, operation: u64) -> String {
             .expect("physical setup ID suffix exhausted");
     }
     candidate
+}
+
+#[cfg(test)]
+mod case_reassignment_scope_transition_tests {
+    use super::*;
+    use boardstudio_application::SessionEpoch;
+
+    fn owner() -> OwnerIdentity {
+        OwnerIdentity {
+            context: OwnerContext::CaseInspector,
+            session_epoch: SessionEpoch(3),
+            document_id: "project".into(),
+            board_id: "board-a".into(),
+            instance_id: Some("right-half".into()),
+            token: SnapshotToken(41),
+            revision: 8,
+            generation: 12,
+            scope_transition: None,
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn only_the_accepted_reassignment_scope_transition_admits_followup_navigation() {
+        let owner = owner();
+        let accepted_token = SnapshotToken(42);
+        let normalized_owner =
+            expected_case_reassignment_owner(&owner, "board-b", accepted_token, 13)
+                .expect("one accepted scope normalization advances generation once");
+        let expected = normalized_owner
+            .scope_transition
+            .as_ref()
+            .expect("reassignment identity carries its exact transition");
+
+        assert!(expected.matches_current(Some(expected), Some(accepted_token), 13));
+
+        let mut user_cleared = expected.clone();
+        user_cleared.next_token = Some(owner.token);
+        assert!(!expected.matches_current(Some(&user_cleared), Some(accepted_token), 13));
+
+        let mut user_navigated = expected.clone();
+        user_navigated.next_scope = Some(Scope {
+            instance_id: Some("left-half".into()),
+            ..expected
+                .next_scope
+                .clone()
+                .expect("same-board scope exists")
+        });
+        assert!(!expected.matches_current(Some(&user_navigated), Some(accepted_token), 13));
+        assert!(!expected.matches_current(Some(expected), Some(accepted_token), 12));
+    }
 }

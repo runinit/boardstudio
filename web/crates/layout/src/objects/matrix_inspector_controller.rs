@@ -317,7 +317,7 @@ pub fn use_matrix_inspector(
 
     let request_sequence = use_signal(|| 0u64);
     let last_request_id = use_signal(|| 0u64);
-    let pending = use_hook(|| PendingEditSignals::<MatrixPendingKey>::new());
+    let pending = use_hook(PendingEditSignals::<MatrixPendingKey>::new);
     let inspector_mounted = use_signal(|| false);
     let name_draft = use_signal(String::new);
     let name_failure = use_signal(|| None::<String>);
@@ -536,9 +536,6 @@ pub fn use_matrix_inspector(
             let mut settlement_tick = settlement_tick;
             let fields = fields_for_settlement;
             let context_generation = context_generation.clone();
-            let workspace = workspace;
-            let scope_generation = scope_generation;
-            let inspector_mounted = inspector_mounted;
             let projection = projection.clone();
             move |(_, _, _, _, _)| {
                 let current_owner = pending_action_owner.read().clone();

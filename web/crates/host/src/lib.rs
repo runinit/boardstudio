@@ -17,6 +17,9 @@ pub mod offline;
 
 #[cfg(all(test, target_arch = "wasm32", feature = "page"))]
 mod boundary_parity;
+#[cfg(all(test, target_arch = "wasm32", feature = "page"))]
+#[path = "../../../../core/tests/support/mod.rs"]
+pub(crate) mod support;
 
 pub const CORE_WORKER_FRAME_VERSION: u8 = 1;
 

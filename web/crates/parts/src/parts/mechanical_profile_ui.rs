@@ -63,7 +63,7 @@ pub fn PartsMechanicalProfileWorkspace(
     let runtime_version = use_context::<Signal<u64>>();
     let _ = runtime_version();
     let editing = use_signal(|| false);
-    let pending_edits = use_hook(|| PendingEditSignals::<ProfileKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<ProfileKey>::new);
     let save_disabled = use_signal(|| false);
     pending_edits.bind_one_shot(ProfileKey::Save, save_disabled);
     use_drop({

@@ -102,7 +102,7 @@ pub fn use_canvas_align(
     owner_workspace: &'static str,
 ) -> LayoutAlignMount {
     let mut selected_reference = use_signal(|| None::<String>);
-    let pending = use_hook(|| PendingEditSignals::<AlignActionKey>::new());
+    let pending = use_hook(PendingEditSignals::<AlignActionKey>::new);
     let pending_align = use_signal(|| false);
     pending.bind_one_shot(AlignActionKey::Align, pending_align);
     let align_follow_up = use_signal(|| None::<AlignFollowUp>);
@@ -175,8 +175,6 @@ pub fn use_canvas_align(
                 settle_pending(
                     &runtime,
                     selected_context,
-                    workspace,
-                    scope_generation,
                     &identity,
                     &pending,
                     &mut align_follow_up,
@@ -248,7 +246,6 @@ pub fn use_canvas_align(
         let pending = pending.clone();
         let mut align_follow_up = align_follow_up;
         let mut feedback = feedback;
-        let pending_align = pending_align;
         move |request: AlignAction| {
             if pending_align() {
                 return;
@@ -838,8 +835,6 @@ fn make_edit(
 fn settle_pending(
     runtime: &Runtime,
     selected_context: Signal<Option<ScopedTreeContext>>,
-    workspace: &'static str,
-    scope_generation: u64,
     identity: &AlignIdentity,
     pending: &PendingEditSignals<AlignActionKey>,
     align_follow_up: &mut Signal<Option<AlignFollowUp>>,
@@ -850,8 +845,8 @@ fn settle_pending(
     };
     let model = runtime.model();
     let live_scope = runtime.scope();
-    let same_scope =
-        live_scope.as_ref() == Some(&waiting.scope) && scope_generation == waiting.scope_generation;
+    let same_scope = live_scope.as_ref() == Some(&waiting.scope)
+        && identity.scope_generation == waiting.scope_generation;
     let results = pending.settle(same_scope, |_| String::new());
     let Some(result) = results.into_iter().next() else {
         return;
@@ -871,7 +866,7 @@ fn settle_pending(
             return;
         }
     };
-    let still_visible_target = workspace == waiting.workspace
+    let still_visible_target = identity.workspace == waiting.workspace
         && selected_context.peek().as_ref().is_some_and(|selected| {
             selected.scope == waiting.scope && selected.context == waiting.context
         });

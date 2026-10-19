@@ -5,6 +5,12 @@ use std::{cell::Cell, rc::Rc};
 #[derive(Clone)]
 pub struct PartsStandardProfileLifetime(Rc<Cell<bool>>);
 
+impl Default for PartsStandardProfileLifetime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PartsStandardProfileLifetime {
     pub fn new() -> Self {
         Self(Rc::new(Cell::new(true)))

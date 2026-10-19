@@ -62,17 +62,21 @@ class CheckTests(unittest.TestCase):
         self.assertNotIn("security", check.DEFAULT)
         self.assertNotIn("typecheck", check.DEFAULT)
 
-    def test_lint_runs_wasm_clippy_over_the_runtime_browser_targets(self):
-        # Native Clippy builds the runtime test stub, so the WASM-only `runtime` module
-        # (and its collision checks) needs its own explicit WASM-target Clippy command.
+    def test_lint_runs_wasm_clippy_over_the_web_workspace_crates(self):
+        # Native Clippy builds the non-WASM stubs, so the WASM-gated web crates
+        # (and their browser tests) need an explicit WASM-target Clippy command.
         wasm_clippy = [command for command in check.LINT
                        if command[:2] == ["cargo", "clippy"] and "wasm32-unknown-unknown" in command]
         self.assertEqual(len(wasm_clippy), 1, "the lint step runs exactly one WASM-target Clippy command")
         command = wasm_clippy[0]
-        self.assertEqual(command[command.index("--package") + 1], "boardstudio-web-runtime")
+        packages = [command[index + 1] for index, token in enumerate(command[:-1]) if token == "--package"]
+        self.assertEqual(
+            packages,
+            ["boardstudio-web", *[f"boardstudio-web-{crate}" for crate in check.browser_crates()]],
+        )
         self.assertEqual(command[command.index("--target") + 1], "wasm32-unknown-unknown")
-        self.assertIn("--all-targets", command, "the library and browser-test target kinds are both linted")
-        self.assertNotIn("--workspace", command, "the WASM scope stays bounded to the runtime package")
+        self.assertIn("--all-targets", command, "the library, binary, and browser-test target kinds are all linted")
+        self.assertNotIn("--workspace", command, "the WASM scope stays bounded to the web workspace crates")
         self.assertIn("--locked", command)
         self.assertIn("--no-deps", command)
         self.assertEqual(command[command.index("--"):], ["--", "-D", "warnings"])

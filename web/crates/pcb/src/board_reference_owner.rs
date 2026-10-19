@@ -129,15 +129,14 @@ pub fn board_reference_owner_lineage_is_current(
 
 pub(crate) fn submit_board_reference_document(
     runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &SelectionAdapter,
+    live: bool,
     owner: &LayoutOwnerIdentity,
     proposed: boardstudio_core::model::ProjectDoc,
     transaction_label: &str,
     edits: &mut PendingEdits<BoardReferenceKey>,
     key: BoardReferenceKey,
 ) -> Result<Option<BoardReferenceKey>, String> {
-    if !board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !live {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let scope = owner

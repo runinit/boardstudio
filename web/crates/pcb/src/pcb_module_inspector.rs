@@ -156,7 +156,6 @@ fn PcbMountedModuleInspector(
         let selected_context = input.selected_context;
         let edits = edits.clone();
         let mut feedback = feedback;
-        let latest = latest;
         let preparing = preparing.clone();
         move |_| {
             let panel_is_live =
@@ -1854,11 +1853,11 @@ mod mounted_save_replacement_tests {
             .click();
         settle().await;
         assert!(
-            root.query_selector("button.m1-primary-button")
+            !root
+                .query_selector("button.m1-primary-button")
                 .unwrap()
                 .expect("Save placement button remains mounted")
-                .has_attribute("disabled")
-                == false,
+                .has_attribute("disabled"),
             "placement fields queue freely while their earlier ticket is pending"
         );
         assert_eq!(

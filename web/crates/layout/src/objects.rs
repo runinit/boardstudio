@@ -490,8 +490,11 @@ pub fn Objects(
                                         onclick: move |_| {
                                             if let Some(context) = select_item.context.clone() {
                                                 if let Some(scope) = click_scope.clone() {
-                                                    if let TreeContext::Board { board_id } = &context {
-                                                        if *board_id != scope.board_id { navigate_on_click.call((scope, board_id.clone(), None)); return; }
+                                                    if let TreeContext::Board { board_id } = &context
+                                                        && *board_id != scope.board_id
+                                                    {
+                                                        navigate_on_click.call((scope, board_id.clone(), None));
+                                                        return;
                                                     }
                                                     select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
                                                 }
@@ -508,8 +511,11 @@ pub fn Objects(
                                                 event.prevent_default();
                                                 if let Some(context) = keyboard_item.context.clone() {
                                                     if let Some(scope) = key_scope.clone() {
-                                                        if let TreeContext::Board { board_id } = &context {
-                                                            if *board_id != scope.board_id { navigate_on_key.call((scope, board_id.clone(), None)); return; }
+                                                        if let TreeContext::Board { board_id } = &context
+                                                            && *board_id != scope.board_id
+                                                        {
+                                                            navigate_on_key.call((scope, board_id.clone(), None));
+                                                            return;
                                                         }
                                                         select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
                                                     }

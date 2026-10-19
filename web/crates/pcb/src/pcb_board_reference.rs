@@ -162,18 +162,46 @@ fn preview_paths(models: &[boardstudio_core::model::PcbModel]) -> Vec<String> {
         .collect()
 }
 
-async fn wait_for_reference_ticket(
-    runtime: &Rc<Runtime>,
+#[derive(Clone)]
+struct BoardReferenceContext {
+    runtime: Rc<Runtime>,
     workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    adapter: super::SelectionAdapter,
+    owner: super::LayoutOwnerIdentity,
     generation: Signal<u64>,
     request_generation: u64,
+}
+
+impl BoardReferenceContext {
+    fn is_current(&self) -> bool {
+        super::board_reference_owner_is_current(
+            &self.runtime,
+            self.workspace,
+            &self.adapter,
+            &self.owner,
+        )
+    }
+
+    fn is_live(&self) -> bool {
+        self.generation.cloned() == self.request_generation && self.is_current()
+    }
+
+    fn lineage_is_current(&self) -> bool {
+        super::board_reference_owner_lineage_is_current(
+            &self.runtime,
+            self.workspace,
+            &self.adapter,
+            &self.owner,
+        )
+    }
+}
+
+async fn wait_for_reference_ticket(
+    ctx: &BoardReferenceContext,
     mut edits: PendingEdits<BoardReferenceKey>,
 ) -> Result<(), String> {
     loop {
-        let live = generation() == request_generation
-            && super::board_reference_owner_lineage_is_current(runtime, workspace, adapter, owner);
+        let live = (ctx.generation)() == ctx.request_generation && ctx.lineage_is_current();
         let mut results = edits.settle(live);
         if let Some(result) = results.pop() {
             return match result {
@@ -187,18 +215,13 @@ async fn wait_for_reference_ticket(
 }
 
 async fn discover_stored_paths(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: &BoardReference,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<Vec<String>, String> {
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active board changed before routed-board model paths were read.".into());
     }
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
@@ -213,16 +236,15 @@ async fn discover_stored_paths(
     if asset.sha256.is_empty() {
         return Err("Saved routed-board file has no SHA-256 identity.".into());
     }
-    let bytes = runtime
+    let bytes = ctx
+        .runtime
         .store
         .load_asset(asset.sha256.clone())
         .await
         .map_err(|error| format!("Could not load routed-board file: {error}"))?
         .ok_or_else(|| "Saved routed-board file is missing from browser storage.".to_owned())?
         .to_vec();
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The routed-board source changed while its asset was loading.".into());
     }
     if bytes.is_empty()
@@ -233,62 +255,54 @@ async fn discover_stored_paths(
     }
     let source = String::from_utf8(bytes)
         .map_err(|error| format!("Saved routed-board file is not valid UTF-8: {error}"))?;
-    let operation = runtime.operation();
-    let preview = runtime
+    let operation = ctx.runtime.operation();
+    let preview = ctx
+        .runtime
         .preview_routed_board_source(
             format!("board-reference-discover-{}", operation.0),
             source,
-            owner
+            ctx.owner
                 .revision
                 .ok_or("Accepted board revision is unavailable.")?,
         )
         .await?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The routed-board source changed while Core discovered model paths.".into());
     }
-    if Some(preview.revision) != owner.revision {
+    if Some(preview.revision) != ctx.owner.revision {
         return Err("Core returned model paths for a different routed-board revision.".into());
     }
     Ok(preview_paths(&preview.models))
 }
 
 async fn import_routed_board(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: Option<&BoardReference>,
     file: File,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<(String, String, Vec<String>), String> {
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let (bytes, source) = read_kicad_file(&file).await?;
     #[cfg(all(test, target_arch = "wasm32"))]
     test_support::pause_import_after_file_read().await;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while the routed-board file was read.".into());
     }
-    let revision = owner
+    let revision = ctx
+        .owner
         .revision
         .ok_or("Accepted board revision is unavailable.")?;
-    let operation = runtime.operation();
-    let preview = runtime
+    let operation = ctx.runtime.operation();
+    let preview = ctx
+        .runtime
         .preview_routed_board_source(
             format!("board-reference-import-{}", operation.0),
             source,
             revision,
         )
         .await?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while Core previewed the routed board.".into());
     }
     if preview.revision != revision {
@@ -305,22 +319,24 @@ async fn import_routed_board(
         license: None,
         source: None,
     };
-    runtime
+    ctx.runtime
         .store
         .save_asset(AssetBytes { sha256, bytes })
         .await
         .map_err(|error| format!("Could not store routed-board file: {error}"))?;
-    if generation() != request_generation
-        || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-    {
+    if !ctx.is_live() {
         return Err("The project or board changed while the routed-board asset was stored.".into());
     }
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
         .ok_or("No accepted project is open.")?;
-    let scope = owner.scope.as_ref().ok_or("Active board is unavailable.")?;
+    let scope = ctx
+        .owner
+        .scope
+        .as_ref()
+        .ok_or("Active board is unavailable.")?;
     let mut proposed = accepted.document.as_ref().clone();
     if proposed.assets.iter().any(|current| current.id == asset.id) {
         return Err("Could not allocate a unique routed-board asset identity.".into());
@@ -370,26 +386,16 @@ async fn import_routed_board(
         .ok_or_else(|| "The routed-board reference could not be prepared.".to_owned())?;
     let mut edits = PendingEdits::<BoardReferenceKey>::default();
     super::submit_board_reference_document(
-        runtime,
-        workspace,
-        adapter,
-        owner,
+        &ctx.runtime,
+        ctx.is_current(),
+        &ctx.owner,
         proposed,
         "board-reference-import",
         &mut edits,
         BoardReferenceKey::Import,
     )?
     .ok_or_else(|| "The routed-board import produced no project change.".to_owned())?;
-    wait_for_reference_ticket(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        generation,
-        request_generation,
-        edits,
-    )
-    .await?;
+    wait_for_reference_ticket(ctx, edits).await?;
     Ok((reference_id, asset_id, paths))
 }
 
@@ -399,19 +405,14 @@ enum ModelAttachment {
 }
 
 async fn attach_model_files(
-    runtime: &Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: &super::SelectionAdapter,
-    owner: &super::LayoutOwnerIdentity,
+    ctx: &BoardReferenceContext,
     reference: &BoardReference,
     paths: &[String],
     attachment: ModelAttachment,
-    generation: Signal<u64>,
-    request_generation: u64,
 ) -> Result<(), String> {
     use super::model_asset_import::read_model_file;
 
-    if !super::board_reference_owner_is_current(runtime, workspace, adapter, owner) {
+    if !ctx.is_current() {
         return Err("The active project or board changed. Retry with the current board.".into());
     }
     let mut uploads = match attachment {
@@ -437,12 +438,16 @@ async fn attach_model_files(
             matched
         }
     };
-    let model = runtime.model();
+    let model = ctx.runtime.model();
     let accepted = model
         .accepted
         .as_ref()
         .ok_or("No accepted project is open.")?;
-    let scope = owner.scope.as_ref().ok_or("Active board is unavailable.")?;
+    let scope = ctx
+        .owner
+        .scope
+        .as_ref()
+        .ok_or("Active board is unavailable.")?;
     let current_reference = accepted
         .document
         .board_references
@@ -459,26 +464,20 @@ async fn attach_model_files(
     let mut proposed = accepted.document.as_ref().clone();
     let mut imported_assets: Vec<(String, Asset)> = Vec::with_capacity(uploads.len());
     for (path, file) in uploads.drain(..) {
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err(
                 "The project or board changed while model files were being attached.".into(),
             );
         }
         let imported = read_model_file(file).await?;
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err("The project or board changed while a model file was read.".into());
         }
         imported
-            .store(&runtime.store)
+            .store(&ctx.runtime.store)
             .await
             .map_err(|error| format!("Could not store model asset: {error}"))?;
-        if generation() != request_generation
-            || !super::board_reference_owner_is_current(runtime, workspace, adapter, owner)
-        {
+        if !ctx.is_live() {
             return Err("The project or board changed while a model asset was stored.".into());
         }
         let id = crate::runtime::new_project_id()?;
@@ -514,26 +513,16 @@ async fn attach_model_files(
     }
     let mut edits = PendingEdits::<BoardReferenceKey>::default();
     super::submit_board_reference_document(
-        runtime,
-        workspace,
-        adapter,
-        owner,
+        &ctx.runtime,
+        ctx.is_current(),
+        &ctx.owner,
         proposed,
         "board-reference-model-attach",
         &mut edits,
         BoardReferenceKey::ModelAttach,
     )?
     .ok_or_else(|| "The model attachment produced no project change.".to_owned())?;
-    wait_for_reference_ticket(
-        runtime,
-        workspace,
-        adapter,
-        owner,
-        generation,
-        request_generation,
-        edits,
-    )
-    .await
+    wait_for_reference_ticket(ctx, edits).await
 }
 
 fn begin_request(
@@ -552,38 +541,21 @@ fn begin_request(
 }
 
 fn begin_board_import(
-    runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: super::SelectionAdapter,
-    owner: super::LayoutOwnerIdentity,
+    mut ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     file: File,
-    request_generation: Signal<u64>,
-    busy: Signal<bool>,
-    error: Signal<Option<String>>,
-    paths: Signal<Vec<String>>,
-    paths_asset_id: Signal<Option<String>>,
+    mut busy: Signal<bool>,
+    mut error: Signal<Option<String>>,
+    mut paths: Signal<Vec<String>>,
+    mut paths_asset_id: Signal<Option<String>>,
 ) {
-    let Some(epoch) = begin_request(request_generation, busy, error) else {
+    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
         return;
     };
-    let mut busy = busy;
-    let mut error = error;
-    let mut paths = paths;
-    let mut paths_asset_id = paths_asset_id;
-    let current_epoch = request_generation;
+    ctx.request_generation = epoch;
+    let current_epoch = ctx.generation;
     spawn_local(async move {
-        let result = import_routed_board(
-            &runtime,
-            workspace,
-            &adapter,
-            &owner,
-            reference.as_ref(),
-            file,
-            current_epoch,
-            epoch,
-        )
-        .await;
+        let result = import_routed_board(&ctx, reference.as_ref(), file).await;
         if current_epoch() == epoch {
             busy.set(false);
             match result {
@@ -594,9 +566,7 @@ fn begin_board_import(
                 Err(message) if !message.is_empty() => {
                     error.set(Some(super::board_reference_effect::retryable_error(
                         message,
-                        super::board_reference_owner_lineage_is_current(
-                            &runtime, workspace, &adapter, &owner,
-                        ),
+                        ctx.lineage_is_current(),
                     )))
                 }
                 Err(_) => {}
@@ -606,39 +576,23 @@ fn begin_board_import(
 }
 
 fn begin_model_attachment(
-    runtime: Rc<Runtime>,
-    workspace: Signal<&'static str>,
-    adapter: super::SelectionAdapter,
-    owner: super::LayoutOwnerIdentity,
+    mut ctx: BoardReferenceContext,
     reference: Option<BoardReference>,
     paths: Vec<String>,
     attachment: ModelAttachment,
-    request_generation: Signal<u64>,
-    busy: Signal<bool>,
-    error: Signal<Option<String>>,
+    mut busy: Signal<bool>,
+    mut error: Signal<Option<String>>,
 ) {
     let Some(reference) = reference else {
         return;
     };
-    let Some(epoch) = begin_request(request_generation, busy, error) else {
+    let Some(epoch) = begin_request(ctx.generation, busy, error) else {
         return;
     };
-    let mut busy = busy;
-    let mut error = error;
-    let current_epoch = request_generation;
+    ctx.request_generation = epoch;
+    let current_epoch = ctx.generation;
     spawn_local(async move {
-        let result = attach_model_files(
-            &runtime,
-            workspace,
-            &adapter,
-            &owner,
-            &reference,
-            &paths,
-            attachment,
-            current_epoch,
-            epoch,
-        )
-        .await;
+        let result = attach_model_files(&ctx, &reference, &paths, attachment).await;
         if current_epoch() == epoch {
             busy.set(false);
             if let Err(message) = result
@@ -646,9 +600,7 @@ fn begin_model_attachment(
             {
                 error.set(Some(super::board_reference_effect::retryable_error(
                     message,
-                    super::board_reference_owner_lineage_is_current(
-                        &runtime, workspace, &adapter, &owner,
-                    ),
+                    ctx.lineage_is_current(),
                 )));
             }
         }
@@ -679,8 +631,6 @@ pub fn Editor(
         (&reference, &owner, &disabled, &busy(), &discovery_retry()),
         {
             let runtime = runtime.clone();
-            let model_paths = model_paths;
-            let paths_asset_id = paths_asset_id;
             let mut attempted_discovery = attempted_discovery;
             let mut request_generation = request_generation;
             let mut busy_signal = busy;
@@ -726,38 +676,32 @@ pub fn Editor(
                 request_generation.set(epoch);
                 busy_signal.set(true);
                 error.set(None);
-                let runtime = runtime.clone();
-                let owner = owner.clone();
-                let adapter = adapter.clone();
-                let workspace = workspace;
+                let ctx = BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: epoch,
+                };
                 let source_asset_id = reference.asset_id.clone();
-                let generation = request_generation;
                 let mut busy_signal = busy_signal;
                 let mut error = error;
                 let mut model_paths = model_paths;
                 let mut paths_asset_id = paths_asset_id;
                 spawn_local(async move {
-                    let result = discover_stored_paths(
-                        &runtime, workspace, &adapter, &owner, &reference, generation, epoch,
-                    )
-                    .await;
-                    if generation() == epoch {
+                    let result = discover_stored_paths(&ctx, &reference).await;
+                    if (ctx.generation)() == epoch {
                         busy_signal.set(false);
                         match result {
-                            Ok(paths)
-                                if super::board_reference_owner_lineage_is_current(
-                                    &runtime, workspace, &adapter, &owner,
-                                ) =>
-                            {
+                            Ok(paths) if ctx.lineage_is_current() => {
                                 model_paths.set(paths);
                                 paths_asset_id.set(Some(source_asset_id));
                             }
                             Err(message) => {
                                 error.set(Some(super::board_reference_effect::retryable_error(
                                     message,
-                                    super::board_reference_owner_lineage_is_current(
-                                        &runtime, workspace, &adapter, &owner,
-                                    ),
+                                    ctx.lineage_is_current(),
                                 )))
                             }
                             _ => {}
@@ -874,13 +818,16 @@ pub fn Editor(
                 return;
             }
             begin_board_import(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 file,
-                request_generation,
                 busy,
                 error,
                 model_paths,
@@ -898,14 +845,17 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Individual { path, file },
-                request_generation,
                 busy,
                 error,
             );
@@ -921,14 +871,17 @@ pub fn Editor(
                 return;
             }
             begin_model_attachment(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                owner.clone(),
+                BoardReferenceContext {
+                    runtime: runtime.clone(),
+                    workspace,
+                    adapter: adapter.clone(),
+                    owner: owner.clone(),
+                    generation: request_generation,
+                    request_generation: 0,
+                },
                 reference.clone(),
                 model_paths(),
                 ModelAttachment::Directory { files },
-                request_generation,
                 busy,
                 error,
             );
@@ -1521,13 +1474,16 @@ mod mounted_async_tests {
                 id: "pcb-reference-test-begin-replace",
                 disabled: busy(),
                 onclick: move |_| begin_board_import(
-                    runtime.clone(),
-                    workspace,
-                    adapter_for_import.clone(),
-                    owner.clone(),
+                    BoardReferenceContext {
+                        runtime: runtime.clone(),
+                        workspace,
+                        adapter: adapter_for_import.clone(),
+                        owner: owner.clone(),
+                        generation: request_generation,
+                        request_generation: 0,
+                    },
                     Some(reference.clone()),
                     file.clone(),
-                    request_generation,
                     busy,
                     error,
                     paths,

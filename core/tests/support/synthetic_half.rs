@@ -124,6 +124,7 @@ pub(crate) fn create_mirrored_half_operation(pair_id: &str, mirror_board_id: &st
 }
 
 /// Adds small, explicitly authored construction features for projection contracts.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn with_construction_features(mut document: Value) -> Value {
     document["hardware"]["instances"][0]["mechanical"]["closureMounts"] = json!([{
         "id": "synthetic-center-hole", "at": {"x": 3.0, "y": 5.0},

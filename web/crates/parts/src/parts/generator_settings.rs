@@ -750,20 +750,18 @@ fn rebase_generator_candidate(
 #[cfg(test)]
 type GeneratorCandidateFuture =
     std::pin::Pin<Box<dyn std::future::Future<Output = Result<PartDefinition, String>>>>;
+#[cfg(test)]
+type GeneratorCandidateCallback = dyn Fn(
+    PartDefinition,
+    BTreeMap<String, Value>,
+    BTreeMap<String, Value>,
+) -> GeneratorCandidateFuture;
 
 /// Per-mounted-editor boundary for deterministic completion ordering in browser tests.
 /// The production path still calls `prepare_generator_candidate` directly.
 #[cfg(test)]
 #[derive(Clone)]
-struct GeneratorCandidateTestProvider(
-    Rc<
-        dyn Fn(
-            PartDefinition,
-            BTreeMap<String, Value>,
-            BTreeMap<String, Value>,
-        ) -> GeneratorCandidateFuture,
-    >,
-);
+struct GeneratorCandidateTestProvider(Rc<GeneratorCandidateCallback>);
 
 /// Dynamic settings form. Each field remains a local JSON draft until Apply; every
 /// candidate preview uses the same retained generator renderer as the Parts canvas.
@@ -792,7 +790,7 @@ pub fn GeneratorSettingsEditor(
     let edits = use_signal(BTreeMap::<String, Value>::new);
     let mut changed_parameters = use_signal(BTreeSet::<String>::new);
     let mut feedback = use_signal(|| None::<ScopedFeedback>);
-    let pending_edits = use_hook(|| PendingEditSignals::<GeneratorKey>::new());
+    let pending_edits = use_hook(PendingEditSignals::<GeneratorKey>::new);
     let apply_intent = use_signal(|| None::<GeneratorAction>);
     let upload_intent = use_signal(|| None::<GeneratorAction>);
     let mut uploaded_preview_generation = use_signal(|| 0_u64);
@@ -1563,7 +1561,7 @@ mod tests {
             .iter()
             .find(|item| item.id == definition().id)
             .cloned()
-            .unwrap_or_else(|| definition());
+            .unwrap_or_else(&*definition);
         *handles.borrow_mut() = Some(GeneratorMountedSignals {
             definition,
             selected,

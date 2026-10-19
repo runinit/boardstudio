@@ -2471,7 +2471,13 @@ async fn run_request(
                     .map_err(|error| (request.clone(), js_message(error), false))?;
                 result.into()
             } else {
-                let prepared = request.prepared.as_ref().expect("request validated");
+                let prepared = request.prepared.as_ref().ok_or_else(|| {
+                    (
+                        request.clone(),
+                        "CAD request omitted prepared case".to_owned(),
+                        false,
+                    )
+                })?;
                 let bodies = Array::new();
                 for body in &prepared.bodies {
                     if canceled() {
@@ -3306,6 +3312,164 @@ mod generated_analysis_tests {
             run_request(&queue, &module, request, vec![]).await.is_ok(),
             "failed/cancelled work must not poison the worker"
         );
+    }
+
+    #[wasm_bindgen_test]
+    async fn raw_worker_preview_without_prepared_or_keycap_input_fails_cleanly_and_worker_recovers()
+    {
+        let queue = Rc::new(RefCell::new(WorkerQueue::default()));
+        let module = Rc::new(super::qualification_tests::controlled_provider(true));
+        let replies: Rc<RefCell<Vec<WireReply>>> = Rc::new(RefCell::new(Vec::new()));
+        let captured = replies.clone();
+        let post_message = Closure::<dyn FnMut(JsValue, JsValue)>::new(
+            move |message: JsValue, _transfers: JsValue| {
+                if Reflect::get(&message, &"kind".into())
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .as_deref()
+                    == Some("reply")
+                    && let Some(frame) = Reflect::get(&message, &"frame".into())
+                        .ok()
+                        .and_then(|v| v.as_string())
+                {
+                    captured
+                        .borrow_mut()
+                        .push(serde_json::from_str::<WireReply>(&frame).unwrap());
+                }
+            },
+        );
+        let target = Object::new();
+        Reflect::set(&target, &"postMessage".into(), post_message.as_ref()).unwrap();
+        let scope: DedicatedWorkerGlobalScope = target.unchecked_into();
+
+        let identity = CadSnapshotIdentity {
+            token: 19,
+            session_epoch: 4,
+            document_id: "raw-preview-doc".into(),
+            board_id: "board-a".into(),
+            instance_id: Some("inst-1".into()),
+            revision: 7,
+        };
+        let missing_frame = serde_json::json!({
+            "requestId": "raw-preview-missing",
+            "jobId": "job-missing",
+            "identity": identity,
+            "operation": "preview",
+            "prepared": null
+        })
+        .to_string();
+        receive_worker_message(
+            &queue,
+            &scope,
+            &module,
+            worker_message("request", &missing_frame, None),
+        )
+        .unwrap();
+        yield_to_worker().await;
+        yield_to_worker().await;
+
+        assert!(
+            !queue.borrow().active,
+            "worker queue must settle after failure"
+        );
+        assert!(queue.borrow().pending.is_empty());
+        assert_eq!(queue.borrow().active_request, None);
+        assert_eq!(queue.borrow().active_job, None);
+        assert_eq!(replies.borrow().len(), 1);
+        {
+            let failed = &replies.borrow()[0];
+            assert_eq!(failed.request_id, "raw-preview-missing");
+            assert_eq!(failed.job_id, "job-missing");
+            assert_eq!(failed.identity, identity);
+            assert_eq!(failed.operation, CadOperation::Preview);
+            assert_eq!(failed.outcome, CadReplyOutcome::Failed);
+            assert!(
+                failed
+                    .error
+                    .as_deref()
+                    .is_some_and(|msg| msg.contains("prepared")),
+                "expected descriptive missing-prepared error, got {:?}",
+                failed.error
+            );
+        }
+
+        let body: boardstudio_core::model::PreparedCaseIR = serde_json::from_value(
+            serde_json::json!({
+                "revision": 7,
+                "body": {"id": "plate", "name": "Plate", "boardId": "board-a", "kind": "plate", "thickness": 2, "clearance": 0},
+                "regions": []
+            }),
+        )
+        .unwrap();
+        let case_frame = serde_json::json!({
+            "requestId": "raw-preview-case",
+            "jobId": "job-case",
+            "identity": identity,
+            "operation": "preview",
+            "prepared": { "revision": 7, "bodies": [body] }
+        })
+        .to_string();
+        receive_worker_message(
+            &queue,
+            &scope,
+            &module,
+            worker_message("request", &case_frame, None),
+        )
+        .unwrap();
+        for _ in 0..4 {
+            yield_to_worker().await;
+        }
+        assert!(!queue.borrow().active);
+        assert_eq!(replies.borrow().len(), 2);
+        assert_eq!(replies.borrow()[1].request_id, "raw-preview-case");
+        assert_eq!(replies.borrow()[1].outcome, CadReplyOutcome::Completed);
+
+        let keycap = boardstudio_core::model::KeycapSpec {
+            id: "k1".into(),
+            reference: "A1".into(),
+            profile: boardstudio_core::model::KeycapProfile::Cherry,
+            mount: boardstudio_core::model::KeycapMount::Mx,
+            row: 1,
+            size: boardstudio_core::model::Vec2 { x: 18.0, y: 18.0 },
+            top_size: boardstudio_core::model::Vec2 { x: 12.0, y: 12.0 },
+            height: 8.0,
+            tilt: 0.0,
+            dish_depth: 0.0,
+            spherical: false,
+            wall_thickness: 1.2,
+            pose: boardstudio_core::model::Pose2 {
+                at: boardstudio_core::model::Vec2 { x: 0.0, y: 0.0 },
+                rotation: 0.0,
+            },
+            side: boardstudio_core::model::Side::Front,
+            z: 8.4,
+            travel: 4.0,
+            legend: String::new(),
+            color: "#b0b5bd".into(),
+            legend_color: "#202124".into(),
+        };
+        let keycap_frame = serde_json::json!({
+            "requestId": "raw-preview-keycaps",
+            "jobId": "job-keycaps",
+            "identity": identity,
+            "operation": "preview",
+            "keycaps": { "revision": 7, "specs": [keycap] }
+        })
+        .to_string();
+        receive_worker_message(
+            &queue,
+            &scope,
+            &module,
+            worker_message("request", &keycap_frame, None),
+        )
+        .unwrap();
+        for _ in 0..4 {
+            yield_to_worker().await;
+        }
+        assert!(!queue.borrow().active);
+        assert_eq!(replies.borrow().len(), 3);
+        assert_eq!(replies.borrow()[2].request_id, "raw-preview-keycaps");
+        assert_eq!(replies.borrow()[2].outcome, CadReplyOutcome::Completed);
     }
 }
 

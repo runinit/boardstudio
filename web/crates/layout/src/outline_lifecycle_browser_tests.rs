@@ -253,11 +253,13 @@ async fn outline_dimension_enter_commits_and_escape_restores_accepted_value() {
     root.remove();
 }
 
+type OutlineConnectionAction = (Rc<OutlineActionContext>, EventHandler<OutlineAction>);
+
 #[derive(Clone)]
 struct InspectorProbe {
     runtime: Rc<crate::runtime::Runtime>,
     scope: Scope,
-    connection_action: Rc<RefCell<Option<(Rc<OutlineActionContext>, EventHandler<OutlineAction>)>>>,
+    connection_action: Rc<RefCell<Option<OutlineConnectionAction>>>,
     selected_context: Rc<RefCell<Option<Signal<Option<super::super::objects::ScopedTreeContext>>>>>,
 }
 
@@ -267,7 +269,7 @@ impl InspectorProbe {
             .connection_action
             .borrow()
             .as_ref()
-            .map(|(context, handler)| (context.add_connection(points), handler.clone()))
+            .map(|(context, handler)| (context.add_connection(points), *handler))
             .expect("mounted Inspector publishes its production action owner");
         action.1.call(action.0);
     }
@@ -306,10 +308,8 @@ fn mounted_outline_inspector_host() -> Element {
         generation,
     );
     if let Some(projection) = projection.as_ref() {
-        *probe.connection_action.borrow_mut() = Some((
-            projection.action_context.clone(),
-            projection.on_action.clone(),
-        ));
+        *probe.connection_action.borrow_mut() =
+            Some((projection.action_context.clone(), projection.on_action));
     }
     let _ = version();
     let point_canvas_svg = use_hook(|| Rc::new(RefCell::new(None::<web_sys::SvgElement>)));

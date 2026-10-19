@@ -111,7 +111,7 @@ pub fn use_existing_half(
     let open_id = use_signal(|| 0_u64);
     let open = use_signal(|| None::<ExistingHalfOwner>);
     let error = use_signal(|| None::<String>);
-    let pending = use_hook(|| PendingEditSignals::<ExistingHalfAction>::new());
+    let pending = use_hook(PendingEditSignals::<ExistingHalfAction>::new);
     let pending_create = use_signal(|| false);
     pending.bind_one_shot(ExistingHalfAction::Create, pending_create);
     let create_owner = use_signal(|| None::<ExistingHalfOwner>);
@@ -127,9 +127,7 @@ pub fn use_existing_half(
             move |(_, current_workspace, current_generation)| {
                 settle_pending(
                     &runtime,
-                    current_workspace,
-                    current_generation,
-                    editor_instance_id,
+                    (current_workspace, current_generation, editor_instance_id),
                     &pending,
                     &mut create_owner,
                     &mut open,
@@ -161,7 +159,6 @@ pub fn use_existing_half(
         let mut open = open;
         let mut open_id = open_id;
         let mut error = error;
-        let pending_create = pending_create;
         move |_| {
             if pending_create() {
                 return;
@@ -200,7 +197,6 @@ pub fn use_existing_half(
     let on_cancel = use_callback({
         let mut open = open;
         let mut error = error;
-        let pending_create = pending_create;
         move |owner: ExistingHalfOwner| {
             if !pending_create() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
@@ -214,7 +210,6 @@ pub fn use_existing_half(
         let pending = pending.clone();
         let mut create_owner = create_owner;
         let mut error = error;
-        let pending_create = pending_create;
         move |request: ExistingHalfCreateRequest| {
             if pending_create()
                 || open.read().as_ref() != Some(&request.owner)
@@ -321,7 +316,7 @@ pub fn use_existing_half(
             owner: owner.clone(),
             editable,
             can_cancel: !is_pending,
-            error: (!is_pending).then(|| error()).flatten().or_else(|| {
+            error: (!is_pending).then(&*error).flatten().or_else(|| {
                 (!editable).then(|| {
                     "The accepted board changed. Cancel this setup and reopen it before mirroring."
                         .into()
@@ -633,9 +628,7 @@ fn owner_is_current(
 
 fn settle_pending(
     runtime: &Rc<Runtime>,
-    workspace: &'static str,
-    scope_generation: u64,
-    editor_instance_id: u64,
+    (workspace, scope_generation, editor_instance_id): (&'static str, u64, u64),
     pending: &PendingEditSignals<ExistingHalfAction>,
     create_owner: &mut Signal<Option<ExistingHalfOwner>>,
     open: &mut Signal<Option<ExistingHalfOwner>>,

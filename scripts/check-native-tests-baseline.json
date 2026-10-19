@@ -38,6 +38,7 @@
   "artifact::compile::tests::retired_generators_cannot_fall_back_to_saved_pad_geometry",
   "artifact::kicad::output::tests::ergogen_net_references_must_match_reserved_allocator_state",
   "artifact::kicad::output::tests::ergogen_validation_preserves_escaped_source_spans",
+  "artifact::kicad::output::tests::escapes_supported_control_whitespace_and_rejects_others",
   "artifact::kicad::output::tests::generated_results_require_complete_ordered_snapshot_bound_jobs",
   "artifact::kicad::output::tests::imported_source_rejects_nets_bound_to_removed_pad_ids",
   "artifact::kicad::output::tests::native_board_output_can_be_written_for_kicad_cli_oracle",
@@ -61,11 +62,13 @@
   "artifact::mechanical_plate::tests::rejects_sharp_fr4_routed_cutouts",
   "artifact::outline::tests::outline_export_rejects_open_or_nonfinite_geometry",
   "artifact::outline::tests::svg_and_dxf_preserve_millimetre_coordinates_and_hole_layers",
+  "artifact::preview::tests::decodes_escaped_text_whitespace_in_preview",
   "artifact::preview::tests::footprint_projection_includes_fab_without_changing_board_preview_layers",
   "artifact::preview::tests::joins_edges_and_classifies_cutouts",
   "artifact::preview::tests::projects_copper_holes_models_and_saved_fills",
   "artifact::preview::tests::rejects_open_edges_and_non_finite_values",
   "artifact::sexpr::tests::kicad_escape_decoder_handles_c_escapes_and_unicode",
+  "artifact::sexpr::tests::kicad_escape_decoder_reads_json_unicode_escapes",
   "artifact::sexpr::tests::unchanged_source_spans_remain_byte_identical",
   "artifact::source::tests::absolute_source_angles_are_normalized_from_existing_root_rotation",
   "artifact::source::tests::backside_patch_swaps_layers_and_maps_duplicate_pad_nets",
@@ -807,6 +810,7 @@
   "set_wiring_mode_tests::setting_wiring_mode_does_not_recompute_outlines"
  ],
  "boardstudio_footprints": [
+  "build::tests::builds_the_same_tree_the_text_path_parses",
   "models::tests::resolves_attached_and_bundled_paths_only",
   "nets::tests::allocates_in_order_of_first_use_and_reuses_names",
   "nets::tests::repeated_reserved_names_resolve_to_the_first_index",
@@ -834,8 +838,10 @@
   "tests::admits_wrl_nesting_to_the_supported_depth_and_refuses_deeper_input",
   "tests::admits_wrl_shared_node_work_within_the_budget_and_refuses_more",
   "tests::applies_static_wrl_translation_and_axis_rotation",
+  "tests::assigns_per_face_colors_by_face_index_without_color_index",
   "tests::charges_separate_admitted_wrl_roots_against_one_shared_budget",
   "tests::composes_kicad_component_and_pcb_model_transforms",
+  "tests::decodes_wrl_sphere_with_finite_outward_normals",
   "tests::discards_only_scene_packets_older_than_the_current_revision",
   "tests::keeps_the_wrl_output_size_refusal_within_the_traversal_budget",
   "tests::loads_bundled_kicad_static_wrl_preview",
@@ -848,7 +854,8 @@
   "tests::rejects_malformed_wrl_triangle_indexes",
   "tests::resolves_static_wrl_def_use_nodes",
   "tests::supports_wrl_box_primitives_and_vertex_colors",
-  "tests::tessellates_board_surface_and_silkscreen_strokes"
+  "tests::tessellates_board_surface_and_silkscreen_strokes",
+  "tests::winds_wrl_box_triangles_with_outward_normals"
  ],
  "boardstudio_web_case": [
   "case_display::tests::gasket_upper_lower_share_color_without_changing_visibility",
@@ -1538,9 +1545,11 @@
   "generator_export::every_bundled_generator_exports_a_board_kicad_parses",
   "generator_export::exports_document_pad_net_assignments_for_terminal_groups",
   "generator_export::exports_front_and_back_switches_with_instance_nets_and_models",
+  "generator_export::exports_quoted_generator_text_and_active_labels_for_kicad",
   "generator_export::exports_zone_text_and_route_as_board_objects",
   "generator_export::generator_failures_reach_the_caller_with_their_text",
   "generator_export::previews_rotated_generators_on_both_faces_with_models_and_copper",
+  "generator_export::rejects_unsupported_control_text_in_generator_output",
   "generator_export::standalone_export_batches_every_generator_and_reports_skipped_utilities",
   "generator_export::upgrades_legacy_vendor_arcs",
   "generator_parameters::a_copy_of_a_part_with_a_legacy_name_is_accepted_and_a_new_typo_is_not",
@@ -2125,5 +2134,13 @@
  "reset_switch_smd_side_qualification": [
   "boss_model_default_and_explicit_model_transforms_are_preserved",
   "land_pattern_contacts_layers_bosses_and_poses_match_independent_oracle"
+ ],
+ "text_literal_escaping": [
+  "bare_references_stay_atoms_until_quoting_is_needed",
+  "both_text_generators_emit_the_literal_text_on_front_and_back",
+  "logo_layer_parameter_is_literal_on_both_sides",
+  "pad_row_labels_and_reference_are_literal_on_front_and_back",
+  "plain_text_controls_keep_their_existing_output",
+  "smd_labels_and_reference_are_literal_on_front_and_back"
  ]
 }

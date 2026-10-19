@@ -424,7 +424,6 @@ fn DemoActionCard() -> Element {
                             let document = demo.document();
                             let demo_preview = preview(&document).ok();
                             let runtime = runtime.clone();
-                            let browser = browser;
                             rsx! {
                                 article { class: "m1-demo-option",
                                     LibraryPreview { preview: demo_preview, fallback: demo.name.to_owned() }

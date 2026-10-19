@@ -313,7 +313,7 @@ mod tests {
         let surface_size = state.surface_size;
         let navigation = state.clone();
         let runtime =
-            use_hook(|| boardstudio_web_runtime::runtime::project_name_test_support::new_runtime());
+            use_hook(boardstudio_web_runtime::runtime::project_name_test_support::new_runtime);
         let svg = use_hook(|| Rc::new(RefCell::new(None)));
         let mount = EventHandler::new(CanvasNavigationState::mount_handler(
             surface_size,

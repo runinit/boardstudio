@@ -93,6 +93,12 @@ pub(super) fn controlled_provider(unqualified: bool) -> JsValue {
             query_collision_mesh_pair(lp,lt,rp,rt,q) {
                 if ('qualificationLimits' in q || 'analysisRef' in q.left || 'analysisMesh' in q.right) throw new Error('raw metadata must retain its v1 key set');
                 controls.raw++; return structuredClone(a.rawObservationExample);
+            },
+            preview_body() {
+                return {positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])};
+            },
+            build_keycaps(input) {
+                return {revision:input.revision,bodies:input.specs.map(spec => ({id:'keycap:'+spec.id,name:spec.reference,positions:new Float32Array([0,0,0,1,0,0,0,1,0]),normals:new Float32Array([0,0,1,0,0,1,0,0,1])}))};
             }
         };
     "#,

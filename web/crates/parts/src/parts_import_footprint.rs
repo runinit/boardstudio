@@ -257,7 +257,7 @@ mod ui {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
         let pending = use_signal(|| None::<ImportPhase>);
-        let edits = use_hook(|| PendingEditSignals::<ImportKey>::new());
+        let edits = use_hook(PendingEditSignals::<ImportKey>::new);
         let mut error = use_signal(|| None::<ScopedMessage>);
         let mut notice = use_signal(|| None::<ScopedMessage>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));

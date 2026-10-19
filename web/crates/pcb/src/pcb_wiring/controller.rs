@@ -102,7 +102,6 @@ pub fn use_firmware_position_edits(
     use_effect(use_reactive((&observed_version,), {
         let edits = edits.clone();
         let mut submissions = submissions;
-        let latest = latest;
         let mut feedback = feedback;
         let mut settlement_tick = settlement_tick;
         move |_| {
@@ -422,7 +421,6 @@ pub fn use_pcb_part_net_edits(
         let edits = edits.clone();
         let create_edits = create_edits.clone();
         let mut submissions = submissions;
-        let latest = latest;
         let mut feedback = feedback;
         let mut settlement_tick = settlement_tick;
         move |_| {
@@ -525,8 +523,6 @@ pub fn use_pcb_part_net_edits(
             let edits = edits.clone();
             let create_edits = create_edits.clone();
             let mut submissions = submissions;
-            let mut latest = latest;
-            let mut feedback = feedback;
             spawn_local(async move {
                 loop {
                     let item = queue.borrow_mut().pop_front();

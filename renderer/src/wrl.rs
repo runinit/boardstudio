@@ -480,8 +480,7 @@ fn append_geometry<'a>(
                                 .get(face_index)
                                 .and_then(|face| face.first())
                                 .copied()
-                                .or_else(|| colors.len().checked_sub(1))
-                                .unwrap_or(0)
+                                .unwrap_or(face_index)
                         };
                         if let Some(color) = colors.get(color_index) {
                             triangle_colors[vertex] = *color;
@@ -577,12 +576,12 @@ fn append_box(
         [-half[0], half[1], half[2]],
     ];
     for face in [
-        [0, 1, 2, 3],
-        [4, 7, 6, 5],
-        [0, 4, 5, 1],
-        [1, 5, 6, 2],
-        [2, 6, 7, 3],
-        [4, 0, 3, 7],
+        [0, 3, 2, 1],
+        [4, 5, 6, 7],
+        [0, 1, 5, 4],
+        [1, 2, 6, 5],
+        [2, 3, 7, 6],
+        [4, 7, 3, 0],
     ] {
         for triangle in [[face[0], face[1], face[2]], [face[0], face[2], face[3]]] {
             append_triangle(
@@ -623,8 +622,12 @@ fn append_sphere(
                 point(phi1, theta1),
                 point(phi0, theta1),
             ];
-            append_triangle([quad[0], quad[1], quad[2]], [color; 3], transform, output)?;
-            append_triangle([quad[0], quad[2], quad[3]], [color; 3], transform, output)?;
+            if latitude + 1 < LATITUDES {
+                append_triangle([quad[0], quad[2], quad[1]], [color; 3], transform, output)?;
+            }
+            if latitude > 0 {
+                append_triangle([quad[0], quad[3], quad[2]], [color; 3], transform, output)?;
+            }
         }
     }
     Ok(())

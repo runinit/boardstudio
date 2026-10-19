@@ -701,7 +701,7 @@ mod mounted_tests {
                     )
                 }),
                 request_mechanical_extraction,
-                spawn_detached: Rc::new(|future| wasm_bindgen_futures::spawn_local(future)),
+                spawn_detached: Rc::new(wasm_bindgen_futures::spawn_local),
                 current_scope: Rc::new(move || current_scope_port.borrow().clone()),
                 accepted_owner_is_current: Rc::new(move |_| owner_current_port.get()),
             },

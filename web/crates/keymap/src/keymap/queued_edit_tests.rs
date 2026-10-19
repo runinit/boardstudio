@@ -16,6 +16,8 @@ use std::{
 };
 use wasm_bindgen_test::*;
 
+type LayerNameSignals = (Signal<String>, Signal<Option<String>>);
+
 #[derive(Clone)]
 struct Probe {
     runtime: Rc<Runtime>,
@@ -24,7 +26,7 @@ struct Probe {
     macros: Rc<RefCell<Option<MacroActions>>>,
     active_layer: Rc<RefCell<Option<Signal<String>>>>,
     generation: Rc<RefCell<Option<Signal<u64>>>>,
-    layer_name: Rc<RefCell<Option<(Signal<String>, Signal<Option<String>>)>>>,
+    layer_name: Rc<RefCell<Option<LayerNameSignals>>>,
     hide_macros: Rc<RefCell<Option<Signal<bool>>>>,
     renders: Rc<Cell<u64>>,
     rendered_revision: Rc<Cell<Option<u64>>>,

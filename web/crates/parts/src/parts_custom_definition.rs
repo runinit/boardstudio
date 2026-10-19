@@ -253,7 +253,7 @@ pub(crate) mod ui {
         let mut failure = use_signal(|| None::<String>);
         let capture = DefinitionPanelCapture::new(&snapshot, scope.clone(), &definition);
         let owner_identity = (scope.clone(), selection(), definition.id.clone());
-        let pending = use_hook(|| PendingEditSignals::<DefinitionFieldKey>::new());
+        let pending = use_hook(PendingEditSignals::<DefinitionFieldKey>::new);
         // Pad-row drafts live here so a settlement can never write a Signal whose row
         // component already unmounted; the helper's bindings point at these Signals.
         let row_drafts = use_hook(|| Rc::new(RefCell::new(PanelRows::default())));

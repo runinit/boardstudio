@@ -198,7 +198,6 @@ pub fn use_part_input_edits(
     use_effect(use_reactive((&observed_version,), {
         let edits = edits.clone();
         let mut drafts = drafts;
-        let latest = latest;
         let mut failure = failure;
         let mut settlement_tick = settlement_tick;
         move |_| {
@@ -260,7 +259,6 @@ pub fn use_part_input_edits(
             let alive = alive.clone();
             let runtime = runtime.clone();
             let edits = edits.clone();
-            let mut drafts = drafts;
             spawn_local(async move {
                 loop {
                     let request = queue.borrow_mut().pop_front();

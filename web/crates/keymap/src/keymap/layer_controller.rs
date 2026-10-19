@@ -243,24 +243,22 @@ pub fn use_layer_operations(
             let map = snapshot.document.keymap.as_ref();
             if let KeymapLayerOperation::Rename { layer_id, .. }
             | KeymapLayerOperation::Remove { layer_id } = &request
+                && resolve_display_layer_id(map, &active_layer()) != Some(layer_id.as_str())
             {
-                if resolve_display_layer_id(map, &active_layer()) != Some(layer_id.as_str()) {
-                    return;
-                }
+                return;
             }
             let seed = runtime.operation().0;
             let resolver = layer_resolver(source.scope.clone(), request.clone(), seed);
-            if matches!(request, KeymapLayerOperation::Add) {
-                if let Resolution::Submit(EditCommand {
+            if matches!(request, KeymapLayerOperation::Add)
+                && let Resolution::Submit(EditCommand {
                     operation:
                         EditOperation::EditKeymap {
                             change: KeymapChange::AddLayer { id, .. },
                         },
                     ..
                 }) = resolver.resolve(&snapshot)
-                {
-                    active_layer.set(id);
-                }
+            {
+                active_layer.set(id);
             }
             if pending
                 .peek()

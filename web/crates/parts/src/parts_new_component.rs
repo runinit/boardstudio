@@ -50,7 +50,7 @@ mod ui {
     ) -> Element {
         let runtime = use_context::<Rc<Runtime>>();
         let version = use_context::<Signal<u64>>();
-        let pending = use_hook(|| PendingEditSignals::<CreateKey>::new());
+        let pending = use_hook(PendingEditSignals::<CreateKey>::new);
         let mut waiting = use_signal(|| None::<CreationIntent>);
         let mut error = use_signal(|| None::<(Scope, u64, u64, String)>);
         let owner_is_mounted = use_hook(|| Rc::new(Cell::new(true)));
@@ -70,7 +70,6 @@ mod ui {
             let view_generation = view_generation;
             let scope_generation = scope_generation;
             let workspace = workspace;
-            let on_select = on_select.clone();
             move |_| {
                 let Some(intent) = waiting.read().clone() else {
                     return;
