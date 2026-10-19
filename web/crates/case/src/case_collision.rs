@@ -2,7 +2,7 @@
 use crate::{
     case_preview::NativePreviewSnapshot,
     model_delivery::*,
-    runtime::{CadScene, Runtime},
+    runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
@@ -11,36 +11,9 @@ use std::{
     rc::Rc,
 };
 
-#[derive(Clone, PartialEq)]
-struct CollisionSource {
-    scene: Rc<CadScene>,
-    preview: Option<Rc<NativePreviewSnapshot>>,
-    rows: Option<ModelDeliveryRows>,
-}
-
-impl CollisionSource {
-    fn is_current(&self, runtime: &Runtime) -> bool {
-        runtime.scope().as_ref() == Some(&self.scene.scope)
-            && runtime.model().accepted.is_some_and(|accepted| {
-                accepted.token == self.scene.token
-                    && accepted.document.revision == self.scene.snapshot.document.revision
-            })
-            && runtime
-                .cad_scene()
-                .is_some_and(|scene| Rc::ptr_eq(&scene, &self.scene))
-            && runtime.case_gesture_preview_scene(&self.scene).is_none()
-            && self.preview.as_ref().is_none_or(|expected| {
-                runtime
-                    .native_case_preview()
-                    .is_some_and(|current| current == *expected)
-                    && runtime.native_model_delivery(expected) == self.rows
-            })
-    }
-}
-
 #[derive(Clone, Default)]
 struct CheckState {
-    source: Option<CollisionSource>,
+    source: Option<CollisionCheckInput>,
     pending: bool,
     findings: Vec<CadCollisionPairFinding>,
     clearance_threshold_mm: f64,
@@ -57,18 +30,14 @@ pub(crate) fn CaseCollisionChecks(
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
-    let source = CollisionSource {
-        scene,
-        preview,
-        rows: model_rows,
-    };
+    let input = CollisionCheckInput::new(scene, preview, model_rows);
     let mut state = use_signal(CheckState::default);
     let mut clearance = use_signal(|| "0".to_owned());
     let sequence = use_hook(|| Rc::new(Cell::new(0_u64)));
     let alive = use_hook(|| Rc::new(Cell::new(true)));
-    let latest = use_hook(|| Rc::new(RefCell::new(source.clone())));
-    *latest.borrow_mut() = source.clone();
-    use_effect(use_reactive((&source,), {
+    let latest = use_hook(|| Rc::new(RefCell::new(input.clone())));
+    *latest.borrow_mut() = input.clone();
+    use_effect(use_reactive((&input,), {
         let sequence = sequence.clone();
         let runtime = runtime.clone();
         move |_| {
@@ -85,25 +54,17 @@ pub(crate) fn CaseCollisionChecks(
             runtime.cancel_collision_checks();
         }
     });
-    let ready = source.scene.exact
-        && source.is_current(&runtime)
-        && (source
-            .preview
-            .as_ref()
-            .is_none_or(|preview| preview.preview.models.is_empty())
-            || source
-                .rows
-                .as_ref()
-                .is_some_and(|rows| rows.pending.is_empty()));
+    let ready = runtime.collision_check_ready(&input);
     let threshold = clearance()
         .parse::<f64>()
         .ok()
         .filter(|value| value.is_finite() && *value >= 0.0);
     let mut start = {
         let runtime = runtime.clone();
-        let source = source.clone();
+        let input = input.clone();
         let sequence = sequence.clone();
         let alive = alive.clone();
+        let latest = latest.clone();
         move |accuracy: Option<f64>| {
             let Some(threshold) = threshold else {
                 return;
@@ -113,48 +74,50 @@ pub(crate) fn CaseCollisionChecks(
             }
             sequence.set(sequence.get().wrapping_add(1));
             let request = sequence.get();
-            runtime.cancel_collision_checks();
             state.set(CheckState {
-                source: Some(source.clone()),
+                source: Some(input.clone()),
                 pending: true,
                 accuracy,
                 clearance_threshold_mm: threshold,
                 ..Default::default()
             });
             let runtime = runtime.clone();
-            let source = source.clone();
+            let input = input.clone();
             let sequence = sequence.clone();
             let alive = alive.clone();
             let latest = latest.clone();
             spawn(async move {
                 let current: Rc<dyn Fn() -> bool> = {
-                    let runtime = runtime.clone();
-                    let source = source.clone();
+                    let alive = alive.clone();
+                    let sequence = sequence.clone();
+                    let latest = latest.clone();
+                    let input = input.clone();
                     Rc::new(move || {
-                        alive.get()
-                            && sequence.get() == request
-                            && *latest.borrow() == source
-                            && source.is_current(&runtime)
+                        alive.get() && sequence.get() == request && *latest.borrow() == input
                     })
                 };
-                let result =
-                    run_checks(&runtime, &source, threshold, accuracy, current.clone()).await;
+                let report: Option<CollisionCheckReport> = runtime
+                    .check_collisions(input.clone(), threshold, accuracy, current.clone())
+                    .await;
                 if current() {
-                    state.set(CheckState {
-                        source: Some(source),
-                        pending: false,
-                        findings: result.0,
-                        errors: result.1,
-                        accuracy,
-                        clearance_threshold_mm: threshold,
-                        message: result.2,
+                    state.set(match report {
+                        Some(report) => CheckState {
+                            source: Some(input),
+                            pending: false,
+                            findings: report.findings,
+                            errors: report.errors,
+                            accuracy,
+                            clearance_threshold_mm: threshold,
+                            message: report.message,
+                        },
+                        None => CheckState::default(),
                     });
                 }
             });
         }
     };
     let shown = state.read().clone();
-    let shown = if shown.source.as_ref() == Some(&source) {
+    let shown = if shown.source.as_ref() == Some(&input) {
         shown
     } else {
         CheckState::default()
@@ -211,123 +174,6 @@ fn CollisionFindingView(finding: CadCollisionPairFinding, clearance_threshold_mm
     }
 }
 
-async fn run_checks(
-    runtime: &Rc<Runtime>,
-    source: &CollisionSource,
-    threshold: f64,
-    accuracy: Option<f64>,
-    current: Rc<dyn Fn() -> bool>,
-) -> (Vec<CadCollisionPairFinding>, Vec<String>, Option<String>) {
-    let mut subjects = Vec::new();
-    let mut errors = Vec::new();
-    if let (Some(preview), Some(rows)) = (&source.preview, &source.rows) {
-        for model in &rows.delivered {
-            let placement = preview.preview.models.iter().find(|row| row.id == model.id);
-            let transform = model.matrix.map(Ok).unwrap_or_else(|| {
-                placement
-                    .ok_or_else(|| "model placement is missing".to_owned())
-                    .and_then(|row| {
-                        physical_pcb_model_row_transform_f64(
-                            row,
-                            preview.preview.thickness,
-                            preview.board_reference.as_ref(),
-                            source
-                                .scene
-                                .mechanical
-                                .as_ref()
-                                .is_some_and(|assembly| !assembly.stack.is_empty()),
-                        )
-                    })
-            });
-            match transform {
-                Ok(row_transform_f64) => {
-                    let mut subject = CadCollisionSubject::VendorModel {
-                        id: model.id.clone(),
-                        reference: placement
-                            .map(|row| row.reference.clone())
-                            .unwrap_or_else(|| model.id.clone()),
-                        row_transform_f64,
-                        vendor_step: model.mesh.vendor_step.clone(),
-                    };
-                    if let Some(target) = accuracy {
-                        match runtime
-                            .refine_collision_vendor(
-                                &source.scene,
-                                &subject,
-                                target,
-                                current.clone(),
-                            )
-                            .await
-                        {
-                            Ok(refined) => subject = refined,
-                            Err(error) => {
-                                errors.push(error);
-                                if let CadCollisionSubject::VendorModel { vendor_step, .. } =
-                                    &mut subject
-                                {
-                                    *vendor_step = None;
-                                }
-                            }
-                        }
-                    }
-                    subjects.push(subject);
-                }
-                Err(error) => errors.push(format!("{}: {error}", model.id)),
-            }
-            if !current() {
-                return (Vec::new(), Vec::new(), None);
-            }
-        }
-        errors.extend(
-            rows.failures
-                .iter()
-                .map(|failure| format!("{}: {}", failure.reference, failure.reason)),
-        );
-    }
-    let (generated, generated_errors) = runtime
-        .generated_collision_subjects(&source.scene, accuracy, current.clone())
-        .await;
-    subjects.extend(generated);
-    errors.extend(generated_errors);
-    if !current() {
-        return (Vec::new(), Vec::new(), None);
-    }
-    let mut findings = Vec::new();
-    for (index, left) in subjects.iter().enumerate() {
-        for right in &subjects[index + 1..] {
-            match runtime
-                .query_collision_subjects(
-                    left,
-                    right,
-                    threshold,
-                    accuracy,
-                    source.scene.scope.clone(),
-                    source.scene.token,
-                    source.scene.snapshot.document.revision,
-                    current.clone(),
-                )
-                .await
-            {
-                Ok(result) => findings.push(CadCollisionPairFinding {
-                    left_id: left.id().into(),
-                    left_label: left.label().into(),
-                    right_id: right.id().into(),
-                    right_label: right.label().into(),
-                    result,
-                }),
-                Err(error) => errors.push(format!("{} ↔ {}: {error}", left.label(), right.label())),
-            }
-            if !current() {
-                return (Vec::new(), Vec::new(), None);
-            }
-        }
-    }
-    let message = (subjects.len() < 2).then(|| {
-        "Fewer than two collision operands are available; no pair was checked.".to_owned()
-    });
-    (findings, errors, message)
-}
-
 #[cfg(test)]
 mod browser_tests {
     use super::*;
@@ -355,6 +201,27 @@ mod browser_tests {
             Some(scene) => rsx! { CaseCollisionChecks { scene, preview: None, model_rows: None } },
             None => rsx! { p { "Assembly changed" } },
         }
+    }
+
+    /// Hosts the Case control against a captured scene handed in through root context, so
+    /// the mounted props and input identity survive a runtime scene invalidation instead of
+    /// the host re-reading `runtime.cad_scene()` on every update.
+    fn mounted_captured_scene() -> Element {
+        let runtime = use_context::<Rc<Runtime>>();
+        let scene = use_context::<Rc<CadScene>>();
+        let version = use_signal(|| 0_u64);
+        use_context_provider(|| version);
+        use_hook({
+            let runtime = runtime.clone();
+            move || {
+                runtime.subscribe(Rc::new(move || {
+                    let mut version = version;
+                    version += 1;
+                }))
+            }
+        });
+        let _ = version();
+        rsx! { CaseCollisionChecks { scene, preview: None, model_rows: None } }
     }
 
     async fn wait_for(root: &web_sys::Element, text: &str) {
@@ -587,6 +454,74 @@ mod browser_tests {
         runtime.report("Assembly changed");
         wait_for(&root, "Assembly changed").await;
         assert!(!root.text_content().unwrap().contains("no pair was checked"));
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn mounted_collision_check_clears_pending_when_runtime_retires_the_scene() {
+        let runtime = support::new_runtime();
+        let mut document = serde_json::to_value(ProjectDoc::empty(
+            "collision-retired-scene",
+            "Collision retired scene",
+        ))
+        .unwrap();
+        document["boards"] = serde_json::json!([{"id":"board","name":"Board","partIds":[],"outlineIds":[],"netIds":[],"thickness":1.6}]);
+        support::open_document(&runtime, serde_json::from_value(document).unwrap()).await;
+        support::navigate(&runtime, "board").await;
+        let snapshot = runtime.model().accepted.unwrap();
+        let scene = Rc::new(CadScene {
+            scope: runtime.scope().unwrap(),
+            token: snapshot.token,
+            prepared: PreparedCaseAssemblyIR {
+                revision: snapshot.document.revision,
+                bodies: vec![],
+            },
+            snapshot,
+            result: Default::default(),
+            physical_fingerprint: None,
+            mechanical: None,
+            exact: true,
+            contours: vec![],
+        });
+        runtime.set_cad_scene_test(Some(scene.clone()));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(mounted_captured_scene);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(scene.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_for(&root, "Check collisions").await;
+        root.query_selector(".m1-case-collision-default")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        // Retire the runtime scene before the spawned check is polled, while the mounted
+        // host keeps handing the captured scene in, so the view lifetime stays current and
+        // `check_collisions` settles as a retired/unavailable `None`.
+        runtime.set_cad_scene_test(None);
+        // One event-loop turn drains the spawned check and Dioxus render microtasks.
+        TimeoutFuture::new(0).await;
+        let text = root.text_content().unwrap();
+        assert!(
+            !text.contains("Checking current assembly…"),
+            "a retired check must not leave the control stuck pending: {text}"
+        );
+        assert!(
+            !text.contains("no pair was checked"),
+            "a retired check must not publish an apparently successful empty report: {text}"
+        );
+        assert!(
+            root.query_selector(".m1-case-collision-provenance")
+                .unwrap()
+                .is_none(),
+            "a retired check must not publish stale findings: {text}"
+        );
         root.remove();
     }
 }

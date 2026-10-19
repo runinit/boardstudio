@@ -51,6 +51,11 @@ components on generated/refined outlines and remains fixed on edited copies.
 The outer boundary shared by a case's tray and top, sized from the board and the
 space required by its mechanical features and clearances.
 
+**Collision check**:
+An explicit comparison of physical items in an assembly for intersection or required
+clearance. Findings belong to the accepted design being checked and remain uncertain
+when the available geometry cannot support the requested accuracy.
+
 **Nominal wall thickness**:
 The case wall thickness before local gasket pockets remove material.
 

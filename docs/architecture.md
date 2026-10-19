@@ -60,6 +60,16 @@ Session ownership and those identities govern delivery. An export's own accepted
 commit advances its lease without relaxing its strict origin checks. Disposable
 preview currency remains separate from export ownership.
 
+Runtime owns collision-check execution behind one interface: captured scene, native
+preview and delivered model rows; readiness and currency; placement transforms,
+refinement, physical PCB preparation and pair traversal. A check returns one report
+only while its captured inputs and cancellation batch remain current. Case retains
+field drafts, controls, pending display, result rendering and view-lifetime
+cancellation. Tight refinement and missing-evidence recovery retain separate bounded
+attempts, and unsupported accuracy remains uncertain. Controlled-worker tests exercise
+the complete Runtime check; mounted Case tests cover presentation, and packaged-page
+checks retain actual provider coverage.
+
 The page is split into crates by workspace so each stays a manageable size. Lower
 crates never depend on higher ones:
 

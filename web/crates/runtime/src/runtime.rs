@@ -7448,6 +7448,11 @@ impl Drop for Runtime {
     }
 }
 
+#[path = "collision_check.rs"]
+mod collision_check;
+
+pub use collision_check::{CollisionCheckInput, CollisionCheckReport};
+
 #[cfg(any(test, feature = "test-support"))]
 #[path = "in_process_support.rs"]
 pub mod in_process_support;
