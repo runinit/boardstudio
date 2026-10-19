@@ -10,6 +10,152 @@ fn import(source: String, id: &str) -> Value {
 }
 
 #[test]
+fn modern_outline_source_ids_match_legacy_source_geometry() {
+    let legacy = source_board_with("");
+    let outline_id = "11111111-1111-4111-8111-111111111111";
+    let modern = legacy.replace(
+        &format!("(tstamp {outline_id})"),
+        &format!("(uuid {outline_id})"),
+    );
+    assert_ne!(legacy, modern, "the control changes only identifier keys");
+    let read = |source: &str| -> Value {
+        serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"identity", "kind":"read-board-source", "source":source,
+                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
+            .to_string(),
+        ))
+        .unwrap()
+    };
+    let expected = read(&legacy);
+    assert_eq!(expected["kind"], "read-board-source", "{expected}");
+    let actual = read(&modern);
+    assert_eq!(actual["kind"], "read-board-source", "{actual}");
+    assert_eq!(actual["result"], expected["result"]);
+    let primitives = actual["result"]["pcbSource"]["contours"][0]["primitives"]
+        .as_array()
+        .unwrap();
+    assert_eq!(primitives.len(), 4);
+    assert!(
+        primitives
+            .iter()
+            .all(|primitive| { primitive["sourceId"] == "11111111-1111-4111-8111-111111111111" })
+    );
+}
+
+#[test]
+fn outline_source_identity_policy_keeps_nonempty_legacy_precedence() {
+    for (identity, expected) in [
+        (r#"(uuid "modern")"#, "modern"),
+        (r#"(tstamp legacy) (uuid "modern")"#, "legacy"),
+        (r#"(uuid "modern") (tstamp legacy)"#, "legacy"),
+        (r#"(tstamp "") (uuid "modern")"#, "modern"),
+        (r#"(uuid "") (tstamp legacy)"#, "legacy"),
+    ] {
+        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"identity-policy", "kind":"read-board-source",
+                "source":format!(r#"(kicad_pcb (general (thickness 1.6))
+                    (gr_circle (center 0 0) (end 2 0) (layer "Edge.Cuts") {identity}))"#),
+                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
+            .to_string(),
+        ))
+        .unwrap();
+        assert_eq!(reply["kind"], "read-board-source", "{identity}: {reply}");
+        assert_eq!(
+            reply["result"]["pcbSource"]["contours"][0]["primitives"][0]["sourceId"], expected,
+            "{identity}"
+        );
+    }
+}
+
+#[test]
+fn outline_source_rejects_missing_empty_and_duplicate_modern_identities() {
+    for (identities, reason) in [
+        (vec![""], "missing its stable"),
+        (vec![r#"(uuid "")"#], "missing its stable"),
+        (vec![r#"(tstamp "") (uuid " ")"#], "missing its stable"),
+        (
+            vec!["(uuid same)", "(uuid same)"],
+            "duplicate Edge.Cuts source IDs",
+        ),
+        (
+            vec!["(uuid same)", "(tstamp same)"],
+            "duplicate Edge.Cuts source IDs",
+        ),
+    ] {
+        let curves: String = identities
+            .iter()
+            .enumerate()
+            .map(|(index, identity)| {
+                let x = index * 10;
+                format!(
+                    r#"(gr_circle (center {x} 0) (end {} 0) (layer "Edge.Cuts") {identity})"#,
+                    x + 2
+                )
+            })
+            .collect();
+        let reply: Value = serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"invalid-identity", "kind":"read-board-source",
+                "source":format!("(kicad_pcb (general (thickness 1.6)) {curves})"),
+                "placement":{"at":{"x":0,"y":0},"rotation":0},"flipped":false})
+            .to_string(),
+        ))
+        .unwrap();
+        assert_eq!(reply["kind"], "error", "{identities:?}: {reply}");
+        assert!(
+            reply["error"]["message"].as_str().unwrap().contains(reason),
+            "{reply}"
+        );
+    }
+}
+
+#[test]
+fn modern_outline_primitives_retain_exact_legacy_geometry_through_module_import() {
+    for (name, graphics) in [
+        (
+            "lines",
+            r#"(gr_line (start 0 0) (end 10 0) (layer "Edge.Cuts") (tstamp a))
+            (gr_line (start 10 0) (end 0 10) (layer "Edge.Cuts") (tstamp b))
+            (gr_line (start 0 10) (end 0 0) (layer "Edge.Cuts") (tstamp c))"#,
+        ),
+        (
+            "arc",
+            r#"(gr_arc (start 0 0) (mid 5 5) (end 10 0) (layer "Edge.Cuts") (tstamp a))
+            (gr_line (start 10 0) (end 0 0) (layer "Edge.Cuts") (tstamp b))"#,
+        ),
+        (
+            "circle",
+            r#"(gr_circle (center 0 0) (end 5 0) (layer "Edge.Cuts") (tstamp a))"#,
+        ),
+        (
+            "rectangle",
+            r#"(gr_rect (start 0 0) (end 10 10) (layer "Edge.Cuts") (tstamp a))"#,
+        ),
+        (
+            "polygon",
+            r#"(gr_poly (pts (xy 0 0) (xy 10 0) (xy 0 10)) (layer "Edge.Cuts") (tstamp a))"#,
+        ),
+    ] {
+        let legacy = format!("(kicad_pcb (general (thickness 1.6)) {graphics})");
+        let modern = legacy.replace("(tstamp ", "(uuid ");
+        let expected = import(legacy, name);
+        let actual = import(modern, name);
+        assert_eq!(
+            expected["kind"], "import-module-board",
+            "{name}: {expected}"
+        );
+        assert_eq!(actual["kind"], "import-module-board", "{name}: {actual}");
+        assert!(
+            !actual["result"]["board"]["pcbSource"].is_null(),
+            "{name}: {actual}"
+        );
+        assert_eq!(
+            actual["result"]["board"], expected["result"]["board"],
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn direct_board_source_refuses_unsupported_via_depths() {
     for (kind, layers, reason) in [
         ("blind", "(layers \"F.Cu\" \"In1.Cu\")", "type 'blind'"),
@@ -399,9 +545,9 @@ fn direct_board_source_keeps_unknown_thickness_and_refuses_incomplete_outlines()
 fn direct_board_source_retains_raw_origin_curves_and_drills_through_placement() {
     let source = r#"(kicad_pcb (general (thickness 1.6))
       (gr_arc (start 10 20) (end 15 20) (angle 180)
-        (layer "Edge.Cuts") (width 0.05) (tstamp arc))
+        (layer "Edge.Cuts") (width 0.05) (uuid arc))
       (gr_line (start 5 20) (end 15 20)
-        (layer "Edge.Cuts") (width 0.05) (tstamp line))
+        (layer "Edge.Cuts") (width 0.05) (uuid line))
       (via (at 10 22) (size 2) (drill 1) (layers "F.Cu" "B.Cu") (tstamp drill)))"#;
     for (index, (flipped, rotation, tx, expected_x, expected_y, drill_x, expected_sweep)) in [
         (false, 90, 100, 120., 210., 122., -std::f64::consts::PI),

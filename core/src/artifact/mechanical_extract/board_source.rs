@@ -140,11 +140,16 @@ fn validate_outline_inventory(root: &Node) -> Result<(), ArtifactError> {
 }
 
 fn stable_source_id(node: &Node, description: &str) -> Result<String, ArtifactError> {
-    sexpr::child(node, "tstamp")
-        .and_then(scalar)
-        .filter(|id| !id.trim().is_empty())
+    ["tstamp", "uuid"]
+        .into_iter()
+        .filter_map(|key| sexpr::child(node, key).and_then(scalar))
+        .find(|id| !id.trim().is_empty())
         .map(str::to_owned)
-        .ok_or_else(|| validation(format!("{description} is missing its stable tstamp")))
+        .ok_or_else(|| {
+            validation(format!(
+                "{description} is missing its stable tstamp or uuid"
+            ))
+        })
 }
 
 fn normalize_outline_shape(

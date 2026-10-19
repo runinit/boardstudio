@@ -1,6 +1,6 @@
 # 141 — Diagnose mirrored outline gap controls
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: none
 
@@ -63,3 +63,15 @@ Connected-perimeter attempt STOP: first central bridge and one source-grounded u
 ## Comments
 
 - Unclaimed 2026-10-12 at the user's request; status back to `ready-for-agent`. Existing work on this ticket's branches or worktrees was not touched.
+
+## Current implementation — 2026-10-19
+
+The user explicitly authorized a scoped Core change in `core/src/geometry.rs`: an authored bridge across the mirror axis opts that outline into a connected perimeter, preserving the default split behavior and independent gap settings. This supersedes the earlier no-Core-edit restriction for that change only.
+
+Fresh packaged Core first reproduced one feature with two exterior contours and the cross-axis bridge finding “Manual bridges cannot cross split boundaries.” A native expected-failing regression now passes after removing only explicitly crossed axes from that feature's automatic split list. Other split axes remain in force.
+
+The actual mounted Inspector test passes both one-sided edits from fresh baselines over one board, one feature and one connected exterior. Recess `504a36372188880a` and recess `eae8e99107225be2` have distinct reflected regions and protection IDs. Each uncheck removes only its own protection, changes the connected contour from 87 to 75 vertices and leaves the opposite side's contour vertices and protection unchanged. This is legitimate independent protection of two recesses; no control coupling was added.
+
+Focused evidence: native connected-perimeter RED/GREEN; 13 linked-resolution tests; 80 layout native tests (one existing ignored); mounted Inspector 1/1 covering both baselines. Both bridge-policy mutants were killed with no compile failures. Raw logs and observations: `.evidence/implement-141-175-007/141-*`.
+
+Fresh independent Spec (Sol 6.1, medium) and Standards reviews of the scoped diff against `1458d1220` found no actionable findings. Final combined verification remains pending.

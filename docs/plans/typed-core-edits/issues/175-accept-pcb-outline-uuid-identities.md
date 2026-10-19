@@ -1,6 +1,6 @@
 # 175: Import modern PCB outline UUIDs without losing source identity
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)
@@ -46,3 +46,28 @@ Created from the user's audit findings after primary-source research. Independen
 of 174's free-text correction: the plain-text export already demonstrates this
 defect. This is an identity-field compatibility fix, not permission to qualify
 unsupported curves or replace exact source evidence with preview meshes.
+
+## Answer — 2026-10-19
+
+Outline source IDs now use the existing nonempty `tstamp`-then-`uuid` policy. A
+legacy timestamp wins when both are present; an empty timestamp can fall back to
+a UUID. Missing, empty and duplicate IDs still refuse import. Drill and via
+identity handling is unchanged.
+
+The native regression first failed with “Edge.Cuts primitive is missing its stable
+tstamp”. All 26 module-import tests and 10 generator-export tests now pass,
+including primitive coverage and independently checked rotated/flipped placement.
+The first equality control was narrowed to change only the outline identifier key,
+after changing unrelated footprint/pad keys correctly exposed an unrelated fixture
+difference. Both UUID-removal and duplicate-admission mutants were killed, with no
+compile failures.
+
+A fresh official Core worker build exported a current board, and the real KiCad 10
+`pcb export stats` command accepted it. Actual packaged `read-board-source` and
+`import-module-board` requests imported that board and an identifier-key-only legacy
+control with equivalent physical contours and the four exact exported UUIDs.
+The packaged duplicate-UUID control refused import. Raw evidence is under
+`.evidence/implement-141-175-007/175-*`.
+
+Fresh independent Spec and Standards reviews of the scoped diff against
+`1458d1220` found no actionable findings. Final combined verification is pending.

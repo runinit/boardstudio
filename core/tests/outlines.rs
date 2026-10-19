@@ -976,10 +976,23 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
 
 #[test]
 fn manual_connections_respect_linked_split_boundaries() {
-    for points in [
-        json!([]),
-        json!([{"at":{"x":0,"y":0}},{"at":{"x":60,"y":0}}]),
-        json!([{"at":{"x":0,"y":0}},{"at":{"x":29,"y":0}}]),
+    for (points, crosses_axis, another_axis) in [
+        (json!([]), false, false),
+        (
+            json!([{"at":{"x":0,"y":0}},{"at":{"x":60,"y":0}}]),
+            true,
+            false,
+        ),
+        (
+            json!([{"at":{"x":0,"y":0}},{"at":{"x":29,"y":0}}]),
+            false,
+            false,
+        ),
+        (
+            json!([{"at":{"x":0,"y":0}},{"at":{"x":60,"y":0}}]),
+            true,
+            true,
+        ),
     ] {
         let mut doc = document();
         doc.parts.truncate(2);
@@ -993,6 +1006,21 @@ fn manual_connections_respect_linked_split_boundaries() {
             {"id":"left-layout","name":"Left","boardId":"board","matrixId":"left","partIds":[]},
             {"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
         ])).unwrap();
+        if another_axis {
+            for (id, x) in [("k2", 120.0), ("k3", 180.0)] {
+                let mut part = doc.parts[1].clone();
+                part.id = id.into();
+                part.reference = format!("SW{id}");
+                part.pose.at.x = x;
+                doc.parts.push(part);
+                doc.boards[0].part_ids.push(id.into());
+                doc.matrices.push(serde_json::from_value(json!({"id":id,"boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0},"definitionId":"switch","partIds":[id]})).unwrap());
+            }
+            doc.layouts.extend(serde_json::from_value::<Vec<Layout>>(json!([
+                {"id":"far-left-layout","name":"Far left","boardId":"board","matrixId":"k2","partIds":[]},
+                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixId":"k3","partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150}}
+            ])).unwrap());
+        }
         if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {
             *connections =
                 vec![serde_json::from_value(json!({"id":"c","width":4,"points":points})).unwrap()];
@@ -1001,16 +1029,32 @@ fn manual_connections_respect_linked_split_boundaries() {
             id: "open".into(),
             document: doc,
         }));
-        assert!(!result.readiness.outline, "{:?}", result.findings);
-        assert!(
-            result
-                .findings
-                .iter()
-                .any(|finding| finding.message.contains("bridge")
-                    || finding.message.contains("Bridge")),
-            "{:?}",
-            result.findings
-        );
+        if crosses_axis {
+            assert!(result.readiness.outline, "{:?}", result.findings);
+            assert_eq!(
+                result
+                    .contours
+                    .iter()
+                    .filter(|contour| !contour.hole)
+                    .count(),
+                if another_axis { 2 } else { 1 }
+            );
+            assert!(contains(&result.contours, 30.0, 0.0));
+            if another_axis {
+                assert!(!contains(&result.contours, 150.0, 0.0));
+            }
+        } else {
+            assert!(!result.readiness.outline, "{:?}", result.findings);
+            assert!(
+                result
+                    .findings
+                    .iter()
+                    .any(|finding| finding.message.contains("bridge")
+                        || finding.message.contains("Bridge")),
+                "{:?}",
+                result.findings
+            );
+        }
     }
 }
 

@@ -21,6 +21,103 @@ use std::sync::Arc;
 
 const BOARD: &str = "board";
 
+#[test]
+fn explicit_connection_joins_mirrored_layouts_inside_one_outline() {
+    use boardstudio_core::model::{CoreReply, CoreRequest};
+    use serde_json::json;
+
+    let mut input: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../core/tests/fixtures/synthetic-outline.json"
+    ))
+    .unwrap();
+    input["formatVersion"] = json!(6);
+    for key in ["parts", "matrices", "layouts", "outline"] {
+        input[key] = json!([]);
+    }
+    input["boards"][0]["partIds"] = json!([]);
+    input["boards"][0]["outlineIds"] = json!([]);
+    let mut engine = boardstudio_core::CoreEngine::new();
+    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(input).unwrap(),
+    }) else {
+        panic!("the synthetic board opens");
+    };
+    let apply = |engine: &mut boardstudio_core::CoreEngine,
+                 document: &ProjectDoc,
+                 operation: serde_json::Value| {
+        let reply = engine.request(&json!({"id":"outline-141", "kind":"edit", "command":{
+            "baseRevision":document.revision, "transactionId":format!("step-{}", document.revision),
+            "phase":"commit", "targetIds":[], "operation":operation
+        }}).to_string());
+        let CoreReply::Scene {
+            document, scene, ..
+        } = serde_json::from_str(&reply).unwrap()
+        else {
+            panic!("fixture edit is accepted: {reply}");
+        };
+        (*document, scene)
+    };
+    let (document, _) = apply(
+        &mut engine,
+        &document,
+        json!({"kind":"create-mirrored-pair",
+            "matrix":{"id":"left-matrix","rows":1,"columns":2,"pitch":{"x":24.,"y":19.},
+                "origin":{"x":-36.,"y":0.},"columnOffsets":[{"x":0.,"y":0.},{"x":0.,"y":10.}],
+                "definitionId":"synthetic/switch","boardId":"main","partIds":[]},
+            "left":{"id":"left-layout","name":"Left","boardId":"main","matrixId":"left-matrix","partIds":[]},
+            "right":{"id":"right-layout","name":"Right","boardId":"main","matrixId":"right-matrix", "partIds":[],
+                "mirrorLink":{"sourceId":"left-layout","axisX":0.}}
+        }),
+    );
+    let (document, scene) = apply(
+        &mut engine,
+        &document,
+        json!({"kind":"apply-outline-edit","edit":{
+            "target":{"kind":"board","boardId":"main"},"change":{"create-generated":{
+                "margin":1., "part_ids":document.boards[0].part_ids,
+                "settings":{"corners":"fillet","size":2.,"bridgeWidth":10.,
+                    "repair":{"enabled":true,"maximumGapSpan":20.,"minimumConnectionWidth":2.,"edgeClearance":0.}}
+            }},"seed":141,"reviewed":null
+        }}),
+    );
+    let exteriors = |scene: &SceneDelta| {
+        scene
+            .board_contours
+            .iter()
+            .find(|board| board.board_id == "main")
+            .unwrap()
+            .contours
+            .iter()
+            .filter(|contour| !contour.hole)
+            .count()
+    };
+    assert_eq!(document.boards.len(), 1);
+    assert_eq!(document.boards[0].outline_ids.len(), 1);
+    assert_eq!(
+        exteriors(&scene),
+        2,
+        "automatic bridges preserve the split by default"
+    );
+
+    let (_, scene) = apply(
+        &mut engine,
+        &document,
+        json!({"kind":"apply-outline-edit","edit":{
+            "target":{"kind":"board","boardId":"main"},"change":{"add-connection":{"connection":{
+                "id":"cross-split", "width":6.,"points":[{"at":{"x":-4.,"y":20.}},{"at":{"x":4.,"y":20.}}]
+            }}},"seed":144,"reviewed":null
+        }}),
+    );
+    assert_eq!(
+        exteriors(&scene),
+        1,
+        "the explicit bridge connects both halves: {:?}",
+        scene.findings
+    );
+    assert!(scene.board_outline_scenes[0].gaps.len() >= 2);
+}
+
 fn board() -> Board {
     Board {
         id: BOARD.into(),

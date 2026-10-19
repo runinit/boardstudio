@@ -123,6 +123,18 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 .collect();
             axes.sort_by(f64::total_cmp);
             axes.dedup();
+            // An authored bridge across an axis opts this feature into one connected
+            // envelope there. Automatic bridges still respect every other split.
+            for connection in connections {
+                let mut minimum_x = f64::INFINITY;
+                let mut maximum_x = f64::NEG_INFINITY;
+                for control in &connection.points {
+                    let point = crate::outline_controls::point(doc, control)?;
+                    minimum_x = minimum_x.min(point.x);
+                    maximum_x = maximum_x.max(point.x);
+                }
+                axes.retain(|axis| !(minimum_x < *axis && *axis < maximum_x));
+            }
             if axes.is_empty() {
                 return automatic::envelope(
                     doc,
