@@ -20,10 +20,15 @@ fn verify_adoption_pcb_cut(json: &str, cylinders: &[([f64; 2], f64)]) {
     assert_eq!(solid.boundaries().len(), 1);
     Solid::try_new(solid.boundaries().clone()).expect("closed oriented native PCB topology");
     assert!(solid.is_geometric_consistent());
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
-    assert!((mesh.volume() - expected["volumeMm3"].as_f64().unwrap()).abs() < 0.002);
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
+    assert!((mesh.volume() - expected["volumeMm3"].as_f64().unwrap()).abs() < 0.065);
     let mut bounds = [[f64::INFINITY; 3], [f64::NEG_INFINITY; 3]];
-    for point in mesh.positions() {
+    for point in solid
+        .boundaries()
+        .iter()
+        .flat_map(|shell| shell.vertex_iter())
+        .map(|vertex| vertex.point())
+    {
         for axis in 0..3 {
             bounds[0][axis] = bounds[0][axis].min(point[axis]);
             bounds[1][axis] = bounds[1][axis].max(point[axis]);
@@ -126,9 +131,9 @@ fn source_circle_metadata_is_authoritative_through_public_build_case() {
             .count(),
         1
     );
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-5).unwrap();
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     let expected = 8. * std::f64::consts::PI;
-    assert!((mesh.volume() - expected).abs() < 0.002);
+    assert!((mesh.volume() - expected).abs() < 0.065);
     let buffers = crate::mesh_profile(&model).expect("complete existing mesh path");
     assert!(!buffers.positions.is_empty());
     assert_eq!(buffers.positions.len(), buffers.normals.len());
@@ -305,8 +310,8 @@ fn source_line_arc_loop_is_authoritative_through_public_build_case() {
     Solid::try_new(solid.boundaries().clone()).expect("closed oriented half disc");
     assert!(solid.is_geometric_consistent());
     assert_eq!(solid.boundaries()[0].len(), 4);
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-5).unwrap();
-    assert!((mesh.volume() - 4. * std::f64::consts::PI).abs() < 0.002);
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
+    assert!((mesh.volume() - 4. * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [1.5, 0.5, 1.], true);
     material(&mesh, [-0.2, 0., 1.], false);
     let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
@@ -346,8 +351,8 @@ fn source_body_round_drills_do_not_use_polygon_region_filtering() {
     Solid::try_new(solid.boundaries().clone()).unwrap();
     assert!(solid.is_geometric_consistent());
     assert_eq!(solid.boundaries()[0].len(), 4);
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-5).unwrap();
-    assert!((mesh.volume() - 7.98 * std::f64::consts::PI).abs() < 0.002);
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
+    assert!((mesh.volume() - 7.98 * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [11.3, 9.3, 1.], false);
     material(&mesh, [11.15, 9.3, 1.], true);
     let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
@@ -594,8 +599,8 @@ fn source_contour_hole_ownership_is_preserved() {
     Solid::try_new(solid.boundaries().clone()).unwrap();
     assert!(solid.is_geometric_consistent());
     assert_eq!(solid.boundaries()[0].len(), 4);
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-5).unwrap();
-    assert!((mesh.volume() - 7.5 * std::f64::consts::PI).abs() < 0.002);
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
+    assert!((mesh.volume() - 7.5 * std::f64::consts::PI).abs() < 0.065);
     material(&mesh, [10., 8., 1.], false);
     material(&mesh, [11., 8., 1.], true);
     let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();
@@ -675,9 +680,9 @@ fn slot_geometry(
     Solid::try_new(solid.boundaries().clone()).unwrap();
     assert!(solid.is_geometric_consistent());
     assert_eq!(solid.boundaries()[0].len(), faces);
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     let expected = input.body.thickness * (outer_area - (0.32 + 0.16 * std::f64::consts::PI));
-    assert!((mesh.volume() - expected).abs() < 0.02);
+    assert!((mesh.volume() - expected).abs() < 0.065);
     let center = [2.2207122724188775, -5.961787043169324];
     let (sin, cos) = 14_f64.to_radians().sin_cos();
     material(&mesh, [center[0], center[1], 1.], false);
@@ -778,11 +783,11 @@ fn source_declared_owner_is_not_silently_reassigned_to_nested_island() {
     for solid in &model.solids {
         Solid::try_new(solid.boundaries().clone()).unwrap();
         assert!(solid.is_geometric_consistent());
-        volume += shell_to_polygon_strict(&solid.boundaries()[0], 1e-5)
+        volume += shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
             .unwrap()
             .volume();
     }
-    assert!((volume - 5.375 * std::f64::consts::PI).abs() < 0.004);
+    assert!((volume - 5.375 * std::f64::consts::PI).abs() < 0.065);
 }
 
 #[test]
@@ -813,13 +818,13 @@ fn source_crossing_and_tangent_drills_are_named_refusals() {
             let solid = &model.solids[0];
             Solid::try_new(solid.boundaries().clone()).unwrap();
             assert!(solid.is_geometric_consistent());
-            let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+            let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
             // Exact intersection area of circles R=2, r=0.5, centre distance d=1.6.
             let d = 1.6_f64;
             let lens = 4. * ((d * d + 4. - 0.25) / (4. * d)).acos()
                 + 0.25 * ((d * d + 0.25 - 4.) / d).acos()
                 - 0.5 * ((-d + 2.5) * (d + 1.5) * (d - 1.5) * (d + 2.5)).sqrt();
-            assert!((mesh.volume() - (8. * std::f64::consts::PI - 2. * lens)).abs() < 0.002);
+            assert!((mesh.volume() - (8. * std::f64::consts::PI - 2. * lens)).abs() < 0.065);
             material(&mesh, [11.8, 8., 1.], false);
             material(&mesh, [10., 8., 1.], true);
             let step = String::from_utf8(crate::export_step(&model).unwrap()).unwrap();

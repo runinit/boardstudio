@@ -1561,7 +1561,7 @@ mod mounted_live_scene_tests {
     }
 
     async fn settle() {
-        gloo_timers::future::TimeoutFuture::new(100).await;
+        gloo_timers::future::TimeoutFuture::new(10).await;
     }
 
     async fn wait_for_current_resolution_inspector_text(document: &web_sys::Document) -> String {
@@ -1578,7 +1578,7 @@ mod mounted_live_scene_tests {
                     return last_text;
                 }
             }
-            gloo_timers::future::TimeoutFuture::new(20).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
         }
         panic!("current mechanical resolution did not reach the mounted Inspector: {last_text:?}");
     }

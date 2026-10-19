@@ -546,11 +546,8 @@ mod offset_axes_tests {
         );
         assert!(super::position_input_disabled(true));
         assert!(!super::position_input_disabled(false));
-        assert_eq!(super::position_commit_value(true, "12.5"), None);
-        assert_eq!(
-            super::position_commit_value(false, "12.5"),
-            Some("12.5".into())
-        );
+        assert_eq!(super::position_commit_value("12.5", true), None);
+        assert_eq!(super::position_commit_value("12.5", false), Some(12.5));
     }
 }
 

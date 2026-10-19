@@ -179,7 +179,7 @@ fn element(selector: &str) -> web_sys::HtmlElement {
 }
 
 async fn rendered() {
-    gloo_timers::future::TimeoutFuture::new(80).await;
+    gloo_timers::future::TimeoutFuture::new(10).await;
 }
 
 fn set_input(selector: &str, value: &str) {

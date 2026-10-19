@@ -81,6 +81,7 @@ fn triple(value: &Value) -> [f64; 3] {
 #[test]
 fn pinned_vik_step_meshes_preserve_source_bounds_and_hashes() {
     let ledger = json("catalogue/modules/asset-ledger.json");
+    let catalogue = json("catalogue/modules/imported-modules.json");
     let tight = json("cad/test/fixtures/vik-model-tight-bounds.json");
     let step_assets: Vec<_> = ledger["models"]
         .as_array()
@@ -96,6 +97,7 @@ fn pinned_vik_step_meshes_preserve_source_bounds_and_hashes() {
             .into_iter()
             .map(|asset| {
                 let tight = &tight;
+                let catalogue = &catalogue;
                 scope.spawn(move || {
                     let file = asset["bundledFile"].as_str().unwrap();
                     let input = fs::read(root().join(file)).unwrap();
@@ -157,6 +159,89 @@ fn pinned_vik_step_meshes_preserve_source_bounds_and_hashes() {
                             tight_max[axis]
                         );
                     }
+                    // The VIK display adapter is the one asset whose board placement and
+                    // asymmetric H1/H2 rims the display transform must match; reuse this single
+                    // parse instead of importing the STEP a second time.
+                    if asset["path"] == "pcb/1.47inch/1.47inch.step" {
+                        let definition = catalogue["modules"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|e| {
+                                e["row"] == "vik-display-adapter"
+                                    && e["definition"]["variant"] == "pcb/1.47inch/pcb"
+                            })
+                            .unwrap()["definition"]
+                            .clone();
+                        let transform = &asset["boardToModelTransform"];
+                        assert_eq!(
+                            transform["rotation"],
+                            serde_json::json!({"x":0,"y":0,"z":0})
+                        );
+                        assert_eq!(transform["scale"], serde_json::json!({"x":1,"y":1,"z":1}));
+                        assert!(transform["evidence"]["asymmetricFeatures"]
+                            .as_str()
+                            .unwrap()
+                            .contains("H1/H2"));
+                        let offset = [
+                            transform["offset"]["x"].as_f64().unwrap(),
+                            transform["offset"]["y"].as_f64().unwrap(),
+                            transform["offset"]["z"].as_f64().unwrap(),
+                        ];
+                        let board_points = definition["board"]["contours"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .flat_map(|c| c["points"].as_array().unwrap())
+                            .collect::<Vec<_>>();
+                        let board_min_x = board_points
+                            .iter()
+                            .map(|p| p["x"].as_f64().unwrap())
+                            .fold(f64::INFINITY, f64::min);
+                        let board_max_x = board_points
+                            .iter()
+                            .map(|p| p["x"].as_f64().unwrap())
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let board_min_y = board_points
+                            .iter()
+                            .map(|p| p["y"].as_f64().unwrap())
+                            .fold(f64::INFINITY, f64::min);
+                        let board_max_y = board_points
+                            .iter()
+                            .map(|p| p["y"].as_f64().unwrap())
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let source = &asset["boardNativeBoundsMm"];
+                        assert_eq!(source["XMin"].as_f64().unwrap() + offset[0], board_min_x);
+                        assert_eq!(source["XMax"].as_f64().unwrap() + offset[0], board_max_x);
+                        assert_eq!(source["YMin"].as_f64().unwrap() + offset[1], board_min_y);
+                        assert_eq!(source["YMax"].as_f64().unwrap() + offset[1], board_max_y);
+                        assert_eq!(source["ZMin"].as_f64().unwrap() + offset[2], -0.8);
+                        assert_eq!(source["ZMax"].as_f64().unwrap() + offset[2], 0.8);
+                        for mount in definition["mounts"].as_array().unwrap() {
+                            let mx = mount["at"]["x"].as_f64().unwrap();
+                            let my = mount["at"]["y"].as_f64().unwrap();
+                            let radius = mount["diameter"].as_f64().unwrap() / 2.0;
+                            let count = model
+                                .mesh
+                                .positions
+                                .as_chunks::<3>()
+                                .0
+                                .iter()
+                                .filter(|p| {
+                                    let x = f64::from(p[0]) + offset[0];
+                                    let y = f64::from(p[1]) + offset[1];
+                                    let z = f64::from(p[2]) + offset[2];
+                                    ((x - mx).hypot(y - my) - radius).abs() < 0.035
+                                        && (z.abs() - 0.8).abs() < 0.035
+                                })
+                                .count();
+                            assert!(
+                                count > 20,
+                                "{} source mount maps onto STEP rim ({count} vertices)",
+                                mount["sourceId"]
+                            );
+                        }
+                    }
                 })
             })
             .collect();
@@ -215,95 +300,6 @@ fn pinned_vik_binary_stls_preserve_source_bounds() {
             max,
             0.03,
             file,
-        );
-    }
-}
-
-#[test]
-fn vik_display_transform_aligns_board_and_asymmetric_h1_h2_rims() {
-    let catalogue = json("catalogue/modules/imported-modules.json");
-    let definition = catalogue["modules"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|e| {
-            e["row"] == "vik-display-adapter" && e["definition"]["variant"] == "pcb/1.47inch/pcb"
-        })
-        .unwrap()["definition"]
-        .clone();
-    let ledger = json("catalogue/modules/asset-ledger.json");
-    let asset = ledger["models"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|m| m["path"] == "pcb/1.47inch/1.47inch.step")
-        .unwrap();
-    let transform = &asset["boardToModelTransform"];
-    assert_eq!(
-        transform["rotation"],
-        serde_json::json!({"x":0,"y":0,"z":0})
-    );
-    assert_eq!(transform["scale"], serde_json::json!({"x":1,"y":1,"z":1}));
-    assert!(transform["evidence"]["asymmetricFeatures"]
-        .as_str()
-        .unwrap()
-        .contains("H1/H2"));
-    let model = read_step_model_data(bytes(asset["bundledFile"].as_str().unwrap())).unwrap();
-    let offset = [
-        transform["offset"]["x"].as_f64().unwrap(),
-        transform["offset"]["y"].as_f64().unwrap(),
-        transform["offset"]["z"].as_f64().unwrap(),
-    ];
-    let board_points = definition["board"]["contours"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|c| c["points"].as_array().unwrap())
-        .collect::<Vec<_>>();
-    let board_min_x = board_points
-        .iter()
-        .map(|p| p["x"].as_f64().unwrap())
-        .fold(f64::INFINITY, f64::min);
-    let board_max_x = board_points
-        .iter()
-        .map(|p| p["x"].as_f64().unwrap())
-        .fold(f64::NEG_INFINITY, f64::max);
-    let board_min_y = board_points
-        .iter()
-        .map(|p| p["y"].as_f64().unwrap())
-        .fold(f64::INFINITY, f64::min);
-    let board_max_y = board_points
-        .iter()
-        .map(|p| p["y"].as_f64().unwrap())
-        .fold(f64::NEG_INFINITY, f64::max);
-    let source = &asset["boardNativeBoundsMm"];
-    assert_eq!(source["XMin"].as_f64().unwrap() + offset[0], board_min_x);
-    assert_eq!(source["XMax"].as_f64().unwrap() + offset[0], board_max_x);
-    assert_eq!(source["YMin"].as_f64().unwrap() + offset[1], board_min_y);
-    assert_eq!(source["YMax"].as_f64().unwrap() + offset[1], board_max_y);
-    assert_eq!(source["ZMin"].as_f64().unwrap() + offset[2], -0.8);
-    assert_eq!(source["ZMax"].as_f64().unwrap() + offset[2], 0.8);
-    for mount in definition["mounts"].as_array().unwrap() {
-        let mx = mount["at"]["x"].as_f64().unwrap();
-        let my = mount["at"]["y"].as_f64().unwrap();
-        let radius = mount["diameter"].as_f64().unwrap() / 2.0;
-        let count = model
-            .mesh
-            .positions
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .filter(|p| {
-                let x = f64::from(p[0]) + offset[0];
-                let y = f64::from(p[1]) + offset[1];
-                let z = f64::from(p[2]) + offset[2];
-                ((x - mx).hypot(y - my) - radius).abs() < 0.035 && (z.abs() - 0.8).abs() < 0.035
-            })
-            .count();
-        assert!(
-            count > 20,
-            "{} source mount maps onto STEP rim ({count} vertices)",
-            mount["sourceId"]
         );
     }
 }

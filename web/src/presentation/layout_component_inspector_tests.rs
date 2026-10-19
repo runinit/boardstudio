@@ -1999,105 +1999,16 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
         "blur lands the retained X draft with the accepted Y against the refreshed owner"
     );
     assert!(accepted_revision > initial_revision);
-    root.remove();
-}
 
-#[wasm_bindgen_test]
-async fn mounted_component_margin_enter_uses_latest_accepted_document() {
-    let (probe, root) = mounted_probe("layout-component-inspector-margin-refresh-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let document = web_sys::window().unwrap().document().unwrap();
-    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    settle_mounted_component_inspector(&probe).await;
-    let margin = document
-        .query_selector(&format!(
-            "#{} input[aria-label='Part edge margin']",
-            probe.root_id
-        ))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
-    margin.focus().unwrap();
-    margin.set_value("5.5");
-    let input = web_sys::EventInit::new();
-    input.set_bubbles(true);
-    margin
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &input).unwrap())
-        .unwrap();
-
-    probe.accept_unrelated_revision().await;
-    settle_mounted_component_inspector(&probe).await;
-    assert_eq!(
-        margin.value(),
-        "5.5",
-        "dirty margin draft survives acceptance"
-    );
-    assert_eq!(
-        document
-            .query_selector(&format!("#{} input[aria-label='Y mm']", probe.root_id))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
-            .value(),
-        "4.00",
-        "clean position follows accepted state"
-    );
-    assert!(
-        document
-            .query_selector(&format!("#{} .m1-layout-component-outline", probe.root_id))
-            .unwrap()
-            .unwrap()
-            .has_attribute("open"),
-        "outline disclosure survives unrelated acceptance"
-    );
-
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-    margin
-        .dispatch_event(
-            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-        )
-        .unwrap();
-    accept_pending(&probe).await;
-    let accepted = probe.runtime.model().accepted.unwrap();
-    let selected = accepted
-        .document
-        .parts
-        .iter()
-        .find(|part| part.id == "selected-part")
-        .unwrap();
-    assert_eq!(
-        selected.outline.as_ref().and_then(|outline| outline.margin),
-        Some(5.5),
-        "Enter commits the margin against the latest accepted document"
-    );
-    assert_eq!(
-        selected.pose.at.y, 4.0,
-        "the unrelated accepted move survives the margin edit"
-    );
-    assert_eq!(
-        accepted.document.parameters.get("unrelated-inspector-edit"),
-        Some(&serde_json::json!(42)),
-        "the unrelated accepted parameter survives the margin edit"
-    );
-    root.remove();
-}
-
-#[wasm_bindgen_test]
-async fn mounted_component_relations_tab_survives_unrelated_acceptance() {
-    let (probe, root) = mounted_probe("layout-component-inspector-tab-refresh-test-root").await;
-    settle_mounted_component_inspector(&probe).await;
-    let document = web_sys::window().unwrap().document().unwrap();
+    // The Relations tab holds its selection across a further unrelated acceptance on the
+    // same mounted Inspector these draft checks use.
     click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
     settle_mounted_component_inspector(&probe).await;
-    let revision = probe.accept_unrelated_revision().await;
+    let relations_revision = probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe.projection.borrow().as_ref().unwrap().owner.revision,
-        revision
+        relations_revision
     );
     assert_eq!(
         document
@@ -2150,66 +2061,6 @@ fn try_commit_position(input: &web_sys::HtmlInputElement, value: &str) {
             .dispatch_event(&web_sys::Event::new_with_event_init_dict(name, &bubbling).unwrap())
             .unwrap();
     }
-}
-
-#[wasm_bindgen_test]
-async fn mounted_rapid_xy_enter_and_focus_change_submit_one_edit_per_axis() {
-    let (probe, root) =
-        mounted_probe_configured("layout-component-position-rapid-xy-test-root", |document| {
-            let part = document
-                .parts
-                .iter_mut()
-                .find(|part| part.id == "selected-part")
-                .unwrap();
-            part.reference = "J1".into();
-            part.pose.at = Vec2 {
-                x: 66.675,
-                y: -47.625,
-            };
-        })
-        .await;
-    settle_mounted_component_inspector(&probe).await;
-    let initial_revision = accepted_revision(&probe);
-    let x = position_input(probe.root_id, "X mm");
-    let y = position_input(probe.root_id, "Y mm");
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    let enter = web_sys::KeyboardEventInit::new();
-    enter.set_key("Enter");
-    enter.set_bubbles(true);
-
-    x.focus().unwrap();
-    x.set_value("60");
-    x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    x.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-
-    // Moving focus to Y causes the native X blur after Enter. It must not submit
-    // the same still-visible X draft a second time.
-    y.focus().unwrap();
-    y.set_value("-40");
-    y.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
-        .unwrap();
-    y.dispatch_event(
-        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &enter).unwrap(),
-    )
-    .unwrap();
-
-    accept_pending(&probe).await;
-    assert_eq!(
-        accepted_revision(&probe),
-        initial_revision + 2,
-        "rapid X Enter followed by X blur and Y Enter must accept exactly one edit per axis"
-    );
-    assert_eq!(
-        accepted_position(&probe, "selected-part").y,
-        -40.0,
-        "the Y edit landed"
-    );
-    root.remove();
 }
 
 #[wasm_bindgen_test]

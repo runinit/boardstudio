@@ -2983,7 +2983,7 @@ mod tests {
                 dom,
                 dioxus_web::Config::new().rootnode(root.clone().into()),
             );
-            gloo_timers::future::TimeoutFuture::new(40).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             (probe, root)
         }
 
@@ -3155,7 +3155,7 @@ mod tests {
             button_named(&root, "Delete matrix").click();
             support::drive_pending(&runtime);
             entered.await.expect("the mounted delete reached Core");
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             assert!(
                 button_named(&root, "Delete matrix").has_attribute("disabled"),
                 "the production Matrix action stays disabled while its Core request is held"
@@ -3170,10 +3170,10 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             support::run_pending(&runtime).await;
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
 
             assert!(
                 probe
@@ -3227,7 +3227,7 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             support::run_pending(&runtime).await;
 
             assert_eq!(
@@ -3258,7 +3258,7 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             support::run_pending(&runtime).await;
 
             assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
@@ -3304,10 +3304,10 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             support::run_pending(&runtime).await;
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
 
             assert_eq!(rows.value(), "3", "failure does not replace a newer draft");
             let rows_label = root.query_selector_all("label.m1-matrix-field").unwrap();
@@ -3392,7 +3392,7 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
 
             let layout_name = matrix_input(&root, "Layout name");
             assert_eq!(layout_name.value(), "Canonical layout");
@@ -3459,7 +3459,7 @@ mod tests {
                         },
                     }));
                     version.set(version() + 1);
-                    gloo_timers::future::TimeoutFuture::new(35).await;
+                    gloo_timers::future::TimeoutFuture::new(5).await;
                 }
                 selected.set(Some(ScopedTreeContext {
                     scope: probe.scope.clone(),
@@ -3468,7 +3468,7 @@ mod tests {
                     },
                 }));
                 version.set(version() + 1);
-                gloo_timers::future::TimeoutFuture::new(35).await;
+                gloo_timers::future::TimeoutFuture::new(5).await;
                 let current = matrix_input(&root, label);
                 assert_eq!(current.value(), accepted, "{label} resets on owner change");
                 current.focus().expect("field input should focus");
@@ -3515,7 +3515,7 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
 
             let current_name = matrix_input(&root, "Matrix name");
             assert_eq!(current_name.value(), "Uncommitted matrix name");
@@ -3562,7 +3562,7 @@ mod tests {
                 .copied()
                 .expect("mounted version signal");
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             assert!(
                 root.query_selector("label.m1-matrix-field")
                     .unwrap()
@@ -3593,7 +3593,7 @@ mod tests {
 
             visible.set(true);
             version.set(version() + 1);
-            gloo_timers::future::TimeoutFuture::new(35).await;
+            gloo_timers::future::TimeoutFuture::new(5).await;
             let rows = matrix_input(&root, "Rows");
             assert_eq!(
                 rows.value(),

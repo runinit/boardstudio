@@ -25,11 +25,14 @@ and for any bulk action a recorded decision permits.
 ## Decisions so far
 
 - **2026-10-19 test-suite speed & bloat audit:** six approved tickets slice the
-  20 audit findings across disjoint crate boundaries (`176`–`180` in
+  audit findings across disjoint crate boundaries (`176`–`180` in
   parallel, `181` blocked by `176`–`180` for the page suite, native baseline
-  refresh, and full verification gate). All six are **resolved** (-9,440 net
-  lines; full 56/56 `check.py` gate passed in 470.0 s, receipt
-  `.evidence/ticket-181-full-receipt.json`):
+  refresh, and full verification gate). All six are **resolved** Across two
+  passes (**−10,518 net lines**: 2,126 insertions, 12,644 deletions; `test` step
+  **116.3 s → 47.6 s**, `boardstudio_cad` lib **85.36 s → 7.88 s**, `pcb`
+  browser **15.49 s → 6.69 s**, `parts` browser **12.11 s → 3.49 s**, full 56/56
+  `check.py` gate **525.0 s → 366.9 s**, receipt
+  `.evidence/pass2-full-receipt.json`):
   - [176: Speed up CAD layered, PCB, and STEP validation tests and prune STEP oracle self-tests](issues/176-speed-up-cad-and-step-tests.md) — resolved.
   - [177: Prune duplicate and no-op Core unit tests in mirrored_half and mechanical::edit](issues/177-prune-duplicate-core-unit-tests.md) — resolved.
   - [178: Trim redundant CreateMirroredHalf, ReplaceDocument, and pin-capacity loops in Core integration tests](issues/178-trim-core-integration-test-loops.md) — resolved.

@@ -623,7 +623,7 @@ mod tests {
             VirtualDom::new(render_fixture),
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         let renders = SCENE_RENDERS.with(|count| count.get());
         let click = |selector: &str| {
             root.query_selector(selector)
@@ -634,7 +634,7 @@ mod tests {
                 .click()
         };
         click("#canvas-unrelated");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert_eq!(
             SCENE_RENDERS.with(|count| count.get()),
             renders,
@@ -649,7 +649,7 @@ mod tests {
             .unwrap()
             .dispatch_event(&pointer)
             .unwrap();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert_eq!(
             root.query_selector("#canvas-observed")
                 .unwrap()
@@ -660,7 +660,7 @@ mod tests {
             "memoized canvas callbacks must use the latest parent capture"
         );
         click("#canvas-highlight");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
             root.query_selector(".m1-part.is-relation-highlight")
                 .unwrap()
@@ -673,7 +673,7 @@ mod tests {
         );
         let part_renders = PART_CONTENT_RENDERS.with(|count| count.get());
         click("#canvas-preview");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert_eq!(
             PART_CONTENT_RENDERS.with(|count| count.get()),
             part_renders,
@@ -688,14 +688,14 @@ mod tests {
             Some("translate(9,4) rotate(0) ")
         );
         click("#canvas-select");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
             root.query_selector(".m1-keycap-overlay.is-selected")
                 .unwrap()
                 .is_some()
         );
         click("#canvas-accepted");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert_eq!(
             root.query_selector(".m1-part-hit-area")
                 .unwrap()
@@ -706,7 +706,7 @@ mod tests {
             "accepted geometry must refresh cached graphics"
         );
         click("#canvas-hide");
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(root.query_selector(".m1-scene-part").unwrap().is_none());
         root.remove();
     }

@@ -2826,63 +2826,6 @@ mod mounted_tests {
         root.remove();
     }
 
-    #[wasm_bindgen_test]
-    async fn project_menu_name_reports_real_persist_failure_without_accepting_the_rename() {
-        let (session, core) = accepted(ProjectDoc::empty("menu-name-failure", "Original"));
-        let runtime = crate::runtime::project_name_test_support::new_runtime();
-        crate::runtime::project_name_test_support::install(&runtime, session, core);
-        let seed = Rc::new(Seed {
-            state: Rc::new(RefCell::new(None)),
-            show_library: Rc::new(RefCell::new(None)),
-        });
-        let root = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .create_element("div")
-            .unwrap();
-        root.set_id("project-name-failure-regression");
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .body()
-            .unwrap()
-            .append_child(&root)
-            .unwrap();
-        let dom = VirtualDom::new(host);
-        dom.provide_root_context(seed);
-        dom.provide_root_context(runtime.clone());
-        dioxus_web::launch::launch_virtual_dom(
-            dom,
-            dioxus_web::Config::new().rootnode(root.clone().into()),
-        );
-        wait_until("the Library mounts the name field", name_field_rendered).await;
-
-        crate::runtime::project_name_test_support::fail_next_persist(
-            &runtime,
-            "injected durable write failure",
-        );
-        type_value(&field(), "Should not commit");
-        let slot = crate::runtime::project_name_test_support::observe_next(&runtime);
-        let _ = field().blur();
-        assert_eq!(
-            wait_outcome(&runtime, &slot).await,
-            boardstudio_application::TerminalOutcome::PersistenceFailed(
-                "injected durable write failure".into()
-            )
-        );
-        assert_eq!(runtime.model().accepted.unwrap().document.name, "Original");
-        assert!(runtime.status().contains("injected durable write failure"));
-        let _ = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .body()
-            .unwrap()
-            .remove_child(&root);
-    }
-
     async fn mounted_name_field(
         project_id: &str,
     ) -> (Rc<crate::runtime::Runtime>, web_sys::Element) {

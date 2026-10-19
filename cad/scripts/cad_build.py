@@ -22,6 +22,7 @@ VENDOR_CRATES = (
 WASM_TEST_ONLY_SOURCES = frozenset({
     "src/model/source_validation_tests.rs",
     "src/model/generated/tests.rs",
+    "src/model/keycaps/print_legend_tests.rs",
 })
 LIBRARY_TEST_ONLY_SOURCES = frozenset({
     "src/tests.rs",

@@ -2164,184 +2164,6 @@ fn independent_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
 }
 
 #[test]
-fn matrixless_exception_intent_prepares_an_independent_part_transition() {
-    let (mut before, context) = independent_lifecycle_fixture();
-    let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
-    let halves = before.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap();
-    halves
-        .correspondences
-        .retain(|record| record.kind != MirroredItemKind::Matrix);
-    crate::mechanical::halves::validate_document(&before)
-        .expect("physical matrices may remain without Matrix correspondences");
-
-    let mut outputs = super::prepare_exception_intent(
-        &before,
-        &before,
-        &pair_id,
-        MirroredItemKind::Part,
-        "source-screen",
-        "mirror-screen",
-        TransitionState::Local,
-    )
-    .expect("preparation itself should be valid");
-    assert_eq!(outputs.len(), 1, "the Local intent must prepare one draft");
-    let output = outputs.pop().unwrap();
-
-    for id in ["source-screen", "mirror-screen"] {
-        assert_eq!(
-            output.draft.parts.iter().find(|part| part.id == id),
-            before.parts.iter().find(|part| part.id == id),
-            "Local keeps the selected geometry byte-for-byte"
-        );
-    }
-    assert_eq!(output.draft.matrices, before.matrices);
-    let halves = output.draft.hardware.as_ref().unwrap().pairs[0]
-        .halves
-        .as_ref()
-        .unwrap();
-    assert_eq!(
-        halves.exceptions,
-        vec![crate::model::MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: "mirror-screen".into(),
-            state: crate::model::MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        }]
-    );
-    assert_eq!(
-        output.context.pair_right.correspondences.len(),
-        context.pair_right.correspondences.len() - 1
-    );
-    let decoded_local: ProjectDoc =
-        serde_json::from_slice(&serde_json::to_vec(&output.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded_local).unwrap();
-    let repeated_local =
-        super::prepare_lifecycle_transition(&decoded_local, &decoded_local, &output.context)
-            .expect("the durable matrixless Local state reconciles after serde");
-    assert_eq!(repeated_local.draft, decoded_local);
-    assert_eq!(repeated_local.context, output.context);
-
-    let mut post_source = output.draft.clone();
-    for id in ["source-screen", "source-encoder"] {
-        let source = post_source
-            .parts
-            .iter_mut()
-            .find(|part| part.id == id)
-            .unwrap();
-        source.pose.at.x += 17.0;
-        source.properties = Some(BTreeMap::from([("revision".into(), json!(2))]));
-    }
-    let edited = super::prepare_lifecycle_transition(&output.draft, &post_source, &output.context)
-        .expect("matrixless lifecycle context follows source edits");
-    assert_eq!(
-        edited
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "mirror-screen"),
-        before.parts.iter().find(|part| part.id == "mirror-screen"),
-        "Local retains its current geometry"
-    );
-    let source = post_source
-        .parts
-        .iter()
-        .find(|part| part.id == "source-encoder")
-        .unwrap();
-    let mirror = edited
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "mirror-encoder")
-        .unwrap();
-    assert_eq!(
-        mirror,
-        &crate::mirrored_half::derive::part(
-            source,
-            &mirror.id,
-            &mirror.definition_id,
-            &mirror.reference,
-            context.mapping,
-        )
-    );
-
-    let omitted = super::prepare_exception_intent(
-        &edited.draft,
-        &edited.draft,
-        &pair_id,
-        MirroredItemKind::Part,
-        "source-screen",
-        "mirror-screen",
-        TransitionState::Omitted,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    assert!(
-        omitted
-            .draft
-            .parts
-            .iter()
-            .all(|part| part.id != "mirror-screen")
-    );
-    assert!(
-        omitted
-            .draft
-            .boards
-            .iter()
-            .all(|board| { !board.part_ids.iter().any(|id| id == "mirror-screen") })
-    );
-    let decoded: ProjectDoc =
-        serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeated = super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context)
-        .expect("the durable matrixless Omitted state reconciles after serde");
-    assert_eq!(repeated.draft, decoded);
-    assert_eq!(repeated.context, omitted.context);
-
-    let rejoined = super::prepare_exception_intent(
-        &repeated.draft,
-        &repeated.draft,
-        &pair_id,
-        MirroredItemKind::Part,
-        "source-screen",
-        "mirror-screen",
-        TransitionState::Linked,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let source = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "source-screen")
-        .unwrap();
-    let mirror = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "mirror-screen")
-        .unwrap();
-    assert_eq!(
-        mirror,
-        &crate::mirrored_half::derive::part(
-            source,
-            &mirror.id,
-            &mirror.definition_id,
-            &mirror.reference,
-            context.mapping,
-        )
-    );
-    assert!(rejoined.context.pair_right.exceptions.is_empty());
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-}
-
-#[test]
 fn independent_screen_local_omit_and_rejoin_commit_current_source() {
     let (mut before, mut context) = independent_lifecycle_fixture();
     for half in ["source", "mirror"] {
@@ -2465,6 +2287,33 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
     assert_eq!(target, &expected);
     assert!(rejoined.context.pair_right.exceptions.is_empty());
     crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
+
+    // The same matrixless part lifecycle is reachable straight through the private intent route.
+    let (mut matrixless, _) = independent_lifecycle_fixture();
+    remove_matrix_correspondence(&mut matrixless);
+    crate::mechanical::halves::validate_document(&matrixless).unwrap();
+    let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
+    let mut prepared = super::prepare_exception_intent(
+        &matrixless,
+        &matrixless,
+        &pair_id,
+        MirroredItemKind::Part,
+        "source-screen",
+        "mirror-screen",
+        TransitionState::Local,
+    )
+    .unwrap();
+    assert_eq!(prepared.len(), 1, "the Local intent must prepare one draft");
+    let prepared = prepared.pop().unwrap();
+    assert_eq!(
+        prepared
+            .draft
+            .parts
+            .iter()
+            .find(|p| p.id == "mirror-screen"),
+        matrixless.parts.iter().find(|p| p.id == "mirror-screen"),
+        "matrixless Local keeps the selected geometry byte-for-byte"
+    );
 }
 
 #[test]
@@ -2904,278 +2753,6 @@ fn remove_matrix_correspondence(document: &mut ProjectDoc) {
 }
 
 #[test]
-fn matrixless_embedded_circuit_owner_supports_local_omit_and_rejoin() {
-    let (mut before, _) = circuit_lifecycle_fixture();
-    let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
-    remove_matrix_correspondence(&mut before);
-    crate::mechanical::halves::validate_document(&before).unwrap();
-
-    let explicit_child = super::prepare_exception_intent(
-        &before,
-        &before,
-        &pair_id,
-        MirroredItemKind::Part,
-        "embedded/source-circuit/U2",
-        "embedded/mirror-circuit/U2",
-        TransitionState::Local,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let explicit_child_geometry = explicit_child
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "embedded/mirror-circuit/U2")
-        .unwrap()
-        .clone();
-    let mirror_screen_before = explicit_child
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "mirror-screen")
-        .unwrap()
-        .clone();
-    let mirror_module_before = explicit_child
-        .draft
-        .modules
-        .iter()
-        .find(|module| module.id == "mirror-module")
-        .unwrap()
-        .clone();
-    let local = super::prepare_exception_intent(
-        &explicit_child.draft,
-        &explicit_child.draft,
-        &pair_id,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Local,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let mirror_local = local
-        .draft
-        .embedded_circuits
-        .iter()
-        .find(|circuit| circuit.id == "mirror-circuit")
-        .unwrap()
-        .clone();
-    let mirror_member_local = local
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "embedded/mirror-circuit/U1")
-        .unwrap()
-        .clone();
-    assert!(local.context.associations.iter().any(|association| {
-        association.source_id == "embedded/source-circuit/U1"
-            && association.state == TransitionState::Local
-            && !association.explicit_state
-    }));
-    assert!(local.context.associations.iter().any(|association| {
-        association.source_id == "embedded/source-circuit/U2"
-            && association.state == TransitionState::Local
-            && association.explicit_state
-    }));
-    assert_eq!(
-        local
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U2"),
-        Some(&explicit_child_geometry)
-    );
-    assert_eq!(
-        local
-            .draft
-            .modules
-            .iter()
-            .find(|module| module.id == "mirror-module"),
-        Some(&mirror_module_before)
-    );
-    assert_eq!(
-        local
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "mirror-screen"),
-        Some(&mirror_screen_before)
-    );
-    let mut post = local.draft.clone();
-    for id in ["embedded/source-circuit/U1", "embedded/source-circuit/U2"] {
-        post.parts
-            .iter_mut()
-            .find(|part| part.id == id)
-            .unwrap()
-            .pose
-            .at
-            .x += 19.0;
-    }
-    let edited = super::prepare_lifecycle_transition(&local.draft, &post, &local.context).unwrap();
-    assert_eq!(
-        edited
-            .draft
-            .embedded_circuits
-            .iter()
-            .find(|circuit| circuit.id == "mirror-circuit"),
-        Some(&mirror_local)
-    );
-    assert_eq!(
-        edited
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U1"),
-        Some(&mirror_member_local)
-    );
-    assert_eq!(
-        edited
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U2"),
-        Some(&explicit_child_geometry),
-        "an explicit Local child keeps its geometry after source edits"
-    );
-
-    let omitted = super::prepare_exception_intent(
-        &edited.draft,
-        &edited.draft,
-        &pair_id,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Omitted,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    assert!(
-        omitted
-            .draft
-            .embedded_circuits
-            .iter()
-            .all(|circuit| circuit.id != "mirror-circuit")
-    );
-    let decoded: ProjectDoc =
-        serde_json::from_slice(&serde_json::to_vec(&omitted.draft).unwrap()).unwrap();
-    crate::mechanical::halves::validate_document(&decoded).unwrap();
-    let repeat = super::prepare_lifecycle_transition(&decoded, &decoded, &omitted.context).unwrap();
-    assert_eq!(repeat.draft, decoded);
-    assert!(repeat.context.associations.iter().any(|association| {
-        association.source_id == "embedded/source-circuit/U2"
-            && association.state == TransitionState::Local
-            && association.explicit_state
-    }));
-    assert_eq!(
-        repeat
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U2"),
-        Some(&explicit_child_geometry)
-    );
-
-    let rejoined = super::prepare_exception_intent(
-        &repeat.draft,
-        &repeat.draft,
-        &pair_id,
-        MirroredItemKind::EmbeddedCircuit,
-        "source-circuit",
-        "mirror-circuit",
-        TransitionState::Linked,
-    )
-    .unwrap()
-    .pop()
-    .unwrap();
-    let source = rejoined
-        .draft
-        .embedded_circuits
-        .iter()
-        .find(|circuit| circuit.id == "source-circuit")
-        .unwrap();
-    let mirror = rejoined
-        .draft
-        .embedded_circuits
-        .iter()
-        .find(|circuit| circuit.id == "mirror-circuit")
-        .unwrap();
-    assert_eq!(
-        mirror.ports.get("signal").map(String::as_str),
-        Some("mirror-host-net")
-    );
-    assert_eq!(
-        source.ports.get("signal").map(String::as_str),
-        Some("source-host-net")
-    );
-    let source_member = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "embedded/source-circuit/U1")
-        .unwrap();
-    let mirror_member = rejoined
-        .draft
-        .parts
-        .iter()
-        .find(|part| part.id == "embedded/mirror-circuit/U1")
-        .unwrap();
-    assert_eq!(
-        mirror_member,
-        &crate::mirrored_half::derive::part(
-            source_member,
-            &mirror_member.id,
-            &mirror_member.definition_id,
-            &mirror_member.reference,
-            before.hardware.as_ref().unwrap().pairs[0].mapping,
-        )
-    );
-    assert_eq!(
-        rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "embedded/mirror-circuit/U2"),
-        Some(&explicit_child_geometry)
-    );
-    assert!(rejoined.context.associations.iter().any(|association| {
-        association.source_id == "embedded/source-circuit/U2"
-            && association.state == TransitionState::Local
-            && association.explicit_state
-    }));
-    assert_eq!(
-        rejoined.context.pair_right.exceptions,
-        vec![crate::model::MirroredException {
-            kind: MirroredItemKind::Part,
-            mirror_id: "embedded/mirror-circuit/U2".into(),
-            state: crate::model::MirroredExceptionState::Local,
-            companion_mode: None,
-            companion_tweak: None,
-            removed_copper: None,
-        }]
-    );
-    assert_eq!(
-        rejoined
-            .draft
-            .modules
-            .iter()
-            .find(|module| module.id == "mirror-module"),
-        Some(&mirror_module_before)
-    );
-    assert_eq!(
-        rejoined
-            .draft
-            .parts
-            .iter()
-            .find(|part| part.id == "mirror-screen"),
-        Some(&mirror_screen_before)
-    );
-    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
-}
-
-#[test]
 fn matrixless_exception_refuses_stale_ambiguous_and_late_invalid_inputs_atomically() {
     let (mut before, _) = independent_lifecycle_fixture();
     let pair_id = before.hardware.as_ref().unwrap().pairs[0].id.clone();
@@ -3413,6 +2990,66 @@ fn circuit_owner_lifecycle_preserves_explicit_child_connector_layout_and_joined_
     assert_eq!(repeat.draft, rejoined.draft);
     assert_eq!(repeat.context, rejoined.context);
     assert!(repeat.changed_document_ids.is_empty());
+
+    // The same circuit lifecycle holds with no Matrix correspondences (ticket 150).
+    let (mut matrixless, _) = circuit_lifecycle_fixture();
+    remove_matrix_correspondence(&mut matrixless);
+    crate::mechanical::halves::validate_document(&matrixless).unwrap();
+    let pair_id = matrixless.hardware.as_ref().unwrap().pairs[0].id.clone();
+    let child = super::prepare_exception_intent(
+        &matrixless,
+        &matrixless,
+        &pair_id,
+        MirroredItemKind::Part,
+        "embedded/source-circuit/U2",
+        "embedded/mirror-circuit/U2",
+        TransitionState::Local,
+    )
+    .unwrap()
+    .pop()
+    .unwrap();
+    let child_geometry = child
+        .draft
+        .parts
+        .iter()
+        .find(|p| p.id == "embedded/mirror-circuit/U2")
+        .unwrap()
+        .clone();
+    let owner = super::prepare_exception_intent(
+        &child.draft,
+        &child.draft,
+        &pair_id,
+        MirroredItemKind::EmbeddedCircuit,
+        "source-circuit",
+        "mirror-circuit",
+        TransitionState::Local,
+    )
+    .unwrap()
+    .pop()
+    .unwrap();
+    let rejoined = super::prepare_exception_intent(
+        &owner.draft,
+        &owner.draft,
+        &pair_id,
+        MirroredItemKind::EmbeddedCircuit,
+        "source-circuit",
+        "mirror-circuit",
+        TransitionState::Linked,
+    )
+    .unwrap()
+    .pop()
+    .unwrap();
+    assert_eq!(
+        rejoined
+            .draft
+            .parts
+            .iter()
+            .find(|p| p.id == "embedded/mirror-circuit/U2"),
+        Some(&child_geometry),
+        "matrixless Rejoin keeps the explicit child's Local geometry"
+    );
+    assert_eq!(rejoined.context.pair_right.exceptions.len(), 1);
+    crate::mechanical::halves::validate_document(&rejoined.draft).unwrap();
 }
 
 fn named_companion_fixture(component: &str) -> (ProjectDoc, MembershipContext) {

@@ -1327,7 +1327,7 @@ mod mounted_async_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        TimeoutFuture::new(100).await;
+        TimeoutFuture::new(10).await;
         let x = root
             .query_selector("input[type='number']")
             .unwrap()
@@ -1340,10 +1340,10 @@ mod mounted_async_tests {
         x.set_value("7.25");
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         support::drive_pending(runtime);
         entered.await.unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         assert!(
             !x.disabled(),
             "coordinate fields stay enabled while pending"
@@ -1356,12 +1356,12 @@ mod mounted_async_tests {
         x.set_value("9.5");
         x.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
             .unwrap();
-        TimeoutFuture::new(80).await;
+        TimeoutFuture::new(10).await;
         assert_eq!(x.value(), "9.5");
         release.send(()).unwrap();
         for _ in 0..12 {
             support::run_pending(runtime).await;
-            TimeoutFuture::new(30).await;
+            TimeoutFuture::new(10).await;
         }
         assert_eq!(
             runtime.model().accepted.unwrap().document.board_references[0]
@@ -1377,7 +1377,7 @@ mod mounted_async_tests {
             });
             for _ in 0..8 {
                 support::run_pending(runtime).await;
-                TimeoutFuture::new(30).await;
+                TimeoutFuture::new(10).await;
             }
             assert_eq!(
                 runtime.model().accepted.unwrap().document.board_references[0]

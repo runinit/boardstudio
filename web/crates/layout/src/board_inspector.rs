@@ -502,7 +502,7 @@ mod queued_board_name_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let change_layout = |thickness| {
             boardstudio_web_runtime::edit_ticket::EditTicket::begin(
@@ -616,7 +616,7 @@ mod queued_board_name_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         support::fail_next_persist(&runtime, "injected durable write failure");
         let input = root
             .query_selector("input")
@@ -671,7 +671,7 @@ mod queued_board_name_tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(50).await;
+        gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
         let input = root
             .query_selector("input")

@@ -877,70 +877,72 @@ fn keycap_settings_of_the_new_matrix_and_keys_travel_to_the_mirror() {
 fn the_added_mirror_is_the_mirror_creation_derives_for_the_same_source() {
     let maps = [(200.0, 0.0, 0.0), (310.0, 42.0, 27.0), (150.0, -35.0, 90.0)];
     let tweak = json!({"x": 0.75, "y": -0.5, "rotation": 8.0});
-    for (x, y, rotation) in maps {
+    let modes = [
+        ("literal-mirror", None),
+        ("duplicate-position", None),
+        ("literal-mirror-with-tweak", Some(tweak.clone())),
+    ];
+    // Every map and every companion mode still runs; the redundant cross combinations do not.
+    for (map, mode) in [(0, 0), (0, 1), (0, 2), (1, 0), (2, 0)] {
+        let (x, y, rotation) = maps[map];
+        let (mode, tweak) = modes[mode].clone();
         let mapping = json!({"at": {"x": x, "y": y}, "rotation": rotation});
-        for (mode, tweak) in [
-            ("literal-mirror", None),
-            ("duplicate-position", None),
-            ("literal-mirror-with-tweak", Some(tweak.clone())),
-        ] {
-            let label = format!("map ({x}, {y}, {rotation}) {mode}");
-            let mut request = new_matrix("left-thumbs", "left", (10.0, 120.0), 3);
-            request["matrix"]["rotation"] = json!(12);
-            request["matrix"]["columnSplays"] = json!([0, 6, -3]);
-            request["matrix"]["cells"][0]["offset"] = json!({"x": 0.5, "y": -0.25});
-            request["matrix"]["cells"][0]["rotation"] = json!(4);
-            request["matrix"]["cells"][0]["assemblies"]
-                .as_array_mut()
-                .unwrap()
-                .push(json!({"id": "stab", "definitionId": STABILISER,
-                    "offset": {"x": 0, "y": -12}, "rotation": 30, "side": "front"}));
+        let label = format!("map ({x}, {y}, {rotation}) {mode}");
+        let mut request = new_matrix("left-thumbs", "left", (10.0, 120.0), 3);
+        request["matrix"]["rotation"] = json!(12);
+        request["matrix"]["columnSplays"] = json!([0, 6, -3]);
+        request["matrix"]["cells"][0]["offset"] = json!({"x": 0.5, "y": -0.25});
+        request["matrix"]["cells"][0]["rotation"] = json!(4);
+        request["matrix"]["cells"][0]["assemblies"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id": "stab", "definitionId": STABILISER,
+                "offset": {"x": 0, "y": -12}, "rotation": 30, "side": "front"}));
 
-            // Reference: the matrix exists before the half is created.
-            let mut before = source_half();
-            crate::apply(&mut before, &[], &op(request.clone())).unwrap();
-            let reference = create_from(before, mapping.clone(), mode, tweak.clone());
-            // Under test: the matrix is added to a pair that already exists.
-            let pair = create_from(source_half(), mapping.clone(), mode, tweak.clone());
-            let added = add_matrix(&pair, &request);
+        // Reference: the matrix exists before the half is created.
+        let mut before = source_half();
+        crate::apply(&mut before, &[], &op(request.clone())).unwrap();
+        let reference = create_from(before, mapping.clone(), mode, tweak.clone());
+        // Under test: the matrix is added to a pair that already exists.
+        let pair = create_from(source_half(), mapping.clone(), mode, tweak.clone());
+        let added = add_matrix(&pair, &request);
 
+        assert_eq!(
+            serde_json::to_value(matrix(&added, "right-thumbs")).unwrap(),
+            serde_json::to_value(matrix(&reference, "right-thumbs")).unwrap(),
+            "{label}: matrix"
+        );
+        let comparable = |document: &ProjectDoc, id: &str| {
+            let mut part =
+                serde_json::to_value(document.parts.iter().find(|part| part.id == id).unwrap())
+                    .unwrap();
+            part.as_object_mut().unwrap().remove("reference");
+            part
+        };
+        let members = &matrix(&reference, "right-thumbs").part_ids;
+        assert_eq!(
+            members.len(),
+            3 + 2,
+            "{label}: three keys, one diode, one stabiliser"
+        );
+        for id in members {
             assert_eq!(
-                serde_json::to_value(matrix(&added, "right-thumbs")).unwrap(),
-                serde_json::to_value(matrix(&reference, "right-thumbs")).unwrap(),
-                "{label}: matrix"
+                comparable(&added, id),
+                comparable(&reference, id),
+                "{label}: {id}"
             );
-            let comparable = |document: &ProjectDoc, id: &str| {
-                let mut part =
-                    serde_json::to_value(document.parts.iter().find(|part| part.id == id).unwrap())
-                        .unwrap();
-                part.as_object_mut().unwrap().remove("reference");
-                part
-            };
-            let members = &matrix(&reference, "right-thumbs").part_ids;
-            assert_eq!(
-                members.len(),
-                3 + 2,
-                "{label}: three keys, one diode, one stabiliser"
-            );
-            for id in members {
-                assert_eq!(
-                    comparable(&added, id),
-                    comparable(&reference, id),
-                    "{label}: {id}"
-                );
-            }
-            let links = |document: &ProjectDoc| {
-                let mut links: Vec<_> = halves(document)
-                    .correspondences
-                    .iter()
-                    .filter(|item| item.source_id.contains("left-thumbs"))
-                    .map(|item| serde_json::to_value(item).unwrap())
-                    .collect();
-                links.sort_by_key(|value| value.to_string());
-                links
-            };
-            assert_eq!(links(&added), links(&reference), "{label}: correspondences");
         }
+        let links = |document: &ProjectDoc| {
+            let mut links: Vec<_> = halves(document)
+                .correspondences
+                .iter()
+                .filter(|item| item.source_id.contains("left-thumbs"))
+                .map(|item| serde_json::to_value(item).unwrap())
+                .collect();
+            links.sort_by_key(|value| value.to_string());
+            links
+        };
+        assert_eq!(links(&added), links(&reference), "{label}: correspondences");
     }
 }
 

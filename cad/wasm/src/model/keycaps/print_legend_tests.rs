@@ -180,27 +180,54 @@ fn ordinary_legend_text_prints_as_one_closed_body() {
         "\u{2192}",
         "`",
     ];
-    // Collect every refusal so one run names each failing legend and its reason.
-    let mut refused = Vec::new();
-    for roof in [DCS_ROW_3, SA_ROW_5] {
-        let bare = assert_closed_positive_body(&print_body(&cap(roof, "mx", "")).unwrap(), "bare");
-        for legend in legends {
-            let label = format!("{} '{legend}'", roof.0);
-            match print_body(&cap(roof, "mx", legend))
-                .and_then(|mesh| closed_positive_volume(&mesh))
-            {
-                Err(error) => refused.push(format!("{label}: {error}")),
-                Ok(volume) if volume <= bare + 0.005 => {
-                    refused.push(format!("{label}: legend material missing"))
-                }
-                Ok(_) => {}
-            }
-        }
-    }
+    // Collect every refusal so one run names each failing legend and its reason. The cap bodies
+    // are independent, so every (roof, legend) pair prints on its own thread.
+    let roofs = [DCS_ROW_3, SA_ROW_5];
+    let bare = roofs.map(|roof| {
+        assert_closed_positive_body(&print_body(&cap(roof, "mx", "")).unwrap(), "bare")
+    });
+    let work: Vec<_> = roofs
+        .iter()
+        .enumerate()
+        .flat_map(|(roof_index, roof)| {
+            legends
+                .iter()
+                .map(move |legend| (roof_index, *roof, *legend))
+        })
+        .collect();
+    let mut refused: Vec<(usize, String)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = work
+            .iter()
+            .enumerate()
+            .map(|(index, (roof_index, roof, legend))| {
+                scope.spawn(move || {
+                    let label = format!("{} '{legend}'", roof.0);
+                    match print_body(&cap(*roof, "mx", legend))
+                        .and_then(|mesh| closed_positive_volume(&mesh))
+                    {
+                        Err(error) => Some((index, format!("{label}: {error}"))),
+                        Ok(volume) if volume <= bare[*roof_index] + 0.005 => {
+                            Some((index, format!("{label}: legend material missing")))
+                        }
+                        Ok(_) => None,
+                    }
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .filter_map(|handle| handle.join().unwrap())
+            .collect()
+    });
+    refused.sort_by_key(|(index, _)| *index);
     assert!(
         refused.is_empty(),
         "legends refused to print:\n{}",
-        refused.join("\n")
+        refused
+            .into_iter()
+            .map(|(_, message)| message)
+            .collect::<Vec<_>>()
+            .join("\n")
     );
 }
 

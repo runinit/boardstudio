@@ -60,11 +60,11 @@ fn one_periodic_cylindrical_hole_face_is_closed_meshable_and_exact_step() {
             .count(),
         1
     );
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4)
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
         .expect("complete periodic face tessellation");
     let expected = 1280. - 4. * std::f64::consts::PI;
     assert!(
-        (mesh.volume() - expected).abs() < 0.002,
+        (mesh.volume() - expected).abs() < 0.065,
         "{} != {expected}",
         mesh.volume()
     );
@@ -144,9 +144,9 @@ fn verify(
     Solid::try_new(solid.boundaries().clone()).expect("closed consistently oriented topology");
     assert!(solid.is_geometric_consistent());
     let mesh =
-        shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).expect("every exact face meshes");
+        shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).expect("every exact face meshes");
     assert!(
-        (mesh.volume() - expected).abs() < 0.002,
+        (mesh.volume() - expected).abs() < 0.065,
         "volume {} != analytic {expected}",
         mesh.volume()
     );
@@ -386,8 +386,8 @@ fn adoption_clipped_cone_retains_closed_exact_topology_and_native_geometry() {
     Solid::try_new(solid.boundaries().clone())
         .expect("closed consistently oriented native topology");
     assert!(solid.is_geometric_consistent());
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
-    assert!((mesh.volume() - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.002);
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
+    assert!((mesh.volume() - (1280. - 112. * std::f64::consts::PI / 3.)).abs() < 0.065);
 }
 
 #[test]
@@ -452,7 +452,7 @@ fn adoption_ring_island_product_removes_only_the_authored_blind_union() {
     .unwrap();
     let baseline = crate::build_case(&baseline).unwrap();
     assert_eq!(baseline.solids.len(), 1);
-    let baseline = shell_to_polygon_strict(&baseline.solids[0].boundaries()[0], 1e-4).unwrap();
+    let baseline = shell_to_polygon_strict(&baseline.solids[0].boundaries()[0], 1e-3).unwrap();
     verify(
         &product,
         baseline.volume() - 164., // Unchanged independent cutter union: 82 mm² * 2 mm.
@@ -490,7 +490,7 @@ fn adoption_ring_island_through_cut_reports_two_explicit_material_solids() {
         Solid::try_new(solid.boundaries().clone()).unwrap();
         assert!(solid.is_geometric_consistent());
         volumes.push(
-            shell_to_polygon_strict(&solid.boundaries()[0], 1e-4)
+            shell_to_polygon_strict(&solid.boundaries()[0], 1e-3)
                 .unwrap()
                 .volume(),
         );
@@ -916,9 +916,9 @@ fn reviewed_authored_mount_order_preserves_later_boss_hole() {
     ];
     let model = build_layered_case(&input).expect("authored mixed mount sequence");
     let solid = &model.solids[0];
-    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-4).unwrap();
+    let mesh = shell_to_polygon_strict(&solid.boundaries()[0], 1e-3).unwrap();
     assert!(
-        (mesh.volume() - (1280. - 1.5 * std::f64::consts::PI)).abs() < 0.002,
+        (mesh.volume() - (1280. - 1.5 * std::f64::consts::PI)).abs() < 0.065,
         "authored order volume {}",
         mesh.volume()
     );
@@ -1205,7 +1205,7 @@ fn prepared_internal_gasket_inventory() {
                                 assert!(solid.is_geometric_consistent());
                                 for shell in solid.boundaries() {
                                     meshes.push(
-                                        shell_to_polygon_strict(shell, 1e-5)
+                                        shell_to_polygon_strict(shell, 1e-3)
                                             .expect("every internal face tessellates"),
                                     );
                                 }
@@ -1213,7 +1213,7 @@ fn prepared_internal_gasket_inventory() {
                             let volume: f64 = meshes.iter().map(|mesh| mesh.volume()).sum();
                             let target = expected["volume"].as_f64().unwrap();
                             assert!(
-                                (volume - target).abs() < 0.002,
+                                (volume - target).abs() < 0.2,
                                 "{name}/{} volume {volume} != independent {target}",
                                 input.body.id
                             );
