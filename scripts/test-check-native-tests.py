@@ -124,10 +124,10 @@ class LaunchesTests(unittest.TestCase):
         found = guard.launches([CORE_OUTPUT])
         self.assertEqual([launch.name for launch in found], ["boardstudio_core", "durable_session"])
         self.assertEqual(found[0].announced, 4)
-        self.assertEqual(found[0].summary, (2, 1, 1, 0, 0))
+        self.assertEqual(found[0].summary, ("FAILED", 2, 1, 1, 0, 0))
         self.assertEqual(found[0].outcomes["alpha::tests::needs_kicad"], "ignored")
         self.assertEqual(found[1].announced, 1)
-        self.assertEqual(found[1].summary, (1, 0, 0, 0, 0))
+        self.assertEqual(found[1].summary, ("ok", 1, 0, 0, 0, 0))
 
     def test_a_doc_tests_section_is_not_a_launched_binary(self):
         start = CORE_OUTPUT.index("   Doc-tests boardstudio_core")
@@ -162,7 +162,15 @@ class LaunchesTests(unittest.TestCase):
                   "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s\n")
         launch, = guard.launches([output])
         self.assertEqual(launch.announced, 0)
-        self.assertEqual(launch.summary, (0, 0, 0, 0, 88))
+        self.assertEqual(launch.summary, ("ok", 0, 0, 0, 0, 88))
+
+    def test_a_summary_stopped_after_filtered_out_is_not_terminal(self):
+        # libtest ends its summary with `; finished in N.NNs`; a line stopped earlier is truncated.
+        truncated = ("     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)\n"
+                     "running 1 test\ntest only ... ok\n\n"
+                     "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out\n")
+        launch, = guard.launches([truncated])
+        self.assertIsNone(launch.summary)
 
     def test_the_name_guard_still_collects_the_same_executed_names(self):
         self.assertEqual(sorted(guard.collect([CORE_OUTPUT, INTERRUPTED]).executed["boardstudio_core"]),

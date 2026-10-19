@@ -201,10 +201,18 @@ def _launch_problems(launch: check_native_tests.Launch) -> list[str]:
         problems.append(f"native binary {name} has no terminal test-result summary; "
                         "the launch is interrupted or its output is malformed")
     else:
-        passed, failed, ignored, _measured, _filtered = launch.summary
-        if passed + failed + ignored != len(terminal):
-            problems.append(f"native binary {name}: its summary reports {passed + failed + ignored} "
-                            f"terminal test(s) but {len(terminal)} named outcome(s) were observed")
+        status, passed, failed, ignored, _measured, _filtered = launch.summary
+        # Reconcile each named outcome, not just the total: a summary can carry the right number
+        # of tested results while mislabelling them (`0 passed; 1 failed` against one `ok`).
+        for outcome, reported in (("passed", passed), ("failed", failed), ("ignored", ignored)):
+            observed = sum(1 for value in terminal.values() if value == outcome)
+            if reported != observed:
+                problems.append(f"native binary {name}: its summary reports {reported} {outcome} "
+                                f"test(s) but {observed} named outcome(s) were observed")
+        # libtest prints FAILED exactly when a test failed; either token alone is contradictory.
+        if (status == "FAILED") != (failed > 0):
+            problems.append(f"native binary {name}: its summary is {status} but reports "
+                            f"{failed} failed test(s)")
     if launch.announced is None:
         problems.append(f"native binary {name} never announced a test count; "
                         "the launch was interrupted before it ran any test")

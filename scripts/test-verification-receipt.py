@@ -175,6 +175,37 @@ running 0 tests
 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.00s
 """
 
+# The summary total matches the one named outcome, but its per-outcome counts do not: the
+# observed `ok` is claimed as a failure, and the counts contradict the summary's own status.
+NATIVE_OUTCOME_MISMATCH = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 1 test
+test mirrored_half::reconcile::tests::alpha ... ok
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+"""
+
+# libtest prints FAILED only when a test failed; a FAILED summary with zero failures is malformed.
+NATIVE_STATUS_MISMATCH = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 1 test
+test mirrored_half::reconcile::tests::alpha ... ok
+
+test result: FAILED. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+"""
+
+# The launch died as libtest printed its summary, which stopped after `filtered out`.
+NATIVE_TRUNCATED_SUMMARY = """\
+     Running unittests src/lib.rs (target/debug/deps/boardstudio_core-0123456789abcdef)
+
+running 1 test
+test mirrored_half::reconcile::tests::alpha ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+"""
+
 NATIVE_COMMAND = ["cargo", "test", "--workspace", "--locked"]
 
 PAGE_REPORT = {
@@ -464,8 +495,25 @@ class NativeLaunchReconciliationTests(unittest.TestCase):
     def test_a_summary_that_disagrees_with_the_named_outcomes_is_incomplete(self):
         native = receipt.native_record([NATIVE_INCONSISTENT], full=False, baseline=None)
         self.assertTrue(native["problems"])
-        self.assertIn("summary reports 2 terminal test(s) but 3 named outcome(s) were observed",
+        self.assertIn("its summary reports 2 passed test(s) but 3 named outcome(s) were observed",
                       " ".join(native["problems"]))
+
+    def test_a_summary_that_disagrees_per_outcome_is_incomplete(self):
+        # The total matches (0+1+0 == 1 named outcome), so only per-outcome reconciliation sees it.
+        for label, output in (("outcome", NATIVE_OUTCOME_MISMATCH),
+                              ("status", NATIVE_STATUS_MISMATCH)):
+            with self.subTest(label=label):
+                native = receipt.native_record([output], full=False, baseline=None)
+                self.assertTrue(native["problems"], label)
+                _, record = self.command_record(output, exit_code=0)
+                self.assertFalse(record["complete"], label)
+                self.assertFalse(record["passed"], label)
+
+    def test_a_truncated_terminal_summary_stays_incomplete(self):
+        native = receipt.native_record([NATIVE_TRUNCATED_SUMMARY], full=False, baseline=None)
+        self.assertIn("no terminal test-result summary", " ".join(native["problems"]))
+        _, record = self.command_record(NATIVE_TRUNCATED_SUMMARY, exit_code=0)
+        self.assertFalse(record["complete"], "a summary stopped after 'filtered out' is truncated")
 
 
 class CheckCliTests(unittest.TestCase):

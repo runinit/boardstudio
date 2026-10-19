@@ -48,10 +48,12 @@ SHOWN = 20  # names listed per binary before "... and N more"
 
 # libtest's announcement before it runs, and the terminal summary it prints when the launch ends.
 # A launch without its summary (or without an announced count) is incomplete even when every
-# observed test passed; the announced and named counts are reconciled by the receipt.
+# observed test passed; the announced and named counts are reconciled by the receipt. The summary
+# line is only complete with libtest's own tail (`; finished in N.NNs`): a launch killed while it
+# printed the summary leaves no terminal summary, so the output stays truncated, not complete.
 RUNNING_COUNT = re.compile(r"^running (\d+) tests?$", re.M)
-SUMMARY = re.compile(r"^test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; "
-                     r"(\d+) measured; (\d+) filtered out", re.M)
+SUMMARY = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored; "
+                     r"(\d+) measured; (\d+) filtered out; finished in \d+\.\d+s", re.M)
 OUTCOME = {"ok": "passed", "FAILED": "failed", "ignored": "ignored"}
 
 
@@ -60,8 +62,8 @@ class Launch:
     """One launched native test binary: announced count, named outcomes and terminal summary."""
     name: str
     announced: int | None = None
-    # (passed, failed, ignored, measured, filtered out) from the `test result:` line.
-    summary: tuple[int, ...] | None = None
+    # (status, passed, failed, ignored, measured, filtered out) from the `test result:` line.
+    summary: tuple[str, int, int, int, int, int] | None = None
     outcomes: dict[str, str] = field(default_factory=dict)  # name -> passed/failed/ignored/started
 
 
@@ -83,7 +85,8 @@ def launches(outputs: list[str]) -> list[Launch]:
                 if count := RUNNING_COUNT.match(line):
                     current.announced = int(count.group(1))
                 elif summary := SUMMARY.search(line):
-                    current.summary = tuple(int(value) for value in summary.groups())
+                    current.summary = (summary.group(1),
+                                       *(int(value) for value in summary.groups()[1:]))
                 elif result := RESULT.search(line):
                     current.outcomes[result.group(1)] = OUTCOME[result.group(2)]
                 elif started := STARTED.search(line):
