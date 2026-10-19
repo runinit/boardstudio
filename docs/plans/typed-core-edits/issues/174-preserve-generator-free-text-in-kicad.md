@@ -45,3 +45,28 @@ reproduced the loss.
 Created from the user's audit findings after primary-source research. Independent
 of 175's PCB import identity correction. Use a narrow literal-escaping correction,
 not a new generator language or wholesale rewrite of generator templates.
+
+### Reverified after the footprint-engine merge (2026-10-19)
+
+Merged `footprint-engine` at `2fe19cf42` into `dev`. The new `Body::Forms`
+path currently ports only `ceoloide/mounting_hole_npth`; both text generators
+and the affected pad/SMD generators still use `Body::Text`.
+
+A temporary integration probe exercised `bundled().render` for
+`ceoloide/utility_text` and `infused-kim/text`, asserting that the emitted
+`gr_text` string equals the literal saved `text` parameter. Both plain controls
+(`Board 12 inch`) passed; both inch-mark cases (`Board 12" inch`) failed with
+actual `Str("Board 12")`. Command:
+`cargo test -p boardstudio-footprints --locked --test ticket_174_probe`.
+Log: `.evidence/174-after-footprint-engine.log` (local, gitignored).
+The temporary probe was removed after diagnosis; no production fix was made.
+
+174 remains needed. This is fresh generator-boundary evidence, not a fresh
+packaged Core export or real KiCad load check. The new structured-output path
+is available to the implementation; preserve the acceptance criteria above.
+
+The merged footprint crate's full suite passed with
+`cargo test -p boardstudio-footprints --locked`
+(`.evidence/footprint-engine-merged-tests.log`). Separate Standards and Spec
+reviews of `b4d788c7c...f57e3a4e1` reported no findings for the narrow merge;
+neither treated this first structured-output port as a fix for 174.
