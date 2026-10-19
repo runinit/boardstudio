@@ -66,19 +66,11 @@ pub(super) enum Coverage {
     Delegated(&'static str),
     /// The request keeps its meaning on the half it names.
     DeliberatelyUnchanged(&'static str),
-    /// This module does not translate it. Another ticket owns the family, and the request is
-    /// refused rather than let through untranslated.
-    Unsupported {
-        owner: &'static str,
-        reason: &'static str,
-    },
 }
 
 /// Why a request was not canonicalised.
 #[derive(Debug)]
 pub(super) enum Refusal {
-    /// The family is not translated here; the ledger says whose it is.
-    Unsupported(Coverage),
     /// This request cannot be translated, with the reason.
     Request(String),
 }
@@ -86,12 +78,6 @@ pub(super) enum Refusal {
 impl fmt::Display for Refusal {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Refusal::Unsupported(Coverage::Unsupported { owner, reason }) => write!(
-                formatter,
-                "This request is not translated by the matrix and part inverse; ticket {owner} \
-                 owns it: {reason}"
-            ),
-            Refusal::Unsupported(other) => write!(formatter, "{other:?} is not a refusal"),
             Refusal::Request(message) => formatter.write_str(message),
         }
     }
@@ -148,7 +134,7 @@ pub(super) struct Canonical {
     /// Modules and circuits new to a mirror board (ticket 112).
     pub(super) hosted: hosted::Plan,
     /// Constraint edits compiled to their live endpoint views; ticket 115 threads this through
-    /// apply and both resolutions without activating a production route in this unit.
+    /// apply and both resolutions.
     pub(super) prepared_constraints: Vec<constraints::PreparedConstraintEdit>,
 }
 
@@ -167,10 +153,6 @@ const SET_MECHANICAL_BOARD_SLOT: &str =
     "an omitted target preserves the legacy singleton board-slot behavior";
 const SET_MECHANICAL_TARGETED: &str =
     "the explicit target selects the mechanical replacement lifecycle without inverse mapping";
-
-fn unsupported(owner: &'static str, reason: &'static str) -> Refusal {
-    Refusal::Unsupported(Coverage::Unsupported { owner, reason })
-}
 
 /// Rewrites `operation` so that every linked mirror target names its authored source value.
 pub(super) fn canonicalize(

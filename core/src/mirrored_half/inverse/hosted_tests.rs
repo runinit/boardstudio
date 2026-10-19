@@ -5,7 +5,7 @@
 //! 90 degrees)` sends the source point `(a, b)` to `(100 - b, -30 - a)` and a heading `r` to
 //! `270 - r` (both modulo 360). No expectation calls the production mapping.
 
-use super::super::{Coverage, Refusal, canonicalize};
+use super::super::canonicalize;
 use crate::model::{EditOperation, MirroredExceptionState, Pose2, ProjectDoc, Vec2};
 use serde_json::{Value, json};
 
@@ -258,15 +258,6 @@ fn refused(document: &ProjectDoc, request: Value) -> String {
 /// A request that executes exactly as written.
 fn unchanged(document: &ProjectDoc, request: Value) {
     expect(document, request.clone(), request);
-}
-
-fn coverage(request: Value) -> Coverage {
-    let empty = ProjectDoc::empty("empty", "Empty");
-    match canonicalize(&empty, &op(request.clone())) {
-        Ok(canonical) => canonical.coverage,
-        Err(Refusal::Unsupported(coverage)) => coverage,
-        Err(Refusal::Request(message)) => panic!("{request}: {message}"),
-    }
 }
 
 fn module_request(module: Value) -> Value {

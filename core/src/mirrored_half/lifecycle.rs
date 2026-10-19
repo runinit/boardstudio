@@ -1,6 +1,4 @@
 //! Private lifecycle operations for durable mirrored-half exceptions and Unlink.
-//!
-//! Public edit dispatch and activation remain deferred to ticket 111.
 
 #[cfg(test)]
 #[path = "lifecycle/tests.rs"]
@@ -1312,8 +1310,7 @@ fn copy_part_payload(target: &mut crate::model::Part, source: &crate::model::Par
 
 /// Coordinate durable exceptions with the existing forward projector. Membership-changing
 /// matrix edits continue through `prepare_membership_transition`; this seam handles fixed
-/// membership and selective independent/hosted exceptions before public activation in 111.
-#[allow(dead_code)] // Ticket 115 composes the private lifecycle kernel through this adapter.
+/// membership and selective independent/hosted exceptions.
 pub(super) fn prepare_edit_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -2030,9 +2027,8 @@ fn matrix_pair_for_association(
     Ok(Some(matrix_pair.clone()))
 }
 
-// Ticket 150's private intent-to-draft route. Kept inside lifecycle so ticket 111 can compose
-// it from the existing edit adapter without adding a callable seam.
-#[allow(dead_code)]
+// Ticket 150's intent-to-draft route for exception edits. Only lifecycle tests call it.
+#[cfg(test)]
 fn prepare_exception_intent(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -2691,7 +2687,6 @@ fn classify_source_retirements(
     Ok(retired)
 }
 
-#[allow(dead_code)] // Ticket 115 composes the private lifecycle kernel through its adapter.
 fn prepare_lifecycle_transition(
     before: &crate::model::ProjectDoc,
     post_source: &crate::model::ProjectDoc,
@@ -3405,8 +3400,6 @@ pub(super) fn pending_visible_omission(context: &MembershipContext, mirror_id: &
 }
 
 /// Applies one already-validated lifecycle state to a source/mirror association.
-///
-#[allow(dead_code)]
 fn transition_exception_context(
     context: &MembershipContext,
     kind: crate::model::MirroredItemKind,
@@ -3546,7 +3539,6 @@ fn transition_exception_context(
     Ok(next)
 }
 
-#[allow(dead_code)] // Ticket 109 commits the validated kernel delta with its durable pair state.
 pub(super) fn apply_membership_context_delta(
     input: super::MembershipTransitionInput<'_>,
     output: &mut super::MembershipTransitionOutput,

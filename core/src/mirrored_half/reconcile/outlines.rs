@@ -1,4 +1,4 @@
-//! Private outline inputs and projections for the unactivated forward kernel.
+//! Private outline inputs and projections for the forward kernel.
 
 use super::Projection;
 use crate::model::{

@@ -37,7 +37,6 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod derive;
-#[allow(dead_code)] // Unsupported-ledger cases and fixture helpers remain test-only.
 mod inverse;
 mod matrix_addition;
 mod reconcile;

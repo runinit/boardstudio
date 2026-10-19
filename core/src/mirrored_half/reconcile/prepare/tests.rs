@@ -7,6 +7,8 @@ use crate::model::{
 };
 use serde_json::json;
 
+// The shared fixture also serves the integration target, which calls with_construction_features.
+#[allow(dead_code)]
 #[path = "../../../../tests/support/synthetic_half.rs"]
 mod synthetic_half_fixture;
 

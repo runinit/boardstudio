@@ -1,0 +1,13 @@
+# Vendored Ergogen hardware library: upstream sources kept in-repo for zero-setup offline builds.
+ergogen/library/vendor/** linguist-vendored
+
+# Imported CAD models and KiCad footprint assets are reviewed through rendered geometry.
+ergogen/library/vendor/**/*.step linguist-generated -diff
+ergogen/library/vendor/**/*.stp linguist-generated -diff
+ergogen/library/vendor/**/*.stl linguist-generated -diff
+ergogen/library/vendor/**/*.wrl linguist-generated -diff
+ergogen/library/vendor/**/*.kicad_mod linguist-generated -diff
+
+# Generated catalogue snapshots from the importers.
+catalogue/modules/imported-modules.json linguist-generated -diff
+catalogue/parts/imported-parts.json linguist-generated -diff

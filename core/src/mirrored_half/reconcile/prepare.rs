@@ -1,7 +1,7 @@
-//! Inert composition of inverse translation and the existing forward kernels (ticket 115).
+//! Composition of inverse translation and the existing forward kernels (ticket 115).
 //!
-//! This module owns a disposable draft. It does not publish a revision or history entry; ticket
-//! 111 will connect the single preparation entry point to the normal edit lifecycle.
+//! This module owns disposable drafts. It does not publish a revision or history entry; the edit
+//! lifecycle publishes drafts returned by `prepare_transaction_with_ledger` and `prepare_open`.
 
 use super::{
     HostedTransition, IndependentPartTransition, PartProjection, Projection,
@@ -599,6 +599,7 @@ fn set_companion_placement(
 }
 
 /// Builds a complete document draft for one edit without changing the accepted document.
+#[cfg(test)]
 pub(crate) fn prepare_transaction(
     accepted: &ProjectDoc,
     board_contours: &[BoardContours],

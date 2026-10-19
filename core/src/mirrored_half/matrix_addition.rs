@@ -3,9 +3,8 @@
 //! `inverse::canonicalize` (ticket 110) answers a `SetMatrix` that creates a matrix on a board a
 //! pair relates with the source-equivalent request and a planned [`MatrixAddition`]. The request
 //! is applied to the document first; this module then builds the other half, as a draft, from the
-//! source matrix that now exists. Nothing calls it yet: ticket 111 activates it, and 115-117 give
-//! the draft its transaction (undo, redo, Open repair and preview treat the source request and
-//! this draft as one step).
+//! source matrix that now exists. `reconcile/prepare.rs` calls it; the edit transaction treats
+//! the source request and this draft as one step for undo, redo, Open repair and preview.
 //!
 //! What a transition does, in order:
 //! - refuses what cannot receive the pair (see [`mirror_added_matrix`]);

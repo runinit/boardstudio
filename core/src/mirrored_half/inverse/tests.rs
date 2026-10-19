@@ -8,10 +8,6 @@ use super::*;
 use crate::model::{Constraint, EditOperation, MirroredItemKind, Pose2, Vec2};
 use serde_json::{Value, json};
 
-const AXIS: Pose2 = Pose2 {
-    at: Vec2 { x: 200.0, y: 0.0 },
-    rotation: 0.0,
-};
 const ROTATED: Pose2 = Pose2 {
     at: Vec2 { x: 100.0, y: -30.0 },
     rotation: 90.0,
@@ -200,16 +196,6 @@ fn assert_close(actual: &Value, expected: &Value, path: &str) {
 
 fn canonical(document: &ProjectDoc, operation: &Value) -> Result<Canonical, String> {
     canonicalize(document, &op(operation.clone())).map_err(|refusal| refusal.to_string())
-}
-
-/// The ledger entry of a request, read from the one dispatch that executes it.
-fn coverage(operation: Value) -> Coverage {
-    let empty = ProjectDoc::empty("empty", "Empty");
-    match canonicalize(&empty, &op(operation.clone())) {
-        Ok(canonical) => canonical.coverage,
-        Err(Refusal::Unsupported(coverage)) => coverage,
-        Err(Refusal::Request(message)) => panic!("{operation}: {message}"),
-    }
 }
 
 fn expect_operation(document: &ProjectDoc, request: Value, expected: Value) {
