@@ -1,14 +1,45 @@
+//! Bounded static WRL (VRML97) preview decoder.
+//!
+//! Supported subset: static geometry (`Transform`, `Group`, `Shape`, `IndexedFaceSet`,
+//! `Box`, `Sphere`, `Cylinder`, `Cone`) with shared `DEF`/`USE` nodes, per-vertex or
+//! per-face colors and transforms. This is a preview, not a general WRL engine:
+//!
+//! - A nontriangular face declared `convex FALSE` is refused rather than fan-triangulated
+//!   into a mesh that fills a concave notch. A `convex FALSE` declaration does not prove
+//!   every face is geometrically concave, so the refusal is deliberately conservative;
+//!   triangles and (default or explicit) convex polygons remain supported.
+//! - Input is bounded by byte size, nested traversal depth and cumulative expanded-node
+//!   visits, so a small nested or heavily reused file cannot exhaust the decoder's stack or
+//!   work budget. Limits are set well above representative supported assets: the bundled
+//!   KiCad switch model decodes with a nesting depth of four and about a thousand frames.
+
 use crate::{MAX_MODEL_POSITION_FLOATS, ModelMesh, assets::check_size};
 use std::collections::HashMap;
 use three_d::{InnerSpace, Mat4, Rad, SquareMatrix, Vec3, Vec4};
 
 const KICAD_VRML_UNIT_MM: f32 = 2.54;
 
+/// Nested transform/group/shape frames admitted before the decoder refuses input.
+/// The bundled KiCad keyboard switch model nests four frames; 64 keeps a wide margin
+/// below the recursive descent that exhausted the WASM stack.
+pub(crate) const MAX_WRL_TRAVERSAL_DEPTH: usize = 64;
+/// Cumulative `walk_node` visits admitted across a whole decode, charged for every
+/// group, shape and reference expansion (including empty and reused nodes) so a
+/// small input cannot expand into unbounded traversal work.
+pub(crate) const MAX_WRL_TRAVERSAL_VISITS: usize = 250_000;
+
 #[derive(Clone, Copy)]
 struct Node<'a> {
     name: &'a str,
     open: usize,
     close: usize,
+}
+
+/// Whole-decode traversal state: the current `USE` path (for cycle refusal) plus the
+/// cumulative frame count that bounds total expansion work across every root.
+struct WalkState {
+    active_nodes: Vec<usize>,
+    visits: usize,
 }
 
 pub fn decode_wrl(bytes: &[u8]) -> Result<ModelMesh, String> {
@@ -33,6 +64,10 @@ pub fn decode_wrl(bytes: &[u8]) -> Result<ModelMesh, String> {
         ..ModelMesh::default()
     };
     let mut cursor = 0;
+    let mut state = WalkState {
+        active_nodes: Vec::new(),
+        visits: 0,
+    };
     while cursor < tokens.len() {
         if let Some(node) = resolve_node(&tokens, cursor, &definitions) {
             walk_node(
@@ -42,7 +77,7 @@ pub fn decode_wrl(bytes: &[u8]) -> Result<ModelMesh, String> {
                 Mat4::identity(),
                 [0.72, 0.75, 0.78],
                 &mut output,
-                &mut Vec::new(),
+                &mut state,
             )?;
             cursor = if tokens[cursor] == "USE" {
                 cursor + 2
@@ -269,12 +304,21 @@ fn walk_node<'a>(
     transform: Mat4,
     inherited_color: [f32; 3],
     output: &mut ModelMesh,
-    active_nodes: &mut Vec<usize>,
+    state: &mut WalkState,
 ) -> Result<(), String> {
-    if active_nodes.contains(&node.open) {
+    if state.visits >= MAX_WRL_TRAVERSAL_VISITS {
+        return Err(
+            "WRL preview supports bounded traversal work; expanded node budget exceeded".to_owned(),
+        );
+    }
+    state.visits += 1;
+    if state.active_nodes.len() >= MAX_WRL_TRAVERSAL_DEPTH {
+        return Err("WRL preview supports bounded nesting; depth limit exceeded".to_owned());
+    }
+    if state.active_nodes.contains(&node.open) {
         return Err("WRL contains a cyclic USE reference".to_owned());
     }
-    active_nodes.push(node.open);
+    state.active_nodes.push(node.open);
     let result = (|| -> Result<(), String> {
         match node.name {
             "Transform" => {
@@ -305,7 +349,7 @@ fn walk_node<'a>(
                         transform * local,
                         inherited_color,
                         output,
-                        active_nodes,
+                        state,
                     )?;
                 }
             }
@@ -318,7 +362,7 @@ fn walk_node<'a>(
                         transform,
                         inherited_color,
                         output,
-                        active_nodes,
+                        state,
                     )?;
                 }
             }
@@ -336,7 +380,7 @@ fn walk_node<'a>(
         }
         Ok(())
     })();
-    active_nodes.pop();
+    state.active_nodes.pop();
     result
 }
 
@@ -372,6 +416,14 @@ fn append_geometry<'a>(
                 .map(|index| list_values(tokens, index))
                 .unwrap_or_default();
             let polygons = split_faces(&index_values);
+            let convex = !field(tokens, node, "convex")
+                .is_some_and(|index| tokens.get(index).is_some_and(|value| value == "FALSE"));
+            if !convex && let Some(face) = polygons.iter().find(|face| face.len() > 3) {
+                return Err(format!(
+                    "WRL preview supports triangles and convex polygons, not a {} sided face declared convex FALSE",
+                    face.len()
+                ));
+            }
             let color_values = node_field(tokens, node, "color", definitions)
                 .and_then(|color| {
                     field(tokens, color, "color").map(|index| list_values(tokens, index))

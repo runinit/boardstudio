@@ -1,6 +1,6 @@
 # 170: Bound WRL decoding and refuse unsupported polygons
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Priority: P1
 Blocked by: None (can start immediately)
@@ -70,3 +70,32 @@ merged, with all its acceptance requirements retained here.
 This ticket adds bounded input handling, not a new WRL engine or renderer reset
 fallback that conceals the original trap. It does not claim complete VRML97
 support or broaden CAD analysis to use display meshes.
+
+## Comments
+
+### Implementation evidence (DeepSeek V4.1 Flash Free sub-agent)
+
+Decoder: `renderer/src/wrl.rs` adds `MAX_WRL_TRAVERSAL_DEPTH = 64` and
+`MAX_WRL_TRAVERSAL_VISITS = 250_000`, both documented in the module header and charged
+through one shared `WalkState` before descending (`decode_wrl` passes it across every
+root). A `convex FALSE` face with more than three vertices is refused before emission.
+Calibrated on the bundled KiCad switch model (2.8 MB, nesting depth 4, 931 `Shape`
+nodes, no reuse). Evidence under `.evidence/ticket-170/`.
+
+- Native RED (`red-native-summary.log`): 4 new tests failed before the fix (no refusal existed).
+- Native GREEN (`green-native-final.log`): 33 passed, 0 failed, 1.89 s. `green-clippy-final.log`
+  Clippy exit 0; `cargo fmt` clean. Cycle and output-size refusals covered.
+- Packaged WASM RED (`red-wasm-single.log`, pre-fix `renderer/pkg`): depth 4096 traps with
+  `RuntimeError: memory access out of bounds`; a 1,178-byte 24-level reference graph is accepted
+  after 4,934 ms with no added geometry; the U-shape is accepted and 2 fan triangles cover its
+  notch point.
+- Packaged WASM GREEN (`green-wasm-sequence.log`, one module instance): each hostile input is
+  refused with an input-specific error and a box then decodes in that same instance; supported
+  convex/default-convex polygons, a `convex FALSE` triangle, and a colored transformed triangle
+  still decode.
+
+Gap retained: the wasm32-only Rust wrapper `renderer_host_page_extensions::decode_model` was not
+executed end-to-end (needs the packaged page and renderer asset URL in a browser). The probe runs
+the same packaged module the wrapper imports, with the wrapper's exact call/accessor shape and a
+shared instance, and the wrapper is a stateless `Err(String)` mapping. Ticket left `claimed` for
+the parent's integrated check to confirm the in-app path.
