@@ -41,8 +41,12 @@ Silkscreen uses browser text, and unsupported custom pads may be approximated
 with a diagnostic. Mask expansion, advanced text formatting, internal copper,
 and material/finish details are not reproduced exactly. STEP/STL models without
 colors use neutral shading; static WRL geometry/material colors are retained,
-but external resources and executable nodes are rejected. Existing component
-placements are not automatically migrated to the new presets.
+but external resources and executable nodes are rejected. WRL preview supports
+triangles and convex polygons; nontriangular faces declared `convex FALSE` are
+refused rather than filled incorrectly. Nesting is limited to 64 traversal frames
+and expanded node visits to 250,000 across the whole model, including reused nodes.
+Unsupported input reports an error without disabling subsequent model loads.
+Existing component placements are not automatically migrated to the new presets.
 
 ## Implementation ownership
 

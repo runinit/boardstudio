@@ -20,20 +20,20 @@ allocator usage or process peak memory.
 
 ## Acceptance criteria
 
-- [ ] Reproduce the delayed emission-count/byte rejection before the fix. Cover
+- [x] Reproduce the delayed emission-count/byte rejection before the fix. Cover
   both part and rectangle emitters through real script evaluation.
-- [ ] Before copying emitted strings or appending an object, check one shared
+- [x] Before copying emitted strings or appending an object, check one shared
   emission-count budget and one finite, documented aggregate UTF-8 byte budget.
   Count every copied string field and use checked arithmetic for the accounting.
-- [ ] Part and rectangle emissions share the budgets, including mixed calls.
+- [x] Part and rectangle emissions share the budgets, including mixed calls.
   Exact-boundary output succeeds and the first over-budget emission is refused;
   a large first emission cannot allocate its copied output before preflight.
-- [ ] A script cannot catch the budget error and publish a successful truncated
+- [x] A script cannot catch the budget error and publish a successful truncated
   result or resume copying output. Budget exhaustion stops evaluation and remains
   a failed script operation, with no partial document changes accepted.
-- [ ] Existing source, operation, string, array, map and recursion limits stay in
+- [x] Existing source, operation, string, array, map and recursion limits stay in
   force. Normal emitted IDs, geometry, poses and validation remain compatible.
-- [ ] Native regression checks cover count, aggregate bytes, UTF-8 accounting,
+- [x] Native regression checks cover count, aggregate bytes, UTF-8 accounting,
   mixed emitters, attempted error recovery and unchanged accepted document after
   failed application. Fresh packaged Core WASM evidence exercises the public
   open/apply boundary and shows bounded refusal before the prior growth pattern.
