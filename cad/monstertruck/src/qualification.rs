@@ -1,9 +1,9 @@
 //! Sealed evidence over one actual final emission. Reports and descriptors are
 //! read-only values; only preparation can create an evidence owner.
-pub(crate) mod final_trace;
+mod final_trace;
 mod generated_qualification;
 mod types;
-use crate::profile::mesh_profile_for_analysis_impl;
+use crate::profile::mesh_profile_observed;
 use crate::{ExactModel, GeneratedAnalysisMesh, ImportedStep, StepFaceOccurrence, StepSourceFace};
 use std::sync::atomic::{AtomicU64, Ordering};
 pub use types::*;
@@ -193,7 +193,7 @@ fn prepare_qualified_emission(
     target: Option<f64>,
 ) -> Result<(GeneratedAnalysisMesh, LocalMeshBound), String> {
     let mut trace = final_trace::AnalysisTrace::default();
-    let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
+    let mesh = mesh_profile_observed(model, target, &mut trace)?;
     let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
         && mesh
             .positions_mm_f64

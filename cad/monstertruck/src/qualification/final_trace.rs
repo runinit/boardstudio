@@ -8,9 +8,9 @@
 //! periodic lifting decisions are not exposed. Never infer an unwrap or an
 //! angular/height bound from the requested meshing settings.
 
-use crate::profile::{ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace};
+use crate::profile::{EmissionObserver, ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace};
 #[cfg(test)]
-use crate::profile::{mesh_profile_for_analysis, mesh_profile_for_analysis_impl};
+use crate::profile::{mesh_profile_for_analysis, mesh_profile_observed};
 #[cfg(test)]
 use boardstudio_contracts::Vec2;
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
@@ -99,13 +99,13 @@ struct FinalTriangle {
 }
 
 #[derive(Default)]
-pub(crate) struct AnalysisTrace {
+pub(super) struct AnalysisTrace {
     faces: Vec<RetainedFace>,
     triangles: Vec<FinalTriangle>,
 }
 
-impl AnalysisTrace {
-    pub(crate) fn record_face(
+impl EmissionObserver for AnalysisTrace {
+    fn face(
         &mut self,
         source: &GeneratedSourceFace,
         face: &Face,
@@ -124,7 +124,7 @@ impl AnalysisTrace {
         });
     }
 
-    pub(crate) fn record_triangle(
+    fn triangle(
         &mut self,
         occurrence_index: usize,
         poly: &PolygonMesh,
@@ -169,7 +169,7 @@ fn checked_trace(
 ) -> (GeneratedAnalysisMesh, AnalysisTrace) {
     let expected = mesh_profile_for_analysis(model, target).unwrap();
     let mut trace = AnalysisTrace::default();
-    let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace)).unwrap();
+    let mesh = mesh_profile_observed(model, target, &mut trace).unwrap();
     assert_eq!(mesh, expected);
     assert_eq!(
         mesh.positions_mm_f64
@@ -579,7 +579,7 @@ fn final_trace_does_not_retain_triangles_rejected_by_real_emission() {
             .collect(),
     };
     let mut trace = AnalysisTrace::default();
-    let error = mesh_profile_for_analysis_impl(&model, None, Some(&mut trace)).unwrap_err();
+    let error = mesh_profile_observed(&model, None, &mut trace).unwrap_err();
     assert_eq!(error, mesh_profile_for_analysis(&model, None).unwrap_err());
     assert!(error.contains("f32 render precision"), "{error}");
     assert!(trace.triangles.is_empty());

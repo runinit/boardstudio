@@ -1,8 +1,9 @@
 use crate::{MeshBuffers, mesh::mesh_buffers};
+use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-use monstertruck_modeling::{Invertible, Point3, Solid, Surface};
+use monstertruck_modeling::{Face, Invertible, Point3, Solid, Surface};
 
 const PROFILE_MESH_TOLERANCE_MM: f64 = 0.1;
 const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;
@@ -75,13 +76,46 @@ pub fn mesh_profile_for_analysis(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
 ) -> Result<GeneratedAnalysisMesh, String> {
-    mesh_profile_for_analysis_impl(model, target_deflection_mm, None)
+    mesh_profile_observed(model, target_deflection_mm, &mut ())
 }
 
-pub(crate) fn mesh_profile_for_analysis_impl(
+/// Sees each accepted face and fan triangle of an analysis mesh as it is emitted.
+pub(crate) trait EmissionObserver {
+    fn face(
+        &mut self,
+        source: &GeneratedSourceFace,
+        face: &Face,
+        mesh_orientation: bool,
+        polygon: &PolygonMesh,
+    );
+    fn triangle(
+        &mut self,
+        occurrence_index: usize,
+        polygon: &PolygonMesh,
+        vertices: [StandardVertex; 3],
+        positions_mm_f64: &[f64],
+        rendered_positions_f32: &[f32],
+    );
+}
+
+/// The no-observer path.
+impl EmissionObserver for () {
+    fn face(&mut self, _: &GeneratedSourceFace, _: &Face, _: bool, _: &PolygonMesh) {}
+    fn triangle(
+        &mut self,
+        _: usize,
+        _: &PolygonMesh,
+        _: [StandardVertex; 3],
+        _: &[f64],
+        _: &[f32],
+    ) {
+    }
+}
+
+pub(crate) fn mesh_profile_observed(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
-    mut trace: Option<&mut crate::qualification::final_trace::AnalysisTrace>,
+    observer: &mut impl EmissionObserver,
 ) -> Result<GeneratedAnalysisMesh, String> {
     if model.solids.is_empty() {
         return Err("Case analysis mesh requires at least one exact solid".into());
@@ -140,14 +174,12 @@ pub(crate) fn mesh_profile_for_analysis_impl(
                     face_index,
                     support_kind: support_kind.into(),
                 });
-                if let Some(trace) = trace.as_deref_mut() {
-                    trace.record_face(
-                        &source_faces[occurrence_index],
-                        face,
-                        meshed_face.orientation(),
-                        &poly,
-                    );
-                }
+                observer.face(
+                    &source_faces[occurrence_index],
+                    face,
+                    meshed_face.orientation(),
+                    &poly,
+                );
                 let mut face_triangles = 0usize;
                 for triangle in poly.faces().triangle_iter() {
                     let points = triangle.map(|v| poly.positions()[v.pos]);
@@ -168,15 +200,13 @@ pub(crate) fn mesh_profile_for_analysis_impl(
                     triangle_face_occurrence_indices.push(occurrence_index);
                     // Observe only the accepted, oriented fan triangle, using the final
                     // f64 coordinates and the f32 conversion that push_triangle emitted.
-                    if let Some(trace) = trace.as_deref_mut() {
-                        trace.record_triangle(
-                            occurrence_index,
-                            &poly,
-                            triangle,
-                            &positions_mm_f64[positions_mm_f64.len() - 9..],
-                            &mesh.positions[mesh.positions.len() - 9..],
-                        );
-                    }
+                    observer.triangle(
+                        occurrence_index,
+                        &poly,
+                        triangle,
+                        &positions_mm_f64[positions_mm_f64.len() - 9..],
+                        &mesh.positions[mesh.positions.len() - 9..],
+                    );
                     face_triangles += 1;
                 }
                 if face_triangles == 0 {
