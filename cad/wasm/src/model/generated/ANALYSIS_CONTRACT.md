@@ -76,7 +76,10 @@ or a sampled support residual.
 Raw surface intersection or separation is a mesh observation. Unknown source,
 query-numerical, containment or contact-location bounds remain uncertain. A
 nested solid can have separated surfaces; zero unsigned distance does not
-establish penetration depth or a unique contact location.
+establish penetration depth or a unique contact location. Repaired or incomplete
+geometry may still be queried approximately, and the observation reports the
+geometry actually checked. An incomplete model cannot establish clearance for
+the whole model, and a measured mesh gap is not a guaranteed physical gap.
 
 ## Shared fixture checks
 
@@ -95,21 +98,30 @@ body/revision/identity, invalid provenance and malformed buffers. Both tests
 must run in their owning acceptance commands; passing only one side does not
 accept the boundary.
 
-## Pending qualification v2 — not active wire
+## Qualification v2 — active wire
 
-This section and the same fixture's `qualificationV2` section pin the next
-boundary. They add no fields to today's `directPayload`. Existing exact-key v1
-checks remain required. Parent integrates v2 producer, consumer and both fixture
-checks atomically. No production certificate or preview admission change is
-created by this private checkpoint.
+This section and the same fixture's `qualificationV2` section are the v2 wire
+contract. The v2 producer, the Host/Runtime consumer and both fixture checks are
+integrated: the WASM provider emits `analysisMesh`, `sourceQualification` and the
+opaque handle, the worker authenticates them against its own request, and
+`cad/wasm/tests/qualified-analysis.cjs` plus the worker, Runtime and page checks
+exercise the qualified query. The paired acceptance is recorded in 010 and 014 at
+`01680d84`/`1abc1b379`. Existing exact-key v1 checks remain required for v1
+payloads. This section is a wire contract, not a preview-admission gate.
+Admission follows the current vendor-preview policy: ADR-0017 and ADR-0018
+(accepted 2026-10-19) and the CAD backend replacement plan
+([map](../../../../docs/plans/cad-backend-replacement/map.md), ticket 015 and its
+successors). A repaired or partial preview may be displayed and queried
+approximately with explicit diagnostics, while unsupported accuracy and
+whole-model clearance stay uncertain.
 
-Pending identities: `m1/generated-analysis-v2/` uses the existing prepared-body
+Active identities: `m1/generated-analysis-v2/` uses the existing prepared-body
 digest ownership; `vendor-step-analysis-v2/` binds the authenticated STEP SHA and
 selected import options through existing derived-cache identity machinery.
 Source proof versions are `planar-final-v2` and `analytic-generated-v1`; query
 algorithm is `aabb-interval-exact-v1`. Active v1 identities remain unchanged.
 
-### Exact pending types and units
+### Exact types and units
 
 All objects reject unknown keys. Resource counts/caps are positive integers.
 Numbers are finite; bounds/errors are nonnegative
@@ -188,7 +200,7 @@ are exactly LINE/plane / 2 / `planar-final-v2` and generated / 1 /
 Source/mesh identities are selectors bound to owned evidence, not certificates
 by themselves. Identity equality never substitutes for the buffer checks below.
 
-Pending generated/vendor analysis adds `sourceQualification`; collision results
+Generated/vendor analysis adds `sourceQualification`; collision results
 add `queryQualification` alongside the unchanged raw Parry observation.
 `containedLeft` means left material contained in right, and conversely for right.
 The backend/worker authenticates evidence against `Binding`; a caller boolean or
@@ -196,8 +208,8 @@ unvalidated JSON assertion cannot produce qualified containment.
 
 ### Producer values, worker-owned references and transport
 
-The following are the **pending** executable shapes. Activate them together;
-v1 producers/consumers retain their existing exact keys until that change.
+The following are the **active** executable shapes. v1 producers/consumers retain
+their existing exact keys.
 `AnalysisHandle` is an opaque WASM class with private Rust-owned immutable
 buffers/provenance and proof data; no public constructor, JSON deserializer,
 mutation method or caller-supplied bound can construct one.
@@ -211,7 +223,7 @@ mutation method or caller-supplied bound can construct one.
 | v2 collision operand | Existing `modelId`, exclusive STEP/generated identity, `importOptions`, `rowTransformF64`, plus required `analysisRef:AnalysisRef` and `analysisMesh:AnalysisMesh`. These are selectors/expected metadata, never proof input. |
 | New qualified provider query | Direct `{observation:<unchanged MeshObservation>,queryQualification:QueryQualification}`. Worker emits `{revision,collision:observation,queryQualification}`; never nest the qualifier in the raw Parry union. |
 
-Pending v2 query metadata has exactly `{left,right,clearanceThresholdMm,
+V2 query metadata has exactly `{left,right,clearanceThresholdMm,
 requestedAccuracyMm,qualificationLimits:Limits}`. Optional accuracy is explicit
 null at this version. Result `limits` must equal that entire effective request;
 requested caps may reduce, never exceed, the supported profile. Operand source
@@ -288,7 +300,7 @@ scope; each query is newly bound to the current captured snapshot. Existing
 Runtime checks before dispatch/after await and Host reply/frame checks remain
 mandatory. A mismatch is a rejected reply, not a supported band from another job.
 
-### Ownership lifetime and proposed new Rust seam
+### Ownership lifetime and Rust seam
 
 New preparation results are staged until the existing post-kernel worker yield
 and cancellation check succeeds. Only then may the worker publish a reference
@@ -322,8 +334,9 @@ containment are all unknown with `evidence-unavailable`. Other malformed source/
 mesh/descriptor/row/cap assertions are errors. There is no transparent rebuild
 inside a pair query and no repeat refinement loop hidden in basic checks.
 
-Implementation requires a **new, separately approved** narrow backend API, not
-widening existing declarations. Proposed signatures (Rust-owned fields private):
+The narrow backend API is implemented in `cad/monstertruck/src/qualification.rs`
+as `boardstudio_cad::qualification`, without widening existing declarations.
+Signatures (Rust-owned fields private):
 
 ```text
 pub struct PreparedAnalysisMesh { /* private: owned final emission + sealed evidence */ }
@@ -359,13 +372,13 @@ pub fn verify_analysis_pair(&PreparedAnalysisMesh, &PreparedAnalysisMesh,
 ```
 
 `AnalysisMesh` and `SourceQualification` are typed Rust counterparts of the
-pending shapes above, not JSON certificate inputs. `analysis_mesh()` includes the
+shapes above, not JSON certificate inputs. `analysis_mesh()` includes the
 sealed selected settings and effective source limits. `QueryEvidence` is the
 typed numeric/source/contact/containment report; the provider adds the
 worker-supplied `Binding`. Errors use the existing textual error boundary.
 
-These are **proposed new** read-only declarations for the separate `cad/wasm`
-crate; no existing member visibility changes. `GeneratedAnalysisMesh`,
+These are read-only declarations in `cad/monstertruck/src/qualification.rs`; no
+existing member visibility changes. `GeneratedAnalysisMesh`,
 `StepSourceFace` and `StepFaceOccurrence` are already public. A returned view
 borrows the prepared owner immutably; it cannot outlive that owner. Constructing
 or copying a view/report does not construct `PreparedAnalysisMesh` or sealed
@@ -395,7 +408,7 @@ is likewise taken from the sealed source report; other repair fields retain
 their separate existing meanings. Neither producer substitutes a display mesh.
 
 In `cad/wasm`, borrow the prepared export view/descriptor/report to construct the
-existing direct payload plus the pending fields. Copy slices into independently
+existing direct payload plus the v2 fields. Copy slices into independently
 owned JS typed arrays (`Float64Array::from`/`Uint32Array::from`, checking each
 usize-to-u32 conversion); flatten vendor xyz without changing f64 values. Copy
 catalogues/settings/report into JS objects. Do not expose a view into WASM linear
@@ -412,13 +425,13 @@ Shared allocations must not be omitted (conservative double counting is allowed)
 Overflow or unaccountable storage returns `None`, so the worker must not retain
 it and later qualification is `evidence-unavailable`. Temporary JS transfer
 copies are outside this retained cost; their separate existing transfer cap still
-applies. The proposed read-only WASM handle method
+applies. The read-only WASM handle method
 `AnalysisHandle.retainedStorageBytes(): number|null` exposes this cost internally
 to the worker (checked u53 conversion, null on failure), without adding a direct
 payload field or accepting a caller override. The worker calls it before cache
 admission. This is a retention ceiling, not a peak-memory or timing guarantee.
 
-A new provider-owned `AnalysisHandle` wraps this type. Proposed WASM export
+The provider-owned `AnalysisHandle` wraps this type. WASM export
 `query_qualified_collision_mesh_pair(buffers,metadata,context,leftHandle,rightHandle)`
 borrows those opaque handles; strict `buffers` keys are `leftPositions`,
 `leftTags`, `rightPositions`, `rightTags`, with the existing typed-array kinds.
@@ -426,14 +439,17 @@ borrows those opaque handles; strict `buffers` keys are `leftPositions`,
 constructor is exported. Keep the existing raw query export and observations.
 Existing `ImportedStep` getters suffice; do not widen its fields, generated AST/
 trace visibility, `ReadStepAsset::import_bytes`, `generated_body_analysis_data` or
-`TriangleSoupMesh`. This document proposes no facade/export/dependency activation.
+`TriangleSoupMesh`. The existing importer facade and export surface are unchanged.
 
 ### Source accounting and final geometry
 
 `directBoundMm` is a symmetric Hausdorff upper bound from the complete nominal
 source surface set to FINAL exported f64 triangles/tags, after polygon fans,
 source placement/mirroring and render filtering. Missing source faces/occurrences
-or incomplete proof return unknown. The first vendor class is limited to
+or incomplete proof return unknown. That unknown is a qualification result, not
+a display refusal: incomplete geometry stays visible with an explicit
+diagnostic and may be queried approximately, but it cannot qualify the whole
+source or establish whole-model clearance. The first vendor class is limited to
 consistent native LINE/plane geometry, millimetres and at most one independently
 checked planar source-frame placement per solid. `complete-native-line-plane`
 uses proof version 2; `analytic-generated` retains version 1. This source-proof
@@ -450,11 +466,11 @@ cap-trim error invalidate trusting its output. Extract raw retained source knots
 weights and orientation before any f64 preprocessing; apply orientation in exact
 arithmetic, and carry complete source/cap trim contributions into the symmetric
 bound. The corrected private `b03cc0951dfe4c91f7c8fb395e8dc218a656d452` has root acceptance
-for integration after its raw-knot/exact-reversal and cap accounting correction;
-that does not activate a producer. The fixture's generated bounded examples
-are activation oracles for that corrected class, never trusted output from
-`5bc56d35bc77`. Until the accepted proof is wired to the actual final producer,
-its production report remains unknown (`source-proof-unavailable`). Cones, nonplanar trims
+for integration after its raw-knot/exact-reversal and cap accounting correction,
+and that proof now backs the active producer for the supported classes. The
+fixture's generated bounded examples are activation oracles for that corrected
+class, never trusted output from `5bc56d35bc77`. A class the proof cannot
+support stays unknown (`source-proof-unavailable`). Cones, nonplanar trims
 and unproved/open seams remain unknown.
 
 `sourcePrecisionMm` is the authenticated declared attachment allowance, zero for
@@ -599,8 +615,11 @@ claim that this private mutation is a public producer input. The capacitor's
 0.01 mm source-precision floor alone also prevents a 0.01 mm pair claim when
 other contributions are nonzero. Complete retained but unsupported mixed
 presentation geometry keeps source/repair qualification unknown. Unretained
-presentation geometry (including styled trimmed curves outside a cuboid) rejects
-import as incomplete, rather than returning a partial bounded asset. Provisional
+presentation geometry (including styled trimmed curves outside a cuboid) likewise
+keeps qualification unknown and never yields a bounded partial asset. Under the
+current vendor-preview policy it does not by itself refuse the preview: the
+surviving geometry is shown with an explicit incomplete-model error, and no
+whole-source qualification or whole-model clearance follows from it. Provisional
 `14cde` is not positive evidence. Corrected cuboid ledger
 `05b00ce75d3ef9f688c219c92d9c1e227004c8cd` is accepted for its bounded exact-zero
 movement class: its existing `maxRepairDisplacementMm:0` diagnostic is allowed,
@@ -615,7 +634,7 @@ this does not broaden 007 or v2.
 Reject nonfinite/negative/reversed intervals, invalid indices, empty reasons or
 regions, over-cap/truncated boxes, overlapping slab endpoints, invalid affine
 rows, inconsistent contribution sums, stale revisions and mismatched mesh/row/
-algorithm/settings identities. The shared pending examples and invalid mutations
+algorithm/settings identities. The shared examples and invalid mutations
 pin these cases without changing v1 expected keys or copying its prepared input.
 
 Certificate/cache identity binds source SHA or complete generated identity,
@@ -630,17 +649,20 @@ integration. The private proof has no active frontend schema implementation.
 
 ### Executable shared activation fixture
 
-`qualificationV2.activation` contains complete pending descriptor/ref/binding/
-qualifier examples and producer key sets. Its direct-generated recipe copies
-`/directPayload` then replaces only the listed top-level fields; it reuses
-`/preparedBody` and never duplicates that canonical input. `analysisHandle` has
+`qualificationV2.activation` contains complete descriptor/ref/binding/qualifier
+examples and producer key sets. The fixture's own `qualificationV2.status`
+string predates the integrated activation and is historical; the examples it
+holds are exercised by the producer and consumer checks. Its direct-generated
+recipe copies `/directPayload` then replaces only the listed top-level fields;
+it reuses `/preparedBody` and never duplicates that canonical input.
+`analysisHandle` has
 no JSON example: the real producer supplies it, the worker retains it, and only
 its field name/type is asserted. Vendor examples use original asset bytes and
 the existing catalogues, checking the four-solid/30-face census rather than
 inventing a tessellation count. Array/face order remains free, but every actual
-reported tag and catalogue entry is sealed in the handle. The proposed
-`readOnlyExport` recipe pins how both producers serialize the same owned emission
-before moving it into the handle, including retained-storage refusal.
+reported tag and catalogue entry is sealed in the handle. The `readOnlyExport`
+recipe pins how both producers serialize the same owned emission before moving
+it into the handle, including retained-storage refusal.
 
 The canonical plane query names triangles `[2,0]`: after the exact fixture rows,
 these are top Z=2 and bottom Z=3, with a feasible common-XY witness and 1 mm

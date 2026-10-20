@@ -4,6 +4,13 @@ Status: ready-for-agent
 Source: [research/cad/step-import-validation-approaches.md](../../research/cad/step-import-validation-approaches.md)
 Map: [map.md](map.md). Tickets: [issues/](issues/).
 
+Current policy: the aggregate-completeness admission rule below is superseded for
+preview admission by the current vendor-preview policy in
+[map.md](map.md#current-vendor-preview-policy-2026-10-19). An aggregate loss is
+reported as an explicit incomplete-model diagnostic; it does not by itself
+refuse the surviving geometry. The resolved and wontfix issues below are not
+reopened.
+
 ## Problem Statement
 
 BoardStudio's STEP import validation (ticket 007) has ballooned into six packages

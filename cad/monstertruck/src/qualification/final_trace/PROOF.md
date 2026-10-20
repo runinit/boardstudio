@@ -3,16 +3,17 @@
 Frozen `5bc56d35` failed independent Spec review with a P1 soundness
 counterexample. Its prior green checks did not cover that defect. Corrected raw
 orientation and cap accounting in `b03cc095` were accepted and integrated by the
-parent at `95e8c4a53`. The continuous-height extension below is a new private
-feature pending parent review, with no activation.
+parent at `95e8c4a53`. The continuous-height extension below is now part of the
+active producer path.
 
-This is a test-only `analytic-generated-v1` source proof under the pending
-[contract](../../../../wasm/src/model/generated/ANALYSIS_CONTRACT.md).
-It does not activate v2, publish a mesh identity, qualify a query or containment,
-or change production `analysisErrorBoundMm`. The physical row is absent: the
-proof is for body-local final f64 triangles, including native source elevation
-and placement. Certificate binding and physical-row accounting belong to the
-parent's atomic activation.
+This is the private `analytic-generated-v1` source proof under the active
+[contract](../../../../wasm/src/model/generated/ANALYSIS_CONTRACT.md). It is the
+production fallback when the analytic generated path is unknown, and its bounded
+total is the generated `analysisErrorBoundMm`. It does not publish a mesh
+identity, qualify a query or containment, or establish whole-model clearance.
+The physical row is absent: the proof is for body-local final f64 triangles,
+including native source elevation and placement. Certificate binding and
+physical-row accounting belong to the qualification facade.
 
 ## Accepted geometry and binding
 

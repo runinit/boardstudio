@@ -1,5 +1,22 @@
 # Map: STEP import validation simplification
 
+## Current vendor-preview policy (2026-10-19)
+
+ADR-0017 and ADR-0018 (accepted 2026-10-19) replace certification and complete
+geometry as prerequisites for vendor preview admission. The aggregate
+completeness rule below is therefore a report, not a refusal: incomplete
+geometry may be displayed and queried approximately with explicit diagnostics,
+while unsupported accuracy and whole-model clearance stay uncertain. Input and
+resource safety, unit conversion, placement, the existing known repair-budget
+guards and exact generated case/PCB output are unchanged.
+
+This plan and its spec keep their resolved/wontfix outcomes and are not reopened.
+The successor policy lives in the CAD backend replacement plan
+([map](../cad-backend-replacement/map.md), ticket 015 and successors 016-018).
+The obsolete 007 owner-path, region-proof and package exits are not
+prerequisites for preview admission; parent 007 stays claimed with its body,
+acceptance boxes, current work and evidence untouched.
+
 ## Destination
 
 Replace BoardStudio's six-package per-route STEP repair accounting (007) with the
@@ -33,7 +50,10 @@ standard's GVP comparison plus monstertruck's aggregate reports are sufficient.
 ## Decisions
 
 1. **Aggregate reports first.** Use `require_empty()` and `require_lossless()`
-   as the primary import gate. These already exist in monstertruck-io.
+   as the primary completeness check. These already exist in monstertruck-io.
+   Under the current vendor-preview policy an aggregate loss is reported as an
+   explicit incomplete-model diagnostic; it does not by itself refuse the
+   surviving geometry.
 2. **GVP comparison.** Dropped per research (`docs/research/cad/gvp-necessity-rust.md`).
    ISO does not require GVP for import admission; no real vendor files carry it;
    no Rust crate parses it; OCCT treats it as advisory. Aggregate reports +
@@ -55,7 +75,9 @@ standard's GVP comparison plus monstertruck's aggregate reports are sufficient.
 - **Aggregate report**: monstertruck-io's `EntityLoadReport` / `ShellLoadReport`
   with `require_empty()` / `require_lossless()`. One call per conversion.
 - **Import admission**: the decision to accept a vendor STEP file for display,
-  alignment and collision. Does not require per-route certification.
+  alignment and collision. Does not require per-route certification, and no
+  longer requires complete or universally certified geometry either; see the
+  current vendor-preview policy above.
 - **Collision certificate**: the separate question of whether repair movement
   bounds are sufficient for collision queries. Owned by 014.
 
