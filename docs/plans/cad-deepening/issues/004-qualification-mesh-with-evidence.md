@@ -34,3 +34,5 @@ paths through the crate's proof-critical code, and removing the hook means repla
 with an observer trait in the meshing loop. That is the speculative part of this ticket;
 the gain is small because the hook is already one narrow, optional parameter. Reopen it only
 if qualification keeps changing.
+
+Update: the proof modules and the observer were done in [012](012-proof-modules-under-qualification.md).
