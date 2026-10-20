@@ -23,3 +23,5 @@ instead of reaching the kernel.
 ## Comments
 
 Checked `Mount.at` (the only position a mount carries) in the existing entry check, renamed `check_coordinates`. Hole/boss diameters and height are lengths, not positions, so they stay with their existing rules. The at-the-limit test asserts the error is not the coordinate error, since a mount at 1e6 mm is a geometry question, not a check question.
+
+Open: `CaseFeature` positions (such as round seats) and opening points also reach the kernel unchecked; they sit on the body rather than the region and were not covered here.
