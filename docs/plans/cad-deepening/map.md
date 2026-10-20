@@ -35,6 +35,12 @@ Review follow-ups, specified in 006, run in order one at a time (shared worktree
 - [011: Kernel tests share one prepared-case fixture](issues/011-kernel-tests-one-fixture.md)
 - [012: Proof modules live under qualification](issues/012-proof-modules-under-qualification.md)
 
+Loose ends after the follow-up review; independent of each other:
+
+- [013: Kernel rejects out-of-range mount positions](issues/013-kernel-mount-coordinate-limit.md)
+- [014: Full check is green locally](issues/014-full-check-green-locally.md)
+- [015: Browser check runs on the development machine](issues/015-browser-check-runs-locally.md)
+
 ## Decisions so far
 
 All five tickets are resolved; each ticket's `## Comments` records what it did and did not do.
