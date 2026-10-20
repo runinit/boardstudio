@@ -12,6 +12,9 @@ use parry3d_f64::{
     query::{ClosestPoints, DefaultQueryDispatcher, QueryDispatcher},
     shape::{SubShapeId, TriMesh, TriMeshFlags, Triangle},
 };
+use boardstudio_contracts::{
+    AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
@@ -25,15 +28,6 @@ const MAX_SAFE_COORD_MM: f64 = 1e100;
 /// Relative/absolute comparison slack between mesh-level distance and selected
 /// triangle-pair closest-point witness distance.
 const CLOSEST_POINTS_SLACK_MM: f64 = 1e-6;
-
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CadStepImportOptions {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_repair_budget_mm: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target_deflection_mm: Option<f64>,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -177,7 +171,7 @@ impl CadCollisionOperand {
             ));
         }
         match (&self.source_sha256, &self.generated_geometry_identity) {
-            (Some(sha), None) if is_sha256(sha) => {}
+            (Some(sha), None) if is_sha256_hex(sha) => {}
             (None, Some(identity)) if !identity.trim().is_empty()
                 && self.import_options == CadStepImportOptions::default() => {}
             _ => return Err(format!("Invalid collision query: {side} requires exactly one valid sourceSha256 or generatedGeometryIdentity; generated operands require default STEP importOptions")),
@@ -198,33 +192,15 @@ impl CadCollisionOperand {
     }
 }
 
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-}
-
 fn validate_affine_transform(matrix: &[f64; 16], side: &str) -> Result<(), String> {
-    if matrix.iter().any(|value| !value.is_finite()) {
-        return Err(format!(
-            "Invalid collision query: {side}.rowTransformF64 contains non-finite values"
-        ));
-    }
-    if [matrix[3], matrix[7], matrix[11], matrix[15]] != [0.0, 0.0, 0.0, 1.0] {
-        return Err(format!(
-            "Invalid collision query: {side}.rowTransformF64 must be an affine 4x4 matrix"
-        ));
-    }
-    let det = matrix[0] * (matrix[5] * matrix[10] - matrix[9] * matrix[6])
-        - matrix[4] * (matrix[1] * matrix[10] - matrix[9] * matrix[2])
-        + matrix[8] * (matrix[1] * matrix[6] - matrix[5] * matrix[2]);
-    if !det.is_finite() || det.abs() <= 1e-12 {
-        return Err(format!(
-            "Invalid collision query: {side}.rowTransformF64 has a singular or non-finite linear part"
-        ));
-    }
-    Ok(())
+    validate_affine_row_transform(matrix).map_err(|error| {
+        let reason = match error {
+            AffineTransformError::NonFinite => "contains non-finite values",
+            AffineTransformError::NotAffine => "must be an affine 4x4 matrix",
+            AffineTransformError::Singular => "has a singular or non-finite linear part",
+        };
+        format!("Invalid collision query: {side}.rowTransformF64 {reason}")
+    })
 }
 
 fn validate_soup_lengths(positions_len: usize, tags_len: usize, side: &str) -> Result<(), String> {

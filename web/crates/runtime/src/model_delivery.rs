@@ -479,7 +479,7 @@ pub fn derived_step_cache_key(
     sha256: &str,
     options: boardstudio_web_host::cad_jobs::CadStepImportOptions,
 ) -> Result<String, String> {
-    if !boardstudio_web_host::cad_jobs::valid_source_sha256(sha256) {
+    if !boardstudio_web_host::cad_jobs::is_sha256_hex(sha256) {
         return Err("STEP cache key requires a canonical 64-hex SHA-256".into());
     }
     let options = options.validate()?;
@@ -1791,7 +1791,8 @@ pub fn physical_pcb_model_row_transform_f64(
     .fold(IDENTITY_ROW_TRANSFORM_F64, mul);
 
     let matrix = mul(pcb_transform, model_transform);
-    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
+        .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
     Ok(matrix)
 }
 
@@ -1884,7 +1885,8 @@ pub fn resolve_physical_model_row_transform(
     explicit_pcb_row_transform: Option<[f64; 16]>,
 ) -> Result<[f64; 16], String> {
     if let Some(matrix) = delivered.matrix {
-        boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+        boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
+            .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
         return Ok(matrix);
     }
     let matrix = explicit_pcb_row_transform.ok_or_else(|| {
@@ -1893,7 +1895,8 @@ pub fn resolve_physical_model_row_transform(
             delivered.id
         )
     })?;
-    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)?;
+    boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
+        .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
     Ok(matrix)
 }
 

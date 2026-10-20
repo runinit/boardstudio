@@ -60,7 +60,7 @@ struct Operand {
     model_id: String,
     source_sha256: Option<String>,
     generated_geometry_identity: Option<String>,
-    import_options: collision::CadStepImportOptions,
+    import_options: boardstudio_contracts::CadStepImportOptions,
     row_transform_f64: [f64; 16],
     analysis_ref: AnalysisRef,
     analysis_mesh: AnalysisMesh,
@@ -285,12 +285,6 @@ fn operand_keys(value: &JsValue) -> Result<(), JsValue> {
         _ => Err(js_error("unsupported analysis source")),
     }
 }
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-}
 fn validate_context(context: &Context) -> Result<(), String> {
     fn decimal(value: &str) -> bool {
         value.parse::<u64>().is_ok_and(|x| x.to_string() == value)
@@ -381,7 +375,7 @@ impl Operand {
                 && self.source_sha256.is_none()
                 && geometry_identity
                     .strip_prefix("m1/generated-analysis-v2/")
-                    .is_some_and(is_sha256)
+                    .is_some_and(boardstudio_contracts::is_sha256_hex)
                 && reference.derivation_identity == generated_derivation(geometry_identity) =>
             {
                 Ok(())

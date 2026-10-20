@@ -5,7 +5,12 @@ use num_traits::Zero;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 mod case;
+mod collision;
 mod support_owner;
+
+pub use collision::{
+    AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+};
 
 pub use case::{
     CaseAssemblyIR, CaseBody, CaseFeature, CaseIR, CaseKind, CaseOpening, CasePcbCircularSupport,

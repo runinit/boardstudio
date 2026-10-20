@@ -542,7 +542,7 @@ fn validate_request(request: &CadRequest) -> Result<(), CadWorkerError> {
             if !request
                 .source_sha256
                 .as_deref()
-                .is_some_and(crate::cad_jobs::valid_source_sha256) =>
+                .is_some_and(crate::cad_jobs::is_sha256_hex) =>
         {
             Err(CadWorkerError(
                 "STEP import requires a canonical source SHA-256".into(),
@@ -2574,7 +2574,7 @@ async fn run_request(
                 ));
             }
             let expected = request.source_sha256.as_deref().unwrap_or_default();
-            if !crate::cad_jobs::valid_source_sha256(expected) || sha256_hex(&bytes) != expected {
+            if !crate::cad_jobs::is_sha256_hex(expected) || sha256_hex(&bytes) != expected {
                 return Err((
                     request,
                     "STEP source failed SHA-256 verification".into(),

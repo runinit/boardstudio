@@ -2,7 +2,8 @@
 //! Reports are accepted only at the worker reply boundary, never in query input.
 use crate::cad_jobs::{
     CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery, CadSnapshotIdentity,
-    CadStepImportOptions, MAX_CAD_REVISION, valid_source_sha256, validate_affine_row_transform,
+    CadStepImportOptions, MAX_CAD_REVISION, affine_transform_message, is_sha256_hex,
+    validate_affine_row_transform,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -598,7 +599,7 @@ pub fn validate_descriptor(reference: &AnalysisRef, mesh: &AnalysisMesh) -> Resu
             && *revision <= MAX_CAD_REVISION
             && geometry_identity
                 .strip_prefix("m1/generated-analysis-v2/")
-                .is_some_and(valid_source_sha256)
+                .is_some_and(is_sha256_hex)
             && mesh.source_proof == "analytic-generated-v1"
             && *max_final_triangles > 0
             && *max_final_triangles <= 10_000
@@ -635,7 +636,7 @@ pub fn validate_descriptor(reference: &AnalysisRef, mesh: &AnalysisMesh) -> Resu
                 max_direct_bound_mm,
                 corner_snap_distance_squared_mm2,
             },
-        ) if valid_source_sha256(source_sha256)
+        ) if is_sha256_hex(source_sha256)
             && mesh.source_proof == "planar-final-v2"
             && *max_source_bytes > 0
             && *max_source_bytes <= 2 * 1024 * 1024
@@ -807,7 +808,7 @@ pub fn validate_query_qualification(
         ),
     ] {
         validate_descriptor(reference, mesh)?;
-        validate_affine_row_transform(row)?;
+        validate_affine_row_transform(row).map_err(affine_transform_message)?;
         if identity != &mesh.mesh_identity {
             return Err("query mesh identity mismatch".into());
         }

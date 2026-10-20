@@ -1,9 +1,12 @@
 use crate::{MeshBuffers, mesh::mesh_buffers, qualification::SourceBoundResult};
+#[cfg(test)]
 use boardstudio_contracts::Vec2;
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-use monstertruck_modeling::{Curve, Invertible, Point3, Solid, Surface, Vector3, Wire, builder};
+#[cfg(test)]
+use monstertruck_modeling::builder;
+use monstertruck_modeling::{Curve, Invertible, Point3, Solid, Surface, Vector3, Wire};
 
 const PROFILE_MESH_TOLERANCE_MM: f64 = 0.1;
 const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;

@@ -4,6 +4,9 @@ use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(all(test, feature = "page"))]
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::*;
+pub use boardstudio_core::model::{
+    CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_CAD_REVISION: u64 = 9_007_199_254_740_991;
@@ -29,52 +32,6 @@ pub enum CadOperation {
     ReadStep,
     AnalyzeGeneratedBody,
     CollisionQuery,
-}
-
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CadStepImportOptions {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preview_repair_budget_mm: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target_deflection_mm: Option<f64>,
-}
-
-impl CadStepImportOptions {
-    pub fn validate(self) -> Result<Self, String> {
-        if self
-            .target_deflection_mm
-            .is_some_and(|value| !value.is_finite() || value <= 0.0)
-        {
-            return Err("STEP targetDeflectionMm must be finite and positive".into());
-        }
-        if let Some(budget) = self.preview_repair_budget_mm
-            && (!budget.is_finite() || budget <= 0.0)
-        {
-            return Err("STEP previewRepairBudgetMm must be finite and positive".into());
-        }
-        Ok(self)
-    }
-
-    pub fn same_identity(self, other: Self) -> bool {
-        if self.target_deflection_mm.map(f64::to_bits)
-            != other.target_deflection_mm.map(f64::to_bits)
-            || self.validate().is_err()
-            || other.validate().is_err()
-        {
-            return false;
-        }
-        match (
-            self.preview_repair_budget_mm,
-            other.preview_repair_budget_mm,
-        ) {
-            (None, None) => true,
-            (Some(a), Some(b)) => {
-                a.is_finite() && a > 0.0 && b.is_finite() && b > 0.0 && a.to_bits() == b.to_bits()
-            }
-            _ => false,
-        }
-    }
 }
 
 pub const MAX_COLLISION_QUERY_BYTES: usize = 64 * 1024 * 1024;
@@ -525,7 +482,7 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
             let Some(expected_sha) = request
                 .source_sha256
                 .as_deref()
-                .filter(|sha| valid_source_sha256(sha))
+                .filter(|sha| is_sha256_hex(sha))
             else {
                 return Err(bad("STEP import requires a canonical source SHA-256"));
             };
@@ -583,13 +540,6 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
         }
     }
     Ok(())
-}
-
-pub fn valid_source_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// Shares the production generated geometry cache's m1 revision. Include the
@@ -784,8 +734,8 @@ pub fn validate_vendor_step(
         (None, None, None) if vendor_step.accuracy.analysis_error_bound_mm.is_none() => {}
         _ => return Err("incomplete vendor qualification metadata".into()),
     }
-    if !valid_source_sha256(expected_sha)
-        || !valid_source_sha256(&vendor_step.source_sha256)
+    if !is_sha256_hex(expected_sha)
+        || !is_sha256_hex(&vendor_step.source_sha256)
         || vendor_step.source_sha256 != expected_sha
     {
         return Err("STEP import returned a mismatched or non-canonical sourceSha256".into());
@@ -951,22 +901,14 @@ pub fn validate_vendor_step(
     Ok(())
 }
 
-pub fn validate_affine_row_transform(matrix: &[f64; 16]) -> Result<(), String> {
-    if matrix.iter().any(|value| !value.is_finite())
-        || matrix[3] != 0.0
-        || matrix[7] != 0.0
-        || matrix[11] != 0.0
-        || matrix[15] != 1.0
-    {
-        return Err("collision operand row transform must be a finite affine matrix".into());
+/// The host's wording for a rejected collision operand placement.
+pub fn affine_transform_message(error: AffineTransformError) -> String {
+    match error {
+        AffineTransformError::NonFinite | AffineTransformError::NotAffine => {
+            "collision operand row transform must be a finite affine matrix".into()
+        }
+        AffineTransformError::Singular => "collision operand row transform is singular".into(),
     }
-    let det = matrix[0] * (matrix[5] * matrix[10] - matrix[6] * matrix[9])
-        - matrix[4] * (matrix[1] * matrix[10] - matrix[2] * matrix[9])
-        + matrix[8] * (matrix[1] * matrix[6] - matrix[2] * matrix[5]);
-    if !det.is_finite() || det.abs() <= 1e-12 {
-        return Err("collision operand row transform is singular".into());
-    }
-    Ok(())
 }
 
 pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String> {
@@ -984,7 +926,7 @@ pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String>
             return Err("collision operand modelId must not be empty".into());
         }
         match (&operand.source_sha256, &operand.generated_geometry_identity) {
-            (Some(sha), None) if valid_source_sha256(sha) => {}
+            (Some(sha), None) if is_sha256_hex(sha) => {}
             (None, Some(identity))
                 if !identity.trim().is_empty()
                     && operand.import_options == CadStepImportOptions::default() => {}
@@ -996,7 +938,8 @@ pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String>
             }
         }
         operand.import_options.validate()?;
-        validate_affine_row_transform(&operand.row_transform_f64)?;
+        validate_affine_row_transform(&operand.row_transform_f64)
+            .map_err(affine_transform_message)?;
         crate::cad_qualification::validate_operand(operand)?;
     }
     Ok(())

@@ -169,7 +169,7 @@ impl ReadStepAsset {
     }
 
     fn import_bytes(bytes: Vec<u8>, options: ReadStepOptions) -> Result<Self, String> {
-        if !is_sha256(&options.source_sha256) {
+        if !boardstudio_contracts::is_sha256_hex(&options.source_sha256) {
             return Err(
                 "Invalid STEP options: sourceSha256 must be 64 lowercase hexadecimal characters"
                     .into(),
@@ -456,13 +456,6 @@ pub(super) fn read_step_model_data_for_test(
         min: asset.bounds.min,
         max: asset.bounds.max,
     })
-}
-
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn index_u32(index: usize, what: &str) -> Result<u32, String> {

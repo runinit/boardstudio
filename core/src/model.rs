@@ -12,6 +12,9 @@ pub use crate::modules::{
     ResolvedModulePad, VikSignal,
 };
 pub use boardstudio_contracts::{
+    AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+};
+pub use boardstudio_contracts::{
     CaseAssemblyIR, CaseBody, CaseFeature, CaseIR, CaseKind, CaseOpening, CasePcbCircularSupport,
     CasePcbSlot, CasePcbSource, CasePcbSourceContour, CasePcbSourcePrimitive, Contour, Gasket,
     Mount, MountKind, PreparedCaseAssemblyIR, PreparedCaseIR, PreparedCaseRegion,
