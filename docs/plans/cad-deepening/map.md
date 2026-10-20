@@ -8,6 +8,8 @@ tested through its production interface, and proof machinery behind its own inte
 
 ## Notes
 
+- Current state and next steps: [handoff.md](handoff.md).
+
 - Source: architecture review of `dev` at `9099b3ef7` (2026-10-20), after the
   [CAD backend replacement](../cad-backend-replacement/map.md).
 - Already done: the **Case boss** rule (wider than its hole) is enforced by both Core
