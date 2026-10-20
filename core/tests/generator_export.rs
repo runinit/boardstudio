@@ -184,6 +184,31 @@ fn exports_front_and_back_switches_with_instance_nets_and_models() {
 }
 
 #[test]
+fn part_null_selects_the_declared_default_and_non_null_override_wins() {
+    let mut mx = definition("ceoloide/switch_mx");
+    // The declared hotswap default is true; the definition overrides it with false.
+    mx.generator
+        .as_mut()
+        .unwrap()
+        .parameters
+        .insert("hotswap".into(), json!(false));
+    let pads = |overrides: Value| {
+        let placed = part(&mx, "sw", 0.0, "front", overrides);
+        let paths = model_paths(&[(&mx, Some(&placed))]);
+        let doc = project(std::slice::from_ref(&mx), &[placed], &[]);
+        count(&export_board(doc, paths), "(pad ")
+    };
+    let inherited = pads(json!({}));
+    let masked = pads(json!({ "hotswap": null }));
+    assert_eq!(pads(json!({ "hotswap": false })), inherited);
+    assert!(
+        masked > inherited,
+        "part null selects the default, not the definition value"
+    );
+    assert_eq!(pads(json!({ "hotswap": true })), masked);
+}
+
+#[test]
 fn exports_document_pad_net_assignments_for_terminal_groups() {
     let connector = definition("ceoloide/battery_connector_jst_ph_2");
     let placed = part(&connector, "j1", 0.0, "front", json!({}));

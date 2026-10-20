@@ -1,6 +1,6 @@
 # 183: Align generator editor null values with declared defaults
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Related: [Generator parameter research](../../../research/2026-10-19-generator-parameter-coherence.md)

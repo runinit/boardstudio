@@ -195,11 +195,8 @@ fn parameters(
         .iter()
         .filter_map(|(key, spec)| {
             let kind = spec.get("type")?.as_str()?.to_owned();
-            let value = generator
-                .parameters
-                .get(key)
+            let value = effective_value(None, generator.parameters.get(key), spec)
                 .cloned()
-                .or_else(|| spec.get("value").cloned())
                 .unwrap_or(Value::Null);
             Some(GeneratorParameter {
                 key: key.clone(),
@@ -216,6 +213,21 @@ fn parameters(
         .collect::<Vec<_>>();
     entries.sort_by(|left, right| left.key.cmp(&right.key));
     entries
+}
+
+/// The value the form, preview and render agree on: a non-null draft wins, a null draft
+/// or a null/missing saved value selects the declared default, and no default stays absent.
+fn effective_value<'a>(
+    draft: Option<&'a Value>,
+    saved: Option<&'a Value>,
+    spec: &'a Value,
+) -> Option<&'a Value> {
+    let default = spec.get("value").filter(|value| !value.is_null());
+    match draft {
+        Some(value) if !value.is_null() => Some(value),
+        Some(_) => default,
+        None => saved.filter(|value| !value.is_null()).or(default),
+    }
 }
 
 fn parameter_label(key: &str) -> String {
@@ -296,10 +308,7 @@ fn apply_input(
         let Some(kind) = spec.get("type").and_then(Value::as_str) else {
             continue;
         };
-        let raw = edits
-            .get(key)
-            .or_else(|| generator.parameters.get(key))
-            .or_else(|| spec.get("value"));
+        let raw = effective_value(edits.get(key), generator.parameters.get(key), spec);
         let Some(raw) = raw else {
             continue;
         };
@@ -928,12 +937,11 @@ pub fn GeneratorSettingsEditor(
     let initial_parameters = schema
         .iter()
         .filter_map(|(key, spec)| {
-            definition
+            let saved = definition
                 .generator
                 .as_ref()
-                .and_then(|generator| generator.parameters.get(key))
-                .or_else(|| spec.get("value"))
-                .map(|value| (key.clone(), value.clone()))
+                .and_then(|generator| generator.parameters.get(key));
+            effective_value(None, saved, spec).map(|value| (key.clone(), value.clone()))
         })
         .collect::<BTreeMap<_, _>>();
     let mut changed = edits;
@@ -1606,7 +1614,16 @@ mod tests {
         Rc<GeneratorMountedFixture>,
         Rc<RefCell<Option<GeneratorMountedSignals>>>,
     ) {
-        let first = definition();
+        mount_generator_editor_with(definition()).await
+    }
+
+    async fn mount_generator_editor_with(
+        first: PartDefinition,
+    ) -> (
+        web_sys::Element,
+        Rc<GeneratorMountedFixture>,
+        Rc<RefCell<Option<GeneratorMountedSignals>>>,
+    ) {
         let mut second = first.clone();
         second.id = "test:other-mx-switch".into();
         second.name = "Other MX switch".into();
@@ -2415,6 +2432,127 @@ mod tests {
                 .unwrap()
                 .parameters["keycap_width"],
             18.0
+        );
+        root.remove();
+    }
+
+    fn mounted_field(
+        root: &web_sys::Element,
+        selector: &str,
+        property: &str,
+    ) -> wasm_bindgen::JsValue {
+        let field = root
+            .query_selector(selector)
+            .unwrap()
+            .unwrap_or_else(|| panic!("mounted field {selector}"));
+        js_sys::Reflect::get(field.as_ref(), &property.into()).unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn saved_null_and_missing_parameters_show_and_preview_declared_defaults() {
+        for saved in [
+            serde_json::json!({
+                "keycap_width": null, "hotswap": null, "designator": null,
+                "keycap_3dmodel_xyz_scale": null, "from": null
+            }),
+            serde_json::json!({}),
+        ] {
+            let mut saved_definition = definition();
+            saved_definition.generator.as_mut().unwrap().parameters =
+                serde_json::from_value(saved).unwrap();
+            let (root, fixture, _) = mount_generator_editor_with(saved_definition).await;
+            let width = mounted_field(&root, "input[aria-label='Keycap Width']", "value");
+            assert_eq!(width.as_string().unwrap().parse::<f64>(), Ok(18.0));
+            assert_eq!(
+                mounted_field(&root, "input[aria-label='hotswap']", "checked").as_bool(),
+                Some(true)
+            );
+            assert_eq!(
+                mounted_field(&root, "input[aria-label='designator']", "value").as_string(),
+                Some("S".into())
+            );
+            let scale = mounted_field(
+                &root,
+                "textarea[aria-label='keycap_3dmodel_xyz_scale']",
+                "value",
+            )
+            .as_string()
+            .unwrap();
+            assert_eq!(
+                serde_json::from_str::<Value>(&scale).unwrap(),
+                serde_json::json!([1, 1, 1])
+            );
+            assert_eq!(
+                mounted_field(&root, "input[aria-label='from']", "value").as_string(),
+                Some(String::new())
+            );
+
+            let request = take_initial_default_request(&fixture.requests).await;
+            assert_eq!(request.edits["keycap_width"], 18.0);
+            assert_eq!(request.edits["hotswap"], true);
+            assert_eq!(request.edits["designator"], "S");
+            assert_eq!(
+                request.edits["keycap_3dmodel_xyz_scale"],
+                serde_json::json!([1, 1, 1])
+            );
+            assert!(
+                !request.edits.contains_key("from"),
+                "a net without a default stays absent"
+            );
+            let prepared =
+                super::super::catalogue::normalize_generator_definition(candidate(&request))
+                    .await
+                    .expect("defaults prepare a candidate");
+            let parameters = &prepared.generator.as_ref().unwrap().parameters;
+            assert_eq!(parameters["hotswap"], true);
+            assert!(parameters.get("from").is_none_or(Value::is_null));
+            finish_request(request, Ok(prepared)).await;
+            wait_for_text(
+                &root,
+                "[role='status']",
+                "Current generator preview is ready",
+            )
+            .await;
+            let accepted = fixture.runtime.model().accepted.unwrap();
+            assert_eq!(accepted.document, fixture.snapshot.document);
+            assert_eq!(
+                accepted.document.revision,
+                fixture.snapshot.document.revision
+            );
+            root.remove();
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn explicit_null_draft_selects_the_default_and_non_null_draft_wins() {
+        let (root, fixture, _) = mount_generator_editor().await;
+        let request = take_initial_default_request(&fixture.requests).await;
+        let mut saved = request.definition.clone();
+        saved
+            .generator
+            .as_mut()
+            .unwrap()
+            .parameters
+            .insert("keycap_width".into(), Value::from(25));
+        let width = |edit: Value| {
+            let edits = BTreeMap::from([("keycap_width".to_owned(), edit)]);
+            apply_input(&saved, &request.schema, &edits)
+                .unwrap()
+                .generator
+                .unwrap()
+                .parameters["keycap_width"]
+                .clone()
+        };
+        assert_eq!(width(Value::Null), 18.0);
+        assert_eq!(width(Value::from(30)), 30.0);
+        assert_eq!(width(Value::String("31".into())), 31.0);
+        assert!(
+            apply_input(
+                &saved,
+                &request.schema,
+                &BTreeMap::from([("keycap_width".to_owned(), Value::String(" ".into()))])
+            )
+            .is_err()
         );
         root.remove();
     }
