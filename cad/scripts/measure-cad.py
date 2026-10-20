@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Finite 011 preparation/capture. No builds or browser launches without a run subcommand."""
+"""Finite 011 preparation/capture. No builds or browser launches without a run subcommand.
+
+The Cadrum paths are kept deliberately: they let the recorded old-versus-new baseline be
+reproduced from a historical checkout. Production code no longer uses Cadrum.
+"""
 
 from __future__ import annotations
 

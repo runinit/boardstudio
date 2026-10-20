@@ -44,7 +44,7 @@ Scope reaches the artifact dispatcher/direct read, preview, exact board extracti
 - CAD migration requires exact case/PCB geometry and source-complete behavior, not preview meshes as replacement solids. The approved scope includes PCB outline plus drilled holes at thickness. [CAD scope](../plans/cad-backend-replacement/map.md#L7-L17).
 - Geometry/cross-crate changes require one combined spec+standards review at closure; limits, source preservation and allowances remain unchanged. No new tolerance budget or repair policy is authorized. [Closure decisions](../plans/cad-backend-replacement/map.md#L27-L35).
 - Persisted-outline fabrication-grid validation is a separate rule; do not reinterpret ADR-0012 as permission to snap imported exact source curves or replace preview endpoint tolerance. [ADR-0012](../adr/0012-bounded-outline-validation.md#L4-L17).
-- Use the current glossary's Board, physical board instance, accepted document and footprint generator vocabulary. This work is stateless artifact projection, not an accepted-document edit. [Glossary](../../GLOSSARY.md#L85-L96), [board vocabulary](../../GLOSSARY.md#L113-L121), [stateless artifact request](../../core/src/artifact/mod.rs#L60-L91).
+- Use the current glossary's Board, physical board instance, accepted document and footprint generator vocabulary. This work is stateless artifact projection, not an accepted-document edit. [Glossary](../../CONTEXT.md#L85-L96), [board vocabulary](../../CONTEXT.md#L113-L121), [stateless artifact request](../../core/src/artifact/mod.rs#L60-L91).
 
 ## Test seam proposal — confirmation required
 

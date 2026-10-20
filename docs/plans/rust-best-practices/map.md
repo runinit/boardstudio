@@ -8,7 +8,7 @@ Core rejects ambiguous document identities, overflowing revisions and over-depth
 
 ## Notes
 
-- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md) (accepted document, pending edit, field edit, one-shot action).
+- Domain terms: [CONTEXT.md](../../../CONTEXT.md) (accepted document, pending edit, field edit, one-shot action).
 - Skills: `rust-best-practices`, `tdd` for build tickets, `code-review` before resolving.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 - Out of scope (by design): sweeping `Result<_, String>` to `thiserror` rewrites where callers only display error text; removing transactional whole-document clones on edit paths; refactoring single-threaded `RefCell` caches in `mirrored_half::reconcile`; repo-wide `#![deny(missing_docs)]`.

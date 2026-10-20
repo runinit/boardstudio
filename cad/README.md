@@ -9,7 +9,7 @@ derived regions.
 
 The WASM module exports `build_case`, `build_assembly`, `preview_body`,
 `export_cached_assembly`, `build_keycaps` and `read_step_model`; the Rust worker
-in `web/src/cad_worker.rs` calls them through the generated `assets/cad-worker/entry.js`.
+in `web/crates/host/src/cad_worker.rs` calls them through the generated `assets/cad-worker/entry.js`.
 `query_collision_mesh_pair` answers vendor mesh collision and clearance queries
 with `parry3d-f64`.
 

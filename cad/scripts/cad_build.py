@@ -112,6 +112,7 @@ def build_wasm(*, no_opt=False):
         return
     (pkg / "package.json").unlink(missing_ok=True)
     if pkg.is_dir():
+        # Kept deliberately: drops output left in wasm/pkg by checkouts from the Cadrum era.
         for stale in pkg.glob("boardstudio_cadrum_wasm*"):
             stale.unlink(missing_ok=True)
     stamp.parent.mkdir(parents=True, exist_ok=True)
