@@ -4,6 +4,7 @@ pub mod mechanical_extract;
 mod mechanical_plate;
 mod module_import;
 pub mod outline;
+mod parsed_board;
 mod preview;
 mod sexpr;
 mod source;
@@ -37,9 +38,10 @@ fn read_board_source(
             "PCB source placement must be finite",
         ));
     }
-    let (preview, thickness) = preview::board_source(source, 0)?;
+    let board = preview::parse_board(source)?;
+    let (preview, thickness) = preview::board_parsed(&board, 0)?;
     let (profile, round_drills) =
-        mechanical_extract::extract_board_source(source, Vec2::default())?;
+        mechanical_extract::extract_board_source(&board, Vec2::default())?;
     Ok(crate::model::ModuleBoard {
         contours: preview.contours,
         holes: preview.holes,

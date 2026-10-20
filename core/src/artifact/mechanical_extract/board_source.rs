@@ -1,4 +1,5 @@
 //! Exact authored Edge.Cuts curves and drilled feature identities for PCB cases.
+use super::super::parsed_board::ParsedBoard;
 use super::*;
 use crate::matrix::splay::rotate;
 use crate::model::{
@@ -18,15 +19,10 @@ struct SourceEdge {
 }
 
 pub(in crate::artifact) fn extract_board_source(
-    raw: &str,
+    board: &ParsedBoard,
     center: Vec2,
 ) -> Result<(CasePcbSource, Vec<Mount>), ArtifactError> {
-    let document = kiutils_sexpr::parse_one(raw).map_err(|error| parse_error(error.to_string()))?;
-    let root = document
-        .nodes
-        .first()
-        .filter(|node| sexpr::head(node) == Some("kicad_pcb"))
-        .ok_or_else(|| parse_error("Expected a KiCad PCB source"))?;
+    let root = board.root();
 
     let mut source_ids = BTreeSet::new();
     let mut edges = Vec::new();

@@ -1,6 +1,6 @@
 # 182: Reuse parsed KiCad board source across artifact projections
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Related: [Board projection research](../../../research/2026-10-19-kicad-board-projection-deepening.md)

@@ -1378,3 +1378,80 @@ fn source_backed_preview_retains_legacy_voids_without_duplicate_mount_cuts() {
         }
     }
 }
+
+fn read_with(source: &str, placement: Value) -> Value {
+    serde_json::from_str(&boardstudio_core::artifact::request(
+        &json!({"id":"read","kind":"read-board-source","source":source,
+            "placement":placement,"flipped":false})
+        .to_string(),
+    ))
+    .unwrap()
+}
+
+fn error_of(reply: &Value) -> (String, String) {
+    assert_eq!(reply["kind"], "error", "{reply}");
+    (
+        reply["error"]["code"].as_str().unwrap().to_owned(),
+        reply["error"]["message"].as_str().unwrap().to_owned(),
+    )
+}
+
+#[test]
+fn board_source_operations_keep_their_own_error_envelopes_and_validation_order() {
+    let origin = json!({"at":{"x":0,"y":0},"rotation":0});
+    let preview = |source: &str| -> Value {
+        serde_json::from_str(&boardstudio_core::artifact::request(
+            &json!({"id":"p","kind":"preview-board","source":source,"revision":3}).to_string(),
+        ))
+        .unwrap()
+    };
+    for (source, message) in [
+        ("(kicad_pcb", None),
+        ("", Some("expected single root, got 0")),
+        ("(footprint \"x\")", Some("Expected a .kicad_pcb board")),
+    ] {
+        let read = error_of(&read_with(source, origin.clone()));
+        assert_eq!(
+            read,
+            error_of(&preview(source)),
+            "read reports the preview parse"
+        );
+        assert_eq!(read.0, "parse-error");
+        if let Some(message) = message {
+            assert_eq!(read.1, message);
+        }
+        let imported = error_of(&import(source.to_owned(), "fixture:bad"));
+        assert_eq!(imported.0, "validation");
+        match message {
+            Some("Expected a .kicad_pcb board") => {
+                assert_eq!(imported.1, "Expected a KiCad PCB source")
+            }
+            Some(message) => assert_eq!(imported.1, message),
+            None => {}
+        }
+    }
+    // The preview size limit applies before the raw source is parsed.
+    let oversized = format!("(kicad_pcb{} ", " ".repeat(32 * 1024 * 1024));
+    let limit = "Board exceeds the 32 MiB preview limit";
+    assert_eq!(
+        error_of(&read_with(&oversized, origin)),
+        ("parse-error".into(), limit.into())
+    );
+    assert_eq!(error_of(&preview(&oversized)).1, limit);
+    // Import has no whole-source cap: only its hole geometry is gated.
+    let padded = format!("{}{}", source_board_with(""), " ".repeat(32 * 1024 * 1024));
+    let imported = import(padded, "fixture:padded");
+    assert_eq!(imported["kind"], "import-module-board", "{imported}");
+    assert!(
+        imported["result"]["gates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|gate| {
+                gate["code"] == "board-hole-geometry"
+                    && gate["message"].as_str().unwrap().contains(limit)
+            }),
+        "{imported}"
+    );
+    assert!(!imported["result"]["board"]["pcbSource"].is_null());
+}

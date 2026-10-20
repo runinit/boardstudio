@@ -1,4 +1,5 @@
 //! Read-only board projection. Original source remains the export authority.
+use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{atom, child, children, head, items};
 use crate::model::*;
 use kiutils_sexpr::Node;
@@ -413,18 +414,35 @@ pub(super) fn board(source: &str, revision: u64) -> Result<PcbPreview, ArtifactE
     board_source(source, revision).map(|(preview, _)| preview)
 }
 
+fn check_board_size(source: &str) -> Result<(), ArtifactError> {
+    if source.len() > 32 * 1024 * 1024 {
+        return Err(error("Board exceeds the 32 MiB preview limit"));
+    }
+    Ok(())
+}
+
+/// The size limit is checked before the raw source is parsed.
+pub(super) fn parse_board(source: &str) -> Result<ParsedBoard<'_>, ArtifactError> {
+    check_board_size(source)?;
+    ParsedBoard::parse(source).map_err(|failure| match failure {
+        BoardParseError::Syntax(message) => error(message),
+        BoardParseError::NotBoard => error("Expected a .kicad_pcb board"),
+    })
+}
+
 pub(super) fn board_source(
     source: &str,
     revision: u64,
 ) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
-    if source.len() > 32 * 1024 * 1024 {
-        return Err(error("Board exceeds the 32 MiB preview limit"));
-    }
-    let parsed = kiutils_sexpr::parse_one(source).map_err(|e| error(e.to_string()))?;
-    let root = parsed.nodes.first().ok_or_else(|| error("Empty board"))?;
-    if head(root) != Some("kicad_pcb") {
-        return Err(error("Expected a .kicad_pcb board"));
-    }
+    board_parsed(&parse_board(source)?, revision)
+}
+
+pub(super) fn board_parsed(
+    board: &ParsedBoard,
+    revision: u64,
+) -> Result<(PcbPreview, Option<f64>), ArtifactError> {
+    check_board_size(board.source())?;
+    let (source, root) = (board.source(), board.root());
     let thickness = child(root, "general")
         .map(|n| scalar(n, "thickness", 1.6))
         .unwrap_or(Ok(1.6))?;
@@ -611,7 +629,11 @@ mod tests {
             "(kicad_pcb {EDGE} (gr_text \"line\\nnext\\tend\" (at 0 0 0) (layer \"F.SilkS\")) (footprint \"switch\" (layer \"F.Cu\") (at 0 0) (fp_text user \"quote: \\\" slash: \\\\\" (at 0 0) (layer \"F.SilkS\"))))"
         );
         let result = board(&input, 0).unwrap();
-        let texts: Vec<&str> = result.surfaces.iter().map(|surface| surface.text.as_str()).collect();
+        let texts: Vec<&str> = result
+            .surfaces
+            .iter()
+            .map(|surface| surface.text.as_str())
+            .collect();
         assert!(texts.contains(&"line\nnext\tend"));
         assert!(texts.contains(&"quote: \" slash: \\"));
     }

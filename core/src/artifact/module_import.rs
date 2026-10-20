@@ -1,4 +1,5 @@
 //! Retain PCB source, constituent footprints and net identities without inventing bought-board internals.
+use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::{mechanical_extract, sexpr, source};
 use crate::model::*;
 use kiutils_sexpr::Node;
@@ -74,12 +75,11 @@ pub(super) fn import(
     variant: String,
     repair: Option<ModuleCircuitRepair>,
 ) -> Result<ModuleDefinition, ArtifactError> {
-    let parsed = kiutils_sexpr::parse_one(raw).map_err(|e| error(e.to_string()))?;
-    let root = parsed
-        .nodes
-        .first()
-        .filter(|n| sexpr::head(n) == Some("kicad_pcb"))
-        .ok_or_else(|| error("Expected a KiCad PCB source"))?;
+    let board = ParsedBoard::parse(raw).map_err(|failure| match failure {
+        BoardParseError::Syntax(message) => error(message),
+        BoardParseError::NotBoard => error("Expected a KiCad PCB source"),
+    })?;
+    let root = board.root();
     if id.is_empty() || name.is_empty() {
         return Err(error("A module import requires a stable identity and name"));
     }
@@ -205,7 +205,7 @@ pub(super) fn import(
         Vec2::default()
     };
     let center = polygon_center;
-    let source_geometry = match mechanical_extract::extract_board_source(raw, center) {
+    let source_geometry = match mechanical_extract::extract_board_source(&board, center) {
         Ok(source_geometry) => Some(source_geometry),
         Err(error) => {
             gates.push(gate(
@@ -232,7 +232,7 @@ pub(super) fn import(
             hole: false,
         })
         .collect();
-    let holes = match super::preview::board(raw, 0) {
+    let holes = match super::preview::board_parsed(&board, 0).map(|(preview, _)| preview) {
         Ok(preview) => {
             if source_geometry
                 .as_ref()
