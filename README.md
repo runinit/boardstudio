@@ -16,7 +16,7 @@ whole column.
 ## Development
 
 Install the Rust version in `rust-toolchain.toml`, `wasm-pack` 0.15.0, Dioxus CLI
-0.7.10 and Python 3.11+. No Node, npm or pnpm is needed. KiCad CLI 10 is required for PCB integration checks. Browser tests require
+0.7.10 and Python 3.11+. Node is not needed to build or run the app; it is required for the `tooling` check step and the browser drag smoke (the Browser tests paragraph covers the `NODE_PATH` detail). KiCad CLI 10 is required for PCB integration checks. Browser tests require
 Chrome/Chromium and its compatible ChromeDriver.
 
 ```sh
