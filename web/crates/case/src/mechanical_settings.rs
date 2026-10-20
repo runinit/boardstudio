@@ -15,7 +15,8 @@ use boardstudio_core::model::{
     MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor, MechanicalGeometry,
     MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening, MechanicalPartProcess,
     MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
-    MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind, PlateMethod, Pose2,
+    MAX_COORDINATE_MM, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind,
+    PlateMethod, Pose2,
     ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
@@ -3194,7 +3195,7 @@ impl NumberRule {
                 Self::AtLeastOne => value >= 1.0 && value.fract() == 0.0,
                 Self::AtLeastFive => value >= 5.0,
                 Self::AtLeastHalf => value >= 0.5,
-                Self::Coordinate => value >= -1_000_000.0,
+                Self::Coordinate => value >= -MAX_COORDINATE_MM,
                 Self::Bounded(min, max) => value >= f64::from(min) && value <= f64::from(max),
             }
     }

@@ -318,6 +318,19 @@ fn non_finite_ring_point_is_rejected() {
     assert!(build_layered_case(&input).is_err());
 }
 #[test]
+fn out_of_range_hole_point_is_rejected() {
+    let mut input = plate();
+    input.regions[0].holes = vec![vec![
+        Vec2 { x: 1., y: 1. },
+        Vec2 { x: 2_000_000., y: 1. },
+        Vec2 { x: 1., y: 2. },
+    ]];
+    let Err(error) = build_layered_case(&input) else {
+        panic!("out-of-range hole was built");
+    };
+    assert!(error.contains("'plate'"), "{error}");
+}
+#[test]
 fn ring_vertex_exactly_at_the_limit_builds() {
     let mut input = plate();
     input.regions[0].mounts.clear();

@@ -71,7 +71,6 @@ fn circular_feature(
     let ring = circle(center, radius, &id);
     feature(id, ring, low, height, add)
 }
-/// Builds prepared case geometry without general 3D Booleans.
 /// Rejects non-finite or beyond-limit ring points before any kernel call, which can panic on them.
 fn check_ring_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
     let limit = boardstudio_contracts::MAX_COORDINATE_MM;
@@ -96,6 +95,7 @@ fn check_ring_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
     }
     Ok(())
 }
+/// Builds prepared case geometry without general 3D Booleans.
 pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, String> {
     check_ring_coordinates(input)?;
     if input.body.pcb_source.is_some() {

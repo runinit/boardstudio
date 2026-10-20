@@ -18,9 +18,7 @@ that was left undone; the user approved it.
 - [x] `prepare_generated_analysis` and `prepare_vendor_analysis` keep their signatures.
 - [x] `SourceBound` is renamed so it does not read as a sibling of `WorldSourceBound`.
 - [x] Kernel (290 passed, 1 ignored) and CAD worker (57) results are unchanged.
-- [ ] A combined spec and standards review is run, per the CAD migration review rule in `AGENTS.md`.
-
-## Comments
+- [x] A combined spec and standards review is run, per the CAD migration review rule in `AGENTS.md`.
 
 ## Comments
 
@@ -38,3 +36,5 @@ that was left undone; the user approved it.
   `.evidence/012-after.log`.
 - Left alone: `cad/wasm/tests/fixtures/generated-analysis-contract.json` names the old
   `profile/final_trace/cylinder_proof.rs` path, but as an immutable recipe pinned to a commit.
+
+Review (2026-10-20, with 007–011): no documented-standard breaches; findings and fixes are in [006](006-review-follow-ups-spec.md).

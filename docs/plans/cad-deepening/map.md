@@ -43,6 +43,7 @@ All five tickets are resolved; each ticket's `## Comments` records what it did a
   worker query and operand types stay separate by design.
 - 002 unified containment, not area; the f32 renderer copy and test oracles stay.
 - 003 deleted the production profile builder; tests build through `build_case`.
-- 004 is partial: meshing no longer names `crate::qualification` types, but the proof modules
-  and trace hook still live under `profile/`.
+- 004 was partial; [012](issues/012-proof-modules-under-qualification.md) finished it: the proof
+  modules live under qualification and meshing takes an observer.
+- 006 specified the review follow-ups 007–012, all resolved.
 - 005 kept the Cadrum benchmark and cleanup paths on purpose, commented.

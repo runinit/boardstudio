@@ -90,3 +90,14 @@ Tickets [007](007-kicad-cli-under-appimage.md), [008](008-kernel-coordinate-limi
 [011](011-kernel-tests-one-fixture.md) and [012](012-proof-modules-under-qualification.md)
 implement this spec. They run in that order, one at a time, because they share one
 worktree and one Cargo `target`.
+
+## Comments
+
+Combined review of 007–012 (2026-10-20). No documented-standard breaches. Fixed after review: a
+doc comment in the kernel had drifted onto the new coordinate check; the case settings panel
+still spelled the coordinate limit as a literal; and the 1e13 mm kernel test was rejected by its
+outer ring, so a separate test now shows an out-of-range hole alone is rejected. Kept, as
+judgement calls: the two `kicad-cli` environment helpers (a unit test cannot reach the
+integration-test support module), the paired `[f64; 2]`/`Vec2` area functions (matching the
+containment pair), and the `EmissionObserver` method names. The worker's error message no longer
+names the `rowTransformF64` field.
