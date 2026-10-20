@@ -374,9 +374,7 @@ fn text_values(forms: &[generators::Expr], head: &str, kind: Option<&str>) -> Ve
             _ => false,
         };
         let position = if kind.is_some() { 2 } else { 1 };
-        if matched
-            && let Some(generators::Expr::Str(text)) = list.get(position)
-        {
+        if matched && let Some(generators::Expr::Str(text)) = list.get(position) {
             out.push(text.clone());
         }
         for item in list {
@@ -470,7 +468,10 @@ fn exports_quoted_generator_text_and_active_labels_for_kicad() {
         .map(|surface| surface.text.as_str())
         .collect();
     assert_eq!(
-        preview_texts.iter().filter(|text| **text == literal).count(),
+        preview_texts
+            .iter()
+            .filter(|text| **text == literal)
+            .count(),
         8,
         "preview surfaces keep every visible literal text and label"
     );
@@ -497,7 +498,9 @@ fn rejects_unsupported_control_text_in_generator_output() {
     ))
     .expect_err("control text must be refused");
     assert!(
-        error.message.contains("KiCad text contains a control character"),
+        error
+            .message
+            .contains("KiCad text contains a control character"),
         "{}",
         error.message
     );
@@ -547,4 +550,194 @@ fn previews_rotated_generators_on_both_faces_with_models_and_copper() {
             assert_eq!(preview.contours.len(), 1);
         }
     }
+}
+
+type HoleCase = (Value, &'static str, f64, f64, f64, &'static str);
+
+/// The plated hole's footprint as the exported board spells it.
+fn plated_hole(case: &HoleCase) -> String {
+    let (parameters, side, x, y, rotation, reference) = case;
+    let hole = definition("ceoloide/mounting_hole_plated");
+    let mut placed = part(&hole, "h", *x, side, parameters.clone());
+    placed["pose"] = json!({ "at": { "x": x, "y": y }, "rotation": rotation });
+    placed["reference"] = json!(reference);
+    let board = export_board(project(&[hole], &[placed], &[]), BTreeMap::new());
+    board
+        .lines()
+        .find(|line| line.trim_start().starts_with("(footprint"))
+        .expect("footprint")
+        .trim()
+        .to_owned()
+}
+
+fn plated_hole_cases() -> Vec<(&'static str, HoleCase)> {
+    vec![
+        ("defaults", (json!({}), "front", 0.0, 0.0, 0.0, "H1")),
+        (
+            "circle, courtyard off",
+            (
+                json!({ "include_courtyard": false }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H1",
+            ),
+        ),
+        (
+            "equal secondary",
+            (
+                json!({ "drill": 3, "drill_y": 3 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H1",
+            ),
+        ),
+        (
+            "tall oval, turned, back, literal reference",
+            (
+                json!({ "drill": 2, "drill_y": 3, "outline": 0.5, "include_courtyard": false }),
+                "back",
+                3.5,
+                -2.25,
+                37.0,
+                "A\"b\\c \u{e9}\u{2713}",
+            ),
+        ),
+        (
+            "wide oval, quarter turn",
+            (
+                json!({ "drill": 3, "drill_y": 2 }),
+                "front",
+                -12.5,
+                7.75,
+                90.0,
+                "H2",
+            ),
+        ),
+        (
+            "generator side B on a front part",
+            (json!({ "side": "B" }), "front", 1.0, 1.0, 0.0, "H3"),
+        ),
+        (
+            "generator side F on a back part",
+            (json!({ "side": "F" }), "back", 1.0, 1.0, 0.0, "H4"),
+        ),
+        (
+            "zero courtyard endpoint",
+            (
+                json!({ "drill": -0.5, "outline": 0 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H5",
+            ),
+        ),
+        (
+            "zero courtyard endpoint, oval",
+            (
+                json!({ "drill": -0.5, "drill_y": 1, "outline": 0 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H5",
+            ),
+        ),
+        (
+            "negative outline",
+            (json!({ "outline": -0.8 }), "front", 0.0, 0.0, 0.0, "H6"),
+        ),
+        (
+            "negative outline oval",
+            (
+                json!({ "drill_y": 3, "outline": -0.8 }),
+                "front",
+                0.0,
+                0.0,
+                0.0,
+                "H6",
+            ),
+        ),
+        (
+            "negative secondary",
+            (json!({ "drill_y": -1 }), "front", 0.0, 0.0, 0.0, "H7"),
+        ),
+    ]
+}
+
+/// Recorded from the text-template generator before it moved to direct forms.
+const PLATED_HOLE_FOOTPRINTS: [&str; 12] = [
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H1" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 4.6 4.6) (drill 3) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.55 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.55 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 3.5 2.25 37) (property "Reference" "A\"b\\c é✓" (at 0 3 37) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 37) (size 3 4) (drill oval 2 3) (layers "*.Cu" "*.Mask")) (fp_line (start 1.75 -2.25) (end 1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end -1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end 1.75 2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end 1.75 -2.25) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end 1.75 2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 2.25) (end -1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -1.75 -2.25) (end 1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 1.75 2.25) (end 1.75 -2.25) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at -12.5 -7.75 90) (property "Reference" "H2" (at 0 3 90) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 90) (size 4.6 3.6) (drill oval 3 2) (layers "*.Cu" "*.Mask")) (fp_line (start 2.55 -2.05) (end 2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end -2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end 2.55 2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end 2.55 -2.05) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end 2.55 2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 2.05) (end -2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.55 -2.05) (end 2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 2.55 2.05) (end 2.55 -2.05) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "B.Cu") (at 1 -1 0) (property "Reference" "H3" (at 0 3 0) (layer "B.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 1 -1 0) (property "Reference" "H4" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 3.8000000000000003 3.8000000000000003) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -2.1500000000000004 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H5" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size -0.5 -0.5) (drill -0.5) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -0 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -0 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H5" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size -0.5 1) (drill oval -0.5 1) (layers "*.Cu" "*.Mask")) (fp_line (start 0 -0.75) (end 0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end -0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end 0 0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end 0 -0.75) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end 0 0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 0.75) (end -0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0 -0.75) (end 0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 0 0.75) (end 0 -0.75) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H6" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole circle (at 0 0 0) (size 0.6000000000000001 0.6000000000000001) (drill 2.2) (layers "*.Cu" "*.Mask")) (fp_circle (center 0 0) (end -0.55 0) (layer "F.CrtYd") (stroke (width 0.05) (type solid)) (fill none)) (fp_circle (center 0 0) (end -0.55 0) (layer "B.CrtYd") (stroke (width 0.05) (type solid)) (fill none)))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H6" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size 0.6000000000000001 1.4) (drill oval 2.2 3) (layers "*.Cu" "*.Mask")) (fp_line (start 0.55 -0.95) (end 0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end -0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end 0.55 0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end 0.55 -0.95) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end 0.55 0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 0.95) (end -0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -0.55 -0.95) (end 0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 0.55 0.95) (end 0.55 -0.95) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+    r#"(footprint "ceoloide:mounting_hole_plated" (layer "F.Cu") (at 0 0 0) (property "Reference" "H7" (at 0 3 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15)))) (pad "" thru_hole oval (at 0 0 0) (size 3.8000000000000003 0.6000000000000001) (drill oval 2.2 -1) (layers "*.Cu" "*.Mask")) (fp_line (start 2.1500000000000004 -0.55) (end 2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end -2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end 2.1500000000000004 0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end 2.1500000000000004 -0.55) (layer "F.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end 2.1500000000000004 0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 0.55) (end -2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start -2.1500000000000004 -0.55) (end 2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))) (fp_line (start 2.1500000000000004 0.55) (end 2.1500000000000004 -0.55) (layer "B.CrtYd") (stroke (width 0.05) (type solid))))"#,
+];
+
+#[test]
+fn plated_mounting_hole_footprints_keep_their_exact_spelling() {
+    let cases = plated_hole_cases();
+    assert_eq!(cases.len(), PLATED_HOLE_FOOTPRINTS.len());
+    for ((name, case), expected) in cases.iter().zip(PLATED_HOLE_FOOTPRINTS) {
+        assert_eq!(plated_hole(case), expected, "{name}");
+    }
+}
+
+#[test]
+fn plated_mounting_hole_refuses_numeric_strings_and_unmappable_nets() {
+    let hole = definition("ceoloide/mounting_hole_plated");
+    let target = || ExportTarget::Board {
+        board_id: "main".into(),
+    };
+    let placed = part(&hole, "h", 0.0, "front", json!({ "drill": "2.2" }));
+    let error = kicad::export(request(
+        project(std::slice::from_ref(&hole), &[placed], &[]),
+        target(),
+        BTreeMap::new(),
+    ))
+    .unwrap_err();
+    assert!(
+        error.message.contains("parameter drill must be a number"),
+        "{}",
+        error.message
+    );
+
+    // The pad's number is empty, so it keeps its normalized id but takes no net.
+    assert_eq!(hole.pads[0].id, "pad-0");
+    let placed = part(&hole, "h", 0.0, "front", json!({}));
+    let nets =
+        [json!({ "id": "gnd", "name": "GND", "pins": [{ "partId": "h", "padId": "pad-0" }] })];
+    let error = kicad::export(request(
+        project(
+            std::slice::from_ref(&hole),
+            std::slice::from_ref(&placed),
+            &nets,
+        ),
+        target(),
+        BTreeMap::new(),
+    ))
+    .unwrap_err();
+    assert!(
+        error.message.contains("unmappable Ergogen pad on part h"),
+        "{}",
+        error.message
+    );
+
+    let mut doc = serde_json::to_value(project(&[hole], &[placed], &[])).unwrap();
+    doc["definitions"][0]["kind"] = json!("bogus");
+    assert!(
+        serde_json::from_value::<ProjectDoc>(doc).is_err(),
+        "invalid kind is refused"
+    );
 }
