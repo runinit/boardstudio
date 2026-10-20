@@ -67,3 +67,21 @@ Before another sweep, build the packaged renderer and other browser prerequisite
 once, prove the focused model-decoder test passes, and stop on the first failed
 launch. Then run only bounded, comparable warm cases. No source change or ticket
 resolution is claimed.
+
+## Recovery — 2026-10-20
+
+The missing renderer was an environment setup failure, not a decoder regression:
+`renderer/pkg` and `web/assets/renderer` were absent in the fresh worktree. The
+focused `model_decode_boundary_tests::` browser run reproduced the missing-module
+error, then passed (1/1) after building and staging only the renderer. A subsequent
+warm browser subset passed in 118.9 seconds with 77 page tests and no failures.
+One `python3 scripts/check.py build` prepared the remaining providers/site in
+286.0 seconds; then one full `python3 scripts/check.py browser` passed (`build`
+52.3 seconds, `browser` 181.4 seconds, 77 page tests with zero failures).
+Evidence: `.evidence/checkspeed11-repro-red.log`,
+`.evidence/checkspeed11-renderer-green.log`,
+`.evidence/checkspeed11-warm-after-renderer.log`,
+`.evidence/checkspeed11-package-build.log` and
+`.evidence/checkspeed11-full-browser-after-build.log` in the measurement worktree.
+The temporary helper now stops on a failed launch. The earlier failed A/B timings
+remain invalid; no further opt-level sweep was run during this recovery.
