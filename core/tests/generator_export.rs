@@ -2,7 +2,6 @@
 //! preview and export requests (ported from `kicad/test/ergogen.test.ts`, which
 //! drove the JavaScript worker).
 use std::collections::BTreeMap;
-use std::process::Command;
 
 use boardstudio_core::artifact::kicad;
 use boardstudio_core::generators;
@@ -100,7 +99,7 @@ fn model_paths(items: &[(&PartDefinition, Option<&Value>)]) -> BTreeMap<String, 
 }
 
 fn kicad10() -> bool {
-    Command::new("kicad-cli")
+    crate::support::kicad_command("kicad-cli")
         .arg("version")
         .output()
         .map(|output| {
@@ -133,7 +132,7 @@ fn kicad_parses(content: &str) -> bool {
     let board = directory.join("main.kicad_pcb");
     std::fs::write(&board, content).unwrap();
     let report = directory.join("stats.json");
-    let status = Command::new("kicad-cli")
+    let status = crate::support::kicad_command("kicad-cli")
         .args(["pcb", "export", "stats", "--format", "json", "--output"])
         .arg(&report)
         .arg(&board)

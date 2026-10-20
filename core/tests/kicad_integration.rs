@@ -3,7 +3,6 @@
 //! Ported from `kicad/test/export.test.ts` and `kicad/test/source.test.ts`,
 //! which drove the same boundary through a Node subprocess.
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use boardstudio_core::model::ProjectDoc;
@@ -158,7 +157,7 @@ fn temp_dir(label: &str) -> PathBuf {
 }
 
 fn kicad_cli(arguments: &[&str]) {
-    let output = Command::new("kicad-cli")
+    let output = crate::support::kicad_command("kicad-cli")
         .args(arguments)
         .output()
         .expect("kicad-cli (KiCad 10) is required for the KiCad integration checks");
@@ -721,7 +720,7 @@ fn plot(board: &str, layers: &str, label: &str) -> (PathBuf, String) {
 
 /// Pad rows as KiCad's own Python API reads them; `None` without `pcbnew`.
 fn pcbnew_pads(path: &Path) -> Option<Vec<Value>> {
-    let has = Command::new("python3")
+    let has = crate::support::kicad_command("python3")
         .args(["-c", "import pcbnew"])
         .output()
         .ok()?
@@ -731,7 +730,7 @@ fn pcbnew_pads(path: &Path) -> Option<Vec<Value>> {
         return None;
     }
     let script = "import json, pcbnew, sys\nboard = pcbnew.LoadBoard(sys.argv[1])\nrows = [{\"ref\": fp.GetReference(), \"number\": pad.GetNumber(), \"x\": pcbnew.ToMM(pad.GetPosition().x), \"y\": pcbnew.ToMM(pad.GetPosition().y), \"angle\": pad.GetOrientationDegrees()} for fp in board.GetFootprints() for pad in fp.Pads()]\nprint(json.dumps(rows))";
-    let output = Command::new("python3")
+    let output = crate::support::kicad_command("python3")
         .args(["-c", script, path_str(path)])
         .output()
         .unwrap();
