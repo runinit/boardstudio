@@ -5,7 +5,7 @@
 //! Author: @infused-kim
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{atom_or_string, ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{ModelDefaults, ModelParams, atom_or_string, infused_model};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};

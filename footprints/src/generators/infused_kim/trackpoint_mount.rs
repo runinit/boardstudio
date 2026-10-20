@@ -6,7 +6,7 @@
 use crate::Result;
 use crate::context::RenderContext;
 use crate::error::GeneratorError;
-use crate::generators::util::{json_string, ModelDefaults, ModelParams, infused_model};
+use crate::generators::util::{ModelDefaults, ModelParams, infused_model, json_string};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};

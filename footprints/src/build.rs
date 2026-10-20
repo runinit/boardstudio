@@ -46,7 +46,10 @@ pub fn layer(p: &RenderContext<'_>, name: &str) -> Expr {
 pub fn effects(size: f64, thickness: f64) -> Expr {
     form(
         "effects",
-        [form("font", [nums("size", &[size, size]), nums("thickness", &[thickness])])],
+        [form(
+            "font",
+            [nums("size", &[size, size]), nums("thickness", &[thickness])],
+        )],
     )
 }
 
@@ -59,11 +62,17 @@ mod tests {
     fn builds_the_same_tree_the_text_path_parses() {
         let built = form(
             "pad",
-            [string(""), atom("np_thru_hole"), at(0.0, 0.5, 90.0), effects(1.0, 0.15)],
+            [
+                string(""),
+                atom("np_thru_hole"),
+                at(0.0, 0.5, 90.0),
+                effects(1.0, 0.15),
+            ],
         );
-        let parsed =
-            parse_forms(r#"(pad "" np_thru_hole (at 0 0.5 90) (effects (font (size 1 1) (thickness 0.15))))"#)
-                .unwrap();
+        let parsed = parse_forms(
+            r#"(pad "" np_thru_hole (at 0 0.5 90) (effects (font (size 1 1) (thickness 0.15))))"#,
+        )
+        .unwrap();
         assert_eq!(built, parsed[0]);
         assert_eq!(serialize(&built), serialize(&parsed[0]));
     }

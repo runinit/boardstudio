@@ -6,10 +6,10 @@
 //! Author: @ceoloide
 //!
 //! `hole_size` and `hole_drill` are numbers; the source declared them as strings.
-use crate::Result;
-use crate::context::RenderContext;
 use crate::Expr;
+use crate::Result;
 use crate::build::{at, atom, effects, form, layer, nums, placement, string};
+use crate::context::RenderContext;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
 use crate::types::PartKind;

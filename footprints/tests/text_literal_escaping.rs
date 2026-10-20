@@ -4,10 +4,10 @@
 //! representation, so a user's quote, backslash or Unicode text must be escaped
 //! once at emission and come back unchanged.
 use boardstudio_footprints::nets::NoNets;
-use boardstudio_footprints::sexpr::{child, Expr};
+use boardstudio_footprints::sexpr::{Expr, child};
 use boardstudio_footprints::types::{GeneratorRef, PartRef, Pose2, Side, Vec2};
-use boardstudio_footprints::{bundled, Result};
-use serde_json::{json, Value};
+use boardstudio_footprints::{Result, bundled};
+use serde_json::{Value, json};
 
 const LITERALS: &[&str] = &[
     "Board 12\" inch",
@@ -167,17 +167,14 @@ fn logo_layer_parameter_is_literal_on_both_sides() {
 
 #[test]
 fn bare_references_stay_atoms_until_quoting_is_needed() {
-    let plain = render(
-        "infused-kim/point_debugger",
-        json!({}),
-        Some(&placed("P1")),
-    )
-    .unwrap();
+    let plain = render("infused-kim/point_debugger", json!({}), Some(&placed("P1"))).unwrap();
     assert!(texts(&plain, "reference").is_empty());
-    assert!(plain
-        .iter()
-        .map(boardstudio_footprints::sexpr::serialize)
-        .any(|form| form.contains("(fp_text reference P1 ")));
+    assert!(
+        plain
+            .iter()
+            .map(boardstudio_footprints::sexpr::serialize)
+            .any(|form| form.contains("(fp_text reference P1 "))
+    );
 
     let quoted = r#"P"1\X"#;
     let forms = render(

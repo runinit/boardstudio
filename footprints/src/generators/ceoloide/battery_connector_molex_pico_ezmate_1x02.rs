@@ -6,7 +6,7 @@
 //! Author: @infused-kim + @ceoloide improvements
 use crate::Result;
 use crate::context::RenderContext;
-use crate::generators::util::{json_string, join_numbers, xyz};
+use crate::generators::util::{join_numbers, json_string, xyz};
 use crate::number::js_number as n;
 use crate::params::ParamSpec;
 use crate::registry::{GeneratorSpec, License};
