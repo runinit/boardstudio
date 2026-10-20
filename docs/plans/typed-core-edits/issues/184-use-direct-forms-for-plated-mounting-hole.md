@@ -1,6 +1,6 @@
 # 184: Use direct forms for the plated mounting-hole generator
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Related: [Footprint construction research](../../../research/2026-10-19-footprint-form-construction.md)
