@@ -36,4 +36,4 @@ Shared functions: `path_signed_area(&[[f64; 2]])` and `polygon_signed_area(&[Vec
 | `core/src/case.rs` test-local `area` | abs, half | Now wraps `polygon_signed_area(..).abs()`. |
 | `contracts/.../support_owner.rs` `area2` | signed, doubled, exact rational | Kept, commented: orientation must be exact. |
 
-Summation order is unchanged for every migrated copy (same left-to-right sum of `ax*by - bx*ay`, then `* 0.5` in place of `/ 2.0`, both exact), so results are bit-identical. The only behavioural difference is a ring of fewer than three points, which was already 0 up to sign (and the web draft copy would have divided by zero for an empty ring). Qualification binaries and vendored crates have their own area helpers on other types and were not in scope.
+Summation order is unchanged for every migrated copy (same left-to-right sum of `ax*by - bx*ay`, then `* 0.5` in place of `/ 2.0`, both exact), so results are bit-identical. The only behavioural difference is a ring of fewer than three points, which was already 0 up to sign. Qualification binaries and vendored crates have their own area helpers on other types and were not in scope.
