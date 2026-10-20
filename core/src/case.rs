@@ -2,11 +2,11 @@
 //!
 //! Coordinates are quantized to the native i_overlay grid at 1000 units/mm.
 
-use boardstudio_contracts::polygon_contains;
 use crate::model::{
     CaseAssemblyIR, CaseIR, CaseKind, Contour, PreparedCaseAssemblyIR, PreparedCaseIR,
     PreparedCaseRegion, PreparedGasketRegion, Vec2,
 };
+use boardstudio_contracts::polygon_contains;
 use boardstudio_contracts::{
     support_polygon_has_self_intersection, support_polygon_outside_area_below_owner_cutoff,
 };
@@ -112,7 +112,9 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
                     let holes = groove_inner
                         .iter()
                         .filter(|inner| {
-                            inner.first().is_some_and(|point| polygon_contains(&groove, *point))
+                            inner
+                                .first()
+                                .is_some_and(|point| polygon_contains(&groove, *point))
                         })
                         .cloned()
                         .collect();

@@ -1,8 +1,8 @@
 //! Bounded exterior pockets are repaired once, before authored differences.
 //! The span is the mouth chord, not the recess depth or a global hull radius.
-use boardstudio_contracts::path_contains;
 use super::{Path, Shapes, automatic, point, snap};
 use crate::{model::*, outline_controls};
+use boardstudio_contracts::path_contains;
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,

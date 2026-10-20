@@ -1,7 +1,7 @@
 //! Independently designed keycap presets and conservative swept-envelope checks.
 //! No KeyV2 source, dimensions, or generated geometry is used here.
-use boardstudio_contracts::polygon_contains;
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
 mod edits;
 pub(crate) use edits::apply_edit;
 

@@ -1,6 +1,6 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
-use boardstudio_contracts::polygon_contains;
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
 pub mod change;
 pub mod clearance;
 pub mod edit;

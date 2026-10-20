@@ -5,8 +5,6 @@ use crate::{ExactModel, GeneratedAnalysisMesh, ImportedStep, StepFaceOccurrence,
 use std::sync::atomic::{AtomicU64, Ordering};
 pub use types::*;
 
-pub(crate) type SourceBoundResult = Result<[f64; 3], Vec<String>>;
-
 static NEXT_MESH: AtomicU64 = AtomicU64::new(1);
 
 pub struct PreparedGeneratedFaceOccurrence {

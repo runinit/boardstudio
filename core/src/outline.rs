@@ -1,9 +1,9 @@
 //! Automatic perimeter construction in board coordinates. Authored cutouts are composed later.
-use boardstudio_contracts::path_contains;
 use super::{
     FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
 };
 use crate::model::{CornerStyle, OutlineSettings, PartKind, ProjectDoc, Vec2};
+use boardstudio_contracts::path_contains;
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -554,7 +554,11 @@ pub(super) fn finish(
         result.push(finished);
     }
     for shape in &result {
-        if shape.iter().skip(1).any(|hole| !path_contains(&shape[0], hole[0])) {
+        if shape
+            .iter()
+            .skip(1)
+            .any(|hole| !path_contains(&shape[0], hole[0]))
+        {
             return Err(
                 "Corner finishing moves a cutout outside its outline; reduce its size".into(),
             );

@@ -1,6 +1,6 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
-use boardstudio_contracts::path_contains;
 use crate::{geometry, model::*, outline_versions};
+use boardstudio_contracts::path_contains;
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,

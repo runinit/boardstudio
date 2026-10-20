@@ -235,11 +235,14 @@ mod final_trace;
 
 mod generated_qualification;
 
+/// Direct, source-precision and total mesh-error bounds in mm, or why none is proven.
+pub(crate) type SourceBound = Result<[f64; 3], Vec<String>>;
+
 // Owner-side wrapper keeps the native AST and retained trace private.
 pub(crate) fn prepare_qualified_emission(
     model: &ExactModel,
     target: Option<f64>,
-) -> Result<(GeneratedAnalysisMesh, Result<[f64; 3], Vec<String>>), String> {
+) -> Result<(GeneratedAnalysisMesh, SourceBound), String> {
     let mut trace = final_trace::AnalysisTrace::default();
     let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
     let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000

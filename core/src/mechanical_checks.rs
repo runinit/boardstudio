@@ -1,9 +1,9 @@
 //! Local process screening; these checks are not supplier approval.
-use boardstudio_contracts::polygon_contains;
 use crate::model::{
     Contour, Finding, MechanicalAssembly, MechanicalConfiguration, Mount, MountKind, PlateMethod,
     Scope, Severity, Vec2,
 };
+use boardstudio_contracts::polygon_contains;
 
 use i_overlay::i_float::int::{angle::Angle, point::IntPoint};
 use i_overlay::mesh::{
@@ -369,11 +369,11 @@ pub(crate) fn check(config: &MechanicalConfiguration, contours: &[Contour]) -> V
         }
     }
     for (index, hole) in contours.iter().enumerate().filter(|(_, c)| c.hole) {
-        if !contours
-            .iter()
-            .filter(|c| !c.hole)
-            .any(|outer| hole.points.iter().all(|p| polygon_contains(&outer.points, *p)))
-        {
+        if !contours.iter().filter(|c| !c.hole).any(|outer| {
+            hole.points
+                .iter()
+                .all(|p| polygon_contains(&outer.points, *p))
+        }) {
             add(
                 format!("outside:{index}"),
                 Severity::Error,

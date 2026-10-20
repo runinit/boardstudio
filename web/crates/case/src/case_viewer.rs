@@ -1,5 +1,4 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
-use boardstudio_core::model::polygon_contains;
 use super::case_bodies::CaseBodyEdit;
 use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::shared_viewer::{
@@ -9,6 +8,7 @@ use super::shared_viewer::{
 use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::model::polygon_contains;
 use boardstudio_core::model::{
     CaseKind, GasketPlacement, MechanicalGasketAnchor, MechanicalGasketSupport,
     MechanicalGasketTrack, MechanicalMount, Mount, MountKind, ProjectDoc, Vec2,

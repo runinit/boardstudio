@@ -1,7 +1,7 @@
 //! Atomic creation of the source-backed physical host-side VIK receptacle.
-use boardstudio_contracts::polygon_contains;
 use super::{ModuleDefinition, MountedModule};
 use crate::model::{Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2};
+use boardstudio_contracts::polygon_contains;
 
 const MODEL_ASSET: &str =
     "bundled-model:vik/sadekbaroudi-vik/kicad/3dmodels/vik-connector-horizontal.stp";

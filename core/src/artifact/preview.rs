@@ -1,8 +1,8 @@
 //! Read-only board projection. Original source remains the export authority.
-use boardstudio_contracts::polygon_contains;
 use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{atom, child, children, head, items};
 use crate::model::*;
+use boardstudio_contracts::polygon_contains;
 use kiutils_sexpr::Node;
 use std::f64::consts::{PI, TAU};
 

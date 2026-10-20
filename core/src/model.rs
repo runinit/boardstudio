@@ -11,6 +11,7 @@ pub use crate::modules::{
     ModuleSupportGeometry, ModuleVolume, MountedModule, ResolvedModule, ResolvedModuleFootprint,
     ResolvedModulePad, VikSignal,
 };
+pub use boardstudio_contracts::polygon_contains;
 pub use boardstudio_contracts::{
     AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
 };
@@ -25,7 +26,6 @@ pub use boardstudio_contracts::{
     KeycapProfile, KeycapSpec, Pose2, Side, Vec2,
 };
 pub use boardstudio_contracts::{MechanicalDrillShape, MechanicalShape};
-pub use boardstudio_contracts::polygon_contains;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
