@@ -1,11 +1,13 @@
 # Spec: STEP import validation simplification
 
-Status: ready-for-agent
+Status: resolved
 Source: [research/cad/step-import-validation-approaches.md](../../research/cad/step-import-validation-approaches.md)
 Map: [map.md](map.md). Tickets: [issues/](issues/).
 
-Current policy: the aggregate-completeness admission rule below is superseded for
-preview admission by the current vendor-preview policy in
+Historical specification, not an active work order: the Solution, User Stories and
+Implementation Decisions below record an earlier proposal. Do not implement
+their aggregate-completeness refusal or proposed 007 edits. Current preview
+admission follows the vendor-preview policy in
 [map.md](map.md#current-vendor-preview-policy-2026-10-19). An aggregate loss is
 reported as an explicit incomplete-model diagnostic; it does not by itself
 refuse the surviving geometry. The resolved and wontfix issues below are not
@@ -31,13 +33,14 @@ aggregate loss reports (`require_empty` / `require_lossless`). OpenCASCADE uses
 load/check/transfer/heal/GVP. No implementation does per-route accounting for
 import admission.
 
-## Solution
+## Solution (historical proposal)
 
 Replace the six-package per-route accounting with the industry-standard approach:
 
 1. **Aggregate loss reports** (already exist in monstertruck-io): `EntityLoadReport::require_empty()`
    after table build; `ShellLoadReport::require_lossless()` after each conversion.
-   Refuse if either fails. One call per conversion, O(entities).
+   The former proposal refused if either failed; current policy requires a
+   reported loss and retention of safely usable geometry with a diagnostic.
 
 2. **GVP comparison**: Dropped per research. ISO does not require GVP for import
    admission; no real vendor files carry it; no Rust crate parses it. Retain
@@ -57,7 +60,7 @@ This collapses six packages into: one aggregate report call + one optional GVP
 comparison + one budget check + a small invariant suite. Check times drop from
 ~30 min per 007 slice to minutes.
 
-## User Stories
+## User Stories (historical proposal)
 
 1. As a developer, I want STEP import validation to use the standard's own
    acceptance test (GVP comparison), so that we're not inventing a stricter
@@ -90,7 +93,7 @@ comparison + one budget check + a small invariant suite. Check times drop from
    collision-relevant routes, so that collision accuracy certificates remain
    available.
 
-## Implementation Decisions
+## Implementation Decisions (historical proposal; do not apply to 007)
 
 - The primary seam is the public import function `import_step_with_options` in
   `cad/monstertruck/src/step/mod.rs`. All validation (aggregate reports, GVP,

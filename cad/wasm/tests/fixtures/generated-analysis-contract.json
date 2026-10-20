@@ -58,7 +58,7 @@
     "deflectionMm": 0.1
   },
   "qualificationV2": {
-    "status": "pending qualification v2; no active wire implementation",
+    "status": "qualification v2 active wire; delivered and integrated",
     "version": "planar-final-v2/aabb-interval-exact-v1",
     "source": "ergogen/library/vendor/infused-kim/3d_models/SMD_0805_Capacitor.step",
     "expectedCensus": {
@@ -340,7 +340,7 @@
     },
     "activation": {
       "version": 1,
-      "status": "pending atomic producer/worker/consumer activation; active v1 unchanged",
+      "status": "active v2 producer/worker/consumer; active v1 unchanged",
       "inspectedParentTransport": "2dd3b87d9f62c622a8c709ca6624b494d500660a; unchanged relevant files through ec4712647",
       "acceptedGeneratedPrivateProof": "b03cc0951dfe4c91f7c8fb395e8dc218a656d452",
       "untrustedPredecessors": ["5bc56d35bc77", "14cde"],
@@ -1607,7 +1607,7 @@
         "actualProducerIndexRule": "resolve and validate indices against actual owned final emission and provenance; canonical ordering is not required"
       },
       "readOnlyExport": {
-        "status": "proposed new Rust read-only API; not implemented or activated",
+        "status": "Rust read-only API implemented and activated",
         "owner": "PreparedAnalysisMesh: private fields; preparation is the only constructor",
         "methods": {
           "export_view": "(&self) -> PreparedAnalysisView<'_>",

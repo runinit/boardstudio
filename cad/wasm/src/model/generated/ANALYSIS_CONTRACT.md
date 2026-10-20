@@ -105,15 +105,16 @@ contract. The v2 producer, the Host/Runtime consumer and both fixture checks are
 integrated: the WASM provider emits `analysisMesh`, `sourceQualification` and the
 opaque handle, the worker authenticates them against its own request, and
 `cad/wasm/tests/qualified-analysis.cjs` plus the worker, Runtime and page checks
-exercise the qualified query. The paired acceptance is recorded in 010 and 014 at
-`01680d84`/`1abc1b379`. Existing exact-key v1 checks remain required for v1
-payloads. This section is a wire contract, not a preview-admission gate.
+exercise the qualified query. The CAD replacement map records delivery in its
+010 and 014 outcomes; 014 cites `01680d84`. Existing exact-key v1 checks remain
+required for v1 payloads. This section is a wire contract, not a preview-admission gate.
 Admission follows the current vendor-preview policy: ADR-0017 and ADR-0018
 (accepted 2026-10-19) and the CAD backend replacement plan
-([map](../../../../docs/plans/cad-backend-replacement/map.md), ticket 015 and its
-successors). A repaired or partial preview may be displayed and queried
-approximately with explicit diagnostics, while unsupported accuracy and
-whole-model clearance stay uncertain.
+([map](../../../../../docs/plans/cad-backend-replacement/map.md), ticket 015 and its
+successors). Tickets 016–018 own delivery of surviving partial geometry, visible
+incomplete-model errors and approximate queries; these are policy requirements,
+not claims that those routes already work. Unsupported accuracy and whole-model
+clearance stay uncertain.
 
 Active identities: `m1/generated-analysis-v2/` uses the existing prepared-body
 digest ownership; `vendor-step-analysis-v2/` binds the authenticated STEP SHA and
@@ -617,16 +618,16 @@ other contributions are nonzero. Complete retained but unsupported mixed
 presentation geometry keeps source/repair qualification unknown. Unretained
 presentation geometry (including styled trimmed curves outside a cuboid) likewise
 keeps qualification unknown and never yields a bounded partial asset. Under the
-current vendor-preview policy it does not by itself refuse the preview: the
-surviving geometry is shown with an explicit incomplete-model error, and no
-whole-source qualification or whole-model clearance follows from it. Provisional
+current vendor-preview policy it must not by itself refuse the preview: ticket 016
+requires safely usable surviving geometry with an explicit incomplete-model error.
+No whole-source qualification or whole-model clearance follows from it. Provisional
 `14cde` is not positive evidence. Corrected cuboid ledger
 `05b00ce75d3ef9f688c219c92d9c1e227004c8cd` is accepted for its bounded exact-zero
 movement class: its existing `maxRepairDisplacementMm:0` diagnostic is allowed,
 while `analysisErrorBoundMm` remains null. A zero repair ledger is not a source/
 mesh certificate. The fixture separates complete unsupported geometry with null
 repair from incomplete presentation errors. These are repair-only ImportedStep
-metadata checks before v2 activation, not bounded v2 producer expectations;
+metadata checks separate from bounded v2 producer expectations;
 this does not broaden 007 or v2.
 
 ### Validation and identity
@@ -643,17 +644,16 @@ selected repair/deflection settings, query algorithm and every limit above.
 Assessment also binds requested accuracy and physical threshold. Use existing
 cache/token machinery, not new hash manifests. Coarse output cannot satisfy a
 tighter request; cancellation or changed revision prevents publication. Active
-transfer limits and both actual producer/consumer tests remain required at v2
-integration. The private proof has no active frontend schema implementation.
+transfer limits and both producer/consumer tests remain required for the v2
+wire. The private proof is exposed through the qualification path, not as a
+frontend certificate schema.
 
 
 ### Executable shared activation fixture
 
 `qualificationV2.activation` contains complete descriptor/ref/binding/qualifier
-examples and producer key sets. The fixture's own `qualificationV2.status`
-string predates the integrated activation and is historical; the examples it
-holds are exercised by the producer and consumer checks. Its direct-generated
-recipe copies `/directPayload` then replaces only the listed top-level fields;
+examples and producer key sets exercised by the producer and consumer checks.
+Its direct-generated recipe copies `/directPayload` then replaces only the listed top-level fields;
 it reuses `/preparedBody` and never duplicates that canonical input.
 `analysisHandle` has
 no JSON example: the real producer supplies it, the worker retains it, and only

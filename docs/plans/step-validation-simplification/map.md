@@ -81,14 +81,14 @@ standard's GVP comparison plus monstertruck's aggregate reports are sufficient.
 - **Collision certificate**: the separate question of whether repair movement
   bounds are sufficient for collision queries. Owned by 014.
 
-## Scope
+## Scope (historical proposal; not current preview-admission work)
 
 In scope:
 - Replace 007's per-route accounting for import admission with aggregate reports
 - Add GVP comparison
 - Keep single budget gate
 - Add post-import invariant suite
-- Update 007 ticket to reflect supersession for import admission
+- The former proposal would have updated 007; ticket 015 instead preserves its claimed body and records the successor policy externally
 - Update 010/012 blockers
 
 Out of scope:
