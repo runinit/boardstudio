@@ -35,6 +35,9 @@ The [architecture review of 2026-10-07](investigations/architecture-review-2026-
 proposes six module deepenings; the [module deepening](plans/module-deepening/map.md)
 effort plans all of them.
 
+The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
+2026-10-20 review of case generation and the Monstertruck CAD kernel.
+
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal
 plan and completion criteria. It is an assessment, not a completed migration.
