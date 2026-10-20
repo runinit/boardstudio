@@ -4,6 +4,11 @@
 //! rationals of the retained f64 geometry. No mesher tolerance is a proof input.
 use super::super::generated_qualification::GeneratedQualification;
 use super::*;
+#[cfg(test)]
+use boardstudio_contracts::Vec2;
+use monstertruck_modeling::{Curve, Point3, Vector3};
+#[cfg(test)]
+use monstertruck_modeling::{Invertible, builder};
 use num_rational::BigRational as Q;
 use num_traits::{Signed, ToPrimitive, Zero};
 use std::collections::{BTreeMap, BTreeSet, HashSet};

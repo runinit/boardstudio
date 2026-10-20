@@ -8,9 +8,16 @@
 //! periodic lifting decisions are not exposed. Never infer an unwrap or an
 //! angular/height bound from the requested meshing settings.
 
-use super::*;
+use crate::profile::{ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace};
+#[cfg(test)]
+use crate::profile::{mesh_profile_for_analysis, mesh_profile_for_analysis_impl};
+#[cfg(test)]
+use boardstudio_contracts::Vec2;
 use monstertruck_meshing::rexport_polymesh::{PolygonMesh, StandardVertex};
 use monstertruck_modeling::{EuclideanSpace, Face};
+#[cfg(test)]
+use monstertruck_modeling::{Invertible, Point3, Vector3, builder};
+use monstertruck_modeling::{Surface, Wire};
 
 mod cylinder_proof;
 mod retained;
@@ -92,13 +99,13 @@ struct FinalTriangle {
 }
 
 #[derive(Default)]
-pub(super) struct AnalysisTrace {
+pub(crate) struct AnalysisTrace {
     faces: Vec<RetainedFace>,
     triangles: Vec<FinalTriangle>,
 }
 
 impl AnalysisTrace {
-    pub(super) fn record_face(
+    pub(crate) fn record_face(
         &mut self,
         source: &GeneratedSourceFace,
         face: &Face,
@@ -117,7 +124,7 @@ impl AnalysisTrace {
         });
     }
 
-    pub(super) fn record_triangle(
+    pub(crate) fn record_triangle(
         &mut self,
         occurrence_index: usize,
         poly: &PolygonMesh,

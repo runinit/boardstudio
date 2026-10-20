@@ -1,7 +1,7 @@
 //! Private generated analytic verifier, consumed by the sealed qualification owner.
 
-use super::*;
-use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface};
+use crate::{ExactModel, GeneratedAnalysisMesh};
+use monstertruck_modeling::{Curve, InnerSpace, Point3, Surface, Vector3, Wire};
 #[cfg(test)]
 use monstertruck_modeling::{Plane, Solid};
 use std::collections::{BTreeMap, BTreeSet};
@@ -516,6 +516,7 @@ pub fn qualify_generated(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mesh_profile_for_analysis;
     use crate::test_support::{ProfileInput, ProfileKind, ProfileRegion, build_profile};
     use boardstudio_contracts::Vec2;
 

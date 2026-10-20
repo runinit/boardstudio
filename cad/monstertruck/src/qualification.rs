@@ -1,6 +1,9 @@
 //! Sealed evidence over one actual final emission. Reports and descriptors are
 //! read-only values; only preparation can create an evidence owner.
+pub(crate) mod final_trace;
+mod generated_qualification;
 mod types;
+use crate::profile::mesh_profile_for_analysis_impl;
 use crate::{ExactModel, GeneratedAnalysisMesh, ImportedStep, StepFaceOccurrence, StepSourceFace};
 use std::sync::atomic::{AtomicU64, Ordering};
 pub use types::*;
@@ -181,11 +184,53 @@ fn source_report(
         Err(reasons) => SourceQualification::Unknown { reasons },
     }
 }
+/// Direct, source-precision and total mesh-error bounds in mm, or why none is proven.
+type LocalMeshBound = Result<[f64; 3], Vec<String>>;
+
+// Owner-side wrapper keeps the native AST and retained trace private.
+fn prepare_qualified_emission(
+    model: &ExactModel,
+    target: Option<f64>,
+) -> Result<(GeneratedAnalysisMesh, LocalMeshBound), String> {
+    let mut trace = final_trace::AnalysisTrace::default();
+    let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
+    let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
+        && mesh
+            .positions_mm_f64
+            .iter()
+            .all(|x| x.is_finite() && (*x == 0. || (1e-100..=1e12).contains(&x.abs())));
+    let result = if within_profile {
+        let planar = generated_qualification::qualify_generated(model, &mesh);
+        if matches!(
+            planar,
+            generated_qualification::GeneratedQualification::Unknown { .. }
+        ) {
+            final_trace::qualified_bound(model, &mesh, &trace)
+        } else {
+            planar
+        }
+    } else {
+        generated_qualification::GeneratedQualification::Unknown {
+            reasons: vec!["generated source profile cap".into()],
+        }
+    };
+    let bound = match result {
+        generated_qualification::GeneratedQualification::Bounded {
+            direct_bound_mm,
+            source_precision_mm,
+            total_bound_mm,
+            ..
+        } => Ok([direct_bound_mm, source_precision_mm, total_bound_mm]),
+        generated_qualification::GeneratedQualification::Unknown { reasons } => Err(reasons),
+    };
+    Ok((mesh, bound))
+}
+
 pub fn prepare_generated_analysis(
     model: &ExactModel,
     target: Option<f64>,
 ) -> Result<PreparedAnalysisMesh, String> {
-    let (mesh, bound) = crate::profile::prepare_qualified_emission(model, target)?;
+    let (mesh, bound) = prepare_qualified_emission(model, target)?;
     let descriptor = descriptor(
         MeshSettings {
             target_deflection_mm: target,

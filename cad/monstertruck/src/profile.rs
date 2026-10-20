@@ -1,12 +1,8 @@
 use crate::{MeshBuffers, mesh::mesh_buffers};
-#[cfg(test)]
-use boardstudio_contracts::Vec2;
 use monstertruck_meshing::tessellation::{
     TessellationOptions, shell_to_polygon_strict_with, triangulation_with,
 };
-#[cfg(test)]
-use monstertruck_modeling::builder;
-use monstertruck_modeling::{Curve, Invertible, Point3, Solid, Surface, Vector3, Wire};
+use monstertruck_modeling::{Invertible, Point3, Solid, Surface};
 
 const PROFILE_MESH_TOLERANCE_MM: f64 = 0.1;
 const PROFILE_EDGE_ANGULAR_TOLERANCE_RAD: f64 = 0.5;
@@ -82,10 +78,10 @@ pub fn mesh_profile_for_analysis(
     mesh_profile_for_analysis_impl(model, target_deflection_mm, None)
 }
 
-fn mesh_profile_for_analysis_impl(
+pub(crate) fn mesh_profile_for_analysis_impl(
     model: &ExactModel,
     target_deflection_mm: Option<f64>,
-    mut trace: Option<&mut final_trace::AnalysisTrace>,
+    mut trace: Option<&mut crate::qualification::final_trace::AnalysisTrace>,
 ) -> Result<GeneratedAnalysisMesh, String> {
     if model.solids.is_empty() {
         return Err("Case analysis mesh requires at least one exact solid".into());
@@ -229,52 +225,6 @@ fn closed_oriented_shell_triangles(triangles: &[[Point3; 3]]) -> bool {
         Some([p.x, p.y, p.z].map(|v| if v == 0.0 { 0 } else { v.to_bits() }))
     };
     crate::mesh::closed_oriented_edges(triangles, point)
-}
-
-mod final_trace;
-
-mod generated_qualification;
-
-/// Direct, source-precision and total mesh-error bounds in mm, or why none is proven.
-pub(crate) type SourceBound = Result<[f64; 3], Vec<String>>;
-
-// Owner-side wrapper keeps the native AST and retained trace private.
-pub(crate) fn prepare_qualified_emission(
-    model: &ExactModel,
-    target: Option<f64>,
-) -> Result<(GeneratedAnalysisMesh, SourceBound), String> {
-    let mut trace = final_trace::AnalysisTrace::default();
-    let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
-    let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
-        && mesh
-            .positions_mm_f64
-            .iter()
-            .all(|x| x.is_finite() && (*x == 0. || (1e-100..=1e12).contains(&x.abs())));
-    let result = if within_profile {
-        let planar = generated_qualification::qualify_generated(model, &mesh);
-        if matches!(
-            planar,
-            generated_qualification::GeneratedQualification::Unknown { .. }
-        ) {
-            final_trace::qualified_bound(model, &mesh, &trace)
-        } else {
-            planar
-        }
-    } else {
-        generated_qualification::GeneratedQualification::Unknown {
-            reasons: vec!["generated source profile cap".into()],
-        }
-    };
-    let bound = match result {
-        generated_qualification::GeneratedQualification::Bounded {
-            direct_bound_mm,
-            source_precision_mm,
-            total_bound_mm,
-            ..
-        } => Ok([direct_bound_mm, source_precision_mm, total_bound_mm]),
-        generated_qualification::GeneratedQualification::Unknown { reasons } => Err(reasons),
-    };
-    Ok((mesh, bound))
 }
 
 #[cfg(test)]
