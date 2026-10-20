@@ -373,7 +373,7 @@ impl ModelDeliveryPorts {
     ) -> Result<Option<VerifiedModelBytes>, String> {
         let result = (self.load_verified_bytes)(asset.clone()).await?;
         if let Some(bytes) = &result
-            && !bytes.sha256().eq_ignore_ascii_case(&asset.sha256)
+            && bytes.sha256() != asset.sha256
         {
             return Err("Model byte provider returned a different SHA-256 asset".into());
         }

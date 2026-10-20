@@ -5,13 +5,13 @@
 //! assigned a mechanical purpose unless a caller explicitly maps it.
 
 use super::sexpr;
+use crate::hash::sha256_hex;
 use crate::model::{ArtifactError, ArtifactErrorCode, MechanicalDrillShape as DrillShape, Vec2};
 pub use crate::model::{
     MechanicalGeometry, MechanicalGeometryKind as GeometryKind, MechanicalPrimitive,
     MechanicalPurpose, MechanicalPurposeMapping as PurposeMapping, MechanicalShape,
 };
 use kiutils_sexpr::Node;
-use sha2::{Digest, Sha256};
 mod board_source;
 pub(super) use board_source::extract_board_source;
 
@@ -129,7 +129,7 @@ pub fn profile_source(
     let geometry = extract(source, mappings)?;
     Ok(crate::model::MechanicalProfileSource {
         text: source.to_owned(),
-        sha256: hex_digest(&Sha256::digest(source.as_bytes())),
+        sha256: sha256_hex(source.as_bytes()),
         mappings: mappings.to_vec(),
         source_ids: geometry
             .primitives
@@ -182,16 +182,6 @@ pub fn pcb_mounting_holes(
             })
         })
         .collect()
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        output.push(HEX[(byte >> 4) as usize] as char);
-        output.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    output
 }
 
 /// Convert only explicitly classified plate-cutout geometry to closed rings.
@@ -836,7 +826,7 @@ mod tests {
         assert_eq!(provenance.text, source);
         assert_eq!(
             provenance.sha256,
-            hex_digest(&Sha256::digest(source.as_bytes()))
+            "29c925516d79215884d1a89fc53250cd6c4899131e405af94966a74169fe4f19"
         );
         assert_eq!(provenance.sha256.len(), 64);
         assert_eq!(

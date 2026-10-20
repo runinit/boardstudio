@@ -1,6 +1,6 @@
 //! Shared browser file and verified-byte persistence path for attached model assets.
 
-use crate::presentation::model_delivery::{ModelFormat, VerifiedModelBytes};
+use crate::presentation::model_delivery::ModelFormat;
 use boardstudio_core::hash::sha256_hex;
 use boardstudio_web_host::host::{AssetBytes, BrowserStore};
 #[cfg(target_arch = "wasm32")]
@@ -25,7 +25,6 @@ impl ImportedModelFile {
     /// Persist through the existing verified project asset store. The document
     /// edit remains a separate normal accepted operation owned by the caller.
     pub async fn store(&self, store: &BrowserStore) -> Result<(), String> {
-        VerifiedModelBytes::verify(self.bytes.clone(), &self.sha256)?;
         store
             .save_asset(AssetBytes {
                 sha256: self.sha256.clone(),
