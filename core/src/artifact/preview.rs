@@ -1,4 +1,5 @@
 //! Read-only board projection. Original source remains the export authority.
+use boardstudio_contracts::polygon_contains;
 use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::sexpr::{atom, child, children, head, items};
 use crate::model::*;
@@ -358,17 +359,6 @@ fn xyz(n: &Node, key: &str, default: f64) -> Result<Vec3, ArtifactError> {
         }),
     }
 }
-fn inside(p: Vec2, poly: &[Vec2]) -> bool {
-    let mut result = false;
-    for i in 0..poly.len() {
-        let a = poly[i];
-        let b = poly[(i + 1) % poly.len()];
-        if (a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x {
-            result = !result;
-        }
-    }
-    result
-}
 fn close(a: Vec2, b: Vec2) -> bool {
     (a.x - b.x).hypot(a.y - b.y) < 0.002
 }
@@ -403,7 +393,7 @@ fn contours(mut edges: Vec<Vec<Vec2>>) -> Result<Vec<Contour>, ArtifactError> {
             hole: loops
                 .iter()
                 .enumerate()
-                .filter(|(j, p)| *j != i && inside(points[0], p))
+                .filter(|(j, p)| *j != i && polygon_contains(p, points[0]))
                 .count()
                 % 2
                 == 1,

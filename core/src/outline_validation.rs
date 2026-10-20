@@ -1,4 +1,5 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
+use boardstudio_contracts::path_contains;
 use crate::{geometry, model::*, outline_versions};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
@@ -61,16 +62,7 @@ impl Material {
     fn contains(&self, p: [f64; 2]) -> bool {
         self.paths
             .iter()
-            .flat_map(|path| {
-                path.iter()
-                    .zip(path.iter().cycle().skip(1))
-                    .take(path.len())
-            })
-            .fold(false, |inside, (a, b)| {
-                inside
-                    ^ ((a[1] > p[1]) != (b[1] > p[1])
-                        && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0])
-            })
+            .fold(false, |inside, path| inside ^ path_contains(path, p))
     }
 }
 fn paths(contours: &[Contour]) -> Vec<Path> {

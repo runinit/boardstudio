@@ -1,6 +1,6 @@
 # 002: One polygon containment and area module
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None
 Parent: [CAD deepening](../map.md)
@@ -17,7 +17,33 @@ module in contracts that follows ADR-0012's fabrication grid.
 
 ## Acceptance criteria
 
-- [ ] An audit, appended under `## Comments`, lists each copy and its on-edge, winding and hole behaviour.
-- [ ] Copies without a deliberate difference call the shared module; deliberate ones are commented.
-- [ ] The shared module has tests for on-edge, vertex, hole and clockwise/counter-clockwise inputs.
-- [ ] Each migrated caller keeps its verdicts; existing tests pass.
+- [x] An audit, appended under `## Comments`, lists each copy and its on-edge, winding and hole behaviour.
+- [x] Copies without a deliberate difference call the shared module; deliberate ones are commented.
+- [x] The shared module has tests for on-edge, vertex, hole and clockwise/counter-clockwise inputs.
+- [x] Each migrated caller keeps its verdicts; existing tests pass.
+
+## Comments
+
+Audit. The ticket counted about nine copies; there were fifteen. Every one is the same
+float even-odd ray cast with the same half-open edge rule (left and bottom edges inside,
+right and top edges outside), so every copy returns the same verdict for every input,
+winding included. Differences were cosmetic:
+
+| Where | Difference | Outcome |
+|---|---|---|
+| `case.rs`, `mechanical_checks.rs`, `artifact/preview.rs`, `keycaps.rs`, `modules/host_connector.rs`, `outline.rs`, `outline_cleanup.rs`, `cad/wasm` lettering, `case_viewer.rs` | type (`Vec2` or `[f64; 2]`), argument order, a `len < 3` guard | migrated |
+| `mechanical.rs` `inside_outline` | adds hole handling over a ring test | migrated; keeps its hole logic |
+| `outline_validation.rs` | even-odd across a set of rings | migrated as an XOR over `path_contains` |
+| `renderer/src/geometry.rs` | f32 render space, no contracts dependency | kept, commented |
+| `core/tests/outlines.rs`, `core/tests/outline_repairs.rs` | independent test oracles | kept, commented |
+| `core/tests/module_host_connector.rs` | JSON-valued test helper | untouched |
+
+The `len < 3` guards changed nothing: fewer than three points already classifies as outside,
+and the new module's tests pin that. [ADR-0012](../../../adr/0012-bounded-outline-validation.md)
+turned out not to apply: it governs exact edge-contact validation on the fabrication grid,
+not this float classification. Semantics are unchanged; the shared module is
+`boardstudio_contracts::{path_contains, polygon_contains}`.
+
+Verification: contracts 8, core 1,512 (14 `kicad-cli` tests only pass with `APPDIR`,
+`APPIMAGE`, `LD_LIBRARY_PATH` and `GSETTINGS_SCHEMA_DIR` removed from the environment, which is
+the T3 Code AppImage's stale mount and unrelated), web case 34, CAD worker 57.

@@ -1,5 +1,6 @@
 //! Bounded exterior pockets are repaired once, before authored differences.
 //! The span is the mouth chord, not the recess depth or a global hull radius.
+use boardstudio_contracts::path_contains;
 use super::{Path, Shapes, automatic, point, snap};
 use crate::{model::*, outline_controls};
 use i_overlay::{
@@ -24,16 +25,6 @@ fn area(path: &Path) -> f64 {
         .map(|(a, b)| cross(*a, *b))
         .sum::<f64>()
         / 2.0
-}
-fn contains(path: &Path, p: [f64; 2]) -> bool {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .fold(false, |inside, (a, b)| {
-            inside
-                ^ ((a[1] > p[1]) != (b[1] > p[1])
-                    && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0])
-        })
 }
 fn distance(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     let d = sub(b, a);
@@ -64,7 +55,7 @@ fn owner<'a>(p: [f64; 2], envelopes: &'a [(&str, Shapes)]) -> Option<&'a str> {
             let d = shapes
                 .iter()
                 .map(|shape| {
-                    if contains(&shape[0], p) {
+                    if path_contains(&shape[0], p) {
                         return 0.0;
                     }
                     shape[0]
@@ -214,7 +205,7 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
                 || pocket[1..count]
                     .iter()
                     .any(|p| cross(chord, sub(*p, a)) <= 1e-8)
-                || contains(&path, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])
+                || path_contains(&path, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])
                 || !automatic::simple(&pocket)
             {
                 continue;

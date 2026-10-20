@@ -2,6 +2,7 @@
 //!
 //! Coordinates are quantized to the native i_overlay grid at 1000 units/mm.
 
+use boardstudio_contracts::polygon_contains;
 use crate::model::{
     CaseAssemblyIR, CaseIR, CaseKind, Contour, PreparedCaseAssemblyIR, PreparedCaseIR,
     PreparedCaseRegion, PreparedGasketRegion, Vec2,
@@ -111,7 +112,7 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
                     let holes = groove_inner
                         .iter()
                         .filter(|inner| {
-                            inner.first().is_some_and(|point| contains(&groove, *point))
+                            inner.first().is_some_and(|point| polygon_contains(&groove, *point))
                         })
                         .cloned()
                         .collect();
@@ -129,7 +130,7 @@ fn prepare_body(ir: &CaseIR) -> Result<PreparedCaseIR, String> {
             .as_deref()
             .unwrap_or_default()
             .iter()
-            .filter(|mount| contains(&outer, mount.at))
+            .filter(|mount| polygon_contains(&outer, mount.at))
             .cloned()
             .collect::<Vec<_>>();
         prepared.push(PreparedCaseRegion {
@@ -216,7 +217,7 @@ fn group_unoffset_contours(contours: Vec<(Vec<Vec2>, bool)>) -> Vec<(Vec<Vec2>, 
         let parent = regions
             .iter()
             .enumerate()
-            .filter(|(_, (outer, _))| contains(outer, point))
+            .filter(|(_, (outer, _))| polygon_contains(outer, point))
             .min_by(|(_, (a, _)), (_, (b, _))| area_float(a).total_cmp(&area_float(b)))
             .map(|(index, _)| index);
         if let Some(index) = parent {
@@ -558,20 +559,6 @@ fn signed_area_float(path: &[Vec2]) -> f64 {
 
 fn area_float(path: &[Vec2]) -> f64 {
     signed_area_float(path).abs()
-}
-
-fn contains(path: &[Vec2], point: Vec2) -> bool {
-    let mut inside = false;
-    for index in 0..path.len() {
-        let a = path[index];
-        let b = path[(index + path.len() - 1) % path.len()];
-        if (a.y > point.y) != (b.y > point.y)
-            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-        {
-            inside = !inside;
-        }
-    }
-    inside
 }
 
 #[cfg(test)]

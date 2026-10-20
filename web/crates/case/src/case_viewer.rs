@@ -1,4 +1,5 @@
 //! Case owns display persistence and domain selection; the viewer owns GPU state.
+use boardstudio_core::model::polygon_contains;
 use super::case_bodies::CaseBodyEdit;
 use super::mechanical_settings::MechanicalSettingsPatchExt;
 use super::shared_viewer::{
@@ -1629,14 +1630,14 @@ fn move_case_mount(
     if !constraints
         .outer
         .iter()
-        .any(|outer| inside_polygon(point, outer) && edge_distance(point, outer) >= margin)
+        .any(|outer| polygon_contains(outer, point) && edge_distance(point, outer) >= margin)
     {
         return None;
     }
     if constraints
         .holes
         .iter()
-        .any(|hole| inside_polygon(point, hole) || edge_distance(point, hole) < margin)
+        .any(|hole| polygon_contains(hole, point) || edge_distance(point, hole) < margin)
     {
         return None;
     }
@@ -1673,25 +1674,6 @@ fn mount_radius(mount: &Mount) -> f64 {
     } else {
         mount.hole_diameter / 2.0
     }
-}
-
-fn inside_polygon(point: Vec2, polygon: &[Vec2]) -> bool {
-    let mut hit = false;
-    if polygon.len() < 3 {
-        return false;
-    }
-    let mut j = polygon.len() - 1;
-    for i in 0..polygon.len() {
-        let a = &polygon[i];
-        let b = &polygon[j];
-        if (a.y > point.y) != (b.y > point.y)
-            && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-        {
-            hit = !hit;
-        }
-        j = i;
-    }
-    hit
 }
 
 fn edge_distance(point: Vec2, polygon: &[Vec2]) -> f64 {

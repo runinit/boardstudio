@@ -17,6 +17,7 @@ fn open(document: ProjectDoc) -> SceneDelta {
     }
 }
 
+// Independent oracle: deliberately not the production predicate it checks.
 fn contains(contours: &[Contour], at: Vec2) -> bool {
     contours.iter().fold(false, |inside, contour| {
         let mut hit = false;

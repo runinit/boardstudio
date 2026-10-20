@@ -1,4 +1,5 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
+use boardstudio_contracts::polygon_contains;
 use crate::model::*;
 pub mod change;
 pub mod clearance;
@@ -2306,19 +2307,7 @@ fn same_ring(a: &Contour, b: &Contour) -> bool {
 }
 
 pub(crate) fn inside_outline(point: Vec2, contours: &[Contour]) -> bool {
-    let contains = |ring: &Contour| {
-        let mut inside = false;
-        for i in 0..ring.points.len() {
-            let a = ring.points[i];
-            let b = ring.points[(i + 1) % ring.points.len()];
-            if (a.y > point.y) != (b.y > point.y)
-                && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
-            {
-                inside = !inside;
-            }
-        }
-        inside
-    };
+    let contains = |ring: &Contour| polygon_contains(&ring.points, point);
     contours.iter().any(|c| !c.hole && contains(c))
         && !contours.iter().any(|c| c.hole && contains(c))
 }

@@ -207,6 +207,8 @@ fn clip_surface_to_board(
     SurfaceClipper::new(contours, holes).clip(mesh).unwrap();
 }
 
+// Kept apart from `boardstudio_contracts::path_contains`: this works in f32 render space and
+// the renderer does not depend on contracts.
 fn polygon_contains(point: [f32; 2], polygon: &[[f32; 2]]) -> bool {
     if polygon.len() < 3 {
         return false;

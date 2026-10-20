@@ -1,3 +1,4 @@
+use boardstudio_contracts::path_contains;
 use super::{
     empty_mesh,
     mesh_template::{add_triangle, dish_sag},
@@ -152,7 +153,7 @@ fn oriented(paths: &[Vec<[f64; 2]>]) -> Vec<Vec<[f64; 2]>> {
                 .iter()
                 .enumerate()
                 .filter(|(other_index, other)| {
-                    index != *other_index && other.len() >= 3 && inside(contour[0], other)
+                    index != *other_index && other.len() >= 3 && path_contains(other, contour[0])
                 })
                 .count();
             let hole = nesting % 2 == 1;
@@ -295,18 +296,3 @@ fn signed_area_f64(points: &[[f64; 2]]) -> f64 {
         * 0.5
 }
 
-fn inside(point: [f64; 2], polygon: &[[f64; 2]]) -> bool {
-    let mut inside = false;
-    for (a, b) in polygon
-        .iter()
-        .zip(polygon.iter().cycle().skip(1))
-        .take(polygon.len())
-    {
-        if (a[1] > point[1]) != (b[1] > point[1])
-            && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]
-        {
-            inside = !inside;
-        }
-    }
-    inside
-}

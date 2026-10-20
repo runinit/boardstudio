@@ -25,6 +25,7 @@ pub use boardstudio_contracts::{
     KeycapProfile, KeycapSpec, Pose2, Side, Vec2,
 };
 pub use boardstudio_contracts::{MechanicalDrillShape, MechanicalShape};
+pub use boardstudio_contracts::polygon_contains;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 

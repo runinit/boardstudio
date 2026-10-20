@@ -1,4 +1,5 @@
 //! Atomic creation of the source-backed physical host-side VIK receptacle.
+use boardstudio_contracts::polygon_contains;
 use super::{ModuleDefinition, MountedModule};
 use crate::model::{Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2};
 
@@ -379,7 +380,7 @@ fn edge_samples(points: &[Vec2]) -> Vec<Vec2> {
 fn inside_feature(feature: &crate::model::OutlineFeature, point: Vec2) -> bool {
     use crate::model::OutlineFeature;
     match feature {
-        OutlineFeature::Polygon { points, .. } => point_in_polygon(points, point),
+        OutlineFeature::Polygon { points, .. } => polygon_contains(points, point),
         OutlineFeature::Rect {
             rotation,
             center,
@@ -396,25 +397,6 @@ fn inside_feature(feature: &crate::model::OutlineFeature, point: Vec2) -> bool {
         }
         OutlineFeature::PartEnvelope { .. } => true,
     }
-}
-
-fn point_in_polygon(points: &[Vec2], point: Vec2) -> bool {
-    if points.len() < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut previous = points.len() - 1;
-    for current in 0..points.len() {
-        let first = points[current];
-        let second = points[previous];
-        if (first.y > point.y) != (second.y > point.y)
-            && point.x < (second.x - first.x) * (point.y - first.y) / (second.y - first.y) + first.x
-        {
-            inside = !inside;
-        }
-        previous = current;
-    }
-    inside
 }
 
 fn next_reference(doc: &ProjectDoc, board_id: &str) -> String {

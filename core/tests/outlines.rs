@@ -30,6 +30,7 @@ fn scene(reply: CoreReply) -> SceneDelta {
         other => panic!("{other:?}"),
     }
 }
+// Independent oracle: deliberately not the production predicate it checks.
 fn contains(contours: &[Contour], x: f64, y: f64) -> bool {
     contours.iter().fold(false, |inside, c| {
         let mut hit = false;
