@@ -1,5 +1,13 @@
 {
  "boardstudio_contracts": [
+  "collision::tests::affine_transform_accepts_a_rigid_motion_and_names_each_rejection",
+  "collision::tests::sha256_accepts_only_64_lowercase_hex_digits",
+  "collision::tests::step_import_options_reject_non_positive_values_and_compare_by_bits",
+  "polygon::tests::boundary_points_follow_the_half_open_rule",
+  "polygon::tests::classifies_interior_exterior_and_concave_notch",
+  "polygon::tests::degenerate_rings_contain_nothing",
+  "polygon::tests::vec2_form_agrees_with_the_path_form",
+  "polygon::tests::winding_direction_does_not_matter",
   "support_owner::tests::collinear_chain_reports_each_subspan_endpoints",
   "support_owner::tests::collinear_partial_overlap_reports_both_split_endpoints",
   "support_owner::tests::collinear_single_point_contact_reports_one_split",
@@ -1272,6 +1280,9 @@
   "panels::policy::tests::resize_width_respects_panel_and_available_workspace_bounds",
   "panels::policy::tests::valid_mode_survives_an_invalid_or_missing_right_width",
   "pending_edit_helpers::tests::restore_requires_the_submitted_draft"
+ ],
+ "case_profile_region": [
+  "accepts_a_strictly_inside_near_collinear_hole"
  ],
  "choc_socket_qualification": [
   "configured_terminals_and_effective_pad_layers_are_exact_and_distinct",
