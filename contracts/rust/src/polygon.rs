@@ -25,6 +25,35 @@ pub fn polygon_contains(ring: &[Vec2], p: Vec2) -> bool {
     })
 }
 
+/// Signed shoelace area of one ring: positive when counter-clockwise, negative when
+/// clockwise. Floating-point; rings with fewer than three points have no area.
+pub fn path_signed_area(ring: &[[f64; 2]]) -> f64 {
+    if ring.len() < 3 {
+        return 0.0;
+    }
+    (0..ring.len())
+        .map(|i| {
+            let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+            a[0] * b[1] - b[0] * a[1]
+        })
+        .sum::<f64>()
+        * 0.5
+}
+
+/// [`path_signed_area`] for a ring of [`Vec2`].
+pub fn polygon_signed_area(ring: &[Vec2]) -> f64 {
+    if ring.len() < 3 {
+        return 0.0;
+    }
+    (0..ring.len())
+        .map(|i| {
+            let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum::<f64>()
+        * 0.5
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,6 +127,32 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn signed_area_is_positive_counter_clockwise_and_negative_clockwise() {
+        assert_eq!(path_signed_area(&SQUARE), 1.0);
+        assert_eq!(path_signed_area(&C_SHAPE), 7.0);
+        let reversed: Vec<_> = SQUARE.iter().rev().copied().collect();
+        assert_eq!(path_signed_area(&reversed), -1.0);
+    }
+
+    #[test]
+    fn degenerate_rings_have_no_area() {
+        assert_eq!(path_signed_area(&[]), 0.0);
+        assert_eq!(path_signed_area(&[[1., 2.]]), 0.0);
+        assert_eq!(path_signed_area(&[[0., 0.], [1., 1.]]), 0.0);
+        assert_eq!(path_signed_area(&[[0., 0.], [1., 1.], [2., 2.]]), 0.0);
+        assert_eq!(polygon_signed_area(&[]), 0.0);
+        assert_eq!(polygon_signed_area(&vec2(&[[0., 0.], [1., 1.]])), 0.0);
+    }
+
+    #[test]
+    fn vec2_area_agrees_with_the_path_form() {
+        let reversed: Vec<_> = C_SHAPE.iter().rev().copied().collect();
+        for ring in [&SQUARE[..], &C_SHAPE[..], &reversed[..]] {
+            assert_eq!(polygon_signed_area(&vec2(ring)), path_signed_area(ring));
         }
     }
 }

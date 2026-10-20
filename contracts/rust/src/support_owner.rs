@@ -39,6 +39,7 @@ fn orient(a: &Pt, b: &Pt, c: &Pt) -> Rat {
 fn half() -> Rat {
     Rat::new(1.into(), 2.into())
 }
+// Exact rational twice-area: orientation must be decided without rounding.
 fn area2(p: &[Pt]) -> Rat {
     let mut s = Rat::zero();
     for i in 0..p.len() {

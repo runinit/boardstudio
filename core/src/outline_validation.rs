@@ -1,6 +1,6 @@
 //! Fabrication checks consume only the active perimeter, independently per board.
 use crate::{geometry, model::*, outline_versions};
-use boardstudio_contracts::path_contains;
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -196,22 +196,13 @@ fn support_paths(
     }
     paths
 }
-fn area(path: &Path) -> f64 {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .map(|(a, b)| a[0] * b[1] - a[1] * b[0])
-        .sum::<f64>()
-        .abs()
-        / 2.0
-}
 fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
     if path.len() < 3
         || path
             .iter()
             .flatten()
             .any(|coordinate| !coordinate.is_finite())
-        || area(path) < 1e-9
+        || path_signed_area(path).abs() < 1e-9
     {
         return false;
     }
@@ -257,7 +248,7 @@ fn missing(path: &Path, material: &Material, clearance: f64) -> bool {
         .overlay(&material.paths, OverlayRule::Difference, FillRule::EvenOdd)
         .iter()
         .flatten()
-        .map(area)
+        .map(|ring| path_signed_area(ring).abs())
         .sum::<f64>()
         > 0.000_001
 }
@@ -558,7 +549,10 @@ pub(crate) fn validate(
                 ) {
                     let substantial: Vec<_> = cores
                         .iter()
-                        .filter(|shape| area(&shape[0]) > repair.minimum_connection_width.powi(2))
+                        .filter(|shape| {
+                            path_signed_area(&shape[0]).abs()
+                                > repair.minimum_connection_width.powi(2)
+                        })
                         .collect();
                     if substantial.len() > 1 {
                         let mut regions = vec![];

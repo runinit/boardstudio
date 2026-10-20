@@ -1,4 +1,4 @@
-use boardstudio_contracts::path_contains;
+use boardstudio_contracts::{path_contains, path_signed_area};
 use super::{
     empty_mesh,
     mesh_template::{add_triangle, dish_sag},
@@ -158,7 +158,7 @@ fn oriented(paths: &[Vec<[f64; 2]>]) -> Vec<Vec<[f64; 2]>> {
                 .count();
             let hole = nesting % 2 == 1;
             let mut oriented = contour.clone();
-            let area = signed_area_f64(&oriented);
+            let area = path_signed_area(&oriented);
             if (!hole && area < 0.0) || (hole && area > 0.0) {
                 oriented.reverse();
             }
@@ -272,6 +272,7 @@ fn surface_z(spec: &KeycapSpec, x: f64, y: f64) -> f64 {
     spec.height + y * spec.tilt.to_radians().tan() - dish_sag(spec, x, y)
 }
 
+// f32 product rounding is part of the glyph orientation test; not the shared f64 sum.
 fn signed_area_f32(points: &[[f32; 2]]) -> f64 {
     points
         .iter()
@@ -279,18 +280,6 @@ fn signed_area_f32(points: &[[f32; 2]]) -> f64 {
         .map(|(index, point)| {
             let next = points[(index + 1) % points.len()];
             f64::from(point[0] * next[1] - next[0] * point[1])
-        })
-        .sum::<f64>()
-        * 0.5
-}
-
-fn signed_area_f64(points: &[[f64; 2]]) -> f64 {
-    points
-        .iter()
-        .enumerate()
-        .map(|(index, point)| {
-            let next = points[(index + 1) % points.len()];
-            point[0] * next[1] - next[0] * point[1]
         })
         .sum::<f64>()
         * 0.5

@@ -46,7 +46,3 @@ All five tickets are resolved; each ticket's `## Comments` records what it did a
 - 004 is partial: meshing no longer names `crate::qualification` types, but the proof modules
   and trace hook still live under `profile/`.
 - 005 kept the Cadrum benchmark and cleanup paths on purpose, commented.
-
-## Open follow-ups
-
-- Polygon area copies (see 002).

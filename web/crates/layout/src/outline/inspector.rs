@@ -1,13 +1,14 @@
 //! Outline version Inspector.
 
 use super::hook::{OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership};
-use super::overlays::{OutlineCoordinate, OutlineDimension, polygon_area};
+use super::overlays::{OutlineCoordinate, OutlineDimension};
 use super::planner::{
     PerimeterAnchor, attach_connection_point, connection_point_world, move_connection_point,
 };
 use crate::outline_settings::OutlineEdit;
 use boardstudio_core::model::{
     Contour, CornerStyle, EditPhase, Operation, OutlineControlPoint, OutlineFeature, Side, Vec2,
+    polygon_signed_area,
 };
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox};
 use dioxus::prelude::*;
@@ -948,7 +949,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         button {
                             r#type: "button",
                             disabled: !one_shot_enabled || drawing_points.read().len() < if tool == OutlineDrawTool::Connect { 2 } else { 3 }
-                                || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_area(&drawing_points.read()).abs() < 1e-6,
+                                || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_signed_area(&drawing_points.read()).abs() < 1e-6,
                             onclick: {
                                 let action_context = action_context.clone();
                                 let board_id = projection.board_id.clone();
@@ -959,7 +960,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     if points.len() < minimum_points { return; }
                                     match tool {
                                         OutlineDrawTool::Polygon(operation) => {
-                                            if polygon_area(&points).abs() < 1e-6 { return; }
+                                            if polygon_signed_area(&points).abs() < 1e-6 { return; }
                                             let serial = draft_serial() + 1;
                                             draft_serial.set(serial);
                                             let feature = OutlineFeature::Polygon {

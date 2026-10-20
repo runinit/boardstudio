@@ -630,25 +630,12 @@ fn support_contact_area(body: &CaseIR, support: &ResolvedModuleSupport) -> f64 {
         contact_area += contact
             .iter()
             .map(|contour| {
-                let area = polygon_area(&contour.points);
+                let area = boardstudio_contracts::polygon_signed_area(&contour.points).abs();
                 if contour.hole { -area } else { area }
             })
             .sum::<f64>();
     }
     contact_area.max(0.0)
-}
-
-fn polygon_area(points: &[Vec2]) -> f64 {
-    if points.len() < 3 {
-        return 0.0;
-    }
-    let sum = points
-        .iter()
-        .zip(points.iter().cycle().skip(1))
-        .take(points.len())
-        .map(|(a, b)| a.x * b.y - b.x * a.y)
-        .sum::<f64>();
-    sum.abs() / 2.0
 }
 
 // Circumscribe positive round material and inscribe its drill cuts: the polygon

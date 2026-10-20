@@ -9,7 +9,7 @@ mod collision;
 mod polygon;
 mod support_owner;
 
-pub use polygon::{path_contains, polygon_contains};
+pub use polygon::{path_contains, path_signed_area, polygon_contains, polygon_signed_area};
 
 pub use collision::{
     AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,

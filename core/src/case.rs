@@ -527,6 +527,7 @@ fn from_path(path: &[IntPoint<i64>]) -> Vec<Vec2> {
         .collect()
 }
 
+// Exact integer shoelace about the first point: the winding decision must not round.
 fn signed_area_i128(path: &[IntPoint<i64>]) -> i128 {
     let Some(origin) = path.first() else { return 0 };
     let (ox, oy) = (origin.x as i128, origin.y as i128);
@@ -539,6 +540,7 @@ fn signed_area_i128(path: &[IntPoint<i64>]) -> i128 {
     area
 }
 
+// Origin-translated so large offsets do not cancel; the shared area sums raw coordinates.
 fn signed_area_float(path: &[Vec2]) -> f64 {
     let Some(origin) = path.first() else {
         return 0.0;
@@ -567,6 +569,10 @@ fn area_float(path: &[Vec2]) -> f64 {
 mod tests {
     use super::*;
     use crate::model::{CaseBody, Gasket, Mount, MountKind};
+
+    fn area(points: &[Vec2]) -> f64 {
+        crate::model::polygon_signed_area(points).abs()
+    }
 
     fn rectangle(x: f64, y: f64, width: f64, height: f64, hole: bool) -> Contour {
         Contour {
@@ -897,18 +903,5 @@ mod tests {
                 .unwrap_err()
                 .contains("derived offset exceeds")
         );
-    }
-
-    fn area(points: &[Vec2]) -> f64 {
-        points
-            .iter()
-            .enumerate()
-            .map(|(index, point)| {
-                let next = points[(index + 1) % points.len()];
-                point.x * next.y - next.x * point.y
-            })
-            .sum::<f64>()
-            .abs()
-            / 2.0
     }
 }

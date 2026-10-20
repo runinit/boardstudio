@@ -2,7 +2,7 @@
 //! The span is the mouth chord, not the recess depth or a global hull radius.
 use super::{Path, Shapes, automatic, point, snap};
 use crate::{model::*, outline_controls};
-use boardstudio_contracts::path_contains;
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -17,14 +17,6 @@ fn cross(a: [f64; 2], b: [f64; 2]) -> f64 {
 }
 fn dot(a: [f64; 2], b: [f64; 2]) -> f64 {
     a[0] * b[0] + a[1] * b[1]
-}
-fn area(path: &Path) -> f64 {
-    path.iter()
-        .zip(path.iter().cycle().skip(1))
-        .take(path.len())
-        .map(|(a, b)| cross(*a, *b))
-        .sum::<f64>()
-        / 2.0
 }
 fn distance(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     let d = sub(b, a);
@@ -165,7 +157,7 @@ pub(super) fn bridge_metadata(
 
 fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
     let mut path = path.clone();
-    if area(&path) < 0.0 {
+    if path_signed_area(&path) < 0.0 {
         path.reverse();
     }
     let n = path.len();
@@ -201,7 +193,7 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             if depth < span * 0.25 {
                 continue;
             }
-            if area(&pocket) >= -0.001
+            if path_signed_area(&pocket) >= -0.001
                 || pocket[1..count]
                     .iter()
                     .any(|p| cross(chord, sub(*p, a)) <= 1e-8)
@@ -219,7 +211,7 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             if intersection
                 .iter()
                 .flatten()
-                .map(area)
+                .map(|ring| path_signed_area(ring))
                 .map(f64::abs)
                 .sum::<f64>()
                 > 0.001
@@ -229,7 +221,11 @@ fn pockets(path: &Path, maximum: f64) -> Vec<Path> {
             result.push(pocket);
         }
     }
-    result.sort_by(|a, b| area(b).abs().total_cmp(&area(a).abs()));
+    result.sort_by(|a, b| {
+        path_signed_area(b)
+            .abs()
+            .total_cmp(&path_signed_area(a).abs())
+    });
     result
 }
 

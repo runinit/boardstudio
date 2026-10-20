@@ -3,7 +3,7 @@ use super::{
     FeatureShape, MAX_ARC_SEGMENTS, MAX_CHORD_ERROR_MM, Path, SCALE, Shapes, cleanup, rect, snap,
 };
 use crate::model::{CornerStyle, OutlineSettings, PartKind, ProjectDoc, Vec2};
-use boardstudio_contracts::path_contains;
+use boardstudio_contracts::{path_contains, path_signed_area};
 use i_overlay::{
     core::{fill_rule::FillRule, overlay_rule::OverlayRule},
     float::single::SingleFloatOverlay,
@@ -22,14 +22,6 @@ fn sub(a: [f64; 2], b: [f64; 2]) -> [f64; 2] {
 }
 fn length(a: [f64; 2]) -> f64 {
     a[0].hypot(a[1])
-}
-fn area(p: &Path) -> f64 {
-    p.iter()
-        .zip(p.iter().cycle().skip(1))
-        .take(p.len())
-        .map(|(a, b)| cross(*a, *b))
-        .sum::<f64>()
-        / 2.0
 }
 fn on_segment(a: [f64; 2], b: [f64; 2], p: [f64; 2]) -> bool {
     cross(sub(b, a), sub(p, a)).abs() < 1e-8
@@ -90,7 +82,8 @@ fn adjacent_edges_meet_only_at(
 
 // shortcut: x-overlapping boxes can still produce quadratic candidate work; persisted rings stop at 1024 points, upgrade if generated outlines profile too slowly.
 pub(super) fn simple(p: &Path) -> bool {
-    if p.len() < 3 || p.iter().flatten().any(|x| !x.is_finite()) || area(p).abs() < 1e-6 {
+    if p.len() < 3 || p.iter().flatten().any(|x| !x.is_finite()) || path_signed_area(p).abs() < 1e-6
+    {
         return false;
     }
     let Some(points): Option<Vec<_>> = p.iter().copied().map(grid_point).collect() else {
@@ -306,7 +299,7 @@ pub(super) fn envelope(
                 snap(p.pose.at.y + x * sin + y * cos),
             ];
         }
-        if area(&path) < 0.0 {
+        if path_signed_area(&path) < 0.0 {
             path.reverse();
         }
         let m = p.outline.as_ref().and_then(|o| o.margin).unwrap_or(margin);

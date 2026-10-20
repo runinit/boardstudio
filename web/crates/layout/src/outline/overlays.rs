@@ -5,7 +5,7 @@ use super::planner::{OutlinePointTarget, PerimeterAnchor};
 use crate::canvas_interaction::{CanvasInteractionArbiter, CanvasInteractionOwner};
 use crate::runtime::Runtime;
 use boardstudio_application::Event;
-use boardstudio_core::model::{EditPhase, Operation, OutlineFeature, Vec2};
+use boardstudio_core::model::{EditPhase, Operation, OutlineFeature, Vec2, polygon_signed_area};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::cell::RefCell;
@@ -396,18 +396,6 @@ pub(super) fn outline_grid(fraction: f64, pitch: Vec2) -> Vec2 {
     }
 }
 
-pub(super) fn polygon_area(points: &[Vec2]) -> f64 {
-    points
-        .iter()
-        .enumerate()
-        .map(|(index, point)| {
-            let next = points[(index + 1) % points.len()];
-            point.x * next.y - next.x * point.y
-        })
-        .sum::<f64>()
-        * 0.5
-}
-
 #[component]
 pub fn OutlineDraftCanvasOverlay(
     projection: OutlineInspectorProjection,
@@ -454,7 +442,8 @@ pub fn OutlineDraftCanvasOverlay(
         move || {
             let draft = points.read().clone();
             if draft.len() < minimum_points
-                || matches!(tool, OutlineDrawTool::Polygon(_)) && polygon_area(&draft).abs() < 1e-6
+                || matches!(tool, OutlineDrawTool::Polygon(_))
+                    && polygon_signed_area(&draft).abs() < 1e-6
             {
                 return;
             }
