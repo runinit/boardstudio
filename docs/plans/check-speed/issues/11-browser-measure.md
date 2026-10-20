@@ -1,6 +1,6 @@
 # 11: Measure where the browser step spends its time
 
-Status: ready-for-agent
+Status: claimed
 Type: task
 Blocked by: [33 (typed-core-edits)](../../typed-core-edits/issues/33-test-speed-rust.md)
 Map: [map.md](../map.md) · Research: the 2026-10-10 browser deep dive (summarised below)
@@ -43,3 +43,27 @@ and the page runner's own `--list` plus two filtered launches) and that the host
 ## Verification
 
 Per [verification-process.md](../../../agents/verification-process.md). No source changes; docs only (`repo`).
+
+## Progress — 2026-10-20
+
+The first measurement pass ran from local `dev` commit `e80da69dc` in
+`t3/measure-browser-step-time`; logs and the provisional table are in that
+worktree's gitignored `.evidence/REPORT.md`. Warm browser sweeps, launch
+decomposition, Cargo timings, strip A/B, tail timing and a Core-edit run produced
+partial observations. **No browser-step result is accepted as a passing baseline:**
+the measured runs exited 1 because
+`model_decode_boundary_tests::refuses_hostile_wrl_at_the_application_decoder_without_poisoning_the_shared_module`
+could not load `assets/renderer/boardstudio_renderer_wasm.js` from the fresh
+worktree. The helper also omitted drag smoke and two CAD commands because their
+packaged assets had not been built. These failures and omissions prevent a full
+browser-step comparison.
+
+The opt-level A/B repeated failed runs instead of stopping. Level 0's three
+attempts took 509.56, 527.84 and 527.34 seconds; level 1's took 362.18, 101.09
+and 100.82 seconds. All exited 1. These are **invalid speed comparisons**, not
+evidence to choose an optimization. The lane was stopped after preserving logs.
+Its temporary `Cargo.toml` change is restored and its tracked worktree is clean.
+Before another sweep, build the packaged renderer and other browser prerequisites
+once, prove the focused model-decoder test passes, and stop on the first failed
+launch. Then run only bounded, comparable warm cases. No source change or ticket
+resolution is claimed.
