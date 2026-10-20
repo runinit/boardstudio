@@ -1,8 +1,8 @@
 //! Stateless ZIP operations. Browser persistence is performed only after verification.
 mod zip_directory;
 
+use crate::hash::sha256_hex;
 use crate::model::{ArchiveAssetBuffer, ArchiveEntry, ArchiveReply, ArchiveRequest};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read, Write};
 use zip::{CompressionMethod, ZipArchive, ZipWriter, write::SimpleFileOptions};
@@ -66,7 +66,7 @@ fn dispatch(request: ArchiveRequest, buffers: &[Vec<u8>], limits: Limits) -> Arc
             let indexed: BTreeMap<_, _> = files.iter().copied().collect();
             verify_references(&references, &indexed)?;
             for (name, bytes) in &files {
-                if asset_path(name) && digest(bytes) != name[7..] {
+                if asset_path(name) && sha256_hex(bytes) != name[7..] {
                     return Err(format!("Asset hash mismatch: {name}"));
                 }
             }
@@ -187,13 +187,6 @@ fn asset_references(json: &str) -> Result<Vec<(String, String)>, String> {
         .collect()
 }
 
-fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 fn verify_references(
     references: &[(String, String)],
     files: &BTreeMap<&str, &[u8]>,
@@ -206,7 +199,7 @@ fn verify_references(
         let bytes = files
             .get(format!("assets/{hash}").as_str())
             .ok_or_else(|| format!("Archive has no asset: {name}"))?;
-        if digest(bytes) != *hash {
+        if sha256_hex(bytes) != *hash {
             return Err(format!("Asset hash mismatch: {name}"));
         }
     }
@@ -475,7 +468,7 @@ mod tests {
     #[test]
     fn project_roundtrip_keeps_json_and_deduplicates_shared_references() {
         let data = b"component STEP".to_vec();
-        let hash = digest(&data);
+        let hash = sha256_hex(&data);
         let json = format!("  {}\n", document(&[hash.clone(), hash.clone()]));
         let (_, packed) = pack_project(
             json.clone(),
@@ -567,7 +560,7 @@ mod tests {
     #[test]
     fn pack_verifies_missing_hash_mismatch_and_duplicate_assets() {
         let bytes = b"asset".to_vec();
-        let hash = digest(&bytes);
+        let hash = sha256_hex(&bytes);
         let entry = (format!("assets/{hash}"), bytes);
         let json = document(std::slice::from_ref(&hash));
         assert!(
@@ -594,7 +587,7 @@ mod tests {
     #[test]
     fn unpack_verifies_missing_assets_and_hashes_before_any_output() {
         let data = b"asset";
-        let hash = digest(data);
+        let hash = sha256_hex(data);
         let json = document(std::slice::from_ref(&hash));
         let missing = pack(&[("project.json", json.as_bytes())], None).unwrap();
         assert!(
@@ -617,7 +610,7 @@ mod tests {
 
     #[test]
     fn unreferenced_assets_are_checked_for_archive_integrity_but_not_returned() {
-        let hash = digest(b"unused");
+        let hash = sha256_hex(b"unused");
         let (_, packed) = pack_project(
             document(&[]),
             &[(format!("assets/{hash}"), b"unused".to_vec())],

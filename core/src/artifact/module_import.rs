@@ -1,6 +1,7 @@
 //! Retain PCB source, constituent footprints and net identities without inventing bought-board internals.
 use super::parsed_board::{BoardParseError, ParsedBoard};
 use super::{mechanical_extract, sexpr, source};
+use crate::hash::sha256_hex;
 use crate::model::*;
 use kiutils_sexpr::Node;
 use std::collections::{BTreeMap, BTreeSet};
@@ -101,13 +102,7 @@ pub(super) fn import(
             )));
         }
     }
-    use sha2::{Digest, Sha256};
-    provenance.sha256 = Some(
-        Sha256::digest(raw.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect(),
-    );
+    provenance.sha256 = Some(sha256_hex(raw.as_bytes()));
     let thickness = sexpr::child(root, "general")
         .and_then(|n| sexpr::child(n, "thickness"))
         .and_then(|n| number(n, 1))

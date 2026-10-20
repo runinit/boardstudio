@@ -3,6 +3,7 @@
 use boardstudio_application::{AcceptedSnapshot, Scope};
 #[cfg(all(test, feature = "page"))]
 use boardstudio_core::CoreEngine;
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::*;
 pub use boardstudio_core::model::{
     CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
@@ -545,12 +546,8 @@ fn validate_result_payload(request: &CadRequest, result: &CadResult) -> Result<(
 /// Shares the production generated geometry cache's m1 revision. Include the
 /// complete prepared body, rather than presentation meshes or a STEP source hash.
 pub fn generated_geometry_identity(body: &PreparedCaseIR) -> Result<String, String> {
-    use sha2::{Digest, Sha256};
     let bytes = serde_json::to_vec(body).map_err(|error| error.to_string())?;
-    let digest = Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+    let digest = sha256_hex(&bytes);
     Ok(format!("m1/generated-analysis-v2/{digest}"))
 }
 

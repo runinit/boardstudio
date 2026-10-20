@@ -1,8 +1,8 @@
 use boardstudio_core::generators;
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::ProjectDoc;
 use boardstudio_core::model::{PartDefinition, PartKind};
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 const IMPORTED_PARTS_JSON: &str = include_str!(concat!(
@@ -89,10 +89,7 @@ thread_local! {
 }
 
 fn imported_parts_hash() -> String {
-    Sha256::digest(IMPORTED_PARTS_JSON.as_bytes())
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    sha256_hex(IMPORTED_PARTS_JSON.as_bytes())
 }
 
 pub async fn load_bundled(reversible: bool) -> Result<Rc<Vec<CatalogEntry>>, String> {

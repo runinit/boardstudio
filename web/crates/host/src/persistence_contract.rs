@@ -1,4 +1,4 @@
-use sha2::{Digest, Sha256};
+use boardstudio_core::hash::sha256_hex;
 
 pub const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
@@ -33,10 +33,7 @@ pub fn validate_exact_json_integers(value: &serde_json::Value) -> Result<(), Str
 }
 
 pub fn sha256_bytes(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    sha256_hex(bytes)
 }
 
 #[cfg(test)]

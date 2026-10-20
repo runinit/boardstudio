@@ -7,6 +7,7 @@
 use boardstudio_application::{AcceptedSnapshot, OperationId, Scope};
 use boardstudio_core::{
     electrical::ElectricalPlan,
+    hash::sha256_hex,
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
         PrepareExportRequest,
@@ -15,7 +16,6 @@ use boardstudio_core::{
 use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
 use js_sys::Uint8Array;
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, future::Future};
 
 pub struct HandoffSource<'a> {
@@ -259,10 +259,7 @@ async fn load_model_files(
             is_current()?;
             (model.sha256.to_ascii_lowercase(), bytes)
         };
-        let actual_hash = Sha256::digest(&bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let actual_hash = sha256_hex(&bytes);
         if actual_hash != expected_hash {
             return Err(format!(
                 "Model asset {filename} failed its content hash check"

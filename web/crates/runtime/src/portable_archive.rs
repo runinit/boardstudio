@@ -1,5 +1,5 @@
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{Asset, ProjectDoc};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub struct PreparedArchive {
@@ -49,7 +49,7 @@ pub fn prepare_archive(
             if !asset_ids.insert(model.id.to_owned()) {
                 continue;
             }
-            let sha256 = hex_digest(&bytes);
+            let sha256 = sha256_hex(&bytes);
             packed_document.assets.push(Asset {
                 id: model.id.to_owned(),
                 name: model.filename.to_owned(),
@@ -93,13 +93,6 @@ pub fn prepare_archive(
     })
     .to_string();
     Ok(PreparedArchive { metadata, buffers })
-}
-
-fn hex_digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 /// Resolves all directly persisted bundled references plus the generated
@@ -174,6 +167,7 @@ pub fn referenced_models(
 #[cfg(test)]
 mod tests {
     use super::referenced_models;
+    use boardstudio_core::hash::sha256_hex;
     use boardstudio_core::model::HardwareSource;
     use boardstudio_core::model::{
         AssemblyDefinition, AssemblyMember, Asset, BoardReference, ModuleBoard, ModuleCircuit,
@@ -373,10 +367,9 @@ mod tests {
     #[test]
     fn pack_round_trip_keeps_local_bytes_and_optionally_adds_opaque_model_bytes() {
         use boardstudio_core::model::{ArchiveReply, Asset};
-        use sha2::{Digest, Sha256};
 
         let local_bytes = b"existing local asset".to_vec();
-        let local_hash = hex_digest(&local_bytes);
+        let local_hash = sha256_hex(&local_bytes);
         let model =
             super::super::bundled_models::bundled_model("bundled-model:thqwgd001/THQWGD001 #1.stp")
                 .unwrap();
@@ -424,7 +417,7 @@ mod tests {
             restored.assets[1].source.as_deref(),
             Some("bundled footprint library")
         );
-        assert_eq!(restored.assets[1].sha256, hex_digest(&opaque_bytes));
+        assert_eq!(restored.assets[1].sha256, sha256_hex(&opaque_bytes));
         let local = assets
             .iter()
             .find(|asset| asset.sha256 == local_hash)
@@ -432,7 +425,7 @@ mod tests {
         assert_eq!(unpacked_buffers[local.buffer_index as usize], local_bytes);
         let model_row = assets
             .iter()
-            .find(|asset| asset.sha256 == hex_digest(&opaque_bytes))
+            .find(|asset| asset.sha256 == sha256_hex(&opaque_bytes))
             .unwrap();
         assert!(unpacked_buffers[model_row.buffer_index as usize].is_empty());
         assert!(archive_option(&enabled.metadata));
@@ -462,7 +455,7 @@ mod tests {
         assert!(!archive_option(&disabled.metadata));
 
         let existing_model_bytes = b"already embedded by the document".to_vec();
-        let existing_model_hash = hex_digest(&existing_model_bytes);
+        let existing_model_hash = sha256_hex(&existing_model_bytes);
         let mut document_with_model = ProjectDoc::empty("doc", "existing model asset");
         document_with_model.assets.push(Asset {
             id: model.id.into(),
@@ -501,13 +494,6 @@ mod tests {
             unpacked_buffers[assets[0].buffer_index as usize],
             existing_model_bytes
         );
-
-        fn hex_digest(bytes: &[u8]) -> String {
-            Sha256::digest(bytes)
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect()
-        }
 
         fn archive_option(metadata: &str) -> bool {
             let value: serde_json::Value = serde_json::from_str(metadata).unwrap();

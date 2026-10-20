@@ -1,7 +1,7 @@
 //! One reviewed circuit plan feeds the inspector, PCB handoff and firmware.
+use crate::hash::sha256_hex;
 use crate::model::*;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -187,10 +187,7 @@ fn add_net(nets: &mut BTreeMap<String, Net>, prefix: &str, suffix: &str, pins: V
         .extend(pins);
 }
 fn signature<T: Serialize>(value: &T) -> String {
-    Sha256::digest(serde_json::to_vec(value).expect("electrical input serializes"))
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    sha256_hex(&serde_json::to_vec(value).expect("electrical input serializes"))
 }
 
 struct MatrixKey<'a> {

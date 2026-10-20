@@ -9,13 +9,13 @@ use crate::cad_jobs::{
 use crate::cad_qualification::{
     self as qualification, AnalysisMesh, AnalysisRef, Source, SourceQualification,
 };
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::KeycapSpec;
 use futures_channel::oneshot;
 use js_sys::{
     Array, Float32Array, Float64Array, Function, Object, Promise, Reflect, Uint8Array, Uint32Array,
 };
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -3019,13 +3019,6 @@ fn add_buffer_transfer(transfers: &Array, value: &JsValue) -> Result<(), JsValue
     };
     transfers.push(&buffer);
     Ok(())
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn worker_message(kind: &str, message: &str, _unused: Option<JsValue>) -> JsValue {

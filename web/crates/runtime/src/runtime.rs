@@ -12,6 +12,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan, ElectricalPlanRequest},
+    hash::sha256_hex,
     model::{
         ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, Board,
         CaseAssemblyIR, CaseIR, CompiledFootprint, CoreReply, CoreRequest, HardwareTopology,
@@ -39,6 +40,7 @@ use boardstudio_web_host::{
     },
     cad_worker::CadWorker,
 };
+#[cfg(test)]
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -3124,11 +3126,7 @@ impl Runtime {
         if !is_current() {
             return Err("Imported board asset request became stale after loading".into());
         }
-        let digest = Sha256::digest(&bytes);
-        let digest = digest
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let digest = sha256_hex(&bytes);
         if digest != asset.sha256 {
             return Err("Imported board asset bytes do not match the accepted SHA-256".into());
         }

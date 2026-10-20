@@ -4,13 +4,13 @@
 //! request; the existing Core archive worker packs the resulting files.
 
 use boardstudio_application::{AcceptedSnapshot, OperationId};
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{
     ArchiveEntry, ArchiveReply, ArchiveRequest, ArtifactReply, ArtifactRequest, ExportTarget,
     PrepareExportRequest,
 };
 use boardstudio_web_host::host::{BrowserStore, CoreExecutor};
 use js_sys::Uint8Array;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 pub struct ExportSource<'a> {
@@ -198,10 +198,7 @@ async fn load_model_files(
             let bytes = bytes?;
             (model.sha256.to_owned(), bytes)
         };
-        let actual_digest = Sha256::digest(&bytes)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let actual_digest = sha256_hex(&bytes);
         if actual_digest != digest.to_ascii_lowercase() {
             return Err(format!(
                 "Model asset {filename} failed its content hash check"

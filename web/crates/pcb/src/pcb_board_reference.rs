@@ -1,4 +1,5 @@
 //! Scoped controls and file-backed editing for routed-board references.
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{Asset, BoardReference};
 use boardstudio_web_runtime::pending_edits::{PendingEditResult, PendingEdits};
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
@@ -7,7 +8,6 @@ use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
-use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
@@ -23,13 +23,6 @@ use crate::runtime::Runtime;
 mod matching;
 
 const MAX_REFERENCE_BYTES: f64 = 32.0 * 1024.0 * 1024.0;
-
-fn sha256_bytes(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
 
 #[derive(Clone)]
 pub struct BoardReferenceRuntimeHandle(Rc<Runtime>);
@@ -249,7 +242,7 @@ async fn discover_stored_paths(
     }
     if bytes.is_empty()
         || bytes.len() as f64 > MAX_REFERENCE_BYTES
-        || sha256_bytes(&bytes) != asset.sha256
+        || sha256_hex(&bytes) != asset.sha256
     {
         return Err("Saved routed-board file failed its size or SHA-256 check.".into());
     }
@@ -310,7 +303,7 @@ async fn import_routed_board(
     }
     let paths = preview_paths(&preview.models);
     let asset_id = crate::runtime::new_project_id()?;
-    let sha256 = sha256_bytes(&bytes);
+    let sha256 = sha256_hex(&bytes);
     let asset = Asset {
         id: asset_id.clone(),
         name: file.name(),
@@ -1147,7 +1140,7 @@ mod mounted_async_tests {
 
     async fn fixture() -> Fixture {
         let runtime = support::new_runtime();
-        let missing_sha = sha256_bytes(b"absent routed board browser-store fixture");
+        let missing_sha = sha256_hex(b"absent routed board browser-store fixture");
         let asset = Asset {
             id: "routed-board-asset".into(),
             name: "Left_PCB.kicad_pcb".into(),
@@ -1537,7 +1530,7 @@ mod mounted_async_tests {
         // Trailing whitespace preserves the fixture as KiCad text while giving
         // each stale-owner case a unique BrowserStore identity.
         bytes.extend(std::iter::repeat_n(b'\n', salt));
-        let sha256 = sha256_bytes(&bytes);
+        let sha256 = sha256_hex(&bytes);
         let contents = Uint8Array::from(bytes.as_slice());
         let file = File::new_with_u8_array_sequence(
             &Array::of1(&contents.into()),

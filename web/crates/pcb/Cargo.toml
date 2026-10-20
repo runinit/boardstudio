@@ -28,7 +28,6 @@ dioxus-web = { version = "=0.7.10", default-features = false, features = ["mount
 gloo-timers = { version = "=0.3.0", features = ["futures"] }
 futures-channel = "=0.3.34"
 js-sys = "=0.3.106"
-sha2 = { version = "=0.11.0", default-features = false }
 wasm-bindgen = "=0.2.129"
 wasm-bindgen-futures = "=0.4.79"
 web-sys = { version = "=0.3.106", features = [

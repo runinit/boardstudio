@@ -8,10 +8,10 @@ use super::layout_viewer_source::{LayoutPreviewSnapshot, LayoutSourceLease};
 use crate::case_preview::CasePreviewOwnerLease;
 use crate::parts_preview::PartsPreviewOwnerLease;
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_core::hash::sha256_hex;
 use boardstudio_core::model::{
     Asset, BoardReference, ModuleModelPlacement, PcbModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
-use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, VecDeque},
     future::{Future, poll_fn},
@@ -304,7 +304,7 @@ impl VerifiedModelBytes {
             return Err("Model file must be between 1 byte and 32 MiB".into());
         }
         let actual = sha256_hex(&bytes);
-        if !actual.eq_ignore_ascii_case(expected_sha256) {
+        if actual != expected_sha256 {
             return Err("Model asset failed SHA-256 verification".into());
         }
         Ok(Self {
@@ -320,13 +320,6 @@ impl VerifiedModelBytes {
     pub fn sha256(&self) -> &str {
         &self.sha256
     }
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2400,6 +2393,16 @@ mod tests {
         assert_eq!(verified.sha256(), digest);
         assert!(VerifiedModelBytes::verify(bytes, "00").is_err());
         assert!(VerifiedModelBytes::verify(Vec::new(), &digest).is_err());
+    }
+
+    #[test]
+    fn verified_bytes_reject_an_uppercase_expected_digest() {
+        let bytes = b"model".to_vec();
+        let digest = sha256_hex(&bytes);
+        assert!(
+            VerifiedModelBytes::verify(bytes, &digest.to_ascii_uppercase()).is_err(),
+            "an uppercase expected hash is not the stored lowercase identity"
+        );
     }
 
     #[test]

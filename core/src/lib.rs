@@ -10,6 +10,7 @@ pub mod firmware;
 pub mod generators;
 mod geometry;
 mod hardware;
+pub mod hash;
 mod inputs;
 mod keycaps;
 mod keymap;

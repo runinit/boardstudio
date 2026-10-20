@@ -1,4 +1,5 @@
 //! Stateless mechanical assembly resolution. Explicit profiles are the geometry authority.
+use crate::hash::sha256_hex;
 use crate::model::*;
 use boardstudio_contracts::polygon_contains;
 pub mod change;
@@ -928,11 +929,7 @@ fn collect_part_geometry(
         }
         let (sin, cos) = part.pose.rotation.to_radians().sin_cos();
         if let Some(source) = &profile.source_geometry {
-            use sha2::{Digest, Sha256};
-            let hash: String = Sha256::digest(source.text.as_bytes())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect();
+            let hash = sha256_hex(source.text.as_bytes());
             if hash != source.sha256 {
                 issue(
                     &format!("source-hash:{}", part.id),

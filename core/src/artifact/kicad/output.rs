@@ -1,5 +1,5 @@
 use super::*;
-use sha2::{Digest, Sha256};
+use crate::hash::sha256_hex;
 
 pub fn finish_export(request: FinishExportRequest) -> Result<ExportArtifact, ArtifactError> {
     validate_plan(&request.plan)?;
@@ -361,10 +361,7 @@ fn standalone_footprint_names(definitions: &[&PartDefinition]) -> Vec<String> {
             if counts.get(&base) == Some(&1) {
                 return base;
             }
-            let digest = Sha256::digest(definition.id.as_bytes())
-                .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>();
+            let digest = sha256_hex(definition.id.as_bytes());
             let mut length = 10;
             loop {
                 let candidate = format!("{base}__{}", &digest[..length]);
