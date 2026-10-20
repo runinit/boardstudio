@@ -11,6 +11,7 @@
   "polygon::tests::signed_area_is_positive_counter_clockwise_and_negative_clockwise",
   "polygon::tests::vec2_area_agrees_with_the_path_form",
   "polygon::tests::vec2_form_agrees_with_the_path_form",
+  "polygon::tests::vertices_follow_the_same_rule",
   "polygon::tests::winding_direction_does_not_matter",
   "support_owner::tests::collinear_chain_reports_each_subspan_endpoints",
   "support_owner::tests::collinear_partial_overlap_reports_both_split_endpoints",
