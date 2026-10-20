@@ -71,3 +71,55 @@ jobs:
           path: web/target/test-results/drag-browser/*/receipt.json
           if-no-files-found: ignore
           retention-days: 7
+
+  # Release build and Pages deploy, moved here from the deleted `pages` workflow so a commit
+  # reaches users only after the native and web validation jobs of the same commit pass.
+  # The gate below allows a push to `main` and a manual dispatch; pull requests and pushes to
+  # `dev` validate but never release.
+  release-build:
+    needs: [native, web]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup target add wasm32-unknown-unknown
+      - run: python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11), sys.version'
+      - uses: ./.github/actions/web-tools
+      # wasm-pack's own tool cache (wasm-bindgen CLI and test runner, wasm-opt).
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wasm-pack
+          key: wasm-pack-0.15.0-wasm-bindgen-0.2.129
+      # Restores the cache the `web` job saves on main; never saves its own.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            . -> target
+            cad/wasm -> target
+          shared-key: web
+          save-if: false
+      - name: Build the Dioxus release package (/boardstudio/ route)
+        run: python3 scripts/build-web.py
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/target/site/site-subpath/boardstudio
+
+  release-deploy:
+    needs: release-build
+    if: needs.release-build.result == 'success'
+    runs-on: ubuntu-latest
+    # Serializes deploys; a queued deploy waits for the one in flight instead of cancelling it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
