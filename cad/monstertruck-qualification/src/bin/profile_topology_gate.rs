@@ -335,6 +335,7 @@ impl OutlineBuilder for FlattenedOutline {
     }
 }
 
+// Independent oracle: deliberately not the production float predicate.
 fn inside(point: (f64, f64), polygon: &[(f64, f64)]) -> bool {
     let mut yes = false;
     for (a, b) in polygon

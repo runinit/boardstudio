@@ -300,6 +300,7 @@ fn on(a: &P, b: &P, p: &P) -> bool {
         && p.1 >= a.1.clone().min(b.1.clone())
         && p.1 <= a.1.clone().max(b.1.clone())
 }
+// Independent exact-rational oracle: deliberately not the production float predicate.
 fn inside(p: &P, ring: &[P]) -> bool {
     let zero = Q::from_integer(0.into());
     let mut winding = 0;
