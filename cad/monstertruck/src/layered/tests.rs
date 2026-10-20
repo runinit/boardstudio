@@ -278,6 +278,18 @@ fn boss_through_hole_merges_one_exact_cylinder_across_floor_and_boss() {
     );
 }
 #[test]
+fn boss_no_wider_than_its_hole_is_rejected() {
+    let mut input = plate();
+    let mount = &mut input.regions[0].mounts[0];
+    mount.kind = MountKind::Boss;
+    mount.boss_diameter = Some(mount.hole_diameter);
+    mount.height = Some(3.);
+    let Err(error) = build_layered_case(&input) else {
+        panic!("boss without a wall was built");
+    };
+    assert!(error.contains("wider than its hole"), "{error}");
+}
+#[test]
 fn round_seat_touching_plate_top_preserves_material_without_boolean() {
     let mut input = plate();
     input.regions[0].mounts.clear();

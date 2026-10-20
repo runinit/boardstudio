@@ -78,8 +78,14 @@ The tool-engagement feature of a screw, such as Torx or an internal hex socket.
 The external shape and dimensions of the screw head that determine its bearing
 surface and the space needed to recess it in the case.
 
+**Case boss**:
+A solid projection from a case body that surrounds a mounting hole, wider than the
+hole it surrounds, such as a closure boss on the top case or a standoff rising from the tray to hold
+the board.
+_Avoid_: boss (when it could mean a closure boss specifically)
+
 **Closure boss**:
-A local projection of the top case that supports a closure insert and can bring
+A case boss on the top case that supports a closure insert and can bring
 its threaded entrance closer to the bottom screw, separate from a gasket support.
 
 **Footprint generator**:

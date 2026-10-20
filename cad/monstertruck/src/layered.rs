@@ -196,8 +196,9 @@ pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, S
                 let diameter = m
                     .boss_diameter
                     .ok_or_else(|| format!("Boss '{}' has no diameter", m.id))?;
-                if !diameter.is_finite() || diameter <= 0. {
-                    return Err(format!("Boss '{}' has invalid diameter", m.id));
+                // A case boss must be wider than its hole, matching core's case preparation.
+                if !diameter.is_finite() || diameter <= m.hole_diameter {
+                    return Err(format!("Boss '{}' must be wider than its hole", m.id));
                 }
                 let z = if body.kind == CaseKind::Lid {
                     base + wall - height
