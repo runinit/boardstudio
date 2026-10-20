@@ -11,13 +11,12 @@ pub use boardstudio_core::mechanical::change::{
 };
 use boardstudio_core::model::{
     CaseOpening, GasketPlacement, HardwareTransport, InsertInstallation, InternalClosureHardware,
-    MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile, MechanicalCriticalFit,
-    MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor, MechanicalGeometry,
-    MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening, MechanicalPartProcess,
-    MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping, MechanicalStabilizerKind,
-    MAX_COORDINATE_MM, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount, MountKind,
-    PlateMethod, Pose2,
-    ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
+    MAX_COORDINATE_MM, MechanicalBattery, MechanicalBottomStyle, MechanicalBuiltinProfile,
+    MechanicalCriticalFit, MechanicalExtraction, MechanicalFeatureState, MechanicalGasketAnchor,
+    MechanicalGeometry, MechanicalHardwareSpecification, MechanicalMount, MechanicalOpening,
+    MechanicalPartProcess, MechanicalPartProfile, MechanicalPurpose, MechanicalPurposeMapping,
+    MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
+    MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
 use dioxus::prelude::*;
