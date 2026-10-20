@@ -171,7 +171,6 @@ impl BrowserStore {
                 })
                 .collect(),
             expected,
-            false,
         )
         .await
     }
@@ -181,7 +180,6 @@ impl BrowserStore {
         document: &ProjectDoc,
         assets: Vec<AssetBytes>,
         expected: Option<&StorageToken>,
-        force_abort: bool,
     ) -> Result<StorageToken, SaveError> {
         let json = serde_json::to_value(document)
             .map_err(|error| SaveError::Storage(error.to_string()))?;
@@ -198,7 +196,6 @@ impl BrowserStore {
                 .map(|asset| asset.sha256.clone())
                 .collect(),
             assets,
-            force_abort,
             expected.cloned(),
         )
         .await?;
@@ -208,37 +205,11 @@ impl BrowserStore {
         Ok(token)
     }
 
-    pub async fn save_document_with_assets(
-        &self,
-        document: &ProjectDoc,
-        assets: Vec<AssetBytes>,
-    ) -> Result<(), PersistError> {
-        let expected = self.observed.borrow().get(&document.id).cloned();
-        self.save_assets_expected(document, assets, expected.as_ref(), false)
-            .await
-            .map(|_| ())
-            .map_err(|error| PersistError(error.to_string()))
-    }
-
-    #[cfg(feature = "test-harness")]
-    pub async fn abort_document_save_for_test(
-        &self,
-        document: &ProjectDoc,
-        assets: Vec<AssetBytes>,
-    ) -> Result<(), PersistError> {
-        let expected = self.observed.borrow().get(&document.id).cloned();
-        self.save_assets_expected(document, assets, expected.as_ref(), true)
-            .await
-            .map(|_| ())
-            .map_err(|error| PersistError(error.to_string()))
-    }
-
     async fn persist_project(
         &self,
         document: JsValue,
         required_assets: Vec<String>,
         new_assets: Vec<AssetBytes>,
-        force_abort: bool,
         expected: Option<StorageToken>,
     ) -> Result<(), SaveError> {
         let database_name = self.database_name.clone();
@@ -251,7 +222,6 @@ impl BrowserStore {
                 document,
                 required_assets,
                 new_assets,
-                force_abort,
                 expected,
             )
             .await;
@@ -516,7 +486,6 @@ async fn persist_project(
     document: JsValue,
     required_assets: Vec<String>,
     new_assets: Vec<AssetBytes>,
-    force_abort: bool,
     expected: Option<StorageToken>,
 ) -> Result<(), SaveError> {
     let project_id = Reflect::get(&document, &"id".into())
@@ -617,10 +586,6 @@ async fn persist_project(
             return Err(error.into());
         }
     };
-    if force_abort {
-        *missing_asset.borrow_mut() = Some("test-injected IndexedDB transaction abort".into());
-        let _ = transaction.abort();
-    }
     let result = completion.await;
     let _ = checks;
     database.close();
