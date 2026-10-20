@@ -27,4 +27,19 @@ Tickets 001, 002, 003 and 005 can start in parallel; 004 waits on 003.
 
 ## Decisions so far
 
-None yet.
+All five tickets are resolved; each ticket's `## Comments` records what it did and did not do.
+
+- 001 shared only the leaves (import options, digest check, placement check). The host and
+  worker query and operand types stay separate by design.
+- 002 unified containment, not area; the f32 renderer copy and test oracles stay.
+- 003 deleted the production profile builder; tests build through `build_case`.
+- 004 is partial: meshing no longer names `crate::qualification` types, but the proof modules
+  and trace hook still live under `profile/`.
+- 005 kept the Cadrum benchmark and cleanup paths on purpose, commented.
+
+## Open follow-ups
+
+- Polygon area copies (see 002).
+- Through `build_case`, a hole ring at about 1e13 mm panics inside `cavalier_contours` instead
+  of returning an error. Core rejects input beyond 1e6 mm, so it is unreachable today, but the
+  kernel does not defend against it.

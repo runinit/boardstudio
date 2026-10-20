@@ -26,8 +26,10 @@ module in contracts that follows ADR-0012's fabrication grid.
 
 Audit. The ticket counted about nine copies; there were fifteen. Every one is the same
 float even-odd ray cast with the same half-open edge rule (left and bottom edges inside,
-right and top edges outside), so every copy returns the same verdict for every input,
-winding included. Differences were cosmetic:
+right and top edges outside), so copies agree on every input except possibly a point exactly
+on a slanted edge: `case.rs`, `host_connector.rs` and `case_viewer.rs` walked edges as
+(i, i-1) and the shared module walks (i, i+1), which swaps the endpoints in the interpolation
+and can move the result by one ulp there. Other differences were cosmetic:
 
 | Where | Difference | Outcome |
 |---|---|---|
@@ -47,3 +49,13 @@ not this float classification. Semantics are unchanged; the shared module is
 Verification: contracts 8, core 1,512 (14 `kicad-cli` tests only pass with `APPDIR`,
 `APPIMAGE`, `LD_LIBRARY_PATH` and `GSETTINGS_SCHEMA_DIR` removed from the environment, which is
 the T3 Code AppImage's stale mount and unrelated), web case 34, CAD worker 57.
+
+Not done (found in code review): polygon **area** was in the title and the first paragraph but
+not migrated; there are separate signed-area copies in `core/src/case.rs`,
+`core/src/modules/occupancy.rs`, `web/crates/layout/src/outline/overlays.rs` and the CAD
+worker's lettering, differing in sign, `abs` and f32/f64, so they need their own audit. Two
+more containment copies sit in standalone gate binaries under
+`cad/monstertruck-qualification` (a float ray cast in `profile_topology_gate.rs` and an
+exact-rational one in `certified_prism.rs`); they are outside the production build and were
+left alone. "Hole" in the test criterion is covered by the callers (`inside_outline`), since a
+ring test has no holes; the module's tests cover on-edge, vertex, winding and degenerate rings.

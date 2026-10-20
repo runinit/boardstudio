@@ -65,6 +65,12 @@ mod tests {
     }
 
     #[test]
+    fn vertices_follow_the_same_rule() {
+        assert!(path_contains(&SQUARE, [0., 0.]), "bottom-left vertex");
+        assert!(!path_contains(&SQUARE, [1., 1.]), "top-right vertex");
+    }
+
+    #[test]
     fn winding_direction_does_not_matter() {
         let reversed: Vec<_> = SQUARE.iter().rev().copied().collect();
         assert!(path_contains(&reversed, [0.5, 0.5]));
