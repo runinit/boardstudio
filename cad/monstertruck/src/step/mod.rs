@@ -126,16 +126,11 @@ pub struct ImportedStep {
     wireframe: wireframe::Wireframe,
 }
 
-pub(crate) fn analysis_import_settings(model: &ImportedStep) -> crate::qualification::MeshSettings {
-    crate::qualification::MeshSettings {
-        target_deflection_mm: model.analysis_options.target_deflection_mm,
-        selected_deflection_mm: model.accuracy.preview_deflection_mm,
-        angular_rad: model.accuracy.preview_angular_rad,
-        preview_repair_budget_mm: model.analysis_options.preview_repair_budget_mm,
-    }
-}
-
 impl ImportedStep {
+    /// The options this analysis mesh was imported with.
+    pub(crate) fn analysis_options(&self) -> StepImportOptions {
+        self.analysis_options
+    }
     pub fn original_bytes(&self) -> &[u8] {
         &self.original_bytes
     }

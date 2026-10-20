@@ -214,7 +214,13 @@ pub fn prepare_generated_analysis(
     })
 }
 pub fn prepare_vendor_analysis(model: &ImportedStep) -> Result<PreparedAnalysisMesh, String> {
-    let settings = crate::step::analysis_import_settings(model);
+    let options = model.analysis_options();
+    let settings = MeshSettings {
+        target_deflection_mm: options.target_deflection_mm,
+        selected_deflection_mm: model.accuracy().preview_deflection_mm,
+        angular_rad: model.accuracy().preview_angular_rad,
+        preview_repair_budget_mm: options.preview_repair_budget_mm,
+    };
     let descriptor = descriptor(settings, false)?;
     let bound = crate::collision_qualification::asset_bound(model);
     let source = source_report(bound, &descriptor, false);

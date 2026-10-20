@@ -1,4 +1,4 @@
-use crate::{MeshBuffers, mesh::mesh_buffers, qualification::SourceBoundResult};
+use crate::{MeshBuffers, mesh::mesh_buffers};
 #[cfg(test)]
 use boardstudio_contracts::Vec2;
 use monstertruck_meshing::tessellation::{
@@ -239,7 +239,7 @@ mod generated_qualification;
 pub(crate) fn prepare_qualified_emission(
     model: &ExactModel,
     target: Option<f64>,
-) -> Result<(GeneratedAnalysisMesh, SourceBoundResult), String> {
+) -> Result<(GeneratedAnalysisMesh, Result<[f64; 3], Vec<String>>), String> {
     let mut trace = final_trace::AnalysisTrace::default();
     let mesh = mesh_profile_for_analysis_impl(model, target, Some(&mut trace))?;
     let within_profile = mesh.triangle_face_occurrence_indices.len() <= 10_000
