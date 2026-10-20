@@ -8,7 +8,7 @@ Remove retained dead vendored code, consolidate confirmed first-party code dupli
 
 ## Notes
 
-- Domain terms: [CONTEXT.md](../../../CONTEXT.md) (accepted document, pending edit, field edit, scope).
+- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md) (accepted document, pending edit, field edit, scope).
 - Architecture & ownership: [docs/architecture.md](../../architecture.md) and [docs/research/duplication-refactoring-opportunities.md](../../research/duplication-refactoring-opportunities.md).
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 - Skills: `tdd`, `codebase-design`, `rust-best-practices`, `code-review` before resolving.
@@ -25,6 +25,17 @@ Remove retained dead vendored code, consolidate confirmed first-party code dupli
 
 All five tickets touch disjoint areas and can execute independently in parallel.
 
+Follow-ups from the 2026-10-19 repository audit; all four are independent:
+
+```text
+06 (gate Pages deploy on checks)
+07 (delete unused BrowserStore save paths)
+08 (one SHA-256 hex helper)
+09 (README Node requirement)
+```
+
+The audit's split of the page shell's `Editor` component has a separate [workspace ownership specification](../editor-workspace-extraction/issues/001-editor-workspace-ownership.md), not an implementation ticket in this map.
+
 ## Tickets
 
 - [01: Retire the unused vendored cgmath 0.18.0 fallback](issues/01-retire-unused-cgmath-0-18-0-fallback.md) — `resolved`.
@@ -32,8 +43,15 @@ All five tickets touch disjoint areas and can execute independently in parallel.
 - [03: Deduplicate the RendererHost page snapshot across host and runtime](issues/03-deduplicate-renderer-host-page-snapshot.md) — `resolved`.
 - [04: Extract mirrored-half reconcile tests and retire stale pre-activation suppressions](issues/04-extract-reconcile-tests-and-retire-stale-mirrored-half-suppressions.md) — `resolved`.
 - [05: Fence vendored hardware assets and generated catalogue snapshots from search and diff](issues/05-fence-vendored-assets-and-generated-catalogue-json.md) — `resolved`.
+- [06: Gate the GitHub Pages deploy on the validation checks](issues/06-gate-pages-deploy-on-checks.md) — `ready-for-agent`.
+- [07: Delete the unused BrowserStore save paths](issues/07-delete-unused-browser-store-save-paths.md) — `resolved`.
+- [08: Use one SHA-256 hex helper for asset identity](issues/08-one-sha256-hex-helper.md) — `resolved`.
+- [09: State the Node requirement in the README](issues/09-readme-node-requirement.md) — `ready-for-agent`.
 
 ## Decisions and verification
+
+- [07](issues/07-delete-unused-browser-store-save-paths.md#answer): only the expected-token project save path remains; storage-lifetime browser tests and `quick` passed.
+- [08](issues/08-one-sha256-hex-helper.md#answer): Core owns lowercase SHA-256 asset text; model-byte identity is exact; the redundant import self-check is gone. Post-review `quick` passed; the Runtime build-script dependency may affect cold wasm builds.
 
 - [01](issues/01-retire-unused-cgmath-0-18-0-fallback.md): remove only the unused fallback; both locked workspaces continue to use the unchanged reviewed successor.
 - [02](issues/02-consolidate-owned-edits-into-ui-shared.md): share the existing helper without changing controller policy; public-method tests exercise retirement, mounted binding replacement, exact drafts and request pruning.
