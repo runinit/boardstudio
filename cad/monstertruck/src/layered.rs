@@ -71,8 +71,8 @@ fn circular_feature(
     let ring = circle(center, radius, &id);
     feature(id, ring, low, height, add)
 }
-/// Rejects non-finite or beyond-limit ring points before any kernel call, which can panic on them.
-fn check_ring_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
+/// Rejects non-finite or beyond-limit ring points and mount positions before any kernel call, which can panic on them.
+fn check_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
     let limit = boardstudio_contracts::MAX_COORDINATE_MM;
     for region in &input.regions {
         let gaskets = region
@@ -84,7 +84,8 @@ fn check_ring_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
             .chain(&region.holes)
             .chain(&region.cavities)
             .chain(gaskets);
-        for p in rings.flatten() {
+        let mounts = region.mounts.iter().map(|m| &m.at);
+        for p in rings.flatten().chain(mounts) {
             if !p.x.is_finite() || !p.y.is_finite() || p.x.abs() > limit || p.y.abs() > limit {
                 return Err(format!(
                     "Case body '{}' has a point ({}, {}) that is not finite or lies beyond {limit} mm",
@@ -97,7 +98,7 @@ fn check_ring_coordinates(input: &PreparedCaseIR) -> Result<(), String> {
 }
 /// Builds prepared case geometry without general 3D Booleans.
 pub(crate) fn build_layered_case(input: &PreparedCaseIR) -> Result<ExactModel, String> {
-    check_ring_coordinates(input)?;
+    check_coordinates(input)?;
     if input.body.pcb_source.is_some() {
         return pcb::build(input);
     }

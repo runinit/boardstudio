@@ -322,13 +322,44 @@ fn out_of_range_hole_point_is_rejected() {
     let mut input = plate();
     input.regions[0].holes = vec![vec![
         Vec2 { x: 1., y: 1. },
-        Vec2 { x: 2_000_000., y: 1. },
+        Vec2 {
+            x: 2_000_000.,
+            y: 1.,
+        },
         Vec2 { x: 1., y: 2. },
     ]];
     let Err(error) = build_layered_case(&input) else {
         panic!("out-of-range hole was built");
     };
     assert!(error.contains("'plate'"), "{error}");
+}
+#[test]
+fn non_finite_mount_position_is_rejected() {
+    let mut input = plate();
+    input.regions[0].mounts[0].at.x = f64::NAN;
+    let Err(error) = build_layered_case(&input) else {
+        panic!("NaN mount was built");
+    };
+    assert!(error.contains("'plate'"), "{error}");
+}
+#[test]
+fn out_of_range_mount_position_is_rejected() {
+    let mut input = plate();
+    input.regions[0].mounts[0].at.y = 2_000_000.;
+    let Err(error) = build_layered_case(&input) else {
+        panic!("out-of-range mount was built");
+    };
+    assert!(error.contains("'plate'"), "{error}");
+}
+#[test]
+fn mount_exactly_at_the_limit_passes_the_coordinate_check() {
+    let mut input = plate();
+    input.regions[0].outer = rectangle(0., 0., 1_000_000., 16.);
+    input.regions[0].mounts[0].at.x = 1_000_000.;
+    // Geometry at the edge may fail for other reasons; only the coordinate check is under test.
+    if let Err(error) = build_layered_case(&input) {
+        assert!(!error.contains("not finite or lies beyond"), "{error}");
+    }
 }
 #[test]
 fn ring_vertex_exactly_at_the_limit_builds() {
