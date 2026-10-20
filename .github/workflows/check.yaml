@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  # Serialize release validation, build and deploy together; unrelated checks keep their own group.
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'pages' || format('validation-{0}', github.run_id) }}
+  cancel-in-progress: false
 env:
   # Native test binaries link Core many times; full debuginfo made them (and the cache) several
   # times larger and slower to link. Line tables keep file:line in panics and backtraces.
@@ -110,10 +114,6 @@ jobs:
     needs: release-build
     if: needs.release-build.result == 'success'
     runs-on: ubuntu-latest
-    # Serializes deploys; a queued deploy waits for the one in flight instead of cancelling it.
-    concurrency:
-      group: pages
-      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
