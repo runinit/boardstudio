@@ -13,7 +13,7 @@ use parry3d_f64::{
     shape::{SubShapeId, TriMesh, TriMeshFlags, Triangle},
 };
 use boardstudio_contracts::{
-    AffineTransformError, CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
+    CadStepImportOptions, is_sha256_hex, validate_affine_row_transform,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
@@ -193,14 +193,8 @@ impl CadCollisionOperand {
 }
 
 fn validate_affine_transform(matrix: &[f64; 16], side: &str) -> Result<(), String> {
-    validate_affine_row_transform(matrix).map_err(|error| {
-        let reason = match error {
-            AffineTransformError::NonFinite => "contains non-finite values",
-            AffineTransformError::NotAffine => "must be an affine 4x4 matrix",
-            AffineTransformError::Singular => "has a singular or non-finite linear part",
-        };
-        format!("Invalid collision query: {side}.rowTransformF64 {reason}")
-    })
+    validate_affine_row_transform(matrix)
+        .map_err(|error| format!("Invalid collision query: {side} {error}"))
 }
 
 fn validate_soup_lengths(positions_len: usize, tags_len: usize, side: &str) -> Result<(), String> {

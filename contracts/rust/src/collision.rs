@@ -61,6 +61,18 @@ pub enum AffineTransformError {
     Singular,
 }
 
+impl std::fmt::Display for AffineTransformError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NonFinite => "row transform contains non-finite values",
+            Self::NotAffine => "row transform is not an affine 4x4 matrix",
+            Self::Singular => "row transform has a singular linear part",
+        })
+    }
+}
+
+impl std::error::Error for AffineTransformError {}
+
 /// Checks that a row-major 4x4 placement is finite, affine and invertible.
 pub fn validate_affine_row_transform(matrix: &[f64; 16]) -> Result<(), AffineTransformError> {
     if matrix.iter().any(|value| !value.is_finite()) {
@@ -122,6 +134,22 @@ mod tests {
         assert_eq!(
             validate_affine_row_transform(&flat),
             Err(AffineTransformError::Singular)
+        );
+    }
+
+    #[test]
+    fn affine_transform_errors_display_user_facing_text() {
+        assert_eq!(
+            AffineTransformError::NonFinite.to_string(),
+            "row transform contains non-finite values"
+        );
+        assert_eq!(
+            AffineTransformError::NotAffine.to_string(),
+            "row transform is not an affine 4x4 matrix"
+        );
+        assert_eq!(
+            AffineTransformError::Singular.to_string(),
+            "row transform has a singular linear part"
         );
     }
 

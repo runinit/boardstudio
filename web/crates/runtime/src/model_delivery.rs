@@ -1792,7 +1792,7 @@ pub fn physical_pcb_model_row_transform_f64(
 
     let matrix = mul(pcb_transform, model_transform);
     boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-        .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
+        .map_err(|error| error.to_string())?;
     Ok(matrix)
 }
 
@@ -1886,7 +1886,7 @@ pub fn resolve_physical_model_row_transform(
 ) -> Result<[f64; 16], String> {
     if let Some(matrix) = delivered.matrix {
         boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-            .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
+            .map_err(|error| error.to_string())?;
         return Ok(matrix);
     }
     let matrix = explicit_pcb_row_transform.ok_or_else(|| {
@@ -1896,7 +1896,7 @@ pub fn resolve_physical_model_row_transform(
         )
     })?;
     boardstudio_web_host::cad_jobs::validate_affine_row_transform(&matrix)
-        .map_err(boardstudio_web_host::cad_jobs::affine_transform_message)?;
+        .map_err(|error| error.to_string())?;
     Ok(matrix)
 }
 

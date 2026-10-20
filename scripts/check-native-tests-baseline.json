@@ -1,6 +1,7 @@
 {
  "boardstudio_contracts": [
   "collision::tests::affine_transform_accepts_a_rigid_motion_and_names_each_rejection",
+  "collision::tests::affine_transform_errors_display_user_facing_text",
   "collision::tests::sha256_accepts_only_64_lowercase_hex_digits",
   "collision::tests::step_import_options_reject_non_positive_values_and_compare_by_bits",
   "polygon::tests::boundary_points_follow_the_half_open_rule",

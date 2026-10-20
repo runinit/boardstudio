@@ -901,16 +901,6 @@ pub fn validate_vendor_step(
     Ok(())
 }
 
-/// The host's wording for a rejected collision operand placement.
-pub fn affine_transform_message(error: AffineTransformError) -> String {
-    match error {
-        AffineTransformError::NonFinite | AffineTransformError::NotAffine => {
-            "collision operand row transform must be a finite affine matrix".into()
-        }
-        AffineTransformError::Singular => "collision operand row transform is singular".into(),
-    }
-}
-
 pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String> {
     query.qualification_limits.validate()?;
     if !query.clearance_threshold_mm.is_finite() || query.clearance_threshold_mm < 0.0 {
@@ -939,7 +929,7 @@ pub fn validate_collision_query(query: &CadCollisionQuery) -> Result<(), String>
         }
         operand.import_options.validate()?;
         validate_affine_row_transform(&operand.row_transform_f64)
-            .map_err(affine_transform_message)?;
+            .map_err(|error| error.to_string())?;
         crate::cad_qualification::validate_operand(operand)?;
     }
     Ok(())

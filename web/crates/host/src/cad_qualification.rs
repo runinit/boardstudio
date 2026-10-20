@@ -2,8 +2,7 @@
 //! Reports are accepted only at the worker reply boundary, never in query input.
 use crate::cad_jobs::{
     CadCollisionMeshPair, CadCollisionOperand, CadCollisionQuery, CadSnapshotIdentity,
-    CadStepImportOptions, MAX_CAD_REVISION, affine_transform_message, is_sha256_hex,
-    validate_affine_row_transform,
+    CadStepImportOptions, MAX_CAD_REVISION, is_sha256_hex, validate_affine_row_transform,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -808,7 +807,7 @@ pub fn validate_query_qualification(
         ),
     ] {
         validate_descriptor(reference, mesh)?;
-        validate_affine_row_transform(row).map_err(affine_transform_message)?;
+        validate_affine_row_transform(row).map_err(|error| error.to_string())?;
         if identity != &mesh.mesh_identity {
             return Err("query mesh identity mismatch".into());
         }
