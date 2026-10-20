@@ -384,3 +384,64 @@ fn render_conversion_rejects_nonzero_triangles_with_reversed_winding() {
         .expect_err("f32 reverses this counter-clockwise triangle without collapsing it");
     assert!(error.contains("render precision"), "{error}");
 }
+
+fn plate(
+    thickness: f64,
+    outer: Vec<Vec2>,
+    holes: Vec<Vec<Vec2>>,
+) -> Result<crate::ExactModel, String> {
+    build_profile(ProfileInput {
+        kind: ProfileKind::Plate,
+        base_z: 0.,
+        thickness,
+        wall_height: 0.,
+        regions: vec![region(outer, holes)],
+    })
+}
+
+#[test]
+fn opaque_exact_model_reports_conservative_cache_cost() {
+    let model = plate(
+        2.,
+        vec![
+            point(0., 0.),
+            point(20., 0.),
+            point(20., 16.),
+            point(0., 16.),
+        ],
+        vec![],
+    )
+    .unwrap();
+    assert_eq!(
+        model.cache_complexity(),
+        (1, 30),
+        "one box has six faces and24 oriented edge occurrences"
+    );
+}
+
+#[test]
+fn rejects_holes_that_touch_or_cross_the_exterior() {
+    let exterior = vec![
+        point(0.0, 0.0),
+        point(10.0, 0.0),
+        point(10.0, 10.0),
+        point(0.0, 10.0),
+    ];
+    let touching = vec![
+        point(0.0, 2.0),
+        point(3.0, 2.0),
+        point(3.0, 4.0),
+        point(0.0, 4.0),
+    ];
+    let crossing = vec![
+        point(8.0, 3.0),
+        point(12.0, 3.0),
+        point(12.0, 5.0),
+        point(8.0, 5.0),
+    ];
+
+    for hole in [touching, crossing] {
+        let result = plate(1.0, exterior.clone(), vec![hole]);
+        assert!(result.is_err(), "boundary contact must be rejected");
+    }
+}
