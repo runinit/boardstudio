@@ -43,10 +43,10 @@ The audit's split of the page shell's `Editor` component has a separate [workspa
 - [03: Deduplicate the RendererHost page snapshot across host and runtime](issues/03-deduplicate-renderer-host-page-snapshot.md) — `resolved`.
 - [04: Extract mirrored-half reconcile tests and retire stale pre-activation suppressions](issues/04-extract-reconcile-tests-and-retire-stale-mirrored-half-suppressions.md) — `resolved`.
 - [05: Fence vendored hardware assets and generated catalogue snapshots from search and diff](issues/05-fence-vendored-assets-and-generated-catalogue-json.md) — `resolved`.
-- [06: Gate the GitHub Pages deploy on the validation checks](issues/06-gate-pages-deploy-on-checks.md) — `ready-for-agent`.
+- [06: Gate the GitHub Pages deploy on the validation checks](issues/06-gate-pages-deploy-on-checks.md) — `claimed`; live `main` run still pending.
 - [07: Delete the unused BrowserStore save paths](issues/07-delete-unused-browser-store-save-paths.md) — `resolved`.
 - [08: Use one SHA-256 hex helper for asset identity](issues/08-one-sha256-hex-helper.md) — `resolved`.
-- [09: State the Node requirement in the README](issues/09-readme-node-requirement.md) — `ready-for-agent`.
+- [09: State the Node requirement in the README](issues/09-readme-node-requirement.md) — `claimed`; `repo` check awaits the documentation migration.
 
 ## Decisions and verification
 
