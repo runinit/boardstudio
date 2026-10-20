@@ -28,6 +28,9 @@ pub struct Vec2 {
     pub y: f64,
 }
 
+/// Largest coordinate magnitude, in mm, that Core produces and the CAD kernel accepts.
+pub const MAX_COORDINATE_MM: f64 = 1_000_000.0;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MechanicalDrillShape {

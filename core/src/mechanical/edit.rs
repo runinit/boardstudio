@@ -3682,8 +3682,8 @@ fn validate_opening_geometry(
         || points.iter().any(|point| {
             !point.x.is_finite()
                 || !point.y.is_finite()
-                || point.x < -1_000_000.0
-                || point.y < -1_000_000.0
+                || point.x < -boardstudio_contracts::MAX_COORDINATE_MM
+                || point.y < -boardstudio_contracts::MAX_COORDINATE_MM
         })
     {
         return Err(format!(
@@ -3691,7 +3691,7 @@ fn validate_opening_geometry(
             index + 1
         ));
     }
-    if !z.is_finite() || z < -1_000_000.0 {
+    if !z.is_finite() || z < -boardstudio_contracts::MAX_COORDINATE_MM {
         return Err(format!(
             "{label} {} bottom Z must be a finite coordinate no smaller than −1,000,000 mm.",
             index + 1
@@ -4461,7 +4461,9 @@ fn validate_dimension(field: MechanicalDimension, value: f64) -> Result<(), Stri
             | MechanicalDimension::CriticalFitFromX
             | MechanicalDimension::CriticalFitFromY
             | MechanicalDimension::CriticalFitToX
-            | MechanicalDimension::CriticalFitToY => value >= -1_000_000.0,
+            | MechanicalDimension::CriticalFitToY => {
+                value >= -boardstudio_contracts::MAX_COORDINATE_MM
+            }
             _ => value >= 0.0,
         };
     if valid {

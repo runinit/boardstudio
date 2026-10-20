@@ -312,8 +312,8 @@ fn patch_footprint_inner(source: &str, patch: &FootprintPatch) -> Result<String,
         && (!placement.at.x.is_finite()
             || !placement.at.y.is_finite()
             || !placement.rotation.is_finite()
-            || placement.at.x.abs() > 1_000_000.0
-            || placement.at.y.abs() > 1_000_000.0)
+            || placement.at.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+            || placement.at.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM)
     {
         return Err(SourceError(
             "Footprint placement is outside the supported coordinate range".into(),

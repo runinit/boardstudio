@@ -154,8 +154,8 @@ fn offset_opening(points: &[Vec2], distance: f64) -> Option<Vec<Vec2>> {
         || points.iter().any(|p| {
             !p.x.is_finite()
                 || !p.y.is_finite()
-                || p.x.abs() > 1_000_000.0
-                || p.y.abs() > 1_000_000.0
+                || p.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+                || p.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM
         })
     {
         return None;

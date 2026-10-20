@@ -50,6 +50,3 @@ All five tickets are resolved; each ticket's `## Comments` records what it did a
 ## Open follow-ups
 
 - Polygon area copies (see 002).
-- Through `build_case`, a hole ring at about 1e13 mm panics inside `cavalier_contours` instead
-  of returning an error. Core rejects input beyond 1e6 mm, so it is unreachable today, but the
-  kernel does not defend against it.

@@ -564,8 +564,8 @@ fn raw_accuracy_conditions_volume_on_world_placement() {
     let angle: f64 = 0.3;
     let outer = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)]
         .map(|(x, y)| Vec2 {
-            x: 1000000.1 + x * angle.cos() - y * angle.sin(),
-            y: 1000000.2 + x * angle.sin() + y * angle.cos(),
+            x: 999990.1 + x * angle.cos() - y * angle.sin(),
+            y: 999990.2 + x * angle.sin() + y * angle.cos(),
         })
         .into();
     let model = build_profile(ProfileInput {

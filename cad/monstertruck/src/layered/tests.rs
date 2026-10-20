@@ -290,6 +290,41 @@ fn boss_no_wider_than_its_hole_is_rejected() {
     assert!(error.contains("wider than its hole"), "{error}");
 }
 #[test]
+fn far_near_collinear_hole_is_an_error_not_a_panic() {
+    let dx = 11_463_935_597_161.09_f64;
+    let dy = 15_139_984_008_548.072_f64;
+    let inside_y = f64::from_bits(dy.to_bits() + 1);
+    let hole_x = f64::from_bits(dx.to_bits() - 5);
+    let lower_y = f64::from_bits(inside_y.to_bits() - 5);
+    let upper_y = f64::from_bits(lower_y.to_bits() + 1);
+    let v = |x, y| Vec2 { x, y };
+    let mut input = plate();
+    input.regions[0].mounts.clear();
+    input.regions[0].outer = vec![v(0., 0.), v(2. * dx, 2. * dy), v(-2. * dy, 2. * dx)];
+    input.regions[0].holes = vec![vec![
+        v(dx, inside_y),
+        v(hole_x, lower_y),
+        v(hole_x, upper_y),
+    ]];
+    let Err(error) = build_layered_case(&input) else {
+        panic!("out-of-range ring was built");
+    };
+    assert!(error.contains("'plate'"), "{error}");
+}
+#[test]
+fn non_finite_ring_point_is_rejected() {
+    let mut input = plate();
+    input.regions[0].outer[0].x = f64::NAN;
+    assert!(build_layered_case(&input).is_err());
+}
+#[test]
+fn ring_vertex_exactly_at_the_limit_builds() {
+    let mut input = plate();
+    input.regions[0].mounts.clear();
+    input.regions[0].outer = rectangle(0., 0., 1_000_000., 16.);
+    assert!(build_layered_case(&input).is_ok());
+}
+#[test]
 fn round_seat_touching_plate_top_preserves_material_without_boolean() {
     let mut input = plate();
     input.regions[0].mounts.clear();

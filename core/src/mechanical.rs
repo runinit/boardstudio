@@ -375,8 +375,8 @@ fn subtract_foam_exclusions(
             || contour.points.iter().any(|point| {
                 !point.x.is_finite()
                     || !point.y.is_finite()
-                    || point.x.abs() > 1_000_000.0
-                    || point.y.abs() > 1_000_000.0
+                    || point.x.abs() > boardstudio_contracts::MAX_COORDINATE_MM
+                    || point.y.abs() > boardstudio_contracts::MAX_COORDINATE_MM
             })
         {
             return Err("Foam contours must contain finite, in-range polygons".into());

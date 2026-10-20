@@ -296,7 +296,7 @@ fn non_finite_contours_are_rejected() {
         Ok(_) => panic!("non-finite contour must not create a solid"),
         Err(error) => error,
     };
-    assert!(error.contains("nonfinite coordinate"), "{error}");
+    assert!(error.contains("not finite"), "{error}");
 }
 
 #[test]
