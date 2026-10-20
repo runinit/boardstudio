@@ -1,6 +1,6 @@
 # 015: Browser check runs on the development machine
 
-Status: ready-for-human
+Status: wontfix
 Type: task
 Blocked by: none
 Parent: [CAD deepening](../map.md)
@@ -17,3 +17,6 @@ developer machine gets it, then make `check.py` run the browser step end to end.
 - [ ] `python3 scripts/check.py browser` runs to completion locally.
 
 ## Comments
+
+Superseded by [016](016-rust-browser-harness.md): the browser checks move off Playwright to a Rust
+harness on chromiumoxide, so no local `playwright-core` install is needed.

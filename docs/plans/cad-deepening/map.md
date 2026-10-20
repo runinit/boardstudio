@@ -41,7 +41,8 @@ Loose ends after the follow-up review; independent of each other:
 
 - [013: Kernel rejects out-of-range mount positions](issues/013-kernel-mount-coordinate-limit.md)
 - [014: Full check is green locally](issues/014-full-check-green-locally.md)
-- [015: Browser check runs on the development machine](issues/015-browser-check-runs-locally.md)
+- [015: Browser check runs on the development machine](issues/015-browser-check-runs-locally.md) (superseded by 016)
+- [016: Real-browser checks drive Chrome from Rust](issues/016-rust-browser-harness.md)
 
 ## Decisions so far
 

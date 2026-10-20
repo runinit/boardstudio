@@ -41,8 +41,9 @@ filesystem). The `browser` step is not run locally (see 015).
 ## Next
 
 1. Re-run the full check above and fix anything it reports.
-2. [015](issues/015-browser-check-runs-locally.md), `ready-for-human`: choose how a developer
-   machine gets `playwright-core` on `NODE_PATH`, then run `check.py browser`.
+2. [016](issues/016-rust-browser-harness.md), `ready-for-agent` spec: replace Node Playwright
+   in the drag smoke, CAD runtime capture and Graphite acceptance with a Rust harness on
+   chromiumoxide (own manifest, same receipts). Slice it with `/to-tickets`; it supersedes 015.
 3. Not yet ticketed: `CaseFeature` positions (such as round seats) and opening points reach the
    kernel without the coordinate check (noted in 013). Ticket it like 013 if wanted.
 4. Push the branch and open a PR against `dev` when you are ready.
