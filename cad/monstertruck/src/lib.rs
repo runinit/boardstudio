@@ -8,9 +8,13 @@ mod profile;
 
 pub use mesh::MeshBuffers;
 pub use profile::{
-    ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace, ProfileInput, ProfileKind,
-    ProfileRegion, build_profile, mesh_profile, mesh_profile_for_analysis,
+    ExactModel, GeneratedAnalysisMesh, GeneratedSourceFace, mesh_profile, mesh_profile_for_analysis,
 };
+
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+use test_support::{ProfileInput, ProfileKind, ProfileRegion, build_profile};
 
 mod step;
 pub use step::{

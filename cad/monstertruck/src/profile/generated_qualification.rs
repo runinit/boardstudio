@@ -516,9 +516,7 @@ pub fn qualify_generated(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ProfileInput;
-    use crate::ProfileKind;
-    use crate::ProfileRegion;
+    use crate::test_support::{ProfileInput, ProfileKind, ProfileRegion, build_profile};
     use boardstudio_contracts::Vec2;
 
     fn point(x: f64, y: f64) -> Vec2 {

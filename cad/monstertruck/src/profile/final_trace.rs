@@ -137,6 +137,7 @@ impl AnalysisTrace {
 
 #[cfg(test)]
 fn plate() -> ExactModel {
+    use crate::test_support::{ProfileInput, ProfileKind, ProfileRegion, build_profile};
     build_profile(ProfileInput {
         kind: ProfileKind::Plate,
         base_z: 0.0,
