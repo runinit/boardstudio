@@ -24,7 +24,7 @@ Original and shadcn Themes defined, and the single-branch lane plan decided.
 - Settled scope (2026-10-21, user): call rust-ui components directly and delete the
   `Board*` wrappers; copy source to `web/crates/ui-shared/src/ui/<name>.rs` with an
   upstream-commit provenance note and manual re-sync; rust-ui colour names only, `--wb-*`
-  and legacy CSS retired; keep Solar icons; Theme is a saved preference, Original by
+  and legacy CSS retired; icon set open (see 008); Theme is a saved preference, Original by
   default; rust-ui interaction details win and tests are rewritten, product behaviour
   (selection, Undo, shortcuts, precise values) does not change; a missing match is
   composed from rust-ui first, custom only with user approval; one long-lived branch with
@@ -40,11 +40,14 @@ Original and shadcn Themes defined, and the single-branch lane plan decided.
 - [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 002, 003
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; blocked by: None
+- [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; blocked by: None
 - [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md) — `wayfinder:grilling`; blocked by: 004, 005
 
 ## Decisions so far
 
 <!-- one line per resolved ticket: linked title, then a one-line gist -->
+
+- [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md): no Solar exists in the app; rust-ui uses 35 Lucide icons; icon set reopened as 008.
 
 ## Not yet specified
 
@@ -65,5 +68,4 @@ Original and shadcn Themes defined, and the single-branch lane plan decided.
 - Canvas and 3D surfaces (`Scene`, `CaseViewer`, `KeycapsCanvas`, `PcbScene`,
   `KeymapCanvas`, `FootprintGraphics`, canvas overlays): rust-ui has nothing for them;
   their toolbars and menus are in scope.
-- rust-ui's `icons` crate: Solar stays.
 - Fixing upstream's MCP registry.

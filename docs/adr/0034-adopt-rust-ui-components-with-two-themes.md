@@ -14,7 +14,7 @@ Components consume only rust-ui's colour names (`primary`, `accent`, `muted`, `r
 Two Themes fill them: Original, which carries today's Graphite look, and shadcn. Each has
 light and dark values, selected independently by the existing Appearance setting.
 The `--wb-*` variables and the legacy `m1.css` / `.board-*` / `.m1-*` rules are retired
-when the migration completes. Solar icons stay; rust-ui's `icons` crate is not adopted.
+when the migration completes. The icon set is undecided (Solar was assumed but never imported).
 
 Interaction details follow rust-ui where they differ (for example a custom Select
 instead of a native one), and tests are rewritten to match. Product behaviour —
