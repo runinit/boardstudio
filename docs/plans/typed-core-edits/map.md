@@ -94,7 +94,7 @@ and for any bulk action a recorded decision permits.
   - [165: Test STEP invariant rejection with corrupt imports](issues/165-test-step-invariant-rejections.md).
 
 - **Curated layout-only library demos are back in scope** per the user on 2026-10-16; see
-  [185](issues/161-curated-library-launchpad-demos.md). They are synthetic editable layout
+  [161](issues/161-curated-library-launchpad-demos.md). They are synthetic editable layout
   examples with no hardware or fabrication claims. The historical removal in
   [138](issues/138-retire-shipped-demos.md) remains accurate for the earlier shipped boards.
   Board-specific refresh, recipes, hardware research and sign-off tickets remain `wontfix`:
@@ -561,15 +561,3 @@ Progress2026-10-11: accepted independent Part/fixed Layout106 unit source52ee10b
   WASM parity, build/typecheck/browser and eight applicable compiled mutation kills are covered
   by independent reviews. Final paired native p50/p95 is 11,407/14,693 µs versus 1,528/2,273 µs
   before activation; the existing unpaired guard passes. User changes are preserved; no push.
-
-- Refactor tickets (independent, no blocking edges; listed in execution order, 185 and 186 first):
-  [185](issues/185-unify-switch-family-lookup.md),
-  [186](issues/186-consolidate-cad-cache-eviction.md),
-  [187](issues/187-extract-closure-hardware-edit-handling.md),
-  [188](issues/188-isolate-gasket-screw-and-boss-selection.md),
-  [189](issues/189-separate-mechanical-validation-from-construction.md),
-  [190](issues/190-separate-session-request-construction.md),
-  [191](issues/191-share-selection-set-updates.md),
-  [192](issues/192-make-constraint-replacement-visibility-explicit.md),
-  [193](issues/193-isolate-occupied-volume-transformation.md),
-  [194](issues/194-investigate-gasket-resolution-phases.md) (research, no source change).
