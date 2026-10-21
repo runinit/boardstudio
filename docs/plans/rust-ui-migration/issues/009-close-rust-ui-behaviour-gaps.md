@@ -1,6 +1,6 @@
 # 009: How to close rust-ui's control and accessibility gaps
 
-Status: claimed
+Status: resolved
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
@@ -45,3 +45,20 @@ upstream first; or a mix decided per component? Does the answer change ADR-0034'
   Navigation Menu. Counts here are source greps, not conformance results.
 - **Removing the scripts is feasible**: each is show/hide, outside click, Escape, positioning
   and scroll lock, replaceable by an open signal plus one shared owned hook.
+
+## Answer
+
+Decided with the user, 2026-10-21, on the findings above:
+
+- **rust-ui supplies the look; `dioxus-primitives` supplies the behaviour** for every control it
+  covers. Where primitives has no counterpart (Sheet, Drawer, Command, Navigation Menu) we write
+  the behaviour ourselves in Rust, on Dialog where possible. `Board*` wrappers still go; code
+  calls the copied components directly.
+- **No inline scripts and no ownerless document listeners in copied code.** Outside click,
+  Escape and scroll lock live in one shared hook that removes its listeners on unmount.
+- **Measure, don't assume:** [010](010-measure-keyboard-and-aria-conformance.md) checks the
+  controls we'd adopt and sets the accessibility floor.
+- **Scope grows to restructuring.** Beyond component choices, the app's structure (workspaces,
+  panel layout, navigation) is in scope: [011](011-target-workbench-structure.md).
+- Fixes stay in our copy; contributing upstream is optional and outside this effort.
+- ADR-0034 revised to match.

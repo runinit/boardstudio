@@ -4,11 +4,16 @@ status: accepted
 
 # Adopt rust-ui components with two Themes
 
-The workbench's controls come from [rust-ui](https://github.com/rust-ui/ui), copied
-into `web/crates/ui-shared/src/ui/` and called directly, replacing the 2026-10-11
-choice of DioxusLabs' Dioxus Components and the `Board*` wrapper layer built on
-`dioxus-primitives`. The user chose this on 2026-10-21 to gain rust-ui's much wider
-catalogue (87 components) in one open-code library rather than maintaining two.
+The workbench's controls take their look from [rust-ui](https://github.com/rust-ui/ui), copied
+into `web/crates/ui-shared/src/ui/` and called directly; the `Board*` wrapper layer goes. The user
+chose this on 2026-10-21 for rust-ui's wide catalogue (86 components) in one open-code library.
+Reading its source showed it supplies almost no behaviour or accessibility: eleven overlay and
+menu components run on inline scripts with leaking document listeners, and keyboard and ARIA
+support is partial and untested. So `dioxus-primitives` (the 2026-10-11 choice of DioxusLabs'
+Dioxus Components) stays as the behaviour layer for every control it covers, restyled with
+rust-ui classes. Where primitives has no counterpart (Sheet, Drawer, Command, Navigation Menu)
+we write the behaviour in Rust. Copied code ships no inline scripts or ownerless document
+listeners. Fixes stay in our copy.
 
 Components consume only rust-ui's colour names (`primary`, `accent`, `muted`, `ring`…).
 Two Themes fill them: Original, which carries today's Graphite look, and shadcn. Each has
@@ -16,11 +21,10 @@ light and dark values, selected independently by the existing Appearance setting
 The `--wb-*` variables and the legacy `m1.css` / `.board-*` / `.m1-*` rules are retired
 when the migration completes. The icon set is undecided (Solar was assumed but never imported).
 
-Interaction details follow rust-ui where they differ (for example a custom Select
-instead of a native one), and tests are rewritten to match. Product behaviour —
-selection, Undo, shortcuts, precise values — is unchanged. A building block without a
-direct rust-ui match is first composed from existing rust-ui components; a custom
-component requires a shown absence of any equivalent and explicit user approval.
+Product behaviour (selection, Undo, shortcuts, precise values) is unchanged. A building block
+without a direct rust-ui match is first composed from existing rust-ui components; a custom
+component requires a shown absence of any equivalent and explicit user approval. The effort
+also restructures the app (workspaces, panels, navigation), not only its components.
 
 The migration lands at once from one long-lived branch with per-workspace lanes;
 old and new controls do not coexist on `main`. Canvas and 3D surfaces stay custom.
