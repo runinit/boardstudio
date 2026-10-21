@@ -1,6 +1,6 @@
 # 009: How to close rust-ui's control and accessibility gaps
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
