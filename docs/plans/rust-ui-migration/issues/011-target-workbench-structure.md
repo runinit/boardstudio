@@ -1,6 +1,6 @@
 # 011: Target structure of the workbench around rust-ui patterns
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: [003](003-inventory-existing-ui.md)
 Parent: [Map](../map.md)
