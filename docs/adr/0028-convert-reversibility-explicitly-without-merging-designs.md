@@ -1,0 +1,13 @@
+---
+status: accepted
+---
+
+# Convert reversibility explicitly without merging PCB designs
+
+Changing an existing split between shared reversible and distinct PCB designs is an explicit, reviewed conversion, not a checkbox that silently rewrites footprint options or derives every instance's orientation from its left/right label. The user selected conversion of existing designs rather than a new-boards-only setting, and confirmed the rules below on 2026-10-20. This trades a deliberate workflow for predictable ownership and avoids guessing which independently routed design should survive.
+
+- **Distinct designs to reversible:** the user must explicitly delete the unwanted physical half first, under [ADR-0025](0025-delete-a-removed-halfs-exclusive-pcb-design.md)'s exclusive-design/accessory deletion rules. Conversion uses the remaining PCB design to establish the two physical instances of that shared design, with the appropriate assembly orientations. If the split still contains two distinct half designs, require deletion first. Conversion itself neither merges their routing nor chooses and discards a design. The prior deletion remains a separate user action, not a hidden conversion side effect.
+- **Reversible to distinct designs:** retain the existing source PCB design and its routing; create a separate mirrored PCB design for the second physical half, initially unrouted. Do not copy or guess reflected traces/vias. Use [ADR-0010](0010-mirrored-half-is-a-core-maintained-reflection.md)'s mirrored-design identity, correspondence and component-placement rules rather than treating a distinct mirror as a flipped instance of the shared PCB.
+- **Review and application:** make the affected design, assembly and necessary footprint changes explicit before applying the conversion as one undoable edit. Do not change unrelated designs or treat reversible footprint capability as proof that two independently designed PCBs can be merged. Per-half firmware remains tied to actual assembly and jumpers under [ADR-0024](0024-share-reversible-pcb-routing-not-half-firmware-configuration.md); physical side and communication role remain separate under [ADR-0026](0026-decouple-firmware-role-from-physical-side.md).
+
+This is intended behavior, not an implementation-completion claim. The current [setup proposal](../../web/crates/catalogue/src/physical_setup.rs), `propose_reversible`, normalizes eligible footprint settings and assigns flips by half label; it does not implement this complete conversion. [ADR-0027](0027-save-incomplete-split-designs-with-output-specific-readiness.md) allows the intermediate one-half design to be saved without pretending it is ready for split firmware output.

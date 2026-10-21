@@ -18,6 +18,32 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0010](0010-mirrored-half-is-a-core-maintained-reflection.md) | A mirrored half is a Core-maintained reflection with explicit exceptions. | mirrored halves, correspondences |
 | [0011](0011-part-offset-is-its-own-constraint-kind.md) | A part-axes offset is its own constraint kind, not a property on Offset. | placement constraints |
 | [0012](0012-bounded-outline-validation.md) | Outline validity uses exact 0.001 mm contacts and a 1024-point budget per persisted path. | outline path validation |
+| [0013](0013-save-before-publication-and-explicit-recovery.md) | Publish the accepted document only after saving; retry retained results without replaying edits and recover explicitly after unknown outcomes. | saving, accepted state and recovery |
+| [0014](0014-document-authority-and-captured-lifetimes.md) | Keep one writable document authority and operation-specific lifetimes; preview recovery respects automatic-preview mode with bounded retry. | application ownership, scope changes, asynchronous results and preview recovery |
+| [0015](0015-exact-generated-cad-and-mesh-preview-scope.md) | Generate exact case/PCB output from accepted inputs; keep keycap and vendor preview meshes distinct from manufacturing authority. | CAD construction, STEP export and preview geometry |
+| [0016](0016-export-ownership-is-separate-from-preview-currency.md) | Keep exports independent of disposable previews; distinguish active-work ownership from final delivery checks. | export capture, cancellation and delivery |
+| [0017](0017-forgiving-vendor-previews-with-preserved-source.md) | Allow repaired and partial vendor previews with explicit diagnostics; preserve originals and do not infer whole-model clearance from incomplete geometry. | vendor STEP import, repair admission and preview errors |
+| [0018](0018-distinguish-collision-observations-from-clearance-guarantees.md) | Show approximate collision findings with limitations; reserve clearance conclusions for supported accuracy. | collision checks, measurements and uncertainty reporting |
+| [0019](0019-reject-stale-saves-and-reclaim-assets-conservatively.md) | Reject stale multi-tab saves and defer automatic asset cleanup when references or editor lifetimes are uncertain. | save conflicts, recovery and asset reclamation |
+| [0020](0020-validate-portable-project-packages-in-core.md) | Validate portable project packages and asset integrity in Core under bounded resource use. | project archive import, export and integrity checks |
+| [0021](0021-test-real-workflows-natively-and-browser-behavior-mounted.md) | Test real Session/Core workflows natively with shared controls; retain targeted mounted browser coverage. | workflow test adapters, test doubles and browser coverage |
+| [0022](0022-static-local-first-rust-application-with-worker-execution.md) | Keep core workflows local in a static Rust-owned browser app; isolate heavy work and preserve active offline clients during updates. | hosting, execution placement and offline updates |
+| [0023](0023-distinguish-mounted-daughterboards-from-embedded-circuits.md) | Keep mounted daughterboard circuitry separate from host-owned embedded copies and require explicit electrical joins. | module mounting, circuit embedding and host electrical ownership |
+| [0024](0024-share-reversible-pcb-routing-not-half-firmware-configuration.md) | Share reversible PCB routing while resolving each half's firmware key positions and MCU mapping from its actual assembly and jumpers. | reversible boards, jumper configurations and per-half firmware |
+| [0025](0025-delete-a-removed-halfs-exclusive-pcb-design.md) | Delete a removed half's exclusive PCB design and accessories in one undoable edit; preserve shared and surviving data. | topology reduction, PCB deletion and shared-design ownership |
+| [0026](0026-decouple-firmware-role-from-physical-side.md) | Allow either physical half to be central where supported; keep firmware role independent of left/right and keymap position. | split firmware roles, target selection and side ordering |
+| [0027](0027-save-incomplete-split-designs-with-output-specific-readiness.md) | Allow unfinished split designs to save and remain editable; gate only outputs requiring missing hardware. | incomplete hardware, saving and output readiness |
+| [0028](0028-convert-reversibility-explicitly-without-merging-designs.md) | Convert reversibility explicitly: require prior half deletion before sharing a design; create an unrouted mirrored design when separating it. | reversibility controls, design conversion and routing preservation |
+| [0030](0030-export-firmware-as-an-editable-repository-template.md) | Export an editable firmware repository template; disclose unfinished optional peripherals without blocking an otherwise valid handoff. | firmware package contents, build ownership and export expectations |
+| [0031](0031-preserve-pcb-handoff-protection-across-undo.md) | Preserve established PCB handoff pin-assignment protection across Undo/Redo; require explicit reviewed remapping. | PCB handoff protection, pin remapping and edit history |
+| [0032](0032-recreated-inputs-start-unassigned.md) | Recreated inputs do not inherit removed inputs' bindings, even when coordinates or IDs are reused. | key deletion/recreation, matrix shrink/regrow and binding cleanup |
+| [0033](0033-include-license-information-in-exported-packages.md) | Include `license.md` in exported packages so known licence and attribution information travels with their contents. | package export/import, attribution and source notices |
+
+## Deprecated records
+
+| ADR | Disposition | Read when you change |
+|---|---|---|
+| [0029](0029-constrain-geometry-scripts-and-apply-results-atomically.md) | User-authored geometry scripting is out of product scope; the earlier feature premise was incorrect. Existing code safety remains required pending separately scoped removal. | scripting code, its UI and saved-script compatibility |
 
 ## Notes
 

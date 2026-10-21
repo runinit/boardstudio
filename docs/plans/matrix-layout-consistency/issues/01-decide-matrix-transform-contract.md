@@ -23,12 +23,12 @@ Items marked *approval* would add one.
 | G | Inspector wording | Column: "Stagger" with the hint "Moves this column and the columns after it". Then "Column-only offset X/Y" and "Reset column offset". Row: "Row offset X/Y". The Column label becomes 1-based. | Put the offsets in a collapsed "Independent adjustment" disclosure, opened when nonzero. |
 | H | Referenced-object feedback | Navigation buttons only. Canvas highlight on hover goes to the backlog. | Include the canvas highlight in this effort (it touches the canvas render path). |
 | I | Existing offsets | Never converted. They are shown as departures with Reset. | Offer a one-shot "Convert to stagger" action (backlog). |
-| J | Record | Add the terms to `CONTEXT.md` (column stagger, column offset, key local offset, structural relationship, explicit constraint). Write an ADR, "Matrix gestures edit named parameters", recording A, B and I. | Terms only; no ADR. |
+| J | Record | Add the terms to `GLOSSARY.md` (column stagger, column offset, key local offset, structural relationship, explicit constraint). Write an ADR, "Matrix gestures edit named parameters", recording A, B and I. | Terms only; no ADR. |
 
 ## How to work it
 
 Call the `grilling` and `domain-modeling` skills with the user. Record the answers
-under `## Answer`. Update `CONTEXT.md` (and the ADR, if J is accepted) in the same
+under `## Answer`. Update `GLOSSARY.md` (and the ADR, if J is accepted) in the same
 commit. Where an answer differs from the spec, edit the spec and the affected tickets
 before setting this ticket `resolved`. If B or C chooses a Core interface, add a Core
 build ticket before ticket 02 and re-block 02 and 05 on it.
@@ -37,7 +37,7 @@ build ticket before ticket 02 and re-block 02 and 05 on it.
 
 Decided with the user on 2026-10-08. Recorded in
 [ADR-0007](../../../adr/0007-matrix-gestures-edit-named-parameters.md) and
-[CONTEXT.md](../../../../CONTEXT.md#matrix-layout). The [spec](../spec.md) is updated
+[GLOSSARY.md](../../../../GLOSSARY.md#matrix-layout). The [spec](../spec.md) is updated
 to match.
 
 - **A — Tools:** a separate **Offset** tool, plus **Shift held at pointer-down** on
@@ -68,7 +68,7 @@ to match.
   highlights it on the canvas.
 - **I — Convert:** yes. It is a one-shot "Convert to stagger" that Core offers only
   when geometry is exactly preserved.
-- **J — Record:** yes and yes. ADR-0007 and the CONTEXT.md terms.
+- **J — Record:** yes and yes. ADR-0007 and the GLOSSARY.md terms.
 
 The tickets were re-sliced to match: 02–03 Core, 04–07 edits, 08–10 Relations and
 11 verification.

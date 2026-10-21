@@ -41,7 +41,7 @@ must pass a real liveness answer. In short:
   never disable the field for a pending edit. **One-shot actions** disable their
   control, with no message, while their ticket `is_pending()`. See the
   [ADR-0005 amendment](../../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06)
-  and the terms in [CONTEXT.md](../../../../CONTEXT.md).
+  and the terms in [GLOSSARY.md](../../../../GLOSSARY.md).
 - The latest committed value wins. Retire only when the target is gone or no longer
   eligible, with a reason the user understands. If the value already equals the
   accepted value, resolve **Unchanged**.

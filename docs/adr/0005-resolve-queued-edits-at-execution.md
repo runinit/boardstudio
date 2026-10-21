@@ -23,13 +23,13 @@ commits keep their strict captured-revision checks.
 
 Planning the panel migrations surfaced two rules that follow from this decision.
 
-- For a [field edit](../../CONTEXT.md), the latest committed value wins. A resolver
+- For a [field edit](../../GLOSSARY.md), the latest committed value wins. A resolver
   does not compare the accepted value with the value the user saw when typing; it
   retires only when the target has gone or is no longer eligible (for example
   locked, relationship-driven or deleted). The Matrix Transform Inspector's
   "accepted value changed" rejection is removed during migration. Admission checks
   for selection lifetime and stale callbacks stay.
-- A [one-shot action](../../CONTEXT.md) disables its control, without a message,
+- A [one-shot action](../../GLOSSARY.md) disables its control, without a message,
   while its edit is pending, so a double click cannot create, delete or apply twice.
   Field edits are never disabled or refused while an earlier edit is pending.
 
@@ -41,7 +41,7 @@ normalised.
 
 After the migration every product commit is submitted as intent and settles through
 an edit ticket. Only three production paths still use the direct edit event, all for
-[edit previews](../../CONTEXT.md): the old position Inspector, the outline perimeter
+[edit previews](../../GLOSSARY.md): the old position Inspector, the outline perimeter
 and the Layout transform toolbar. The direct event refreshes its base revision, so a
 commit sent through it with a whole-document payload would silently restore values
 that landed after the payload was built.

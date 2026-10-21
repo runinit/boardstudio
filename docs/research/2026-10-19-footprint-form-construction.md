@@ -50,7 +50,7 @@ or net line deletion has **not** been established; neither is an acceptance clai
   not authorization for this candidate to replace Rust generators with a language.
   [Earlier recommendations, lines 139–158](universal-parametric-footprint-engine.md#L139-L158).
 - **Evidence:** glossary usage is “footprint generator,” stable source ID and
-  typed “generator parameters.” [Glossary, lines 85–96](../../CONTEXT.md#L85-L96).
+  typed “generator parameters.” [Glossary](../../GLOSSARY.md#language).
 
 ## Repeated conventions established across concrete generators
 

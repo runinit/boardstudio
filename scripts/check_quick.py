@@ -17,7 +17,7 @@ SHARED = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", ".cargo/", "deny.to
 # Tooling scripts are covered by the `tooling` step.
 TOOLING = ("scripts/", "cad/scripts/")
 # Prose and plans need only the documentation checks.
-DOCS = ("docs/", "README.md", "AGENTS.md", "CLAUDE.md", "CONTEXT.md", "DESIGN.md", "PRODUCT.md")
+DOCS = ("docs/", "README.md", "AGENTS.md", "CLAUDE.md", "GLOSSARY.md", "DESIGN.md", "PRODUCT.md")
 # Data and assets consumed through a build rather than compiled: the build step owns them.
 DATA = ("web/assets/", "content/", "ergogen/", "catalogue/modules/", "contracts/")
 

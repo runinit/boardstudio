@@ -9,7 +9,7 @@ Spec: [spec.md](../spec.md) · Map: [map.md](../map.md)
 
 Make these two copy-only corrections in `web/src/presentation/inspector/layout_component_inspector.rs`:
 
-1. Change the visible `Relationship` label for the constraint selector to `Constraint type`. This matches its existing accessible label and the explicit constraint vocabulary in `CONTEXT.md`.
+1. Change the visible `Relationship` label for the constraint selector to `Constraint type`. This matches its existing accessible label and the explicit constraint vocabulary in `GLOSSARY.md`.
 2. Change the Relations navigation button label from `Edit placement relationship` to `Go to Properties`. Its handler only selects the Properties tab.
 
 Add mounted copy assertions only in `web/src/presentation/layout_component_inspector_tests.rs`. The exact source and test paths are the only permitted implementation files. Do not change CSS, APIs, behavior, waits, helpers, or fixtures. Ticket 37's wait-conversion work remains deferred; no other assertions in its shared test file are leased.

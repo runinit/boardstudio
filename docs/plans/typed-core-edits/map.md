@@ -11,7 +11,7 @@ and for any bulk action a recorded decision permits.
 
 ## Notes
 
-- Domain terms: [CONTEXT.md](../../../CONTEXT.md) (accepted document, pending edit,
+- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md) (accepted document, pending edit,
   field edit, one-shot action).
 - Skills: `tdd` for build tickets, `codebase-design` for operation and seam shape,
   `grilling` + `domain-modeling` for decisions, `code-review` before resolving.
@@ -23,6 +23,28 @@ and for any bulk action a recorded decision permits.
   also edits Session's event types.
 
 ## Decisions so far
+
+- Refactor tickets (independent, no blocking edges; 185 is resolved, 186 is next):
+  [185](issues/185-unify-switch-family-lookup.md),
+  [186](issues/186-consolidate-cad-cache-eviction.md),
+  [187](issues/187-extract-closure-hardware-edit-handling.md),
+  [188](issues/188-isolate-gasket-screw-and-boss-selection.md),
+  [189](issues/189-separate-mechanical-validation-from-construction.md),
+  [190](issues/190-separate-session-request-construction.md),
+  [191](issues/191-share-selection-set-updates.md),
+  [192](issues/192-make-constraint-replacement-visibility-explicit.md),
+  [193](issues/193-isolate-occupied-volume-transformation.md),
+  [194](issues/194-investigate-gasket-resolution-phases.md) (research, no source change).
+
+- **2026-10-19 architecture research and specs:** three parallel source-research
+  passes narrowed the initial refactor directions to existing modules/interfaces.
+  The user approved all three narrowed scopes and test seams; each ticket is
+  `ready-for-agent`, with no blocking sibling dependency. Coordinate shared export
+  tests and preserve existing working-tree edits. Static research is not behavioral
+  verification or a measured performance claim.
+  - [182: Reuse parsed KiCad board source across artifact projections](issues/182-reuse-parsed-kicad-board-source.md) — private parsing reuse, preserving separate preview/exact/import policies; test through the existing artifact request interface.
+  - [183: Align generator editor null values with declared defaults](issues/183-align-generator-editor-null-defaults.md) — editor-local default handling; test through the mounted editor plus existing rendering/export parity coverage.
+  - [184: Use direct forms for the plated mounting-hole generator](issues/184-use-direct-forms-for-plated-mounting-hole.md) — one generator reuses the existing build module; test through KiCad export and retained live generator goldens.
 
 - **2026-10-19 test-suite speed & bloat audit:** six approved tickets slice the
   audit findings across disjoint crate boundaries (`176`–`180` in

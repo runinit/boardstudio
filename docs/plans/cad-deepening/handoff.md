@@ -7,7 +7,7 @@ and no PR exists. Plan and tickets: [map.md](map.md).
 
 | Ticket | Outcome |
 |---|---|
-| Boss rule (`beb634350`) | A **Case boss** must be wider than its hole, in Core and the layered kernel; term added to [CONTEXT.md](../../../CONTEXT.md). |
+| Boss rule (`beb634350`) | A **Case boss** must be wider than its hole, in Core and the layered kernel; term added to [GLOSSARY.md](../../../GLOSSARY.md). |
 | [001](issues/001-collision-query-contract.md) | Contracts share the collision leaves: STEP import options, sha256 check, placement-transform check. Query and operand types stay separate by design. |
 | [002](issues/002-polygon-predicates.md) | 15 containment copies became `path_contains` / `polygon_contains`. |
 | [003](issues/003-tests-through-build-case.md) | The second profile builder is gone; kernel tests build through `build_case`. |

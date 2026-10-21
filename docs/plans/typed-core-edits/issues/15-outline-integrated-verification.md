@@ -109,7 +109,7 @@ move after a refinement is created (Core tests cover it). Deferred to
 [docs/backlog.md](../../../backlog.md): duplicated version lifecycle and identity-namespace code,
 repeated contour re-id and version-push code, `SettingsField` mirroring, the
 `unreachable!` in the malformed-admission path, byte-versus-UTF-16 name length, the missing
-CONTEXT.md terms, the hardcoded linked finding id, and the other nits. The reviewers' note that the
+GLOSSARY.md terms, the hardcoded linked finding id, and the other nits. The reviewers' note that the
 `[build] jobs = 12` default is unrelated to the outline work stands, and it was kept on purpose at
 the user's request in its own commit.
 

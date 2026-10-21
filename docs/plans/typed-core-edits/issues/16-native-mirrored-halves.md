@@ -45,7 +45,7 @@ native model. An ADR-0010 is drafted from the answers.
 
 ## Acceptance
 
-- [x] Answers recorded; [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) written; CONTEXT.md term for the mirrored half.
+- [x] Answers recorded; [ADR-0010](../../../adr/0010-mirrored-half-is-a-core-maintained-reflection.md) written; GLOSSARY.md term for the mirrored half.
 - [x] Tickets [17](17-mirrored-half-schema-and-format-5.md) to [23](23-redo-keyboard-04-on-native-halves.md) written.
 
 ## Answer

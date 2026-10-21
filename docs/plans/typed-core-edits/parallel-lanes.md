@@ -50,7 +50,7 @@ leaves them alone and asks.
 | --- | --- |
 | `docs/plans/typed-core-edits/map.md`, `docs/plans/check-speed/map.md` | orchestrator, at merge time |
 | `core/tests/fixtures/boundary/transcript.json`, `core/tests/fixtures/demo-projects-baseline.json` | orchestrator only; lanes propose regeneration in their Outcome. Generated, never hand-merged; root regenerates when needed at the final batch boundary. |
-| `CONTEXT.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
+| `GLOSSARY.md`, `docs/adr/*` | orchestrator; lanes propose text in their Outcome |
 | `scripts/check.py` | lane C; root's temporary tooling-test-list conflict ownership ended at workflow merge `f2bccedc` |
 
 ## Setting up a lane
@@ -90,7 +90,7 @@ Paste this, then name the ticket(s). Everything else is in the ticket.
 > Use your absolute lane path as `exec_command`'s `workdir` on every shell call; report the path, branch and status first.
 > Implement test-first, run only the check steps the process table names, one command at a time in the
 > foreground. Stage explicit paths; no `git stash`, no `git add -A`, no push, no merge. Do not edit `map.md`,
-> `CONTEXT.md`, ADRs or the generated goldens. Follow the role time boxes in `verification-process.md`.
+> `GLOSSARY.md`, ADRs or the generated goldens. Follow the role time boxes in `verification-process.md`.
 > Implementers finish with the ticket set to `implemented (awaiting verification)` and an honest
 > Outcome. Commit trailers name the agent that made the commit. Report what you ran and what you did not.
 

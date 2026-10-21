@@ -1,6 +1,6 @@
 # 140: Refine the BoardStudio workbench with Impeccable
 
-Status: claimed
+Status: ready-for-human
 Type: build
 Blocked by: none
 

@@ -13,7 +13,7 @@ tested through its production interface, and proof machinery behind its own inte
 - Source: architecture review of `dev` at `9099b3ef7` (2026-10-20), after the
   [CAD backend replacement](../cad-backend-replacement/map.md).
 - Already done: the **Case boss** rule (wider than its hole) is enforced by both Core
-  preparation and the layered kernel (`beb634350`); see [CONTEXT.md](../../../CONTEXT.md).
+  preparation and the layered kernel (`beb634350`); see [GLOSSARY.md](../../../GLOSSARY.md).
 - Respect [ADR-0012](../../adr/0012-bounded-outline-validation.md) for polygon predicates.
 - Tracker conventions: [docs/agents/issue-tracker.md](../../agents/issue-tracker.md).
 

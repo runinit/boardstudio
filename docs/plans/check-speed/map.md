@@ -15,7 +15,7 @@ out with a recorded reason), without running fewer tests.
 - **Vocabulary.** *Routine loop*: the everyday command (`check.py quick`). *Full pre-PR check*: the
   default `check.py`. *Test launch*: one `wasm-pack test` invocation, which starts its own
   `chromedriver` and Chrome. *Test wasm*: the `.wasm` a launch loads. These terms live in
-  [README.md](../../../README.md), not in `CONTEXT.md`, which is the product glossary.
+  [README.md](../../../README.md), not in `GLOSSARY.md`, which is the product glossary.
 - **Work in the `.worktrees/check-speed` worktree** (branch `tooling/check-speed`). Follow
   [AGENTS.md](../../../AGENTS.md): stage explicit paths, never `git stash`, run the affected steps of
   `python3 scripts/check.py` before finishing, and keep `scripts/test-check.py` and the other script

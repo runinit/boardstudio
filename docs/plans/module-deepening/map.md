@@ -13,7 +13,7 @@ mechanical settings and outline version rules in Core.
 
 ## Notes
 
-- Domain terms: [CONTEXT.md](../../../CONTEXT.md) (accepted document, draft value,
+- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md) (accepted document, draft value,
   pending edit, landed edit, field edit, one-shot action, edit preview).
 - Skills: `codebase-design` for interface and seam questions, `grilling` +
   `domain-modeling` for decision tickets, `tdd` for build tickets, `code-review`

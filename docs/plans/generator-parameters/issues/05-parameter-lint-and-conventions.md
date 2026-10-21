@@ -22,7 +22,7 @@ declare one. Renaming and new integer/enum kinds are out of scope (see the map).
   accepts.
 - Docs: a "Generator parameters" section in `docs/hardware/component-onboarding.md`
   (declare explicit kinds, millimetre numbers, no numeric strings, a migration for any
-  type change, existing vocabulary listed as legacy). In `CONTEXT.md`, extend
+  type change, existing vocabulary listed as legacy). In `GLOSSARY.md`, extend
   **Generator parameters**: values are typed by the declaration; Core rejects wrong types
   and undeclared names on edit.
 
@@ -63,7 +63,7 @@ implementer's record; where the verification changed something, the text says so
 - `docs/hardware/component-onboarding.md`: "Generator parameters" section (explicit kinds, millimetre
   numbers, no numeric strings, `side`, snake_case and its exceptions, migrations per ADR-0004, Core's
   check per ADR-0009, links to ADR-0003) and the legacy vocabulary table (corrected by the verification).
-- `CONTEXT.md`: **Generator parameters** extended with the typing rule and the Open and edit behaviour.
+- `GLOSSARY.md`: **Generator parameters** extended with the typing rule and the Open and edit behaviour.
 
 ### The allow-lists (the audit)
 
@@ -198,10 +198,10 @@ Findings and what was done:
    `via_size`/`via_drill`, and gave `drill` only for the infused-kim hole and trackpoint mount although the
    plated holes, `infused-kim/mounting_hole` and the trackpoint mount all declare `drill` and `outline`; the
    `side` bullet cited ADR-0008, which says nothing about `side` (link removed); the names bullet described
-   the removed list. CONTEXT.md said an opened project reports "such saved values", but Open refuses a value
+   the removed list. GLOSSARY.md said an opened project reports "such saved values", but Open refuses a value
    of any other wrong type; it now says an undeclared name or text for a number opens with a warning. The
    vocabulary lists, the ADR-0003/0004/0009 links, "kinds are number, boolean, string, net, array" and the
-   rename and integer/enum exclusions match the code and the map. CONTEXT.md carries no implementation
+   rename and integer/enum exclusions match the code and the map. GLOSSARY.md carries no implementation
    detail.
 8. Environment trap, not a defect: this checkout and `/tmp/claude-1000/boardstudio-tce-verify` share one
    `target` directory. A mutation made in one checkout and restored by copy leaves an artifact that the

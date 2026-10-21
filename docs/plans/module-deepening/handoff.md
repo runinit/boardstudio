@@ -143,7 +143,7 @@ The orchestrator, not the agents, writes ticket status on `dev`, so claims never
 
 Give each agent its ticket path plus this list.
 
-- Read `AGENTS.md`, `CONTEXT.md`, the ticket, its `Decision:` links and the ADRs it
+- Read `AGENTS.md`, `GLOSSARY.md`, the ticket, its `Decision:` links and the ADRs it
   cites before editing. Line numbers in tickets are at `915d305c0`, orientation only.
 - Stay inside the files your ticket names. If a fix needs another ticket's files,
   stop and report it instead.

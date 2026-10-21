@@ -122,7 +122,7 @@ and Undo with controlled timing.
   Core operations. Typed Core edits (candidate 2) follow as a separate decision
   informed by what remains.
 - **Glossary.** Use *accepted document*, *draft value*, *pending edit* and *landed
-  edit* as defined in [CONTEXT.md](../../../CONTEXT.md).
+  edit* as defined in [GLOSSARY.md](../../../GLOSSARY.md).
 
 ## Testing Decisions
 

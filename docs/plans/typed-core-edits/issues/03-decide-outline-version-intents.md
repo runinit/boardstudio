@@ -26,7 +26,7 @@ strongest outline-rule duplication, with broader semantics than a scalar edit.
 4. Changed IDs and outline recomputation: which intents affect outlines (see
    `affects_outline`, `core/src/lib.rs`)?
 5. Domain terms touched (outline version, active outline, protected gap, outline
-   bridge): any sharpening goes into `CONTEXT.md`; ADR-0001/0002 stand.
+   bridge): any sharpening goes into `GLOSSARY.md`; ADR-0001/0002 stand.
 
 ## Done when
 

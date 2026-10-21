@@ -64,7 +64,7 @@ without touching `core/src/constraints/relation.rs` or `endpoints.rs` (139's fil
   select, removing `default_offset_axes`, aligning the test helpers, and a different error
   channel for `Retune`.
 - M8: the inspector's private `ConstraintKind::Offset` now means either offset kind while
-  `web/crates/layout/src/matrix_relations.rs` uses it for board axes only. CONTEXT.md says to
+  `web/crates/layout/src/matrix_relations.rs` uses it for board axes only. GLOSSARY.md says to
   qualify "offset"; the rename is the user's decision.
 - D2: the test oracle `relative` in `core/tests/part_offset_constraint.rs` hand-rolls the inverse
   rotation. An independent oracle is defensible.

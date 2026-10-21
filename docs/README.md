@@ -1,7 +1,7 @@
 # Documentation
 
 Start with [development and checks](../README.md), [architecture](architecture.md),
-and the [domain vocabulary](../CONTEXT.md). The [backlog](backlog.md) tracks open
+and the [domain vocabulary](../GLOSSARY.md). The [backlog](backlog.md) tracks open
 problems and completion conditions.
 
 ## Current references
@@ -17,6 +17,10 @@ problems and completion conditions.
 | [VIK qualification](hardware/vik.md) | Inspecting retained VIK data and qualification limits; new catalogue choices remain deferred |
 
 ## Investigations
+
+[Universal footprint generation](investigations/universal-footprint-generation.md)
+surveys the built-in generator seam and proposes a template/custom split while
+keeping imported KiCad source preservation intact.
 
 [Layout part editing](investigations/layout-part-editing.md) records the ownership
 review, passing presentation tests, and a reproduced queued-coordinate overwrite.
@@ -37,6 +41,11 @@ effort plans all of them.
 
 The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
 2026-10-20 review of case generation and the Monstertruck CAD kernel.
+
+The [application workflow verification spec](plans/application-workflow-verification/map.md)
+defines six bounded recovery, offline, renderer, keyboard, assembly and package-notice
+outcomes through three approved public seams. Operational and physical checks remain
+explicitly separate from source/mounted evidence; implementation tickets are not yet published.
 
 [TypeScript and Node removal](investigations/typescript-node-removal.md) inventories
 the remaining provider, content, build and test dependencies, with a phased removal

@@ -114,7 +114,7 @@ matrix origin's row-0 line. Changing it moves every column.
 | **Explicit constraint** | A separately authored `Constraint` between parts, shown with its source, target and precedence | `doc.constraints` |
 
 
-The terms are recorded in [CONTEXT.md](../../../CONTEXT.md#matrix-layout).
+The terms are recorded in [GLOSSARY.md](../../../GLOSSARY.md#matrix-layout).
 
 ### Core owns the parameter rules
 

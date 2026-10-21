@@ -1,0 +1,11 @@
+---
+status: accepted
+---
+
+# Exact generated CAD and mesh-preview scope
+
+This reconstructs the user-approved 2026-10-17 scope; it is not a new implementation mandate. The user confirmed this reconstruction, its output scope and explicit-refusal policy on 2026-10-19. Generated cases and PCBs use accepted, revision-bound inputs and layered 2.5D construction for exact STEP output; preview meshes are not substitutes. This avoids the general 3D Boolean chain whose intersection failures motivated the chosen route. The scope was recorded in `8206af04a1fb38758141cc615d0815debd0fe203` and adopted at closure in `91eb771f3526d7428b02d4ffcdba8beb44579f0a` ([CAD map](../plans/cad-backend-replacement/map.md#scope-decisions-2026-10-17-user), [013 rationale and adoption](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#why), [013 outcome](../plans/cad-backend-replacement/issues/013-layered-case-construction.md#answer)).
+
+Keycaps remain display and optional-print mesh outputs. Vendor STEP is a separate source-retaining import: original bytes and source geometry are retained, while derived meshes serve preview, alignment and collision. This decision does not make those meshes generated exact output or rule out carrying through retained vendor STEP bytes ([008 outcome](../plans/cad-backend-replacement/issues/008-step-export-independent-accuracy.md#answer), [`ImportedStep`](../../cad/monstertruck/src/step/mod.rs#L109)). The current layered path explicitly refuses cone/wall crossings and certain sealed voids or openings rather than silently approximating them. Bounded fixture/reference checks are not a general B-rep or STEP validator, universal vendor-repair certification, or blanket fabrication-readiness guarantee. Collision qualification remains separate: unsupported or insufficiently accurate cases stay uncertain ([collision scope](../plans/cad-backend-replacement/map.md#collision-acceptance-2026-10-18-user)).
+
+Runtime STEP export captures an accepted snapshot; an edit preview does not become export input, and the captured source/revision is checked through preparation and delivery ([export capture](../../web/crates/runtime/src/runtime.rs#L4820), [revision-bound preparation](../../web/crates/runtime/src/runtime.rs#L6377), [physical PCB preparation](../../web/crates/runtime/src/runtime.rs#L5268)).

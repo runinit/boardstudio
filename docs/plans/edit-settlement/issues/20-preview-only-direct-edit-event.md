@@ -55,7 +55,7 @@ the removed event.
 - [x] Every former direct test commit goes through `ResolveEdit`; no escape hatch exists.
 - [x] Gesture commit, export and remap strictness are unchanged (their tests pass
   untouched).
-- [x] `CONTEXT.md` and `docs/architecture.md` describe the preview event and that
+- [x] `GLOSSARY.md` and `docs/architecture.md` describe the preview event and that
   commits are intents.
 
 ## Verification

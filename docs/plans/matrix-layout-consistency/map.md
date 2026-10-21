@@ -13,7 +13,7 @@ Saved projects keep their geometry.
 
 ## Notes
 
-- Domain terms: [CONTEXT.md](../../../CONTEXT.md#matrix-layout).
+- Domain terms: [GLOSSARY.md](../../../GLOSSARY.md#matrix-layout).
 - Edit lifecycle: [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md) and
   its amendments. Typed Core edit direction:
   [ADR-0006](../../adr/0006-replace-document-for-import-and-recovery.md).
@@ -57,7 +57,7 @@ Saved projects keep their geometry.
   Convert is offered only when exact. Highlight is in scope:
   [ADR-0007](../../adr/0007-matrix-gestures-edit-named-parameters.md),
   [ticket 01](issues/01-decide-matrix-transform-contract.md#answer), terms in
-  [CONTEXT.md](../../../CONTEXT.md#matrix-layout).
+  [GLOSSARY.md](../../../GLOSSARY.md#matrix-layout).
 
 ## Progress
 

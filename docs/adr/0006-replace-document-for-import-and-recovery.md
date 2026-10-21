@@ -31,9 +31,16 @@ Permitted now, by name:
 The remaining replacement resolvers are each converted to a typed intent (a typed
 batch intent where the action changes several entities atomically) or added to the
 permitted list by their own decision. Nothing is grandfathered by default. The
-bulk ones that need that decision are physical setup, geometry-script apply,
+bulk ones identified at the time were physical setup, geometry-script apply,
 generator apply and generator model upload, assembly placement, the reviewed wiring
 plan, and matrix and mirrored-half creation.
+
+**Scope correction (2026-10-20):** the geometry-script example above is historical.
+[ADR-0029](0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)
+records that user-authored geometry scripting is outside product scope. Retained
+script code requires a separate removal/saved-project compatibility decision, not
+a new typed script-edit feature. Keep its existing safety and atomicity checks
+while it remains; this correction does not authorize dropping saved script data.
 
 The work is the [typed Core edits](../plans/typed-core-edits/map.md) effort. Its
 first slice is one small board-scoped operation, `SetWiringMode`, chosen to settle

@@ -12,7 +12,7 @@ preparation and checks; the CAD provider is Rust/WASM.
 | `web/crates/runtime/` | Composition of session state and browser effects (`runtime.rs`), model delivery and presentation-independent operations; no Dioxus |
 | `web/crates/host/` | IndexedDB, Core and CAD worker clients, renderer host and offline policy |
 | `web/crates/ui-model/` | UI vocabulary shared by presentation code: tree contexts, selection, workspace and view state, canvas interaction ownership |
-| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics, geometry scripts, model import |
+| `web/crates/ui-shared/` | UI used by several workspaces: panels, canvas layers, layout camera, footprint graphics and model import; retained out-of-scope scripting UI is noted below |
 | `web/crates/catalogue/` | Bundled component catalogue loading, generator normalization and physical setup proposals; no Dioxus |
 | `web/crates/keycaps/`, `library/`, `keymap/`, `case/`, `parts/`, `pcb/`, `layout/` | Workspace features: keycap fit, settings and scene; the Library page; the Keymap editor; the case viewer, mechanical-settings and closure-clearance adapters over Core's mechanical operation, and the shared 3D viewer; the Parts browser, definitions, generators and assemblies; PCB wiring, routed-board references, modules and physical setup; the Layout objects tree, outlines, part placement and setup guide. Workspace containers stay in the bin |
 | `web/src/lib.rs` | Worker entry points packaged by wasm-pack (Core, CAD and offline service worker) |
@@ -32,6 +32,12 @@ being reduced to a thin client that submits that intent and keeps drafts, catalo
 preparation, ports and presentation. Worker replies, saves and exports retain their
 captured project, board and revision identities so stale operations cannot replace
 the current scope. Manufacturing output comes from accepted inputs, not rendered meshes.
+
+The retained geometry-script editor and Core script engine are existing code, not
+an intended user feature. [ADR-0029's scope correction](adr/0029-constrain-geometry-scripts-and-apply-results-atomically.md#scope-correction-2026-10-20)
+excludes user-authored geometry scripting from product scope. Removing that code or
+stored scripts requires separately scoped compatibility work; its presence does not
+authorize new scripting workflows or removal of its current safety checks.
 
 Product commits submit accepted-state intents through `Event::ResolveEdit` and
 `EditTicket`. The direct Session edit event is `PreviewEdit`, which carries only a
@@ -55,10 +61,12 @@ that interface rather than a second Session implementation. Native coverage does
 not validate WASM-only presentation; mounted browser tests remain required.
 
 The Runtime export-lease registry owns capture, source currency and export lifecycle.
-A lease retains the accepted snapshot, scope, executor epoch and worker identity;
-Session ownership and those identities govern delivery. An export's own accepted
-commit advances its lease without relaxing its strict origin checks. Disposable
-preview currency remains separate from export ownership.
+A lease retains the accepted snapshot, scope, executor epoch and worker identity.
+Active work requires Session ownership; final delivery validates the retained capture
+and current source without requiring the already-settled operation to remain active.
+An export's own accepted commit advances its lease without relaxing its strict origin
+checks. Disposable preview currency remains separate from export ownership
+([ADR-0016](adr/0016-export-ownership-is-separate-from-preview-currency.md)).
 
 Runtime owns collision-check execution behind one interface: captured scene, native
 preview and delivered model rows; readiness and currency; placement transforms,
@@ -98,12 +106,14 @@ WASM modules; browser worker and service-worker entrypoints are packaged with th
 page. Root and subpath deployments must preserve asset URLs and COOP/COEP isolation
 headers. Ordinary offline caches remain part of the application.
 
-The React frontend and its rollback path are retired. Version 1 saved documents migrate to format version 2 at storage/archive load
-boundaries before opening. Current projects round-trip through persistence and
+The React frontend and its rollback path are retired. Older saved documents pass
+through ordered Core migrations to the current supported format at storage/archive
+load boundaries before opening; newer unsupported formats are refused
+([ADR-0004](adr/0004-document-format-version-and-id-rename.md)). Current projects round-trip through persistence and
 portable archives. Historical cutover work remains in Git
 at `323967ff`; there is no active migration contract or acceptance ledger.
 
-See [development commands](../README.md), [domain terminology](../CONTEXT.md),
+See [development commands](../README.md), [domain terminology](../GLOSSARY.md),
 [component onboarding](hardware/component-onboarding.md) and [backlog](backlog.md).
 The [documentation index](README.md) separates current references from design,
 research and archived workflows. The [Layout part-editing investigation](investigations/layout-part-editing.md)

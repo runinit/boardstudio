@@ -52,7 +52,7 @@ Line numbers are at `915d305c0`, orientation only.
 5. **Resolver side.** A `Resolution` constructor that leaves phase, base revision and
    transaction to Session, and deletion of resolver-level epoch checks: in this
    module's ticket or separate?
-6. **Name.** If the module needs a domain name, record it in `CONTEXT.md`.
+6. **Name.** If the module needs a domain name, record it in `GLOSSARY.md`.
 
 ## Done when
 
@@ -77,7 +77,7 @@ Decided with the user on 2026-10-07.
    one-shot controls sit in `ui-shared`.
 5. **Resolver side: its own ticket**, [04](04-resolution-constructors.md), after edit
    settlement 20 and before the module.
-6. **Name: `PendingEdits`.** No new `CONTEXT.md` term; it holds *pending edits* as
+6. **Name: `PendingEdits`.** No new `GLOSSARY.md` term; it holds *pending edits* as
    already defined.
 
 Follow-up round:

@@ -71,8 +71,8 @@ fixture setup details beside the tests instead of duplicating them in the genera
 architecture page.
 
 `docs/README.md` indexes current references and research, while `docs/agents/domain.md`
-directs agents to `CONTEXT.md` and relevant ADRs. The collision term is already in
-the glossary ([CONTEXT.md](../../CONTEXT.md#L44)); no new domain term or ADR is
+directs agents to `GLOSSARY.md` and relevant ADRs. The collision term is already in
+the glossary ([GLOSSARY.md](../../GLOSSARY.md#L44)); no new domain term or ADR is
 indicated. The recommended landing point is the collision browser-test module's
 header note, reachable through one inbound link from the existing architecture
 reference. A task handoff may reuse that route, but handoff text alone is not a

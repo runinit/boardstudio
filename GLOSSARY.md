@@ -1,4 +1,4 @@
-# Board Studio
+# Board Studio glossary
 
 Board Studio describes keyboard boards and their associated mechanical assemblies.
 
@@ -55,6 +55,30 @@ space required by its mechanical features and clearances.
 An explicit comparison of physical items in an assembly for intersection or required
 clearance. Findings belong to the accepted design being checked and remain uncertain
 when the available geometry cannot support the requested accuracy.
+
+**Approximate collision finding**:
+A measured gap or potential interference in the geometry available for a collision
+check. It is not a guarantee of physical clearance when geometric error or model
+completeness is unknown.
+
+**Vendor model preview**:
+A display representation of an imported vendor model, distinct from its preserved
+original. It may contain repairs whose geometric error is unknown; successful display
+does not establish collision accuracy or fabrication readiness.
+
+**Incomplete vendor preview**:
+A vendor model preview with missing geometry, displayed with an explicit error.
+It cannot establish clearance for the complete model.
+
+**Generated exact geometry**:
+The case or PCB geometry used for exact manufacturing output, distinct from a display
+mesh. Exact describes its geometric representation, not a guarantee of fabrication
+readiness or collision accuracy.
+
+**Current case result**:
+Generated exact case geometry and its associated mechanical information that still
+represent the accepted document for the selected physical board instance. A previous
+result may remain visible without being current.
 
 **Nominal wall thickness**:
 The case wall thickness before local gasket pockets remove material.
@@ -116,6 +140,14 @@ _Avoid_: Local Part (when there is no source Part)
 
 ### Mechanical relationships
 
+**Mounted daughterboard**:
+A separate physical PCB attached to a host board. Its constituent components and
+copper belong to the daughterboard, not the host PCB.
+
+**Embedded circuit copy**:
+A source circuit copied into the host PCB as independently owned components and
+internal nets, with explicit connections to host signals.
+
 **Board**:
 A PCB design with its component placement, electrical wiring and board boundary.
 One board may be used by more than one physical board instance.
@@ -125,6 +157,44 @@ _Avoid_: half (when the PCB design is meant)
 One physical realization of a board in the keyboard, such as its left or right half.
 Two instances remain distinct even when they use the same reversible board design.
 _Avoid_: board (when one physical realization is meant)
+
+**Reversible PCB**:
+A PCB design that can serve opposite physical halves through the appropriate assembly
+orientation and connections. The halves share its copper routing but may require
+different firmware key positions and MCU pin mappings.
+
+**Reversibility conversion**:
+An explicit, reviewed change between a split using one shared reversible PCB design
+and a split using distinct PCB designs. It is not merely a change of footprint options.
+
+**Jumper configuration**:
+The selected open or solder-bridged jumper connections on one physical board instance.
+These determine its assembled electrical connections, including applicable MCU pin mapping.
+
+**Central half**:
+The half that communicates with the computer and receives input from the peripheral
+half. It may be physically left or right.
+_Avoid_: left half (when the communication role is meant)
+
+**Peripheral half**:
+The half that sends its input to the central half. It may be physically left or right.
+_Avoid_: right half (when the communication role is meant)
+
+**Incomplete split design**:
+A split keyboard design whose halves or required hardware assignments are not yet
+complete. It is an unfinished design, not by itself a corrupt project.
+
+**Firmware handoff**:
+An editable repository template containing keyboard firmware sources, configuration
+and build information. It is not a compiled image ready to flash.
+
+**PCB handoff**:
+A package of PCB design data and wiring/assembly information for downstream work.
+It is distinct from a firmware handoff and does not establish that a PCB was manufactured.
+
+**Export availability**:
+An output's current eligibility to begin from the accepted design and its known prerequisites.
+It does not guarantee delivery if the design changes or generation fails.
 
 **Mechanical mirror pair**:
 Two physical halves whose shared mechanical features stay reflected when edited
@@ -220,10 +290,23 @@ _Avoid_: attach constraint (an attached companion is one that follows its key)
 
 ### Editing
 
+**Editor session**:
+One opening of a project for editing. Reopening the same project starts a new
+editor session even when its saved contents have not changed.
+_Avoid_: session (when the lifetime of one project opening is meant)
+
 **Accepted document**:
 The project state the document engine has applied and saved; every view and
 export reads from it.
 _Avoid_: current doc, model, snapshot (when the saved state is meant)
+
+**Replacement input**:
+A newly created keyboard input following removal of an earlier input, even when it
+occupies the same matrix position. It is distinct from a surviving input moved by a layout edit.
+
+**Temporarily disabled input**:
+An existing keyboard input made inactive rather than deleted and recreated.
+Re-enabling it resumes its prior bindings as the same input.
 
 **Draft value**:
 A value typed into a field that has not yet become part of the accepted document.

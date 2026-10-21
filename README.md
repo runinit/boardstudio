@@ -154,7 +154,7 @@ The repository has no TypeScript or Node dependency; Python scripts handle build
 JavaScript generators are not executed. Bundled model export includes used assets;
 missing or unsupported model paths fail explicitly.
 
-See [architecture](docs/architecture.md), [domain vocabulary](CONTEXT.md),
+See [architecture](docs/architecture.md), [domain vocabulary](GLOSSARY.md),
 [component onboarding](docs/hardware/component-onboarding.md) and
 [deferred issues](docs/backlog.md). Migration history is preserved in Git at
 `323967ff`; it imposes no development or acceptance process on this branch.

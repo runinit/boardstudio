@@ -35,10 +35,18 @@ no data is rewritten and a pair without the new fields stays unpaired. An older 
 version 5 document, so it cannot drop the record silently. Core's `Open` refuses a record that
 names a missing board or item, or repeats a correspondence, with a message that locates it.
 
-Format version 6 adds optional mechanical identity reservation counters for critical fits,
-hardware and mounts. They are omitted at zero, so absence is the same unset state as zero;
-a successful Open starts a new document session and seeds them from the live identities it
-receives. No migration step or version bump was needed because an older build dropping these
-bookkeeping counters cannot change accepted geometry, and reloading is a new session in which
-the previous session's removed identities may be reused. An explicit `u64::MAX` counter is
-the exhausted sentinel and never allocates again.
+Format version 6 introduces the persisted framed-constraint kind described in
+[ADR-0010's framed-constraint amendment](0010-mirrored-half-is-a-core-maintained-reflection.md#amendment-selective-exceptions-and-framed-constraints-2026-10-11).
+The ordered version 5 to 6 migration changes only `formatVersion`: it does not invent
+links, rewrite existing constraints or alter geometry. The version transition lets
+older builds refuse a document whose new constraint semantics they cannot preserve.
+
+Later additions within format version 6 include optional mechanical identity reservation
+counters for critical fits, hardware and mounts. They are omitted at zero, so absence
+is the same unset state as zero; a successful Open starts a new document session and
+seeds them from the live identities it receives. These counters needed no additional
+migration step or version bump: an older build dropping the bookkeeping counters
+cannot change accepted geometry, and reloading starts a new session in which the
+previous session's removed identities may be reused. An explicit `u64::MAX` counter
+is the exhausted sentinel and never allocates again. This compatible addition does
+not remove the earlier version 5 to 6 migration for framed constraints.

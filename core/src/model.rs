@@ -523,7 +523,7 @@ pub struct OutlineProvenance {
 }
 /// Who owns a version's boundary shape.
 ///
-/// [`OutlineOwnership::Fixed`] is CONTEXT.md's "edited outline": the geometry stays put
+/// [`OutlineOwnership::Fixed`] is GLOSSARY.md's "edited outline": the geometry stays put
 /// when components move. [`OutlineOwnership::Linked`] is an "outline refinement" that
 /// follows the board's current included components. Absence in a persisted document
 /// means fixed, so existing copies never gain a link and their serialized shape is

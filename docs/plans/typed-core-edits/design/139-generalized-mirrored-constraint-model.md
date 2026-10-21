@@ -6,7 +6,7 @@
 
 # Ticket 139: generalized mirrored constraints
 
-Status: implementation-ready design for root review; no implementation or activation authorized by this packet alone. The human has approved the separately scoped model/schema/API extension needed for slanted axes and linked/Local relationships. Root design review and exact path assignment are the remaining code gate. Do not ask the human to approve those already chosen capabilities again.
+Status: resolved (implemented and integrated via tickets 139, 114, 115, and 111).
 
 ## Scope and evidence boundary
 

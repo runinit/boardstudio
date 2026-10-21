@@ -163,7 +163,7 @@ ordered migration under ADR-0004 and needs an explicit decision.
 
 Launch TWO reviewer subagents in parallel with `context: "fresh"` (never fork).
 Reviewers must inspect the repository, relevant instructions (AGENTS.md,
-CONTEXT.md, ticket contracts) and the current diff directly from files and
+GLOSSARY.md, ticket contracts) and the current diff directly from files and
 commands — never the main conversation history. Review-only: they must not edit
 files. Prefer `output: false`; do not write reviewer output into the repo. They
 return concise, evidence-backed findings with file/line references and the
@@ -236,7 +236,7 @@ the same with `test`. All steps must pass. The `test` step includes native CAD
 Two fresh-context read-only reviewers over `71e159d91..<final tip>`, following
 the mechanical phase's two-axis pattern (`standards-reviewer` + `spec-reviewer`
 or equivalents). Spec axis: tickets 11-15 contracts, the 03 Answer,
-ADR-0001/0002 (+0004/0005), the map. Standards axis: AGENTS.md, CONTEXT.md,
+ADR-0001/0002 (+0004/0005), the map. Standards axis: AGENTS.md, GLOSSARY.md,
 DESIGN.md's outline sections, plus the smell baseline (Mysterious Name,
 Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession, Repeated
 Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message

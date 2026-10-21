@@ -18,3 +18,25 @@ correction is listed in the
 [migration plan](../investigations/footprint-generators-rust.md). Ported files
 keep their source licences, including CC-BY-NC-SA-4.0. Upstream generator
 changes must now be ported by hand.
+
+## Amendment: existing projects use current generators (2026-10-20)
+
+The user rejected a promise that saved projects preserve old generated manufacturing
+geometry until explicit upgrade. Existing projects use the generator implementation
+and applicable defaults in the current application; a generator update may therefore
+change subsequent resolved geometry/output without a per-project adoption step.
+Saving a definition is not pinning an executable generator or its historical output.
+This chooses maintained current generators rather than a frozen-geometry/version
+retention system; it does not require changing an explicitly saved parameter value.
+
+This does not waive [ADR-0004](0004-document-format-version-and-id-rename.md)'s schema
+migrations, [ADR-0009](0009-generator-parameters-checked-in-core.md)'s parameter admission,
+or required identity/terminal migration when pad count/order or meaning changes.
+Nor may an update silently override [ADR-0031](0031-preserve-pcb-handoff-protection-across-undo.md)'s
+protected signal assignments. No new review/adoption gate is required solely to keep
+old geometry, but accepted integrity and safety contracts still apply.
+
+The [compatibility research](../research/2026-10-20-compatibility-identity-provenance-deep-dive.md#a-generator-compatibility)
+traces current executable/default resolution and two real precedents: opt-in diode
+geometry and migration of omitted-side semantics. Those examples do not establish
+that every historical update or saved project has been verified.

@@ -13,7 +13,7 @@ which remaining whole-document replacements become typed Core edits.
 
 ## Notes
 
-- Domain: keyboard design workbench; use [CONTEXT.md](../../../CONTEXT.md) terms
+- Domain: keyboard design workbench; use [GLOSSARY.md](../../../GLOSSARY.md) terms
   (accepted document, draft value, pending edit, landed edit).
 - Skills for each session: `tdd` for build tickets, `codebase-design` for seam
   questions, `grilling` + `domain-modeling` for decision tickets, `code-review` before
@@ -39,7 +39,7 @@ answered (see Decisions so far).
   with an inline message; no automatic retry: [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md).
 - Runtime ports cover Core and persistence only in this effort: [spec](spec.md).
 - Plans live as committed Markdown under `docs/plans/`: [issue tracker](../../agents/issue-tracker.md).
-- Field edits queue freely; one-shot actions disable their control while pending: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06), terms in [CONTEXT.md](../../../CONTEXT.md).
+- Field edits queue freely; one-shot actions disable their control while pending: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06), terms in [GLOSSARY.md](../../../GLOSSARY.md).
 - The latest committed value wins; resolvers retire only for a vanished or ineligible target, so the Matrix Transform Inspector's baseline rejection goes: [ADR-0005 amendment](../../adr/0005-resolve-queued-edits-at-execution.md#amendment-field-edits-and-one-shot-actions-2026-10-06).
 - Landed means landed: per-panel content checks are deleted; mechanical closure evidence is decided in [Case, mechanical settings and project/board names](issues/16-case-and-metadata.md).
 - Every action uses a resolver, field-scoped ones included; keyboard nudges become delta intents; previews use `Event::PreviewEdit`: [cluster migration rules](issues/08-parts-custom-definition-fields.md#migration-rules-same-for-every-cluster-ticket).

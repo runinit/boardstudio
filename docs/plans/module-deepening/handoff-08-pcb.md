@@ -17,7 +17,7 @@ Parts remains separate; parent08 closes only after both halves are accepted.
 
 ## Read first
 
-Read current root and worktree AGENTS.md, CONTEXT.md,
+Read current root and worktree AGENTS.md, GLOSSARY.md,
 [parallel-run rules](handoff.md#rules-every-agent-follows), the parent ticket,
 ADR-0005 and its three amendments, and the Outcomes of
 [keyed collection](issues/15-keyed-pending-edits.md#outcome),

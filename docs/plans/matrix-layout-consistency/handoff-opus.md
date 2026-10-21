@@ -21,7 +21,7 @@ uncommitted edits to `AGENTS.md`, `DESIGN.md`, `PRODUCT.md`, `docs/README.md`, a
 an untracked `docs/design/project-context.md`; preserve them. `.scratch/` stays
 ignored. The user's preview is `http://127.0.0.1:4173/boardstudio/`.
 
-Read [AGENTS.md](../../../AGENTS.md), [CONTEXT.md](../../../CONTEXT.md),
+Read [AGENTS.md](../../../AGENTS.md), [GLOSSARY.md](../../../GLOSSARY.md),
 [architecture](../../architecture.md), [PRODUCT.md](../../../PRODUCT.md), and
 the relevant Layout sections of [DESIGN.md](../../../DESIGN.md). Consult
 [ADR-0005](../../adr/0005-resolve-queued-edits-at-execution.md) and its amendments
