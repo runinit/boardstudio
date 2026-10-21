@@ -1,6 +1,6 @@
 # 001: Compile rust-ui components against our Dioxus 0.7.10 web build
 
-Status: open
+Status: claimed
 Type: task
 Blocked by: None
 Parent: [Map](../map.md)
