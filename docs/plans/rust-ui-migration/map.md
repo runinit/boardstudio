@@ -37,10 +37,11 @@ Original and shadcn Themes defined, and the single-branch lane plan decided.
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; blocked by: None
-- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 002, 003
+- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 003, 009
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; blocked by: None
 - [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; blocked by: None
+- [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md) — `wayfinder:grilling`; blocked by: None
 - [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md) — `wayfinder:grilling`; blocked by: 004, 005
 
 ## Decisions so far
@@ -48,6 +49,7 @@ Original and shadcn Themes defined, and the single-branch lane plan decided.
 <!-- one line per resolved ticket: linked title, then a one-line gist -->
 
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md): no Solar exists in the app; rust-ui uses 35 Lucide icons; icon set reopened as 008.
+- [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md): 86 components; overlays/Select/Tabs/Switch uncontrolled with thin keyboard and ARIA (→ 009); shadcn token set plus extras, with gaps.
 
 ## Not yet specified
 

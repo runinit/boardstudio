@@ -2,7 +2,8 @@
 
 Status: open
 Type: grilling
-Blocked by: [002](002-rust-ui-catalogue-facts.md), [003](003-inventory-existing-ui.md)
+Blocked by: [003](003-inventory-existing-ui.md), [009](009-close-rust-ui-behaviour-gaps.md)
+Related: [002](002-rust-ui-catalogue-facts.md)
 Parent: [Map](../map.md)
 
 ## Question
