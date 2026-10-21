@@ -38,6 +38,15 @@ fn inferred_switch_family(
     part: &Part,
     definition: &PartDefinition,
 ) -> Option<MechanicalSwitchFamily> {
+    generator_switch_family(definition, part.generator_parameters.as_ref())
+}
+
+/// The switch family a definition's generator implies; a part's own generator parameters
+/// replace the definition's for the same key. A definition seen without a part passes `None`.
+pub fn generator_switch_family(
+    definition: &PartDefinition,
+    part_parameters: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
+) -> Option<MechanicalSwitchFamily> {
     let source = definition
         .generator
         .as_ref()
@@ -50,8 +59,7 @@ fn inferred_switch_family(
         return None;
     }
     let flag = |key: &str| {
-        part.generator_parameters
-            .as_ref()
+        part_parameters
             .and_then(|values| values.get(key))
             .or_else(|| definition.generator.as_ref()?.parameters.get(key))
             .and_then(|value| {
@@ -70,6 +78,39 @@ fn inferred_switch_family(
         (false, true) => Some(MechanicalSwitchFamily::ChocV2),
         _ => None,
     }
+}
+
+/// The family on the profile assigned to the part's definition.
+fn assigned_family(
+    config: &MechanicalConfiguration,
+    part: &Part,
+) -> Option<MechanicalSwitchFamily> {
+    config
+        .profiles
+        .iter()
+        .find(|profile| profile.definition_id == part.definition_id)
+        .and_then(|profile| profile.switch_family)
+}
+
+/// The assigned family, else the one the definition's generator implies.
+fn effective_family(
+    config: &MechanicalConfiguration,
+    part: &Part,
+    definition: &PartDefinition,
+) -> Option<MechanicalSwitchFamily> {
+    assigned_family(config, part).or_else(|| inferred_switch_family(part, definition))
+}
+
+/// Earlier saved catalogue profiles stored the MX mounting datum as a gap. Recognize only the
+/// exact reviewed sources and original value; custom profiles and user-specified engagement
+/// distances retain their meaning.
+fn is_legacy_mx_stabilizer(profile: &MechanicalPartProfile) -> bool {
+    profile.plate_to_pcb == 5.0
+        && profile.source_geometry.as_ref().is_some_and(|source| {
+            source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
+                || source.text
+                    == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
+        })
 }
 
 fn is_switch_position(part: &Part, definition: &PartDefinition) -> bool {
@@ -482,13 +523,9 @@ fn resolve_profiles(
     }
     effective_config.part_processes = Some(normalized_processes(&effective_config));
     for (part, definition) in &switch_parts {
-        let family = effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family)
-            .or_else(|| inferred_switch_family(part, definition));
-        let Some(family) = family else { continue };
+        let Some(family) = effective_family(&effective_config, part, definition) else {
+            continue;
+        };
         if !effective_config
             .profiles
             .iter()
@@ -511,17 +548,7 @@ fn resolve_profiles(
         }
     }
     for profile in &mut effective_config.profiles {
-        // Earlier saved catalogue profiles stored the MX mounting datum as a gap.
-        // Recognize only the exact reviewed sources and original value; custom
-        // profiles and user-specified engagement distances retain their meaning.
-        if profile.switch_family.is_none()
-            && profile.plate_to_pcb == 5.0
-            && profile.source_geometry.as_ref().is_some_and(|source| {
-                source.text == include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod")
-                    || source.text
-                        == include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod")
-            })
-        {
+        if profile.switch_family.is_none() && is_legacy_mx_stabilizer(profile) {
             profile.switch_family = Some(MechanicalSwitchFamily::Mx);
         }
         // Family compatibility also applies to separate stabilizer definitions.
@@ -529,26 +556,16 @@ fn resolve_profiles(
             profile.plate_to_pcb = switch_mounting_datum(family) - effective_config.plate_thickness;
         }
     }
-    let resolved_family = switch_parts.iter().find_map(|(part, definition)| {
-        effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family)
-            .or_else(|| inferred_switch_family(part, definition))
-    });
+    let resolved_family = switch_parts
+        .iter()
+        .find_map(|(part, definition)| effective_family(&effective_config, part, definition));
     let mut incompatible_switches = resolved_family
         .map(|family| {
             let datum = switch_mounting_datum(family);
             switch_parts
                 .iter()
                 .filter_map(|(part, definition)| {
-                    let other = effective_config
-                        .profiles
-                        .iter()
-                        .find(|profile| profile.definition_id == part.definition_id)
-                        .and_then(|profile| profile.switch_family)
-                        .or_else(|| inferred_switch_family(part, definition))?;
+                    let other = effective_family(&effective_config, part, definition)?;
                     ((switch_mounting_datum(other) - datum).abs() > 0.001)
                         .then_some(part.id.clone())
                 })
@@ -556,11 +573,7 @@ fn resolve_profiles(
         })
         .unwrap_or_default();
     for (part, definition) in &switch_parts {
-        let assigned = effective_config
-            .profiles
-            .iter()
-            .find(|profile| profile.definition_id == part.definition_id)
-            .and_then(|profile| profile.switch_family);
+        let assigned = assigned_family(&effective_config, part);
         let inferred = inferred_switch_family(part, definition);
         if assigned.is_some() && inferred.is_some() && assigned != inferred {
             incompatible_switches.push(part.id.clone());

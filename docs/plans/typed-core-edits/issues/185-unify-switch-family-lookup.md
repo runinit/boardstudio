@@ -1,6 +1,6 @@
 # 185: Unify switch-family lookup
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: None (can start immediately)
 Priority: Highest; approved opportunity 6
@@ -52,3 +52,20 @@ Revised 2026-10-21 after a Gortex pass over each target's current source: the si
 2026-10-21, implementation started: characterization tests added in `core/src/mechanical.rs` (inference table with part overrides and both value shapes; legacy stabilizer match and non-match; assigned-versus-inferred, definition-owned precedence, unknown family, mixed datum). All pass on the unchanged code (`.evidence/185-baseline-core.log`).
 
 Blocked before the refactor edits: after the first Gortex write the exact worktree view stayed at `view_building` (reads fell back to the base graph, `exact:false`, line numbers from another commit). The ticket requires exact-view Gortex edits, so no production code was changed. Remaining: the three-copy inference merge, the `resolve_profiles` lookup helpers, the named legacy-stabilizer predicate, the web copy and datum table (`mounting_datum` and `default_plate_thickness` are already public in core, and the web crate already depends on core), plus characterization of the settings-edit and web paths. Resume once the view is exact.
+
+## Answer
+
+Resolved 2026-10-21. The three inference copies are one `generator_switch_family(definition, part_parameters)` in core; `inferred_switch_family(part, definition)` stays as its one-line private wrapper because it has about eight callers and four tests. `resolve_profiles` now has `assigned_family` and `effective_family`, and the legacy stabilizer rule is the named predicate `is_legacy_mx_stabilizer`. Settings edits reuse `is_switch_position` and the shared inference (`definition_family` is deleted). The web profile editor calls core's inference with no part parameters and takes its plate gap from core's `mounting_datum - default_plate_thickness` (same operation order as before: `datum - thickness`).
+
+Net production change: -45 lines (core +13 in `mechanical.rs`, -37 in `edit.rs`; web -21), counting the two new tests (152 lines) separately.
+
+Recorded behavior decisions:
+- New public surface is `generator_switch_family` only. The web crate already depends on core and needs it; `mounting_datum` and `default_plate_thickness` were already public.
+- The copies differed in lowercasing the generator source (`to_lowercase` in edit and web, `to_ascii_lowercase` in resolution). Resolution's ASCII form is kept. The only generator sources that matter are `ceoloide/switch_mx` and `.../switch_choc_v1_v2`, and no non-ASCII character lowercases into their letters, so no input changes meaning. Not given its own test for that reason.
+- `initial_switch_family` used `kind == Switch || family.is_some() || source.ends_with("/switch_choc_v1_v2")`, which is exactly `is_switch_position`; it now calls that.
+- Pre-existing quirk kept: `is_switch_position` checks the `/switch_choc_v1_v2` suffix case-sensitively while family inference lowercases first, so an upper-case Choc source whose kind is not `Switch` is not a switch position. A non-bool part-level value reads as the default (true) instead of falling back to the definition's value (characterized in the inference test).
+- The web copy ignored part-level parameters; it still passes none.
+- Left alone: the web `standard_profile_source_and_gap` gap table (it pairs the built-in profile source with a literal gap and has its own test), the `profiles.iter().find(definition_id)` calls used for existence and `get_or_insert` in `resolve_profiles` (they are not the family lookup), and the `mounting_datum` wrapper over `switch_mounting_datum`.
+- Process: the Gortex worktree view for this checkout stayed at `view_building`, so the edits were made with native tools and checked with `cargo`, clippy and the native test baseline instead of Gortex impact/detect/guards/contract. No Gortex impact analysis was run.
+
+Verification (logs in `.evidence/`): the 7 existing and new switch tests pass before and after; the two new edit and web tests were also run against the pre-refactor code and pass there; 11 of 11 mutations killed (`185-mut-core`, `185-mut-web`); `check.py lint test` passes with all 2,099 baselined tests executed, plus five new names recorded in the native baseline. `check.py repo` fails only on two broken links in `docs/plans/cleanup/map.md`, which are unchanged from `dev`.

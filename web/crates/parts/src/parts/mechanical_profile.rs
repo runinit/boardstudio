@@ -3,6 +3,9 @@
 use boardstudio_application::{
     AcceptedSnapshot, EditResolver, OperationId, Resolution, Scope, SessionEpoch,
 };
+use boardstudio_core::mechanical::{
+    default_plate_thickness, generator_switch_family, mounting_datum,
+};
 use boardstudio_core::model::{
     CoreReply, EditOperation, MechanicalBuiltinProfile, MechanicalPartProfile,
     MechanicalSwitchFamily, PartDefinition,
@@ -270,13 +273,9 @@ pub fn initial_profile(
     if let Some(profile) = existing {
         return profile.clone();
     }
-    let switch_family = infer_switch_family(definition);
+    let switch_family = generator_switch_family(definition, None);
     let plate_to_pcb = switch_family.map_or(0.0, |family| {
-        let (datum, thickness) = match family {
-            MechanicalSwitchFamily::Mx | MechanicalSwitchFamily::ChocV2 => (5.0, 1.5),
-            MechanicalSwitchFamily::ChocV1 => (3.5, 1.3),
-        };
-        datum - thickness
+        mounting_datum(family) - default_plate_thickness(family)
     });
     MechanicalPartProfile {
         source_geometry: None,
@@ -297,31 +296,6 @@ pub fn displayed_mounting_gap(profile: &MechanicalPartProfile) -> Option<String>
     profile
         .switch_family
         .map(|_| format!("{:.2}", profile.plate_to_pcb))
-}
-
-fn infer_switch_family(definition: &PartDefinition) -> Option<MechanicalSwitchFamily> {
-    let generator = definition.generator.as_ref()?;
-    let source = generator.source.to_lowercase();
-    if source == "ceoloide/switch_mx" {
-        return Some(MechanicalSwitchFamily::Mx);
-    }
-    if !source.ends_with("/switch_choc_v1_v2") {
-        return None;
-    }
-    let get_enabled = |name: &str| {
-        generator.parameters.get(name).and_then(|value| {
-            value
-                .as_bool()
-                .or_else(|| value.get("value").and_then(serde_json::Value::as_bool))
-        })
-    };
-    let v1 = get_enabled("choc_v1_support").unwrap_or(true);
-    let v2 = get_enabled("choc_v2_support").unwrap_or(true);
-    match (v1, v2) {
-        (true, false) => Some(MechanicalSwitchFamily::ChocV1),
-        (false, true) => Some(MechanicalSwitchFamily::ChocV2),
-        _ => None,
-    }
 }
 
 #[cfg(test)]
@@ -860,6 +834,59 @@ mod tests {
             "Parts",
             true,
         ));
+    }
+
+    #[test]
+    fn initial_profile_infers_the_family_and_its_plate_gap_from_the_generator() {
+        use boardstudio_core::model::MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        let definition = |generator: Option<(&str, serde_json::Value)>| -> PartDefinition {
+            let mut value = serde_json::json!({
+                "id":"def", "name":"def", "kind":"switch", "courtyard":[], "pads":[]
+            });
+            if let Some((source, parameters)) = generator {
+                value["generator"] =
+                    serde_json::json!({"source":source,"version":"1","parameters":parameters});
+            }
+            serde_json::from_value(value).unwrap()
+        };
+        let choc = "ceoloide/switch_choc_v1_v2";
+        for (generator, family, gap) in [
+            (
+                Some(("ceoloide/switch_mx", serde_json::json!({}))),
+                Some(Mx),
+                5.0 - 1.5,
+            ),
+            (
+                Some(("CEOLOIDE/Switch_MX", serde_json::json!({}))),
+                Some(Mx),
+                5.0 - 1.5,
+            ),
+            (
+                Some((
+                    choc,
+                    serde_json::json!({"choc_v1_support":true,"choc_v2_support":false}),
+                )),
+                Some(ChocV1),
+                3.5 - 1.3,
+            ),
+            (
+                Some((
+                    choc,
+                    serde_json::json!({
+                        "choc_v1_support":{"value":false},"choc_v2_support":{"value":true}
+                    }),
+                )),
+                Some(ChocV2),
+                5.0 - 1.5,
+            ),
+            (Some((choc, serde_json::json!({}))), None, 0.0),
+            (Some(("someone/else", serde_json::json!({}))), None, 0.0),
+            (None, None, 0.0),
+        ] {
+            let profile = initial_profile(&definition(generator), None);
+            assert_eq!(profile.switch_family, family);
+            assert_eq!(profile.plate_to_pcb, gap);
+        }
     }
 
     #[test]

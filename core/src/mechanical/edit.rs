@@ -19,6 +19,7 @@ use super::change::{
 };
 use super::features;
 use super::inputs::{effective_document, effective_inputs};
+use super::{inferred_switch_family, is_switch_position};
 use std::collections::BTreeMap;
 
 mod replacement;
@@ -2423,7 +2424,7 @@ fn apply_change(
                             .iter()
                             .any(|board| board.id == *board_id && board.part_ids.contains(&part.id))
                 })
-                .and_then(|part| definition_family(definition, part));
+                .and_then(|part| inferred_switch_family(part, definition));
             configuration.profiles.push(MechanicalPartProfile {
                 source_geometry: None,
                 pcb_holes: None,
@@ -4659,14 +4660,7 @@ fn initial_switch_family(document: &ProjectDoc, board_id: &str) -> Option<Mechan
                 .definitions
                 .iter()
                 .find(|definition| definition.id == part.definition_id)?;
-            let family = definition_family(definition, part);
-            (definition.kind == PartKind::Switch
-                || family.is_some()
-                || definition
-                    .generator
-                    .as_ref()
-                    .is_some_and(|generator| generator.source.ends_with("/switch_choc_v1_v2")))
-            .then_some(family)
+            is_switch_position(part, definition).then(|| inferred_switch_family(part, definition))
         })
         .collect::<Vec<_>>();
     let [Some(first), rest @ ..] = candidates.as_slice() else {
@@ -4675,34 +4669,6 @@ fn initial_switch_family(document: &ProjectDoc, board_id: &str) -> Option<Mechan
     rest.iter()
         .all(|family| family.as_ref() == Some(first))
         .then_some(*first)
-}
-
-fn definition_family(definition: &PartDefinition, part: &Part) -> Option<MechanicalSwitchFamily> {
-    let generator = definition.generator.as_ref()?;
-    let source = generator.source.to_lowercase();
-    if source == "ceoloide/switch_mx" {
-        return Some(MechanicalSwitchFamily::Mx);
-    }
-    if !source.ends_with("/switch_choc_v1_v2") {
-        return None;
-    }
-    let enabled = |name: &str| {
-        part.generator_parameters
-            .as_ref()
-            .and_then(|parameters| parameters.get(name))
-            .or_else(|| generator.parameters.get(name))
-            .and_then(|value| {
-                value
-                    .as_bool()
-                    .or_else(|| value.get("value").and_then(serde_json::Value::as_bool))
-            })
-            .unwrap_or(true)
-    };
-    match (enabled("choc_v1_support"), enabled("choc_v2_support")) {
-        (true, false) => Some(MechanicalSwitchFamily::ChocV1),
-        (false, true) => Some(MechanicalSwitchFamily::ChocV2),
-        _ => None,
-    }
 }
 
 fn family_assignment_changes(
@@ -4907,6 +4873,107 @@ mod tests {
             outline_key: id.into(),
             anchor,
             unlinked: false,
+        }
+    }
+
+    #[test]
+    fn the_initial_switch_family_follows_generator_inference_and_part_overrides() {
+        let choc = "ceoloide/switch_choc_v1_v2";
+        type Generator<'a> = Option<(&'a str, serde_json::Value)>;
+        let v1_params = json!({"choc_v1_support":true,"choc_v2_support":false});
+        let family_document =
+            |parts: &[(&str, &str, Option<serde_json::Value>)],
+             definitions: &[(&str, &str, Generator)]| {
+                let mut doc = ProjectDoc::empty("family", "family");
+                doc.boards.push(board(
+                    "board",
+                    parts.iter().map(|(id, _, _)| id.to_string()).collect(),
+                ));
+                for (id, definition_id, parameters) in parts {
+                    let mut part = json!({
+                        "id":id, "definitionId":definition_id, "reference":id,
+                        "pose":{"at":{"x":0,"y":0},"rotation":0}, "side":"front"
+                    });
+                    if let Some(parameters) = parameters {
+                        part["generatorParameters"] = parameters.clone();
+                    }
+                    doc.parts.push(serde_json::from_value(part).unwrap());
+                }
+                for (id, kind, generator) in definitions {
+                    let mut definition = json!({
+                        "id":id, "name":id, "kind":kind, "courtyard":[], "pads":[]
+                    });
+                    if let Some((source, parameters)) = generator {
+                        definition["generator"] =
+                            json!({"source":source,"version":"1","parameters":parameters});
+                    }
+                    doc.definitions
+                        .push(serde_json::from_value(definition).unwrap());
+                }
+                doc
+            };
+        use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        for (doc, expected) in [
+            (
+                family_document(
+                    &[("a", "mx", None)],
+                    &[("mx", "switch", Some(("ceoloide/switch_mx", json!({}))))],
+                ),
+                Some(Mx),
+            ),
+            // A family-bearing generator admits a part whose kind is not a switch.
+            (
+                family_document(
+                    &[("a", "mx", None)],
+                    &[("mx", "controller", Some(("Ceoloide/Switch_MX", json!({}))))],
+                ),
+                Some(Mx),
+            ),
+            (
+                family_document(
+                    &[(
+                        "a",
+                        "c",
+                        Some(json!({"choc_v1_support":false,"choc_v2_support":true})),
+                    )],
+                    &[("c", "switch", Some((choc, v1_params.clone())))],
+                ),
+                Some(ChocV2),
+            ),
+            (
+                family_document(
+                    &[("a", "c", None)],
+                    &[("c", "switch", Some((choc, json!({}))))],
+                ),
+                None,
+            ),
+            (
+                family_document(
+                    &[("a", "mx", None), ("b", "c", None)],
+                    &[
+                        ("mx", "switch", Some(("ceoloide/switch_mx", json!({})))),
+                        ("c", "switch", Some((choc, v1_params.clone()))),
+                    ],
+                ),
+                None,
+            ),
+            (
+                family_document(
+                    &[("a", "c", None), ("b", "c", None)],
+                    &[("c", "switch", Some((choc, v1_params)))],
+                ),
+                Some(ChocV1),
+            ),
+            (
+                family_document(&[("a", "s", None)], &[("s", "switch", None)]),
+                None,
+            ),
+            (
+                family_document(&[("a", "k", None)], &[("k", "controller", None)]),
+                None,
+            ),
+        ] {
+            assert_eq!(initial_switch_family(&doc, "board"), expected);
         }
     }
 
