@@ -87,3 +87,9 @@ User asked for a deep dive on the browser checks. The read-only study is summari
 [11](issues/11-browser-measure.md); next [12](issues/12-browser-quick-wins.md) and
 [13](issues/13-browser-structural.md). Sleep replacement is
 [typed-core-edits 34](../typed-core-edits/issues/34-test-speed-browser.md).
+
+Ticket 11 is resolved with [source-bound green, failed-run, invalid and unmeasured
+rows](issues/11-browser-measure.md#outcome). Ticket 12 can test the duplicate
+serial page listing and overlap candidates against that green baseline; ticket
+13 remains `needs-info` until 12 measures a gain. The opt-level A/B was invalid,
+so no profile revert is justified by 11.
