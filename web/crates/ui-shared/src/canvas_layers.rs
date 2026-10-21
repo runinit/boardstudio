@@ -76,13 +76,74 @@ pub struct CanvasLayersProps {
     pub groups: Vec<CanvasLayerGroup>,
 }
 
+/// One layer row. The owner decides what a toggle changes.
+#[component]
+pub fn LayerToggleButton(
+    label: String,
+    swatch: String,
+    aria_label: String,
+    visible: bool,
+    on_toggle: EventHandler<()>,
+) -> Element {
+    rsx! {
+        button {
+            r#type: "button",
+            aria_pressed: "{visible}",
+            aria_label,
+            onclick: move |_| on_toggle.call(()),
+            span { class: "m1-layer-swatch", "data-layer": "{swatch}" }
+            span { class: "m1-layer-label", "{label}" }
+            svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                path { d: "M2 10q8-12 16 0-8 12-16 0Z" }
+                circle { cx: "10", cy: "10", r: "2.5" }
+                if !visible { path { d: "m3 17 14-14" } }
+            }
+        }
+    }
+}
+
+/// The shared layers disclosure shell; callers own the layer rows and their visibility state.
+#[component]
+pub fn LayerPanel(
+    #[props(default)] initially_open: bool,
+    trigger_label: String,
+    trigger_id: String,
+    list_id: String,
+    children: Element,
+) -> Element {
+    let keydown_trigger_id = trigger_id.clone();
+    let onkeydown = move |event: KeyboardEvent| {
+        use wasm_bindgen::JsCast;
+        if event.data().key().to_string() != "Escape" {
+            return;
+        }
+        if let Some(trigger) = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.get_element_by_id(&keydown_trigger_id))
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+            .filter(|trigger| trigger.get_attribute("aria-expanded").as_deref() == Some("true"))
+        {
+            event.prevent_default();
+            trigger.click();
+            let _ = trigger.focus();
+        }
+    };
+    rsx! {
+        super::controls::BoardAccordionSection {
+            id: trigger_id, label: trigger_label.clone(), class: "m1-layers",
+            initially_open, onkeydown,
+            heading: rsx! { span { "{trigger_label}" } },
+            div { id: "{list_id}", class: "m1-layer-list", {children} }
+        }
+    }
+}
+
 #[component]
 pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
     let layers = use_context::<LayerVisibility>();
     let hidden = (layers.hidden)();
     let modules_hidden = (layers.modules_hidden)();
     let footprints = (layers.footprints)();
-    let trigger_id = props.trigger_id.clone();
     let toggle = move |target: LayerTarget| match target {
         LayerTarget::Hidden(id) => {
             let mut hidden = layers.hidden;
@@ -105,15 +166,13 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
             hidden.set(next);
         }
     };
-    let trigger_label = props.trigger_label.clone();
-    let list_id = props.list_id.clone();
     rsx! {
-        super::controls::BoardAccordionSection {
-            id: trigger_id, label: trigger_label.clone(), class: "m1-layers",
+        LayerPanel {
             initially_open: props.initially_open,
-            heading: rsx! { span { "{trigger_label}" } },
-            div { id: "{list_id}", class: "m1-layer-list",
-                for (group_index, group) in props.groups.iter().enumerate() {
+            trigger_label: props.trigger_label.clone(),
+            trigger_id: props.trigger_id.clone(),
+            list_id: props.list_id.clone(),
+            for (group_index, group) in props.groups.iter().enumerate() {
                     {
                         let group_title = group.title.clone();
                         let controls = group.layers.iter().map(|layer| {
@@ -136,18 +195,13 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                             let control = layer.clone();
                             let on_toggle = toggle;
                             rsx! {
-                                button {
+                                LayerToggleButton {
                                     key: "{layer.id}",
-                                    aria_pressed: "{visible}",
-                                    aria_label: "{aria_label}",
-                                    onclick: move |_| on_toggle(control.target.clone()),
-                                    span { class: "m1-layer-swatch", "data-layer": "{swatch_label}" }
-                                    span { class: "m1-layer-label", "{layer.label}" }
-                                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                                        path { d: "M2 10q8-12 16 0-8 12-16 0Z" }
-                                        circle { cx: "10", cy: "10", r: "2.5" }
-                                        if !visible { path { d: "m3 17 14-14" } }
-                                    }
+                                    label: layer.label.clone(),
+                                    swatch: swatch_label,
+                                    aria_label,
+                                    visible,
+                                    on_toggle: move |_| on_toggle(control.target.clone()),
                                 }
                             }
                         });
@@ -164,7 +218,6 @@ pub fn CanvasLayers(props: CanvasLayersProps) -> Element {
                             }
                         }
                     }
-                }
             }
         }
     }

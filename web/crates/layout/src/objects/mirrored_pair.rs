@@ -3,7 +3,7 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
-use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
 use dioxus::prelude::*;
 
 mod canvas_overlay;
@@ -206,10 +206,13 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                         input { aria_label: "Columns per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{columns_value}", disabled: !props.projection.editable, oninput: move |event| columns.set(event.value()) }
                     }
                 }
-                label { "Key assembly"
-                    select { aria_label: "Key assembly", value: preset_value.as_str(), disabled: !props.projection.editable,
-                        onchange: move |event| if let Some(next) = parse_preset(&event.value()) { preset.set(next); },
-                        option { value: "mx-solder", "MX Solder" }
+                BoardSelectField {
+                    label: "Key assembly",
+                    aria_label: "Key assembly",
+                    value: (preset_value.as_str()).to_string(),
+                    disabled: !props.projection.editable,
+                    onchange: move |event: FormEvent| if let Some(next) = parse_preset(&event.value()) { preset.set(next); },
+                    option { value: "mx-solder", "MX Solder" }
                         option { value: "mx-hotswap", "MX Hotswap" }
                         option { value: "choc-solder", "Choc V1 Solder" }
                         option { value: "choc-hotswap", "Choc V1 Hotswap" }
@@ -217,7 +220,6 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                         option { value: "choc-rgb", "Choc V1 RGB" }
                         option { value: "mx-hotswap-rgb", "MX Hotswap RGB" }
                         option { value: "choc-hotswap-rgb", "Choc V1 Hotswap RGB" }
-                    }
                 }
                 label { "Gap between key edges (mm)"
                     input { aria_label: "Gap between key edges (mm)", r#type: "number", min: "0", step: "any", required: true, value: "{gap_value}", disabled: !props.projection.editable, oninput: move |event| gap.set(event.value()) }

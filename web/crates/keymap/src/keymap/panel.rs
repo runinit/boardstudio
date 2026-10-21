@@ -74,7 +74,6 @@ pub fn KeymapPanel(
     let no_matches = !search.is_empty() && matching_key_count == 0;
     let layer_count = view.layers.len();
     let key_count = view.keys.len();
-    let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
 
     rsx! {
         section { class: "m1-keymap-panel", "aria-label": "Keymap",
@@ -83,49 +82,14 @@ pub fn KeymapPanel(
                 span { "{layer_count} layers · {key_count} keys" }
             }
             if show_navigation {
-            BoardDisclosure { class: "m1-keymap-layers", open: true,
-                heading: rsx! { summary { span { "Keymap layers" } } },
-                div { class: "m1-keymap-layers-content",
-                    div { role: "group", "aria-label": "Keymap layers",
-                        for (index, layer) in view.layers.iter().enumerate() {
-                            {
-                                let id = layer.id.clone();
-                                let selected_layer = active_layer.is_some_and(|active| active.id.as_ref() == layer.id.as_ref());
-                                rsx! {
-                                    button {
-                                        key: "{id}",
-                                        class: if selected_layer { "m1-keymap-layer is-active" } else { "m1-keymap-layer" },
-                                        type: "button",
-                                        "aria-pressed": "{selected_layer}",
-                                        onclick: move |_| on_layer.call(id.to_string()),
-                                        span { class: "m1-keymap-layer-index", "{index}" }
-                                        "{layer.name}"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if let (Some(layer), Some(layer_controls_key)) = (active_layer, layer_controls_key) {
-                        {
-                            let layer_id = layer.id.to_string();
-                            let layer_name = layer.name.to_string();
-                            let is_base = view.layers.first().is_some_and(|base| base.id == layer.id);
-                            rsx! {
-                                { rsx! { KeymapLayerControls {
-                                    key: "{layer_controls_key}",
-                                    layer_id,
-                                    layer_name,
-                                    is_base,
-                                    layer_count,
-                                    enabled: layer_operations_enabled,
-                                    feedback: layer_feedback.clone(),
-                                    on_operation: on_layer_operation,
-                                } } }
-                            }
-                        }
-                    }
-                    p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
-                }
+            KeymapLayersSection {
+                view: view.clone(),
+                scope: scope.clone(),
+                active_layer_id: active_layer_id.clone(),
+                layer_operations_enabled,
+                layer_feedback: layer_feedback.clone(),
+                on_layer,
+                on_layer_operation,
             }
             }
             div { class: "m1-keymap-actions", role: "group", "aria-label": "Keymap editors",
@@ -137,10 +101,9 @@ pub fn KeymapPanel(
                     {
                         let pressed = selected_editor() == editor;
                         rsx! {
-                            button {
-                                class: if pressed { "m1-keymap-editor-tab is-active" } else { "m1-keymap-editor-tab" },
-                                r#type: "button",
-                                "aria-pressed": "{pressed}",
+                            BoardButton {
+                                class: "m1-keymap-editor-tab",
+                                pressed: Some(pressed),
                                 onclick: move |_| {
                                     if selected_editor() != editor {
                                         match editor {
@@ -263,6 +226,49 @@ pub fn KeymapNavigation(
 ) -> Element {
     let mut query = use_signal(String::new);
     let search = query().to_lowercase();
+    rsx! {
+        section { class: "m1-keymap-navigation", aria_label: "Keymap layers and keys",
+            KeymapLayersSection {
+                view: view.clone(),
+                scope: scope.clone(),
+                active_layer_id: active_layer_id.clone(),
+                layer_operations_enabled,
+                layer_feedback: layer_feedback.clone(),
+                on_layer,
+                on_layer_operation,
+            }
+
+            label { class: "m1-keymap-search-label", "Find a key"
+                input { class: "m1-keymap-search", r#type: "search", aria_label: "Find a key",
+                    value: query(), oninput: move |event| query.set(event.value()) }
+            }
+            div { class: "m1-keymap-key-navigation", role: "group", aria_label: "Keys on active layer",
+                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
+                    BoardButton { key: "{key.id}", class: "m1-navigation-row",
+                        pressed: Some(selected_key_id.as_deref() == Some(key.id.as_ref())),
+                        onclick: { let id = key.id.to_string(); move |_| on_select_key.call(id.clone()) },
+                        strong { "{key.reference}" } span { "{key.binding_title}" }
+                    }
+                }
+                if !view.keys.iter().any(|key| key.search_index.contains(&search)) {
+                    p { role: "status", "No keys match this search." }
+                }
+            }
+        }
+    }
+}
+
+/// Layer disclosure shared by the Inspector panel and the dock navigation.
+#[component]
+fn KeymapLayersSection(
+    view: Rc<KeymapView>,
+    scope: Scope,
+    active_layer_id: String,
+    layer_operations_enabled: bool,
+    layer_feedback: Option<KeymapLayerFeedback>,
+    on_layer: EventHandler<String>,
+    on_layer_operation: EventHandler<KeymapLayerOperation>,
+) -> Element {
     let active_layer = view
         .layers
         .iter()
@@ -271,8 +277,7 @@ pub fn KeymapNavigation(
     let layer_count = view.layers.len();
     let layer_controls_key = active_layer.map(|layer| format!("{:?}:{}", scope, layer.id));
     rsx! {
-        section { class: "m1-keymap-navigation", aria_label: "Keymap layers and keys",
-            BoardDisclosure { class: "m1-keymap-layers", open: true,
+        BoardDisclosure { class: "m1-keymap-layers", open: true,
                 heading: rsx! { summary { span { "Keymap layers" } } },
                 div { class: "m1-keymap-layers-content",
                     div { role: "group", "aria-label": "Keymap layers",
@@ -316,24 +321,6 @@ pub fn KeymapNavigation(
                     p { class: "m1-keymap-empty", "Higher layers take precedence. Transparent keys fall through to the layer below." }
                 }
             }
-
-            label { class: "m1-keymap-search-label", "Find a key"
-                input { class: "m1-keymap-search", r#type: "search", aria_label: "Find a key",
-                    value: query(), oninput: move |event| query.set(event.value()) }
-            }
-            div { class: "m1-keymap-key-navigation", role: "group", aria_label: "Keys on active layer",
-                for key in view.keys.iter().filter(|key| key.search_index.contains(&search)) {
-                    BoardButton { key: "{key.id}", class: "m1-navigation-row",
-                        pressed: Some(selected_key_id.as_deref() == Some(key.id.as_ref())),
-                        onclick: { let id = key.id.to_string(); move |_| on_select_key.call(id.clone()) },
-                        strong { "{key.reference}" } span { "{key.binding_title}" }
-                    }
-                }
-                if !view.keys.iter().any(|key| key.search_index.contains(&search)) {
-                    p { role: "status", "No keys match this search." }
-                }
-            }
-        }
     }
 }
 

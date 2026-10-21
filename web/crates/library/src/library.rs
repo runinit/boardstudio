@@ -12,8 +12,9 @@ use boardstudio_core::model::{PartKind, ProjectDoc};
 #[cfg(test)]
 use boardstudio_web_host::host::ProjectListing;
 use boardstudio_web_host::host::UnreadableProject;
-use boardstudio_web_ui_shared::controls::BoardDialog;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardDialog,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -417,7 +418,7 @@ fn DemoActionCard() -> Element {
             h2 { "Try a demo" }
             p { "Explore a sample keyboard to see BoardStudio in action." }
             details { class: "m1-demo-picker",
-                summary { class: "board-button board-button--primary board-button--comfortable", "Open demo" }
+                summary { class: "board-button board-button--primary", "Open demo" }
                 div { class: "m1-demo-options", aria_label: "Demo keyboards",
                     for demo in DEMO_PROJECTS {
                         {
@@ -714,7 +715,11 @@ pub fn Library(
             }
             if is_settings_page {
                 div { class: "m1-workspace-preferences",
-                    button { class: "m1-back-link", r#type: "button", onclick: move |_| {
+                    BoardButton {
+                        variant: BoardButtonVariant::Quiet,
+                        density: BoardButtonDensity::Compact,
+                        class: "m1-back-link",
+                        onclick: move |_| {
                         menu_page.set(super::ProjectMenuPage::Project);
                         focus_preferences_entry();
                     },
@@ -843,7 +848,7 @@ pub fn Library(
                             }
                             h2 { "Import project" }
                             p { "Bring in a keyboard file from your computer." }
-                            label { class: "board-button board-button--primary board-button--comfortable m1-library-import-action",
+                            label { class: "board-button board-button--primary m1-library-import-action",
                                 "Import project"
                                 input { class: "m1-project-file-input", r#type: "file", accept: ".boardstudio", onchange: move |event: FormEvent| {
                                     let Some(input) = event.data().try_as_web_event().and_then(|e| e.target()).and_then(|e| e.dyn_into::<HtmlInputElement>().ok()) else { return; };
@@ -893,12 +898,18 @@ pub fn Library(
                 }
                 if status() == ListStatus::Failed {
                     p { role: "alert", "Saved keyboards could not be loaded. "
-                        button { class: "m1-library-text-action", r#type: "button", onclick: move |_| {
+                        BoardButton {
+                            variant: BoardButtonVariant::Quiet,
+                            density: BoardButtonDensity::Compact,
+                            class: "m1-library-text-action",
+                            onclick: move |_| {
                             if let Some(generation) = retry_generations.get().checked_add(1) {
                                 retry_generations.set(generation);
                                 retry += 1;
                             }
-                        }, "Try again" }
+                        },
+                            "Try again"
+                        }
                     }
                 }
                 if !no_saved_projects || project_menu {

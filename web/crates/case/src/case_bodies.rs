@@ -1,7 +1,9 @@
 //! Private authored Case body list and editor. Root owns the scoped edit adapter.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{CaseBody, CaseKind, Gasket, MountKind, Vec2};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardDisclosure, BoardNumberField, BoardSelectField,
+};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 
@@ -404,11 +406,12 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
             if let Some(body) = active_body {
                 if let Some(body_id) = body_id {
                     div { key: "{editor_key}", class: "m1-case-body-editor",
-                        label { class: "m1-case-select", "Body type"
-                            select {
-                                value: case_kind_value(&body.kind),
-                                disabled: !can_edit,
-                                onchange: {
+                        BoardSelectField {
+                            label: "Body type",
+                            class: "m1-case-select",
+                            value: (case_kind_value(&body.kind)).to_string(),
+                            disabled: !can_edit,
+                            onchange: {
                                     let submit = emit_edit.clone();
                                     let body_id = body_id.clone();
                                     move |event: FormEvent| {
@@ -417,10 +420,9 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                         }
                                     }
                                 },
-                                option { value: "plate", "Plate" }
+                            option { value: "plate", "Plate" }
                                 option { value: "tray", "Tray" }
                                 option { value: "lid", "Lid" }
-                            }
                         }
                         div { class: "m1-case-measures",
                             CaseNumberField {
@@ -493,15 +495,16 @@ pub fn CaseBodies(props: CaseBodiesProps) -> Element {
                                                 onclick: { let submit = submit_remove.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |_| submit(CaseBodyEdit::RemoveMount { body_id: body_id.clone(), mount_id: mount_id.clone() }) },
                                                 "Remove"
                                             }
-                                            label { class: "m1-case-select", "Type"
-                                                select {
-                                                    value: mount_kind_value(&mount.kind), disabled: !can_edit,
-                                                    onchange: { let submit = submit_kind.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |event: FormEvent| {
+                                            BoardSelectField {
+                                                label: "Type",
+                                                class: "m1-case-select",
+                                                value: (mount_kind_value(&mount.kind)).to_string(),
+                                                disabled: !can_edit,
+                                                onchange: { let submit = submit_kind.clone(); let body_id = body_id.clone(); let mount_id = mount_id.clone(); move |event: FormEvent| {
                                                         if let Some(kind) = parse_mount_kind(&event.value()) { submit(CaseBodyEdit::SetMountKind { body_id: body_id.clone(), mount_id: mount_id.clone(), kind }); }
                                                     } },
-                                                    option { value: "hole", "Hole" }
+                                                option { value: "hole", "Hole" }
                                                     option { value: "boss", "Boss" }
-                                                }
                                             }
                                             div { class: "m1-case-measures",
                                                 CaseNumberField {
@@ -685,75 +688,68 @@ fn CaseNumberField(props: CaseNumberFieldProps) -> Element {
 
     let min = match props.rule {
         NumberRule::Finite => None,
-        NumberRule::Nonnegative => Some("0"),
-        NumberRule::Positive => Some("0.001"),
+        NumberRule::Nonnegative => Some("0".to_owned()),
+        NumberRule::Positive => Some("0.001".to_owned()),
     };
-    let error_text = error();
-    let invalid = error_text.is_some();
-    let feedback_error = field_failure();
+    // A rejected save is as invalid as a rejected draft: both mark the input and describe it.
+    let field_error = error().or_else(&*field_failure);
 
     rsx! {
-        label { class: if invalid { "m1-case-number has-error" } else { "m1-case-number" },
-            span { "{props.label}" }
-            span { class: "m1-case-number-input",
-                input {
-                    r#type: "number",
-                    step: "0.1",
-                    min: min,
-                    value: "{draft}",
-                    disabled: !props.editable,
-                    "aria-invalid": invalid,
-                    oninput: {
-                        let skip_enter_blur = skip_enter_blur.clone();
-                        move |event: FormEvent| {
-                            let mut draft = draft;
-                            let mut dirty = dirty;
-                            let mut error = error;
-                            skip_enter_blur.set(false);
-                            field_failure.set(None);
-                            draft.set(event.value());
-                            dirty.set(true);
-                            error.set(None);
-                        }
-                    },
-                    onblur: {
-                        let commit = commit.clone();
-                        let skip_enter_blur = skip_enter_blur.clone();
-                        move |_| {
-                            if !skip_enter_blur.replace(false) {
-                                commit();
-                            }
-                        }
-                    },
-                    onkeydown: {
-                        let commit = commit.clone();
-                        let mut dirty = dirty;
+        div { class: "m1-case-number-group",
+            BoardNumberField {
+                class: "m1-case-number",
+                label: props.label,
+                unit: props.unit,
+                step: "0.1",
+                min,
+                value: draft(),
+                disabled: !props.editable,
+                error: field_error.clone(),
+                oninput: {
+                    let skip_enter_blur = skip_enter_blur.clone();
+                    move |event: FormEvent| {
                         let mut draft = draft;
+                        let mut dirty = dirty;
                         let mut error = error;
-                        let accepted = props.value;
-                        move |event: KeyboardEvent| {
-                            let key = event.data().key().to_string();
-                            if key == "Enter" {
-                                event.prevent_default();
-                                skip_enter_blur.set(true);
-                                commit();
-                            } else if key == "Escape" {
-                                event.prevent_default();
-                                skip_enter_blur.set(false);
-                                draft.set(accepted.to_string());
-                                dirty.set(false);
-                                error.set(None);
-                            }
+                        skip_enter_blur.set(false);
+                        field_failure.set(None);
+                        draft.set(event.value());
+                        dirty.set(true);
+                        error.set(None);
+                    }
+                },
+                onblur: {
+                    let commit = commit.clone();
+                    let skip_enter_blur = skip_enter_blur.clone();
+                    move |_| {
+                        if !skip_enter_blur.replace(false) {
+                            commit();
                         }
                     }
-                }
-                small { "{props.unit}" }
+                },
+                onkeydown: {
+                    let commit = commit.clone();
+                    let mut dirty = dirty;
+                    let mut draft = draft;
+                    let mut error = error;
+                    let accepted = props.value;
+                    move |event: KeyboardEvent| {
+                        let key = event.data().key().to_string();
+                        if key == "Enter" {
+                            event.prevent_default();
+                            skip_enter_blur.set(true);
+                            commit();
+                        } else if key == "Escape" {
+                            event.prevent_default();
+                            skip_enter_blur.set(false);
+                            draft.set(accepted.to_string());
+                            dirty.set(false);
+                            error.set(None);
+                        }
+                    }
+                },
             }
-            if let Some(error) = error_text {
-                small { class: "m1-case-field-error", role: "alert", "{error}" }
-            } else if let Some(error) = feedback_error {
-                small { class: "m1-case-field-error", role: "alert", "{error}" }
-            } else if pending {
+            if field_error.is_none() && pending {
                 small { role: "status", "Saving…" }
             }
         }

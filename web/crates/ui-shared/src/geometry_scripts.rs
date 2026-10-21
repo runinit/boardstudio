@@ -1,6 +1,7 @@
 //! Layout presentation for the existing Core-owned Rhai script workflow.
-use crate::controls::BoardButton;
-use crate::controls::BoardCheckbox;
+use crate::controls::{
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardSelectField,
+};
 use crate::pending_edit_helpers::PendingEditSignals;
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -233,7 +234,13 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             },
             header { class: "m1-geometry-scripts-heading",
-                button { r#type: "button", class: "m1-geometry-scripts-back", onclick: move |_| on_back.call(()), "Back to selection" }
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
+                    class: "m1-geometry-scripts-back",
+                    onclick: move |_| on_back.call(()),
+                    "Back to selection"
+                }
                 h2 { "Geometry scripts" }
             }
             div { class: "m1-geometry-scripts-list-heading",
@@ -285,19 +292,19 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                 }
             }
             if !scripts.is_empty() {
-                label { class: "m1-geometry-script-field",
-                    "Active script"
-                    select {
-                        aria_label: "Active script",
-                        value: "{active()}",
-                        disabled: !can_edit,
-                        onchange: {
+                BoardSelectField {
+                    label: "Active script",
+                    class: "m1-geometry-script-field",
+                    aria_label: "Active script",
+                    value: "{active()}",
+                    disabled: !can_edit,
+                    onchange: {
                             let scripts = scripts.clone();
                             let pending = pending.clone();
                             let mut pending_owner = pending_owner;
                             let document_id = document.id.clone();
                             let session_epoch = snapshot.session_epoch;
-                            move |event| {
+                            move |event: FormEvent| {
                                 let id = event.value();
                                 pending.settle(false, |_| String::new());
                                 pending_owner.set((!id.is_empty()).then(|| ScriptOwner {
@@ -319,11 +326,10 @@ pub fn GeometryScriptsEditor(on_back: EventHandler<()>) -> Element {
                                 }
                             }
                         },
-                        option { value: "", "Select a script" }
+                    option { value: "", "Select a script" }
                         for script in scripts.iter() {
                             option { value: "{script.id}", "{script.name}" }
                         }
-                    }
                 }
             }
             if let Some(script) = active_script {

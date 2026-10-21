@@ -31,17 +31,22 @@ pub fn close_project_menu() {
 pub fn ThemePicker() -> Element {
     let mut theme = use_context::<ThemeState>().0;
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
-    rsx! { label { class: "m1-theme-picker", "Appearance"
-        select { "aria-label": "Color theme", value: "{theme()}", onchange: move |event: FormEvent| {
-            let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
-            crate::panels::write_theme_preference(preference_warning, preference);
-            theme.set(preference);
-        },
+    rsx! {
+        crate::controls::BoardSelectField {
+            class: "m1-theme-picker",
+            label: "Appearance",
+            aria_label: "Color theme",
+            value: theme().to_string(),
+            onchange: move |event: FormEvent| {
+                let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
+                crate::panels::write_theme_preference(preference_warning, preference);
+                theme.set(preference);
+            },
             option { value: "system", "System" }
             option { value: "light", "Light" }
             option { value: "dark", "Dark" }
         }
-    } }
+    }
 }
 
 pub fn durability_label(durability: &Durability) -> &'static str {

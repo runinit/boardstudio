@@ -7,7 +7,7 @@ use boardstudio_core::{
     electrical::{ElectricalMode, ElectricalPlan},
     model::{Net, PartDefinition, PartKind, ProjectDoc},
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -796,13 +796,13 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                     }
                 }
             }
-            label { class: "m1-pcb-wiring-mode-control",
-                span { "Wiring mode" }
-                select {
-                    "aria-label": "Wiring mode",
-                    value: "{selected_mode}",
-                    disabled: !mode_actions.editable,
-                    onchange: move |event| {
+            BoardSelectField {
+                label: "Wiring mode",
+                class: "m1-pcb-wiring-mode-control",
+                aria_label: "Wiring mode",
+                value: "{selected_mode}",
+                disabled: !mode_actions.editable,
+                onchange: move |event: FormEvent| {
                         let Some(identity) = mode_identity.clone() else { return; };
                         let mode = match event.value().as_str() {
                             "matrix" => ElectricalMode::Matrix,
@@ -811,9 +811,8 @@ fn board_wiring(props: &PcbWiringInspectorProps, display: &WiringDisplayProjecti
                         };
                         change_mode.call(BoardWiringModeEditRequest { identity, mode });
                     },
-                    option { value: "matrix", "Matrix" }
+                option { value: "matrix", "Matrix" }
                     option { value: "direct", "Direct GPIO" }
-                }
             }
             if display.controller_choices.is_empty() {
                 p { "Place a controller from Parts to assign this board’s wiring." }

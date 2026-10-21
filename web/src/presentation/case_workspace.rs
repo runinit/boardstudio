@@ -13,6 +13,7 @@ use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Event, ReadModel, Scope, SelectionMode, SnapshotToken};
 use boardstudio_core::model::{MechanicalGasketSupport, ProjectDoc};
 pub(super) use boardstudio_web_case::case_selection::{SelectedPartSummary, selected_part_summary};
+use boardstudio_web_ui_shared::controls::BoardSelectField;
 use dioxus::prelude::*;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -1024,40 +1025,38 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
                         details {
                             summary { "Assembly setup" }
                             if input.physical_setup.projection.topology == boardstudio_core::model::HardwareTopology::Split {
-                                label { "Half connection"
-                                    select {
-                                        "aria-label": "Half connection",
-                                        value: match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" },
-                                        disabled: input.physical_setup.projection.busy,
-                                        onchange: {
+                                BoardSelectField {
+                                    label: "Half connection",
+                                    aria_label: "Half connection",
+                                    value: (match input.physical_setup.projection.transport { boardstudio_core::model::HardwareTransport::Wired => "wired", _ => "wireless" }).to_string(),
+                                    disabled: input.physical_setup.projection.busy,
+                                    onchange: {
                                             let mount = input.physical_setup.clone();
                                             move |event: FormEvent| {
                                                 let next = if event.value() == "wired" { boardstudio_core::model::HardwareTransport::Wired } else { boardstudio_core::model::HardwareTransport::Wireless };
                                                 mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CaseTransport(next));
                                             }
                                         },
-                                        option { value: "wireless", "Wireless · local battery on each half" }
+                                    option { value: "wireless", "Wireless · local battery on each half" }
                                         option { value: "wired", "Wired serial · local power on each half" }
-                                    }
                                 }
                                 if input.physical_setup.projection.transport == boardstudio_core::model::HardwareTransport::Wired {
                                     p { "Use a straight TRRS cable: tip and ring 2 carry crossed TX/RX, sleeve is ground, ring 1 is unused. Power both halves locally and unplug power before connecting." }
                                 }
                             }
                             p { "{instance.name} · {instance.board_label} · {instance.role}" }
-                            label { "PCB design"
-                                select {
-                                    "aria-label": "PCB design",
-                                    value: "{instance.board_id}",
-                                    disabled: input.physical_setup.projection.busy,
-                                    onchange: {
+                            BoardSelectField {
+                                label: "PCB design",
+                                aria_label: "PCB design",
+                                value: "{instance.board_id}",
+                                disabled: input.physical_setup.projection.busy,
+                                onchange: {
                                         let mount = input.physical_setup.clone();
                                         move |event: FormEvent| mount.submit(super::pcb_physical_setup::PhysicalSetupIntent::CasePcbDesign(event.value()))
                                     },
-                                    for board in input.physical_setup.projection.case_boards.iter() {
+                                for board in input.physical_setup.projection.case_boards.iter() {
                                         option { value: "{board.id}", "{board.name}" }
                                     }
-                                }
                             }
                             label {
                                 input {

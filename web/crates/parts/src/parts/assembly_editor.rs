@@ -1,4 +1,5 @@
 //! Parts-owned saved assembly list and the first authoring slice of F4.6.
+use super::model_axis::{ModelAxisField, ModelAxisGrid};
 use crate::parts_custom_definition::replacement_commit;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope,
@@ -8,7 +9,9 @@ use boardstudio_core::model::{
     PartModel, Pose2, ProjectDoc, Side, Vec2, Vec3,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1168,23 +1171,19 @@ fn AssemblyDraftFields(
             fieldset { class: "m1-parts-assembly-place",
                 legend { "Place assembly" }
                 div { class: "m1-parts-assembly-transform",
-                    label { "X (mm)"
-                        input {
-                            r#type: "number",
-                            step: "0.1",
-                            value: "{origin_x}",
-                            disabled: controls_disabled,
-                            oninput: move |event| origin_x.set(event.value()),
-                        }
+                    BoardNumberField {
+                        label: "X (mm)",
+                        step: "0.1",
+                        value: "{origin_x}",
+                        disabled: controls_disabled,
+                        oninput: move |event: FormEvent| origin_x.set(event.value()),
                     }
-                    label { "Y (mm)"
-                        input {
-                            r#type: "number",
-                            step: "0.1",
-                            value: "{origin_y}",
-                            disabled: controls_disabled,
-                            oninput: move |event| origin_y.set(event.value()),
-                        }
+                    BoardNumberField {
+                        label: "Y (mm)",
+                        step: "0.1",
+                        value: "{origin_y}",
+                        disabled: controls_disabled,
+                        oninput: move |event: FormEvent| origin_y.set(event.value()),
                     }
                 }
                 button {
@@ -1502,13 +1501,13 @@ fn AssemblyMemberFields(
     rsx! {
         fieldset { class: "m1-parts-assembly-member", key: "{component_id}",
             legend { "{member.id}" }
-            label { class: "m1-parts-assembly-field", "Component"
-                select {
-                    value: member.definition_id.as_deref().unwrap_or(""),
-                    disabled,
-                    onchange: move |event| update_member(value, assets, definition_draft.clone(), on_change, definition_id.clone(), MemberPatch::Definition(event.value())),
+            BoardSelectField {
+                label: "Component",
+                class: "m1-parts-assembly-field",
+                value: (member.definition_id.as_deref().unwrap_or("")).to_string(),
+                disabled,
+                    onchange: move |event: FormEvent| update_member(value, assets, definition_draft.clone(), on_change, definition_id.clone(), MemberPatch::Definition(event.value())),
                     {component_options(&definition_options, member.definition_id.as_deref())}
-                }
             }
             if definition.as_ref().is_some_and(|definition| definition.generator.is_some())
                 && let Some(parameters) = member.parameters.as_ref() {
@@ -1538,18 +1537,18 @@ fn AssemblyMemberFields(
                 label { "Y (mm)" input { r#type: "number", step: "0.1", value: "{member.pose.at.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), on_change, y_id.clone(), MemberPatch::Y(event.value())) } }
                 label { "Angle (°)" input { r#type: "number", step: "1", value: "{member.pose.rotation}", disabled, oninput: move |event| update_member(value, assets, rotation_draft.clone(), on_change, rotation_id.clone(), MemberPatch::Rotation(event.value())) } }
             }
-            label { class: "m1-parts-assembly-field", "3D models"
-                select {
-                    value: if is_custom { "custom" } else { "defaults" },
-                    disabled,
-                    onchange: move |event| {
+            BoardSelectField {
+                label: "3D models",
+                class: "m1-parts-assembly-field",
+                value: (if is_custom { "custom" } else { "defaults" }).to_string(),
+                disabled,
+                    onchange: move |event: FormEvent| {
                         let custom = event.value() == "custom";
                         let models = if custom && current_models.is_empty() { model_defaults.clone() } else { current_models.clone() };
                         update_member(value, assets, mode_draft.clone(), on_change, mode_id.clone(), MemberPatch::ModelMode(custom, models));
                     },
                     option { value: "defaults", "Use component defaults" }
                     option { value: "custom", "Custom model bindings" }
-                }
             }
             if is_custom {
                 if member.models.is_empty() {
@@ -1571,7 +1570,7 @@ fn AssemblyMemberFields(
                 }
             } else if definition.is_some() {
                 p { class: "m1-parts-empty", "Uses {definition_models.len()} component model default(s)." }
-                button { r#type: "button", disabled, onclick: edit_defaults, "Edit model defaults" }
+                BoardButton { disabled, onclick: edit_defaults, "Edit model defaults" }
             } else {
                 p { class: "m1-parts-empty", "No component model defaults are attached." }
             }
@@ -1616,13 +1615,13 @@ fn AssemblyModelFields(
     rsx! {
         BoardDisclosure { class: "m1-parts-assembly-model", open: true,
             heading: rsx! { summary { "Model {index + 1}" } },
-            label { class: "m1-parts-assembly-field", "Asset"
-                select {
-                    value: "{model.asset_id}",
-                    disabled,
-            onchange: move |event| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
+            BoardSelectField {
+                label: "Asset",
+                class: "m1-parts-assembly-field",
+                value: "{model.asset_id}",
+                disabled,
+            onchange: move |event: FormEvent| update_member(value, assets, asset_draft.clone(), on_change, asset_id.clone(), MemberPatch::ModelAsset(index, event.value())),
                     {model_asset_options(&asset_options, &model.asset_id)}
-                }
             }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Offset, draft: offset_draft, value, assets, disabled, on_change }
             ModelVectorFields { model: model.clone(), member_id: member_id.clone(), index, field: ModelVector::Rotation, draft: rotation_draft, value, assets, disabled, on_change }
@@ -1659,10 +1658,10 @@ fn ModelVectorFields(
     rsx! {
         div { class: "m1-parts-assembly-model-vector",
             strong { "{label}" }
-            div { class: "m1-parts-assembly-transform",
-                label { "X" input { r#type: "number", step: "0.1", value: "{vector.x}", disabled, oninput: move |event| update_member(value, assets, x_draft.clone(), on_change, axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) } }
-                label { "Y" input { r#type: "number", step: "0.1", value: "{vector.y}", disabled, oninput: move |event| update_member(value, assets, y_draft.clone(), on_change, axis_y_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Y, event.value())) } }
-                label { "Z" input { r#type: "number", step: "0.1", value: "{vector.z}", disabled, oninput: move |event| update_member(value, assets, z_draft.clone(), on_change, axis_z_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Z, event.value())) } }
+            ModelAxisGrid {
+                ModelAxisField { axis: "X", value: vector.x.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, x_draft.clone(), on_change, axis_x_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::X, event.value())) }
+                ModelAxisField { axis: "Y", value: vector.y.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, y_draft.clone(), on_change, axis_y_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Y, event.value())) }
+                ModelAxisField { axis: "Z", value: vector.z.to_string(), disabled, oninput: move |event: FormEvent| update_member(value, assets, z_draft.clone(), on_change, axis_z_id.clone(), MemberPatch::ModelVector(index, field, ModelAxis::Z, event.value())) }
             }
         }
     }

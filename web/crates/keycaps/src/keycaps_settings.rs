@@ -9,7 +9,7 @@ use boardstudio_core::model::{
     KeycapMatrixChange, KeycapMatrixSettings, KeycapMount, KeycapProfile, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
@@ -1460,15 +1460,13 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
     rsx! {
         fieldset { class: "m1-keycaps-matrix-settings",
             legend { "{props.matrix_name}" }
-            label { "Profile",
-                select { aria_label: "Keycap profile for {props.matrix_name}", value: "{profile}",
-                    onchange: move |event| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&event.value()))),
-                    option { value: "", "No generated keycap" }
-                    option { value: "cherry", "Cherry" } option { value: "oem", "OEM" }
-                    option { value: "dcs", "DCS" } option { value: "dsa", "DSA" }
-                    option { value: "sa", "SA" } option { value: "hi-pro", "Hi-Pro" }
-                    option { value: "g20", "G20" } option { value: "choc", "Choc" }
-                }
+            BoardSelectField { label: "Profile", aria_label: format!("Keycap profile for {}", props.matrix_name), value: profile.to_owned(),
+                onchange: move |event: FormEvent| emit_settings_change(&profile_actions, profile_target.clone(), profile_baseline.clone(), KeycapEditChange::MatrixProfile(parse_profile(&event.value()))),
+                option { value: "", "No generated keycap" }
+                option { value: "cherry", "Cherry" } option { value: "oem", "OEM" }
+                option { value: "dcs", "DCS" } option { value: "dsa", "DSA" }
+                option { value: "sa", "SA" } option { value: "hi-pro", "Hi-Pro" }
+                option { value: "g20", "G20" } option { value: "choc", "Choc" }
             }
             BoardDisclosure {
                 heading: rsx! { summary { "Profile dimensions & socket" } },
@@ -1480,12 +1478,10 @@ pub fn KeycapsMatrixSettingsEditor(props: KeycapsMatrixSettingsEditorProps) -> E
                     input { r#type: "number", aria_label: "Wall thickness for {props.matrix_name}", min: "0.8", max: "2", step: "0.1", value: "{settings.wall_thickness}",
                         oninput: move |event| if let Ok(value) = event.value().parse::<f64>() { emit_settings_change(&wall_actions, wall_target.clone(), wall_baseline.clone(), KeycapEditChange::MatrixWallThickness(value)); } }
                 }
-                label { "Socket",
-                    select { aria_label: "Keycap socket for {props.matrix_name}", value: "{mount}",
-                        onchange: move |event| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&event.value()))),
-                        option { value: "", "From switch profile" } option { value: "mx", "MX cross" }
-                        option { value: "choc-v1", "Choc v1" } option { value: "choc-v2", "Choc v2 cross" } option { value: "alps", "Alps" }
-                    }
+                BoardSelectField { label: "Socket", aria_label: format!("Keycap socket for {}", props.matrix_name), value: mount.to_owned(),
+                    onchange: move |event: FormEvent| emit_settings_change(&mount_actions, mount_target.clone(), mount_baseline.clone(), KeycapEditChange::MatrixMount(parse_mount(&event.value()))),
+                    option { value: "", "From switch profile" } option { value: "mx", "MX cross" }
+                    option { value: "choc-v1", "Choc v1" } option { value: "choc-v2", "Choc v2 cross" } option { value: "alps", "Alps" }
                 }
             }
             {settings_feedback(feedback, retries, &actions)}
@@ -1508,7 +1504,7 @@ fn settings_feedback(
             div { class: "m1-keycaps-retry-draft",
                 p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
                 BoardButton { onclick: { let id = retry_identity(&draft); move |_| on_retry.call(id.clone()) }, "Retry" }
-                button { onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
+                BoardButton { onclick: { let id = retry_identity(&draft); move |_| on_discard.call(id.clone()) }, "Discard" }
             }
         }
     }
@@ -1677,8 +1673,8 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                 }
             }
             div { class: "m1-keycaps-settings-actions",
-                button { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
-                button { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
+                BoardButton { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(None), &mut inherit_sequence, inherit_change, &inherit_actions) }, "Use binding legend" }
+                BoardButton { onclick: move |_| { legend_draft.set(String::new()); request(KeycapEditChange::Legend(Some(String::new())), &mut blank_sequence, blank_change, &blank_actions) }, "Blank keycap" }
             }
             label { "Keycap color",
                 input {
@@ -1689,37 +1685,31 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                 }
             }
             if accepted_color.is_some() {
-                button { onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
+                BoardButton { onclick: move |_| request(KeycapEditChange::Color(None), &mut reset_color_sequence, reset_color_change, &reset_color_actions), "Use board color" }
             }
             BoardDisclosure {
                 heading: rsx! { summary { "Keycap overrides" } },
-                label { "Profile",
-                    select {
-                        aria_label: "Profile override for {key.reference}",
-                        value: "{profile}",
-                        onchange: move |event| request(KeycapEditChange::Profile(parse_profile(&event.value())), &mut profile_sequence, profile_change, &profile_actions),
-                        option { value: "", "From matrix" }
-                        option { value: "cherry", "Cherry" }
-                        option { value: "oem", "OEM" }
-                        option { value: "dcs", "DCS" }
-                        option { value: "dsa", "DSA" }
-                        option { value: "sa", "SA" }
-                        option { value: "hi-pro", "Hi-Pro" }
-                        option { value: "g20", "G20" }
-                        option { value: "choc", "Choc" }
-                    }
+                BoardSelectField {
+                    label: "Profile", aria_label: format!("Profile override for {}", key.reference), value: profile.to_owned(),
+                    onchange: move |event: FormEvent| request(KeycapEditChange::Profile(parse_profile(&event.value())), &mut profile_sequence, profile_change, &profile_actions),
+                    option { value: "", "From matrix" }
+                    option { value: "cherry", "Cherry" }
+                    option { value: "oem", "OEM" }
+                    option { value: "dcs", "DCS" }
+                    option { value: "dsa", "DSA" }
+                    option { value: "sa", "SA" }
+                    option { value: "hi-pro", "Hi-Pro" }
+                    option { value: "g20", "G20" }
+                    option { value: "choc", "Choc" }
                 }
-                label { "Socket",
-                    select {
-                        aria_label: "Socket override for {key.reference}",
-                        value: "{mount}",
-                        onchange: move |event| request(KeycapEditChange::Mount(parse_mount(&event.value())), &mut mount_sequence, mount_change, &mount_actions),
-                        option { value: "", "From matrix / switch" }
-                        option { value: "mx", "MX cross" }
-                        option { value: "choc-v1", "Choc v1" }
-                        option { value: "choc-v2", "Choc v2 cross" }
-                        option { value: "alps", "Alps" }
-                    }
+                BoardSelectField {
+                    label: "Socket", aria_label: format!("Socket override for {}", key.reference), value: mount.to_owned(),
+                    onchange: move |event: FormEvent| request(KeycapEditChange::Mount(parse_mount(&event.value())), &mut mount_sequence, mount_change, &mount_actions),
+                    option { value: "", "From matrix / switch" }
+                    option { value: "mx", "MX cross" }
+                    option { value: "choc-v1", "Choc v1" }
+                    option { value: "choc-v2", "Choc v2 cross" }
+                    option { value: "alps", "Alps" }
                 }
                 label { "Profile row",
                     input {
@@ -1788,7 +1778,7 @@ pub fn KeycapsSettingsEditor(props: KeycapsSettingsEditorProps) -> Element {
                 div { class: "m1-keycaps-retry-draft",
                     p { role: "status", "Unaccepted {field_label(&draft.field)} change: {change_label(&draft.change)}. {draft.message}" }
                     BoardButton { onclick: { let identity = retry_identity(draft); move |_| on_retry.call(identity.clone()) }, "Retry" }
-                    button { onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
+                    BoardButton { onclick: { let identity = retry_identity(draft); move |_| on_discard.call(identity.clone()) }, "Discard" }
                 }
             }
         }

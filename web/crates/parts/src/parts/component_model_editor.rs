@@ -1,5 +1,6 @@
 //! Definition-level model attachment and alignment in the selected Parts Inspector.
 
+use super::model_axis::{ModelAxisField, ModelAxisGrid};
 use super::{PartsSelection, PartsSelectionGeneration};
 use crate::parts_custom_definition::replacement_commit;
 use crate::{
@@ -716,7 +717,7 @@ fn ModelVectorEditor(
     let mut drafts = use_hook(|| current.map(|coordinate| Signal::new(coordinate.to_string())));
     let mut dirty = use_signal(|| [false; 3]);
     let mut synced = use_signal(|| current);
-    let mut error = use_signal(|| None::<String>);
+    let mut error = use_signal(|| None::<(usize, String)>);
     let failure = use_signal(|| None::<String>);
     // Admission memory: the text each axis edit was submitted with, so a blur on an
     // untouched draft does not resubmit while the edit is pending.
@@ -782,21 +783,20 @@ fn ModelVectorEditor(
     rsx! {
         fieldset { class: "m1-model-vector",
             legend { "{title} · {unit}" }
+            ModelAxisGrid {
             for (index, axis, label) in [(0, Axis::X, "X"), (1, Axis::Y, "Y"), (2, Axis::Z, "Z")] {
                 {
                     let pending = pending.clone();
                     let pending_for_escape = pending.clone();
                     let runtime = runtime.clone();
                     rsx! {
-                    label { class: "m1-generator-field", "{label}",
-                    input {
-                        r#type: "number",
-                        step: "0.1",
-                        min: if positive { "0.001" } else { "" },
-                        value: "{drafts[index]()}",
-                        aria_label: "{title} {label} {unit}",
-                        aria_invalid: error().is_some(),
-                        oninput: move |event| {
+                    ModelAxisField {
+                        axis: label,
+                        min: positive.then(|| "0.001".to_owned()),
+                        value: drafts[index](),
+                        aria_label: format!("{title} {label} {unit}"),
+                        error: error().filter(|(failed, _)| *failed == index).map(|(_, message)| message),
+                        oninput: move |event: FormEvent| {
                             drafts[index].set(event.value());
                             // Typing remains a draft even when it returns to the old
                             // accepted value while an earlier edit is still settling.
@@ -807,7 +807,7 @@ fn ModelVectorEditor(
                             let parsed = raw.trim().parse::<f64>().ok();
                             let valid = parsed.is_some_and(|number| number.is_finite() && (!positive || number > 0.0));
                             if !valid {
-                                error.set(Some(if positive { "Enter a positive finite number." } else { "Enter a finite number." }.into()));
+                                error.set(Some((index, if positive { "Enter a positive finite number." } else { "Enter a finite number." }.into())));
                                 return;
                             }
                             let number = parsed.unwrap_or_default();
@@ -852,11 +852,10 @@ fn ModelVectorEditor(
                             }
                         }
                     }
-                    }
                 }
                 }
             }
-            if let Some(message) = error() { small { role: "alert", "{message}" } }
+            }
             if let Some(message) = failure() { small { role: "alert", "{message}" } }
         }
     }
@@ -1371,6 +1370,8 @@ mod settlement_tests {
             .unwrap();
         x.focus().unwrap();
         type_value(&x, "8");
+        // The shared field is its own component, so the typed text must render before Escape reverts it.
+        gloo_timers::future::TimeoutFuture::new(10).await;
         let escape = web_sys::KeyboardEventInit::new();
         escape.set_key("Escape");
         escape.set_bubbles(true);

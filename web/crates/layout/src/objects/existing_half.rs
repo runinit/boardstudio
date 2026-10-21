@@ -7,8 +7,9 @@ use boardstudio_core::model::{
     EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::BoardDialog;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonVariant, BoardDialog, BoardSelectField,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -744,17 +745,16 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                 header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
                 p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
                 form { onsubmit: submit,
-                    label { "Source layouts"
-                        select {
-                            aria_label: "Source layouts",
-                            value: "{choice}",
-                            disabled: !props.projection.editable,
-                            onchange: move |event| default_choice.set(event.value()),
-                            option { value: "all", "All unpaired layouts on this board" }
+                    BoardSelectField {
+                        label: "Source layouts",
+                        aria_label: "Source layouts",
+                        value: "{choice}",
+                        disabled: !props.projection.editable,
+                        onchange: move |event: FormEvent| default_choice.set(event.value()),
+                        option { value: "all", "All unpaired layouts on this board" }
                             for option in owner.options.iter() {
                                 option { key: "{option.matrix_id}", value: "{option.matrix_id}", "{option.label}" }
                             }
-                        }
                     }
                     label { "Mirror axis X (mm)"
                         input {

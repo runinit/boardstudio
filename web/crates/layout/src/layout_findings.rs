@@ -2,6 +2,7 @@
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Finding, ProjectDoc, Severity};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonDensity, BoardButtonVariant};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -85,9 +86,10 @@ pub fn LayoutFindingsInspector(
                 }
             },
             div { class: "m1-layout-findings-return",
-                button {
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-layout-findings-back",
-                    r#type: "button",
                     onclick: move |_| on_close.call(()),
                     "Back to selection"
                 }

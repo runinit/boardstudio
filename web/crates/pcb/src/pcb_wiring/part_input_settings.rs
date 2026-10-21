@@ -1,6 +1,6 @@
 use super::PcbWiringSource;
 use boardstudio_core::model::{Part, PartDefinition, PartKind, PressScanMode, ProjectDoc};
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::controls::{BoardDisclosure, BoardSelectField};
 use dioxus::prelude::*;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -180,17 +180,16 @@ pub fn PartInputInspector(props: PartInputInspectorProps) -> Element {
             if let Some(scan_mode) = scan_mode {
                 BoardDisclosure { class: "m1-pcb-wiring-section", open: true,
                     heading: rsx! { summary { "Press input" } },
-                    label { class: "m1-pcb-part-input-field",
-                        span { "Scan mode" }
-                        select {
-                            aria_label: "Press scan mode",
-                            value: scan_mode_text(scan_mode),
-                            disabled: read_only,
-                            onchange: scan_change,
-                            option { value: "matrix", disabled: !matrix_enabled, "Matrix key" }
+                    BoardSelectField {
+                        label: "Scan mode",
+                        class: "m1-pcb-part-input-field",
+                        aria_label: "Press scan mode",
+                        value: (scan_mode_text(scan_mode)).to_string(),
+                        disabled: read_only,
+                        onchange: scan_change,
+                        option { value: "matrix", disabled: !matrix_enabled, "Matrix key" }
                             option { value: "direct", "Direct GPIO" }
                             option { value: "unassigned", "Unassigned" }
-                        }
                     }
                     p { class: "m1-pcb-part-input-note", "Rotation uses separate GPIOs. Apply the board wiring plan after changing the press connection." }
                 }

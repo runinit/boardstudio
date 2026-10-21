@@ -14,7 +14,10 @@ use crate::renderer_host_page::RendererPageHost;
 use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardDisclosure,
+    BoardSelectField,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, Float32Array, Object, Reflect};
@@ -109,22 +112,25 @@ pub fn DesignViewToolbar(props: DesignViewToolbarProps) -> Element {
             }
         }
         div { class: "m1-design-view-group", role: "group", aria_label: "Design view",
-            button {
-                r#type: "button",
-                aria_pressed: "{!assembly_3d}",
+            BoardButton {
+                variant: BoardButtonVariant::Quiet,
+                density: BoardButtonDensity::Compact,
+                pressed: Some(!assembly_3d),
                 onclick: move |_| props.on_view_mode.call(false),
                 "2D"
             }
-            button {
-                r#type: "button",
-                aria_pressed: "{assembly_3d}",
+            BoardButton {
+                variant: BoardButtonVariant::Quiet,
+                density: BoardButtonDensity::Compact,
+                pressed: Some(assembly_3d),
                 onclick: move |_| props.on_view_mode.call(true),
                 "3D assembly"
             }
             if !assembly_3d {
-                button {
-                    r#type: "button",
-                    aria_pressed: "{footprints_visible}",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
+                    pressed: Some(footprints_visible),
                     onclick: move |_| props.on_toggle_footprints.call(()),
                     "Footprints"
                 }
@@ -2974,16 +2980,15 @@ fn SharedViewer(
                 }
             }
             if transient().assembly == AssemblyView::Section {
-                label { "Section plane"
-                    select {
-                        value: "{transient().section_plane}",
-                        onchange: move |event: FormEvent| {
+                BoardSelectField {
+                    label: "Section plane",
+                    value: "{transient().section_plane}",
+                    onchange: move |event: FormEvent| {
                             transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                         },
-                        option { value: "XY", "XY" }
+                    option { value: "XY", "XY" }
                         option { value: "XZ", "XZ" }
                         option { value: "YZ", "YZ" }
-                    }
                 }
                 label { "Section position"
                     input {
@@ -3024,16 +3029,15 @@ fn SharedViewer(
             }
             if inline_case_controls && show_assembly_controls && transient().assembly == AssemblyView::Section {
                 div { class: "m1-case-view-adjustments",
-                    label { "Section plane"
-                        select {
-                            value: "{transient().section_plane}",
-                            onchange: move |event: FormEvent| {
+                    BoardSelectField {
+                        label: "Section plane",
+                        value: "{transient().section_plane}",
+                        onchange: move |event: FormEvent| {
                                 transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                             },
-                            option { value: "XY", "XY" }
+                        option { value: "XY", "XY" }
                             option { value: "XZ", "XZ" }
                             option { value: "YZ", "YZ" }
-                        }
                     }
                     label { "Section position"
                         input {

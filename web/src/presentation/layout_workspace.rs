@@ -1,7 +1,7 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -424,12 +424,12 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
             if let Some(reason) = input.save_failure.as_ref() {
                 p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
                 if !input.save_conflict {
-                    button { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                    BoardButton { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
                 }
-                button { onclick: move |_| input.on_download_pending.call(()), "Download my pending edits" }
+                BoardButton { onclick: move |_| input.on_download_pending.call(()), "Download my pending edits" }
             }
             if input.recovery_required {
-                button { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
+                BoardButton { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
             }
             div { class: "m1-layout-view-group board-tool-pill", role: "group", aria_label: "Design view",
                 button {

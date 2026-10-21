@@ -7,8 +7,7 @@ pub use boardstudio_web_catalogue::bundled::{
     prepare_physical_setup_proposal, prepare_physical_setup_resources, reversible_layout,
 };
 use boardstudio_web_catalogue::catalogue;
-use boardstudio_web_ui_shared::controls::BoardButton;
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
 mod component_model_editor;
 mod details;
 mod generator_settings;
@@ -16,6 +15,7 @@ mod generator_settings;
 mod mechanical_profile_editor;
 #[cfg(target_arch = "wasm32")]
 mod mechanical_profile_ui;
+mod model_axis;
 mod module_profile_editor;
 mod modules_catalogue;
 pub use modules_catalogue::module_attachment::AttachedModuleNavigation;
@@ -421,19 +421,18 @@ pub fn AddObjectComponentChooser(
     rsx! {
         div { class: "m1-add-component-chooser",
             if !layouts.is_empty() {
-                label { class: "m1-parts-placement-layout",
-                    "Place in"
-                    select {
-                        "aria-label": "Part placement layout",
-                        value: "{selected_layout}",
-                        onchange: move |event| {
+                BoardSelectField {
+                    label: "Place in",
+                    class: "m1-parts-placement-layout",
+                    aria_label: "Part placement layout",
+                    value: "{selected_layout}",
+                    onchange: move |event: FormEvent| {
                             layout_target.set((!event.value().is_empty()).then(|| event.value()));
                         },
-                        option { value: "", "Board / ungrouped" }
+                    option { value: "", "Board / ungrouped" }
                         for layout in layouts {
                             option { key: "{layout.id}", value: "{layout.id}", "{layout.name}" }
                         }
-                    }
                 }
             }
             label { class: "m1-parts-search-label", "Parts"

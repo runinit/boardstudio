@@ -1,4 +1,5 @@
 //! The Objects panel's tree-grouping option, shared by the panel chrome and the tree.
+use crate::controls::BoardSelectField;
 use boardstudio_web_ui_model::tree::Grouping;
 use dioxus::prelude::*;
 
@@ -16,18 +17,17 @@ pub fn use_object_options() -> Element {
 #[component]
 fn ObjectOptions(mut grouping: Signal<Grouping>) -> Element {
     rsx! {
-        label { "Group objects"
-            select {
-                "aria-label": "Tree grouping",
-                value: if grouping() == Grouping::Row { "row" } else { "column" },
-                onchange: move |event: FormEvent| {
+        BoardSelectField {
+            label: "Group objects",
+            aria_label: "Tree grouping",
+            value: (if grouping() == Grouping::Row { "row" } else { "column" }).to_string(),
+            onchange: move |event: FormEvent| {
                     let next = Grouping::from_storage(Some(event.value()));
                     grouping.set(next);
                     write_tree_grouping(next);
                 },
-                option { value: "column", "Columns" }
+            option { value: "column", "Columns" }
                 option { value: "row", "Rows" }
-            }
         }
     }
 }

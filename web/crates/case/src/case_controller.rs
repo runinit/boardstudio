@@ -1168,7 +1168,7 @@ mod queued_body_tests {
     }
 
     fn inline_failure(root: &web_sys::Element) -> Option<String> {
-        root.query_selector(".m1-case-measures small.m1-case-field-error[role='alert']")
+        root.query_selector(".m1-case-measures .m1-case-number small[role='alert']")
             .unwrap()
             .and_then(|alert| alert.text_content())
     }
@@ -1190,6 +1190,9 @@ mod queued_body_tests {
         assert!(
             inline_failure(&root).is_some_and(|message| message.contains("body executor failed"))
         );
+        let input = thickness_input(&root);
+        assert_eq!(input.get_attribute("aria-invalid").as_deref(), Some("true"));
+        assert!(input.get_attribute("aria-describedby").is_some());
         runtime.unsubscribe();
         root.remove();
     }

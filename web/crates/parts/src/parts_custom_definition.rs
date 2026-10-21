@@ -97,7 +97,7 @@ pub(crate) mod ui {
     use boardstudio_application::{AcceptedSnapshot, Scope};
     use boardstudio_core::model::{Pad, PadShape, PartDefinition, PartKind};
     use boardstudio_web_runtime::pending_edits::PendingEditResult;
-    use boardstudio_web_ui_shared::controls::BoardButton;
+    use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
     use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
     use dioxus::prelude::*;
     use dioxus_web::WebEventExt;
@@ -566,19 +566,17 @@ pub(crate) mod ui {
 
         rsx! {
             div { class: "m1-definition-fields",
-                label {
-                    "Kind"
-                    select {
-                        aria_label: "Definition kind",
-                        value: "{kind}",
-                        onchange: on_kind,
-                        option { value: "switch", "Switch" }
+                BoardSelectField {
+                    label: "Kind",
+                    aria_label: "Definition kind",
+                    value: "{kind}",
+                    onchange: on_kind,
+                    option { value: "switch", "Switch" }
                         option { value: "controller", "Controller" }
                         option { value: "connector", "Connector" }
                         option { value: "encoder", "Encoder" }
                         option { value: "passive", "Passive" }
                         option { value: "custom", "Custom" }
-                    }
                 }
                 fieldset { class: "m1-definition-courtyard",
                     legend { "Rectangular courtyard (mm)" }

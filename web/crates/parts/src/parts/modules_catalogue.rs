@@ -4,7 +4,7 @@ use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::controls::{BoardDisclosure, BoardSelectField};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -523,20 +523,19 @@ pub fn ModuleInspector(
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
-            label { class: "m1-parts-search-label",
-                "Variant"
-                select {
-                    "aria-label": "Module variant",
-                    value: "{definition.id}",
-                    onchange: move |event| {
+            BoardSelectField {
+                label: "Variant",
+                class: "m1-parts-search-label",
+                aria_label: "Module variant",
+                value: "{definition.id}",
+                onchange: move |event: FormEvent| {
                         selected.set(Some((variant_scope.clone(), format!("module:{}", event.value()))));
                         selection_generation.with_mut(|value| *value = value.wrapping_add(1));
                         preview_activation.with_mut(|value| *value = value.wrapping_add(1));
                     },
-                    for variant in variants.iter() {
+                for variant in variants.iter() {
                         option { value: "{variant.definition.id}", "{variant.definition.variant}" }
                     }
-                }
             }
         }
         if project_owned { small { "Project snapshot" } }

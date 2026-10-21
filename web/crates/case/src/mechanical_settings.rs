@@ -18,7 +18,10 @@ use boardstudio_core::model::{
     MechanicalStabilizerKind, MechanicalStabilizerOverride, MechanicalSwitchFamily, Mount,
     MountKind, PlateMethod, Pose2, ScrewDrive, ScrewHeadProfile, ScrewLengthDatum, Severity, Vec2,
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardDisclosure,
+    BoardNumberField, BoardSelectField,
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::rc::Rc;
@@ -746,8 +749,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
             + 1;
         return rsx! {
             section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-mechanical-context-return",
                     onclick: move |_| props.on_select_layer.call(String::new()),
                     "Assembly settings"
@@ -1125,10 +1129,11 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 p { class: "m1-mechanical-help",
                     "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
                 }
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-mechanical-quiet",
-                    "aria-label": "Confirm making construction local for {instance_id}",
+                    aria_label: "Confirm making construction local for {instance_id}",
                     disabled: pending,
                     onclick: {
                         let identity = props.identity.clone();
@@ -1142,10 +1147,11 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                     },
                     "Make construction local"
                 }
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-mechanical-quiet",
-                    "aria-label": "Keep shared construction for {instance_id}",
+                    aria_label: "Keep shared construction for {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it shared"
                 }
@@ -1153,10 +1159,11 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 p { class: "m1-mechanical-help",
                     "This half still uses the shared construction baseline."
                 }
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-mechanical-quiet",
-                    "aria-label": "Make construction local for {instance_id}",
+                    aria_label: "Make construction local for {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
                     "Make construction local…"
@@ -1215,10 +1222,11 @@ fn MechanicalPairMemberRemoval(props: MechanicalPairMemberRemovalProps) -> Eleme
                     },
                     "Remove assembly"
                 }
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
                     class: "m1-mechanical-quiet",
-                    "aria-label": "Keep assembly {instance_id}",
+                    aria_label: "Keep assembly {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it"
                 }
@@ -1362,13 +1370,13 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
             p { class: "m1-mechanical-help",
                 "Linking keeps shared mounts, closure mounts, openings and gasket supports reflected and linked. Features without a match stay local to their half."
             }
-            label { class: "m1-mechanical-field",
-                span { "Link with" }
-                select {
-                    "aria-label": "Link with",
-                    disabled: !props.editable,
-                    value: "{index}",
-                    onchange: {
+            BoardSelectField {
+                label: "Link with",
+                class: "m1-mechanical-field",
+                aria_label: "Link with",
+                disabled: !props.editable,
+                value: "{index}",
+                onchange: {
                         let mut selected = selected;
                         move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<usize>() {
@@ -1376,49 +1384,50 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                             }
                         }
                     },
-                    for (candidate, item) in options.iter().enumerate() {
+                for (candidate, item) in options.iter().enumerate() {
                         option { value: "{candidate}", "{item.other_name}" }
                     }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Construction from" }
-                select {
-                    "aria-label": "Pair construction source",
-                    disabled: !props.editable,
-                    value: if construction_from_other_value { "other" } else { "this" },
-                    onchange: {
+            BoardSelectField {
+                label: "Construction from",
+                class: "m1-mechanical-field",
+                aria_label: "Pair construction source",
+                disabled: !props.editable,
+                value: (if construction_from_other_value { "other" } else { "this" }).to_string(),
+                onchange: {
                         let mut construction_from_other = construction_from_other;
                         move |event: FormEvent| {
                             construction_from_other.set(event.value() == "other");
                         }
                     },
-                    option { value: "this", "{option.instance_id}" }
+                option { value: "this", "{option.instance_id}" }
                     option { value: "other", "{option.other_instance_id}" }
-                }
             }
             if option.derived_mapping.is_none() {
                 div { class: "m1-mechanical-pair-mapping",
-                    label { class: "m1-mechanical-field",
-                        span { "Map offset X" }
-                        input {
-                            r#type: "number", "aria-label": "Pair mapping X", value: "{mapping_x}",
-                            oninput: { let mut mapping_x = mapping_x; move |event: FormEvent| mapping_x.set(event.value()) }
-                        }
+                    BoardNumberField {
+                        label: "Map offset X",
+                        class: "m1-mechanical-field",
+                        aria_label: "Pair mapping X",
+                        value: "{mapping_x}",
+                        oninput: { let mut mapping_x = mapping_x; move |event: FormEvent| mapping_x.set(event.value()) },
+                        step: "1",
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Map offset Y" }
-                        input {
-                            r#type: "number", "aria-label": "Pair mapping Y", value: "{mapping_y}",
-                            oninput: { let mut mapping_y = mapping_y; move |event: FormEvent| mapping_y.set(event.value()) }
-                        }
+                    BoardNumberField {
+                        label: "Map offset Y",
+                        class: "m1-mechanical-field",
+                        aria_label: "Pair mapping Y",
+                        value: "{mapping_y}",
+                        oninput: { let mut mapping_y = mapping_y; move |event: FormEvent| mapping_y.set(event.value()) },
+                        step: "1",
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Map rotation" }
-                        input {
-                            r#type: "number", "aria-label": "Pair mapping rotation", value: "{mapping_rotation}",
-                            oninput: { let mut mapping_rotation = mapping_rotation; move |event: FormEvent| mapping_rotation.set(event.value()) }
-                        }
+                    BoardNumberField {
+                        label: "Map rotation",
+                        class: "m1-mechanical-field",
+                        aria_label: "Pair mapping rotation",
+                        value: "{mapping_rotation}",
+                        oninput: { let mut mapping_rotation = mapping_rotation; move |event: FormEvent| mapping_rotation.set(event.value()) },
+                        step: "1",
                     }
                 }
             }
@@ -1451,26 +1460,25 @@ fn MechanicalPairLinkControls(props: MechanicalPairLinkControlsProps) -> Element
                         fieldset { key: "{row_id}", class: "m1-mechanical-pair-source",
                             "aria-label": "Source for {key}",
                             legend { "{feature_label(matched.kind)} {key} · {matched.second_feature_id}" }
-                            label { class: "m1-mechanical-field",
-                                span { "Shared geometry from" }
-                                select {
-                                    "aria-label": "Source for {key}",
-                                    disabled: !props.editable,
-                                    value: "{chosen}",
-                                    onchange: {
+                            BoardSelectField {
+                                label: "Shared geometry from",
+                                class: "m1-mechanical-field",
+                                aria_label: "Source for {key}",
+                                disabled: !props.editable,
+                                value: "{chosen}",
+                                onchange: {
                                         let mut sources = sources;
                                         let key = key.clone();
                                         move |event: FormEvent| {
                                             sources.write().insert(key.clone(), event.value());
                                         }
                                     },
-                                    option { value: "{matched.source_instance_id}",
+                                option { value: "{matched.source_instance_id}",
                                         "{matched.source_instance_id} · {first_label}"
                                     }
                                     option { value: "{option.other_instance_id}",
                                         "{option.other_instance_id} · {second_label}"
                                     }
-                                }
                             }
                         }
                     }
@@ -1644,10 +1652,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                 p { role: "alert", "{message}" }
                             }
                             if linked {
-                                button {
-                                    r#type: "button",
+                                BoardButton {
+                                    variant: BoardButtonVariant::Quiet,
+                                    density: BoardButtonDensity::Compact,
                                     class: "m1-mechanical-quiet",
-                                    "aria-label": "Make local {row.feature_id}",
+                                    aria_label: "Make local {row.feature_id}",
                                     disabled: local_blocked,
                                     onclick: {
                                         let mut sequence = props.request_sequence;
@@ -1674,13 +1683,13 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                 }
                             } else {
                                 if offers_own_source {
-                                    label { class: "m1-mechanical-field",
-                                        span { "Rejoin from" }
-                                        select {
-                                            "aria-label": "Rejoin source for {row.feature_id}",
-                                            disabled: !props.editable,
-                                            value: "{chosen_source}",
-                                            onchange: {
+                                    BoardSelectField {
+                                        label: "Rejoin from",
+                                        class: "m1-mechanical-field",
+                                        aria_label: "Rejoin source for {row.feature_id}",
+                                        disabled: !props.editable,
+                                        value: "{chosen_source}",
+                                        onchange: {
                                                 let mut rejoin_sources = rejoin_sources;
                                                 let feature_id = row.feature_id.clone();
                                                 move |event: FormEvent| {
@@ -1689,13 +1698,12 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                                         .insert(feature_id.clone(), event.value());
                                                 }
                                             },
-                                            option { value: "{row.instance_id}",
+                                        option { value: "{row.instance_id}",
                                                 "this half · {row.own_geometry.clone().unwrap_or_default()}"
                                             }
                                             option { value: "{row.counterpart_instance_id}",
                                                 "the other half · {row.preview.clone().unwrap_or_else(|| \"no geometry\".to_owned())}"
                                             }
-                                        }
                                     }
                                 }
                                 if let Some(geometry) = source_geometry.clone() {
@@ -1707,10 +1715,11 @@ fn MechanicalPairControls(props: MechanicalPairControlsProps) -> Element {
                                         "The reviewed source half has no geometry for this feature, so it cannot be rejoined yet."
                                     }
                                 }
-                                button {
-                                    r#type: "button",
+                                BoardButton {
+                                    variant: BoardButtonVariant::Quiet,
+                                    density: BoardButtonDensity::Compact,
                                     class: "m1-mechanical-quiet",
-                                    "aria-label": "Rejoin {row.feature_id} from {source_label}",
+                                    aria_label: "Rejoin {row.feature_id} from {source_label}",
                                     disabled: rejoin_blocked,
                                     onclick: {
                                         let mut sequence = props.request_sequence;
@@ -1783,13 +1792,13 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
         BoardDisclosure { class: "m1-mechanical-group", open: true, aria_label: "Closure hardware",
             heading: rsx! { summary { "Closure hardware · {hardware.thread}" } },
             p { class: "m1-mechanical-help", "Custom screw and insert dimensions. Review these against your hardware; the starting M2 dimensions are not a supplier preset." }
-            label { class: "m1-mechanical-field",
-                span { "Insert size" }
-                select {
-                    aria_label: "Insert size",
-                    disabled: !props.editable,
-                    value: selected_preset.unwrap_or("custom"),
-                    onchange: {
+            BoardSelectField {
+                label: "Insert size",
+                class: "m1-mechanical-field",
+                aria_label: "Insert size",
+                disabled: !props.editable,
+                value: (selected_preset.unwrap_or("custom")).to_string(),
+                onchange: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         move |event: FormEvent| {
@@ -1799,21 +1808,20 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                             }
                         }
                     },
-                    option { value: "custom", "Custom dimensions" }
+                option { value: "custom", "Custom dimensions" }
                     option { value: "m2-3", "M2 × L3 × OD3.2" }
                     option { value: "m2-4", "M2 × L4 × OD3.2" }
                     option { value: "m2.5-3", "M2.5 × L3 × OD3.5" }
                     option { value: "m2.5-4", "M2.5 × L4 × OD3.5" }
                     option { value: "m2.5-5", "M2.5 × L5 × OD3.5" }
                     option { value: "m3-3", "M3 × L3 × OD4.2" }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Screw drive" }
-                select {
-                    disabled: !props.editable,
-                    value: if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" },
-                    onchange: {
+            BoardSelectField {
+                label: "Screw drive",
+                class: "m1-mechanical-field",
+                disabled: !props.editable,
+                value: (if hardware.drive == ScrewDrive::Hex { "hex" } else { "torx" }).to_string(),
+                onchange: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         move |event: FormEvent| {
@@ -1821,16 +1829,15 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureDrive(drive));
                         }
                     },
-                    option { value: "hex", "Hex socket" }
+                option { value: "hex", "Hex socket" }
                     option { value: "torx", "Torx" }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Insert installation" }
-                select {
-                    disabled: !props.editable,
-                    value: if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" },
-                    onchange: {
+            BoardSelectField {
+                label: "Insert installation",
+                class: "m1-mechanical-field",
+                disabled: !props.editable,
+                value: (if hardware.installation == InsertInstallation::HeatSet { "heat-set" } else { "tapped" }).to_string(),
+                onchange: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         move |event: FormEvent| {
@@ -1838,17 +1845,16 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureInstallation(installation));
                         }
                     },
-                    option { value: "heat-set", "Heat-set · printed top" }
+                option { value: "heat-set", "Heat-set · printed top" }
                     option { value: "tapped", "Tapped · machined top" }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Screw length" }
-                select {
-                    aria_label: "Screw length",
-                    disabled: !props.editable,
-                    value: selected_length,
-                    onchange: {
+            BoardSelectField {
+                label: "Screw length",
+                class: "m1-mechanical-field",
+                aria_label: "Screw length",
+                disabled: !props.editable,
+                value: (selected_length).to_string(),
+                onchange: {
                         let mut sequence = request_sequence;
                         let identity = identity.clone();
                         let lengths = hardware.screw_lengths.clone();
@@ -1859,11 +1865,10 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                             }
                         }
                     },
-                    option { value: "auto", "Automatic from available lengths" }
+                option { value: "auto", "Automatic from available lengths" }
                     for length in hardware.screw_lengths.iter() {
                         option { value: "{length}", "{length} mm · fixed" }
                     }
-                }
             }
             { rsx! { TextDraftField {
                 key: "{props.owner_key}:closure-screw-lengths",
@@ -1889,12 +1894,12 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                     intent: MechanicalTextIntent::ClosureThread,
                     editable: props.editable,
                 } } }
-                label { class: "m1-mechanical-field",
-                    span { "Screw head profile" }
-                    select {
-                        disabled: !props.editable,
-                        value: if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" },
-                        onchange: {
+                BoardSelectField {
+                    label: "Screw head profile",
+                    class: "m1-mechanical-field",
+                    disabled: !props.editable,
+                    value: (if hardware.head_profile == ScrewHeadProfile::Countersunk { "countersunk" } else { "flat" }).to_string(),
+                    onchange: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
                             move |event: FormEvent| {
@@ -1902,20 +1907,19 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureHeadProfile(profile));
                             }
                         },
-                        option { value: "flat", "Flat bearing surface" }
+                    option { value: "flat", "Flat bearing surface" }
                         option { value: "countersunk", "Countersunk" }
-                    }
                 }
-                label { class: "m1-mechanical-field",
-                    span { "Screw length measured from" }
-                    select {
-                        disabled: !props.editable,
-                        value: match hardware.length_datum {
+                BoardSelectField {
+                    label: "Screw length measured from",
+                    class: "m1-mechanical-field",
+                    disabled: !props.editable,
+                    value: (match hardware.length_datum {
                             ScrewLengthDatum::UnderHead => "under-head",
                             ScrewLengthDatum::Overall => "overall",
                             ScrewLengthDatum::Unresolved => "unresolved",
-                        },
-                        onchange: {
+                        }).to_string(),
+                    onchange: {
                             let mut sequence = request_sequence;
                             let identity = identity.clone();
                             move |event: FormEvent| {
@@ -1927,10 +1931,9 @@ fn GasketClosureControls(props: GasketClosureControlsProps) -> Element {
                                 send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetClosureLengthDatum(datum));
                             }
                         },
-                        option { value: "under-head", "Under the head" }
+                    option { value: "under-head", "Under the head" }
                         option { value: "overall", "Top of head · overall" }
                         option { value: "unresolved", "Unknown" }
-                    }
                 }
                 for (field, label, value) in closure_dimension_fields(hardware) {
                     { rsx! { DimensionField {
@@ -2124,13 +2127,13 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        label { class: "m1-mechanical-field",
-                            span { "Mount link" }
-                            select {
-                                aria_label: "Mount link for hardware {item.id}",
-                                disabled: !props.editable,
-                                value: mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default(),
-                                onchange: {
+                        BoardSelectField {
+                            label: "Mount link",
+                            class: "m1-mechanical-field",
+                            aria_label: "Mount link for hardware {item.id}",
+                            disabled: !props.editable,
+                            value: (mount_choices.iter().position(|choice| choice.part_id == item.part_id && choice.feature_id == item.feature_id).map(|index| index.to_string()).unwrap_or_default()).to_string(),
+                            onchange: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let hardware_id = item.id.clone();
@@ -2144,11 +2147,10 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                             });
                                         }
                                 },
-                                option { value: "", "Choose generated mount…" }
+                            option { value: "", "Choose generated mount…" }
                                 for (index, choice) in mount_choices.iter().enumerate() {
                                     option { key: "{choice.part_id}:{choice.feature_id}", value: "{index}", "{choice.part_name} · {mount_kind_label(&choice.kind)} · {choice.x:.1}, {choice.y:.1} mm" }
                                 }
-                            }
                         }
                         { rsx! { TextDraftField {
                             key: "{props.owner_key}:hardware:{item.id}:designation",
@@ -2229,13 +2231,13 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                 "Remove"
                             }
                         }
-                        label { class: "m1-mechanical-field",
-                            span { "Generated part" }
-                            select {
-                                aria_label: "Part for critical fit {fit.id}",
-                                disabled: !props.editable,
-                                value: "{fit.part_id}",
-                                onchange: {
+                        BoardSelectField {
+                            label: "Generated part",
+                            class: "m1-mechanical-field",
+                            aria_label: "Part for critical fit {fit.id}",
+                            disabled: !props.editable,
+                            value: "{fit.part_id}",
+                            onchange: {
                                     let mut sequence = request_sequence;
                                     let identity = identity.clone();
                                     let fit_id = fit.id.clone();
@@ -2246,10 +2248,9 @@ fn CriticalFitControls(props: CriticalFitControlsProps) -> Element {
                                         MechanicalSettingsPatch::SetCriticalFitPart { fit_id: fit_id.clone(), part_id: event.value() },
                                     )
                                 },
-                                for part in parts.iter() {
+                            for part in parts.iter() {
                                     option { value: "{part.id}", "{part.name}" }
                                 }
-                            }
                         }
                         { rsx! { TextDraftField {
                             key: "{props.owner_key}:fit:{fit.id}:label",
@@ -2477,8 +2478,9 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                     p { class: "m1-mechanical-help", "Resolve the current geometry to see clearance-tested mounting locations." }
                 } else if values.internal_gasket {
                     p { class: "m1-mechanical-help", "Candidates clear the current openings and battery envelope. Adopting them is explicit; later edits keep the chosen coordinates fixed." }
-                    button {
-                        r#type: "button",
+                    BoardButton {
+                        variant: BoardButtonVariant::Quiet,
+                        density: BoardButtonDensity::Compact,
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("adopt-closure-positions") || !props.editable,
                         onclick: {
@@ -2497,8 +2499,9 @@ fn MountingControls(props: MountingControlsProps) -> Element {
                             span { key: "{mount.id}", "{index + 1}: X {mount.at.x:.1}, Y {mount.at.y:.1} mm" }
                         }
                     }
-                    button {
-                        r#type: "button",
+                    BoardButton {
+                        variant: BoardButtonVariant::Quiet,
+                        density: BoardButtonDensity::Compact,
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending("suspension-mounts") || !props.editable,
                         onclick: {
@@ -2610,11 +2613,11 @@ fn MountRow(props: MountRowProps) -> Element {
     rsx! {
         fieldset { class: "m1-mechanical-mount-row", disabled: !props.editable,
             legend { "{label} {props.index}" }
-            label { class: "m1-mechanical-field",
-                span { "Mount type" }
-                select {
-                    value: if mount.kind == MountKind::Boss { "boss" } else { "hole" },
-                    onchange: {
+            BoardSelectField {
+                label: "Mount type",
+                class: "m1-mechanical-field",
+                value: (if mount.kind == MountKind::Boss { "boss" } else { "hole" }).to_string(),
+                onchange: {
                         let mut sequence = props.request_sequence;
                         let identity = props.identity.clone();
                         let callback = props.on_request;
@@ -2624,9 +2627,8 @@ fn MountRow(props: MountRowProps) -> Element {
                             send_request(&mut sequence, &identity, callback, MechanicalSettingsPatch::SetMountKind { collection, mount_id: mount_id.clone(), kind });
                         }
                     },
-                    option { value: "hole", "Hole" }
+                option { value: "hole", "Hole" }
                     option { value: "boss", "Boss" }
-                }
             }
             DimensionField { key: "{field_prefix}:x",
                 identity: props.identity.clone(), request_sequence: props.request_sequence,
@@ -2911,8 +2913,9 @@ fn OpeningControls(props: OpeningControlsProps) -> Element {
                                             accessible_label: Some(format!("Document-coordinate access opening {} vertex {} Y", opening_index + 1, point_index + 1)),
                                             opening_target: Some(OpeningDimensionTarget { opening_id: opening_id.clone(), vertex_id: Some(vertex.id.clone()) }),
                                         } } }
-                                        button {
-                                            r#type: "button",
+                                        BoardButton {
+                                            variant: BoardButtonVariant::Quiet,
+                                            density: BoardButtonDensity::Compact,
                                             class: "m1-mechanical-quiet",
                                             aria_label: "Remove access opening vertex {point_index + 1}",
                                             disabled: mechanical_action_pending("case-openings") || !props.editable || opening.vertices.len() <= 3,
@@ -3043,8 +3046,9 @@ fn ContextualLayerInspector(props: ContextualLayerInspectorProps) -> Element {
     );
     rsx! {
         section { class: "m1-mechanical-settings", aria_label: "Mechanical stack settings",
-            button {
-                r#type: "button",
+            BoardButton {
+                variant: BoardButtonVariant::Quiet,
+                density: BoardButtonDensity::Compact,
                 class: "m1-mechanical-context-return",
                 onclick: move |_| props.on_select_layer.call(String::new()),
                 "Assembly settings"
@@ -3273,23 +3277,21 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                 }
                             }
                             div { class: "m1-mechanical-field",
-                                label {
-                                    span { "Material" }
-                                    select {
-                                        aria_label: "Material",
-                                        disabled: !props.editable,
-                                        value: "{process.material}",
-                                        onchange: {
+                                BoardSelectField {
+                                    label: "Material",
+                                    aria_label: "Material",
+                                    disabled: !props.editable,
+                                    value: "{process.material}",
+                                    onchange: {
                                             let part_id = target.part_id.clone();
                                             let identity = props.identity.clone();
                                             let mut sequence = props.request_sequence;
                                             let on_request = props.on_request;
                                             move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetProcessMaterial { part_id: part_id.clone(), material: event.value() })
                                         },
-                                        for material in process_material_options(&target.part_id, &process.method) {
+                                    for material in process_material_options(&target.part_id, &process.method) {
                                             option { value: material, "{material}" }
                                         }
-                                    }
                                 }
                             }
                             DimensionField {
@@ -3332,13 +3334,13 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                 for stabilizer in props.stabilizers.iter() {
                     div { class: "m1-mechanical-profile", key: "{stabilizer.part_id}",
                         strong { "{stabilizer.reference} · {stabilizer.key_units}u" }
-                        label { class: "m1-mechanical-field",
-                            span { "Stabilizer" }
-                            select {
-                                aria_label: "Stabilizer for {stabilizer.reference}",
-                                disabled: !props.editable,
-                                value: "{stabilizer_kind_id(&stabilizer.current.kind)}",
-                                onchange: {
+                        BoardSelectField {
+                            label: "Stabilizer",
+                            class: "m1-mechanical-field",
+                            aria_label: "Stabilizer for {stabilizer.reference}",
+                            disabled: !props.editable,
+                            value: "{stabilizer_kind_id(&stabilizer.current.kind)}",
+                            onchange: {
                                     let mut current = stabilizer.current.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
@@ -3348,12 +3350,11 @@ fn ManufacturingControls(props: ManufacturingControlsProps) -> Element {
                                         send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetStabilizerKind(current.clone()));
                                     }
                                 },
-                                option { value: "pcb-mount", "Cherry PCB mount · {stabilizer.default.units}u" }
+                            option { value: "pcb-mount", "Cherry PCB mount · {stabilizer.default.units}u" }
                                 option { value: "none", "None" }
                                 if stabilizer.current.profile.is_some() {
                                     option { value: "plate-mount", "Custom plate mount" }
                                 }
-                            }
                         }
                         p { class: "m1-mechanical-help", "Size and orientation follow the key layout." }
                     }
@@ -3378,13 +3379,13 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
     };
     rsx! {
         section { class: "m1-case-setup-basics", aria_label: "Basic case setup",
-            label { class: "m1-case-setup-choice",
-                span { "Mounting style" }
-                select {
-                    aria_label: "Case mounting style",
-                    value: "{mount_id(&values.mount)}",
-                    disabled: !settings.editable,
-                    onchange: {
+            BoardSelectField {
+                label: "Mounting style",
+                class: "m1-case-setup-choice",
+                aria_label: "Case mounting style",
+                value: "{mount_id(&values.mount)}",
+                disabled: !settings.editable,
+                onchange: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
@@ -3392,10 +3393,9 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                    option { value: "tray", "Tray mount" }
+                option { value: "tray", "Tray mount" }
                     option { value: "rigid", "Rigid mount" }
                     option { value: "gasket", "Gasket mount" }
-                }
             }
             label { class: "m1-case-setup-choice",
                 BoardCheckbox {
@@ -3412,13 +3412,13 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                 span { "Include a battery" }
                 small { if values.transport == HardwareTransport::Wireless { "For the wireless split." } else { "Choose wireless transport to add a battery." } }
             }
-            label { class: "m1-case-setup-choice",
-                span { "Case process" }
-                select {
-                    aria_label: "Case fabrication process",
-                    value: "{method_id(&values.method)}",
-                    disabled: !settings.editable,
-                    onchange: {
+            BoardSelectField {
+                label: "Case process",
+                class: "m1-case-setup-choice",
+                aria_label: "Case fabrication process",
+                value: "{method_id(&values.method)}",
+                disabled: !settings.editable,
+                onchange: {
                         let identity = settings.identity.clone();
                         let mut sequence = settings.request_sequence;
                         let on_request = settings.on_request;
@@ -3426,11 +3426,10 @@ pub fn MechanicalSetupBasics(settings: MechanicalSettingsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                    option { value: "printed", "3D printed" }
+                option { value: "printed", "3D printed" }
                     option { value: "cnc", "CNC machined" }
                     option { value: "cut-sheet", "Cut sheet" }
                     option { value: "pcb-fr4", "PCB FR-4" }
-                }
             }
         }
     }
@@ -3488,11 +3487,11 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     rsx! {
         fieldset { class: "m1-mechanical-group", disabled: !props.editable,
             legend { "Construction" }
-            label { class: "m1-mechanical-field",
-                span { "Plate method" }
-                select {
-                    value: "{method_id(&values.method)}",
-                    onchange: {
+            BoardSelectField {
+                label: "Plate method",
+                class: "m1-mechanical-field",
+                value: "{method_id(&values.method)}",
+                onchange: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -3500,17 +3499,16 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                    option { value: "pcb-fr4", "PCB FR-4" }
+                option { value: "pcb-fr4", "PCB FR-4" }
                     option { value: "printed", "3D printed" }
                     option { value: "cnc", "CNC machined" }
                     option { value: "cut-sheet", "Cut sheet" }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Mount style" }
-                select {
-                    value: "{mount_id(&values.mount)}",
-                    onchange: {
+            BoardSelectField {
+                label: "Mount style",
+                class: "m1-mechanical-field",
+                value: "{mount_id(&values.mount)}",
+                onchange: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -3518,17 +3516,16 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                    option { value: "tray", "Tray" }
+                option { value: "tray", "Tray" }
                     option { value: "rigid", "Rigid mount" }
                     option { value: "gasket", "Gasket mount" }
-                }
             }
-            label { class: "m1-mechanical-field",
-                span { "Bottom construction" }
-                select {
-                    disabled: values.mount == MechanicalMount::Gasket,
-                    value: "{bottom_style_id(&values.bottom_style)}",
-                    onchange: {
+            BoardSelectField {
+                label: "Bottom construction",
+                class: "m1-mechanical-field",
+                disabled: values.mount == MechanicalMount::Gasket,
+                value: "{bottom_style_id(&values.bottom_style)}",
+                onchange: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
@@ -3536,9 +3533,8 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
                     },
-                    option { value: "shell", "Tray shell" }
+                option { value: "shell", "Tray shell" }
                     option { value: "sheet", "Flat sheet" }
-                }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
                 label { class: "m1-mechanical-check",
@@ -3605,12 +3601,12 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
-                        label { class: "m1-mechanical-field",
-                            span { "Switch fit family" }
-                            select {
-                                disabled: !props.editable,
-                                value: profile.family.map(family_id).unwrap_or(""),
-                                onchange: {
+                        BoardSelectField {
+                            label: "Switch fit family",
+                            class: "m1-mechanical-field",
+                            disabled: !props.editable,
+                            value: (profile.family.map(family_id).unwrap_or("")).to_string(),
+                            onchange: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
@@ -3621,11 +3617,10 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                         }
                                     }
                                 },
-                                option { value: "", "Choose switch family…" }
+                            option { value: "", "Choose switch family…" }
                                 option { value: "mx", "MX" }
                                 option { value: "choc-v1", "Choc v1" }
                                 option { value: "choc-v2", "Choc v2" }
-                            }
                         }
                     } else if let Some(family) = profile.family {
                         p { "Switch fit: {family_label(family)}" }
@@ -3668,26 +3663,25 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
             }
             if props.targets.iter().any(|target| target.switch_profile) {
                 div { class: "m1-mechanical-profile-assignment",
-                    label { class: "m1-mechanical-field",
-                        span { "Library fit profile" }
-                        select {
-                            aria_label: "Library fit profile",
-                            disabled: !props.editable,
-                            value: selected_family(),
-                            onchange: move |event: FormEvent| selected_family.set(event.value()),
-                            option { value: "", "Choose a switch family…" }
+                    BoardSelectField {
+                        label: "Library fit profile",
+                        class: "m1-mechanical-field",
+                        aria_label: "Library fit profile",
+                        disabled: !props.editable,
+                        value: (selected_family()).to_string(),
+                        onchange: move |event: FormEvent| selected_family.set(event.value()),
+                        option { value: "", "Choose a switch family…" }
                             option { value: "mx", "MX switch" }
                             option { value: "choc-v1", "Choc v1 switch" }
                             option { value: "choc-v2", "Choc v2 switch" }
-                        }
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Assign library fit profile to" }
-                        select {
-                            aria_label: "Assign library fit profile to",
-                            disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
-                            value: "",
-                            onchange: {
+                    BoardSelectField {
+                        label: "Assign library fit profile to",
+                        class: "m1-mechanical-field",
+                        aria_label: "Assign library fit profile to",
+                        disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
+                        value: "",
+                        onchange: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
@@ -3709,33 +3703,31 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                            option { value: "", "Choose a placed switch type…" }
+                        option { value: "", "Choose a placed switch type…" }
                             for target in props.targets.iter().filter(|target| target.switch_profile) {
                                 option { value: "{target.definition_id}", "{target.name}" }
                             }
-                        }
                     }
                 }
                 div { class: "m1-mechanical-profile-assignment",
-                    label { class: "m1-mechanical-field",
-                        span { "Library stabilizer profile" }
-                        select {
-                            aria_label: "Library stabilizer profile",
-                            disabled: !props.editable,
-                            value: selected_stabilizer(),
-                            onchange: move |event: FormEvent| selected_stabilizer.set(event.value()),
-                            option { value: "", "Choose a stabilizer size…" }
+                    BoardSelectField {
+                        label: "Library stabilizer profile",
+                        class: "m1-mechanical-field",
+                        aria_label: "Library stabilizer profile",
+                        disabled: !props.editable,
+                        value: (selected_stabilizer()).to_string(),
+                        onchange: move |event: FormEvent| selected_stabilizer.set(event.value()),
+                        option { value: "", "Choose a stabilizer size…" }
                             option { value: "mx-stab2u", "MX stabilizer · 2u" }
                             option { value: "mx-stab625u", "MX stabilizer · 6.25u" }
-                        }
                     }
-                    label { class: "m1-mechanical-field",
-                        span { "Assign library stabilizer profile to" }
-                        select {
-                            aria_label: "Assign library stabilizer profile to",
-                            disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
-                            value: "",
-                            onchange: {
+                    BoardSelectField {
+                        label: "Assign library stabilizer profile to",
+                        class: "m1-mechanical-field",
+                        aria_label: "Assign library stabilizer profile to",
+                        disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
+                        value: "",
+                        onchange: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
@@ -3761,22 +3753,21 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                            option { value: "", "Choose a placed switch type…" }
+                        option { value: "", "Choose a placed switch type…" }
                             for target in props.targets.iter() {
                                 option { value: "{target.definition_id}", "{target.name}" }
                             }
-                        }
                     }
                 }
             }
             if props.targets.iter().any(|target| target.imported_geometry) {
-                label { class: "m1-mechanical-field",
-                    span { "Custom KiCad geometry" }
-                    select {
-                        aria_label: "Assign custom geometry profile to",
-                        disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
-                        value: "",
-                        onchange: {
+                BoardSelectField {
+                    label: "Custom KiCad geometry",
+                    class: "m1-mechanical-field",
+                    aria_label: "Assign custom geometry profile to",
+                    disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
+                    value: "",
+                    onchange: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
@@ -3793,11 +3784,10 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                 }
                             }
                         },
-                        option { value: "", "Choose imported part type…" }
+                    option { value: "", "Choose imported part type…" }
                         for target in props.targets.iter().filter(|target| target.imported_geometry) {
                             option { value: "{target.definition_id}", "{target.name}" }
                         }
-                    }
                 }
             }
             p { "Current plate thickness: {props.plate_thickness:.2} mm." }
@@ -3888,13 +3878,12 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                     }
                                     span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
                                 }
-                                label {
-                                    span { "Purpose" }
-                                    select {
-                                        aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
-                                        disabled: !props.editable || busy(),
-                                        value: purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose)),
-                                        onchange: {
+                                BoardSelectField {
+                                    label: "Purpose",
+                                    aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
+                                    disabled: !props.editable || busy(),
+                                    value: (purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose))).to_string(),
+                                    onchange: {
                                             let id = primitive.id.clone();
                                             let mut purposes = purposes;
                                             move |event: FormEvent| {
@@ -3905,11 +3894,10 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                                 purposes.set(entries);
                                             }
                                         },
-                                        option { value: "plate-cutout", "Plate cutout" }
+                                    option { value: "plate-cutout", "Plate cutout" }
                                         option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
                                         option { value: "clearance-envelope", "Clearance envelope" }
                                         option { value: "drawing-guide", "Drawing guide" }
-                                    }
                                 }
                             }
                         }
@@ -4077,8 +4065,10 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            button {
-                                r#type: "button", class: "m1-mechanical-quiet",
+                            BoardButton {
+                                variant: BoardButtonVariant::Quiet,
+                                density: BoardButtonDensity::Compact,
+                                class: "m1-mechanical-quiet",
                                 aria_label: "Remove {props.title} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
@@ -4201,8 +4191,10 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            button {
-                                r#type: "button", class: "m1-mechanical-quiet",
+                            BoardButton {
+                                variant: BoardButtonVariant::Quiet,
+                                density: BoardButtonDensity::Compact,
+                                class: "m1-mechanical-quiet",
                                 aria_label: "Remove {props.title} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {

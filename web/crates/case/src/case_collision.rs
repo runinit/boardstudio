@@ -4,7 +4,7 @@ use crate::{
     model_delivery::*,
     runtime::{CadScene, CollisionCheckInput, CollisionCheckReport, Runtime},
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardNumberField};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -136,10 +136,12 @@ pub(crate) fn CaseCollisionChecks(
     rsx! {
         BoardDisclosure { class: "m1-case-collision-checks", open: true,
             heading: rsx! { summary { "Collision check" } },
-            label { "Required clearance (mm)"
-                input { r#type: "number", min: "0", step: "0.01", value: clearance(),
-                    oninput: clearance_change
-                }
+            BoardNumberField {
+                label: "Required clearance (mm)",
+                min: "0",
+                step: "0.01",
+                value: (clearance()).to_string(),
+                oninput: clearance_change,
             }
             BoardButton { class: "m1-case-collision-default", disabled: !ready || threshold.is_none() || shown.pending,
                 onclick: move |_| check(None), "Check collisions" }

@@ -1,7 +1,7 @@
 //! Private read-only projection and typed view for saved Keymap macros.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{KeymapMacro, MacroChange, MacroStep, ProjectDoc};
-use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardSelectField};
 use dioxus::prelude::*;
 use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
@@ -421,12 +421,12 @@ fn StepEditor(props: StepEditorProps) -> Element {
     );
     rsx! {
         div { class: "m1-keymap-macro-step",
-            label {
-                "Step {index + 1}"
-                select {
-                    aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
-                    value: "{kind}", disabled: !props.enabled,
-                    onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event| {
+            BoardSelectField {
+                label: "Step {index + 1}",
+                aria_label: crate::macro_accessible_names::step_kind_control_name(&props.macro_name, index),
+                value: "{kind}",
+                disabled: !props.enabled,
+                onchange: { let context = request_context.clone(); let macro_id = macro_id.clone(); let sequence = sequence.clone(); move |event: FormEvent| {
                         let next = match event.value().as_str() {
                             "wait" => MacroStep::Wait { ms: 100 },
                             "press" => press_a(), "release" => release_a(), _ => tap_a(),
@@ -434,11 +434,10 @@ fn StepEditor(props: StepEditorProps) -> Element {
                         request(&context, MacroEditTarget::StepKind { index }, Some(macro_id.clone()), Some(sequence.clone()),
                             MacroEditChange::Change(MacroChange::Step { index, value: next }));
                     } },
-                    option { value: "tap", "tap" }
+                option { value: "tap", "tap" }
                     option { value: "press", "press" }
                     option { value: "release", "release" }
                     option { value: "wait", "wait" }
-                }
             }
             if let MacroStep::Wait { .. } = displayed {
                 NumberDraft {

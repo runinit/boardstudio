@@ -10,7 +10,7 @@ use boardstudio_core::model::{
     Contour, CornerStyle, EditPhase, Operation, OutlineControlPoint, OutlineFeature, Side, Vec2,
     polygon_signed_area,
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardSelectField};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
@@ -271,20 +271,20 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                 }
             }
             div { class: "m1-outline-settings",
-                label { class: "m1-outline-field",
-                    span { "Active outline" }
-                    select {
-                        aria_label: "Active outline",
-                        value: "{active_value}",
-                        disabled: !one_shot_enabled,
-                        onchange: {
+                BoardSelectField {
+                    label: "Active outline",
+                    class: "m1-outline-field",
+                    aria_label: "Active outline",
+                    value: "{active_value}",
+                    disabled: !one_shot_enabled,
+                    onchange: {
                             let action_context = action_context.clone();
                             move |event: FormEvent| {
                                 let value = event.value();
                                 on_action.call(action_context.activate_action((!value.is_empty()).then_some(value)));
                             }
                         },
-                        option { value: "", selected: active_value.is_empty(), "Generated" }
+                    option { value: "", selected: active_value.is_empty(), "Generated" }
                         for item in projection.versions.iter() {
                             option {
                                 key: "{item.id}",
@@ -294,7 +294,6 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 "{item.label()}"
                             }
                         }
-                    }
                 }
                 if let Some(version_id) = active_version.as_ref() {
                     label { class: "m1-outline-field",
@@ -383,13 +382,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                     }
                 }
                 if projection.has_generated || projection.active_version_id.is_some() {
-                    label { class: "m1-outline-field",
-                        span { "Corners" }
-                        select {
-                            aria_label: "Outline corners",
-                            value: "{corner_value}",
-                            disabled: !enabled,
-                            onchange: {
+                    BoardSelectField {
+                        label: "Corners",
+                        class: "m1-outline-field",
+                        aria_label: "Outline corners",
+                        value: "{corner_value}",
+                        disabled: !enabled,
+                        onchange: {
                                 let action_context = action_context.clone();
                                 move |event: FormEvent| {
                                 let corner = match event.value().as_str() {
@@ -399,10 +398,9 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 };
                                 on_action.call(action_context.action(OutlineEdit::SetCorners(corner)));
                             }},
-                            option { value: "sharp", "Sharp" }
+                        option { value: "sharp", "Sharp" }
                             option { value: "fillet", "Fillet" }
                             option { value: "chamfer", "Chamfer" }
-                        }
                     }
                     if projection.settings.corners != CornerStyle::Sharp {
                         OutlineDimension {
@@ -827,13 +825,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                 },
                                             }
                                         }
-                                        label { class: "m1-outline-field",
-                                            span { "Point attachment" }
-                                            select {
-                                                aria_label: "Point {index + 1} attachment",
-                                                value: "{point.part_id.as_deref().unwrap_or_default()}",
-                                                disabled: !enabled,
-                                                onchange: {
+                                        BoardSelectField {
+                                            label: "Point attachment",
+                                            class: "m1-outline-field",
+                                            aria_label: "Point {index + 1} attachment",
+                                            value: "{point.part_id.as_deref().unwrap_or_default()}",
+                                            disabled: !enabled,
+                                            onchange: {
                                                     let action_context = action_context.clone();
                                                     let before = before.clone();
                                                     let version_id = active_version.clone();
@@ -845,14 +843,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                         on_action.call(action_context.set_feature(version_id.clone(), before.clone(), next));
                                                     }
                                                 },
-                                                option { value: "", "Fixed on board" }
+                                            option { value: "", "Fixed on board" }
                                                 if let Some(id) = point.part_id.as_ref().filter(|id| !projection.outline_parts.iter().any(|part| &part.id == *id)) {
                                                     option { value: "{id}", "Missing component" }
                                                 }
                                                 for part in projection.outline_parts.iter() {
                                                     option { key: "{part.id}", value: "{part.id}", "{part.reference}" }
                                                 }
-                                            }
                                         }
                                         div { class: "m1-outline-point-actions",
                                             button {

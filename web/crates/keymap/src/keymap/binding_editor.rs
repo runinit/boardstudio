@@ -1,6 +1,7 @@
 //! Private, typed editor for one accepted Keymap binding.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{EncoderDirection, KeyBinding};
+use boardstudio_web_ui_shared::controls::BoardSelectField;
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -507,11 +508,12 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
 
     rsx! {
         section { class: "m1-keymap-binding-editor", "aria-label": "Key binding",
-            label { class: "m1-keymap-binding-field", "Behavior"
-                select {
-                    "aria-label": "{key_label} behavior",
-                    value: "{behavior.value()}",
-                    disabled,
+            BoardSelectField {
+                label: "Behavior",
+                class: "m1-keymap-binding-field",
+                aria_label: "{key_label} behavior",
+                value: "{behavior.value()}",
+                disabled,
                     onchange: move |event: FormEvent| {
                         if let Some(next_behavior) = Behavior::from_value(&event.value())
                             && (next_behavior != Behavior::Macro || !macros.is_empty()) {
@@ -534,7 +536,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                             "{title}"
                         }
                     }
-                }
             }
             if let Some((field_label, field, accepted_value)) = keycode_field {
                 {
@@ -578,11 +579,12 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                     let hold_change = props.on_change;
                     let hold_binding = value.clone();
                     rsx! {
-                        label { class: "m1-keymap-binding-field", "Hold modifier"
-                            select {
-                                "aria-label": "{props.key_label} hold modifier",
-                                value: "{current_hold}",
-                                disabled,
+                        BoardSelectField {
+                            label: "Hold modifier",
+                            class: "m1-keymap-binding-field",
+                            aria_label: "{props.key_label} hold modifier",
+                            value: "{current_hold}",
+                            disabled,
                                 onchange: move |event: FormEvent| {
                                     if let KeyBinding::ModTap { tap, .. } = &hold_binding {
                                         emit_change(
@@ -600,7 +602,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                                 for modifier in HOLD_MODIFIERS {
                                     option { key: "{modifier}", value: "{modifier}", selected: modifier == current_hold.as_str(), "{modifier}" }
                                 }
-                            }
                         }
                     }
                 }
@@ -613,11 +614,12 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                     let layer_context = context.clone();
                     let layer_change = props.on_change;
                     rsx! {
-                        label { class: "m1-keymap-binding-field", "Layer"
-                            select {
-                                "aria-label": "{props.key_label} layer",
-                                value: "{selected_layer_id}",
-                                disabled,
+                        BoardSelectField {
+                            label: "Layer",
+                            class: "m1-keymap-binding-field",
+                            aria_label: "{props.key_label} layer",
+                            value: "{selected_layer_id}",
+                            disabled,
                                 onchange: move |event: FormEvent| {
                                     if let Some(binding) = with_layer_id(&layer_binding, event.value()) {
                                         emit_change(
@@ -637,7 +639,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                                         "{layer.name}"
                                     }
                                 }
-                            }
                         }
                     }
                 }
@@ -649,11 +650,12 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                     let macro_context = context.clone();
                     let macro_change = props.on_change;
                     rsx! {
-                        label { class: "m1-keymap-binding-field", "Macro"
-                            select {
-                                "aria-label": "{props.key_label} macro",
-                                value: "{selected_macro_id}",
-                                disabled,
+                        BoardSelectField {
+                            label: "Macro",
+                            class: "m1-keymap-binding-field",
+                            aria_label: "{props.key_label} macro",
+                            value: "{selected_macro_id}",
+                            disabled,
                                 onchange: move |event: FormEvent| {
                                     emit_change(
                                         &macro_context,
@@ -671,7 +673,6 @@ pub fn BindingEditor(props: BindingEditorProps) -> Element {
                                         "{item.name}"
                                     }
                                 }
-                            }
                         }
                     }
                 }

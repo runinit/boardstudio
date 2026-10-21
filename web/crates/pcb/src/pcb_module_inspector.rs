@@ -9,7 +9,9 @@ use boardstudio_core::model::{
     PartDefinition, Side, VikRole, VikSignal,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant, BoardCheckbox};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonVariant, BoardCheckbox, BoardNumberField, BoardSelectField,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -533,12 +535,12 @@ fn PcbMountedModuleInspector(
         section { class: "m1-pcb-module-inspector", "aria-label": "Mounted module placement",
             h2 { "{module_name} placement" }
             p { class: "m1-pcb-module-source-note", "Placement edits affect this project instance. Source footprint artwork remains owned by the module." }
-            label { "Host board"
-                select {
-                    aria_label: "Module host board",
-                    value: "{draft().host_board_id}",
-                    disabled: !editable,
-                    onchange: move |event| {
+            BoardSelectField {
+                label: "Host board",
+                aria_label: "Module host board",
+                value: "{draft().host_board_id}",
+                disabled: !editable,
+                onchange: move |event: FormEvent| {
                         let next = event.value();
                         edit_module_draft(draft, draft_dirty, |value| {
                             value.host_board_id = next.clone();
@@ -547,82 +549,90 @@ fn PcbMountedModuleInspector(
                             }
                         });
                     },
-                    for board in &boards { option { value: "{board.id}", "{board.name}" } }
-                }
+                for board in &boards { option { value: "{board.id}", "{board.name}" } }
             }
-            label { "Physical instance"
-                select {
-                    aria_label: "Module physical instance",
-                    value: "{draft().host_instance_id.clone().unwrap_or_default()}",
-                    disabled: !editable,
-                    onchange: move |event| {
+            BoardSelectField {
+                label: "Physical instance",
+                aria_label: "Module physical instance",
+                value: "{draft().host_instance_id.clone().unwrap_or_default()}",
+                disabled: !editable,
+                onchange: move |event: FormEvent| {
                         let id = event.value();
                         edit_module_draft(draft, draft_dirty, |value| value.host_instance_id = (!id.is_empty()).then_some(id));
                     },
-                    option { value: "", "Board-wide" }
+                option { value: "", "Board-wide" }
                     for (id, name) in &options { option { value: "{id}", "{name}" } }
-                }
             }
-            label { "Mounted face"
-                select {
-                    aria_label: "Module host face",
-                    value: if draft().host_face == Side::Front { "front" } else { "back" },
-                    disabled: !editable,
-                    onchange: move |event| edit_module_draft(draft, draft_dirty, |value| value.host_face = side(&event.value())),
-                    option { value: "front", "Front" }
+            BoardSelectField {
+                label: "Mounted face",
+                aria_label: "Module host face",
+                value: (if draft().host_face == Side::Front { "front" } else { "back" }).to_string(),
+                disabled: !editable,
+                onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| value.host_face = side(&event.value())),
+                option { value: "front", "Front" }
                     option { value: "back", "Back" }
-                }
             }
-            label { "Facing face"
-                select {
-                    aria_label: "Module facing face",
-                    value: if draft().facing_face == Side::Front { "front" } else { "back" },
-                    disabled: !editable,
-                    onchange: move |event| edit_module_draft(draft, draft_dirty, |value| value.facing_face = side(&event.value())),
-                    option { value: "front", "Front" }
+            BoardSelectField {
+                label: "Facing face",
+                aria_label: "Module facing face",
+                value: (if draft().facing_face == Side::Front { "front" } else { "back" }).to_string(),
+                disabled: !editable,
+                onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| value.facing_face = side(&event.value())),
+                option { value: "front", "Front" }
                     option { value: "back", "Back" }
-                }
             }
-            label { "X (mm)"
-                input { r#type: "number", step: "any", value: "{draft().at.x}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.x = number); }
-                }
+            BoardNumberField {
+                label: "X (mm)",
+                step: "any",
+                value: "{draft().at.x}",
+                disabled: !editable,
+                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.x = number); },
             }
-            label { "Y (mm)"
-                input { r#type: "number", step: "any", value: "{draft().at.y}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.y = number); }
-                }
+            BoardNumberField {
+                label: "Y (mm)",
+                step: "any",
+                value: "{draft().at.y}",
+                disabled: !editable,
+                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.at.y = number); },
             }
-            label { "Yaw (degrees)"
-                input { r#type: "number", step: "any", value: "{draft().rotation}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.rotation = number); }
-                }
+            BoardNumberField {
+                label: "Yaw (degrees)",
+                step: "any",
+                value: "{draft().rotation}",
+                disabled: !editable,
+                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() { edit_module_draft(draft, draft_dirty, |value| value.rotation = number); },
             }
-            label { "Gap (mm)"
-                input { r#type: "number", min: "0", step: "any", value: "{draft().gap}", disabled: !editable,
-                    oninput: move |event| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { edit_module_draft(draft, draft_dirty, |value| value.gap = number); }
-                }
+            BoardNumberField {
+                label: "Gap (mm)",
+                min: "0",
+                step: "any",
+                value: "{draft().gap}",
+                disabled: !editable,
+                oninput: move |event: FormEvent| if let Ok(number) = event.value().parse::<f64>() && number.is_finite() && number >= 0.0 { edit_module_draft(draft, draft_dirty, |value| value.gap = number); },
             }
-            label { "Attachment"
-                select {
-                    aria_label: "Module attachment",
-                    value: if draft().attachment == ModuleAttachment::Board { "board" } else { "case" },
-                    disabled: !editable,
-                    onchange: move |event| edit_module_draft(draft, draft_dirty, |value| value.attachment = if event.value() == "case" { ModuleAttachment::Case } else { ModuleAttachment::Board }),
-                    option { value: "board", "Board" }
+            BoardSelectField {
+                label: "Attachment",
+                aria_label: "Module attachment",
+                value: (if draft().attachment == ModuleAttachment::Board { "board" } else { "case" }).to_string(),
+                disabled: !editable,
+                onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| value.attachment = if event.value() == "case" { ModuleAttachment::Case } else { ModuleAttachment::Board }),
+                option { value: "board", "Board" }
                     option { value: "case", "Case" }
-                }
             }
-            label { "Extra service clearance (mm)"
-                input { r#type: "number", min: "0", step: "0.1", aria_label: "Module service clearance", value: "{draft().service_clearance}", disabled: !editable,
-                    oninput: move |event| {
+            BoardNumberField {
+                label: "Extra service clearance (mm)",
+                min: "0",
+                step: "0.1",
+                aria_label: "Module service clearance",
+                value: "{draft().service_clearance}",
+                disabled: !editable,
+                oninput: move |event: FormEvent| {
                         let raw = event.value();
                         let number = if raw.trim().is_empty() { Some(0.0) } else { raw.parse::<f64>().ok() };
                         if let Some(number) = number.filter(|number| number.is_finite() && *number >= 0.0) {
                             edit_module_draft(draft, draft_dirty, |value| value.service_clearance = number);
                         }
-                    }
-                }
+                    },
             }
             section { class: "m1-pcb-module-supports", "aria-label": "{support_section}",
                 h3 { "{support_section}" }
@@ -643,38 +653,49 @@ fn PcbMountedModuleInspector(
                         }
                     }
                 }
-                label { "Source mounting hole"
-                    select {
-                        aria_label: "Support source mounting hole",
-                        value: "{support_draft().mount_id}",
-                        disabled: !editable || !has_source_mounts,
-                        onchange: move |event| support_draft.with_mut(|value| value.mount_id = event.value()),
-                        option { value: "", "Choose module hole…" }
+                BoardSelectField {
+                    label: "Source mounting hole",
+                    aria_label: "Support source mounting hole",
+                    value: "{support_draft().mount_id}",
+                    disabled: !editable || !has_source_mounts,
+                    onchange: move |event: FormEvent| support_draft.with_mut(|value| value.mount_id = event.value()),
+                    option { value: "", "Choose module hole…" }
                         for mount in &source_mounts {
                             option { value: "{mount.source_id}", "{mount.source_id} · source drill {mount.diameter} mm" }
                         }
-                    }
                 }
                 div { class: "m1-pcb-module-support-fields",
-                    label { "Outer diameter (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support outer diameter", value: "{support_draft().outer_diameter}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.outer_diameter = event.value())
-                        }
+                    BoardNumberField {
+                        label: "Outer diameter (mm)",
+                        step: "0.1",
+                        aria_label: "Support outer diameter",
+                        value: "{support_draft().outer_diameter}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.outer_diameter = event.value()),
                     }
-                    label { "Hole diameter (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support hole diameter", value: "{support_draft().hole_diameter}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.hole_diameter = event.value())
-                        }
+                    BoardNumberField {
+                        label: "Hole diameter (mm)",
+                        step: "0.1",
+                        aria_label: "Support hole diameter",
+                        value: "{support_draft().hole_diameter}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.hole_diameter = event.value()),
                     }
-                    label { "Z from midplane (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support Z from midplane", value: "{support_draft().z}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.z = event.value())
-                        }
+                    BoardNumberField {
+                        label: "Z from midplane (mm)",
+                        step: "0.1",
+                        aria_label: "Support Z from midplane",
+                        value: "{support_draft().z}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.z = event.value()),
                     }
-                    label { "Ring height (mm)"
-                        input { r#type: "number", step: "0.1", aria_label: "Support ring height", value: "{support_draft().height}", disabled: !editable,
-                            oninput: move |event| support_draft.with_mut(|value| value.height = event.value())
-                        }
+                    BoardNumberField {
+                        label: "Ring height (mm)",
+                        step: "0.1",
+                        aria_label: "Support ring height",
+                        value: "{support_draft().height}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| support_draft.with_mut(|value| value.height = event.value()),
                     }
                 }
                 BoardButton { r#type: "button", disabled: !editable || !has_source_mounts, onclick: move |_| {
@@ -745,18 +766,17 @@ fn PcbMountedModuleInspector(
                     }
                 } "Assign host connection" }
                 if let Some(connection) = draft().connection {
-                    label { "Host connector"
-                        select {
-                            aria_label: "Module host connector",
-                            value: "{connection.host_connector_part_id}",
-                            disabled: !editable,
-                            onchange: move |event| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
-                            option { value: "", "Select VIK host connector" }
+                    BoardSelectField {
+                        label: "Host connector",
+                        aria_label: "Module host connector",
+                        value: "{connection.host_connector_part_id}",
+                        disabled: !editable,
+                        onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.host_connector_part_id = event.value(); }),
+                        option { value: "", "Select VIK host connector" }
                             if connectors.is_empty() && automatic_connector_can_be_created {
                                 option { value: "{automatic_connector_id}", "Add source-backed horizontal VIK connector beside module" }
                             }
                             for (id, reference) in &connectors { option { value: "{id}", "{reference}" } }
-                        }
                     }
                     if connectors.is_empty() {
                         if automatic_connector_can_be_created {
@@ -765,16 +785,15 @@ fn PcbMountedModuleInspector(
                             p { "The automatic connector ID is already used by a part outside this board. Choose a valid host connector or clear the connection." }
                         }
                     }
-                    label { "Module port"
-                        select {
-                            aria_label: "Module input port",
-                            value: "{connection.module_port_id}",
-                            disabled: !editable,
-                            onchange: move |event| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.module_port_id = event.value(); }),
-                            for port in definition.interfaces.iter().filter(|port| port.role == VikRole::Module) {
+                    BoardSelectField {
+                        label: "Module port",
+                        aria_label: "Module input port",
+                        value: "{connection.module_port_id}",
+                        disabled: !editable,
+                        onchange: move |event: FormEvent| edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection { connection.module_port_id = event.value(); }),
+                        for port in definition.interfaces.iter().filter(|port| port.role == VikRole::Module) {
                                 option { value: "{port.id}", "{port.id}" }
                             }
-                        }
                     }
                     label { "Bus name"
                         input { r#type: "text", aria_label: "Module bus name", value: "{connection.bus_id}", disabled: !editable,
@@ -812,15 +831,19 @@ fn PcbMountedModuleInspector(
                             }
                         }
                     }
-                    label { "Supply budget · mA"
-                        input { r#type: "number", min: "0", aria_label: "VIK supply current budget", value: "{connection.supply_current_ma.map(|value| value.to_string()).unwrap_or_default()}", disabled: !editable,
-                            oninput: move |event| {
+                    BoardNumberField {
+                        label: "Supply budget · mA",
+                        min: "0",
+                        aria_label: "VIK supply current budget",
+                        value: "{connection.supply_current_ma.map(|value| value.to_string()).unwrap_or_default()}",
+                        disabled: !editable,
+                        oninput: move |event: FormEvent| {
                                 let raw = event.value();
                                 edit_module_draft(draft, draft_dirty, |value| if let Some(connection) = &mut value.connection {
                                     connection.supply_current_ma = if raw.trim().is_empty() { None } else { raw.parse::<f64>().ok().filter(|number| number.is_finite() && *number >= 0.0) };
                                 });
-                            }
-                        }
+                            },
+                        step: "1",
                     }
                 }
             }

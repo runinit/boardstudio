@@ -75,12 +75,12 @@ pub fn BoardButton(
 ) -> Element {
     let variant_class = match variant {
         BoardButtonVariant::Primary => "board-button--primary",
-        BoardButtonVariant::Secondary => "board-button--secondary",
+        BoardButtonVariant::Secondary => "",
         BoardButtonVariant::Quiet => "board-button--quiet",
         BoardButtonVariant::Danger => "board-button--danger",
     };
     let density_class = match density {
-        BoardButtonDensity::Comfortable => "board-button--comfortable",
+        BoardButtonDensity::Comfortable => "",
         BoardButtonDensity::Compact => "board-button--compact",
     };
     rsx! {
@@ -126,6 +126,7 @@ pub fn BoardAccordionSection(
     label: String,
     id: String,
     #[props(default)] initially_open: bool,
+    #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
     heading: Element,
     children: Element,
 ) -> Element {
@@ -133,7 +134,9 @@ pub fn BoardAccordionSection(
         Accordion, AccordionContent, AccordionItem, AccordionTrigger,
     };
     rsx! {
-        Accordion { class: "board-accordion {class}",
+        Accordion {
+            attributes: vec![dioxus::events::onkeydown(move |event| onkeydown.call(event))],
+            class: "board-accordion {class}",
             AccordionItem { index: 0usize, default_open: initially_open,
                 AccordionTrigger { id, class: "board-accordion-trigger", aria_label: label,
                     {heading}
@@ -230,6 +233,11 @@ pub fn BoardNumberField(
     value: String,
     #[props(default)] unit: String,
     #[props(default)] readonly: bool,
+    #[props(default)] disabled: bool,
+    #[props(default)] min: Option<String>,
+    #[props(default)] max: Option<String>,
+    #[props(default = "any".to_owned())] step: String,
+    #[props(default)] aria_label: Option<String>,
     #[props(default)] error: Option<String>,
     #[props(default)] class: String,
     #[props(default)] oninput: EventHandler<FormEvent>,
@@ -252,8 +260,8 @@ pub fn BoardNumberField(
             span { class: "board-field-input flex items-center gap-1.5 min-w-0",
                 input {
                     class: "board-field-control min-w-0 w-full tabular-nums",
-                    r#type: "number", step: "any", value, readonly,
-                    aria_label: label,
+                    r#type: "number", step, min, max, value, readonly, disabled,
+                    aria_label: aria_label.unwrap_or(label),
                     aria_invalid: error.is_some(),
                     aria_describedby: described_by,
                     oninput, onblur, onkeydown,
@@ -558,6 +566,16 @@ mod tests {
                 onclick: move |_| button_activations.set(button_activations() + 1),
                 "Option"
             }
+            BoardNumberField {
+                class: "board-controls-number",
+                label: "Width",
+                value: "3",
+                min: Some("0".to_owned()),
+                max: Some("10".to_owned()),
+                step: "0.5",
+                disabled: true,
+                error: Some("Enter 0 or greater.".to_owned()),
+            }
             output { id: "board-controls-selected", "{selected()}" }
             output { id: "board-controls-pressed", "{pressed()}" }
             output { id: "board-controls-button-activations", "{button_activations()}" }
@@ -653,6 +671,31 @@ mod tests {
                 .text_content()
                 .as_deref(),
             Some("0")
+        );
+        root().remove();
+    }
+
+    #[wasm_bindgen_test]
+    async fn number_field_exposes_bounds_step_disabled_and_associated_error() {
+        mount().await;
+        let input = element(".board-controls-number input");
+        for (name, expected) in [
+            ("min", "0"),
+            ("max", "10"),
+            ("step", "0.5"),
+            ("aria-invalid", "true"),
+        ] {
+            assert_eq!(
+                input.get_attribute(name).as_deref(),
+                Some(expected),
+                "{name}"
+            );
+        }
+        assert!(input.has_attribute("disabled"));
+        let error = element(".board-controls-number small[role='alert']");
+        assert_eq!(
+            input.get_attribute("aria-describedby"),
+            error.get_attribute("id")
         );
         root().remove();
     }

@@ -7,7 +7,9 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{GenerationStatus, ReadModel, SelectionMode};
 use boardstudio_core::model::OutlineExportFormat;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox,
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
@@ -117,31 +119,17 @@ pub(super) fn ExportWorkspace(
     rsx! {
         section { class: "m1-export-panel m1-export-workspace", "aria-label": "Export package",
             header { class: "m1-export-heading",
-                button { class: "m1-export-back", r#type: "button", onclick: move |_| workspace.set(back), "Back to {back}" }
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
+                    density: BoardButtonDensity::Compact,
+                    class: "m1-export-back",
+                    onclick: move |_| workspace.set(back),
+                    "Back to {back}"
+                }
                 h1 { "Export package" }
                 p { "Choose a handoff for {board_name}. Downloads use the current committed design; routing and mechanical fit still need downstream review." }
             }
-            h2 { class: "m1-export-section-title", "Design files" }
-            div { class: "m1-export-list",
-                for row in rows {
-                    ExportRowView { row, zmk_firmware: zmk_firmware.clone() }
-                }
-            }
-            div { class: "m1-export-review-links",
-                button { r#type: "button", onclick: review_wiring, "Review wiring" }
-                button { r#type: "button", onclick: review_case, "Review case" }
-            }
             div { class: "m1-export-rail",
-                aside { class: "m1-export-current", aria_label: "Current design",
-                    h2 { "Current design" }
-                    dl {
-                        dt { "Project" } dd { "{project_name}" }
-                        dt { "Active board" } dd { "{board_name}" }
-                        dt { "Revision" } dd { "{revision}" }
-                        dt { "Local save" } dd { "{durability}" }
-                    }
-                    p { "Review routing, firmware builds and mechanical fit in downstream tools." }
-                }
                 section { class: "m1-export-portable", "aria-label": "Portable project",
                     h2 { "Portable project" }
                     p { "Keep an editable copy of the whole project, including all boards." }
@@ -161,6 +149,26 @@ pub(super) fn ExportWorkspace(
                         "Download .boardstudio project"
                     }
                 }
+                aside { class: "m1-export-current", aria_label: "Current design",
+                    h2 { "Current design" }
+                    dl {
+                        dt { "Project" } dd { "{project_name}" }
+                        dt { "Active board" } dd { "{board_name}" }
+                        dt { "Revision" } dd { "{revision}" }
+                        dt { "Local save" } dd { "{durability}" }
+                    }
+                    p { "Review routing, firmware builds and mechanical fit in downstream tools." }
+                }
+            }
+            h2 { class: "m1-export-section-title", "Design files" }
+            div { class: "m1-export-list",
+                for row in rows {
+                    ExportRowView { row, zmk_firmware: zmk_firmware.clone() }
+                }
+            }
+            div { class: "m1-export-review-links",
+                BoardButton { onclick: review_wiring, "Review wiring" }
+                BoardButton { onclick: review_case, "Review case" }
             }
             RuntimeReportBanner {}
         }
@@ -206,14 +214,14 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             BoardButton {
                 class: "m1-export-row-action",
                 r#type: "button",
-                aria_label: if row.ready && row.available { format!("Export {}", row.label) } else if row.ready { format!("{} export provider unavailable", row.label) } else { format!("{} needs work", row.label) },
+                aria_label: format!("Export {}", row.label),
                 disabled: !row.ready || !row.available,
                 onclick: move |_| {
                     if let Some(on_export) = row.on_export.as_ref() {
                         on_export.call(());
                     }
                 },
-                if row.ready { "{row.action}" } else { "Needs work" }
+                "{row.action}"
             }
         }
     }
@@ -588,7 +596,7 @@ mod tests {
                 Some("Review the board outline and layout findings."),
                 true,
                 "Needs board review",
-                "Needs work",
+                "Export KiCad",
             ),
             (
                 true,
@@ -596,7 +604,7 @@ mod tests {
                 Some("Review the layout and resolve controller wiring in PCB."),
                 true,
                 "Needs controller wiring",
-                "Needs work",
+                "Export KiCad",
             ),
             (true, true, None, false, "Available", "Export KiCad"),
         ];

@@ -630,7 +630,7 @@ pub fn App() -> Element {
             },
             header { class: "m1-topbar",
                 div { class: "m1-header-identity",
-                    div { class: "m1-brand", aria_label: "BoardStudio",
+                    div { class: "m1-brand", role: "img", aria_label: "BoardStudio",
                         svg { view_box: "0 0 24 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
                             rect { x: "1", y: "2", width: "22", height: "16", rx: "2" }
                             path { d: "M1 7h22M1 12h22M6 2v10M12 2v10M18 2v10M5 12v6M19 12v6" }
@@ -720,7 +720,7 @@ pub fn App() -> Element {
                         project_menu::ThemePicker {}
                     }
                 }
-                button { class: "m1-export-tab", id: "m1-tab-Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
+                button { class: "m1-export-tab", id: "m1-tab-Export", aria_label: "Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
                     svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
                     span { "Export" }
                 }

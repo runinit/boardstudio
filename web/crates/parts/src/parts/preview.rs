@@ -4,14 +4,14 @@ use crate::footprint_forms::{Graphic, Shape};
 use crate::presentation::footprint_graphics::{self, Drawings, GraphicElement};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Side, Vec2};
+use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeSet,
     rc::Rc,
 };
-use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
 
 #[cfg(test)]
 thread_local! {
@@ -334,10 +334,10 @@ pub fn PartsPreviewPanel(
 
     let view_controls = rsx! {
             div { class: "m1-design-view-group board-tool-pill", role: "group", aria_label: "Part preview view",
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
                     aria_label: "2D footprint", title: "2D footprint",
-                    aria_pressed: "{!show_3d()}",
+                    pressed: Some(!show_3d()),
                     onclick: move |_| {
                         show_3d.set(false);
                         lease_slot.invalidate();
@@ -348,10 +348,10 @@ pub fn PartsPreviewPanel(
                     }
                     span { class: "m1-visually-hidden", "2D footprint" }
                 }
-                button {
-                    r#type: "button",
+                BoardButton {
+                    variant: BoardButtonVariant::Quiet,
                     aria_label: "3D model", title: "3D model",
-                    aria_pressed: "{show_3d()}",
+                    pressed: Some(show_3d()),
                     onclick: move |_| show_3d.set(true),
                     svg { view_box: "0 0 20 20", "aria-hidden": "true",
                         path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
@@ -1044,23 +1044,6 @@ fn PartsPreviewLayers(
     hidden: BTreeSet<String>,
     on_toggle: EventHandler<String>,
 ) -> Element {
-    let mut open = use_signal(|| false);
-    let mut close_and_restore_focus = move || {
-        open.set(false);
-        if let Some(trigger) = web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| document.get_element_by_id("m1-parts-preview-layers-trigger"))
-            .and_then(|element| element.dyn_into::<HtmlElement>().ok())
-        {
-            let _ = trigger.focus();
-        }
-    };
-    let keydown = move |event: KeyboardEvent| {
-        if event.data().key().to_string() == "Escape" && open() {
-            event.prevent_default();
-            close_and_restore_focus();
-        }
-    };
     let mut groups = Vec::<(&'static str, Vec<PreviewLayer>)>::new();
     for layer in layers {
         if let Some((_, entries)) = groups.iter_mut().find(|(group, _)| *group == layer.group) {
@@ -1070,31 +1053,27 @@ fn PartsPreviewLayers(
         }
     }
     let content = rsx! {
-        section { class: "m1-layers", "data-open": "{open()}", "aria-label": "Parts preview layers", onkeydown: keydown,
-            button { id: "m1-parts-preview-layers-trigger", class: "m1-layers-trigger", type: "button", "aria-expanded": "{open()}", "aria-controls": "m1-parts-preview-layers-list", onclick: move |_| open.set(!open()),
-                aria_label: "Preview layers", "Preview layers"
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: if open() { "m5 12 5-5 5 5" } else { "m5 8 5 5 5-5" } } }
-            }
-            if open() {
-                button { class: "m1-layers-close", type: "button", onclick: move |_| close_and_restore_focus(), "Close" }
-            }
-            div { id: "m1-parts-preview-layers-list", class: "m1-layer-list", hidden: !open(),
-                for (group_name, group_layers) in groups {
-                    div { key: "{group_name}", class: "m1-layer-group", role: "group", "aria-label": "{group_name}",
-                        p { class: "m1-layer-label", "{group_name}" }
-                        for layer in group_layers {
-                            { let id = layer.id.clone();
-                              let visible = !hidden.contains(&id);
-                              let action = if visible { "Hide" } else { "Show" };
-                              let accessible = format!("{action} {}", layer.label);
-                              rsx! {
-                                  button { key: "{layer.id}", type: "button", "aria-pressed": "{visible}", "aria-label": "{accessible}", onclick: move |_| on_toggle.call(id.clone()),
-                                      span { class: "m1-layer-swatch", "data-layer": "{layer.label}" }
-                                      span { class: "m1-layer-label", "{layer.label}" }
-                                      svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M2 10q8-12 16 0-8 12-16 0Z" }, circle { cx: "10", cy: "10", r: "2.5" }, if !visible { path { d: "m3 17 14-14" } } }
-                                  }
+        LayerPanel {
+            trigger_label: "Preview layers",
+            trigger_id: "m1-parts-preview-layers-trigger",
+            list_id: "m1-parts-preview-layers-list",
+            for (group_name, group_layers) in groups {
+                div { key: "{group_name}", class: "m1-layer-group", role: "group", "aria-label": "{group_name}",
+                    div { class: "m1-layer-group-heading", "{group_name}" }
+                    for layer in group_layers {
+                        { let id = layer.id.clone();
+                          let visible = !hidden.contains(&id);
+                          let action = if visible { "Hide" } else { "Show" };
+                          rsx! {
+                              LayerToggleButton {
+                                  key: "{layer.id}",
+                                  label: layer.label.clone(),
+                                  swatch: layer.label.clone(),
+                                  aria_label: format!("{action} {}", layer.label),
+                                  visible,
+                                  on_toggle: move |_| on_toggle.call(id.clone()),
                               }
-                            }
+                          }
                         }
                     }
                 }
@@ -1111,6 +1090,7 @@ mod tests {
     use boardstudio_application::{AcceptedSnapshot, Scope, SessionEpoch};
     use boardstudio_core::model::{Board, ProjectDoc};
     use std::sync::Arc;
+    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
     use web_sys::{Element as DomElement, HtmlElement};
 
@@ -1280,6 +1260,71 @@ mod tests {
             gloo_timers::future::TimeoutFuture::new(20).await;
         }
         panic!("timed out waiting for mounted Parts button: {label}");
+    }
+
+    #[component]
+    fn parts_layers_host() -> Element {
+        rsx! {
+            PartsPreviewLayers {
+                layers: vec![PreviewLayer {
+                    id: "F.Cu".into(), label: "Front copper".into(), group: "Copper",
+                }],
+                hidden: BTreeSet::new(),
+                on_toggle: move |_| {},
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn parts_layers_escape_closes_and_restores_trigger_focus() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_id("parts-layers-escape-test");
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(parts_layers_host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let trigger = wait_for(&root, "#m1-parts-preview-layers-trigger")
+            .await
+            .dyn_into::<HtmlElement>()
+            .unwrap();
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        trigger.click();
+        wait_for(
+            &root,
+            "#m1-parts-preview-layers-trigger[aria-expanded='true']",
+        )
+        .await;
+        let layer = wait_for(&root, "#m1-parts-preview-layers-list button")
+            .await
+            .dyn_into::<HtmlElement>()
+            .unwrap();
+        layer.focus().unwrap();
+        assert_eq!(
+            document.active_element(),
+            Some(layer.clone().unchecked_into())
+        );
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("Escape");
+        key.set_bubbles(true);
+        key.set_cancelable(true);
+        layer
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_for(
+            &root,
+            "#m1-parts-preview-layers-trigger[aria-expanded='false']",
+        )
+        .await;
+        assert_eq!(document.active_element(), Some(trigger.unchecked_into()));
+        root.remove();
     }
 
     #[wasm_bindgen_test]

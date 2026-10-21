@@ -1,6 +1,7 @@
 //! Layout Inspector controls for accepted keycap size.
 use super::keycap_resize::ResizeAxis;
 use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
+use boardstudio_web_ui_shared::controls::BoardSelectField;
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 
@@ -175,10 +176,13 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 figcaption { output { "{value_label}" } }
               } }
             }
-            label { class: "board-field", "Size"
-                select { aria_label: "Key size", disabled: !props.mount.editable,
-                    value: if mixed || draft().x.min(draft().y) != 1.0 { "custom".to_owned() } else { draft().x.max(draft().y).to_string() },
-                    onchange: {
+            BoardSelectField {
+                label: "Size",
+                class: "board-field",
+                aria_label: "Key size",
+                disabled: !props.mount.editable,
+                value: (if mixed || draft().x.min(draft().y) != 1.0 { "custom".to_owned() } else { draft().x.max(draft().y).to_string() }).to_string(),
+                onchange: {
                         let owner = event_owner.clone();
                         let generation = timer_generation.clone();
                         move |event: FormEvent| {
@@ -190,9 +194,8 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                             submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
                         }
                     },
-                    if mixed || draft().x.min(draft().y) != 1.0 { option { value: "custom", "{value_label}" } }
+                if mixed || draft().x.min(draft().y) != 1.0 { option { value: "custom", "{value_label}" } }
                     for step in 4..=28 { option { value: "{f64::from(step) / 4.0}", "{f64::from(step) / 4.0}u" } }
-                }
             }
             label { class: "m1-key-size-rotate",
                 boardstudio_web_ui_shared::controls::BoardCheckbox { aria_label: "Rotate keycap", checked: !mixed && draft().y > draft().x, disabled: !props.mount.editable,

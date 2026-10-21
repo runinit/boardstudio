@@ -1,7 +1,6 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
-use boardstudio_web_ui_shared::controls::BoardButton;
-use boardstudio_web_ui_shared::controls::BoardDialog;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDialog, BoardSelectField};
 use dioxus::prelude::*;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
@@ -397,15 +396,17 @@ pub fn Objects(
                 p { class: "m1-parts-placement-error", role: "alert", "{error}" }
             }
             if !add_menu_open() {
-            label { class: "m1-object-grouping", "Group"
-                select { aria_label: "Group objects by", value: if by_part() { "part" } else { "layout" },
-                    onchange: move |event: FormEvent| {
+            BoardSelectField {
+                label: "Group",
+                class: "m1-object-grouping",
+                aria_label: "Group objects by",
+                value: (if by_part() { "part" } else { "layout" }).to_string(),
+                onchange: move |event: FormEvent| {
                         let next = event.value() == "part"; by_part.set(next);
                         if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) { let _ = storage.set_item("boardstudio:v2:object-view", if next { "part" } else { "layout" }); }
                     },
-                    option { value: "layout", "By layout" }
+                option { value: "layout", "By layout" }
                     option { value: "part", "By part" }
-                }
             }
             div { class: "m1-object-navigation",
                 if !pcb_workspace && !instances.is_empty() && case_workspace {

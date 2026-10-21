@@ -7,8 +7,9 @@ use boardstudio_core::model::{Asset, EditOperation, Net, PartDefinition, Pin};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 #[cfg(test)]
 use boardstudio_web_runtime::pending_edits::PendingEdits;
-use boardstudio_web_ui_shared::controls::BoardButton;
-use boardstudio_web_ui_shared::controls::{BoardCheckbox, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardCheckbox, BoardDisclosure, BoardSelectField,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1419,14 +1420,14 @@ fn GeneratorParameterField(
     if key == "side" && matches!(value.as_str(), Some("F" | "B")) {
         let selected = value.as_str().unwrap_or("F").to_owned();
         return rsx! {
-            label { class: "m1-generator-field", "{label}",
-                select {
-                    aria_label: "side",
-                    value: "{selected}",
-                    onchange: move |event| on_change.call(Value::String(event.value())),
-                    option { value: "F", "Front" }
-                    option { value: "B", "Back" }
-                }
+            BoardSelectField {
+                class: "m1-generator-field",
+                label: label.clone(),
+                aria_label: "side",
+                value: selected,
+                onchange: move |event: FormEvent| on_change.call(Value::String(event.value())),
+                option { value: "F", "Front" }
+                option { value: "B", "Back" }
             }
         };
     }

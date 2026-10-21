@@ -9,7 +9,9 @@ use boardstudio_core::model::{
     MechanicalExtraction, MechanicalGeometry, MechanicalPartProfile, MechanicalPurpose,
     MechanicalPurposeMapping, MechanicalSwitchFamily, PartDefinition, Vec2,
 };
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonVariant, BoardNumberField, BoardSelectField,
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -351,42 +353,39 @@ pub fn ManualProfileEditor(
                 BoardButton { class: "m1-secondary", r#type: "button", onclick: move |_| on_close.call(()), "Cancel" }
             }
             if show_family_selector {
-                label { class: "m1-parts-fit-field",
-                    span { "Switch fit family" }
-                    select {
-                        "aria-label": "{family_selector_label}",
-                        value: profile.switch_family.map(family_key).unwrap_or(""),
-                        disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
-                        onchange: move |event| {
-                            let load_standard = selector_load_standard.clone();
-                            dispatch_standard_profile_family(&event.value(), move |family| {
-                                (load_standard.borrow_mut())(family);
-                            });
-                        },
-                        option { value: "", "Select a standard family" }
-                        option { value: "mx", "MX" }
-                        option { value: "choc-v1", "Choc v1" }
-                        option { value: "choc-v2", "Choc v2" }
-                    }
+                BoardSelectField {
+                    class: "m1-parts-fit-field",
+                    label: "Switch fit family",
+                    aria_label: family_selector_label.clone(),
+                    value: profile.switch_family.map(family_key).unwrap_or("").to_owned(),
+                    disabled: pending_standard.read().is_some() || extraction_pending.read().is_some(),
+                    onchange: move |event: FormEvent| {
+                        let load_standard = selector_load_standard.clone();
+                        dispatch_standard_profile_family(&event.value(), move |family| {
+                            (load_standard.borrow_mut())(family);
+                        });
+                    },
+                    option { value: "", "Select a standard family" }
+                    option { value: "mx", "MX" }
+                    option { value: "choc-v1", "Choc v1" }
+                    option { value: "choc-v2", "Choc v2" }
                 }
             }
             if let Some(thickness) = family_details {
                 p { "Mounting gap: {gap_label} mm with a {thickness:.2} mm plate. Case recalculates the gap for its plate thickness." }
             } else {
-                label { class: "m1-parts-fit-field",
-                    span { "Plate underside to PCB top (mm)" }
-                    input {
-                        r#type: "number",
-                        min: "0",
-                        step: "0.01",
-                        value: "{profile.plate_to_pcb}",
-                        oninput: move |event| {
+                BoardNumberField {
+                    label: "Plate underside to PCB top (mm)",
+                    class: "m1-parts-fit-field",
+                    min: "0",
+                    step: "0.01",
+                    value: "{profile.plate_to_pcb}",
+                    oninput: move |event: FormEvent| {
                             if let Ok(value) = event.value().parse::<f64>()
                                 && value.is_finite() && value >= 0.0 {
                                 draft.with_mut(|profile| profile.plate_to_pcb = value);
                             }
                         },
-                    }
                 }
             }
             if show_standard_action {
@@ -432,13 +431,13 @@ pub fn ManualProfileEditor(
                                 );
                                 let selected_id = primitive_id.clone();
                                 rsx! {
-                                    label { class: "m1-parts-fit-field",
-                                        span { "{purpose_label}" }
-                                        select {
-                                            "aria-label": "Purpose for {primitive_id}",
-                                            value: purposes().get(&primitive_id).map(|purpose| purpose_key(*purpose)).unwrap_or(""),
-                                            disabled: extraction_pending.read().is_some(),
-                                            onchange: move |event| {
+                                    BoardSelectField {
+                                        label: "{purpose_label}",
+                                        class: "m1-parts-fit-field",
+                                        aria_label: "Purpose for {primitive_id}",
+                                        value: (purposes().get(&primitive_id).map(|purpose| purpose_key(*purpose)).unwrap_or("")).to_string(),
+                                        disabled: extraction_pending.read().is_some(),
+                                        onchange: move |event: FormEvent| {
                                                 purposes.with_mut(|selected| {
                                                     if let Some(purpose) = parse_purpose(&event.value()) {
                                                         selected.insert(selected_id.clone(), purpose);
@@ -447,12 +446,11 @@ pub fn ManualProfileEditor(
                                                     }
                                                 });
                                             },
-                                            option { value: "", "Unused" }
+                                        option { value: "", "Unused" }
                                             option { value: "plate-cutout", "Plate cutout" }
                                             option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
                                             option { value: "clearance-envelope", "Clearance envelope" }
                                             option { value: "drawing-guide", "Drawing guide" }
-                                        }
                                     }
                                 }
                             }

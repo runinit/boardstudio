@@ -2,6 +2,7 @@ use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::controls::BoardSelectField;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -211,16 +212,15 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
         details { class: "m1-layout-companion-placement",
             summary { span { "Companion placement" } small { "{summary}" } }
             div { class: "m1-layout-component-fields",
-                label { "Mode"
-                    select {
-                        value: "{mode()}",
-                        disabled,
-                        onchange: move |event| mode.set(event.value()),
+                BoardSelectField {
+                    label: "Mode",
+                    value: "{mode()}",
+                    disabled,
+                        onchange: move |event: FormEvent| mode.set(event.value()),
                         option { value: "", "Mixed values" }
                         option { value: "literal-mirror", "Literal mirror" }
                         option { value: "duplicate-position", "Duplicate position" }
                         option { value: "literal-mirror-with-tweak", "Mirror with tweak" }
-                    }
                 }
                 if let Some(reason) = disabled_reason {
                     p { role: "status", "{reason}" }

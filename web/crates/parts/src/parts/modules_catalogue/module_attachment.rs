@@ -7,7 +7,9 @@ use boardstudio_core::model::{
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant, BoardCheckbox};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardButtonVariant, BoardCheckbox, BoardSelectField,
+};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
@@ -367,17 +369,16 @@ pub fn ModuleAttachment(
                 "Assign host connection"
             }
             if host_connection_enabled() && module_port_id.is_some() {
-                label { "Host connector"
-                    select {
-                        aria_label: "Module host connector",
-                        value: "{connector_selection()}",
-                        disabled: pending(),
-                        onchange: move |event| connector_selection.set(event.value()),
-                        option { value: "{AUTOMATIC_CONNECTOR_SELECTION}", "Add source-backed horizontal VIK connector beside module" }
+                BoardSelectField {
+                    label: "Host connector",
+                    aria_label: "Module host connector",
+                    value: "{connector_selection()}",
+                    disabled: pending(),
+                    onchange: move |event: FormEvent| connector_selection.set(event.value()),
+                    option { value: "{AUTOMATIC_CONNECTOR_SELECTION}", "Add source-backed horizontal VIK connector beside module" }
                         for (id, reference) in &connectors {
                             option { value: "{id}", "{reference}" }
                         }
-                    }
                 }
             }
             if module_port_id.is_none() {

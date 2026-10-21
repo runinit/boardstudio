@@ -1,7 +1,7 @@
 //! Private form for the real selected-matrix name, size, and pitch fields.
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::DiodeDirection;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure, BoardSelectField};
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -458,34 +458,32 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
             BoardDisclosure { class: "m1-matrix-inspector-section",
                 heading: rsx! { summary { span { "Key assembly" } small { "{definition_label}" } } },
                 div { class: "m1-matrix-inspector-fields",
-                label { class: "m1-matrix-field",
-                    span { "Assembly preset" }
-                    select {
-                        aria_label: "Apply matrix preset",
-                        value: "{preset_draft().as_str()}",
-                        disabled: !props.editable || props.busy,
-                        onchange: move |event: FormEvent| {
+                BoardSelectField {
+                    label: "Assembly preset",
+                    class: "m1-matrix-field",
+                    aria_label: "Apply matrix preset",
+                    value: "{preset_draft().as_str()}",
+                    disabled: !props.editable || props.busy,
+                    onchange: move |event: FormEvent| {
                             if let Some(preset) = MatrixPreset::parse(&event.value()) {
                                 preset_draft.set(preset);
                             }
                         },
-                        for preset in MatrixPreset::ALL {
+                    for preset in MatrixPreset::ALL {
                             option { value: "{preset.as_str()}", selected: preset_draft() == preset, "{preset.label()}" }
                         }
-                    }
                 }
-                label { class: "m1-matrix-field",
-                    span { "Switch orientation" }
-                    select {
-                        aria_label: "Switch orientation",
-                        value: "{orientation_draft().as_str()}",
-                        disabled: !props.editable || props.busy,
-                        onchange: move |event: FormEvent| {
+                BoardSelectField {
+                    label: "Switch orientation",
+                    class: "m1-matrix-field",
+                    aria_label: "Switch orientation",
+                    value: "{orientation_draft().as_str()}",
+                    disabled: !props.editable || props.busy,
+                    onchange: move |event: FormEvent| {
                             orientation_draft.set(if event.value() == "north" { SwitchOrientation::North } else { SwitchOrientation::South });
                         },
-                        option { value: "south", selected: orientation_draft() == SwitchOrientation::South, "South-facing LED" }
+                    option { value: "south", selected: orientation_draft() == SwitchOrientation::South, "South-facing LED" }
                         option { value: "north", selected: orientation_draft() == SwitchOrientation::North, "North-facing LED" }
-                    }
                 }
                 button {
                     disabled: !props.editable || props.busy,

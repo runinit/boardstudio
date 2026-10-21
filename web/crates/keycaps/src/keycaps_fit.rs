@@ -5,8 +5,7 @@ use boardstudio_core::model::{
     Contour, Finding, KeycapResolution, Matrix, Part, Pose2, ProjectDoc, SceneDelta,
     Scope as FindingScope, Severity, Side, Vec2,
 };
-use boardstudio_web_ui_shared::controls::BoardButton;
-use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
 use wasm_bindgen_futures::spawn_local;

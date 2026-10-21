@@ -497,11 +497,15 @@ switch at 760px; the Export workspace uses 24px 18px 36px padding there.
 **The Stationary Controls Rule.** Scope and snap controls remain anchored to the workspace while world geometry pans and zooms.
 
 The Case action bar owns geometry readiness and its next action: configure,
-generate, wait/cancel, retry, review errors, or export. Export requires current
-generation, preview, committed scene, and resolved assembly revisions on the
-configured board. Mechanical errors block export; warnings remain reviewable
-without blocking. The canvas labels only the geometry currently displayed.
-Configuration metadata does not imply generated-solid or manufacturing readiness.
+generate, wait/cancel, retry, review errors, or export. Export requires valid captured
+accepted inputs and matching prepared manufacturing geometry for the configured
+board and revision. Applicable mechanical errors block the outputs they affect;
+warnings remain reviewable without blocking. Disposable display-preview currency
+does not grant or revoke export ownership
+([ADR-0016](docs/adr/0016-export-ownership-is-separate-from-preview-currency.md));
+changing the accepted source still invalidates stale output. The canvas labels only
+the geometry currently displayed. Configuration metadata or a visible preview alone
+does not imply generated-solid or manufacturing readiness.
 
 Layout findings and Mechanical findings have separate, explicitly scoped footer
 controls. Counts match the grouped lists they open. Mechanical review opens and

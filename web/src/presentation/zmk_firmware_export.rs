@@ -195,7 +195,7 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
                 aria_label: "Export ZMK firmware",
                 disabled: !ready,
                 onclick: move |_| on_export.call(()),
-                if ready { "Export firmware" } else { "Needs work" }
+                "Export firmware"
             }
         }
     }
@@ -474,7 +474,7 @@ mod tests {
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap();
         assert!(button.has_attribute("disabled"));
-        assert_eq!(button.text_content().as_deref(), Some("Needs work"));
+        assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         assert!(
             root.text_content()
                 .unwrap()

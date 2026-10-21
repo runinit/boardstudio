@@ -4,8 +4,9 @@ use crate::matrix_transform_operation::{
 };
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardDisclosure};
-use boardstudio_web_ui_shared::controls::{BoardNumberField, BoardSelectField};
+use boardstudio_web_ui_shared::controls::{
+    BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
+};
 use dioxus::prelude::*;
 
 use super::TreeContext;
