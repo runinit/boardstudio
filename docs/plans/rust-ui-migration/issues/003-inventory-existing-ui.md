@@ -1,6 +1,6 @@
 # 003: Document the existing UI building blocks and control sites
 
-Status: open
+Status: claimed
 Type: task
 Blocked by: None
 Parent: [Map](../map.md)
