@@ -339,3 +339,14 @@ the direct Session preview event carries only the operation, targets and transac
 identity. It has no commit phase. Committing submits a pending edit intent through
 `ResolveEdit`, which resolves against the accepted document when it runs.
 _Avoid_: live edit, uncommitted edit
+
+**Theme**:
+The visual style of the whole workbench: Original (the established Board Studio look)
+or shadcn. It sets colours and component styling, never what a control does, and is
+chosen independently of Appearance.
+_Avoid_: skin, palette
+
+**Appearance**:
+Whether the workbench is shown light, dark, or following the system setting. Every
+Theme has both a light and a dark form.
+_Avoid_: theme (for light/dark), color mode
