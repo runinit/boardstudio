@@ -3453,6 +3453,235 @@ mod tests {
         );
     }
     #[test]
+    fn switch_family_inference_follows_the_generator_and_part_overrides() {
+        use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        use serde_json::json;
+        let choc = "ceoloide/switch_choc_v1_v2";
+        for (source, definition_parameters, part_parameters, expected) in [
+            ("ceoloide/switch_mx", json!({}), None, Some(Mx)),
+            ("Ceoloide/Switch_MX", json!({}), None, Some(Mx)),
+            ("someone/else", json!({}), None, None),
+            (choc, json!({}), None, None),
+            (
+                choc,
+                json!({"choc_v1_support":true,"choc_v2_support":false}),
+                None,
+                Some(ChocV1),
+            ),
+            (
+                choc,
+                json!({"choc_v1_support":{"value":false},"choc_v2_support":{"value":true}}),
+                None,
+                Some(ChocV2),
+            ),
+            (
+                choc,
+                json!({"choc_v1_support":false,"choc_v2_support":false}),
+                None,
+                None,
+            ),
+            // A part-level value replaces the definition's value for that key.
+            (
+                choc,
+                json!({"choc_v1_support":true,"choc_v2_support":false}),
+                Some(json!({"choc_v1_support":false,"choc_v2_support":true})),
+                Some(ChocV2),
+            ),
+            // A part-level value that is not a boolean reads as the default (true) instead
+            // of falling back to the definition's value.
+            (
+                choc,
+                json!({"choc_v1_support":false,"choc_v2_support":true}),
+                Some(json!({"choc_v1_support":"yes"})),
+                None,
+            ),
+        ] {
+            let definition = generator_definition("def", source, definition_parameters);
+            let part = switch_part("key", "def", part_parameters);
+            assert_eq!(
+                inferred_switch_family(&part, &definition),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_mx_stabilizer_profiles_are_recognized_only_by_reviewed_source_and_original_gap() {
+        let two_u = include_str!("../tests/fixtures/mechanical/STAB_MX_2u.kicad_mod");
+        let wide = include_str!("../tests/fixtures/mechanical/STAB_MX_6.25u.kicad_mod");
+        for (text, gap, family, spacing) in [
+            (Some(two_u), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),
+            (Some(wide), 5.0, Some(MechanicalSwitchFamily::Mx), 3.5),
+            (Some(two_u), 4.0, None, 4.0),
+            (Some("custom"), 5.0, None, 5.0),
+            (None, 5.0, None, 5.0),
+        ] {
+            let mut configuration = config();
+            configuration.profiles.push(MechanicalPartProfile {
+                source_geometry: text.map(|text| MechanicalProfileSource {
+                    text: text.into(),
+                    sha256: String::new(),
+                    mappings: vec![],
+                    source_ids: vec![],
+                }),
+                pcb_holes: None,
+                clearance_volumes: None,
+                openings: None,
+                clearances: None,
+                supported_thickness: None,
+                switch_family: None,
+                definition_id: "stab".into(),
+                source: "test".into(),
+                cutouts: vec![],
+                plate_to_pcb: gap,
+            });
+            let doc = switch_document(
+                vec![switch_part("key", "def", None)],
+                vec![generator_definition(
+                    "def",
+                    "ceoloide/switch_mx",
+                    serde_json::json!({}),
+                )],
+            );
+            let inputs = resolve_profiles(&doc, &configuration).unwrap();
+            let stabilizer = inputs
+                .config
+                .profiles
+                .iter()
+                .find(|profile| profile.definition_id == "stab")
+                .unwrap();
+            assert_eq!(stabilizer.switch_family, family, "{gap}");
+            assert_eq!(stabilizer.plate_to_pcb, spacing, "{gap}");
+        }
+    }
+
+    #[test]
+    fn assigned_and_inferred_families_decide_compatibility_before_resolution() {
+        use MechanicalSwitchFamily::{ChocV1, ChocV2, Mx};
+        use serde_json::json;
+        let assigned = |definition_id: &str, family: MechanicalSwitchFamily| {
+            let mut profile = builtin_profile(
+                definition_id.into(),
+                profile_source_for_family(family),
+                switch_mounting_datum(family) - 1.5,
+            )
+            .unwrap();
+            profile.switch_family = Some(family);
+            profile
+        };
+        let mx = || generator_definition("def", "ceoloide/switch_mx", json!({}));
+        let single = |definition: PartDefinition, profiles: Vec<MechanicalPartProfile>| {
+            let mut configuration = config();
+            configuration.plate_to_pcb = 4.2;
+            configuration.profiles = profiles;
+            let doc = switch_document(vec![switch_part("key", "def", None)], vec![definition]);
+            resolve_profiles(&doc, &configuration).unwrap()
+        };
+
+        // An inferred family creates its profile and drives the plate spacing.
+        let created = single(mx(), vec![]);
+        assert!(created.incompatible_switches.is_empty());
+        assert_eq!(created.config.profiles.len(), 1);
+        assert_eq!(created.config.profiles[0].switch_family, Some(Mx));
+        assert_eq!(created.config.plate_to_pcb, 3.5);
+
+        // An assignment that disagrees with the generator is incompatible even at the same datum.
+        let disagreeing = single(mx(), vec![assigned("def", ChocV2)]);
+        assert_eq!(disagreeing.incompatible_switches, ["key"]);
+        let agreeing = single(mx(), vec![assigned("def", Mx)]);
+        assert!(agreeing.incompatible_switches.is_empty());
+
+        // The definition's own profile replaces a configuration profile for the same definition.
+        let mut owned = mx();
+        owned.mechanical_profile = Some(assigned("def", Mx));
+        let overridden = single(owned, vec![assigned("def", ChocV2)]);
+        assert!(overridden.incompatible_switches.is_empty());
+        assert_eq!(overridden.config.profiles.len(), 1);
+        assert_eq!(overridden.config.profiles[0].switch_family, Some(Mx));
+
+        // An unknown family adds no profile and leaves the configured spacing alone.
+        let unknown = single(
+            serde_json::from_value(
+                json!({"id":"def","name":"def","kind":"switch","courtyard":[],"pads":[]}),
+            )
+            .unwrap(),
+            vec![],
+        );
+        assert!(unknown.incompatible_switches.is_empty());
+        assert!(unknown.config.profiles.is_empty());
+        assert_eq!(unknown.config.plate_to_pcb, 4.2);
+
+        // Switches whose mounting datum differs from the first resolved family are listed.
+        let doc = switch_document(
+            vec![
+                switch_part("a", "def-mx", None),
+                switch_part("b", "def-choc", None),
+            ],
+            vec![
+                generator_definition("def-mx", "ceoloide/switch_mx", json!({})),
+                generator_definition(
+                    "def-choc",
+                    "ceoloide/switch_choc_v1_v2",
+                    json!({"choc_v1_support":true,"choc_v2_support":false}),
+                ),
+            ],
+        );
+        let mixed = resolve_profiles(&doc, &config()).unwrap();
+        assert_eq!(mixed.incompatible_switches, ["b"]);
+        assert_eq!(mixed.config.plate_to_pcb, 3.5);
+        assert_eq!(
+            mixed
+                .config
+                .profiles
+                .iter()
+                .find(|profile| profile.definition_id == "def-choc")
+                .and_then(|profile| profile.switch_family),
+            Some(ChocV1)
+        );
+    }
+
+    fn switch_part(id: &str, definition_id: &str, parameters: Option<serde_json::Value>) -> Part {
+        let mut part = serde_json::json!({
+            "id":id, "definitionId":definition_id, "reference":id,
+            "pose":{"at":{"x":20,"y":20},"rotation":0}, "side":"front"
+        });
+        if let Some(parameters) = parameters {
+            part["generatorParameters"] = parameters;
+        }
+        serde_json::from_value(part).unwrap()
+    }
+
+    fn generator_definition(
+        id: &str,
+        source: &str,
+        parameters: serde_json::Value,
+    ) -> PartDefinition {
+        serde_json::from_value(serde_json::json!({
+            "id":id, "name":id, "kind":"switch", "courtyard":[], "pads":[],
+            "generator":{"source":source,"version":"1","parameters":parameters}
+        }))
+        .unwrap()
+    }
+
+    fn switch_document(parts: Vec<Part>, definitions: Vec<PartDefinition>) -> ProjectDoc {
+        let mut doc = ProjectDoc::empty("family", "family");
+        doc.boards.push(Board {
+            id: "board".into(),
+            name: "Board".into(),
+            outline_ids: vec![],
+            part_ids: parts.iter().map(|part| part.id.clone()).collect(),
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+        doc.parts = parts;
+        doc.definitions = definitions;
+        doc
+    }
+
+    #[test]
     fn duplicate_rings_ignore_winding_start_and_closure() {
         let a = Contour {
             hole: true,
