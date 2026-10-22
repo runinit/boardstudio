@@ -76,7 +76,7 @@ All global quick/full/browser/CAD, CAD `worker.onerror`, first-paint, measured s
 
 ## Follow-up: notification stack interoperability (2026-10-22)
 
-Status: ready for targeted Standards re-review; Spec approval carried forward for the test-locator/docs-only correction below; landing HOLD.
+Status: resolved after coordinator review approval; local fast-forward authorized, with landing verification below.
 
 The isolated T3 checkout `/home/chris/.t3/worktrees/ts-boardstudio2/t3-e62983e5`, branch `fix/notification-stack-interoperability`, started clean at `b237903705244a266b07a64e5f23b8a3b5219c03` and fast-forwarded the latest local feature pin `2de58e53aa5ca8a10d0223c2f32278ec42e3c623`. No parent dirty work was copied. Its target is `/home/chris/.cache/boardstudio-target/013-toast-stack-lineage`; ignored settings and CAD caches follow the lane protocol. Original 012/013 lanes remain untouched.
 
@@ -121,4 +121,14 @@ Executed checks:
 - `python3 -m py_compile scripts/test-toasts.py` and `git diff --check`: passed.
 - `git diff --exit-code 334f97fb4d17eac3a41a3c9a75f7f5cb617f971e -- web/src/presentation/notifications.rs web/tailwind.css web/crates/ui-shared/src/ui/toast.rs web/crates/runtime scripts/test-header.py`: passed. The delta from the reviewed pin is only this locator correction and ticket documentation, so the coordinator's Spec approval carries forward without a fresh Spec review.
 
-The existing packaged production build and all `334f97f` snapshot/receipts are retained unchanged. No Cargo/build rerun is needed for this Python/docs-only delta. A fresh repository receipt is written separately to `.evidence/013-stack/standards-r2/repo.json` at the clean final handoff pin. The coordinator's targeted Standards re-review remains pending; landing HOLD and all global gates above remain open. No extra agents, origin push or dev changes.
+The existing packaged production build and all `334f97f` snapshot/receipts are retained unchanged. No Cargo/build rerun is needed for this Python/docs-only delta. The fresh repository receipt `.evidence/013-stack/standards-r2/repo.json` passed all eight commands at clean `df1f22d4e103aa01949f0ee2e4a01ba8bce96eed` (5.7s). Targeted Standards re-review subsequently approved as recorded below. No extra agents, origin push or dev changes.
+
+### Follow-up review resolution and local landing
+
+The coordinator reported targeted Standards r2 **APPROVE, zero findings**, at `df1f22d4e103aa01949f0ee2e4a01ba8bce96eed`. The prior P3 is resolved: the unique accessible project-copy button ref supplies the active-element handle, while the seven-click loop and assertions remain unchanged, without added delay, retry or dismissal. Receipt: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui013-stack-standards-review-r2`.
+
+Spec r1 **APPROVE, zero findings**, at `334f97fb4d17eac3a41a3c9a75f7f5cb617f971e` carries forward because production source is unchanged; its receipt is recorded above. Runtime verification remains author-executed evidence, not reviewer-executed testing. The coordinator explicitly authorized local fast-forward landing to `feat/rust-ui-migration` after latest-tip verification.
+
+Fresh verification found the feature still at `2de58e53aa5ca8a10d0223c2f32278ec42e3c623`, with no attached feature checkout, and this bound fix checkout clean at reviewed `df1f22d4e103aa01949f0ee2e4a01ba8bce96eed`. This resolution changes only ticket documentation; validated production and tests are preserved and their sufficient receipts above are reused. Before the local fast-forward, fresh `git diff --check` and `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py repo --receipt .evidence/013-stack/landing/repo.json` verify the final documentation and clean inventory. The resulting final refs and cleanness are returned to the coordinator. 012 can then merge the landed notification fix for its unchanged Header interoperability check.
+
+Landing is local fast-forward only: no origin or dev push, no extra agents and no changes to original 012/013 lanes. Global full/quick/browser/CAD, CAD `worker.onerror`, first-paint, measured screen-reader speech, other browsers, human review, ticket 026 and final-merge gates remain open. This scoped resolution does not grant global acceptance.
