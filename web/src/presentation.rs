@@ -93,6 +93,7 @@ pub(crate) use boardstudio_web_pcb::pcb_wiring;
 mod pcb_workspace;
 pub(crate) use boardstudio_web_case::shared_viewer;
 pub(crate) use boardstudio_web_layout::setup_guide;
+mod notifications;
 mod workbench_shortcuts;
 mod workspace_composition;
 mod workspace_navigation;
@@ -259,6 +260,11 @@ struct WorkspaceRoutingSlots {
 
 #[allow(non_snake_case)]
 pub fn App() -> Element {
+    rsx! { notifications::NotificationProvider { WorkbenchApp {} } }
+}
+
+#[component]
+fn WorkbenchApp() -> Element {
     let runtime = use_hook(Runtime::new);
     let runtime = match runtime {
         Ok(runtime) => runtime,
@@ -687,7 +693,7 @@ pub fn App() -> Element {
                 div { class: "m1-editor-host", hidden: project_browser(), Editor {} }
             }
             if project_browser() || runtime.model().accepted.is_none() { LibraryLanding {} }
-                RuntimeReportBanner {}
+                notifications::RuntimeNotifications {}
             if preference_warning() {
                 p { role: "status", "aria-live": "polite", class: "m1-status",
                     "Preferences are session-only because browser storage is unavailable."
@@ -708,7 +714,7 @@ fn RuntimeReportBanner() -> Element {
     let alert = runtime.status_is_alert();
     let status = runtime.status();
     rsx! {
-        if alert || status != "Saved locally." {
+        if !runtime.status_is_transient() && (alert || status != "Saved locally.") {
             p {
                 role: if alert { "alert" } else { "status" },
                 "aria-live": if alert { "assertive" } else { "polite" },
@@ -785,7 +791,7 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                     "Save .boardstudio project"
                 }
             }
-            p { role: "status", "aria-live": "polite", "{runtime.status()}" }
+            RuntimeReportBanner {}
         }
     }
 }
