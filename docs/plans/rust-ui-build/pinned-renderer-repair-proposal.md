@@ -1,8 +1,8 @@
 # Pinned Dioxus listener repair proposal
 
-Decision requested; no product dependency or renderer source has changed. Shared prerequisite
-landing remains held at `6264adcf5d5fe3eb7e72ee175be832b97cecb189`. Keep the Button effective-id and
-sorted-spread corrections in that ancestry; neither is replaced by this renderer repair.
+The coordinator approved this bounded repository-owned repair after reviewing `8c42a75` and
+allocated the exclusive prerequisite build slot. Shared prerequisite landing remains held. Keep
+the Button effective-id and sorted-spread corrections; neither is replaced by this renderer repair.
 
 ## Executed evidence and root cause
 
@@ -90,6 +90,34 @@ After approval and build-slot allocation:
    count/order, retained blur, routing identity, unknown-attribute removal, collision policy and
    precise caller value. Re-run all shared `ui::` WASM tests and the affected native tests/Clippy,
    format, documentation and test-name guards on the exact combined source pin.
-4. Audit the resolved path/feature/lock closure, request a separate bounded renderer repair review
-   through the coordinator, then complete the shared slice's targeted Spec re-review. Landing and
-   global acceptance stay held until those gates pass. No Cargo command has run for this proposal.
+4. Audit the resolved path/feature/lock closure, then request **one completed-correction two-axis
+   review** through the coordinator, explicitly covering renderer Standards/Spec and shared-contract
+   P2 resolution together. Landing and global acceptance stay held until those gates pass.
+
+## Authorized implementation receipt
+
+Published baseline and unchanged regression: `9ee203f69eaf1ace39f5f5b5e1fa88133074251a`. Every one of
+the archive's 31 files was compared byte-for-byte with the checked-in baseline; the earlier count
+of 32 cached files included Cargo's `.cargo-ok`, which is not published source. Upstream license
+texts, provenance and the Node test are additions. Root `Cargo.toml` uses the approved patch/exclude
+pattern; the root lock delta removes only the interpreter package's registry source/checksum.
+
+`node web/vendor/dioxus-interpreter-js-0.7.10/tests/listener-removal.cjs` failed against that published
+baseline: **1 passed, 4 failed**, with the actual null-key TypeError on callback removal and missing
+event records on teardown. `.evidence/shared-control-prereq/vendor-listener-red.log`. The test was
+committed before the hand-authored renderer repair.
+
+Renderer repair: `d29dec86553a8cd532c4eb764c07a80e39ec0e2d`, tree
+`964d4115c141c529ea690b968875d7bdf1f9222b`. Its entire vendor delta is the two approved source files,
+the generated `core.js`, and the existing hash file (only the core TypeScript input hash changes).
+The same unchanged Node regression now passes **5/5**;
+`.evidence/shared-control-prereq/vendor-listener-green.log`.
+
+The unchanged build mechanism ran through
+`cargo check --locked --offline -p boardstudio-web-ui-shared --target wasm32-unknown-unknown`, which
+passed; `.evidence/shared-control-prereq/vendor-bundle-compile.log`. Bun 1.4.4 also rewrote three
+unrelated outputs (`hydrate.js`, `native.js`, `patch_console.js`) through export ordering, local
+renaming and destructuring. Inspection showed no dependency on the repaired core implementation;
+those three files retain their published baseline bytes. All other published files and the bundle
+build script are unchanged. Combined mounted/native checks and the single correction review are
+pending.
