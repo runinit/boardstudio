@@ -76,7 +76,7 @@ All global quick/full/browser/CAD, CAD `worker.onerror`, first-paint, measured s
 
 ## Follow-up: notification stack interoperability (2026-10-22)
 
-Status: ready for coordinator review; landing HOLD for Spec+Standards review of the completed slice.
+Status: ready for targeted Standards re-review; Spec approval carried forward for the test-locator/docs-only correction below; landing HOLD.
 
 The isolated T3 checkout `/home/chris/.t3/worktrees/ts-boardstudio2/t3-e62983e5`, branch `fix/notification-stack-interoperability`, started clean at `b237903705244a266b07a64e5f23b8a3b5219c03` and fast-forwarded the latest local feature pin `2de58e53aa5ca8a10d0223c2f32278ec42e3c623`. No parent dirty work was copied. Its target is `/home/chris/.cache/boardstudio-target/013-toast-stack-lineage`; ignored settings and CAD caches follow the lane protocol. Original 012/013 lanes remain untouched.
 
@@ -105,3 +105,20 @@ Executed against clean code pin `a0d6a561ca11f97ec51b05ffa0410e5f30e6772c`, serv
 - `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/run-wasm-tests.py --files web/src/presentation/notifications.rs web/src/presentation/zmk_firmware_export.rs --result-json .evidence/013-stack/presentation-browser.json`: 5/5 passed at `f8f47084e`. Reused for the final pin because its Rust/provider source is identical: the subsequent changes touch only the viewport CSS and focused Python fixture. This mounted subset verifies batched duplicate delivery, persistent inline text, actual default expiry, normal active-provider unmount/remount and existing firmware ownership/delivery behavior; it does not load or verify the packaged CSS.
 
 The final documentation-only commit reuses the clean code evidence above; a fresh `scripts/check.py repo` receipt and `git diff --check` precede handoff. The final clean pin is reported to the coordinator, with review base `2de58e53aa5ca8a10d0223c2f32278ec42e3c623`. This follow-up is not landed: one completed-slice Spec+Standards review through the coordinator is required before authorization to land. No agents, new threads, watchers, origin pushes, dev changes, discards, resets or visibility widening. Global full/quick/browser/CAD, CAD `worker.onerror`, first-paint, measured screen-reader speech, other browsers, human review and ticket 026/final-merge gates remain open.
+
+### Review correction: accessible burst target
+
+The coordinator reported Spec **APPROVE, zero findings**, for `2de58e53aa5ca8a10d0223c2f32278ec42e3c623..334f97fb4d17eac3a41a3c9a75f7f5cb617f971e`. Standards reported one P3: the burst found its download action by a `button` tag query and `textContent`, violating the plan map's accessible role/name lookup contract.
+
+- Spec receipt: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui013-stack-spec-review-r1`.
+- Standards receipt: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui013-stack-standards-review-r1`.
+
+The correction reuses the test's existing accessible snapshot/ref pattern: find the unique `button` named `Download .boardstudio project` in `snapshot -i`, focus that actual `@ref`, then retain `document.activeElement` as the burst's button handle. Ref resolution occurs before the burst. The same seven `.click()` calls and settlement checks execute within one in-page evaluation; no serial browser clicks, delays, dismissal, retry or assertion weakening was added. A direct comparison against `334f97f` verified that the seven-click loop and every subsequent assertion are byte-identical. The former lookup and its existing unavailable/disabled guard are otherwise unchanged.
+
+Executed checks:
+
+- `python3 scripts/test-toasts.py http://127.0.0.1:4319/ --stack-only --evidence .evidence/013-stack/standards-r2/stack`: **passed all sixteen cases**, with all prior multiplicity, reachability, scrolling, announcement, dismissal and F6 assertions. Log: `.evidence/013-stack/standards-r2/stack.log`; sixteen fresh screenshots accompany it.
+- `python3 -m py_compile scripts/test-toasts.py` and `git diff --check`: passed.
+- `git diff --exit-code 334f97fb4d17eac3a41a3c9a75f7f5cb617f971e -- web/src/presentation/notifications.rs web/tailwind.css web/crates/ui-shared/src/ui/toast.rs web/crates/runtime scripts/test-header.py`: passed. The delta from the reviewed pin is only this locator correction and ticket documentation, so the coordinator's Spec approval carries forward without a fresh Spec review.
+
+The existing packaged production build and all `334f97f` snapshot/receipts are retained unchanged. No Cargo/build rerun is needed for this Python/docs-only delta. A fresh repository receipt is written separately to `.evidence/013-stack/standards-r2/repo.json` at the clean final handoff pin. The coordinator's targeted Standards re-review remains pending; landing HOLD and all global gates above remain open. No extra agents, origin push or dev changes.

@@ -23,10 +23,13 @@ def stack_interoperability(browser, action, check, evidence):
                 if compact:
                     action("button", "Workbench menu")
                     browser("wait", "--fn", "document.getElementById('header-mobile-trigger').getAttribute('aria-expanded') === 'false'")
+                download_refs = re.findall(r'button "Download \.boardstudio project" \[ref=(e\d+)\]', browser("snapshot", "-i"))
+                assert len(download_refs) == 1, "The project-copy action has one accessible button ref"
+                browser("focus", "@" + download_refs[0])
                 # Exercise actual shell exports, in a burst shorter than the five-second expiry.
                 browser("eval", """(async () => {
                     const before = new Set(document.querySelectorAll('[role=status][data-type]'));
-                    const download = [...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'Download .boardstudio project');
+                    const download = document.activeElement;
                     if (!download || download.disabled) throw Error('Project-copy action unavailable');
                     for (let i = 0; i < 7; i++) {
                         download.click();
