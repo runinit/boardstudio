@@ -142,6 +142,18 @@ def production_tests(url):
         browser("focus", driver.by_role_name("button", "Geometry snap"))
         held_space(url)
         assert browser("get", "attr", driver.by_role_name("button", "Geometry snap"), "aria-pressed")["value"] == expected
+    captures = ROOT / ".evidence/015" / datetime.now().strftime("page-captures-%Y%m%d-%H%M%S")
+    captures.mkdir(parents=True)
+    print("Packaged strip screenshots:", captures, flush=True)
+    for width in [1440, 1100, 980, 390]:
+        browser("set", "viewport", width, 900)
+        for theme in ["original", "shadcn"]:
+            for appearance in ["light", "dark"]:
+                evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
+                evaluate("document.fonts.ready.then(()=>true)")
+                browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
+                metrics = evaluate("[...document.querySelectorAll('.layout-scope-strip,.layout-context-strip,.layout-toolbar-strips [role=toolbar]')].filter(e=>!e.closest('[inert],[aria-hidden=true]')).map(e=>({name:e.getAttribute('aria-label')||e.className,scroll:e.scrollWidth,client:e.clientWidth,left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}))")
+                assert all(m["scroll"] <= m["client"] and m["left"] >= 0 and m["right"] <= width for m in metrics), (width, theme, appearance, metrics)
     print("PASS: packaged Layout native scope/tool Space and real nudge/Undo outcome", flush=True)
 
 
