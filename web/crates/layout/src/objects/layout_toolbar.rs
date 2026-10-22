@@ -19,6 +19,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 use dioxus::prelude::*;
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
@@ -723,6 +724,20 @@ pub fn LayoutCommandPill(
 
     rsx! {
         div { id: "m1-layout-command-pill", class: "layout-toolbar-strips", role: "group", aria_label: "{command_label}",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " "
+                    && let Some(raw) = event.data().try_as_web_event()
+                    && raw.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                        .is_some_and(|target| target.id() == "m1-layout-snap-trigger"
+                            || (target.tag_name() == "BUTTON"
+                                && target.closest("#m1-layout-command-pill").ok().flatten().is_some()
+                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger]").unwrap_or(false)))
+                {
+                    // Native control activation must not become the canvas's Space-pan shortcut.
+                    event.stop_propagation();
+                    raw.stop_propagation();
+                }
+            },
             div { class: "layout-scope-strip",
                 if pointer_tools_visible {
                     LayoutSelectionToolbar { open_menu, selection_kind, on_selection_kind, transform: Some(transform.clone()) }

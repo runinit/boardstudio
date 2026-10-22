@@ -5,6 +5,7 @@ import argparse
 import http.server
 import importlib
 import os
+import subprocess
 from pathlib import Path
 import threading
 from datetime import datetime
@@ -14,6 +15,37 @@ driver.SESSION = "layout-015"
 browser, evaluate, check, click = driver.browser, driver.evaluate, driver.check, driver.click
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "target/layout-toolbar-fixture"
+
+
+def held_space(url):
+    """agent-browser press releases immediately; CDP proves native keyup activation."""
+    evaluate("window.heldButton=document.activeElement; window.heldEvents=[]; window.recordHeld=e=>heldEvents.push(e); ['keydown','keyup','click'].forEach(type=>heldButton.addEventListener(type,recordHeld))")
+    endpoint = subprocess.run(["agent-browser", "--session", driver.SESSION, "get", "cdp-url"], check=True, text=True, capture_output=True).stdout.strip()
+    result = subprocess.run(["node", "--input-type=module", "-e", """
+        import assert from 'node:assert/strict';
+        const [endpoint,url] = process.argv.slice(1), ws = new WebSocket(endpoint);
+        await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject});
+        try {
+        let next=0; const pending=new Map();
+        ws.onmessage=event=>{const reply=JSON.parse(event.data),entry=pending.get(reply.id);if(entry){pending.delete(reply.id);reply.error?entry.reject(Error(JSON.stringify(reply.error))):entry.resolve(reply.result)}};
+        const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params,sessionId}))});
+        const pages=(await send('Target.getTargets')).targetInfos.filter(t=>t.type==='page'&&t.url.startsWith(url));
+        assert.equal(pages.length,1);
+        const {sessionId}=await send('Target.attachToTarget',{targetId:pages[0].targetId,flatten:true});
+        const state=async()=> (await send('Runtime.evaluate',{expression:"({clicks:heldEvents.filter(e=>e.type==='click').length,trusted:heldEvents.every(e=>e.isTrusted),keys:heldEvents.filter(e=>e.type==='keydown').map(e=>({trusted:e.isTrusted,prevented:e.defaultPrevented}))})",returnByValue:true},sessionId)).result.value;
+        try {
+            await send('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
+            const down=await state(); console.log('held Space keydown',JSON.stringify(down));
+            assert.equal(down.clicks,0); assert.deepEqual(down.keys,[{trusted:true,prevented:false}]);
+        } finally {
+            await send('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32},sessionId);
+        }
+        const up=await state(); console.log('held Space keyup',JSON.stringify(up)); assert.equal(up.clicks,1); assert.equal(up.trusted,true);
+        } finally { ws.close(); }
+    """, endpoint, url], text=True, capture_output=True, timeout=60)
+    print(result.stdout, result.stderr, flush=True)
+    evaluate("['keydown','keyup','click'].forEach(type=>heldButton.removeEventListener(type,recordHeld))")
+    assert result.returncode == 0, "Held Space must remain native, unprevented, and activate exactly once on keyup"
 
 
 def production_tests(url):
@@ -28,7 +60,7 @@ def production_tests(url):
     click("Hide guide")
     click("Open Layout workspace")
     click("Add object")
-    click("Matrix…")
+    browser("find", "role", "button", "click", "--name", "Matrix…")
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
     click("Create matrix")
     browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
@@ -36,12 +68,12 @@ def production_tests(url):
     browser("press", "Enter")
     browser("press", "Escape")
     browser("focus", driver.by_role_name("button", "Select Column"))
-    browser("press", "Space")
+    held_space(url)
     check("document.querySelector('[aria-label=\"Select Column\"]').getAttribute('aria-expanded')==='true'")
     browser("press", "Escape")
     button = driver.by_role_name("button", "Activate Stagger for the selected column")
     browser("focus", button)
-    browser("press", "Space")
+    held_space(url)
     browser("wait", "--fn", "!!document.querySelector('[role=button][aria-label=\"Drag to stagger\"]')")
     handle = driver.by_role_name("button", "Drag to stagger")
     browser("focus", handle)
@@ -50,6 +82,25 @@ def production_tests(url):
     browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to stagger\"]').getAttribute('aria-description')!=={driver.json.dumps(before)}")
     click("Undo")
     browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to stagger\"]').getAttribute('aria-description')==={driver.json.dumps(before)}")
+    browser("focus", driver.by_role_name("button", "Transform"))
+    browser("press", "Space")
+    browser("wait", "--fn", "!!document.activeElement.closest('[role=menu]')")
+    browser("focus", driver.by_role_name("menuitemradio", "Activate Offset for the selected column"))
+    browser("press", "Space")
+    check("document.activeElement.id==='m1-layout-transform-trigger' && document.activeElement.getAttribute('aria-expanded')==='false'")
+    browser("wait", "--fn", "!!document.querySelector('[role=button][aria-label=\"Drag to offset column\"]')")
+    browser("focus", driver.by_role_name("button", "Drag to offset column"))
+    before = evaluate("document.activeElement.getAttribute('aria-description')")
+    browser("press", "ArrowRight")
+    browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to offset column\"]').getAttribute('aria-description')!=={driver.json.dumps(before)}")
+    click("Undo")
+    browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to offset column\"]').getAttribute('aria-description')==={driver.json.dumps(before)}")
+    browser("focus", driver.by_role_name("button", "Align"))
+    held_space(url)
+    browser("wait", "--fn", "document.activeElement.closest('#m1-layout-align-menu')!==null")
+    browser("focus", driver.by_role_name("button", "Close Align"))
+    held_space(url)
+    check("document.activeElement.id==='m1-layout-align-trigger' && document.activeElement.getAttribute('aria-expanded')==='false'")
     print("PASS: packaged Layout native scope/tool Space and real nudge/Undo outcome", flush=True)
 
 
@@ -225,6 +276,11 @@ def main():
     if args.page_url:
         try:
             production_tests(args.page_url)
+        except Exception:
+            capture = ROOT / ".evidence/015" / datetime.now().strftime("production-failure-%Y%m%d-%H%M%S.png")
+            browser("screenshot", str(capture))
+            print("Production failure screenshot:", capture, flush=True)
+            raise
         finally:
             browser("close")
         return
