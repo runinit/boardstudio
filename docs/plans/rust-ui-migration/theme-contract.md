@@ -82,9 +82,18 @@ tokens.
 
 Source: rust-ui's own `tailwind.css` neutral palette (oklch) at the pinned commit, verbatim, with its three gaps defined
 (`destructive-foreground`, `surface`, `font-mono`). Font: Inter, bundled as a variable woff2 (OFL) so the offline app does not
-fetch it.
+fetch it. One deliberate departure (build ticket 002, for the cards style): light `background` is the desk, `oklch(0.965 0 0)`, because
+rust-ui's white equals `card`.
 
 ## 7. Open build details
+
+Build ticket 002 does not add a separate pre-paint script. First-paint behaviour remains unverified: stylesheet loading and the
+effect that sets `data-appearance` and `data-theme` have not been measured against paint timing, so a wrong-Theme frame cannot be ruled out.
+Size tokens are `--control-height`, `--control-compact`, `--control-touch` (Tailwind
+`h-control`, `h-control-compact`, `h-control-touch`); Theme shadows are `--theme-shadow-xs|sm|md|lg` behind Tailwind's `shadow-*`.
+`info` is authored (Original: the brand blue set; shadcn: hue 250).
+
+Originally open:
 
 Whether to apply the preference before first paint (the app currently sets the attribute after load, so a flash is possible);
 the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in the prototype
@@ -118,4 +127,5 @@ also has no Tailwind preflight. Until ticket 024 deletes the legacy rules:
 
 Rust names follow the glossary: `AppearanceState` and `ResolvedAppearance` (formerly `ThemeState` and `ResolvedTheme`) hold Appearance;
 `ThemeState` now holds Original or shadcn. The legacy tailwind alias `--color-accent` (the brand colour, unused) was removed because
-`accent` is now rust-ui's hover surface; `--color-muted` is still the legacy alias until ticket 002 maps `muted`.
+`accent` is now rust-ui's hover surface. Ticket 002 maps `muted` to the quiet surface and `muted-foreground` to muted text;
+the existing Snap label reads `text-muted-foreground` to preserve its contrast.
