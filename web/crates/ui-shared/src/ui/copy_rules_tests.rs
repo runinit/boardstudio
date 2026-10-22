@@ -25,6 +25,8 @@ const COPIES: &[(&str, &str)] = &[
     ("popover", include_str!("popover.rs")),
     ("select", include_str!("select.rs")),
     ("separator", include_str!("separator.rs")),
+    ("sheet", include_str!("sheet.rs")),
+    ("sidenav", include_str!("sidenav.rs")),
     ("skeleton", include_str!("skeleton.rs")),
     ("slider", include_str!("slider.rs")),
     ("spinner", include_str!("spinner.rs")),
