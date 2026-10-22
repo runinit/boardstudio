@@ -1,6 +1,6 @@
 # 015: Layout toolbar strips
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [007: Accessible action menus](007-accessible-action-menus.md), [008: Accessible Toolbar, Toggle Group, Slider and Toast](008-accessible-toolbar-toggle-slider-toast.md), [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -12,12 +12,12 @@ Layout's two fixed strips above the canvas are rebuilt on Toolbar, Toggle Group 
 
 ## Acceptance criteria
 
-- [ ] The selection scope strip and the contextual action strip behave exactly as today (scopes, Position, Stagger, Offset, Splay, Align, Transform, Snap and Geometry snap) and keep the Stationary Controls Rule
-- [ ] Soft filled groups replace outlined buttons (cards style); the strips do not switch density or scroll horizontally at the supported widths
-- [ ] The Layout toolbar tests are rewritten per the test rule and pass; the strips pass the floor
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The selection scope strip and the contextual action strip behave exactly as today (scopes, Position, Stagger, Offset, Splay, Align, Transform, Snap and Geometry snap) and keep the Stationary Controls Rule
+- [x] Soft filled groups replace outlined buttons (cards style); the strips do not switch density or scroll horizontally at the supported widths
+- [x] The Layout toolbar tests are rewritten per the test rule and pass; the strips pass the floor
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
-## Outcome (review candidate; landing held)
+## Outcome (resolved after approved local feature landing)
 
 The bound child worktree is `/home/chris/.t3/worktrees/ts-boardstudio2/t3-736d098e`, branch `feat/layout-toolbar-strips`. Initial tracked/untracked inventory was clean at `b2379037`; local feature was fast-forwarded to `a1828bb3` before claim `98e3823`. Its dedicated target is `/home/chris/.cache/boardstudio-target/015-layout-toolbar-lineage`; protocol settings and CAD caches were prepared before builds. No agents, watchers, source copies, target directories in evidence, origin or dev operations were created.
 
@@ -126,3 +126,12 @@ The complete corrected `spec-r2-packaged-final.log` passes both final production
 The focused exact disabled-label-TEXT refinement is separately GREEN for both app and fixture, so evidence reuse is explicit: the first full run's checkbox cases preceded only that more precise test pointer target; the focused run and final complete run use the tightened target. All corrected behavior, new instance-ID proof and affected checks are GREEN. The latest local feature is still `dcb4b496`; the final pre-check merge was already up to date. Final own diff versus that base has 11 files, with no `test_role.rs`, caller, 014 shell or native palette host delta. Fresh final documentation/repository and Python syntax checks accompany the correction handoff.
 
 Ready for targeted Spec re-review of the two addressed P2 findings; no review or agents were started by this child. Standards' prior zero-finding result remains bounded to its reviewed scope. Ticket remains claimed and local landing/cleanup remain HOLD pending coordinator approval. The global full/quick/CAD worker/first paint/screen-reader/human026/final dev merge gates remain OPEN; none of these bounded correction receipts closes them.
+
+
+### Approved closure and local landing
+
+Targeted Spec R2 APPROVE, zero findings, at `882ce49bb736a3f55285852506b77760586431d7`: both P2 findings resolved and no connected regression found. Receipt: `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui015-spec-review-r2`. Prior Standards R1 APPROVE, zero findings, remains valid for its bounded unchanged scope (`rust-ui015-standards-review-r1` under the same receipt prefix); the exact small corrections and pan probe were checked by Spec R2, and 014 was separately approved and landed.
+
+The coordinator explicitly approved local fast-forward of `feat/rust-ui-migration` after current-tip verification. Its tip was still `dcb4b4962d2187540c588b4638417a595cb01fe7`; the approved source and tests therefore need no additional build/browser repetition. This closure commit changes only this ticket's status, acceptance checks and approval record. Fresh documentation/repository checks and clean inventory accompany the local fast-forward; no origin/dev operation is authorized or performed. The prior source/check receipts above are reused unchanged.
+
+After verified landing, the user authorized removal only of the physical exclusive target `/home/chris/.cache/boardstudio-target/015-layout-toolbar-lineage`, conditional on symlink/process/lsof ownership checks. The outside-target cleanup receipt will be `.evidence/015/approved-target-cleanup.txt`; the worktree, branch, evidence, receipts and other valuable ignored files remain retained. Cleanup may be held independently if the ownership audit is uncertain. All transient owned test servers already stopped at their normal test-process exit. Global full/quick, CAD `worker.onerror`, first paint, screen-reader, human026 and final dev merge remain OPEN.
