@@ -185,3 +185,180 @@ completed pin after that integration. No review was self-delegated; no agents,
 threads, watchers, feature landing, origin/dev push, visibility widening or new
 dependency. Global full/quick, CAD `worker.onerror`, first-paint, screen-reader,
 human026 and final-merge gates remain open.
+
+### Landed 011 integration and final owner handoffs
+
+**2026-10-22: continuation candidate; claimed, closure review and landing HOLD.**
+This section supersedes the pending 011 and driver blockers above. The original
+RED images/logs remain unchanged. T3 binding, CWD, branch and clean inventory
+matched `c617b4e1a53f02fd8a6e2e4cc8b91f61972f559f`; the isolated lineage target
+and retained port 4222 server are unchanged. Merged local feature
+`a1828bb3aa15f46a45b355880ba5e31ab0aa9262` at
+`add2427f17b1f6763993e833c92b51c071e4714d`, with no conflicts. The incoming
+011 persistent dock subtrees, Sheet props, Button ARIA, summary Space handler
+and test-role helper, and 013 notification/CSS/runtime ownership are preserved.
+The original lane and its server were not edited or restarted.
+
+Approved integration changes:
+
+- Editor appends owner-local View commands using the current compact signals
+  and desktop `PanelSettings`. At dispatch, width <980 toggles the requested
+  side and closes the opposite side; desktop changes only mode, retaining width.
+  Stable `use_callback` handles preserve the selected View command across the
+  979/980 resize without relaxing registry admission. The approved Add adapter
+  reveals Objects before the unchanged `add_open.set(true)`, using the same
+  current-viewport state and preserving the desktop width.
+- Header Search uses 011's Button ARIA props and a `ReadSignal<bool>` prop.
+  Header owns the subscription; App does not read palette-open state to refresh
+  its navigation commands. Native Header Undo/Redo close the compact menu before
+  invoking their unchanged owner callback. Hints, desktop behavior and history
+  ownership remain intact.
+- `scripts/test-header.py` resolves Undo/Redo from the Header-scoped semantic
+  snapshot, asserts one matching button and validates its ref metadata/name.
+  The global snapshot contains duplicate footer controls, including an inert,
+  covered footer Undo. No global-first/nth locator or UI dismissal is used.
+  All original native history outcomes remain asserted.
+- Snap settings registration moved from `LayoutSnapDock` into the existing
+  `LayoutCommandPill` command block, using its existing `open_menu` owner.
+  Both presentations share identical private settings; Dock adds disclosure
+  and the current increment. The two approved caller hunks are included here:
+  `layout_workspace.rs` sets `snap_in_dock: false`; `presentation.rs` removes
+  only the redundant Objects `LayoutSnapDock` mount. Component code stays for
+  later cleanup. There is one visible canvas trigger, popup and command owner.
+- Only the Snap command calls the existing synchronous
+  `restore_layout_command_focus(menu)` after setting `open_menu`. The persistent
+  native trigger is the canonical command target; no DOM activation or delayed
+  focus task was added. The Pill root stops virtual/raw propagation only for
+  Space whose raw target has that trigger's canonical ID. It does not prevent
+  default, overwrite another caller handler, or change canvas handling.
+- `PaletteState.show` captures a public Popover relationship before focusout can
+  unmount content. For an active element inside the nearest actual Popover
+  content, it resolves that content ID to one connected, visible, focusable
+  `aria-controls` trigger, excluding disabled/hidden/inert candidates. Ambiguous
+  or invalid relationships fall back to the original active element. The
+  original element still owns field blur/commit; `finish_close` guards remain
+  unchanged. No Layout-specific IDs, state, API, timer or Popover change.
+  The browser DOM fixture proves nearest nested relationship selection and
+  ambiguous/invalid rejection. This is capture-time normalization: if that
+  trigger later unmounts too, the existing connected-element guard and fallback
+  still apply; no recursive popup-owner walk or new focus policy is introduced.
+- Rename's existing ProjectHeaderMenu callback is memoized only by captured
+  project ID; the original latest-runtime ID check, request and browser body
+  remain. Unrelated renders retain identity, while a project change replaces
+  it and cannot retarget an old snapshot. Open Demo uses an unconditional stable
+  callback. Both hooks run in the same order for project None/Some; no registry
+  guard, domain state or visibility change. The mounted test retains consume
+  once, current-project checks and no replay on Library remount.
+
+Product checkpoints: View/Search/Snap ownership `5f06c7a4829a8309d13bd8ba2b092e8e5ce6f816`;
+Header callback correction `840e91201014dd1ace1e4253f70dfe4cd5dcb271`;
+View identity/Add reveal `6f2629515de2633f3f23cfa454614e498557dd8f`;
+Snap handoff `db14ba0ad109ac1e37323a7223a4e8522e79e28d`;
+native Space guard `3be06eee4782c2a6d1422eb2232b4cb54696a7ac`;
+Popover opener `fc118b020f31a38b5e3d0d7bc6c3eb11387c00e3`;
+Library callback identity `11e025a0e681fd9f06707ac617a1a2c5537d926c`.
+The document-teardown/remount harness addition is `a0b79b1834c37213041759fba01917e56fcd4fa8`.
+
+#### Regression attribution
+
+All logs below are under `.evidence/012-lineage/post-dock/`.
+
+| Receipt | Actual finding or diagnostic limit |
+| --- | --- |
+| `view-red.log`, `search-aria-red.log` | Missing View commands and missing Search popup ARIA before integration. |
+| `candidate-palette.log` | Navigation failed when App subscribed to palette-open; Header-local ReadSignal fixes that ownership. |
+| `candidate-header.log`, `header-diagnostic/` | Original global locator selected the covered footer Undo. Header-scoped snapshot contains one visible intended pair. The first scoped-ref implementation incorrectly used accumulated global refs; corrected to parse the scoped snapshot text. |
+| `header-3.log`, `header-3/failure.png` | Correct native Header Undo changed the project name but left its mobile menu open. The two approved native callbacks now close it. |
+| `palette-3.log`, `view-diagnostic-2.log` | Actual first View activation at979 closed the palette without opening Objects. Synchronous marker: same owner, changed callback (`identity=true command=false`). Stable View handles fix this. The earlier asynchronous diagnostic changed timing and is not GREEN. |
+| `view-diagnostic.log` | Add opened in hidden Objects when desktop mode was Collapsed. The approved reveal adapter preserves width and authoritative compact ownership. |
+| `snap-focus-diagnostic.log` and image | Actual command-open Snap was visible while focus remained BODY. Canonical synchronous handoff fixes this bounded command-target requirement. |
+| `snap-space-red.log` | Trusted Enter produced click1; Space keydown/keyup produced no click2 because Layout pan prevented default. The scoped root guard preserves native keyup activation. |
+| `snap-space-green-subpath.log`, `complete-subpath-2.log`, `snap-palette-escape-diagnostic.log` | Harness assumptions, not product fixes: a later native reopen may focus inside the actual popup; CtrlK focusout dismisses native Snap before query/Enter/Escape. Old Accordion persistence expectations were invalid. Preserve the image/trace; remove only Escape on an already closed Snap. Actual compact Inspector Sheet now provides the stronger Escape-first/same-owner test. |
+| `complete-subpath-3.log`, `snap-detached-opener-diagnostic.log` | Actual CtrlK from Close Snap captured a later-detached child; Escape returned BODY. Public-ARIA capture-time normalization fixes that opener lifetime. First command handoff and Snap Escape remain strict canonical-target assertions. |
+| `opener-root.log`, `opener-subpath.log`, `rename-diagnostic.log:1491` | Both routes passed the new Snap focus checks and canvas pan, then Rename closed without opening Library. Synchronous diagnostic `identity=true command=false` confirmed callback refresh under the same owner. Neither partial run is a complete production pass. |
+| `rename-refresh-red-2.log` | Mounted captured Rename after an unrelated same-project refresh failed the expected pending-request condition in5000ms. Initial attempt used the page-test runner for a child crate; its selection error is not behavioral RED. |
+| Earlier build/driver diagnostics | The mutable binding error after011 and optional owned String prop error were compile failures, not behavioral proof. Old WebDriver missing-loader failure is resolved by the coordinator's matching155 driver repair; its receipt is retained at `driver-repair/run-receipt.json`. |
+
+All temporary Rust console/Reflect markers and diagnostic-only driver reads were
+removed. Test-only trusted-key event records remain to assert target, prevention
+and exact activation counts; they do not alter behavior.
+
+#### Verification and limits
+
+The first final replay at `fc118b02` rebuilt both routes (`opener-build.log`,
+exit0), passed Header (`closure-header.log`, exit0) and seven page browser tests
+(`closure-page.log`, `closure-page-results.json`: complete,7passed,0failed,
+exit0). Those page tests cover public relationship resolution plus all six
+Export tests; no missing-driver blocker remains. The complete production
+replays stopped at the newly discovered Rename failure, as recorded above.
+Final nondiagnostic receipts after the Library fix follow.
+
+Final product source is `11e025a0e681fd9f06707ac617a1a2c5537d926c`;
+final production harness is `5b2edfc07e55ae7402e22d086ade4cf758cb9e30`.
+Later Outcome commits change documentation only. No diagnostic instrumentation
+is present in this source or these replays.
+
+| Final command/check | Result and receipt |
+| --- | --- |
+| `CARGO_PROFILE_DEV_DEBUG=false wasm-pack test --headless --chrome web/crates/library --locked --lib -- library::mounted_tests::palette_project_tools_consume_once_and_reject_rename_after_project_switch` | PASS1/1, exit0; `rename-refresh-green.log`. One captured Rename invocation queues its request after same-project refresh; the old snapshot queues nothing after project switch. Current-project focus, consumption/remount and captured Demo after refresh pass. |
+| `python3 scripts/build-web.py --fast --skip-providers --routes subpath,root` | PASS, exit0; `closure-build.log`. Both routes rebuilt at the final product source; unchanged validated providers reused. |
+| `python3 scripts/test-command-palette.py http://127.0.0.1:4222/ --evidence .evidence/012-lineage/post-dock/closure-root` | PASS, exit0; `closure-root.log`. Complete nondiagnostic production driver, including native trusted actions and document teardown/reopen. |
+| Same driver at `http://127.0.0.1:4222/boardstudio/`, evidence `post-dock/closure-subpath` | PASS, exit0; `closure-subpath.log`. Same complete assertions on the subpath package. |
+| `python3 scripts/test-header.py http://127.0.0.1:4222/boardstudio/ --evidence .evidence/012-lineage/post-dock/owner-header` | PASS, exit0; `owner-header.log`. Actual Header Undo/Redo, project history, compact menu close/focus, retained inert content, desktop behavior and all16 geometry cases. |
+| `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py browser --only library` | PASS18/18, exit0; `closure-library-browser.log`. Scoped Library browser suite, not a global browser gate. |
+| `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py lint typecheck repo` | PASS, exit0; `owner-lint-typecheck-repo.log`. Native/wasm Clippy, page typecheck and repository checks. Old CSS count remains informational. |
+| `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/run-wasm-tests.py --files web/src/presentation/command_palette.rs web/src/presentation/export_workspace.rs web/src/presentation/zmk_firmware_export.rs --result-json .evidence/012-lineage/post-dock/owner-page-results.json` | PASS7/7, exit0; `owner-page.log`, complete structured report `owner-page-results.json`,0failed/0incomplete. Public Popover relationship test and all six Export tests at the final product source. |
+
+The full route runs verify canonical Snap handoff; Tab into actual settings;
+increment, Geometry and gap callbacks; Escape/reopen; one command/trigger/popup;
+native Enter and three held Space phases (no activation while held, default not
+prevented, exactly one trusted keyup click per phase); canvas pan outside and
+field Space typing. They also exercise selected View dispatch across979/980,
+correct compact sides/opposite close, desktop toggles and persisted widths,
+Add reveal/cancel/focus, the SAME Inspector Sheet across palette open/Escape,
+strict Snap-content Escape focus, outside Project focus, normal field blur
+commit/Escape cancel, Rename/Demo, object selection and existing tools/Export
+blockers. Document teardown is a full navigation away with a palette open,
+then return to the same packaged route: closed state, one reopened palette and
+normal Escape. Component-scope unregister/stale-owner behavior remains the
+separate registry browser test; document teardown does not stand in for it.
+Inspected final `closure-subpath/palette-open.png` and `palette-narrow.png`;
+both route runs retain four Theme/Appearance screenshots. This is bounded
+visual inspection, not human026 or screen-reader acceptance.
+
+The final freshness check still returned local feature
+`a1828bb3aa15f46a45b355880ba5e31ab0aa9262`. Exact diffs against it remain empty
+for incoming `panels.rs`, `ui/button.rs`, `ui/sheet.rs`, `test_role.rs`,
+`web/tailwind.css` and `presentation/notifications.rs`. Formatting, Python
+compilation and diff checks passed. The Outcome-only repository check is logged
+as `closure-outcome-repo.log`; no Cargo/wasm-pack runs overlapped on this target.
+
+Reused scoped evidence is explicit: `affected-browser.log` ran223 ui-shared/Layout
+browser tests after011 integration (68+2+152+1), including registry refresh,
+unavailable/reordered snapshots, unregister/remount and controlled/uncontrolled
+Space behavior. `dock-production.log` passed the landed011 production driver,
+including six workspaces, persistent drafts, widths979/980 and canvas pan.
+Earlier146 native and322 affected-browser receipts retain their original pins
+and subset limits. Later Snap/opening behavior is checked by the final production
+harness rather than relabeling these older receipts as fresh. No provider source
+changed; page rebuilds reuse the validated provider stage recorded above.
+
+The [accessibility floor](../../rust-ui-migration/accessibility-floor.md) records
+Popover focus moving inside and Tab remaining inside (§2), plus overlay Escape,
+focus return and ARIA requirements (§3); action menus require entry focus.
+Legacy `BoardPopover` is non-modal and its initial-focus timing does not satisfy
+that full entry-focus claim. Canonical command-target focus plus Tab to Close
+Snap is **bounded 012 evidence, not full Popover-floor acceptance**. The approved
+native-reopen trigger-or-popup expectation explicitly rejects BODY/outside focus;
+it does not weaken the first command handoff or canonical Escape assertions.
+015 owns the new popup-entry adapter and broader native-button Space guard.
+Its unlanded markup was not copied. It must preserve 012 callbacks, registration,
+canonical ID and the Snap predicate in one composed root handler; final merged
+validation must cover command and toolbar keyboard/actions, popup-entry focus
+and the applicable floor. This gap remains explicit for Spec review.
+
+No agents, threads, watchers, local feature landing or remote push were created.
+One complete Standards+Spec review must run through the coordinator at a clean
+completed pin. Ticket stays claimed and landing HOLD until substantive approval.
+Global full/quick, CAD `worker.onerror`, first-paint, screen-reader, human026 and
+final-merge gates remain open; no scoped receipt clears them.
