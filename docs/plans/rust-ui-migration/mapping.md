@@ -1,7 +1,6 @@
 # Mapping: existing building blocks to rust-ui components
 
-Ticket: [004](issues/004-map-building-blocks-to-rust-ui.md). **DRAFT**, proposed 2026-10-21; rows marked ❓ wait on the
-user's answer in the ticket. Inputs: [inventory](inventory.md), [ADR-0034](../../adr/0034-adopt-rust-ui-components-with-two-themes.md),
+Ticket: [004](issues/004-map-building-blocks-to-rust-ui.md). Decided with the user, 2026-10-21 (every row accepted as drafted, with the sizing, Select/Combobox, Stepper, message, Tooltip and file-input rules below). Inputs: [inventory](inventory.md), [ADR-0034](../../adr/0034-adopt-rust-ui-components-with-two-themes.md),
 [ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md), the catalogue research on branch
 `research/rust-ui-catalogue`, and ticket [009](issues/009-close-rust-ui-behaviour-gaps.md) (rust-ui supplies the look,
 `dioxus-primitives` the behaviour, nothing ships inline scripts).
@@ -15,14 +14,14 @@ Reading the table. **Look** is the rust-ui component whose markup and classes we
 
 | Existing (uses) | Look | Behaviour | Notes |
 | --- | --- | --- | --- |
-| `BoardButton` (189) and raw `button` (163) | `Button` | native | Primary→`Default`, Secondary→`Outline`, Quiet→`Ghost`, Danger→`Destructive`. Sizes: our Comfortable 40px = rust-ui `Lg`, Compact 36px = `Default`, so the sizes map by pixels, not by name ❓ Q1. Icon-only → `Icon` / `IconSm`. |
+| `BoardButton` (189) and raw `button` (163) | `Button` | native | Primary→`Default`, Secondary→`Outline`, Quiet→`Ghost`, Danger→`Destructive`. Sizes: our Comfortable 40px = rust-ui `Lg`, Compact 36px = `Default`, so sizes map by pixels, not by name (decided); touch targets stay 44px. Icon-only → `Icon` / `IconSm`. |
 | `BoardToolbar`, `BoardToolbarButton` (3, 3) | `Toolbar` | primitives Toolbar | roving arrow keys kept |
 | `BoardToggle` (2) and `aria-pressed` buttons (17) | `Toggle Group` (`Outline` variant) | primitives Toggle / Toggle Group | rust-ui has no single Toggle, so a lone toggle is a one-item group |
 | `BoardPopover` (2) and Layout command menus | `Dropdown Menu` for action lists, `Popover` for free-form content | primitives | `menu_kind`, focus return and controlled `open` come from the primitive |
 | `BoardDialog` (3 uses): the library's project-delete confirmation | `Alert Dialog` | primitives Alert Dialog | the only modal use; the other two are flyout panels, see section 3 |
 | `BoardCheckbox` (26) and raw checkbox (8) | `Checkbox` | primitives Checkbox | |
 | `BoardNumberField` (20) and raw number input (52) | composition: `Field` + `FieldLabel` + `InputGroup` (`InputGroupInput` number, `InputGroupText` unit) + `FieldError` | native input | no rust-ui number field; parsing, blur commit and key handling stay in the caller. Kept as one thin composed `NumberField` in `ui/`, marked as a composition. |
-| `BoardSelectField` (79) and raw `select` (26) | `Field` + `Select` | primitives Select | ❓ Q2: which lists use `Select` and which `Combobox` |
+| `BoardSelectField` (79) and raw `select` (26) | `Field` + `Select` | primitives Select | `Select` for short fixed lists (about 12 options or fewer), `Combobox` for long or filterable ones (part, key, model pickers); each file is classified in the sweep |
 | `BoardDisclosure` (65), `details` (11) | `Collapsible` | primitives Collapsible | many sections may stay open together, so not `Accordion` |
 | `BoardAccordionSection` (2) | `Accordion` | primitives Accordion | |
 | `label` wrappers (167) | `Field` + `FieldLabel` / `Label` | native | |
@@ -44,7 +43,7 @@ Reading the table. **Look** is the rust-ui component whose markup and classes we
 | `EmptyBoardCanvas` text | `Empty` | native | |
 | Export rows, `ZmkFirmwareExportRow` | `Item` + `Badge` / `Status` + `Button` | native | |
 | Findings and collision lists | `Item` + `Badge` (severity) | native | |
-| Setup guide steps | ❓ Q3 `Stepper` or `Accordion` sections with `Item` rows | rust-ui / primitives | |
+| Setup guide steps | `Stepper` (vertical, current and ready states) inside the four `Accordion` sections | rust-ui Stepper, primitives Accordion | sections stay freely navigable |
 | Parts catalogue rows, relation rows | `Item` / `ItemGroup` | native | |
 | Layer rows (`LayerToggleButton`, `LayerPanel`, `CanvasLayers`) | composition: `Collapsible` + `Item` + `Toggle` (eye) | primitives | no rust-ui layer control; composed, not custom |
 | Bounded scroll regions | native `overflow`, Theme scrollbars | native | `Scroll Area` adds nothing here |
@@ -60,9 +59,9 @@ dock) and **Mirror existing half**. They become in-dock views built from `Collap
 
 | Pattern (count) | Look | Notes |
 | --- | --- | --- |
-| Inline status and alert text (246) | ❓ Q4 `Alert`, `Callout`, `FieldError`, `Toast` by rule | |
-| Native `title` attributes (84, some are props) | ❓ Q5 `Tooltip` (+ `Kbd`) | |
-| File inputs (9) | ❓ Q6 `Button` + hidden file input, or `Dropzone` | |
+| Inline status and alert text (246) | Rule: `FieldError` for field errors; `Alert` (error) for blocking or persistent page problems; `Callout` (info, warning) for notices and guidance; `Toast` for transient results; Export blockers and Case readiness stay inline. Each message is classified in the sweep. |
+| Native `title` attributes (84, some are props) | `Tooltip` (+ `Kbd` where a shortcut exists) on icon-only buttons; redundant `title` dropped from text buttons | |
+| File inputs (9) | `Button` + hidden native file input; no `Dropzone` (drag-and-drop import is a new capability, not requested) | |
 | Colour inputs (4) | native colour input inside `Field` | rust-ui has none; primitives has a Color Picker if wanted later |
 | Range inputs (4) | `Slider` | primitives Slider behaviour |
 | Search inputs (5), text inputs, `textarea` | `InputGroup`, `Input`, `Textarea` | |

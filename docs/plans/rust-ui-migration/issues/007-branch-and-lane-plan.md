@@ -10,4 +10,6 @@ Parent: [Map](../map.md)
 What lands first on the long-lived branch (scratch-proven components, `tw_merge`,
 Themes), how per-workspace lanes split without colliding in `ui-shared`, how tests are
 rewritten to rust-ui interaction while product behaviour is proven unchanged, and what
-gate the branch must pass before its one merge.
+gate the branch must pass before its one merge. Also decide: which behaviours must be re-proven when native `select` (105), `details`
+and `dialog` become custom controls (typeahead, touch pickers, focus return, form semantics); and the order and rule for retiring
+`m1.css` and the `.board-*` / `.m1-*` rules, including layout rules in them that are not component styling.

@@ -39,6 +39,7 @@ decided.
 
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
+- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md): [mapping](mapping.md) decided; no new custom components; sizes by pixels, Select vs Combobox, Stepper, message and Tooltip rules, file inputs stay native.
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; blocked by: None
 - [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 003, 011
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
@@ -63,16 +64,10 @@ decided.
 
 ## Not yet specified
 
-- Per-gap equivalence decisions: each building block with no direct rust-ui match gets
-  its own ticket once the mapping names them.
 - Theme look: what the shadcn Theme's base palette is and how Original's Graphite values
   land in rust-ui's names; likely a prototype once the Theme structure is decided.
-- Compact density: whether BoardStudio's compact control sizes become a rust-ui size
-  variant or a Theme concern.
-- Native-to-custom control shifts (Select, number fields, `details`): what precise-entry
-  and keyboard behaviour must be re-proven, feeding the test-rewrite rules.
-- Legacy CSS retirement order across lanes, and layout rules in `m1.css` that are not
-  component styling.
+- Assembling the spec: once the tickets are resolved, `spec.md` gathers the decisions, the mapping and the lane plan
+  into build tickets.
 - Shell build details: customising Sheet to be non-modal, extracting Sidenav's classes, per-side dock resize and persisted widths, a fallback for saved auto-hide preferences, the header's mobile menu, and the DESIGN.md rewrite.
 
 ## Out of scope
