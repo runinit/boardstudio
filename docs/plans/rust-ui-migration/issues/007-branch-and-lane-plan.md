@@ -1,6 +1,6 @@
 # 007: Branch, lane and test-rewrite plan for the single merge
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: [004](004-map-building-blocks-to-rust-ui.md), [005](005-theme-structure.md)
 Parent: [Map](../map.md)
