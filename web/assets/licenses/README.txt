@@ -18,3 +18,5 @@ ttf-parser-MIT.txt. Source: https://github.com/harfbuzz/ttf-parser/tree/v0.25.1
 
 Components under web/crates/ui-shared/src/ui/ are copied from rust-ui (https://github.com/rust-ui/ui,
 MIT, Copyright (c) 2026 Max Wells), reproduced in rust-ui-MIT.txt. Each file names its upstream path and commit.
+
+Lucide icons are vendored from https://github.com/lucide-icons/lucide at commit 20aef31db93fe4d9f398dbb15b120d99c48eef95 under ISC; its license and Feather-derived icon MIT notice are in lucide-LICENSE.txt.
