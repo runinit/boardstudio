@@ -12,8 +12,54 @@ The two building blocks of the new docks exist and work on their own: a non-moda
 
 ## Acceptance criteria
 
-- [ ] Sheet opens from the edge it is given with no backdrop and no scroll lock, so the canvas stays visible and interactive; Escape closes it and returns focus
-- [ ] Sidenav's `collapsible: None` form is an in-flow dock that sits under the header (not fixed to the viewport) at the desktop widths
-- [ ] A dock resizes by pointer drag and by arrow keys, within its minimum and maximum, and each side saves its own width (no shared key)
-- [ ] Repository browser tests cover resize, persistence per side and the Sheet's non-modal behaviour
+- [x] Sheet opens from the edge it is given with no backdrop and no scroll lock, so the canvas stays visible and interactive; Escape closes it and returns focus
+- [x] Sidenav's `collapsible: None` form is an in-flow dock that sits under the header (not fixed to the viewport) at the desktop widths
+- [x] A dock resizes by pointer drag and by arrow keys, within its minimum and maximum, and each side saves its own width (no shared key)
+- [x] Repository browser tests cover resize, persistence per side and the Sheet's non-modal behaviour
 - [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+
+## Outcome
+
+Implementation is complete; the ticket remains claimed pending the coordinator's single Standards + Spec closure review and local-landing approval.
+
+### Scope and ownership
+
+- Bound checkout: `/home/chris/.t3/worktrees/ts-boardstudio2/lane-009-dock-primitives`, branch `lane/009-dock-primitives`.
+  Verified clean initial HEAD and local feature base `20dd558763bf05681a305c227f58f5eca9375601`; claim saved in `5744f38f8` before implementation.
+- Added `ui/sheet.rs`: controlled `Sheet`, `SheetTrigger`, `SheetContent` and `SheetClose`, with four edge directions, named non-modal dialog semantics,
+  focus entry/return and an owned Escape listener removed on close/unmount. No backdrop, scroll lock, focus trap or inline script.
+  A nested Select consumes its first Escape; the next Escape dismisses the Sheet. Like other overlay primitives, closed content unmounts; domain draft ownership stays with the caller.
+- Added only Sidenav's in-flow `collapsible: None` form, exposed as `Sidenav` (no unused collapse-mode API). It has no viewport-fixed wrapper or breakpoint hiding.
+  The shell chooses visibility and may pass available width to preserve canvas space. The resize separator supports both sides, pointer capture/release/cancel/loss,
+  arrows (20px; Shift 40px), Home/End, bounds and ARIA values. Pointer preview stays local; completion changes only the supplied settings signal's width.
+- Reused public `panels::PanelSide`, `PanelSettings` and `use_panel_settings`. The existing `boardstudio:v2:panel:left` and `:right` keys, width bounds,
+  decoder and storage-warning owner remain authoritative. Saved modes are preserved; auto-hide fallback and shell integration belong to 011.
+- Styling adapts pinned rust-ui source `7120636e68556ddd023a4ec8e083663c7b745318`, consumes existing tokens, keeps focus rings and borderless cards, and adds `data-slot`s.
+  Only surgical module exports and two copy-rule registry entries were needed; `ui-shared/src/lib.rs`, 007/008 control modules, icons, fonts and production shell callers were untouched.
+- Standalone mounted fixture: `web/crates/ui-shared/examples/dock_primitives.rs`; trusted browser regression: `scripts/test-dock-primitives.py`.
+  The fixture is not mounted by production. No dependency, alternative preference store, private-member visibility change or source-document decision change.
+
+### Evidence
+
+- Established the lane protocol in this existing T3 checkout: `target -> /home/chris/.cache/boardstudio-target/009-dock-primitives`; copied only the ignored
+  setup/cache assets described by `scripts/new-lane.sh`. Verified target and active builds before building; commands ran serially with project concurrency.
+- Initial missing-behaviour RED: the standalone fixture build failed with E0432 for absent `ui::sheet` / `ui::sidenav`, in `.evidence/009-initial-red.log`.
+  Additional realistic REDs: Escape left focus on the canvas (`009-sheet-focus-red.log`), and standalone Sheet padding extended the bottom panel to x=1488 in a 1440px viewport (`009-geometry-red.log`).
+  Fixed persistent transition tracking and explicit border-box sizing; the same assertions pass.
+- `cargo test --locked -p boardstudio-web-ui-shared --lib`: 15 passed (`.evidence/009-native-merged.log`), including existing persistence-decoder bounds/malformed-value tests and the new active-pointer/side resize-delta test.
+- `NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules python3 scripts/test-dock-primitives.py`: passed after the 007 merge (`.evidence/009-browser-merged.log`).
+  Real mouse/keyboard input checks both side widths and live geometry, capture/release/loss, no storage writes during preview, distinct keys across reload, preserved modes, persisted-bound clamping,
+  arrows/Home/End, in-flow placement, four Sheet edges, Tab leaving the Sheet, canvas clicks/scroll, nested Select dismissal and focus return on Escape, Close and external close.
+- The fixture loads both the existing legacy stylesheet and newly generated Tailwind, with bundled fonts. Screenshots in `.evidence/009-{original,shadcn}-{light,dark}.png`
+  and `009-narrow-sheet.png` cover the primitive fixture at 1440x900 and 390x844; these are not production-shell or human Workspace acceptance.
+- Impeccable detector over both new UI modules: no findings (`.evidence/009-design-detector.json`). Scoped rustfmt and `git diff --check` passed.
+- Merged locally landed 007 (`7b1bb75386f0b43dcc5d7a85530bb5789cdb7156`) without conflicts at `8c254bd0ff4f80cd0a369404ea8d66c1a488e355`;
+  its menu implementation and dedicated tests were preserved. All affected checks below passed on that exact merged code; the subsequent review-ready commit changes this ticket only.
+- `BOARDSTUDIO_CHECK_JOBS=1 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules python3 scripts/check.py browser --only ui-shared --receipt .evidence/009-shared-browser-merged-receipt.json`:
+  49 passed (47 ordinary + 2 isolated panel tests), no failures/ignored/incomplete results. Receipt and summary record the partial scope; full browser gate was not run.
+- `cargo clippy --locked -p boardstudio-web-ui-shared --lib --target wasm32-unknown-unknown -- -D warnings`: passed (`.evidence/009-clippy-wasm.log`).
+  `python3 scripts/check-doc-links.py`: passed, 565 Markdown files (`.evidence/009-doc-links-final.log`).
+
+### Remaining gates
+
+Coordinator closure review and local landing are pending. No origin push or dev merge. Global full/quick, CAD `worker.onerror`, first paint, human Workspace checks and final migration merge remain open.
