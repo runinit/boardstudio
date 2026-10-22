@@ -1263,6 +1263,76 @@ mod tests {
     }
 
     #[component]
+    fn preview_controls_host() -> Element {
+        let generation = use_signal(|| 0_u64);
+        let activation = use_signal(|| 0_u64);
+        use_context_provider(|| super::super::PartsSelectionGeneration(generation));
+        use_context_provider(|| super::super::PartsPreviewActivation(activation));
+        rsx! {
+            PartsPreviewPanel {
+                definition: Some(Rc::new(definition())), recipe: Vec::new(),
+                recipe_error: None, recipe_pending: false, recipe_identity: "keyboard-floor",
+                preview_title: None, scope: None, snapshot_token: SnapshotToken(1),
+                generator_draft: None,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn parts_preview_mode_arrows_rove_without_changing_the_local_view() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(preview_controls_host);
+        dom.provide_root_context(support::new_runtime());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("the actual Parts preview mode controls mount", || {
+            by_role_name(&root, "button", "2D footprint").is_some()
+        })
+        .await;
+        let footprint = by_role_name(&root, "button", "2D footprint").unwrap();
+        let model = by_role_name(&root, "button", "3D model").unwrap();
+        footprint.focus().unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("ArrowRight");
+        key.set_bubbles(true);
+        key.set_cancelable(true);
+        footprint
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        wait_until("ArrowRight roves to the actual 3D mode control", || {
+            document.active_element() == Some(model.clone().unchecked_into())
+        })
+        .await;
+        assert_eq!(
+            footprint.get_attribute("aria-pressed").as_deref(),
+            Some("true")
+        );
+        assert_eq!(
+            model.get_attribute("aria-pressed").as_deref(),
+            Some("false")
+        );
+        model.click();
+        wait_until("the Parts-owned view changes after activation", || {
+            model.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        footprint.click();
+        wait_until("the same owner returns to the footprint", || {
+            footprint.get_attribute("aria-pressed").as_deref() == Some("true")
+        })
+        .await;
+        root.remove();
+    }
+
+    #[component]
     fn parts_layers_host() -> Element {
         rsx! {
             PartsPreviewLayers {
