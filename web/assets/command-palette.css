@@ -1,0 +1,10 @@
+/* Dialog and Combobox composition; both Themes supply its tokens. */
+.command-palette [data-slot="combobox-list"] {
+  position: relative;
+  top: auto;
+  max-height: min(55vh, 420px);
+  box-shadow: none;
+}
+.command-palette [data-slot="combobox-input-wrapper"] { flex: none; }
+.command-palette [role="option"] { min-height: var(--control-height); }
+.command-palette [role="option"][aria-disabled="true"] { cursor: default; }

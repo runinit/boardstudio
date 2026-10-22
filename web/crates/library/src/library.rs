@@ -25,7 +25,16 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
 mod header_actions;
-pub use header_actions::ProjectHeaderMenu;
+pub use header_actions::{ProjectHeaderMenu, use_project_tools};
+
+#[derive(Clone, PartialEq)]
+enum ProjectTool {
+    Rename(String),
+    Demo,
+}
+
+#[derive(Clone, Copy)]
+struct ProjectToolRequest(Signal<Option<ProjectTool>>);
 
 /// Presentation-only browser visibility. The editor remains mounted while browsing.
 #[derive(Clone, Copy)]
@@ -405,9 +414,15 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
 }
 
 #[component]
-fn DemoActionCard() -> Element {
+fn DemoActionCard(#[props(default)] open: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let browser = try_use_context::<ProjectBrowserState>();
+    let mut summary = use_signal(|| None::<web_sys::HtmlElement>);
+    use_effect(use_reactive((&open,), move |(open,)| {
+        if open && let Some(summary) = summary() {
+            let _ = summary.focus();
+        }
+    }));
     rsx! {
         article { class: "m1-library-start-card",
             div { class: "m1-library-start-icon m1-library-start-icon--demo",
@@ -420,8 +435,10 @@ fn DemoActionCard() -> Element {
             }
             h2 { "Try a demo" }
             p { "Explore a sample keyboard to see BoardStudio in action." }
-            details { class: "m1-demo-picker",
-                summary { class: "board-button board-button--primary", "Open demo" }
+            details { class: "m1-demo-picker", open,
+                summary { class: "board-button board-button--primary",
+                    onmounted: move |event: MountedEvent| summary.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<web_sys::HtmlElement>()).cloned()),
+                    "Open demo" }
                 div { class: "m1-demo-options", aria_label: "Demo keyboards",
                     for demo in DEMO_PROJECTS {
                         {
@@ -509,6 +526,40 @@ pub fn Library(
     let current = current_snapshot
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
+    let tool_request = try_use_context::<ProjectToolRequest>();
+    let mut rename_tool_open = use_signal(|| false);
+    let mut rename_input = use_signal(|| None::<HtmlInputElement>);
+    let mut demo_tool_open = use_signal(|| false);
+    use_effect(move || {
+        if rename_tool_open()
+            && let Some(input) = rename_input()
+        {
+            let _ = input.focus();
+        }
+    });
+    use_effect({
+        let current = current.clone();
+        move || {
+            let Some(mut request) = tool_request else {
+                return;
+            };
+            let Some(tool) = request.0() else {
+                return;
+            };
+            request.0.set(None);
+            match tool {
+                ProjectTool::Rename(id) => {
+                    if let Some(current) = &current
+                        && current.id == id
+                    {
+                        selected_project.set(Some(current.clone()));
+                        rename_tool_open.set(true);
+                    }
+                }
+                ProjectTool::Demo => demo_tool_open.set(true),
+            }
+        }
+    });
     let has_current = current.is_some();
     let current_revision = current
         .as_ref()
@@ -830,7 +881,7 @@ pub fn Library(
                 }
                 if !project_menu {
                     div { class: "m1-library-start-actions", aria_label: "Start a keyboard project",
-                        DemoActionCard {}
+                        DemoActionCard { open: demo_tool_open() }
                         article { class: "m1-library-start-card",
                             div { class: "m1-library-start-icon",
                                 svg { view_box: "0 0 96 56", "aria-hidden": "true",
@@ -1007,13 +1058,16 @@ pub fn Library(
                     if let Some(document) = selected_document {
                         h2 { "{project_display_name(&document)}" }
                         if current_project_id.as_deref() == Some(document.id.as_str()) {
-                            details { class: "m1-library-selection-rename-disclosure",
+                            details { class: "m1-library-selection-rename-disclosure", open: rename_tool_open(),
                                 summary { "Rename project" }
                                 label { class: "m1-library-selection-rename",
                                     span { "Project name" }
                                     input {
                                         "aria-label": "Project name",
                                         title: "Rename project",
+                                        onmounted: move |event: MountedEvent| {
+                                            rename_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                                        },
                                         value: "{project_name}",
                                         oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
                                         onkeydown: {
@@ -1024,7 +1078,7 @@ pub fn Library(
                                                         event.prevent_default();
                                                         if let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok()) { let _ = input.blur(); }
                                                     }
-                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); },
+                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); rename_tool_open.set(false); },
                                                     _ => {}
                                                 }
                                             }

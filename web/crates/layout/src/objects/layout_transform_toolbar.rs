@@ -2080,6 +2080,10 @@ fn LayoutContextToolButton(
     accessible_label: String,
     pressed: bool,
 ) -> Element {
+    use boardstudio_web_ui_shared::ui::{
+        kbd::Kbd,
+        tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+    };
     let on_transform_tool = mount.on_transform_tool;
     let glyph = match tool {
         LayoutTransformTool::Stagger => "M10 2v16M6 6l4-4 4 4M6 14l4 4 4-4",
@@ -2088,13 +2092,18 @@ fn LayoutContextToolButton(
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
     };
     rsx! {
-        BoardToolbarButton {
+        Tooltip {
+        TooltipTrigger { r#as: move |mut attributes: Vec<Attribute>| {
+            // The toolbar owns its single tab stop; the tooltip supplies only description/events.
+            attributes.retain(|attribute| attribute.name != "tabindex");
+            rsx! {
+        dioxus_primitives::toolbar::ToolbarButton {
             index,
-            class: "layout-context-action",
+            attributes,
+            class: "board-button board-button--compact layout-context-action",
             aria_label: accessible_label.clone(),
-            title: accessible_label,
-            pressed,
-            on_activate: move |_| {
+            aria_pressed: pressed,
+            on_click: move |_| {
                 on_transform_tool.call(tool);
                 close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
             },
@@ -2104,6 +2113,12 @@ fn LayoutContextToolButton(
                 "Offset column" | "Offset row" => "Offset",
                 _ => label.as_str(),
             }} }
+        }
+        } } }
+        TooltipContent {
+            Kbd { "Alt" } " bypass snapping · " Kbd { "Shift" } " coarser steps"
+            if tool == LayoutTransformTool::Stagger { " · " Kbd { "Ctrl" } " quick offset" }
+        }
         }
     }
 }

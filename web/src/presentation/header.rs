@@ -20,6 +20,7 @@ pub(super) fn Header(
     has_project: bool,
     save_state: &'static str,
     mut settings_open: Signal<bool>,
+    on_search: EventHandler<()>,
     on_undo: EventHandler<()>,
     on_redo: EventHandler<()>,
     on_export: EventHandler<()>,
@@ -118,13 +119,12 @@ pub(super) fn Header(
         div { class: "header-commands",
             onmounted: move |event: MountedEvent| menu_content.set(event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<web_sys::HtmlElement>()).cloned()),
             if show_workspaces { super::workspace_navigation::WorkspaceObjectNavigation { workspace } }
-            // Ticket 012 owns opening the Command palette and its shortcut.
-            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands", "Search" Kbd { "Ctrl/Cmd K" } }
+            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands", onclick: move |_| { mobile_open.set(false); on_search.call(()); }, "Search" Kbd { "Ctrl/Cmd K" } }
             if !compact() { {save_status.clone()} }
             if has_project {
                 div { role: "group", aria_label: "Edit history", class: "header-history",
-                    Button { variant: ButtonVariant::Ghost, aria_label: "Undo", onclick: move |_| on_undo.call(()), "Undo" }
-                    Button { variant: ButtonVariant::Ghost, aria_label: "Redo", onclick: move |_| on_redo.call(()), "Redo" }
+                    Button { variant: ButtonVariant::Ghost, aria_label: "Undo", onclick: move |_| on_undo.call(()), "Undo" Kbd { "Ctrl/Cmd Z" } }
+                    Button { variant: ButtonVariant::Ghost, aria_label: "Redo", onclick: move |_| on_redo.call(()), "Redo" Kbd { "Ctrl/Cmd Shift Z / Ctrl Y" } }
                 }
             }
             {panel_controls}

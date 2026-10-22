@@ -33,6 +33,8 @@ pub mod collapsible;
 #[cfg(target_arch = "wasm32")]
 pub mod combobox;
 #[cfg(target_arch = "wasm32")]
+pub mod command;
+#[cfg(target_arch = "wasm32")]
 pub mod dialog;
 #[cfg(target_arch = "wasm32")]
 pub mod dropdown_menu;

@@ -54,7 +54,9 @@ def main():
         action("button", f"Open {workspace} workspace")
         browser("wait", "--fn", f"document.querySelector('[aria-label=\"Open {workspace} workspace\"]').getAttribute('aria-current') === 'page'")
     action("button", "Search commands")
-    check("if (document.querySelector('[role=dialog]')) throw Error('Search must stay inert until 012');")
+    browser("wait", '[role="combobox"][aria-label="Search commands and objects"]')
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     action("button", "Project")
     browser("wait", '[role="menu"][aria-label="Project"]')
     check("""

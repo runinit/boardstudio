@@ -9,6 +9,7 @@ pub(crate) use boardstudio_web_case::case_controller;
 pub(crate) use boardstudio_web_case::case_display;
 pub(crate) use boardstudio_web_case::case_viewer;
 mod case_workspace;
+mod command_palette;
 mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
@@ -619,6 +620,9 @@ pub fn App() -> Element {
         durability_state(&runtime.model().durability)
     };
     let mut settings_open = use_signal(|| false);
+    let palette = command_palette::use_palette_state();
+    boardstudio_web_ui_shared::ui::command::use_command_registry();
+    library::use_project_tools();
     let header_undo = runtime.clone();
     let header_redo = runtime.clone();
     let on_undo = EventHandler::new(move |()| {
@@ -638,16 +642,27 @@ pub fn App() -> Element {
             workspace.set("Export")
         }
     });
+    command_palette::use_navigation_commands(
+        workspace,
+        project_browser,
+        runtime.model().accepted.is_some(),
+        on_undo,
+        on_redo,
+        on_export,
+    );
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
+        link { rel: "stylesheet", href: "assets/command-palette.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
         main { class: if project_browser() || runtime.model().accepted.is_none() { "m1-workbench is-project-browser" } else { "m1-workbench" },
             onkeydown: {
                 let runtime = runtime.clone();
                 move |event: KeyboardEvent| {
-                    workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
+                    if !workbench_shortcuts::handle_palette_shortcut(palette, &event) {
+                        workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
+                    }
                 }
             },
             header::Header {
@@ -659,6 +674,7 @@ pub fn App() -> Element {
                 has_project: runtime.model().accepted.is_some(),
                 save_state,
                 settings_open,
+                on_search: move |_| palette.show(),
                 on_undo,
                 on_redo,
                 on_export,
@@ -666,6 +682,7 @@ pub fn App() -> Element {
                     if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
                 },
             }
+            command_palette::CommandPalette { state: palette }
             if runtime.model().accepted.is_some() {
                 div { class: "m1-editor-host", hidden: project_browser(), Editor {} }
             }
@@ -8570,6 +8587,63 @@ fn Editor() -> Element {
             });
         }
     });
+
+    let on_fit_keymap_board = EventHandler::new(on_fit_keymap_board);
+    let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
+    let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
+    let mut palette_commands = command_palette::editor_commands(
+        &model,
+        active_workspace,
+        &render_scope,
+        render_generation,
+        workspace_routing.select_tree,
+    );
+    if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d()
+    {
+        for (label, on_select) in [
+            ("Fit board", on_fit_keymap_board),
+            ("Zoom out", on_zoom_keymap_out),
+            ("Zoom in", on_zoom_keymap_in),
+        ] {
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select,
+            });
+        }
+    }
+    if active_workspace == "Layout" {
+        for (label, mode) in [("2D", false), ("3D assembly", true)] {
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select: EventHandler::new(move |()| on_layout_view_mode.call(mode)),
+            });
+        }
+        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+            group: "View",
+            label: "Footprints".into(),
+            reason: None,
+            hint: None,
+            on_select: toggle_footprints,
+        });
+        let mut add_open = layout_state.add_object_menu_open();
+        palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+            group: "Current Workspace",
+            label: "Add object".into(),
+            reason: None,
+            hint: None,
+            on_select: EventHandler::new(move |()| {
+                objects_open.set(true);
+                add_open.set(true);
+            }),
+        });
+    }
+    boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
 
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",

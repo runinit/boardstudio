@@ -189,6 +189,30 @@ struct ExportRow {
 
 #[component]
 fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    let firmware_owned = row.label == "ZMK firmware" && zmk_firmware.is_some();
+    use_commands(if firmware_owned {
+        Vec::new()
+    } else {
+        vec![Command {
+            group: "Current Workspace",
+            label: format!("Export {}", row.label),
+            reason: if !row.ready {
+                row.reason.or(Some(row.status))
+            } else if !row.available {
+                Some("This export provider is not connected in this build.")
+            } else {
+                None
+            }
+            .map(str::to_owned),
+            hint: None,
+            on_select: EventHandler::new(move |()| {
+                if let Some(on_export) = row.on_export {
+                    on_export.call(());
+                }
+            }),
+        }]
+    });
     if row.label == "ZMK firmware"
         && let Some(firmware) = zmk_firmware
     {

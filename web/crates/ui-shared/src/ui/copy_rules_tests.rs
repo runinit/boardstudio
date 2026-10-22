@@ -68,7 +68,7 @@ fn every_ui_file_is_listed() {
         .filter(|name| {
             !matches!(
                 name.as_str(),
-                "mod" | "icons" | "copy_rules_tests" | "primitives_mount_tests"
+                "mod" | "icons" | "command" | "copy_rules_tests" | "primitives_mount_tests"
             )
         })
         .collect();
