@@ -22,6 +22,20 @@ use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardDisclosure,
     BoardNumberField, BoardSelectField,
 };
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    checkbox::{Checkbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput, InputGroupText},
+    label::Label,
+    select::{Select, SelectOption},
+    toggle_group::{ToggleGroup, ToggleItem},
+};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::rc::Rc;
@@ -899,8 +913,9 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                         on_request: props.on_request,
                     }
                 }
-                BoardDisclosure { class: "m1-inspector-section",
-                    heading: rsx! { summary { "Switch fit profiles" } },
+                Collapsible { keep_mounted: true, default_open: false,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Switch fit profiles" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     owner_key: owner_key.clone(),
@@ -914,6 +929,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     request_sequence,
                     on_request: props.on_request,
                 }
+                 }
                 }
                 BoardDisclosure { class: "m1-inspector-section", "aria-label": "Manufacturing overrides",
                     heading: rsx! { summary { "Manufacturing overrides" } },
@@ -937,13 +953,15 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                     on_request: props.on_request,
                     owner_key: owner_key.clone(),
                 }
-                BoardDisclosure { class: "m1-inspector-section", open: true,
-                    heading: rsx! { summary { "Resolved stack" } },
+                Collapsible { keep_mounted: true, default_open: true,
+                    CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Resolved stack" }
+                    CollapsibleContent { class: "data-[open=false]:hidden",
                 ResolvedStack {
                     layers: props.layers.clone(),
                     selected_layer: props.selected_layer.clone(),
                     on_select_layer: props.on_select_layer,
                 }
+                 }
                 }
                 BoardDisclosure { class: "m1-inspector-section",
                     heading: rsx! { summary { "Mechanical diagnostics" } },
@@ -1129,9 +1147,9 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 p { class: "m1-mechanical-help",
                     "Makes {instance_id}'s construction its own: the values it shows today (including the overlaid hardware, critical fits and profiles) become this half's local values and its construction becomes local. Other legacy halves keep their previous baseline. One Undo restores the ownership and the overlay."
                 }
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
                     class: "m1-mechanical-quiet",
                     aria_label: "Confirm making construction local for {instance_id}",
                     disabled: pending,
@@ -1147,9 +1165,9 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                     },
                     "Make construction local"
                 }
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
                     class: "m1-mechanical-quiet",
                     aria_label: "Keep shared construction for {instance_id}",
                     onclick: move |_| confirming_state.set(false),
@@ -1159,9 +1177,9 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 p { class: "m1-mechanical-help",
                     "This half still uses the shared construction baseline."
                 }
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
                     class: "m1-mechanical-quiet",
                     aria_label: "Make construction local for {instance_id}",
                     disabled: pending,
@@ -3487,84 +3505,132 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     rsx! {
         fieldset { class: "m1-mechanical-group", disabled: !props.editable,
             legend { "Construction" }
-            BoardSelectField {
-                label: "Plate method",
-                class: "m1-mechanical-field",
+            SettingsSelect {
+                label: "Plate method", disabled: !props.editable,
                 value: "{method_id(&values.method)}",
-                onchange: {
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(method) = parse_method(&event.value()) {
+                        move |event: Option<String>| if let Some(method) = parse_method(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                option { value: "pcb-fr4", "PCB FR-4" }
-                    option { value: "printed", "3D printed" }
-                    option { value: "cnc", "CNC machined" }
-                    option { value: "cut-sheet", "Cut sheet" }
+                SelectOption { index: 0, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), "PCB FR-4" }
+                    SelectOption { index: 1, value: "printed".to_owned(), text_value: "3D printed".to_owned(), "3D printed" }
+                    SelectOption { index: 2, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), "CNC machined" }
+                    SelectOption { index: 3, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), "Cut sheet" }
             }
-            BoardSelectField {
-                label: "Mount style",
-                class: "m1-mechanical-field",
+            SettingsSelect {
+                label: "Mount style", disabled: !props.editable,
                 value: "{mount_id(&values.mount)}",
-                onchange: {
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(mount) = parse_mount(&event.value()) {
+                        move |event: Option<String>| if let Some(mount) = parse_mount(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                option { value: "tray", "Tray" }
-                    option { value: "rigid", "Rigid mount" }
-                    option { value: "gasket", "Gasket mount" }
+                SelectOption { index: 0, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
+                    SelectOption { index: 1, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), "Rigid mount" }
+                    SelectOption { index: 2, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), "Gasket mount" }
             }
-            BoardSelectField {
+            SettingsSelect {
                 label: "Bottom construction",
-                class: "m1-mechanical-field",
-                disabled: values.mount == MechanicalMount::Gasket,
+                disabled: !props.editable || values.mount == MechanicalMount::Gasket,
                 value: "{bottom_style_id(&values.bottom_style)}",
-                onchange: {
+                on_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| if let Some(style) = parse_bottom_style(&event.value()) {
+                        move |event: Option<String>| if let Some(style) = parse_bottom_style(&event.clone().unwrap_or_default()) {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
                     },
-                option { value: "shell", "Tray shell" }
-                    option { value: "sheet", "Flat sheet" }
+                SelectOption { index: 0, value: "shell".to_owned(), text_value: "Tray shell".to_owned(), "Tray shell" }
+                    SelectOption { index: 1, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
-                label { class: "m1-mechanical-check",
-                    BoardCheckbox {
-                        checked: values.middle_frame,
-                        onchange: {
+                Label { html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                    Checkbox {
+                        id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                        aria_label: "Add middle frame", disabled: !props.editable,
+                        checked: Some(if values.middle_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
-                            move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(event.checked()))
+                            move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMiddleFrame(bool::from(event)))
                         },
                     }
                     span { "Add middle frame" }
                 }
             }
-            label { class: "m1-mechanical-check",
-                BoardCheckbox {
-                    disabled: values.mount == MechanicalMount::Gasket,
-                    checked: values.integrated_plate_frame,
-                    onchange: {
+            Label { html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+                Checkbox {
+                    id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+                    aria_label: "Integrate plate frame into case",
+                    disabled: !props.editable || values.mount == MechanicalMount::Gasket,
+                    checked: Some(if values.integrated_plate_frame { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: {
                         let identity = props.identity.clone();
                         let mut sequence = props.request_sequence;
                         let on_request = props.on_request;
-                        move |event: FormEvent| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(event.checked()))
+                        move |event: CheckboxState| send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetIntegratedPlateFrame(bool::from(event)))
                     },
                 }
                 span { "Integrate plate frame into case" }
             }
         }
     }
+}
+
+/// Presentation-only composition; the caller owns the accepted value and domain request.
+#[component]
+fn SettingsSelect(
+    label: String,
+    value: String,
+    #[props(default)] aria_label: Option<String>,
+    #[props(default)] disabled: bool,
+    on_change: EventHandler<Option<String>>,
+    children: Element,
+) -> Element {
+    let id = format!("case-choice-{}", dioxus::core::current_scope_id().0);
+    rsx! {
+        Field { class: "gap-1.5", disabled,
+            FieldLabel { html_for: id.clone(), "{label}" }
+            Select { id, aria_label: aria_label.unwrap_or(label), value: Some(value), disabled, on_value_change: on_change, {children} }
+        }
+    }
+}
+
+#[component]
+fn ProfileTargetField(
+    label: String,
+    #[props(default)] aria_label: Option<String>,
+    placeholder: String,
+    options: Vec<MechanicalProfileTargetChoice>,
+    disabled: bool,
+    on_change: EventHandler<Option<String>>,
+) -> Element {
+    if options.len() <= 12 {
+        return rsx! { SettingsSelect { label, aria_label, value: "", disabled, on_change,
+            SelectOption { index: 0, value: String::new(), text_value: placeholder.clone(), "{placeholder}" }
+            for (index, target) in options.iter().enumerate() {
+                SelectOption { key: "{target.definition_id}", index: index + 1, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+            }
+        } };
+    }
+    let name = aria_label.unwrap_or_else(|| label.clone());
+    rsx! { Field { class: "gap-1.5", disabled,
+        FieldLabel { "{label}" }
+        Combobox { aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(None::<String>), on_value_change: on_change,
+            for (index, target) in options.iter().enumerate() {
+                ComboboxOption { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+            }
+        }
+    } }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -3593,34 +3659,33 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
         section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
             if props.profiles.is_empty() {
-                p { class: "m1-mechanical-help", "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
+                Callout { "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
                 p { "Plate underside to PCB top: {props.plate_to_pcb:.2} mm · current configured gap." }
             }
             for profile in props.profiles.iter() {
-                div { class: "m1-mechanical-profile", key: "{props.owner_key}:{profile.definition_id}",
+                div { class: "grid gap-3 p-3 rounded-md bg-muted", role: "group", aria_label: "Fit profile {profile.name}", key: "{props.owner_key}:{profile.definition_id}",
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
-                        BoardSelectField {
+                        SettingsSelect {
                             label: "Switch fit family",
-                            class: "m1-mechanical-field",
                             disabled: !props.editable,
                             value: (profile.family.map(family_id).unwrap_or("")).to_string(),
-                            onchange: {
+                            on_change: {
                                     let definition_id = profile.definition_id.clone();
                                     let identity = props.identity.clone();
                                     let mut sequence = props.request_sequence;
                                     let on_request = props.on_request;
-                                    move |event: FormEvent| {
-                                        if let Some(family) = parse_family(&event.value()) {
+                                    move |event: Option<String>| {
+                                        if let Some(family) = parse_family(&event.clone().unwrap_or_default()) {
                                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetSwitchFamily { definition_id: definition_id.clone(), family });
                                         }
                                     }
                                 },
-                            option { value: "", "Choose switch family…" }
-                                option { value: "mx", "MX" }
-                                option { value: "choc-v1", "Choc v1" }
-                                option { value: "choc-v2", "Choc v2" }
+                            SelectOption { index: 0, value: "".to_owned(), text_value: "Choose switch family…".to_owned(), "Choose switch family…" }
+                                SelectOption { index: 1, value: "mx".to_owned(), text_value: "MX".to_owned(), "MX" }
+                                SelectOption { index: 2, value: "choc-v1".to_owned(), text_value: "Choc v1".to_owned(), "Choc v1" }
+                                SelectOption { index: 3, value: "choc-v2".to_owned(), text_value: "Choc v2".to_owned(), "Choc v2" }
                         }
                     } else if let Some(family) = profile.family {
                         p { "Switch fit: {family_label(family)}" }
@@ -3631,10 +3696,10 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     if let Some(range) = profile.supported_thickness {
                         p { "Supported plate thickness: {range.x:.2}–{range.y:.2} mm" }
                     } else {
-                        p { role: "status", "Supplier review needed for the supported thickness range." }
+                        div { role: "status", Callout { variant: CalloutVariant::Warning, "Supplier review needed for the supported thickness range." } }
                     }
-                    BoardButton {
-                        r#type: "button",
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
@@ -3659,35 +3724,33 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 }
             }
             if props.profiles.iter().any(|profile| profile.family.is_none()) {
-                p { role: "status", "Choose a supported switch family to resolve the plate gap." }
+                div { role: "status", Callout { "Choose a supported switch family to resolve the plate gap." } }
             }
             if props.targets.iter().any(|target| target.switch_profile) {
                 div { class: "m1-mechanical-profile-assignment",
-                    BoardSelectField {
+                    SettingsSelect {
                         label: "Library fit profile",
-                        class: "m1-mechanical-field",
                         aria_label: "Library fit profile",
                         disabled: !props.editable,
                         value: (selected_family()).to_string(),
-                        onchange: move |event: FormEvent| selected_family.set(event.value()),
-                        option { value: "", "Choose a switch family…" }
-                            option { value: "mx", "MX switch" }
-                            option { value: "choc-v1", "Choc v1 switch" }
-                            option { value: "choc-v2", "Choc v2 switch" }
+                        on_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
+                        SelectOption { index: 0, value: "".to_owned(), text_value: "Choose a switch family…".to_owned(), "Choose a switch family…" }
+                            SelectOption { index: 1, value: "mx".to_owned(), text_value: "MX switch".to_owned(), "MX switch" }
+                            SelectOption { index: 2, value: "choc-v1".to_owned(), text_value: "Choc v1 switch".to_owned(), "Choc v1 switch" }
+                            SelectOption { index: 3, value: "choc-v2".to_owned(), text_value: "Choc v2 switch".to_owned(), "Choc v2 switch" }
                     }
-                    BoardSelectField {
+                    ProfileTargetField {
                         label: "Assign library fit profile to",
-                        class: "m1-mechanical-field",
                         aria_label: "Assign library fit profile to",
                         disabled: mechanical_action_pending("assign-switch-profile:") || !props.editable || selected_family().is_empty(),
-                        value: "",
-                        onchange: {
+
+                        on_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_family = selected_family;
-                                move |event: FormEvent| {
-                                    let definition_id = event.value();
+                                move |event: Option<String>| {
+                                    let definition_id = event.clone().unwrap_or_default();
                                     if !definition_id.is_empty()
                                         && let Some(family) = parse_family(&selected_family())
                                     {
@@ -3703,42 +3766,37 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                     }
                                 }
                             },
-                        option { value: "", "Choose a placed switch type…" }
-                            for target in props.targets.iter().filter(|target| target.switch_profile) {
-                                option { value: "{target.definition_id}", "{target.name}" }
-                            }
+                        placeholder: "Choose a placed switch type…", options: props.targets.iter().filter(|target| target.switch_profile).cloned().collect(),
                     }
                 }
                 div { class: "m1-mechanical-profile-assignment",
-                    BoardSelectField {
+                    SettingsSelect {
                         label: "Library stabilizer profile",
-                        class: "m1-mechanical-field",
                         aria_label: "Library stabilizer profile",
                         disabled: !props.editable,
                         value: (selected_stabilizer()).to_string(),
-                        onchange: move |event: FormEvent| selected_stabilizer.set(event.value()),
-                        option { value: "", "Choose a stabilizer size…" }
-                            option { value: "mx-stab2u", "MX stabilizer · 2u" }
-                            option { value: "mx-stab625u", "MX stabilizer · 6.25u" }
+                        on_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
+                        SelectOption { index: 0, value: "".to_owned(), text_value: "Choose a stabilizer size…".to_owned(), "Choose a stabilizer size…" }
+                            SelectOption { index: 1, value: "mx-stab2u".to_owned(), text_value: "MX stabilizer · 2u".to_owned(), "MX stabilizer · 2u" }
+                            SelectOption { index: 2, value: "mx-stab625u".to_owned(), text_value: "MX stabilizer · 6.25u".to_owned(), "MX stabilizer · 6.25u" }
                     }
-                    BoardSelectField {
+                    ProfileTargetField {
                         label: "Assign library stabilizer profile to",
-                        class: "m1-mechanical-field",
                         aria_label: "Assign library stabilizer profile to",
                         disabled: mechanical_action_pending("assign-stabilizer-profile:") || !props.editable || selected_stabilizer().is_empty(),
-                        value: "",
-                        onchange: {
+
+                        on_change: {
                                 let identity = props.identity.clone();
                                 let mut sequence = props.request_sequence;
                                 let on_request = props.on_request;
                                 let selected_stabilizer = selected_stabilizer;
-                                move |event: FormEvent| {
+                                move |event: Option<String>| {
                                     let source = match selected_stabilizer().as_str() {
                                         "mx-stab2u" => Some(MechanicalBuiltinProfile::MxStab2u),
                                         "mx-stab625u" => Some(MechanicalBuiltinProfile::MxStab625u),
                                         _ => None,
                                     };
-                                    if !event.value().is_empty()
+                                    if !event.clone().unwrap_or_default().is_empty()
                                         && let Some(source) = source
                                     {
                                         send_request(
@@ -3746,49 +3804,42 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                             &identity,
                                             on_request,
                                             MechanicalSettingsPatch::AssignStabilizerProfile {
-                                                definition_id: event.value(),
+                                                definition_id: event.clone().unwrap_or_default(),
                                                 source,
                                             },
                                         );
                                     }
                                 }
                             },
-                        option { value: "", "Choose a placed switch type…" }
-                            for target in props.targets.iter() {
-                                option { value: "{target.definition_id}", "{target.name}" }
-                            }
+                        placeholder: "Choose a placed switch type…", options: props.targets.to_vec(),
                     }
                 }
             }
             if props.targets.iter().any(|target| target.imported_geometry) {
-                BoardSelectField {
+                ProfileTargetField {
                     label: "Custom KiCad geometry",
-                    class: "m1-mechanical-field",
                     aria_label: "Assign custom geometry profile to",
                     disabled: mechanical_action_pending("assign-imported-profile:") || !props.editable,
-                    value: "",
-                    onchange: {
+
+                    on_change: {
                             let identity = props.identity.clone();
                             let mut sequence = props.request_sequence;
                             let on_request = props.on_request;
-                            move |event: FormEvent| {
-                                if !event.value().is_empty() {
+                            move |event: Option<String>| {
+                                if !event.clone().unwrap_or_default().is_empty() {
                                     send_request(
                                         &mut sequence,
                                         &identity,
                                         on_request,
                                         MechanicalSettingsPatch::AssignImportedGeometryProfile {
-                                            definition_id: event.value(),
+                                            definition_id: event.clone().unwrap_or_default(),
                                         },
                                     );
                                 }
                             }
                         },
-                    option { value: "", "Choose imported part type…" }
-                        for target in props.targets.iter().filter(|target| target.imported_geometry) {
-                            option { value: "{target.definition_id}", "{target.name}" }
-                        }
-                }
+                    placeholder: "Choose imported part type…", options: props.targets.iter().filter(|target| target.imported_geometry).cloned().collect(),
+                    }
             }
             p { "Current plate thickness: {props.plate_thickness:.2} mm." }
         }
@@ -3820,8 +3871,8 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                 section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
                     div { class: "m1-mechanical-geometry-head",
                         strong { "Custom geometry layers" }
-                        button {
-                            r#type: "button",
+                        Button {
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Read KiCad layers",
                             disabled: !props.editable || busy(),
                             onclick: {
@@ -3858,18 +3909,19 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                     if let Some(loaded_geometry) = geometry_state() {
                         p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
-                            div { class: "m1-mechanical-geometry-row", key: "{primitive.id}",
-                                label {
-                                    BoardCheckbox {
-                                        checked: selected().contains(&primitive.id),
+                            div { class: "m1-mechanical-geometry-row", role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
+                                Label { html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                    Checkbox {
+                                        id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                        checked: Some(if selected().contains(&primitive.id) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                                         aria_label: "Select geometry {primitive.id}",
                                         disabled: !props.editable || busy(),
-                                        onchange: {
+                                        on_checked_change: {
                                             let id = primitive.id.clone();
                                             let mut selected = selected;
-                                            move |event: FormEvent| {
+                                            move |event: CheckboxState| {
                                                 let mut ids = selected().clone();
-                                                if event.checked() {
+                                                if bool::from(event) {
                                                     if !ids.contains(&id) { ids.push(id.clone()); }
                                                 } else { ids.retain(|entry| entry != &id); }
                                                 selected.set(ids);
@@ -3878,31 +3930,31 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                     }
                                     span { strong { "{primitive.layer.as_deref().unwrap_or(\"geometry\")}" } small { "{primitive.kind:?} · {primitive.source_group_id}" } }
                                 }
-                                BoardSelectField {
+                                SettingsSelect {
                                     label: "Purpose",
                                     aria_label: "Purpose for {primitive.layer.as_deref().unwrap_or(\"geometry\")}",
                                     disabled: !props.editable || busy(),
                                     value: (purposes().iter().find(|mapping| mapping.source_id.as_deref() == Some(primitive.id.as_str())).map_or("plate-cutout", |mapping| purpose_id(mapping.purpose))).to_string(),
-                                    onchange: {
+                                    on_change: {
                                             let id = primitive.id.clone();
                                             let mut purposes = purposes;
-                                            move |event: FormEvent| {
-                                                let Some(purpose) = parse_purpose(&event.value()) else { return; };
+                                            move |event: Option<String>| {
+                                                let Some(purpose) = parse_purpose(&event.clone().unwrap_or_default()) else { return; };
                                                 let mut entries = purposes().clone();
                                                 entries.retain(|mapping| mapping.source_id.as_deref() != Some(id.as_str()));
                                                 entries.push(MechanicalPurposeMapping { source_id: Some(id.clone()), kind: None, layer: None, purpose });
                                                 purposes.set(entries);
                                             }
                                         },
-                                    option { value: "plate-cutout", "Plate cutout" }
-                                        option { value: "electrical-pcb-mounting-hole", "PCB mounting hole" }
-                                        option { value: "clearance-envelope", "Clearance envelope" }
-                                        option { value: "drawing-guide", "Drawing guide" }
+                                    SelectOption { index: 0, value: "plate-cutout".to_owned(), text_value: "Plate cutout".to_owned(), "Plate cutout" }
+                                        SelectOption { index: 1, value: "electrical-pcb-mounting-hole".to_owned(), text_value: "PCB mounting hole".to_owned(), "PCB mounting hole" }
+                                        SelectOption { index: 2, value: "clearance-envelope".to_owned(), text_value: "Clearance envelope".to_owned(), "Clearance envelope" }
+                                        SelectOption { index: 3, value: "drawing-guide".to_owned(), text_value: "Drawing guide".to_owned(), "Drawing guide" }
                                 }
                             }
                         }
-                        BoardButton {
-                            r#type: "button",
+                        Button {
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
                             onclick: {
@@ -3946,7 +3998,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                             "Apply selected geometry"
                         }
                     }
-                    if !error().is_empty() { p { role: "alert", "{error()}" } }
+                    if !error().is_empty() { Alert { variant: AlertVariant::Destructive, "{error()}" } }
                 }
             }
             ProfilePolygonListEditor {
@@ -4009,8 +4061,8 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
         section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
-                BoardButton {
-                    r#type: "button", class: "m1-mechanical-quiet",
+                Button {
+                    variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
                     aria_label: "Add polygon to {props.title}", disabled: !props.editable,
                     onclick: {
                         let mut polygons = props.polygons.clone();
@@ -4026,13 +4078,13 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     "Add polygon"
                 }
             }
-            if props.polygons.is_empty() { p { class: "m1-mechanical-help", "No contours assigned." } }
+            if props.polygons.is_empty() { Callout { "No contours assigned." } }
             for (polygon_index, polygon) in props.polygons.iter().enumerate() {
-                fieldset { class: "m1-mechanical-profile-polygon", key: "{props.title}:{polygon_index}", disabled: !props.editable,
+                fieldset { class: "m1-mechanical-profile-polygon", aria_label: "{props.title} contour {polygon_index + 1}", key: "{props.title}:{polygon_index}", disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Contour {polygon_index + 1}" }
-                        BoardButton {
-                            r#type: "button", class: "m1-mechanical-quiet",
+                        Button {
+                            variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}", disabled: !props.editable,
                             onclick: {
                                 let mut polygons = props.polygons.clone();
@@ -4043,10 +4095,10 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                         }
                     }
                     for (point_index, point) in polygon.iter().enumerate() {
-                        div { class: "m1-mechanical-profile-point", key: "{polygon_index}:{point_index}",
+                        div { class: "flex flex-wrap items-end gap-2", key: "{polygon_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
+                            InputGroupInput {
+                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.x}", disabled: !props.editable,
                                 aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
                                 oninput: {
                                     let mut polygons = props.polygons.clone(); let on_change = props.on_change;
@@ -4055,8 +4107,8 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
+                            InputGroupInput {
+                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.y}", disabled: !props.editable,
                                 aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
                                 oninput: {
                                     let mut polygons = props.polygons.clone(); let on_change = props.on_change;
@@ -4065,22 +4117,22 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            BoardButton {
-                                variant: BoardButtonVariant::Quiet,
-                                density: BoardButtonDensity::Compact,
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
                                 class: "m1-mechanical-quiet",
-                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                                aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
                                     let mut polygons = props.polygons.clone(); let on_change = props.on_change;
                                     move |_| { polygons[polygon_index].remove(point_index); on_change.call(polygons.clone()); }
                                 },
-                                "×"
+                                "Remove vertex"
                             }
                         }
                     }
-                    BoardButton {
-                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
                             let mut polygons = props.polygons.clone(); let on_change = props.on_change;
@@ -4114,8 +4166,8 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
         section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
-                BoardButton {
-                    r#type: "button", class: "m1-mechanical-quiet",
+                Button {
+                    variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
                     aria_label: "Add volume to {props.title}", disabled: !props.editable,
                     onclick: {
                         let mut openings = props.openings.clone(); let on_change = props.on_change;
@@ -4130,13 +4182,13 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     "Add volume"
                 }
             }
-            if props.openings.is_empty() { p { class: "m1-mechanical-help", "No volumes configured." } }
+            if props.openings.is_empty() { Callout { "No volumes configured." } }
             for (opening_index, opening) in props.openings.iter().enumerate() {
-                fieldset { class: "m1-mechanical-opening", key: "{props.title}:{opening_index}", disabled: !props.editable,
+                fieldset { class: "m1-mechanical-opening", aria_label: "{props.title} volume {opening_index + 1}", key: "{props.title}:{opening_index}", disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Volume {opening_index + 1}" }
-                        BoardButton {
-                            r#type: "button", class: "m1-mechanical-quiet",
+                        Button {
+                            variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
                             aria_label: "Remove {props.title} volume {opening_index + 1}", disabled: !props.editable,
                             onclick: {
                                 let mut openings = props.openings.clone(); let on_change = props.on_change;
@@ -4169,10 +4221,10 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     }
                     h4 { "XY footprint" }
                     for (point_index, point) in opening.points.iter().enumerate() {
-                        div { class: "m1-mechanical-opening-vertex", key: "{opening_index}:{point_index}",
+                        div { class: "flex flex-wrap items-end gap-2", key: "{opening_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.x}", disabled: !props.editable,
+                            InputGroupInput {
+                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.x}", disabled: !props.editable,
                                 aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
                                 oninput: {
                                     let mut openings = props.openings.clone(); let on_change = props.on_change;
@@ -4181,8 +4233,8 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            input {
-                                r#type: "number", step: "0.1", value: "{point.y}", disabled: !props.editable,
+                            InputGroupInput {
+                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.y}", disabled: !props.editable,
                                 aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
                                 oninput: {
                                     let mut openings = props.openings.clone(); let on_change = props.on_change;
@@ -4191,22 +4243,22 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                     }
                                 }
                             }
-                            BoardButton {
-                                variant: BoardButtonVariant::Quiet,
-                                density: BoardButtonDensity::Compact,
+                            Button {
+                                variant: ButtonVariant::Ghost,
+                                size: ButtonSize::Sm,
                                 class: "m1-mechanical-quiet",
-                                aria_label: "Remove {props.title} vertex {point_index + 1}",
+                                aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
                                     let mut openings = props.openings.clone(); let on_change = props.on_change;
                                     move |_| { openings[opening_index].points.remove(point_index); on_change.call(openings.clone()); }
                                 },
-                                "×"
+                                "Remove vertex"
                             }
                         }
                     }
-                    BoardButton {
-                        r#type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                    Button {
+                        variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
                             let mut openings = props.openings.clone(); let on_change = props.on_change;
@@ -4568,12 +4620,15 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     });
     let error_text = error().or_else(&*failure);
     let status_text = pending.then_some("Saving…");
+    let id = format!("case-dimension-{}", dioxus::core::current_scope_id().0);
+    let message_id = format!("{id}-message");
     rsx! {
-        label { class: "m1-mechanical-dimension",
-            span { "{props.label}" }
-            span { class: "m1-mechanical-number",
-                input {
-                    r#type: "number",
+        Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
+            FieldLabel { html_for: id.clone(), "{props.label}" }
+            InputGroup {
+                InputGroupInput {
+                    id: id.clone(), class: "font-mono",
+                    r#type: InputType::Number,
                     step: props.field.step(),
                     min: props.process_target.as_deref().map(|target| {
                         if target.ends_with("foam") { "0" } else { "0.1" }
@@ -4582,18 +4637,18 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                     aria_label: props.accessible_label.as_deref().unwrap_or(props.label),
                     value: "{draft}",
                     disabled: !props.editable,
-                    "aria-invalid": error_text.is_some(),
+                    aria_invalid: error_text.is_some(),
+                    aria_describedby: if error_text.is_some() || pending { Some(message_id.clone()) } else { None },
                     oninput: move |event: FormEvent| {
                         draft.set(event.value());
                         dirty.set(true);
                         error.set(None);
                         failure.set(None);
                     },
-                    onblur: {
+                    attributes: vec![dioxus::events::onblur({
                         let commit = commit.clone();
                         move |_| commit()
-                    },
-                    onkeydown: {
+                    }), dioxus::events::onkeydown({
                         let accepted = props.value;
                         move |event: KeyboardEvent| {
                             let key = event.data().key().to_string();
@@ -4615,16 +4670,14 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
                                 failure.set(None);
                             }
                         }
-                    }
+                    })],
                 }
-                if props.field == MechanicalDimension::HardwareQuantity {
-                    small { "pcs" }
-                } else {
-                    small { "mm" }
-                }
+                InputGroupText { class: "pr-3", if props.field == MechanicalDimension::HardwareQuantity { "pcs" } else { "mm" } }
             }
-            if let Some(error) = error_text.as_deref() { small { role: "alert", "{error}" } }
-            if let Some(status) = status_text { small { role: "status", "{status}" } }
+            div { id: message_id,
+                if let Some(error) = error_text.as_deref() { FieldError { "{error}" } }
+                if let Some(status) = status_text { small { role: "status", "{status}" } }
+            }
         }
     }
 }
@@ -4812,29 +4865,30 @@ struct ResolvedStackProps {
 #[component]
 fn ResolvedStack(props: ResolvedStackProps) -> Element {
     let is_previous = props.layers.iter().any(|layer| layer.is_previous);
+    let selected = props
+        .layers
+        .iter()
+        .position(|layer| layer.id == props.selected_layer);
     rsx! {
         section { class: "m1-mechanical-group", aria_label: "Resolved mechanical stack",
             h3 { if is_previous { "Previous resolved stack · {props.layers.len()} layers" } else { "Resolved stack · {props.layers.len()} layers" } }
             if props.layers.is_empty() {
-                p { role: "status", "The stack appears after the current revision resolves." }
+                div { role: "status", Callout { "The stack appears after the current revision resolves." } }
             } else {
-                div { class: "m1-mechanical-stack",
-                    for row in props.layers.iter() {
-                        { let id = row.id.clone();
-                        let label = row.label.clone();
-                        let selected = props.selected_layer == id;
-                        let callback = props.on_select_layer;
-                        rsx! { button {
-                            key: "{id}",
-                            r#type: "button",
-                            class: if selected { "m1-mechanical-layer is-selected" } else { "m1-mechanical-layer" },
-                            aria_pressed: selected,
-                            onclick: move |_| callback.call(if selected { String::new() } else { id.clone() }),
-                            strong { "{label}" }
+                ToggleGroup {
+                    aria_label: "Resolved mechanical layers", pressed: Some(selected.into_iter().collect()),
+                    horizontal: false, class: "w-full flex-col",
+                    on_pressed_change: {
+                        let layers = props.layers.clone(); let callback = props.on_select_layer;
+                        move |indices: std::collections::HashSet<usize>| callback.call(indices.iter().next().and_then(|index| layers.get(*index)).map(|layer| layer.id.clone()).unwrap_or_default())
+                    },
+                    for (index, row) in props.layers.iter().enumerate() {
+                        ToggleItem { key: "{row.id}", index, class: "w-full h-auto flex-wrap justify-start py-2",
+                            aria_label: format!("{}, {:.2} mm, Z {:.2}{}", row.label, row.thickness, row.z, if row.is_previous { ", previous revision" } else { "" }),
+                            strong { "{row.label}" }
                             span { "{row.thickness:.2} mm" }
                             small { "Z {row.z:.2}" }
                             if row.is_previous { small { "Previous revision" } }
-                        } }
                         }
                     }
                 }
@@ -5012,7 +5066,7 @@ mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{MechanicalFeatureKind, Vec3};
-    use boardstudio_web_ui_shared::test_wait::wait_until;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -5457,10 +5511,14 @@ mod contextual_layer_tests {
                 .dyn_into::<web_sys::HtmlElement>()
                 .unwrap()
         };
-        let saved_contour: web_sys::HtmlInputElement =
-            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
-                .dyn_into()
-                .unwrap();
+        let saved_contour: web_sys::HtmlInputElement = by_role_name(
+            &root,
+            "spinbutton",
+            "Plate cutout geometry contour 1 vertex 1 X",
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap();
         saved_contour.set_value("-9.4");
         let input_event = web_sys::EventInit::new();
         input_event.set_bubbles(true);
@@ -5477,9 +5535,13 @@ mod contextual_layer_tests {
                 .contains("-9.4")
         );
         assert!(
-            element("button[aria-label='Remove profile Custom tactile switch']").is_connected()
+            by_role_name(&root, "button", "Remove profile Custom tactile switch")
+                .unwrap()
+                .is_connected()
         );
-        element("button[aria-label='Read KiCad layers']").click();
+        by_role_name(&root, "button", "Read KiCad layers")
+            .unwrap()
+            .click();
         rendered().await;
         assert_eq!(
             element("#case-custom-profile-extracted-definition-ids")
@@ -5487,9 +5549,33 @@ mod contextual_layer_tests {
                 .unwrap(),
             "custom-part"
         );
-        assert!(element("select[aria-label='Purpose for Dwgs.User']").is_connected());
-        let checkbox: web_sys::HtmlInputElement =
-            element("input[type='checkbox']").dyn_into().unwrap();
+        assert!(
+            by_role_name(&root, "button", "Purpose for Dwgs.User")
+                .unwrap()
+                .is_connected()
+        );
+        let geometry = boardstudio_core::artifact_request(
+            &serde_json::to_string(
+                &boardstudio_core::model::ArtifactRequest::ExtractMechanical {
+                    id: "ids".into(),
+                    source: CUSTOM_PROFILE_FOOTPRINT.into(),
+                    mappings: vec![],
+                    max_deviation_mm: 0.005,
+                },
+            )
+            .unwrap(),
+        );
+        let boardstudio_core::model::ArtifactReply::ExtractMechanical { result, .. } =
+            serde_json::from_str(&geometry).unwrap()
+        else {
+            panic!("geometry")
+        };
+        let checkbox = by_role_name(
+            &root,
+            "checkbox",
+            &format!("Select geometry {}", result.geometry.primitives[0].id),
+        )
+        .unwrap();
         checkbox.click();
         rendered().await;
         let request_count = || {
@@ -5500,7 +5586,9 @@ mod contextual_layer_tests {
                 .unwrap()
         };
         let before_apply = request_count();
-        element("button[aria-label='Apply selected geometry']").click();
+        by_role_name(&root, "button", "Apply selected geometry")
+            .unwrap()
+            .click();
         rendered().await;
         let extraction_error = root
             .query_selector(".m1-mechanical-geometry-picker [role='alert']")
@@ -5533,10 +5621,15 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("-9.5")
         );
-        let cutout_x: web_sys::HtmlInputElement =
-            element("input[aria-label='Plate cutout geometry contour 1 vertex 1 X']")
-                .dyn_into()
-                .unwrap();
+        let custom = by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
+        let cutout_x: web_sys::HtmlInputElement = by_role_name(
+            &custom,
+            "spinbutton",
+            "Plate cutout geometry contour 1 vertex 1 X",
+        )
+        .unwrap()
+        .dyn_into()
+        .unwrap();
         assert_eq!(
             cutout_x.value(),
             "-9.5",
@@ -5555,7 +5648,9 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("-9.4")
         );
-        element("button[aria-label='Remove profile Custom tactile switch']").click();
+        by_role_name(&root, "button", "Remove profile Custom tactile switch")
+            .unwrap()
+            .click();
         rendered().await;
         assert!(
             element("#case-custom-profile-last-request")
@@ -5563,13 +5658,11 @@ mod contextual_layer_tests {
                 .unwrap()
                 .contains("RemoveProfile")
         );
-        element("button#case-profile-switch-owner").click();
+        by_role_name(&root, "button", "Switch Case owner")
+            .unwrap()
+            .click();
         rendered().await;
-        assert!(
-            root.query_selector("select[aria-label='Purpose for Dwgs.User']")
-                .unwrap()
-                .is_none()
-        );
+        assert!(by_role_name(&root, "button", "Purpose for Dwgs.User").is_none());
         root.remove();
     }
 
@@ -5585,12 +5678,14 @@ mod contextual_layer_tests {
         );
         rendered().await;
         let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
-        query("button[aria-label='Add volume to Clearance volumes']")
+        by_role_name(&root, "button", "Add volume to Clearance volumes")
+            .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
             .click();
         rendered().await;
-        let input = query("input[aria-label='Clearance volumes volume 1 Height']")
+        let input = by_role_name(&root, "spinbutton", "Clearance volumes volume 1 Height")
+            .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         let dispatch_input = |value: &str| {
@@ -5707,7 +5802,9 @@ mod contextual_layer_tests {
                 .unwrap()
         };
 
-        element("button[aria-label='Add polygon to Component clearance zones']").click();
+        by_role_name(&root, "button", "Add polygon to Component clearance zones")
+            .unwrap()
+            .click();
         rendered().await;
 
         let request = element("#case-custom-profile-last-request")
@@ -5716,14 +5813,18 @@ mod contextual_layer_tests {
         assert!(request.contains("UpdateProfile"));
         assert!(request.contains("clearances: Some"));
         assert!(request.contains("x: -2.5"));
-        element("button[aria-label='Add volume to Access openings']").click();
+        by_role_name(&root, "button", "Add volume to Access openings")
+            .unwrap()
+            .click();
         rendered().await;
         let request = element("#case-custom-profile-last-request")
             .text_content()
             .unwrap();
         assert!(request.contains("openings: Some"));
         assert!(request.contains("height: 10.0"));
-        element("button[aria-label='Add volume to Clearance volumes']").click();
+        by_role_name(&root, "button", "Add volume to Clearance volumes")
+            .unwrap()
+            .click();
         rendered().await;
         let request = element("#case-custom-profile-last-request")
             .text_content()
@@ -6030,7 +6131,13 @@ mod contextual_layer_tests {
                 .unwrap_or_default();
         assert!(text.contains("Case construction"));
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(2)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "PCB, 1.60 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
@@ -6043,7 +6150,13 @@ mod contextual_layer_tests {
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(3)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Plate foam, 0.50 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
@@ -6055,7 +6168,13 @@ mod contextual_layer_tests {
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(4)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Bottom foam, 0.50 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
@@ -6067,7 +6186,13 @@ mod contextual_layer_tests {
             .click();
         rendered().await;
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(5)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Bottom, 3.00 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
@@ -6091,7 +6216,13 @@ mod contextual_layer_tests {
                 .unwrap_or_default();
         assert!(text.contains("Case construction"));
 
-        element("#case-contextual-mechanical-settings-test-root .m1-mechanical-stack button:nth-child(6)").click();
+        by_role_name(
+            &element("#case-contextual-mechanical-settings-test-root"),
+            "button",
+            "Top case, 0.00 mm, Z 0.00",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let text =
             element("#case-contextual-mechanical-settings-test-root .m1-mechanical-settings")
@@ -7086,7 +7217,10 @@ mod mounted_settlement_tests {
     use boardstudio_core::model::{
         GasketConstructionVersion, InternalGasketConfiguration, PartDefinition, ProjectDoc,
     };
-    use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future};
+    use boardstudio_web_ui_shared::{
+        test_role::by_role_name,
+        test_wait::{wait_until, wait_until_future},
+    };
     use futures_channel::oneshot;
     use std::{cell::RefCell, collections::VecDeque};
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -7402,11 +7536,21 @@ mod mounted_settlement_tests {
     }
 
     fn input(root: &web_sys::Element, field: &str) -> HtmlInputElement {
-        root.query_selector(&format!(".test-mechanical-{field} input"))
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap()
+        let (role, name) = if field == "dimension" {
+            ("spinbutton", "Wall thickness")
+        } else {
+            ("textbox", "Thread")
+        };
+        if field == "dimension" {
+            by_role_name(root, role, name).unwrap().dyn_into().unwrap()
+        } else {
+            // The 018 text owner is still native and retains its implicit wrapping label.
+            root.query_selector(".test-mechanical-text input")
+                .unwrap()
+                .unwrap()
+                .dyn_into()
+                .unwrap()
+        }
     }
 
     fn type_value(input: &HtmlInputElement, value: &str) {
@@ -7644,10 +7788,11 @@ mod mounted_settlement_tests {
     }
 
     fn profile_input(root: &web_sys::Element, dimension: &str) -> HtmlInputElement {
-        root.query_selector(&format!(
-            ".test-mechanical-profile input[aria-label='Access openings volume 1 {dimension}']"
-        ))
-        .unwrap()
+        by_role_name(
+            root,
+            "spinbutton",
+            &format!("Access openings volume 1 {dimension}"),
+        )
         .unwrap()
         .dyn_into()
         .unwrap()
@@ -7655,7 +7800,7 @@ mod mounted_settlement_tests {
 
     fn failure_at(input: &HtmlInputElement) -> Option<String> {
         input
-            .closest("label")
+            .closest("[data-slot=field]")
             .unwrap()
             .unwrap()
             .query_selector("[role='alert']")

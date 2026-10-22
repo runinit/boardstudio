@@ -26,7 +26,32 @@ def action(role, name, verb="click", value=None):
 
 
 def status(name):
-    return browser("get", "text", driver.by_role_name("status", name))["text"]
+    selector = f"[role=status][aria-label={json.dumps(name)}]"
+    return evaluate(f"document.querySelector({json.dumps(selector)}).textContent")
+
+
+def styles(url, evidence):
+    browser("set", "viewport", 1440, 960)
+    browser("open", url)
+    browser("wait", "--text", "Case construction")
+    failures, observations = [], []
+    for theme in ("original", "shadcn"):
+        for appearance in ("light", "dark"):
+            evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
+            browser("wait", "--fn", "document.fonts.status==='loaded'")
+            action("spinbutton", "Plate thickness", "focus")
+            metrics = evaluate('''(()=>{const input=document.activeElement,group=input.parentElement,label=input.labels[0],s=getComputedStyle(input);
+                return {slot:input.dataset.slot,height:group.getBoundingClientRect().height,labelFor:label.htmlFor,id:input.id,
+                    font:s.fontFamily,border:s.borderTopWidth,bg:s.backgroundColor,boxHeight:input.getBoundingClientRect().height}})()''')
+            action("checkbox", "Add middle frame", "focus")
+            metrics["checkbox"] = evaluate("({height:document.activeElement.getBoundingClientRect().height,border:getComputedStyle(document.activeElement).borderTopWidth})")
+            observations.append({"theme":theme,"appearance":appearance,**metrics})
+            if not (metrics["slot"] == "input-group-control" and metrics["height"] == 40 and metrics["border"] == "0px" and metrics["labelFor"] == metrics["id"] and metrics["id"] and metrics["checkbox"] == {"height":16,"border":"0px"}):
+                failures.append(observations[-1])
+            browser("screenshot", str(evidence/f"styles-{theme}-{appearance}.png"))
+    (evidence/"style-observations.json").write_text(json.dumps(observations,indent=2)+"\n")
+    assert not failures, failures
+    print("PASS actual adopted numeric and checkbox computed styles in four Theme/Appearance combinations",flush=True)
 
 
 def tests(url, evidence):
@@ -37,12 +62,18 @@ def tests(url, evidence):
         action("button", name, "focus")
         assert evaluate("document.activeElement.dataset.slot === 'select-trigger'")
         browser("press", "Enter")
+        lists = [item for item in browser("snapshot")["refs"].values() if item["role"] == "listbox" and item["name"] == name]
+        assert len(lists) == 1, (name, lists)
+        browser("press", "ArrowDown")
+        browser("press", "ArrowUp")
         browser("press", "Home")
         browser("press", "End")
         assert evaluate("document.activeElement.getAttribute('role') === 'option'")
         browser("press", "Escape")
         assert evaluate("document.activeElement.getAttribute('aria-label')") == name
         assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+        browser("press", "Tab")
+        assert evaluate("document.activeElement.getAttribute('role') !== 'option'"), "closed retained options stay out of Tab order"
     action("button", "Plate method")
     browser("press", "c")
     browser("press", "Enter")
@@ -89,17 +120,23 @@ def tests(url, evidence):
     assert evaluate("document.getElementById(document.activeElement.getAttribute('aria-controls'))!==null")
     action("button", "Read KiCad layers")
     browser("wait", "--text", "Custom geometry layers")
-    action("checkbox", "Select geometry fp_rect:0")
+    refs = browser("snapshot", "-i")["refs"]
+    geometry_names = [item["name"] for item in refs.values() if item["role"] == "checkbox" and item["name"].startswith("Select geometry ")]
+    assert len(geometry_names) == 1, geometry_names
+    geometry_name = geometry_names[0]
+    action("checkbox", geometry_name)
+    evaluate("window.geometryCheckbox=document.activeElement")
     action("button", "Purpose for Dwgs.User")
     browser("press", "End")
     browser("press", "Enter")
     action("button", "Switch fit profiles", "focus")
     browser("press", "Enter")
     assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
-    assert evaluate("document.getElementById(document.activeElement.getAttribute('aria-controls')).hidden")
+    assert evaluate("getComputedStyle(document.getElementById(document.activeElement.getAttribute('aria-controls'))).display === 'none'")
     browser("press", "Space")
-    action("checkbox", "Select geometry fp_rect:0", "focus")
+    action("checkbox", geometry_name, "focus")
     assert evaluate("document.activeElement.getAttribute('aria-checked')") == "true", "real local extraction selection survives collapse"
+    assert evaluate("document.activeElement===geometryCheckbox"), "collapse preserves the actual local control identity"
     action("button", "Purpose for Dwgs.User", "focus")
     assert evaluate("document.activeElement.textContent.includes('Drawing guide')"), "purpose draft stays with geometry owner"
     # Re-select plate cutout and apply through the real Core extraction port.
@@ -124,7 +161,7 @@ def tests(url, evidence):
     browser("press", "ArrowDown")
     browser("press", "Escape")
     assert evaluate("document.activeElement.getAttribute('role')") == "combobox"
-    action("button", "Fixture layer 1.50 mm Z 0.00", "focus")
+    action("button", "Fixture layer, 1.50 mm, Z 0.00", "focus")
     browser("press", "Space")
     assert status("Selected layer") == "fixture-layer"
     browser("press", "Space")
@@ -157,6 +194,7 @@ def tests(url, evidence):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, default=ROOT/".evidence/017/browser")
+    parser.add_argument("--styles-only", action="store_true")
     args = parser.parse_args()
     args.evidence.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -173,7 +211,10 @@ def main():
     with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:
-            tests(f"http://127.0.0.1:{server.server_port}", args.evidence)
+            url = f"http://127.0.0.1:{server.server_port}"
+            styles(url, args.evidence)
+            if not args.styles_only:
+                tests(url, args.evidence)
         finally:
             browser("close")
             server.shutdown()

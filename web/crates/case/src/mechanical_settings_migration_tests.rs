@@ -27,7 +27,7 @@ fn dimension_page() -> Element {
     rsx! {
         DimensionField {
             identity: identity(), request_sequence: sequence,
-            on_request: move |_| panic!("invalid draft must not submit"),
+            on_request: move |_| -> () { panic!("invalid draft must not submit") },
             feedback: Rc::from([]), field: MechanicalDimension::PlateThickness,
             label: "Plate thickness", value: 1.5, editable: true,
         }
@@ -45,21 +45,31 @@ async fn dimension_error_is_described_by_its_precise_input() {
     );
     wait_until("production dimension mounts", || {
         by_role_name(&root, "spinbutton", "Plate thickness").is_some()
-    }).await;
+    })
+    .await;
     let input: HtmlInputElement = by_role_name(&root, "spinbutton", "Plate thickness")
-        .unwrap().dyn_into().unwrap();
+        .unwrap()
+        .dyn_into()
+        .unwrap();
+    input.focus().unwrap();
     input.set_value("-1");
     let init = web_sys::EventInit::new();
     init.set_bubbles(true);
-    input.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
-    input.dispatch_event(&web_sys::Event::new_with_event_init_dict("focusout", &init).unwrap()).unwrap();
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+        .unwrap();
+    input.blur().unwrap();
     wait_until("invalid dimension is rejected locally", || {
         input.get_attribute("aria-invalid").as_deref() == Some("true")
-    }).await;
+    })
+    .await;
     assert_eq!(input.value(), "-1", "the field owns the rejected draft");
-    let described = input.get_attribute("aria-describedby")
+    let described = input
+        .get_attribute("aria-describedby")
         .expect("validation must describe the precise input");
-    let error = document.get_element_by_id(&described).expect("description resolves");
+    let error = document
+        .get_element_by_id(&described)
+        .expect("description resolves");
     assert!(!error.text_content().unwrap().is_empty());
     assert!(root.contains(Some(&error)));
     root.remove();
