@@ -1,6 +1,6 @@
 # 004: Vendored Lucide icons
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
