@@ -162,6 +162,49 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     #[component]
+    fn snap_options_instances() -> Element {
+        rsx! {
+            LayoutSnapOptions { settings: LayoutSnapSettings::default(), on_snap_intent: |_| {} }
+            LayoutSnapOptions { settings: LayoutSnapSettings::default(), on_snap_intent: |_| {} }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn snap_checkbox_labels_have_unique_targets_per_options_instance() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(snap_options_instances),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let mut ids = std::collections::HashSet::new();
+        for name in ["Geometry snap", "Envelope gap"] {
+            let checkboxes =
+                boardstudio_web_ui_shared::test_role::all_by_role_name(&root, "checkbox", name);
+            assert_eq!(checkboxes.len(), 2);
+            for checkbox in checkboxes {
+                assert!(ids.insert(checkbox.id()));
+                assert_eq!(
+                    checkbox
+                        .closest("label")
+                        .unwrap()
+                        .unwrap()
+                        .get_attribute("for"),
+                    Some(checkbox.id())
+                );
+                assert_eq!(
+                    document.get_element_by_id(&checkbox.id()).as_ref(),
+                    Some(checkbox.as_ref())
+                );
+            }
+        }
+        assert_eq!(ids.len(), 4);
+        root.remove();
+    }
+
+    #[component]
     fn direct_selection_fixture() -> Element {
         let open_menu = use_signal(|| Some(LayoutCommandMenu::Transform));
         let mut kind = use_signal(|| LayoutSelectionKind::Key);
@@ -808,7 +851,7 @@ pub fn LayoutCommandPill(
                         .is_some_and(|target| target.id() == "m1-layout-snap-trigger"
                             || (target.tag_name() == "BUTTON"
                                 && target.closest("#m1-layout-command-pill").ok().flatten().is_some()
-                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-scope-popup [data-slot=button], .layout-settings-popup [data-slot=button]").unwrap_or(false)))
+                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-scope-popup [data-slot=button], .layout-settings-popup [data-slot=button], .layout-settings-popup [data-slot=checkbox][aria-label='Geometry snap'], .layout-settings-popup [data-slot=checkbox][aria-label='Envelope gap']").unwrap_or(false)))
                 {
                     // Native control activation must not become the canvas's Space-pan shortcut.
                     event.stop_propagation();
@@ -1091,6 +1134,14 @@ fn LayoutSnapOptions(
     settings: LayoutSnapSettings,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
+    let geometry_id = format!(
+        "m1-layout-snap-geometry-{}",
+        dioxus::core::current_scope_id().0
+    );
+    let envelope_id = format!(
+        "m1-layout-snap-envelope-gap-{}",
+        dioxus::core::current_scope_id().0
+    );
     let fraction = use_memo(use_reactive((&settings.snap_fraction,), |(value,)| {
         Some(value.to_string())
     }));
@@ -1108,13 +1159,13 @@ fn LayoutSnapOptions(
                     SelectOption::<String> { index, value: value.to_owned(), text_value: label, "{label}" }
                 }
             }
-            Label {
-                Checkbox { aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
+            Label { html_for: geometry_id.clone(),
+                Checkbox { id: geometry_id, aria_label: "Geometry snap", checked: Some(if settings.geometry_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
                     on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GeometrySnap(value.into())) }
                 "Geometry snap"
             }
-            Label {
-                Checkbox { aria_label: "Envelope gap", checked: Some(if settings.gap_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
+            Label { html_for: envelope_id.clone(),
+                Checkbox { id: envelope_id, aria_label: "Envelope gap", checked: Some(if settings.gap_snap { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }), disabled: !settings.geometry_snap,
                     on_checked_change: move |value: dioxus_primitives::checkbox::CheckboxState| on_snap_intent.call(LayoutSnapIntent::GapSnap(value.into())) }
                 "Envelope gap"
             }
