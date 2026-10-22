@@ -64,6 +64,7 @@ def main():
             if (!ids || !ids.split(' ').some(id => document.getElementById(id)?.getAttribute('role') === 'tooltip')) throw Error('zoom tooltip description');
         """)
         browser("press", "Escape")
+        browser("wait", "--fn", "!document.querySelector('[role=tooltip]')")
         check("if (document.activeElement.getAttribute('aria-label') !== 'Zoom in') throw Error('tooltip keeps focus')")
         browser("press", "Home")
         check("if (document.activeElement.textContent.trim() !== 'Fit board') throw Error('camera Home')")
@@ -115,10 +116,25 @@ def main():
         browser("press", "Control+k")
         browser("wait", '[role=combobox][aria-label="Search commands and objects"]')
         browser("press", "Escape")
+        browser("set", "viewport", "1440", "960")
+        action("button", "Open Keymap workspace")
+        browser("wait", '[role=toolbar][aria-label="Keymap tools"]')
+        camera("Assign", "focus", "Keymap tools")
+        browser("press", "End")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Encoders') throw Error('Inspector shortcut End')")
+        browser("press", "Home")
+        browser("press", "ArrowRight")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Macros') throw Error('Inspector shortcut arrow')")
+        browser("press", "Enter")
+        browser("wait", "--fn", "document.activeElement.textContent.trim() === 'Macros' && document.activeElement.getAttribute('aria-pressed') === 'true'")
+        for width, height in ((1440, 960), (1100, 900), (390, 844)):
+            browser("set", "viewport", str(width), str(height))
+            path = args.evidence / f"keymap-shortcuts-shadcn-dark-{width}.png"
+            browser("screenshot", str(path.resolve()))
         (args.evidence / "final-snapshot.txt").write_text(browser("snapshot", "-i"))
-        (args.evidence / "result.json").write_text(json.dumps({"result": "passed", "captures": 12,
+        (args.evidence / "result.json").write_text(json.dumps({"result": "passed", "captures": 15,
             "limits": "Chromium keyboard and DOM checks; no screen reader, first-paint timing or human review"}, indent=2) + "\n")
-        print("PASS: shell camera keyboard/callbacks, palette, empty action and 12 Theme/Appearance/width captures")
+        print("PASS: shell camera keyboard/callbacks, palette, empty action, Inspector shortcut owner and 15 captures")
     except BaseException:
         (args.evidence / "failure-snapshot.txt").write_text(browser("snapshot", "-i"))
         browser("screenshot", str((args.evidence / "failure.png").resolve()))

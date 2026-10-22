@@ -34,7 +34,7 @@ pub(super) fn InspectorActions(
     use boardstudio_web_ui_shared::ui::toolbar::{Toolbar, ToolbarButton};
     use wasm_bindgen::JsCast;
     rsx! {
-        Toolbar { aria_label: label,
+        Toolbar { aria_label: label, class: "max-w-full flex-wrap justify-center",
             for (index, (name, selector, activate)) in actions.into_iter().enumerate() {
                 ToolbarButton { index, disabled, aria_label: name, on_click: move |_| {
                     let captured_workspace = workspace();
