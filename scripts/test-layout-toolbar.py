@@ -145,12 +145,28 @@ def production_tests(url):
     captures = ROOT / ".evidence/015" / datetime.now().strftime("page-captures-%Y%m%d-%H%M%S")
     captures.mkdir(parents=True)
     print("Packaged strip screenshots:", captures, flush=True)
-    for width in [1440, 1100, 980, 390]:
+    for width in [1440, 1100, 980, 390, 1018, 1020, 1022]:
         browser("set", "viewport", width, 900)
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
                 evaluate("document.fonts.ready.then(()=>true)")
+                anchors = "['m1-layout-snap-trigger'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [r.x,r.y]}).concat([...document.querySelectorAll('.layout-scope-strip')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y]}))"
+                before = evaluate(anchors)
+                for selected in ["Key", "Row", "Part", "Matrix", "Column", "Matrix", "Part", "Row", "Key", "Column"]:
+                    click("Select " + selected)
+                    assert evaluate(anchors) == before, (width, theme, "open", selected, before, evaluate(anchors))
+                    browser("press", "Escape")
+                    assert evaluate(anchors) == before, (width, theme, "closed", selected, before, evaluate(anchors))
+                browser("focus", driver.by_role_name("button", "Select Column"))
+                browser("press", "Home")
+                check("document.activeElement.getAttribute('aria-label')==='Select Matrix'")
+                browser("press", "End")
+                check("document.activeElement.getAttribute('aria-label')==='Select Part'")
+                browser("focus", driver.by_role_name("button", "Open Position and rotation properties for Column"))
+                browser("press", "End")
+                check("document.activeElement.getAttribute('aria-label')==='Activate Splay for the selected column'")
+                check("[...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[inert],[aria-hidden=true]') && e.checkVisibility()).every(e=>{const r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth})")
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
                 metrics = evaluate("[...document.querySelectorAll('.layout-scope-strip,.layout-context-strip,.layout-toolbar-strips [role=toolbar]')].filter(e=>!e.closest('[inert],[aria-hidden=true]')).map(e=>({name:e.getAttribute('aria-label')||e.className,scroll:e.scrollWidth,client:e.clientWidth,left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}))")
                 assert all(m["scroll"] <= m["client"] and m["left"] >= 0 and m["right"] <= width for m in metrics), (width, theme, appearance, metrics)
@@ -164,6 +180,18 @@ def tests(url):
     browser("set", "viewport", 1440, 900)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Select Column\"]')")
+    click("Clear selection")
+    click("Transform")
+    browser("wait", "--fn", "document.activeElement.id==='m1-layout-transform-menu'")
+    check("!document.activeElement.querySelector('[role^=menuitem]:not([aria-disabled=true])')")
+    # Updating availability in place must leave enabled navigation to the copied menu.
+    evaluate("[...document.querySelectorAll('button')].find(e=>e.textContent==='Restore selection').click()")
+    browser("wait", "--fn", "!!document.querySelector('#m1-layout-transform-menu [role=menuitem]')")
+    browser("press", "Home")
+    check("document.activeElement.getAttribute('role')==='menuitem' && document.activeElement.getAttribute('aria-disabled')==='false'")
+    browser("press", "End")
+    check("document.activeElement.textContent==='Origin'")
+    browser("press", "Escape")
     click("Select Column")
     browser("press", "Escape")
     scope = driver.by_role_name("button", "Select Column")
@@ -287,7 +315,7 @@ def tests(url):
         evaluate("closeButton.removeEventListener('click',countClose)")
         check("closeClicks===1 && document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded')==='false' && document.activeElement.id==='m1-layout-snap-trigger'")
     # Themes preserve control height and spacing; font-dependent widths may differ.
-    for width in [1440, 1100, 980, 390]:
+    for width in [1440, 1100, 980, 390, 374, 376, 378, 336]:
         browser("set", "viewport", width, 900)
         sizes = []
         for theme in ["original", "shadcn"]:

@@ -2150,12 +2150,64 @@ fn LayoutContextToolButton(
     }
 }
 
+fn focus_empty_transform_menu(content: &web_sys::Element) {
+    let Some(document) = content.owner_document() else {
+        return;
+    };
+    let rect = content.get_bounding_client_rect();
+    if document
+        .get_element_by_id("m1-layout-transform-menu")
+        .as_ref()
+        == Some(content)
+        && content.is_connected()
+        && content.get_attribute("data-state").as_deref() == Some("open")
+        && content
+            .closest("[hidden], [inert], [aria-hidden=true]")
+            .ok()
+            .flatten()
+            .is_none()
+        && rect.width() > 0.0
+        && rect.height() > 0.0
+        && document
+            .default_view()
+            .and_then(|window| window.get_computed_style(content).ok().flatten())
+            .is_some_and(|style| style.get_property_value("visibility").as_deref() == Ok("visible"))
+        && content
+            .query_selector("[role^=menuitem]:not([aria-disabled=true])")
+            .ok()
+            .flatten()
+            .is_none()
+        && let Some(content) = content.dyn_ref::<web_sys::HtmlElement>()
+    {
+        let _ = content.focus();
+    }
+}
+
 #[component]
 pub fn LayoutTransformToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
     #[props(default)] selection_kind: Option<LayoutSelectionKind>,
 ) -> Element {
+    use_effect(move || {
+        if open_menu() == Some(LayoutCommandMenu::Transform)
+            && let Some(content) = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.get_element_by_id("m1-layout-transform-menu"))
+        {
+            focus_empty_transform_menu(&content);
+        }
+    });
+    let on_menu_item_mounted = move |event: MountedEvent| {
+        if open_menu() == Some(LayoutCommandMenu::Transform)
+            && let Some(content) = event
+                .data()
+                .downcast::<web_sys::Element>()
+                .and_then(|item| item.closest("#m1-layout-transform-menu").ok().flatten())
+        {
+            focus_empty_transform_menu(&content);
+        }
+    };
     rsx! {
         DropdownMenu {
             open: Some(open_menu() == Some(LayoutCommandMenu::Transform)),
@@ -2165,11 +2217,12 @@ pub fn LayoutTransformToolbar(
                 else if open_menu() == Some(LayoutCommandMenu::Transform) { open_menu.set(None); }
             },
             DropdownMenuTrigger { id: "m1-layout-transform-trigger", aria_label: "Transform", "Transform" }
-            DropdownMenuContent { id: "m1-layout-transform-menu",
+            DropdownMenuContent { id: "m1-layout-transform-menu", tabindex: "-1",
                 if let Some(selection_kind) = selection_kind {
                     LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind, menu_items: true }
                     DropdownMenuItem {
                         index: 10usize, value: LayoutTransformTool::Origin,
+                        attributes: vec![onmounted(on_menu_item_mounted)],
                         role: "menuitemradio", aria_checked: mount.active_tool == Some(LayoutTransformTool::Origin),
                         disabled: !mount.pointer_tools_available || !mount.column_available,
                         on_select: move |_: LayoutTransformTool| {
@@ -2211,6 +2264,7 @@ pub fn LayoutTransformToolbar(
                     }
                     DropdownMenuItem::<()> {
                         index: 12usize, value: (), disabled: !mount.row_available,
+                        attributes: vec![onmounted(on_menu_item_mounted)],
                         on_select: move |_| {
                             mount.on_show_properties.call(());
                             mount.on_selection_kind.call(LayoutSelectionKind::Row);

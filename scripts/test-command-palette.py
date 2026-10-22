@@ -544,9 +544,30 @@ def main():
     browser("press", "Escape")
     choose("Transform")
     browser("wait", '[role="menu"][id="m1-layout-transform-menu"]')
-    browser("wait", "--fn", "document.activeElement.closest('#m1-layout-transform-menu') !== null")
+    browser("wait", "--fn", "document.activeElement.id === 'm1-layout-transform-menu'")
+    check("""
+        const menu = document.activeElement;
+        if (menu.tabIndex !== -1 || menu.querySelector('[role^=menuitem]:not([aria-disabled=true])')) throw Error('Empty Transform menu must be a programmatic focus target only');
+        if (!menu.textContent.includes('Select a matrix, row, column, key or part')) throw Error('The owner reason must stay accessible');
+        window.emptyTransform = menu;
+        window.emptyAnimation = menu.animate([{opacity:1},{opacity:0}],1000); emptyAnimation.pause();
+    """)
+    action("menuitemradio", "Origin", "focus")
+    browser("press", "Enter")
+    check("if (emptyTransform.dataset.state !== 'open' || emptyTransform.querySelector('[role=menuitemradio]').getAttribute('aria-disabled') !== 'true') throw Error('Disabled Origin must not activate');")
     browser("press", "Escape")
     browser("wait", "--fn", "document.activeElement.id === 'm1-layout-transform-trigger'")
+    check("if (!emptyTransform.isConnected || !emptyTransform.hasAttribute('inert') || emptyTransform.dataset.state !== 'closed') throw Error('Retained closed menu must be inert');")
+    browser("press", "Tab")
+    check("if (document.activeElement.closest('#m1-layout-transform-menu')) throw Error('Tab must skip retained closed Transform');")
+    action("button", "Transform", "focus")
+    browser("press", "Enter")
+    browser("wait", "--fn", "document.activeElement === emptyTransform && !emptyTransform.hasAttribute('inert')")
+    action("button", "Project", "focus")
+    browser("wait", "--fn", "emptyTransform.dataset.state === 'closed'")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Project') throw Error('Empty menu must preserve intentional outside focus');")
+    check("emptyAnimation.finish(); emptyTransform.getAnimations().forEach(a=>a.finish());")
+    browser("wait", "--fn", "!document.getElementById('m1-layout-transform-menu')")
     choose("Export")
     browser("press", "Control+k")
     opened()
