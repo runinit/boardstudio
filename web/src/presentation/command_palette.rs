@@ -7,6 +7,7 @@ use boardstudio_web_ui_shared::ui::{
     kbd::Kbd,
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 
@@ -164,6 +165,74 @@ fn sync_palette_host(host: &web_sys::HtmlDialogElement, open: bool) {
     }
 }
 
+fn palette_tab_target(
+    host: &web_sys::HtmlDialogElement,
+    content: &web_sys::Element,
+    backward: bool,
+) -> Option<web_sys::HtmlElement> {
+    if !host.is_connected()
+        || !host.open()
+        || !host.matches(":modal").ok()?
+        || host
+            .query_selector("[data-slot=dialog-content]")
+            .ok()?
+            .as_ref()
+            != Some(content)
+    {
+        return None;
+    }
+    let document = host.owner_document()?;
+    let active = document
+        .active_element()?
+        .dyn_into::<web_sys::HtmlElement>()
+        .ok()?;
+    if !host.contains(Some(&active)) {
+        return None;
+    }
+    let candidates = content
+        .query_selector_all("a[href],button,input,select,textarea,[tabindex],[contenteditable]")
+        .ok()?;
+    let mut first = None;
+    let mut last = None;
+    for index in 0..candidates.length() {
+        let Some(element) = candidates
+            .item(index)
+            .and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok())
+        else {
+            continue;
+        };
+        let rect = element.get_bounding_client_rect();
+        if element.tab_index() < 0
+            || element.matches(":disabled").ok()?
+            || element
+                .closest("[hidden],[inert],[aria-hidden=true]")
+                .ok()?
+                .is_some()
+            || rect.width() <= 0.0
+            || rect.height() <= 0.0
+            || document
+                .default_view()?
+                .get_computed_style(&element)
+                .ok()??
+                .get_property_value("visibility")
+                .ok()?
+                != "visible"
+        {
+            continue;
+        }
+        if first.is_none() {
+            first = Some(element.clone());
+        }
+        last = Some(element);
+    }
+    match (first, last) {
+        (Some(first), Some(last)) if first == last || backward && active == first => Some(last),
+        (Some(first), Some(last)) if !backward && active == last => Some(first),
+        (None, None) => Some(host.clone().unchecked_into()),
+        _ => None,
+    }
+}
+
 #[component]
 pub(super) fn CommandPalette(state: PaletteState) -> Element {
     let host = use_hook(|| Rc::new(RefCell::new(None::<web_sys::HtmlDialogElement>)));
@@ -188,6 +257,7 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
         }
     });
     let mount_host = host.clone();
+    let key_host = host.clone();
     let content_host = host.clone();
     let content_mounted = onmounted(move |event: MountedEvent| {
         if let Some(content) = event.data().downcast::<web_sys::Element>()
@@ -295,8 +365,24 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
             oncancel: move |event| {
                 event.prevent_default();
                 event.stop_propagation();
-                if host.borrow().as_ref().is_some_and(|host| host.is_connected() && host.open()) && *state.open.peek() {
+                let target = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<web_sys::HtmlDialogElement>().ok());
+                if host.borrow().as_ref().is_some_and(|host| Some(host) == target.as_ref() && host.is_connected() && host.open()) && *state.open.peek() {
                     state.close(None);
+                }
+            },
+            onkeydown: move |event: KeyboardEvent| {
+                let Some(raw) = event.data().try_as_web_event() else { return };
+                if raw.key() != "Tab" || raw.default_prevented() || raw.ctrl_key() || raw.alt_key() || raw.meta_key() || !*state.open.peek() { return }
+                let Some(target) = raw.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return };
+                let host = key_host.borrow();
+                let Some(host) = host.as_ref() else { return };
+                let Some(content) = host.query_selector("[data-slot=dialog-content]").ok().flatten() else { return };
+                if host.owner_document().and_then(|document| document.active_element()).as_ref() != Some(&target)
+                    || !content.contains(Some(&target)) && !target.is_same_node(Some(host))
+                { return }
+                if let Some(target) = palette_tab_target(host, &content, raw.shift_key()) {
+                    event.prevent_default();
+                    let _ = target.focus();
                 }
             },
         Dialog { open: Some(open), on_open_change: move |next: bool| { if !next { state.close(None); } },
@@ -590,6 +676,67 @@ mod tests {
         })
         .await;
         root.remove();
+    }
+
+    #[wasm_bindgen_test]
+    fn native_tab_boundaries_ignore_unavailable_controls_and_handle_single_empty_content() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let host = document
+            .create_element("dialog")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlDialogElement>()
+            .unwrap();
+        host.set_inner_html(
+            r#"<div data-slot="dialog-content">
+            <button aria-label="First">First</button>
+            <button disabled>Disabled</button><button tabindex="-1">Programmatic only</button>
+            <div hidden><button>Hidden</button></div><div inert><button>Inert</button></div>
+            <fieldset disabled><button>Disabled descendant</button></fieldset>
+            <button style="visibility:hidden">Invisible</button>
+            <button aria-label="Last">Last</button>
+        </div>"#,
+        );
+        document.body().unwrap().append_child(&host).unwrap();
+        host.show_modal().unwrap();
+        let content = host
+            .query_selector("[data-slot=dialog-content]")
+            .unwrap()
+            .unwrap();
+        let first = by_role_name(&content, "button", "First").unwrap();
+        let last = by_role_name(&content, "button", "Last").unwrap();
+        first.focus().unwrap();
+        assert_eq!(
+            palette_tab_target(&host, &content, true),
+            Some(last.clone())
+        );
+        assert!(palette_tab_target(&host, &content, false).is_none());
+        last.focus().unwrap();
+        assert_eq!(
+            palette_tab_target(&host, &content, false),
+            Some(first.clone())
+        );
+        assert!(palette_tab_target(&host, &content, true).is_none());
+        assert!(
+            palette_tab_target(&host, &document.create_element("div").unwrap(), true).is_none()
+        );
+        last.set_attribute("disabled", "").unwrap();
+        first.focus().unwrap();
+        for backward in [false, true] {
+            assert_eq!(
+                palette_tab_target(&host, &content, backward),
+                Some(first.clone())
+            );
+        }
+        first.set_attribute("hidden", "").unwrap();
+        host.focus().unwrap();
+        assert_eq!(
+            palette_tab_target(&host, &content, false),
+            Some(host.clone().unchecked_into())
+        );
+        host.close();
+        assert!(palette_tab_target(&host, &content, true).is_none());
+        host.remove();
+        assert!(palette_tab_target(&host, &content, true).is_none());
     }
 
     #[wasm_bindgen_test]

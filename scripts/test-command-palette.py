@@ -223,13 +223,19 @@ def main():
     check("""
         const content = document.querySelector('#command-palette [data-slot=dialog-content]');
         if (content.getAttribute('role') !== 'presentation' || content.hasAttribute('aria-modal') || content.tabIndex >= 0) throw Error('Inner Dialog must be structural and unfocusable');
+        window.paletteModalTabKeys = [];
+        document.querySelector('#command-palette').addEventListener('keydown', event => { if (event.key === 'Tab') paletteModalTabKeys.push(event); }, true);
     """)
     browser("press", "Shift+Tab")
     browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal')})")
     browser("screenshot", str((args.evidence / "native-confirmation-shift-tab.png").resolve()))
     check("if (!document.querySelector('#command-palette[open]').contains(document.activeElement)) throw Error('Shift Tab escaped the native palette host');")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Close command palette') throw Error('Shift Tab must wrap to the last palette control');")
     browser("press", "Tab")
     check("if (document.activeElement.getAttribute('role') !== 'combobox') throw Error('Tab must wrap back into search');")
+    browser("press", "Tab")
+    browser("press", "Shift+Tab")
+    check("if (document.activeElement.getAttribute('role') !== 'combobox' || paletteModalTabKeys.length !== 4 || !paletteModalTabKeys.every(e=>e.isTrusted) || JSON.stringify(paletteModalTabKeys.map(e=>e.defaultPrevented)) !== '[true,true,false,false]') throw Error('Only trusted first/last Tab boundaries may be prevented, once per key');")
     action("combobox", "Search commands and objects", "fill", "no matching command")
     check("if (!paletteDeleteConfirmation.matches(':modal')) throw Error('Palette changed the native confirmation owner');")
     browser("press", "Escape")
