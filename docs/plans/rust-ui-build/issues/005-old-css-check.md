@@ -1,6 +1,6 @@
 # 005: Old-CSS check
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [001: Walking skeleton: one copied Button, both Themes, one migrated control](001-walking-skeleton.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
