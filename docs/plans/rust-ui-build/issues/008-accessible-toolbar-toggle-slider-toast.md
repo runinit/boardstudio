@@ -12,12 +12,12 @@ The remaining controls with measured gaps pass the floor.
 
 ## Acceptance criteria
 
-- [ ] Toolbar has one tab stop with arrow roving, and End reaches the last item
-- [ ] Slider supports Home (minimum) and End (maximum) and PageUp and PageDown
-- [ ] Toggle Group requires a group label and exposes a group role
-- [ ] Toast items are announced with `alert` or `status`, not `alertdialog`, with a reachable dismiss button
-- [ ] Repository browser tests cover the floor rows and pass
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] Toolbar has one tab stop with arrow roving, and End reaches the last item
+- [x] Slider supports Home (minimum) and End (maximum) and PageUp and PageDown
+- [x] Toggle Group requires a group label and exposes a group role
+- [x] Toast items are announced with `alert` or `status`, not `alertdialog`, with a reachable dismiss button
+- [x] Repository browser tests cover the floor rows and pass
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 
 ## Outcome
@@ -47,6 +47,16 @@ Initial base: local `feat/rust-ui-migration` at `ba8b881c392cb2dde8fc7931f80348b
 
 The existing bound checkout was retained. `target` points to `/home/chris/.cache/boardstudio-target/008-accessible-toolbar-toggle-slider-toast`; the new-lane protocol's ignored settings and CAD caches were copied without overwriting existing files. Builds ran serially per target using project concurrency. Browser commands used `NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules` and `BOARDSTUDIO_CHECK_JOBS=1`.
 
-Prior-source receipts `build-lint-repo-receipt.json` and `browser-receipt.json` refer to `4853ba5b` before the observer/caller fixes and latest integrations; they are not final-source acceptance. Final check receipts and closure review are pending. Before local landing, merge any newer local feature tip, rerun checks affected by its inputs, and wait for the coordinator's real Standards+Spec review resolution. No origin push or merge to dev is authorized here.
+Prior-source receipts `build-lint-repo-receipt.json` and `browser-receipt.json` refer to `4853ba5b` before the observer/caller fixes and latest integrations; they are not final-source acceptance. Final checks executed on clean `b36fb14d7c8de63e0db646b1b930e377d51781b7`, including latest local feature `44de5fad27b255b34167aa1481c8f6ff422e048c`:
+
+- `cargo test --locked -p boardstudio-web-ui-shared --lib`: **15/15 passed**, `final-source-native.log`.
+- `cargo clippy --locked -p boardstudio-web-ui-shared --target wasm32-unknown-unknown --tests --example ticket_008_fixture -- -D warnings`: **passed**, `final-source-wasm-clippy.log`.
+- `python3 scripts/check.py build lint repo --receipt .evidence/008/final-source-build-lint-repo.json`: **all passed**, 188.0s. `final-source-build-lint-repo.log` and the receipt record the checked packaged build, native/WASM Clippy and repository checks.
+- `python3 scripts/check.py browser --only ui-shared --receipt .evidence/008/final-source-browser.json`: **63 + 2 mounted tests passed**, including all 16 dedicated 008 tests, 006's Select/Combobox and retained-animation callbacks, 007 action-menu tests and panel checks. `final-source-browser.log`; this is explicitly a partial browser subset.
+- `cargo build --locked -p boardstudio-web-ui-shared --target wasm32-unknown-unknown --example ticket_008_fixture`: **passed**, `final-source-fixture-build.log`.
+- `python3 web/crates/ui-shared/ticket-008-keyboard.py target/wasm32-unknown-unknown/debug/examples/ticket_008_fixture.wasm /home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen`: **4/4 trusted-key scenarios passed**, `final-source-trusted-browser.log`. Toolbar includes real Tab/Shift+Tab out of and back into nested Toggle items; Toggle Group selection, both Slider ownership modes/exact callbacks and Toast announcement/dismissal retain the original assertions.
+- `git diff --check`: **passed**. No native test was renamed or removed; no native test-name baseline change was needed.
+
+The check receipts identify a clean source revision and no local changes. Subsequent ticket-only documentation reuses those executed code checks; repository documentation checks are rerun for the final text. Closure review is pending. Before local landing, merge any newer local feature tip, rerun checks affected by its inputs, and wait for the coordinator's real Standards+Spec review resolution. No origin push or merge to dev is authorized here.
 
 Full browser/quick/CAD acceptance, the unexplained CAD `worker.onerror`, first-paint timing and human workspace review remain open; scoped evidence here does not close those gates.
