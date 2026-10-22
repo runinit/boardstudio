@@ -260,7 +260,11 @@ def main():
     check("if (paletteDeleteEvents.filter(e=>e.type==='cancel' && e.trusted).length !== 1 || !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')) throw Error('Native Escape must cancel without deleting the fixture project');")
     action("button", "Delete keyboard")
     browser("wait", "dialog[open]")
-    action("button", "Delete keyboard")
+    confirmation = json.loads(browser("snapshot", "--json", "-i", "--selector", 'dialog[open][aria-labelledby="m1-project-delete-title"]'))["data"]
+    confirms = re.findall(r'^\s*- button "Delete keyboard" \[[^\]\n]*\bref=(e\d+)', confirmation["snapshot"], re.MULTILINE)
+    assert len(confirms) == 1, ("Expected one native confirmation action", confirmation)
+    assert confirmation["refs"][confirms[0]]["role"] == "button" and confirmation["refs"][confirms[0]]["name"] == "Delete keyboard"
+    browser("click", "@" + confirms[0])
     browser("wait", "--fn", "!document.querySelector('dialog[open]') && !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')")
     action("button", "Project")
     action("menuitem", "New project")
