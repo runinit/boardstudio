@@ -1,6 +1,6 @@
 # 008: Choose the workbench icon set
 
-Status: claimed
+Status: resolved
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
@@ -27,3 +27,18 @@ And does the chosen set differ between the Original and shadcn Themes?
   already `aria-hidden` (91 uses in the code). Some are geometry drawings, not icons.
 - **Solar:** every one of rust-ui's 35 icons has a Solar counterpart in Iconify's `solar` set (CC BY 4.0, 480 Design, attribution
   required); BoardStudio has never imported any Solar icons (see [006](006-solar-icons-for-rust-ui.md)).
+
+## Answer
+
+Decided with the user, 2026-10-21 (Lucide chosen over Solar; the other four proposals accepted):
+
+- **Lucide** is the workbench icon family: the artwork rust-ui's components were drawn for. Licence ISC; a notice goes in
+  `web/assets/licenses/README.txt`. Solar is not used (it was only a plan and never imported).
+- **Vendored per icon, not the `icons` crate.** Only the icons we use (about 35 from rust-ui plus our own) become small per-icon Rust
+  components in `ui-shared`, so copied rust-ui code only changes its `use icons::{…}` line. This avoids the crate's measured 459 KB
+  and its hard-coded `<title>` that leaks into accessible names.
+- **One set for both Themes.**
+- **Our hand-drawn icons** (84 inline SVGs, 71 distinct drawings) are replaced by the nearest Lucide icon where one exists; the
+  domain-specific glyphs (transform, keycap, geometry drawings) stay custom through the same wrapper. The list comes from each lane's sweep.
+- **Wrapper rules:** decorative by default (`aria-hidden`), size from the class (default 16px as in rust-ui), stroke width read from a
+  `--icon-stroke` token that each Theme can set. Icon-only buttons keep their meaning through the button's `aria-label` and a Tooltip.

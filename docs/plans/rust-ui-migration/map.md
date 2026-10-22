@@ -27,7 +27,7 @@ decided.
   the app shell follows ADR-0035 and canvases are out of scope; call components
   directly and delete the `Board*` wrappers; copy source to `web/crates/ui-shared/src/ui/<name>.rs` with an
   upstream-commit provenance note and manual re-sync; rust-ui colour names only, `--wb-*`
-  and legacy CSS retired; icon set open (see 008); Theme is a saved preference, Original by
+  and legacy CSS retired; icons are vendored Lucide (008); Theme is a saved preference, Original by
   default; tests follow the new components, product behaviour
   (selection, Undo, shortcuts, precise values) does not change; a missing match is
   composed from rust-ui first, custom only with user approval; one long-lived branch with
@@ -62,6 +62,7 @@ decided.
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md): [inventory](inventory.md) of 210 components, 397 `Board*` uses and 331 raw controls with an 88-file sweep checklist; wrappers cover about half the controls.
 - [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md): rebuild the header like rust-ui.com's, docks on Sidenav with a non-modal Sheet on narrow screens, drop auto-hide, add a Command palette and Toasts ([ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md)).
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md): button, popover, select and dialog compile and run on 0.7.10 with `tw_merge`, `strum`, `icons` and one `Link` edit; inline scripts execute; keyboard and ARIA gaps confirmed in a browser.
+- [008: Choose the workbench icon set](issues/008-choose-icon-set.md): Lucide, vendored per icon (not the `icons` crate), one set for both Themes, custom glyphs only where no Lucide match, decorative by default with a Theme-settable stroke.
 - [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md): rust-ui supplies the look, `dioxus-primitives` the behaviour; no inline scripts; accessibility measured (010); restructuring added to scope (011).
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md): 86 components; overlays/Select/Tabs/Switch uncontrolled with thin keyboard and ARIA (→ 009); shadcn token set plus extras, with gaps.
 

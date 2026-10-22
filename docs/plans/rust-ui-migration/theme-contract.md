@@ -23,7 +23,7 @@ the 3D views through CSS.
 | --- | --- |
 | Attributes on `<html>` | `data-appearance="light|dark"` (resolved) and `data-theme="original|shadcn"`. Copied `dark:` classes are keyed with one line, `@custom-variant dark (&:where([data-appearance=dark], [data-appearance=dark] *))`, so no `.dark` class is needed. |
 | Token contract | rust-ui's names are the base; BoardStudio adds the short extras in section 4; `--wb-*` retires. |
-| What a Theme sets | colours, `--radius`, fonts and shadows. Never layout metrics (section 5). |
+| What a Theme sets | colours, `--radius`, fonts, shadows and the icon stroke width (`--icon-stroke`). Never layout metrics (section 5). |
 | Blocks | one `[data-theme=original]` block and one `[data-theme=shadcn]` block, each with light values and a `[data-appearance=dark]` override |
 | Preference storage | Appearance: `boardstudio:v2:appearance` (reads the legacy `boardstudio:v2:theme` once). Theme: `boardstudio:v2:workbench-theme`, default `original`. Browser preferences, not in the project file. |
 | 3D renderer | receives Appearance only; its palettes are the same in both Themes. |

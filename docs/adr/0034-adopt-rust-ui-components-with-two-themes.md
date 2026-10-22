@@ -20,7 +20,7 @@ Two Themes fill them: Original, which carries today's Graphite look, and shadcn.
 light and dark values, selected independently by the existing Appearance setting.
 A Theme sets colours, corner radius, fonts and shadows only; layout sizes are shared by both Themes, and the 3D renderer follows
 Appearance only ([theme contract](../plans/rust-ui-migration/theme-contract.md)). The `--wb-*` variables and the legacy `m1.css` / `.board-*` / `.m1-*` rules are retired
-when the migration completes. The icon set is undecided (Solar was assumed but never imported).
+when the migration completes. Icons are Lucide, vendored one component per icon; rust-ui's `icons` crate is not adopted (ticket 008).
 
 Product behaviour (selection, Undo, shortcuts, precise values) is unchanged. A building block
 without a direct rust-ui match is first composed from existing rust-ui components; a custom
