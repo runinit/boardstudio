@@ -49,6 +49,13 @@ def click(name):
     browser("find", "role", "button", "click", "--name", name, "--exact")
 
 
+def by_role_name(role, name):
+    refs = browser("snapshot", "-i")["refs"]
+    matches = [ref for ref, item in refs.items() if item["role"] == role and item["name"] == name]
+    assert len(matches) == 1, (role, name, refs)
+    return "@" + matches[0]
+
+
 def width(name):
     return evaluate(f"+{control('separator', 'Resize ' + name)}.getAttribute('aria-valuenow')")
 
@@ -129,7 +136,10 @@ def tests(url):
         rect = evaluate(f"(() => {{const r={dialog}.getBoundingClientRect(); return {{top:r.top,bottom:r.bottom,left:r.left,right:r.right}}}})()")
         assert 0 <= rect["left"] <= rect["right"] <= 1440 and 0 <= rect["top"] <= rect["bottom"] <= 900, (edge, rect)
         assert rect[{"Bottom": "bottom", "Top": "top", "Left": "left", "Right": "right"}[edge]] == {"Bottom": 900, "Top": 0, "Left": 0, "Right": 1440}[edge], (edge, rect)
-        check("document.querySelector('button[aria-haspopup=dialog]').getAttribute('aria-expanded')==='true'")
+        trigger = by_role_name("button", "Open settings")
+        for attribute, expected in [("aria-haspopup", "dialog"), ("aria-expanded", "true")]:
+            actual = browser("get", "attr", trigger, attribute)
+            assert actual["value"] == expected, actual
         if edge == "Bottom":
             browser("press", "Tab")
             check("document.activeElement.textContent==='Sheet action'")
@@ -137,6 +147,8 @@ def tests(url):
             check("document.activeElement.textContent==='Close settings'")
             browser("press", "Tab")
             check("document.activeElement.getAttribute('aria-label')==='Sheet choice'")
+            browser("press", "Tab")
+            check("document.activeElement.textContent==='Open details'")
             browser("press", "Tab")
             check(f"!{dialog}.contains(document.activeElement)")
             click("Canvas action")
@@ -154,6 +166,14 @@ def tests(url):
     browser("press", "Escape")
     check("!document.querySelector('[role=dialog]') && document.activeElement.textContent==='Open settings'")
     click("Open settings")
+    click("Open details")
+    browser("wait", "[role=dialog][aria-label='Sheet details'][data-state=open]")
+    click("Details action")
+    browser("press", "Escape")
+    check(f"!!{control('dialog', 'Dock settings')} && !{control('dialog', 'Sheet details')}?.matches('[data-state=open]')")
+    browser("press", "Escape")
+    check("!document.querySelector('[role=dialog]') && document.activeElement.textContent==='Open settings'")
+    click("Open settings")
     click("External close")
     check("!document.querySelector('[role=dialog]') && document.activeElement.textContent==='Open settings'")
     click("Open settings")
@@ -166,11 +186,11 @@ def tests(url):
             evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
             check("getComputedStyle(document.querySelector('[role=dialog]')).borderTopWidth==='0px'")
             evaluate("Promise.all(document.getAnimations().map(a=>a.finished)).then(()=>document.fonts.ready).then(()=>true)")
-            browser("screenshot", str(ROOT / f".evidence/009-{theme}-{appearance}.png"))
+            browser("screenshot", str(ROOT / f".evidence/009-correction-{theme}-{appearance}.png"))
     browser("set", "viewport", 390, 844)
     rect = evaluate("(() => {const r=document.querySelector('[role=dialog]').getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}})()")
     assert rect["left"] == 0 and rect["right"] == 390 and rect["bottom"] == 844 and rect["top"] > 0, rect
-    browser("screenshot", str(ROOT / ".evidence/009-narrow-sheet.png"))
+    browser("screenshot", str(ROOT / ".evidence/009-correction-narrow-sheet.png"))
     assert browser("errors").get("errors", []) == []
     print("PASS: trusted per-side drag/capture/release, keyboard bounds, reload/persistence, in-flow geometry, four-edge non-modal Sheet, Tab/Escape and controlled focus return", flush=True)
 

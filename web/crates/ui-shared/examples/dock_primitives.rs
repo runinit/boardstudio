@@ -4,6 +4,7 @@ use boardstudio_web_ui_shared::{
     panels::{PanelSide, use_panel_settings},
     ui::{
         button::Button,
+        popover::{Popover, PopoverContent, PopoverTrigger},
         select::{Select, SelectOption},
         sheet::{Sheet, SheetClose, SheetContent, SheetDirection, SheetTrigger},
         sidenav::Sidenav,
@@ -45,6 +46,12 @@ fn fixture() -> Element {
                         Select::<String> { aria_label: "Sheet choice",
                             SelectOption::<String> { index: 0usize, value: "one", "One" }
                             SelectOption::<String> { index: 1usize, value: "two", "Two" }
+                        }
+                        Popover { is_modal: false,
+                            PopoverTrigger { "Open details" }
+                            PopoverContent { aria_label: "Sheet details",
+                                Button { onclick: move |_| {}, "Details action" }
+                            }
                         }
                     }
                 }
