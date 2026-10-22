@@ -19,9 +19,13 @@ def production_tests(url):
     """Exercise the actual Editor-owned callbacks and mobile Header composition."""
     browser("set", "viewport", 1440, 900)
     browser("open", url)
-    browser("wait", "--fn", "!!document.querySelector('[role=region][aria-label=\"Your keyboards\"]')")
-    click("Create new keyboard")
-    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard editor\"]')")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
+    if evaluate("!!document.querySelector('[aria-label=\"Keyboard setup\"]')"):
+        click("Hide guide")
+        browser("wait", "--fn", "!document.querySelector('[aria-label=\"Keyboard setup\"]')")
+    click("Project")
+    browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
     click("4 Case (optional)")
     check("!!document.querySelector('[role=region][aria-label=\"Case workspace\"]')")
     click("Hide guide")
@@ -42,6 +46,10 @@ def production_tests(url):
             browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
 
     navigate("Layout")
+    for name in ["objects", "inspector"]:
+        label = "Show " + name
+        if any(item.get("name") == label for item in browser("snapshot", "-i")["refs"].values()):
+            click(label)
     browser("set", "viewport", 980, 900)
     click("Collapse objects")
     click("Collapse inspector")
@@ -53,6 +61,7 @@ def production_tests(url):
     navigate("Layout")
     click("Collapse objects")
     browser("set", "viewport", 979, 900)
+    close_sheet()
     click("Browse parts")
     browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
     assert primitives.saved("left") == {"mode": "collapsed", "width": left_width}
@@ -65,6 +74,7 @@ def production_tests(url):
         browser("press", "Home")
     click("Create matrix")
     browser("wait", "--fn", "!document.querySelector('[role=region][aria-label=\"New matrix\"]')")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Open Position and rotation properties for Key\"]')")
     close_sheet()
     browser("set", "viewport", 980, 900)
     right_before = primitives.saved("right")
@@ -74,6 +84,7 @@ def production_tests(url):
     assert not sheet_open()
     click("Collapse inspector")
     browser("set", "viewport", 979, 900)
+    close_sheet()
     click("Open Position and rotation properties for Key")
     browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
     assert primitives.saved("right") == right_before
@@ -94,12 +105,12 @@ def production_tests(url):
     browser("set", "viewport", 390, 844)
     for retained_exit in [True, False]:
         click("Workbench menu")
-        click("Objects")
         opener = primitives.by_role_name("button", "Objects")
         assert browser("get", "attr", opener, "aria-controls")["value"] == "workspace-panel-sheet"
-        check("document.getElementById('workspace-panel-sheet').getAttribute('role')==='dialog'")
         if retained_exit:
             evaluate("window.menuExit=document.getElementById('header-mobile-commands').animate([{opacity:1},{opacity:0}],{duration:1000000});menuExit.pause()")
+        click("Objects")
+        check("document.getElementById('workspace-panel-sheet').getAttribute('role')==='dialog'")
         browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
         if retained_exit:
             check("document.getElementById('objects-sheet-toggle').isConnected && !!document.getElementById('objects-sheet-toggle').closest('[inert], [aria-hidden=true]')")
@@ -111,6 +122,8 @@ def production_tests(url):
         if retained_exit:
             evaluate("menuExit.finish()")
             browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
+    click("Workbench menu")
+    click("Inspector")
     browser("screenshot", str(ROOT / ".evidence/011-production-narrow.png"))
     (ROOT / ".evidence/011-production-browser-errors.json").write_text(primitives.json.dumps(browser("errors")))
     print("PASS: packaged six-Workspace Sheet, real Case stage role/name, browse Parts and pin Inspector callbacks at979/980 with saved widths, legacy focus IDs, mobile opener connected/inert and unmounted fallbacks", flush=True)
@@ -244,6 +257,9 @@ def main():
         primitives.SESSION = "dock-011-production"
         try:
             production_tests(args.page_url)
+        except Exception:
+            (ROOT / ".evidence/011-production-failure-snapshot.json").write_text(primitives.json.dumps(browser("snapshot", "-i"), indent=2))
+            raise
         finally:
             browser("close")
         return
