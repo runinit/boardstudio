@@ -66,8 +66,14 @@ impl Drop for EscapeListener {
 
 /// Controlled non-modal Sheet. Keep domain drafts in the caller, as with other overlay primitives.
 #[component]
-pub fn Sheet(mut open: Signal<bool>, children: Element) -> Element {
-    let id = use_hook(|| format!("sheet-{}", SHEET_COUNTER.fetch_add(1, Ordering::Relaxed)));
+pub fn Sheet(
+    mut open: Signal<bool>,
+    #[props(into, optional)] id: Option<String>,
+    children: Element,
+) -> Element {
+    let id = use_hook(|| {
+        id.unwrap_or_else(|| format!("sheet-{}", SHEET_COUNTER.fetch_add(1, Ordering::Relaxed)))
+    });
     let trigger = use_signal(|| None::<Rc<MountedData>>);
     use_context_provider(|| SheetContext { id, open, trigger });
     let listener = use_hook(|| Rc::new(RefCell::new(None::<EscapeListener>)));

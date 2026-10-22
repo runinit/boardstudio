@@ -105,7 +105,8 @@ use library::Library;
 pub(crate) use mechanical_settings::{MechanicalSettings, MechanicalSettingsProps};
 pub(crate) use mechanical_settings_mount::MechanicalSettingsMount;
 use panels::{
-    InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide, use_panel_settings,
+    DockLayout, InspectorPanel, ObjectsPanel, PanelMode, PanelSettings, PanelSide,
+    use_panel_settings,
 };
 use parts::{PartsQuery, PartsSelection};
 use selection::{ReentrancyReset, SelectionAdapter};
@@ -2466,7 +2467,7 @@ fn pin_inspector_on_desktop(mut settings: Signal<PanelSettings>) {
 
 fn is_compact_viewport() -> bool {
     web_sys::window()
-        .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
+        .and_then(|window| window.match_media("(width < 980px)").ok().flatten())
         .is_some_and(|query| query.matches())
 }
 
@@ -2826,7 +2827,7 @@ fn Editor() -> Element {
     });
     let runtime = use_context::<Rc<Runtime>>();
     let compact_panel_state = use_context::<CompactPanelState>();
-    let mut objects_open = compact_panel_state.objects_open;
+    let objects_open = compact_panel_state.objects_open;
     let mut inspect_open = compact_panel_state.inspector_open;
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     let objects_panel_settings = use_panel_settings(PanelSide::Objects, preference_warning);
@@ -8025,33 +8026,6 @@ fn Editor() -> Element {
                 }
             }
         });
-    let objects_preferences = objects_panel_settings();
-    let inspector_preferences = inspector_panel_settings();
-    let left_track = if guide.is_some() {
-        "min(380px, calc(100vw - 32px))"
-    } else if objects_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-left-panel-width), calc(45vw - 126px))"
-    } else {
-        "32px"
-    };
-    let right_track = if !has_inspector || guide.is_some() {
-        "0px"
-    } else if inspector_preferences.mode == PanelMode::Pinned {
-        "min(var(--m1-right-panel-width), calc(55vw - 154px))"
-    } else {
-        "32px"
-    };
-    let left_width = objects_preferences
-        .width
-        .map(|width| format!("--m1-left-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let right_width = inspector_preferences
-        .width
-        .map(|width| format!("--m1-right-panel-width:{width}px;"))
-        .unwrap_or_default();
-    let panel_layout_style = format!(
-        "--m1-left-track:{left_track};--m1-right-track:{right_track};{left_width}{right_width}"
-    );
     let show_empty_board = guide.is_none()
         && matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
         && !layout_assembly_3d()
@@ -8573,11 +8547,63 @@ fn Editor() -> Element {
 
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
-            panels::CompactPanelScrim {}
-            div { class: if setup_guide_active { "m1-editor-body m1-editor-body--guided-setup" } else if active_workspace == "Layout" { "m1-editor-body m1-editor-body--layout" } else { "m1-editor-body" }, style: "{panel_layout_style}",
-                if active_workspace == "Layout" && !setup_guide_active {
-                    panels::LayoutPanelSheet {}
+            div { class: if setup_guide_active { "m1-editor-body m1-editor-body--guided-setup dock-desk" } else if active_workspace == "Layout" { "m1-editor-body m1-editor-body--layout dock-desk" } else { "m1-editor-body dock-desk" },
+                DockLayout {
+                    objects: if guide.is_none() { Some(rsx! {
+                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
+                    header_action: if active_workspace == "Layout" {
+                        Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
+                    } else { None },
+                    div { class: "m1-object-scroll-content",
+                    {workspace_composition::objects(objects_input)}
+                    }
+                    div { class: "m1-object-layer-dock",
+                        if active_workspace == "Layout" && !layout_assembly_3d() {
+                            CanvasLayers {
+                                initially_open: false,
+                                trigger_label: "Canvas visibility".to_owned(),
+                                trigger_id: String::from("m1-layers-trigger"),
+                                list_id: String::from("m1-layers-list"),
+                                groups: canvas_layers::layout_groups(),
+                            }
+                        }
+                        if active_workspace == "PCB" {
+                            pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
+                        }
+                        boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
+                    }
+                    if active_workspace == "Layout" && !layout_assembly_3d() {
+                        objects::LayoutSnapDock {
+                            settings: layout_snap_settings.read().clone(),
+                            open_menu: layout_command_menu,
+                            on_snap_intent: layout_snap_intent,
+                        }
+                    }
                 }
+                    }) } else { None },
+                    inspector: if has_inspector && guide.is_none() { Some(rsx! {
+                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
+                        if active_workspace != "Layout" && (layout_findings.open)() {
+                            layout_findings::LayoutFindingsInspector {
+                                open: true,
+                                document: Rc::new(document.as_ref().clone()),
+                                findings: findings.clone(),
+                                source: layout_findings::Source {
+                                    workspace: active_workspace,
+                                    scope: render_scope.clone(),
+                                    token: snapshot.token,
+                                    revision: snapshot.document.revision,
+                                    generation: render_generation,
+                                },
+                                on_close: on_close_layout_findings,
+                                on_navigate: on_layout_finding,
+                            }
+                        } else {
+                            {workspace_composition::inspector(inspector_input)}
+                        }
+
+                    }
+                    }) } else { None },
                 if guide.is_some() {
                     section { class: "m1-setup-drawer", aria_label: "Keyboard setup",
                     if full_case_settings() && active_workspace == "Case" {
@@ -8630,53 +8656,7 @@ fn Editor() -> Element {
                     }
                     }
                 }
-                if guide.is_none() {
-                ObjectsPanel { compact_open: objects_open, settings: objects_panel_settings,
-                    header_action: if active_workspace == "Layout" {
-                        Some(layout_workspace::add_object_header_action(layout_state.add_object_menu_open()))
-                    } else { None },
-                    div { class: "m1-object-scroll-content",
-                    {workspace_composition::objects(objects_input)}
-                    }
-                    div { class: "m1-object-layer-dock",
-                        if active_workspace == "Layout" && !layout_assembly_3d() {
-                            CanvasLayers {
-                                initially_open: false,
-                                trigger_label: "Canvas visibility".to_owned(),
-                                trigger_id: String::from("m1-layers-trigger"),
-                                list_id: String::from("m1-layers-list"),
-                                groups: canvas_layers::layout_groups(),
-                            }
-                        }
-                        if active_workspace == "PCB" {
-                            pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
-                        }
-                        boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
-                    }
-                    if active_workspace == "Layout" && !layout_assembly_3d() {
-                        objects::LayoutSnapDock {
-                            settings: layout_snap_settings.read().clone(),
-                            open_menu: layout_command_menu,
-                            on_snap_intent: layout_snap_intent,
-                        }
-                    }
-                }
-                }
                 section { class: "m1-workspace-content", role: "region", id: "m1-workspace-panel", aria_label: "{active_workspace} workspace",
-                    onfocusin: move |_| {
-                        let compact = web_sys::window()
-                            .and_then(|window| window.match_media("(max-width: 760px)").ok().flatten())
-                            .is_some_and(|query| query.matches());
-                        if workspace() == "Case" && compact {
-                            // Reveal the focused workspace control without moving focus or remounting the viewer.
-                            if objects_open() {
-                                objects_open.set(false);
-                            }
-                            if inspect_open() {
-                                inspect_open.set(false);
-                            }
-                        }
-                    },
                     if guide.is_none() && active_workspace == "Layout"
                         && let Some(projection) = matrix_setup.projection.clone()
                     {
@@ -8987,28 +8967,6 @@ fn Editor() -> Element {
                         }
                     }
                 }
-                if has_inspector && guide.is_none() {
-                    InspectorPanel { compact_open: inspect_open, settings: inspector_panel_settings,
-                        if active_workspace != "Layout" && (layout_findings.open)() {
-                            layout_findings::LayoutFindingsInspector {
-                                open: true,
-                                document: Rc::new(document.as_ref().clone()),
-                                findings: findings.clone(),
-                                source: layout_findings::Source {
-                                    workspace: active_workspace,
-                                    scope: render_scope.clone(),
-                                    token: snapshot.token,
-                                    revision: snapshot.document.revision,
-                                    generation: render_generation,
-                                },
-                                on_close: on_close_layout_findings,
-                                on_navigate: on_layout_finding,
-                            }
-                        } else {
-                            {workspace_composition::inspector(inspector_input)}
-                        }
-
-                    }
                 }
             }
             footer { class: "m1-editor-footer",

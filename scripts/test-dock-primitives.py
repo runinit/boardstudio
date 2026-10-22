@@ -119,7 +119,7 @@ def tests(url):
     browser("reload")
     browser("wait", "[role=separator][aria-label='Resize Objects']")
     assert (width("Objects"), width("Inspector")) == (420, 480)
-    assert saved("left")["mode"] == "autohide" and saved("right")["mode"] == "collapsed"
+    assert saved("left")["mode"] == "pinned" and saved("right")["mode"] == "collapsed"
     evaluate("localStorage.setItem('boardstudio:v2:panel:left','{\"mode\":\"pinned\",\"width\":9999}');"
              "localStorage.setItem('boardstudio:v2:panel:right','{\"mode\":\"collapsed\",\"width\":1}')")
     browser("reload")
