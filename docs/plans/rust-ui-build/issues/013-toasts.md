@@ -12,14 +12,14 @@ Transient results of one-shot actions appear as Toasts instead of inline text.
 
 ## Acceptance criteria
 
-- [ ] A Toast provider is mounted in the shell; saving, copying, export started or finished and one-shot failures use it
-- [ ] Blocking and persistent states stay inline (Export blockers, Case readiness, field errors); the classification rule in the mapping is applied to the shell's messages
-- [ ] Toasts are announced to assistive technology and dismissible by keyboard; tests cover both
+- [x] A Toast provider is mounted in the shell; saving, copying, export started or finished and one-shot failures use it
+- [x] Blocking and persistent states stay inline (Export blockers, Case readiness, field errors); the classification rule in the mapping is applied to the shell's messages
+- [x] Toasts are announced to assistive technology and dismissible by keyboard; tests cover both
 - [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Outcome
 
-Work in progress on `lane/013-toasts`; closure review and local landing are held pending final verification and substantive coordinator approval.
+Implementation and scoped verification are complete on `lane/013-toasts`; closure review and local landing are held pending substantive coordinator approval.
 
 ### Ownership and contract
 
@@ -47,3 +47,20 @@ Browser-refused project copies previously reported an error during `DeliverExpor
 - `python3 scripts/check.py browser --only runtime --receipt .evidence/013/runtime-browser.json`: 49/49 passed, including the initial three queue/classification/error-map tests and existing firmware ownership/retry tests. This is a partial browser subset.
 
 Final checks, review and landing are recorded below when completed. Global full/quick/browser and CAD acceptance, CAD `worker.onerror`, first-paint timing, measured screen-reader output, human workspace review and ticket 026/final merge remain open.
+
+### Final scoped verification
+
+All checks below executed against clean source pin `30ecb26c9ffff432fbd3517ef3e8a3465cdb6854`, after merging the latest local feature (still `1620af409354adbec350b2fb8b8e03f70ca96585`, already an ancestor). This subsequent ticket-only result record reuses that code evidence; repository checks are rerun for the final documentation.
+
+- `python3 scripts/check.py build lint repo --receipt .evidence/013/final-build-lint-repo.json`: **all passed**, 185.5s (build 74.5s, lint 104.1s, repo 6.9s). The receipt records a clean source revision. The old-CSS count is still reported, not a passed retirement gate.
+- `python3 scripts/check.py browser --only runtime --receipt .evidence/013/final-runtime-browser.json`: **50/50 passed**, 15.5s. Includes four notification tests, exact-operation versus unrelated executor/persistence/recovery classification, repeated-event ordering/drain behavior, matching/stale/cancelled delivery-error cleanup, firmware generation failure/retry, stale worker/project/latest-operation notification silence, and prepared board-outline delivery with silent Completed. This is a partial browser subset.
+- `python3 scripts/run-wasm-tests.py --files web/src/presentation/notifications.rs web/src/presentation/zmk_firmware_export.rs --result-json .evidence/013/final-presentation-browser.json`: **5/5 passed**. The bridge test preserves all twelve queued results, identical message multiplicity, no replay on version updates, persistent inline text, actual default five-second expiry, and normal unmount/remount with active Toasts. The retained firmware test name still checks the same row, unchanged model, failed delivery absence and exactly one successful retry artifact.
+- `python3 scripts/test-toasts.py http://127.0.0.1:4313/ --evidence .evidence/013/final-browser`: **passed** against that freshly packaged production shell. Real save, project-copy download and browser-refused download produce the expected results; atomic status semantics, passive focus, real Tab/Enter dismissal and no route-change replay hold. Screenshot: `.evidence/013/final-browser/export-results.png`.
+- The same production-browser command with `--delivery-only --evidence .evidence/013/final-delivery`: **passed**. The browser refuses one actual project-copy delivery; terminal presentation contains exactly one error Toast and no project-copy success Toast.
+- `git diff --check`: **passed**. No existing test name was renamed or removed and no test-name baseline changed. New tests are WASM tests, not unexecuted native tests. Native runtime tests and global quick/full/browser/CAD gates were not run as part of these scoped checks.
+
+The earlier test-fixture Signal-capture compile failure (`presentation-browser.log`) is retained and excluded from behavioral RED/GREEN. Corrected fixtures first passed 5/5 in `presentation-browser-r2.json`; the final receipt above adds executed expiry/unmount coverage. Timer ownership was reviewed in the pinned primitive and local `dioxus-sdk-time`/Dioxus source; browser timer handles were not separately instrumented. No large-queue responsiveness benchmark is claimed.
+
+### Closure review
+
+One real Standards+Spec closure review is requested through the coordinator at the clean final documentation pin. Review must include the cross-crate notification contract, explicit classification, exact lease/error-map ownership, no-cap shell provider with bounded lifetime, and preservation of 011/012 ownership. Status remains claimed and the shared-contract checkbox remains open until substantive review approval. No local landing is performed before that approval.
