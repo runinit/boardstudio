@@ -7,10 +7,14 @@ use boardstudio_core::model::{
     EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonVariant, BoardDialog, BoardSelectField,
-};
+use boardstudio_web_ui_shared::controls::BoardDialog;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    select::{Select, SelectOption},
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -737,45 +741,121 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let error = props.projection.error.clone();
 
     rsx! {
-        BoardDialog {
-            open: true, modal: false, aria_label: "Mirror existing half",
-            dismissible: props.projection.can_cancel,
-            on_close: move |_| cancel.call(owner_escape.clone()),
-            section { class: "m1-matrix-setup m1-mirrored-pair-setup",
-                header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
-                p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
-                form { onsubmit: submit,
-                    BoardSelectField {
-                        label: "Source layouts",
-                        aria_label: "Source layouts",
-                        value: "{choice}",
-                        disabled: !props.projection.editable,
-                        onchange: move |event: FormEvent| default_choice.set(event.value()),
-                        option { value: "all", "All unpaired layouts on this board" }
-                            for option in owner.options.iter() {
-                                option { key: "{option.matrix_id}", value: "{option.matrix_id}", "{option.label}" }
-                            }
-                    }
-                    label { "Mirror axis X (mm)"
-                        input {
-                            aria_label: "Mirror axis X",
-                            r#type: "number",
-                            step: "any",
-                            required: true,
-                            value: "{axis_value}",
-                            disabled: !props.projection.editable,
-                            oninput: move |event| axis.set(event.value()),
+            BoardDialog {
+                open: true, modal: false, aria_label: "Mirror existing half",
+                dismissible: props.projection.can_cancel,
+                on_close: move |_| cancel.call(owner_escape.clone()),
+                section { class: "m1-matrix-setup m1-mirrored-pair-setup",
+                    header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
+                    p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
+                    form { onsubmit: submit,
+                        {
+    let control_label = "Source layouts".to_owned();
+    let control_aria_label = "Source layouts".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = format!("{}", choice);
+    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+    control_choices.push((
+        "all".to_owned(),
+        "All unpaired layouts on this board".to_owned(),
+        false,
+    ));
+    for option in owner.options.iter() {
+        control_choices.push((
+            format!("{}", option.matrix_id),
+            format!("{}", option.label),
+            false,
+        ));
+    }
+
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        default_choice.set(choice)
+    });
+    rsx! {
+
+        Field { class: "",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            if control_choices.len() > 12 {
+                Combobox::<String> {
+                    id: control_id.clone(),
+                    aria_label: control_aria_label.clone(),
+                    list_aria_label: control_aria_label.clone(),
+                    value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                    disabled: !props.projection.editable,
+                    on_value_change,
+                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                        ComboboxOption::<String> {
+                            index,
+                            value: value.clone(),
+                            text_value: label.clone(),
+                            disabled: *disabled,
+                            "{label}"
                         }
                     }
-                    if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
-                    footer { class: "m1-mirrored-pair-actions",
-                        BoardButton { class: "wb-secondary", r#type: "button", disabled: !props.projection.can_cancel, onclick: move |_| cancel.call(owner.clone()), "Cancel" }
-                        BoardButton { variant: BoardButtonVariant::Primary, class: "wb-primary", r#type: "submit", disabled: !can_create, "Create linked half" }
+                }
+            } else {
+                Select::<String> {
+                    id: control_id.clone(),
+                    aria_label: control_aria_label.clone(),
+                    value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                    disabled: !props.projection.editable,
+                    on_value_change,
+                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                        SelectOption::<String> {
+                            index,
+                            value: value.clone(),
+                            text_value: label.clone(),
+                            disabled: *disabled,
+                            "{label}"
+                        }
                     }
                 }
             }
         }
+
+
     }
+}
+                        label { "Mirror axis X (mm)"
+                            input {
+                                aria_label: "Mirror axis X",
+                                r#type: "number",
+                                step: "any",
+                                required: true,
+                                value: "{axis_value}",
+                                disabled: !props.projection.editable,
+                                oninput: move |event| axis.set(event.value()),
+                            }
+                        }
+                        if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
+                        footer { class: "m1-mirrored-pair-actions",
+                            Button {
+    variant: ButtonVariant::Secondary,
+    class: "wb-secondary",
+    button_type: "button",
+    disabled: !props.projection.can_cancel,
+    onclick: move |_| cancel.call(owner.clone()),
+     "Cancel"
+    }
+                            Button {
+    variant: ButtonVariant::Default,
+    class: "wb-primary",
+    button_type: "submit",
+    disabled: !can_create,
+     "Create linked half"
+    }
+                        }
+                    }
+                }
+            }
+        }
 }
 
 #[cfg(test)]
@@ -786,10 +866,21 @@ mod adoption_tests {
 
     fn form() -> Element {
         let owner = ExistingHalfOwner {
-            editor_instance_id: 1, open_id: 1, scope_generation: 1,
-            scope: Scope { session_epoch: boardstudio_application::SessionEpoch(1), document_id: "dock".into(), board_id: "board".into(), instance_id: None },
-            snapshot_token: SnapshotToken(1), revision: 1,
-            options: vec![ExistingHalfOption { matrix_id: "matrix".into(), label: "Left".into() }],
+            editor_instance_id: 1,
+            open_id: 1,
+            scope_generation: 1,
+            scope: Scope {
+                session_epoch: boardstudio_application::SessionEpoch(1),
+                document_id: "dock".into(),
+                board_id: "board".into(),
+                instance_id: None,
+            },
+            snapshot_token: SnapshotToken(1),
+            revision: 1,
+            options: vec![ExistingHalfOption {
+                matrix_id: "matrix".into(),
+                label: "Left".into(),
+            }],
             default_axis_x: 12.125,
         };
         let mut submitted = use_signal(|| None::<f64>);
@@ -807,17 +898,42 @@ mod adoption_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(VirtualDom::new(form), dioxus_web::Config::new().rootnode(root.clone().into()));
-        wait_until("actual Mirror form mounts", || by_role_name(&root, "spinbutton", "Mirror axis X").is_some()).await;
-        assert!(by_role_name(&root, "dialog", "Mirror existing half").is_none(), "Mirror must stay in the Objects dock, without dialog semantics");
-        assert!(by_role_name(&root, "region", "Mirror existing half").is_some(), "the dock view has a name");
-        let axis = by_role_name(&root, "spinbutton", "Mirror axis X").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(form),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("actual Mirror form mounts", || {
+            by_role_name(&root, "spinbutton", "Mirror axis X").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "dialog", "Mirror existing half").is_none(),
+            "Mirror must stay in the Objects dock, without dialog semantics"
+        );
+        assert!(
+            by_role_name(&root, "region", "Mirror existing half").is_some(),
+            "the dock view has a name"
+        );
+        let axis = by_role_name(&root, "spinbutton", "Mirror axis X")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap();
         axis.set_value("12.123456789");
-        let init = web_sys::EventInit::new(); init.set_bubbles(true);
-        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
-        wait_until("axis local draft renders", || axis.value() == "12.123456789").await;
-        by_role_name(&root, "button", "Create linked half").unwrap().click();
-        wait_until("precise draft submitted", || root.text_content().unwrap().contains("12.123456789")).await;
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        wait_until("axis local draft renders", || {
+            axis.value() == "12.123456789"
+        })
+        .await;
+        by_role_name(&root, "button", "Create linked half")
+            .unwrap()
+            .click();
+        wait_until("precise draft submitted", || {
+            root.text_content().unwrap().contains("12.123456789")
+        })
+        .await;
         root.remove();
     }
 }

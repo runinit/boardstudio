@@ -2,7 +2,8 @@
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Finding, ProjectDoc, Severity};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonDensity, BoardButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+
 use dioxus::prelude::*;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -35,18 +36,20 @@ pub struct InspectorMount {
 #[component]
 pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
     rsx! {
-        button {
-            class: "m1-canvas-footer-findings",
-            id: "m1-layout-findings-trigger",
-            r#type: "button",
-            title: "Open Layout findings",
-            onclick: move |_| on_toggle.call(()),
-            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
-                path { d: "M10 2.5 18 17H2zM10 7v4m0 3v.2" }
-            }
-            "Layout findings: {count}"
-        }
+            Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-canvas-footer-findings",
+    id: "m1-layout-findings-trigger",
+    button_type: "button",
+    onclick: move |_| on_toggle.call(()),
+
+                svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
+                    path { d: "M10 2.5 18 17H2zM10 7v4m0 3v.2" }
+                }
+                "Layout findings: {count}"
+
     }
+        }
 }
 
 #[component]
@@ -75,44 +78,47 @@ pub fn LayoutFindingsInspector(
 
     let groups = keycaps_fit::grouped_findings(&findings, &document);
     rsx! {
-        section {
-            class: "m1-layout-findings",
-            aria_label: "Layout findings",
-            onkeydown: move |event: KeyboardEvent| {
-                if event.key() == Key::Escape {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    on_close.call(());
+            section {
+                class: "m1-layout-findings",
+                aria_label: "Layout findings",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key() == Key::Escape {
+                        event.prevent_default();
+                        event.stop_propagation();
+                        on_close.call(());
+                    }
+                },
+                div { class: "m1-layout-findings-return",
+                    Button {
+    variant: ButtonVariant::Ghost,
+    size: ButtonSize::Sm,
+    class: "m1-layout-findings-back",
+    onclick: move |_| on_close.call(()),
+
+                        "Back to selection"
+
+    }
+                    span { "Layout findings" }
                 }
-            },
-            div { class: "m1-layout-findings-return",
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
-                    class: "m1-layout-findings-back",
-                    onclick: move |_| on_close.call(()),
-                    "Back to selection"
+                div { class: "m1-layout-findings-heading",
+                    h2 { id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
+                    span { "{keycaps_fit::presented_findings(&findings, &document).len()}" }
                 }
-                span { "Layout findings" }
-            }
-            div { class: "m1-layout-findings-heading",
-                h2 { id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
-                span { "{keycaps_fit::presented_findings(&findings, &document).len()}" }
-            }
-            if groups.is_empty() {
-                p { class: "m1-layout-findings-empty", "No active findings for this board." }
-            } else {
-                div { class: "wb-finding-groups",
-                    for group in groups {
-                        section { aria_label: "{group.label}",
-                            h3 { "{group.label}" }
-                            ul { class: "wb-findings",
-                                for finding in group.findings {
-                                    LayoutFinding {
-                                        finding,
-                                        document: document.clone(),
-                                        source: source.clone(),
-                                        on_navigate,
+                if groups.is_empty() {
+                    p { class: "m1-layout-findings-empty", "No active findings for this board." }
+                } else {
+                    div { class: "wb-finding-groups",
+                        for group in groups {
+                            section { aria_label: "{group.label}",
+                                h3 { "{group.label}" }
+                                ul { class: "wb-findings",
+                                    for finding in group.findings {
+                                        LayoutFinding {
+                                            finding,
+                                            document: document.clone(),
+                                            source: source.clone(),
+                                            on_navigate,
+                                        }
                                     }
                                 }
                             }
@@ -121,7 +127,6 @@ pub fn LayoutFindingsInspector(
                 }
             }
         }
-    }
 }
 
 #[component]
@@ -157,22 +162,25 @@ fn LayoutFinding(
     });
 
     rsx! {
-        li { class: "m1-keycaps-fit-finding m1-layout-finding is-{severity_class}",
-            span { class: "wb-finding-mark", "aria-hidden": "true" }
-            div {
-                strong { class: "wb-finding-severity", "{severity}" }
-                p { "{finding.message}" }
-                if let (Some(label), Some(request)) = (action_label.filter(|label| !label.is_empty()), request) {
-                    button {
-                        class: "wb-finding-action",
-                        r#type: "button",
-                        onclick: move |_| on_navigate.call(request.clone()),
-                        "{label}"
+            li { class: "m1-keycaps-fit-finding m1-layout-finding is-{severity_class}",
+                span { class: "wb-finding-mark", "aria-hidden": "true" }
+                div {
+                    strong { class: "wb-finding-severity", "{severity}" }
+                    p { "{finding.message}" }
+                    if let (Some(label), Some(request)) = (action_label.filter(|label| !label.is_empty()), request) {
+                        Button {
+    variant: ButtonVariant::Secondary,
+    class: "wb-finding-action",
+    button_type: "button",
+    onclick: move |_| on_navigate.call(request.clone()),
+
+                            "{label}"
+
+    }
                     }
                 }
             }
         }
-    }
 }
 
 pub fn target_has_live_layout_destination(

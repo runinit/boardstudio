@@ -3,9 +3,10 @@ use boardstudio_core::{
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+
 use dioxus::prelude::*;
-use dioxus_primitives::accordion::{Accordion, AccordionItem, AccordionTrigger};
+use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
@@ -330,107 +331,142 @@ pub fn ProjectSetupGuide(
     };
     let mut expanded_for_trigger = expanded;
     rsx! {
-        aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
-            header { class: "m1-setup-guide__header",
-                div {
-                    h2 {
-                        id: "m1-setup-guide-heading", tabindex: "-1",
-                        onmounted: move |event| async move { let _ = event.set_focus(true).await; },
-                        "Setup guide"
-                    }
-                }
-                button { class: "m1-setup-guide__dismiss", r#type: "button", onclick: move |_| on_dismiss.call(()), "Hide guide" }
-            }
-            Accordion { class: "m1-setup-stage-accordion", allow_multiple_open: false,
-                for (index, item_stage, title, ready) in [
-                    (0usize, SetupGuideStage::Project, "Project & hardware", stage_readiness[0]),
-                    (1usize, SetupGuideStage::Layout, "Layout & assemblies", stage_readiness[1]),
-                    (2usize, SetupGuideStage::Wiring, "Controller & wiring", stage_readiness[2]),
-                    (3usize, SetupGuideStage::Case, "Case (optional)", stage_readiness[3]),
-                ] {
-                    AccordionItem {
-                        index,
-                        default_open: stage == item_stage,
-                        class: step_class(stage == item_stage, ready),
-                        on_change: move |open| {
-                            if open {
-                                expanded_for_trigger.set(Some(item_stage));
-                            } else if expanded_for_trigger() == Some(item_stage) {
-                                expanded_for_trigger.set(None);
-                            }
-                        },
-                        on_trigger_click: move || {
-                            if stage != item_stage {
-                                stage_change.call(item_stage);
-                            }
-                        },
-                        AccordionTrigger {
-                            aria_controls: "m1-setup-panel-{index}",
-                            class: if stage == item_stage { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
-                            span { class: "m1-setup-guide__step-marker", aria_label: ready.then_some("Ready"), if ready { "✓" } else { "{index + 1}" } }
-                            strong { "{title}" }
-                            span { class: "m1-setup-guide__chevron", aria_hidden: "true", "⌄" }
+            aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
+                header { class: "m1-setup-guide__header",
+                    div {
+                        h2 {
+                            id: "m1-setup-guide-heading", tabindex: "-1",
+                            onmounted: move |event| async move { let _ = event.set_focus(true).await; },
+                            "Setup guide"
                         }
-                        div {
-                            id: "m1-setup-panel-{index}",
-                            class: if expanded() == Some(item_stage) { "m1-setup-guide__panel is-open" } else { "m1-setup-guide__panel" },
-                            aria_hidden: expanded() != Some(item_stage),
-                            section { class: "m1-setup-guide__content m1-setup-stage-form",
-                                if item_stage == SetupGuideStage::Project {
-                                    label { "Project name"
-                                        input {
-                                            aria_label: "Project name", value: "{project_name}",
-                                            oninput: move |event| on_name_change.call(event.value()),
-                                            onblur: move |_| on_name_commit.call(()),
-                                            onkeydown: move |event| {
-                                                if event.key() == Key::Enter
-                                                    && let Some(input) = event.data().try_as_web_event()
-                                                        .and_then(|event| event.target())
-                                                        .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                                { let _ = input.blur(); }
-                                            },
+                    }
+                    Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-setup-guide__dismiss",
+    button_type: "button",
+    onclick: move |_| on_dismiss.call(()),
+     "Hide guide"
+    }
+                }
+                Accordion { class: "m1-setup-stage-accordion", allow_multiple_open: false,
+                    for (index, item_stage, title, ready) in [
+                        (0usize, SetupGuideStage::Project, "Project & hardware", stage_readiness[0]),
+                        (1usize, SetupGuideStage::Layout, "Layout & assemblies", stage_readiness[1]),
+                        (2usize, SetupGuideStage::Wiring, "Controller & wiring", stage_readiness[2]),
+                        (3usize, SetupGuideStage::Case, "Case (optional)", stage_readiness[3]),
+                    ] {
+                        AccordionItem {
+                            index,
+                            default_open: stage == item_stage,
+                            class: step_class(stage == item_stage, ready),
+                            on_change: move |open| {
+                                if open {
+                                    expanded_for_trigger.set(Some(item_stage));
+                                } else if expanded_for_trigger() == Some(item_stage) {
+                                    expanded_for_trigger.set(None);
+                                }
+                            },
+                            on_trigger_click: move || {
+                                if stage != item_stage {
+                                    stage_change.call(item_stage);
+                                }
+                            },
+                            AccordionTrigger {
+                                aria_controls: "m1-setup-panel-{index}",
+                                class: if stage == item_stage { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
+                                span { class: "m1-setup-guide__step-marker", aria_label: ready.then_some("Ready"), if ready { "✓" } else { "{index + 1}" } }
+                                strong { "{title}" }
+                                span { class: "m1-setup-guide__chevron", aria_hidden: "true", "⌄" }
+                            }
+                            div {
+                                id: "m1-setup-panel-{index}",
+                                class: if expanded() == Some(item_stage) { "m1-setup-guide__panel is-open" } else { "m1-setup-guide__panel" },
+                                aria_hidden: expanded() != Some(item_stage),
+                                section { class: "m1-setup-guide__content m1-setup-stage-form",
+                                    if item_stage == SetupGuideStage::Project {
+                                        label { "Project name"
+                                            input {
+                                                aria_label: "Project name", value: "{project_name}",
+                                                oninput: move |event| on_name_change.call(event.value()),
+                                                onblur: move |_| on_name_commit.call(()),
+                                                onkeydown: move |event| {
+                                                    if event.key() == Key::Enter
+                                                        && let Some(input) = event.data().try_as_web_event()
+                                                            .and_then(|event| event.target())
+                                                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                                    { let _ = input.blur(); }
+                                                },
+                                            }
                                         }
+                                        if let Some(controls) = project_controls.clone() { {controls} }
+                                    } else if item_stage == SetupGuideStage::Layout {
+                                        if let Some(matrix_setup) = matrix_setup.clone() { {matrix_setup} }
+                                        else if let Some(on_open) = on_open_matrix_setup {
+                                            Button {
+    variant: ButtonVariant::Default,
+    class: "m1-setup-guide__primary m1-setup-guide__add-matrix",
+    onclick: move |_| on_open.call(()),
+     if has_matrix { "Add Thumb cluster" } else { "Set up key matrix" }
+    }
+                                        }
+                                    } else if item_stage == SetupGuideStage::Wiring {
+                                        p { "Choose a controller. BoardStudio resolves pins and wiring from its footprint." }
+                                        if let Some(controller_picker) = controller_picker.clone() { {controller_picker} }
+                                        else if let Some(on_choose) = on_choose_controller {
+                                            Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-setup-guide__secondary",
+    onclick: move |_| on_choose.call(()),
+     "Choose controller"
+    }
+                                        }
+                                    } else if item_stage == SetupGuideStage::Case {
+                                        p { "Optional. Set the basics here, then refine your case in the full editor." }
+                                        if let Some(case_basics) = case_basics.clone() { {case_basics} }
+                                        Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-setup-guide__secondary",
+    onclick: move |_| on_open_workspace.call("Case"),
+     "Open full case settings"
+    }
+                                    } else {
+                                        p { "Review the selected board and its available outputs." }
                                     }
-                                    if let Some(controls) = project_controls.clone() { {controls} }
-                                } else if item_stage == SetupGuideStage::Layout {
-                                    if let Some(matrix_setup) = matrix_setup.clone() { {matrix_setup} }
-                                    else if let Some(on_open) = on_open_matrix_setup {
-                                        BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary m1-setup-guide__add-matrix", onclick: move |_| on_open.call(()), if has_matrix { "Add Thumb cluster" } else { "Set up key matrix" } }
-                                    }
-                                } else if item_stage == SetupGuideStage::Wiring {
-                                    p { "Choose a controller. BoardStudio resolves pins and wiring from its footprint." }
-                                    if let Some(controller_picker) = controller_picker.clone() { {controller_picker} }
-                                    else if let Some(on_choose) = on_choose_controller {
-                                        BoardButton { class: "m1-setup-guide__secondary", onclick: move |_| on_choose.call(()), "Choose controller" }
-                                    }
-                                } else if item_stage == SetupGuideStage::Case {
-                                    p { "Optional. Set the basics here, then refine your case in the full editor." }
-                                    if let Some(case_basics) = case_basics.clone() { {case_basics} }
-                                    BoardButton { class: "m1-setup-guide__secondary", onclick: move |_| on_open_workspace.call("Case"), "Open full case settings" }
-                                } else {
-                                    p { "Review the selected board and its available outputs." }
                                 }
                             }
                         }
                     }
                 }
-            }
-            footer { class: "m1-setup-guide__footer",
-                if let Some(previous) = previous_stage {
-                    BoardButton {
-                        class: "m1-setup-guide__back", aria_label: "Previous step", title: "Previous step",
-                        onclick: move |_| on_stage_change.call(previous),
-                        svg { view_box: "0 0 24 24", "aria-hidden": "true", path { d: "M19 12H5m7 7-7-7 7-7" } }
+                footer { class: "m1-setup-guide__footer",
+                    if let Some(previous) = previous_stage {
+                        Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-setup-guide__back",
+    aria_label: "Previous step",
+    onclick: move |_| on_stage_change.call(previous),
+
+                            svg { view_box: "0 0 24 24", "aria-hidden": "true", path { d: "M19 12H5m7 7-7-7 7-7" } }
+
+    }
+                    } else { span {} }
+                    if let Some(next) = next_stage {
+                        Button {
+    variant: ButtonVariant::Default,
+    class: "m1-setup-guide__primary",
+    onclick: move |_| on_stage_change.call(next),
+     "{footer}"
+    }
+                    } else {
+                        Button {
+    variant: ButtonVariant::Default,
+    class: "m1-setup-guide__primary",
+    onclick: move |_| on_finish.call(()),
+     "{footer}"
+    }
                     }
-                } else { span {} }
-                if let Some(next) = next_stage {
-                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", onclick: move |_| on_stage_change.call(next), "{footer}" }
-                } else {
-                    BoardButton { variant: BoardButtonVariant::Primary, class: "m1-setup-guide__primary", onclick: move |_| on_finish.call(()), "{footer}" }
                 }
             }
         }
-    }
 }
 
 pub fn stage_detail(stage: SetupGuideStage, document: &ProjectDoc, board_id: &str) -> String {

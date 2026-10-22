@@ -6,6 +6,7 @@ use boardstudio_web_layout::matrix_relations::{
     ConstraintItem, ConstraintKind, Departure, DepartureAction, MatrixRelations, PartReference,
     RelationItem,
 };
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
@@ -136,24 +137,30 @@ fn DepartureActionButton(
     let described_by = control.reason.is_some().then(|| reason_id.clone());
     let error = mount.departure_feedback(action, submitted());
     rsx! {
-        button {
-            r#type: "button", class: "m1-inspector-secondary", disabled: control.disabled,
-            "data-relation-action": "{kind}", aria_label: "{label}: {parameter}",
-            aria_describedby: described_by,
-            onclick: move |_| {
-                if let Some(id) = mount.run_departure(action) {
-                    submitted.set(Some(id));
-                }
-            },
-            "{label}"
-        }
-        if let Some(reason) = control.reason.as_deref() {
-            small { id: "{reason_id}", class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
-        }
-        if let Some(message) = error.as_deref() {
-            small { role: "alert", class: "m1-matrix-transform-error", "{message}" }
-        }
+            Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    class: "m1-inspector-secondary",
+    disabled: control.disabled,
+    data-relation-action: "{kind}",
+    aria_label: "{label}: {parameter}",
+    aria_describedby: described_by,
+    onclick: move |_| {
+                    if let Some(id) = mount.run_departure(action) {
+                        submitted.set(Some(id));
+                    }
+                },
+
+                "{label}"
+
     }
+            if let Some(reason) = control.reason.as_deref() {
+                small { id: "{reason_id}", class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+            }
+            if let Some(message) = error.as_deref() {
+                small { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+            }
+        }
 }
 
 #[component]
@@ -252,23 +259,28 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
         move || highlight.release(&latest.borrow())
     });
     rsx! {
-        button {
-            r#type: "button", class: "m1-inspector-secondary m1-relations-reference",
-            "data-relation-role": role, "data-part-id": part_id,
-            aria_describedby: described_by,
-            onpointerenter: move |_| highlight.show(&enter),
-            onpointerleave: move |_| highlight.release(&leave),
-            onfocus: move |_| highlight.show(&focus),
-            onblur: move |_| highlight.release(&blur),
-            onclick: move |_| on_select.call(()),
-            "{text}"
-        }
-        if !parts.is_empty() {
-            span { id: "{description_id}", class: "m1-visually-hidden",
-                "Highlights the Layout canvas parts for {what}."
+            Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    class: "m1-inspector-secondary m1-relations-reference",
+    data-relation-role: role,
+    data-part-id: part_id,
+    aria_describedby: described_by,
+    onpointerenter: move |_| highlight.show(&enter),
+    onpointerleave: move |_| highlight.release(&leave),
+    onfocus: move |_| highlight.show(&focus),
+    onblur: move |_| highlight.release(&blur),
+    onclick: move |_| on_select.call(()),
+
+                "{text}"
+
+    }
+            if !parts.is_empty() {
+                span { id: "{description_id}", class: "m1-visually-hidden",
+                    "Highlights the Layout canvas parts for {what}."
+                }
             }
         }
-    }
 }
 
 #[component]

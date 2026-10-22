@@ -1,11 +1,20 @@
 //! Private form for matrix, row, column, and cell-local transform properties.
+use boardstudio_web_ui_shared::ui::label::Label;
+use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
 };
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
+use boardstudio_web_ui_shared::ui::{input::InputType, input_group::{InputGroup, InputGroupInput, InputGroupAddon, InputGroupAddonAlign, InputGroupText}};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
 
@@ -101,6 +110,10 @@ pub struct MatrixTransformInspectorProps {
 
 #[component]
 pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element {
+    let mut transform_open = use_signal(|| true);
+    let mut origin_open = use_signal(|| false);
+    let mut assembly_open = use_signal(|| true);
+
     let mut mounted = props.mount.inspector_mounted;
     let visible = props.mount.projection.is_some();
     use_effect(use_reactive((&visible,), move |(visible,)| {
@@ -199,105 +212,155 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
         } => (
             "Column properties",
             rsx! {
-                BoardDisclosure { class: "m1-matrix-transform-section", open: true, aria_label: "Position and rotation",
-                    heading: rsx! { summary { "Transform" } },
-                    NumericTransformField {
-                        owner: owner.clone(), snapshot_token, revision,
-                        field: MatrixTransformField::ColumnStagger, label: "Stagger", unit: "mm",
-                        draft: props.mount.numeric_field(MatrixTransformField::ColumnStagger).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnStagger).1,
-                        value: *stagger, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                        on_edit, splay_affect,
+                            Collapsible { class: "m1-matrix-transform-section",
+            aria_label: "Position and rotation", keep_mounted: true, open: Some(transform_open()), on_open_change: move |next| transform_open.set(next), CollapsibleTrigger {  "Transform"  } CollapsibleContent { hidden: !transform_open(), inert: (!transform_open()).then_some(""),
+                                NumericTransformField {
+                                    owner: owner.clone(), snapshot_token, revision,
+                                    field: MatrixTransformField::ColumnStagger, label: "Stagger", unit: "mm",
+                                    draft: props.mount.numeric_field(MatrixTransformField::ColumnStagger).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnStagger).1,
+                                    value: *stagger, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                    on_edit, splay_affect,
+                                }
+                                div { class: "m1-matrix-inspector-fields",
+                                    NumericTransformField {
+                                        owner: owner.clone(), snapshot_token, revision,
+                                        field: MatrixTransformField::ColumnOffsetX, label: "Offset X", unit: "mm",
+                                    draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).1,
+                                        value: offset.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                        on_edit, splay_affect,
+                                    }
+                                    NumericTransformField {
+                                        owner: owner.clone(), snapshot_token, revision,
+                                        field: MatrixTransformField::ColumnOffsetY, label: "Offset Y", unit: "mm",
+                                    draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).1,
+                                        value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                        on_edit, splay_affect,
+                                    }
+                                }
+                                NumericTransformField {
+                                    owner: owner.clone(), snapshot_token, revision,
+                                    field: MatrixTransformField::ColumnSplay, label: "Splay", unit: "°",
+                                    draft: props.mount.numeric_field(MatrixTransformField::ColumnSplay).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnSplay).1,
+                                    value: *splay_angle, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                    on_edit, splay_affect,
+                                }
+                                {
+    let control_label = "Splay affects".to_owned();
+    let control_aria_label = "Splay affects".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = (if splay_affect() == MatrixSplayAffect::Column {
+        "column"
+    } else {
+        "following"
+    })
+    .to_string();
+    let control_choices = [
+        ("column".to_owned(), "This column".to_owned(), false),
+        (
+            "following".to_owned(),
+            "This and following".to_owned(),
+            false,
+        ),
+    ];
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        splay_affect.set(if choice == "column" {
+            MatrixSplayAffect::Column
+        } else {
+            MatrixSplayAffect::Following
+        });
+    });
+    rsx! {
+
+        Field { class: "m1-matrix-field",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Select::<String> {
+                id: control_id,
+                aria_label: control_aria_label.clone(),
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled: !props.mount.editable,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    SelectOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
                     }
-                    div { class: "m1-matrix-inspector-fields",
-                        NumericTransformField {
-                            owner: owner.clone(), snapshot_token, revision,
-                            field: MatrixTransformField::ColumnOffsetX, label: "Offset X", unit: "mm",
-                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetX).1,
-                            value: offset.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                            on_edit, splay_affect,
-                        }
-                        NumericTransformField {
-                            owner: owner.clone(), snapshot_token, revision,
-                            field: MatrixTransformField::ColumnOffsetY, label: "Offset Y", unit: "mm",
-                        draft: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnOffsetY).1,
-                            value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                            on_edit, splay_affect,
-                        }
-                    }
-                    NumericTransformField {
-                        owner: owner.clone(), snapshot_token, revision,
-                        field: MatrixTransformField::ColumnSplay, label: "Splay", unit: "°",
-                        draft: props.mount.numeric_field(MatrixTransformField::ColumnSplay).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnSplay).1,
-                        value: *splay_angle, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                        on_edit, splay_affect,
-                    }
-                    BoardSelectField {
-                            class: "m1-matrix-field", label: "Splay affects",
-                            value: if splay_affect() == MatrixSplayAffect::Column { "column" } else { "following" },
-                            disabled: !props.mount.editable,
-                            onchange: move |event: FormEvent| {
-                                splay_affect.set(if event.value() == "column" { MatrixSplayAffect::Column } else { MatrixSplayAffect::Following });
-                            },
-                            option { value: "column", "This column" }
-                            option { value: "following", "This and following" }
-                    }
-                    OriginModeTransformField {
-                        owner: owner.clone(), snapshot_token, revision,
-                        custom: *custom_origin, request_sequence,
-                        editable: props.mount.editable,
-                        feedback: props.mount.feedback.clone(), on_edit, splay_affect,
-                    }
-                    ResetTransformButton {
-                        label: "Reset offsets", owner: owner.clone(), snapshot_token, revision,
-                        field: MatrixTransformField::ColumnOffsetReset,
-                        pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetReset),
-                        baseline: MatrixTransformValue::Offset(*offset),
-                        value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
-                        request_sequence, editable: props.mount.editable,
-                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
-                    }
-                    if offset.y != 0.0 {
-                        ResetTransformButton {
-                            label: "Convert to stagger", owner: owner.clone(), snapshot_token, revision,
-                            field: MatrixTransformField::ColumnOffsetConvert,
-                            pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetConvert),
-                            baseline: MatrixTransformValue::Number(offset.y),
-                            value: MatrixTransformValue::Number(0.0),
-                            blocked: convert.clone().err(),
-                            request_sequence, editable: props.mount.editable,
-                            feedback: props.mount.feedback.clone(), splay_affect, on_edit,
-                        }
-                    }
-                    span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
                 }
-                BoardDisclosure { class: "m1-matrix-transform-section", open: false, aria_label: "Splay and origin",
-                    heading: rsx! { summary { "Origin & scope" } },
-                    div { class: "m1-matrix-inspector-fields",
-                        NumericTransformField {
-                            owner: owner.clone(), snapshot_token, revision,
-                            field: MatrixTransformField::SplayOriginX, label: "Origin X", unit: "mm",
-                        draft: props.mount.numeric_field(MatrixTransformField::SplayOriginX).0, failure: props.mount.numeric_field(MatrixTransformField::SplayOriginX).1,
-                            value: splay_origin.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                            on_edit, splay_affect,
-                        }
-                        NumericTransformField {
-                            owner: owner.clone(), snapshot_token, revision,
-                            field: MatrixTransformField::SplayOriginY, label: "Origin Y", unit: "mm",
-                        draft: props.mount.numeric_field(MatrixTransformField::SplayOriginY).0, failure: props.mount.numeric_field(MatrixTransformField::SplayOriginY).1,
-                            value: splay_origin.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
-                            on_edit, splay_affect,
-                        }
-                    }
-                    BoardButton {
-                        r#type: "button",
-                        class: "m1-secondary",
-                        disabled: !props.mount.editable,
-                        onclick: move |_| props.on_pick_splay_origin.call(()),
-                        "Pick origin"
-                    }
-                    p { class: "m1-empty-note", "Move the origin without moving the keys." }
-                }
-            },
+            }
+        }
+
+
+    }
+}
+                                OriginModeTransformField {
+                                    owner: owner.clone(), snapshot_token, revision,
+                                    custom: *custom_origin, request_sequence,
+                                    editable: props.mount.editable,
+                                    feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                                }
+                                ResetTransformButton {
+                                    label: "Reset offsets", owner: owner.clone(), snapshot_token, revision,
+                                    field: MatrixTransformField::ColumnOffsetReset,
+                                    pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetReset),
+                                    baseline: MatrixTransformValue::Offset(*offset),
+                                    value: MatrixTransformValue::Offset(Vec2 { x: 0.0, y: 0.0 }),
+                                    request_sequence, editable: props.mount.editable,
+                                    feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                                }
+                                if offset.y != 0.0 {
+                                    ResetTransformButton {
+                                        label: "Convert to stagger", owner: owner.clone(), snapshot_token, revision,
+                                        field: MatrixTransformField::ColumnOffsetConvert,
+                                        pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::ColumnOffsetConvert),
+                                        baseline: MatrixTransformValue::Number(offset.y),
+                                        value: MatrixTransformValue::Number(0.0),
+                                        blocked: convert.clone().err(),
+                                        request_sequence, editable: props.mount.editable,
+                                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                                    }
+                                }
+                                span { class: "m1-matrix-field-context", {format!("Column {}", column + 1)} }
+                             } }
+                            Collapsible { class: "m1-matrix-transform-section",
+            aria_label: "Splay and origin", keep_mounted: true, open: Some(origin_open()), on_open_change: move |next| origin_open.set(next), CollapsibleTrigger {  "Origin & scope"  } CollapsibleContent { hidden: !origin_open(), inert: (!origin_open()).then_some(""),
+                                div { class: "m1-matrix-inspector-fields",
+                                    NumericTransformField {
+                                        owner: owner.clone(), snapshot_token, revision,
+                                        field: MatrixTransformField::SplayOriginX, label: "Origin X", unit: "mm",
+                                    draft: props.mount.numeric_field(MatrixTransformField::SplayOriginX).0, failure: props.mount.numeric_field(MatrixTransformField::SplayOriginX).1,
+                                        value: splay_origin.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                        on_edit, splay_affect,
+                                    }
+                                    NumericTransformField {
+                                        owner: owner.clone(), snapshot_token, revision,
+                                        field: MatrixTransformField::SplayOriginY, label: "Origin Y", unit: "mm",
+                                    draft: props.mount.numeric_field(MatrixTransformField::SplayOriginY).0, failure: props.mount.numeric_field(MatrixTransformField::SplayOriginY).1,
+                                        value: splay_origin.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                                        on_edit, splay_affect,
+                                    }
+                                }
+                                Button {
+            variant: ButtonVariant::Secondary,
+            button_type: "button",
+            class: "m1-secondary",
+            disabled: !props.mount.editable,
+            onclick: move |_| props.on_pick_splay_origin.call(()),
+
+                                    "Pick origin"
+
+            }
+                                p { class: "m1-empty-note", "Move the origin without moving the keys." }
+                             } }
+                        },
         ),
         MatrixTransformFields::Key {
             row,
@@ -314,9 +377,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
         } => (
             "Key properties",
             rsx! {
-                BoardDisclosure {
-                    class: "m1-matrix-transform-section", open: true,
-                    heading: rsx! { summary { "Position & rotation" } },
+                Collapsible { class: "m1-matrix-transform-section", keep_mounted: true, open: Some(transform_open()), on_open_change: move |next| transform_open.set(next), CollapsibleTrigger {  "Position & rotation"  } CollapsibleContent { hidden: !transform_open(), inert: (!transform_open()).then_some(""),
                 EnabledTransformField {
                     owner: owner.clone(), snapshot_token, revision, value: *enabled,
                     request_sequence, editable: props.mount.editable,
@@ -354,10 +415,8 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
-                }
-                BoardDisclosure {
-                    class: "m1-matrix-transform-section", open: true,
-                    heading: rsx! { summary { "Key assembly" } },
+                 } }
+                Collapsible { class: "m1-matrix-transform-section", keep_mounted: true, open: Some(assembly_open()), on_open_change: move |next| assembly_open.set(next), CollapsibleTrigger {  "Key assembly"  } CollapsibleContent { hidden: !assembly_open(), inert: (!assembly_open()).then_some(""),
                 KeyAssemblyField {
                     owner: owner.clone(), snapshot_token, revision, value: definition_id.clone(),
                     choices: choices.clone(), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(), on_edit,
@@ -372,7 +431,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
                 }
-                }
+                 } }
                 span { class: "m1-matrix-field-context", "Key {row}, {column}" }
             },
         ),
@@ -392,11 +451,9 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             if matches!(projection.fields, MatrixTransformFields::Column { .. } | MatrixTransformFields::Key { .. }) {
                 {body}
             } else {
-                BoardDisclosure {
-                    class: "m1-matrix-transform-section", open: true,
-                    heading: rsx! { summary { "{title}" } },
+                Collapsible { class: "m1-matrix-transform-section", keep_mounted: true, open: Some(transform_open()), on_open_change: move |next| transform_open.set(next), CollapsibleTrigger {  "{title}"  } CollapsibleContent { hidden: !transform_open(), inert: (!transform_open()).then_some(""),
                     {body}
-                }
+                 } }
             }
             div { class: "m1-selection-delete",
             ResetTransformButton {
@@ -577,14 +634,21 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
     let current = draft();
     let error_message = error();
     rsx! {
-        BoardNumberField {
-            class: "m1-matrix-field",
-            label: props.label,
-            unit: props.unit,
-            value: current,
-            readonly: !props.editable,
-            error: error_message,
-            oninput: move |event: FormEvent| {
+        { let input_id = format!("layout-number-{}", dioxus::core::current_scope_id().0);
+let unit_id = format!("{input_id}-unit");
+let error_id = format!("{input_id}-error");
+let described_by = match (props.unit.is_empty(), error_message.is_some()) {
+    (false, true) => Some(format!("{unit_id} {error_id}")),
+    (false, false) => Some(unit_id.clone()),
+    (true, true) => Some(error_id.clone()),
+    (true, false) => None,
+}; rsx! {
+Field { class: "m1-matrix-field", invalid: error_message.is_some(),
+FieldLabel { html_for: input_id.clone(), "{props.label}" }
+InputGroup {
+InputGroupInput { id: input_id, r#type: InputType::Number, step: "any", value: current,
+readonly: !props.editable, aria_label: props.label, aria_invalid: error_message.is_some(), aria_describedby: described_by,
+oninput: move |event: FormEvent| {
                 if !dirty() {
                     baseline.set(accepted_value);
                 }
@@ -592,8 +656,7 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                 dirty.set(true);
                 error.set(None);
             },
-            onblur: { let mut commit = commit.clone(); move |_| commit() },
-            onkeydown: {
+attributes: vec![dioxus::events::onblur({ let mut commit = commit.clone(); move |_| commit() }), dioxus::events::onkeydown({
                 let mut commit = commit.clone();
                 move |event: KeyboardEvent| match event.data().key() {
                     Key::Enter => { event.prevent_default(); commit(); }
@@ -606,8 +669,12 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
                     }
                     _ => {}
                 }
-            },
-        }
+            })],
+}
+if !props.unit.is_empty() { InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { span { id: unit_id, "{props.unit}" } } } }
+}
+if let Some(message) = error_message { div { id: error_id, FieldError { "{message}" } } }
+} } }
     }
 }
 
@@ -657,32 +724,83 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
     let revision = props.revision;
     let affect = props.splay_affect;
     rsx! {
-        BoardSelectField {
-                class: "m1-matrix-field", label: "Mirror", error: message,
-                aria_label: "Mirror matrix",
-                value: mirror_value(value),
-                disabled: !props.editable,
-                onchange: move |event: FormEvent| {
-                    let next = match event.value().as_str() { "x" => Some(Mirror::X), "y" => Some(Mirror::Y), _ => None };
-                    if next == value || (next == Some(Mirror::Y) && props.mirror_y_locked) { return; }
-                    let mut request = request;
-                    let Some(id) = request().checked_add(1) else { return; };
-                    request.set(id);
-                    submitted.set(Some(id));
-                    on_edit.call(MatrixTransformRequest {
-                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
-                        field: MatrixTransformField::MatrixMirror,
-                        baseline: MatrixTransformValue::Mirror(value), value: MatrixTransformValue::Mirror(next),
-                        splay_affect: affect(),
-                        draft: None, failure: None, submitted_text: None,
-            one_shot: false,
-                    });
-                },
-                option { value: "none", "None" }
-                option { value: "x", "X axis" }
-                option { value: "y", disabled: props.mirror_y_locked, "Y axis" }
+            {
+    let control_label = "Mirror".to_owned();
+    let control_aria_label = "Mirror matrix".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = (mirror_value(value)).to_string();
+    let error: Option<String> = message;
+    let control_choices = [
+        ("none".to_owned(), "None".to_owned(), false),
+        ("x".to_owned(), "X axis".to_owned(), false),
+        ("y".to_owned(), "Y axis".to_owned(), props.mirror_y_locked),
+    ];
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        let next = match choice.as_str() {
+            "x" => Some(Mirror::X),
+            "y" => Some(Mirror::Y),
+            _ => None,
+        };
+        if next == value || (next == Some(Mirror::Y) && props.mirror_y_locked) {
+            return;
         }
+        let mut request = request;
+        let Some(id) = request().checked_add(1) else {
+            return;
+        };
+        request.set(id);
+        submitted.set(Some(id));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field: MatrixTransformField::MatrixMirror,
+            baseline: MatrixTransformValue::Mirror(value),
+            value: MatrixTransformValue::Mirror(next),
+            splay_affect: affect(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+    });
+    rsx! {
+
+        Field { class: "m1-matrix-field", invalid: error.is_some(),
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Select::<String> {
+                id: control_id,
+                aria_label: control_aria_label.clone(),
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled: !props.editable,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    SelectOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
+                    }
+                }
+            }
+            if let Some(message) = error {
+                FieldError { "{message}" }
+            }
+        }
+
+
     }
+}
+        }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -730,31 +848,78 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
     let revision = props.revision;
     let affect = props.splay_affect;
     rsx! {
-        BoardSelectField {
-                class: "m1-matrix-field", label: "Origin", error,
-                aria_label: "Splay origin",
-                value: if custom { "custom" } else { "base" },
-                disabled: !props.editable,
-                onchange: move |event: FormEvent| {
-                    let next = event.value() == "custom";
-                    if next == custom { return; }
-                    let mut request = request;
-                    let Some(id) = request().checked_add(1) else { return; };
-                    request.set(id);
-                    submitted.set(Some(id));
-                    on_edit.call(MatrixTransformRequest {
-                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
-                        field: MatrixTransformField::SplayOriginMode,
-                        baseline: MatrixTransformValue::OriginMode(custom), value: MatrixTransformValue::OriginMode(next),
-                        splay_affect: affect(),
-                        draft: None, failure: None, submitted_text: None,
-            one_shot: false,
-                    });
-                },
-                option { value: "base", "Column base" }
-                option { value: "custom", "Custom point" }
+            {
+    let control_label = "Origin".to_owned();
+    let control_aria_label = "Splay origin".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = (if custom { "custom" } else { "base" }).to_string();
+    let error: Option<String> = error;
+    let control_choices = [
+        ("base".to_owned(), "Column base".to_owned(), false),
+        ("custom".to_owned(), "Custom point".to_owned(), false),
+    ];
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        let next = choice == "custom";
+        if next == custom {
+            return;
         }
+        let mut request = request;
+        let Some(id) = request().checked_add(1) else {
+            return;
+        };
+        request.set(id);
+        submitted.set(Some(id));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field: MatrixTransformField::SplayOriginMode,
+            baseline: MatrixTransformValue::OriginMode(custom),
+            value: MatrixTransformValue::OriginMode(next),
+            splay_affect: affect(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+    });
+    rsx! {
+
+        Field { class: "m1-matrix-field", invalid: error.is_some(),
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Select::<String> {
+                id: control_id,
+                aria_label: control_aria_label.clone(),
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled: !props.editable,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    SelectOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
+                    }
+                }
+            }
+            if let Some(message) = error {
+                FieldError { "{message}" }
+            }
+        }
+
+
     }
+}
+        }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -793,10 +958,11 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
     let on_edit = props.on_edit;
     let affect = props.splay_affect;
     rsx! {
-        label { class: "m1-matrix-key-enabled",
-            BoardCheckbox {
-                aria_label: "Key enabled", checked: current, disabled,
-                onchange: move |event: FormEvent| {
+        { let check_id = format!("layout-check-{}-{}", dioxus::core::current_scope_id().0, ("Key enabled").replace(' ', "-")); rsx! { Label { html_for: check_id.clone(), class: "m1-matrix-key-enabled",
+            Checkbox { id: check_id.clone(), aria_label: "Key enabled",
+disabled: disabled,
+checked: Some(if current { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
+on_checked_change: move |checked: dioxus_primitives::checkbox::CheckboxState| {
                     let Some(id) = sequence().checked_add(1) else { return; };
                     sequence.set(id);
                     submitted.set(Some(id));
@@ -804,15 +970,15 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                         owner: owner.clone(), request_id: id, snapshot_token: token, revision,
                         field: MatrixTransformField::KeyEnabled,
                         baseline: MatrixTransformValue::Bool(current),
-                        value: MatrixTransformValue::Bool(event.checked()),
+                        value: MatrixTransformValue::Bool(bool::from(checked)),
                         splay_affect: affect(),
                         draft: None, failure: None, submitted_text: None,
             one_shot: false,
                     });
                 },
-            }
+              }
             " Enabled"
-        }
+         } } }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
 }
@@ -854,29 +1020,70 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
     let on_edit = props.on_edit;
     let affect = props.splay_affect;
     rsx! {
-        label { class: "m1-matrix-key-assembly",
-            "Key Assembly"
-            select {
-                aria_label: "Key Assembly", disabled, value: "{props.value}",
-                onchange: move |event| {
-                    let Some(id) = sequence().checked_add(1) else { return; };
-                    sequence.set(id);
-                    submitted.set(Some(id));
-                    on_edit.call(MatrixTransformRequest {
-                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
-                        field: MatrixTransformField::KeyAssembly,
-                        baseline: MatrixTransformValue::Text(current.clone()),
-                        value: MatrixTransformValue::Text(event.value()),
-                        splay_affect: affect(),
-                        draft: None, failure: None, submitted_text: None,
+        {
+    let control_label = "Key Assembly".to_owned();
+    let control_aria_label = "Key Assembly".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = format!("{}", props.value);
+    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+    for (id, label) in props.choices.iter() {
+        control_choices.push((format!("{}", id), format!("{}", label), false));
+    }
+
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some(id));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field: MatrixTransformField::KeyAssembly,
+            baseline: MatrixTransformValue::Text(current.clone()),
+            value: MatrixTransformValue::Text(choice),
+            splay_affect: affect(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
             one_shot: false,
-                    });
-                },
-                for (id, label) in props.choices.iter() {
-                    option { key: "{id}", value: "{id}", selected: *id == props.value, "{label}" }
+        });
+    });
+    rsx! {
+
+        Field { class: "m1-matrix-key-assembly",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Combobox::<String> {
+                id: control_id,
+                aria_label: control_aria_label.clone(),
+                list_aria_label: control_aria_label.clone(),
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    ComboboxOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
+                    }
                 }
             }
         }
+
+
+    }
+}
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }
 }
@@ -945,69 +1152,115 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
         });
     };
     rsx! {
-        h3 { class: "m1-matrix-subtitle", "Attached components" }
-        if props.mirror_target {
-            if props.assemblies_local {
-                ResetTransformButton {
-                    label: "Use mirrored components", owner: props.owner.clone(),
-                    snapshot_token: props.snapshot_token, revision: props.revision,
-                    field: MatrixTransformField::KeyAssembliesLocal,
-                    pending_disabled: props.mirror_reset_disabled,
-                    baseline: MatrixTransformValue::Bool(true),
-                    value: MatrixTransformValue::Bool(false),
-                    request_sequence: props.request_sequence, editable: props.editable,
-                    feedback: props.feedback.clone(),
-                    splay_affect: props.splay_affect, on_edit: props.on_edit,
-                }
-            } else {
-                p { class: "m1-matrix-empty-note", "The key assembly and attached components follow the paired half. Replacing one here keeps this key local." }
-            }
-        }
-        if props.value.is_empty() {
-            p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
-        }
-        for (assembly_id, definition_id) in props.value.iter().cloned() {
-            { let choices = crate::matrix_transform_operation::attachment_component_choices(&props.choices, &definition_id);
-              rsx! {
-                div { key: "{assembly_id}", class: "m1-matrix-attached-row",
-                    select {
-                        aria_label: "Replace {assembly_id}", disabled, value: "{definition_id}",
-                        onchange: {
-                            let assembly_id = assembly_id.clone();
-                            let all = props.value.clone();
-                            let mut send = send.clone();
-                            move |event| {
-                                send(
-                                    all.iter()
-                                        .map(|(id, def)| {
-                                            if *id == assembly_id { (id.clone(), event.value()) } else { (id.clone(), def.clone()) }
-                                        })
-                                        .collect(),
-                                    false,
-                                );
-                            }
-                        },
-                        for (id, label) in choices.iter() {
-                            option { key: "{id}", value: "{id}", selected: *id == definition_id, "{label}" }
-                        }
+            h3 { class: "m1-matrix-subtitle", "Attached components" }
+            if props.mirror_target {
+                if props.assemblies_local {
+                    ResetTransformButton {
+                        label: "Use mirrored components", owner: props.owner.clone(),
+                        snapshot_token: props.snapshot_token, revision: props.revision,
+                        field: MatrixTransformField::KeyAssembliesLocal,
+                        pending_disabled: props.mirror_reset_disabled,
+                        baseline: MatrixTransformValue::Bool(true),
+                        value: MatrixTransformValue::Bool(false),
+                        request_sequence: props.request_sequence, editable: props.editable,
+                        feedback: props.feedback.clone(),
+                        splay_affect: props.splay_affect, on_edit: props.on_edit,
                     }
-                    BoardButton {
-                        r#type: "button", class: "m1-inspector-secondary", disabled: remove_disabled,
-                        aria_label: "Remove {assembly_id}",
-                        onclick: {
-                            let assembly_id = assembly_id.clone();
-                            let all = props.value.clone();
-                            let mut send = send.clone();
-                            move |_| send(all.iter().filter(|(id, _)| *id != assembly_id).cloned().collect(), true)
-                        },
-                        "Remove"
-                    }
+                } else {
+                    p { class: "m1-matrix-empty-note", "The key assembly and attached components follow the paired half. Replacing one here keeps this key local." }
                 }
-              }
             }
-        }
-        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+            if props.value.is_empty() {
+                p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
+            }
+            for (assembly_id, definition_id) in props.value.iter().cloned() {
+                { let choices = crate::matrix_transform_operation::attachment_component_choices(&props.choices, &definition_id);
+                  rsx! {
+                    div { key: "{assembly_id}", class: "m1-matrix-attached-row",
+                        {
+    let control_label = format!("Replace {}", assembly_id);
+    let control_aria_label = format!("Replace {}", assembly_id);
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = format!("{}", definition_id);
+    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+    for (id, label) in choices.iter() {
+        control_choices.push((format!("{}", id), format!("{}", label), false));
     }
+
+    let on_value_change = EventHandler::new({
+        let assembly_id = assembly_id.clone();
+        let all = props.value.clone();
+        let mut send = send.clone();
+        move |choice: Option<String>| {
+            let Some(choice) = choice else {
+                return;
+            };
+            send(
+                all.iter()
+                    .map(|(id, def)| {
+                        if *id == assembly_id {
+                            (id.clone(), choice.clone())
+                        } else {
+                            (id.clone(), def.clone())
+                        }
+                    })
+                    .collect(),
+                false,
+            );
+        }
+    });
+    rsx! {
+
+        Field { class: "",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Combobox::<String> {
+                id: control_id,
+                aria_label: control_aria_label.clone(),
+                list_aria_label: control_aria_label.clone(),
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    ComboboxOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
+                    }
+                }
+            }
+        }
+
+
+    }
+}
+                        Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    class: "m1-inspector-secondary",
+    disabled: remove_disabled,
+    aria_label: "Remove {assembly_id}",
+    onclick: {
+                                let assembly_id = assembly_id.clone();
+                                let all = props.value.clone();
+                                let mut send = send.clone();
+                                move |_| send(all.iter().filter(|(id, _)| *id != assembly_id).cloned().collect(), true)
+                            },
+
+                            "Remove"
+
+    }
+                    }
+                  }
+                }
+            }
+            if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+        }
 }
 
 #[derive(Props, Clone, PartialEq)]
@@ -1065,22 +1318,27 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
     let on_edit = props.on_edit;
     let affect = props.splay_affect;
     rsx! {
-        BoardButton {
-            r#type: "button", class: "m1-inspector-secondary", disabled,
-            onclick: move |_| {
-                let Some(id) = sequence().checked_add(1) else { return; };
-                sequence.set(id);
-                submitted.set(Some(id));
-                on_edit.call(MatrixTransformRequest::one_shot(
-                    owner.clone(), (token, revision), id,
-                    (field, baseline.clone(), value.clone()), affect(),
-                ));
-            },
-            "{props.label}"
-        }
-        if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
-        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+            Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    class: "m1-inspector-secondary",
+    disabled: disabled,
+    onclick: move |_| {
+                    let Some(id) = sequence().checked_add(1) else { return; };
+                    sequence.set(id);
+                    submitted.set(Some(id));
+                    on_edit.call(MatrixTransformRequest::one_shot(
+                        owner.clone(), (token, revision), id,
+                        (field, baseline.clone(), value.clone()), affect(),
+                    ));
+                },
+
+                "{props.label}"
+
     }
+            if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
+            if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+        }
 }
 
 fn mirror_value(value: Option<Mirror>) -> &'static str {

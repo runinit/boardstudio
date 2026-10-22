@@ -1,8 +1,17 @@
+use boardstudio_web_ui_shared::ui::collapsible::{Collapsible,CollapsibleTrigger,CollapsibleContent};
+use boardstudio_web_ui_shared::ui::label::Label;
+use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
 use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::BoardSelectField;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    select::{Select, SelectOption},
+};
+
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -49,6 +58,8 @@ pub struct CompanionPlacementInspectorProps {
 
 #[component]
 pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) -> Element {
+let mut placement_section_open = use_signal(|| false);
+
     use super::super::layout_component_edits::InspectorField;
     let mut mode = use_signal(|| {
         if props.projection.mixed_mode {
@@ -209,42 +220,96 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     };
 
     rsx! {
-        details { class: "m1-layout-companion-placement",
-            summary { span { "Companion placement" } small { "{summary}" } }
-            div { class: "m1-layout-component-fields",
-                BoardSelectField {
-                    label: "Mode",
-                    value: "{mode()}",
-                    disabled,
-                        onchange: move |event: FormEvent| mode.set(event.value()),
-                        option { value: "", "Mixed values" }
-                        option { value: "literal-mirror", "Literal mirror" }
-                        option { value: "duplicate-position", "Duplicate position" }
-                        option { value: "literal-mirror-with-tweak", "Mirror with tweak" }
-                }
-                if let Some(reason) = disabled_reason {
-                    p { role: "status", "{reason}" }
-                } else {
-                    if wants_tweak {
-                        label { "X tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{x()}", disabled, oninput: move |event| x.set(event.value()) } }
-                        label { "Y tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{y()}", disabled, oninput: move |event| y.set(event.value()) } }
-                        label { "Rotation tweak (degrees)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{rotation()}", disabled, oninput: move |event| rotation.set(event.value()) } }
+            Collapsible { class: "m1-layout-companion-placement", keep_mounted: true, open: Some(placement_section_open()), on_open_change: move |next| placement_section_open.set(next), CollapsibleTrigger { aria_label: "Companion placement",  span { "Companion placement" } small { "{summary}" }  } CollapsibleContent { hidden: !placement_section_open(), inert: (!placement_section_open()).then_some(""),
+
+                div { class: "m1-layout-component-fields",
+                    {
+    let control_label = "Mode".to_owned();
+    let control_aria_label = "Mode".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = format!("{}", mode());
+    let control_choices = [
+        ("".to_owned(), "Mixed values".to_owned(), false),
+        (
+            "literal-mirror".to_owned(),
+            "Literal mirror".to_owned(),
+            false,
+        ),
+        (
+            "duplicate-position".to_owned(),
+            "Duplicate position".to_owned(),
+            false,
+        ),
+        (
+            "literal-mirror-with-tweak".to_owned(),
+            "Mirror with tweak".to_owned(),
+            false,
+        ),
+    ];
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        mode.set(choice)
+    });
+    rsx! {
+
+        Field { class: "",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Select::<String> {
+                id: control_id,
+                aria_label: control_aria_label,
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    SelectOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
                     }
-                    label { class: "m1-layout-companion-placement-default",
-                        input { r#type: "checkbox", checked: pair_default(), disabled, onchange: move |event| pair_default.set(event.checked()) }
-                        "Also set the pair default"
-                    }
-                    if pair_tweak_refusal {
-                        p { role: "status", "Pair defaults cannot carry a position tweak." }
-                    }
-                }
-                if let Some(message) = error_messages.as_ref() { p { role: "alert", "{message}" } }
-                if disabled_reason.is_none() {
-                    button { r#type: "button", disabled: !can_apply, onclick: apply, "Apply placement" }
                 }
             }
         }
+
+
     }
+}
+                    if let Some(reason) = disabled_reason {
+                        p { role: "status", "{reason}" }
+                    } else {
+                        if wants_tweak {
+                            label { "X tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{x()}", disabled, oninput: move |event| x.set(event.value()) } }
+                            label { "Y tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{y()}", disabled, oninput: move |event| y.set(event.value()) } }
+                            label { "Rotation tweak (degrees)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{rotation()}", disabled, oninput: move |event| rotation.set(event.value()) } }
+                        }
+                        label { class: "m1-layout-companion-placement-default",
+                            input { r#type: "checkbox", checked: pair_default(), disabled, onchange: move |event| pair_default.set(event.checked()) }
+                            "Also set the pair default"
+                        }
+                        if pair_tweak_refusal {
+                            p { role: "status", "Pair defaults cannot carry a position tweak." }
+                        }
+                    }
+                    if let Some(message) = error_messages.as_ref() { p { role: "alert", "{message}" } }
+                    if disabled_reason.is_none() {
+                        Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    disabled: !can_apply,
+    onclick: apply,
+     "Apply placement"
+    }
+                    }
+                }
+             } }
+        }
 }
 
 fn mode_value(mode: MirroredCompanionMode) -> String {

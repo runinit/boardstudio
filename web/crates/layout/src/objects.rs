@@ -1,6 +1,14 @@
+use boardstudio_web_ui_shared::ui::{collapsible::{Collapsible,CollapsibleTrigger,CollapsibleContent},item::Item};
+use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup,ToggleItem};
 use crate::runtime::Runtime;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SelectionMode};
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDialog, BoardSelectField};
+
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::{
+    combobox::{Combobox, ComboboxOption},
+    field::{Field, FieldError, FieldLabel},
+    select::{Select, SelectOption},
+};
 use dioxus::prelude::*;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
@@ -188,6 +196,7 @@ pub fn Objects(
     let version = use_context::<Signal<u64>>();
     let _ = version();
     let existing_half = use_existing_half(runtime.clone(), version, workspace, scope_generation);
+    let existing_half_active = existing_half.projection.is_some();
     let local_pair_created = use_signal(|| None::<MirroredPairCreated>);
     let mut pair_created = pair_created.unwrap_or(local_pair_created);
     let model = runtime.model();
@@ -367,66 +376,105 @@ pub fn Objects(
         .unwrap_or_else(|| board_name.to_owned());
     let selection_count = model.selected_part_ids.len();
     rsx! {
-        aside { class: "m1-objects", "aria-label": "Objects",
-            header { h2 { "Objects" } }
-            if let Some(on_place_component) = on_place_component
-                && let Some(layout_target) = layout_target
-                && let Some(parts_query) = parts_query
-                && let Some(on_browse_parts) = on_browse_parts
-            {
-                AddObjectEntry {
-                    menu_open: add_menu_open,
-                    show_trigger: !use_external_add_action,
-                    on_select,
-                    on_open_geometry_scripts,
-                    matrix_setup,
-                    mirrored_pair,
-                    matrix_inspector,
-                    existing_half,
-                    snapshot: AcceptedSource(snapshot.clone()),
-                    scope: active_scope.clone(),
-                    selected_matrix_action: selected_matrix_action.clone(),
-                    on_place_component,
-                    layout_target,
-                    parts_query,
-                    on_browse_parts,
+            aside { class: "m1-objects", "aria-label": "Objects",
+                header { h2 { "Objects" } }
+                if let Some(on_place_component) = on_place_component
+                    && let Some(layout_target) = layout_target
+                    && let Some(parts_query) = parts_query
+                    && let Some(on_browse_parts) = on_browse_parts
+                {
+                    AddObjectEntry {
+                        menu_open: add_menu_open,
+                        show_trigger: !use_external_add_action,
+                        on_select,
+                        on_open_geometry_scripts,
+                        matrix_setup,
+                        mirrored_pair,
+                        matrix_inspector,
+                        existing_half,
+                        snapshot: AcceptedSource(snapshot.clone()),
+                        scope: active_scope.clone(),
+                        selected_matrix_action: selected_matrix_action.clone(),
+                        on_place_component,
+                        layout_target,
+                        parts_query,
+                        on_browse_parts,
+                    }
+                }
+                if let Some(error) = placement_error {
+                    p { class: "m1-parts-placement-error", role: "alert", "{error}" }
+                }
+                if !add_menu_open() && !existing_half_active {
+                {
+    let control_label = "Group".to_owned();
+    let control_aria_label = "Group objects by".to_owned();
+    let control_id = format!(
+        "layout-choice-{}-{}",
+        dioxus::core::current_scope_id().0,
+        control_aria_label.replace(' ', "-")
+    );
+    let control_value = ((if by_part() { "part" } else { "layout" }).to_string()).to_string();
+    let control_choices = [
+        ("layout".to_owned(), "By layout".to_owned(), false),
+        ("part".to_owned(), "By part".to_owned(), false),
+    ];
+    let on_value_change = EventHandler::new(move |choice: Option<String>| {
+        let Some(choice) = choice else {
+            return;
+        };
+        let next = choice == "part";
+        by_part.set(next);
+        if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+            let _ = storage.set_item(
+                "boardstudio:v2:object-view",
+                if next { "part" } else { "layout" },
+            );
+        }
+    });
+    rsx! {
+
+        Field { class: "m1-object-grouping",
+            FieldLabel { html_for: control_id.clone(), "{control_label}" }
+            Select::<String> {
+                id: control_id,
+                aria_label: control_aria_label,
+                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                disabled: false,
+                on_value_change,
+                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                    SelectOption::<String> {
+                        index,
+                        value: value.clone(),
+                        text_value: label.clone(),
+                        disabled: *disabled,
+                        "{label}"
+                    }
                 }
             }
-            if let Some(error) = placement_error {
-                p { class: "m1-parts-placement-error", role: "alert", "{error}" }
-            }
-            if !add_menu_open() {
-            BoardSelectField {
-                label: "Group",
-                class: "m1-object-grouping",
-                aria_label: "Group objects by",
-                value: (if by_part() { "part" } else { "layout" }).to_string(),
-                onchange: move |event: FormEvent| {
-                        let next = event.value() == "part"; by_part.set(next);
-                        if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) { let _ = storage.set_item("boardstudio:v2:object-view", if next { "part" } else { "layout" }); }
-                    },
-                option { value: "layout", "By layout" }
-                    option { value: "part", "By part" }
-            }
-            div { class: "m1-object-navigation",
-                if !pcb_workspace && !instances.is_empty() && case_workspace {
-                    div { class: "m1-instance-selection", role: "group", "aria-label": "Physical instance",
-                        span { "Physical instance" }
-                        div { class: "m1-instance-choices",
-                            for instance in &instances {
-                                {
-                                    let id = instance.id.clone();
-                                    let scope = instance_scope.clone();
-                                    let selected = id == active_instance;
-                                    rsx! {
-                                        button {
-                                            key: "{id}", r#type: "button", "aria-pressed": selected,
-                                            onclick: move |_| {
-                                                if let Some(scope) = scope.clone() {
-                                                    navigate_instance.call((scope.clone(), scope.board_id, Some(id.clone())));
-                                                }
-                                            },
-                                            "{instance.name}"
+        }
+
+
+    }
+}
+                div { class: "m1-object-navigation",
+                    if !pcb_workspace && !instances.is_empty() && case_workspace {
+                        div { class: "m1-instance-selection", role: "group", "aria-label": "Physical instance",
+                            span { "Physical instance" }
+                            div { class: "m1-instance-choices",
+                                for instance in &instances {
+                                    {
+                                        let id = instance.id.clone();
+                                          let navigation_id = id.clone();
+                                        let scope = instance_scope.clone();
+                                        let selected = id == active_instance;
+                                        rsx! {
+                                            ToggleGroup { aria_label: format!("{} selection", instance.name), pressed: Some(if selected { std::collections::HashSet::from([0usize]) } else { std::collections::HashSet::new() }), on_pressed_change: move |_| {
+                                                    if let Some(scope) = scope.clone() {
+                                                        navigate_instance.call((scope.clone(), scope.board_id, Some(navigation_id.clone())));
+                                                    }
+                                                }, ToggleItem { index: 0usize, key: "{id}",
+                                                "{instance.name}"
+                                             } }
                                         }
                                     }
                                 }
@@ -434,147 +482,152 @@ pub fn Objects(
                         }
                     }
                 }
-            }
-            div { class: "m1-object-tree",
-                div { role: "tree", "aria-label": "CAD structure", class: "m1-component-list m1-object-tree-list",
-                    for item in items.iter().cloned() {
-                        {
-                            let selected = item.context.as_ref().is_some_and(|context| {
-                                current_context.as_ref().is_some_and(|current| current.context == *context)
-                            });
-                            let tree_item_id = format!("m1-object-tree-{}", item.id);
-                            let toggle_item = item.clone();
-                            let select_item = item.clone();
-                            let keyboard_item = item.clone();
-                            let disclosure_label = format!(
-                                "{} {}",
-                                if item.expanded == Some(true) {
-                                    "Collapse"
-                                } else {
-                                    "Expand"
-                                },
-                                item.label
-                            );
-                            let select_on_click = on_select;
-                            let navigate_on_click = on_navigate;
-                            let select_on_key = on_select;
-                            let navigate_on_key = on_navigate;
-                            let nudge_on_key = on_nudge;
-                            let click_scope = active_scope.clone();
-                            let key_scope = active_scope.clone();
-                            let outline_action = active_scope.as_ref().zip(item.context.as_ref()).and_then(|(scope, context)| super::outline_lifecycle::OutlineAction::for_tree(snapshot, scope, generation, context));
-                            let click_outline_action = outline_action.clone();
-                            let key_outline_action = outline_action;
-
-                            rsx! {
-                                div { key: "{item.id}", class: "m1-tree-row", style: "padding-left: {8 + item.level * 14}px",
-                                    role: "treeitem",
-                                    "aria-labelledby": "{tree_item_id}",
-                                    "aria-level": "{item.level + 1}",
-                                    "aria-selected": "{selected}",
-                                    "aria-expanded": if item.expandable { "{item.expanded == Some(true)}" },
-                                    if item.expandable {
-                                        button {
-                                            id: "{tree_item_id}-disclosure",
-                                            class: "m1-tree-disclosure",
-                                            "aria-label": "{disclosure_label}",
-                                            "aria-expanded": "{item.expanded == Some(true)}",
-                                            onclick: move |_| toggle_tree(expanded, &toggle_item.id),
-                                            if item.expanded == Some(true) { "⌄" } else { "›" }
-                                        }
+                div { class: "m1-object-tree",
+                    div { role: "tree", "aria-label": "CAD structure", class: "m1-component-list m1-object-tree-list",
+                        for item in items.iter().cloned() {
+                            {
+                                let selected = item.context.as_ref().is_some_and(|context| {
+                                    current_context.as_ref().is_some_and(|current| current.context == *context)
+                                });
+                                let tree_item_id = format!("m1-object-tree-{}", item.id);
+                                let toggle_item = item.clone();
+                                let select_item = item.clone();
+                                let keyboard_item = item.clone();
+                                let disclosure_label = format!(
+                                    "{} {}",
+                                    if item.expanded == Some(true) {
+                                        "Collapse"
                                     } else {
-                                        span { class: "m1-tree-spacer", "aria-hidden": "true" }
-                                    }
-                                    button {
-                                        id: "{tree_item_id}",
-                                        class: if selected { "m1-component selected" } else { "m1-component" },
-                                        onclick: move |_| {
-                                            if let Some(context) = select_item.context.clone() {
-                                                if let Some(scope) = click_scope.clone() {
-                                                    if let TreeContext::Board { board_id } = &context
-                                                        && *board_id != scope.board_id
-                                                    {
-                                                        navigate_on_click.call((scope, board_id.clone(), None));
-                                                        return;
-                                                    }
-                                                    select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
-                                                }
-                                                if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
-                                                    toggle_tree(expanded, &select_item.id);
-                                                }
-                                            } else if select_item.expandable {
-                                                toggle_tree(expanded, &select_item.id);
-                                            }
-                                        },
-                                        onkeydown: move |event: KeyboardEvent| {
-                                            let key = event.data().key().to_string();
-                                            if key == "Enter" || key == " " {
-                                                event.prevent_default();
-                                                if let Some(context) = keyboard_item.context.clone() {
-                                                    if let Some(scope) = key_scope.clone() {
+                                        "Expand"
+                                    },
+                                    item.label
+                                );
+                                let select_on_click = on_select;
+                                let navigate_on_click = on_navigate;
+                                let select_on_key = on_select;
+                                let navigate_on_key = on_navigate;
+                                let nudge_on_key = on_nudge;
+                                let click_scope = active_scope.clone();
+                                let key_scope = active_scope.clone();
+                                let outline_action = active_scope.as_ref().zip(item.context.as_ref()).and_then(|(scope, context)| super::outline_lifecycle::OutlineAction::for_tree(snapshot, scope, generation, context));
+                                let click_outline_action = outline_action.clone();
+                                let key_outline_action = outline_action;
+
+                                rsx! {
+                                    div { key: "{item.id}", class: "m1-tree-row", style: "padding-left: {8 + item.level * 14}px",
+                                        role: "treeitem",
+                                        "aria-labelledby": "{tree_item_id}",
+                                        "aria-level": "{item.level + 1}",
+                                        "aria-selected": "{selected}",
+                                        "aria-expanded": if item.expandable { "{item.expanded == Some(true)}" },
+                                        if item.expandable {
+                                            Button {
+    variant: ButtonVariant::Secondary,
+    id: "{tree_item_id}-disclosure",
+    class: "m1-tree-disclosure",
+    aria_label: "{disclosure_label}",
+    aria_expanded: item.expanded == Some(true),
+    onclick: move |_| toggle_tree(expanded, &toggle_item.id),
+
+                                                if item.expanded == Some(true) { "⌄" } else { "›" }
+
+    }
+                                        } else {
+                                            span { class: "m1-tree-spacer", "aria-hidden": "true" }
+                                        }
+                                        Button {
+    variant: ButtonVariant::Secondary,
+    id: "{tree_item_id}",
+    class: if selected { "m1-component selected" } else { "m1-component" },
+    onclick: move |_| {
+                                                if let Some(context) = select_item.context.clone() {
+                                                    if let Some(scope) = click_scope.clone() {
                                                         if let TreeContext::Board { board_id } = &context
                                                             && *board_id != scope.board_id
                                                         {
-                                                            navigate_on_key.call((scope, board_id.clone(), None));
+                                                            navigate_on_click.call((scope, board_id.clone(), None));
                                                             return;
                                                         }
-                                                        select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
+                                                        select_on_click.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: click_outline_action.clone() });
                                                     }
-                                                    if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
+                                                    if select_item.kind == TreeKind::Board && select_item.expanded != Some(true) {
+                                                        toggle_tree(expanded, &select_item.id);
+                                                    }
+                                                } else if select_item.expandable {
+                                                    toggle_tree(expanded, &select_item.id);
+                                                }
+                                            },
+    onkeydown: move |event: KeyboardEvent| {
+                                                let key = event.data().key().to_string();
+                                                if key == "Enter" || key == " " {
+                                                    event.prevent_default();
+                                                    if let Some(context) = keyboard_item.context.clone() {
+                                                        if let Some(scope) = key_scope.clone() {
+                                                            if let TreeContext::Board { board_id } = &context
+                                                                && *board_id != scope.board_id
+                                                            {
+                                                                navigate_on_key.call((scope, board_id.clone(), None));
+                                                                return;
+                                                            }
+                                                            select_on_key.call(TreeSelectRequest { scope, context, mode: SelectionMode::Replace, outline_action: key_outline_action.clone() });
+                                                        }
+                                                        if keyboard_item.kind == TreeKind::Board && keyboard_item.expanded != Some(true) {
+                                                            toggle_tree(expanded, &keyboard_item.id);
+                                                        }
+                                                    } else if keyboard_item.expandable {
                                                         toggle_tree(expanded, &keyboard_item.id);
                                                     }
-                                                } else if keyboard_item.expandable {
-                                                    toggle_tree(expanded, &keyboard_item.id);
+                                                } else if let Some((dx, dy)) = match key.as_str() {
+                                                    "ArrowLeft" => Some((-1, 0)),
+                                                    "ArrowRight" => Some((1, 0)),
+                                                    "ArrowUp" => Some((0, 1)),
+                                                    "ArrowDown" => Some((0, -1)),
+                                                    _ => None,
+                                                } {
+                                                    let standalone = matches!(
+                                                        keyboard_item.context.as_ref(),
+                                                        Some(TreeContext::Component {
+                                                            matrix_id: None,
+                                                            ..
+                                                        })
+                                                    );
+                                                    if (keyboard_item.kind == TreeKind::Key || standalone)
+                                                        && let Some(part_id) = keyboard_item.primary_id.clone()
+                                                        && let Some(scope) = key_scope.clone()
+                                                    {
+                                                        event.prevent_default();
+                                                        nudge_on_key.call(TreeNudgeRequest {
+                                                            scope,
+                                                            part_id,
+                                                            dx,
+                                                            dy,
+                                                            large_step: event.data().modifiers().shift(),
+                                                        });
+                                                    }
                                                 }
-                                            } else if let Some((dx, dy)) = match key.as_str() {
-                                                "ArrowLeft" => Some((-1, 0)),
-                                                "ArrowRight" => Some((1, 0)),
-                                                "ArrowUp" => Some((0, 1)),
-                                                "ArrowDown" => Some((0, -1)),
-                                                _ => None,
-                                            } {
-                                                let standalone = matches!(
-                                                    keyboard_item.context.as_ref(),
-                                                    Some(TreeContext::Component {
-                                                        matrix_id: None,
-                                                        ..
-                                                    })
-                                                );
-                                                if (keyboard_item.kind == TreeKind::Key || standalone)
-                                                    && let Some(part_id) = keyboard_item.primary_id.clone()
-                                                    && let Some(scope) = key_scope.clone()
-                                                {
-                                                    event.prevent_default();
-                                                    nudge_on_key.call(TreeNudgeRequest {
-                                                        scope,
-                                                        part_id,
-                                                        dx,
-                                                        dy,
-                                                        large_step: event.data().modifiers().shift(),
-                                                    });
-                                                }
-                                            }
-                                        },
-                                        span { class: "m1-tree-glyph", {tree_glyph(item.kind)} }
-                                        span { class: if pcb_workspace { "m1-tree-label m1-pcb-part-reference" } else { "m1-tree-label" }, "{item.label}" }
-                                        if let Some(detail) = item.detail { span { class: "m1-object-kind", "{detail}" } }
+                                            },
+
+                                            span { class: "m1-tree-glyph", {tree_glyph(item.kind)} }
+                                            span { class: if pcb_workspace { "m1-tree-label m1-pcb-part-reference" } else { "m1-tree-label" }, "{item.label}" }
+                                            if let Some(detail) = item.detail { span { class: "m1-object-kind", "{detail}" } }
+
+    }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-            if pcb_workspace {
-                footer { class: "m1-pcb-object-footer",
-                    strong { "{pcb_title}" }
-                    span { "{board_name} / PCB" }
-                    span { if selection_count > 0 { "{selection_count} selected" } else { "Select an object to edit" } }
+                if pcb_workspace {
+                    footer { class: "m1-pcb-object-footer",
+                        strong { "{pcb_title}" }
+                        span { "{board_name} / PCB" }
+                        span { if selection_count > 0 { "{selection_count} selected" } else { "Select an object to edit" } }
+                    }
+                }
                 }
             }
-            }
         }
-    }
 }
 
 #[derive(Clone)]
@@ -607,6 +660,9 @@ fn AddObjectEntry(
     parts_query: super::parts::PartsQuery,
     on_browse_parts: EventHandler<()>,
 ) -> Element {
+    let mut layouts_open = use_signal(|| true);
+    let mut matrix_actions_open = use_signal(|| true);
+    let mut geometry_open = use_signal(|| true);
     let snapshot = snapshot.0;
     let open_menu = menu_open();
     let mirrored_open = mirrored_pair
@@ -641,173 +697,204 @@ fn AddObjectEntry(
             ))
         });
     rsx! {
-        if show_trigger || open_menu {
-            div { class: if show_trigger { "m1-layout-add-object" } else { "m1-layout-add-object is-menu-only" },
-                if show_trigger {
-                    button {
-                        r#type: "button",
-                        id: "m1-add-object-trigger",
-                        aria_label: "Add object",
-                        class: "m1-layout-add-trigger",
-                        aria_expanded: open_menu,
-                        onclick: move |_| menu_open.set(!menu_open()),
-                        svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
-                            path { d: "M8 3v10M3 8h10" }
-                        }
-                        "Add object"
+            if show_trigger || open_menu {
+                div { class: if show_trigger { "m1-layout-add-object" } else { "m1-layout-add-object is-menu-only" },
+                    if show_trigger {
+                        Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    id: "m1-add-object-trigger",
+    aria_label: "Add object",
+    class: "m1-layout-add-trigger",
+    aria_expanded: open_menu,
+    onclick: move |_| menu_open.set(!menu_open()),
+
+                            svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
+                                path { d: "M8 3v10M3 8h10" }
+                            }
+                            "Add object"
+
+    }
                     }
-                }
-                if open_menu {
-                    BoardDialog { open: true, modal: false, aria_label: "Add", class: "m1-layout-add-menu",
-                        on_close: move |_| { menu_open.set(false); focus_add_object(); },
-                        button { type: "button", class: "m1-add-back", onclick: move |_| { menu_open.set(false); focus_add_object(); }, "← Back to objects" }
-                        if let Some(scope) = scope.as_ref() {
-                            if let Some(board) = snapshot.document.boards.iter().find(|board| board.id == scope.board_id) {
-                                strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
+                    if open_menu {
+                        section { role: "region", aria_label: "Add", class: "m1-layout-add-menu",
+ onkeydown: move |event: KeyboardEvent| { if event.key() == Key::Escape { event.prevent_default(); event.stop_propagation(); menu_open.set(false); focus_add_object(); } },
+
+                            Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    class: "m1-add-back",
+    onclick: move |_| { menu_open.set(false); focus_add_object(); },
+     "← Back to objects"
+    }
+                            if let Some(scope) = scope.as_ref() {
+                                if let Some(board) = snapshot.document.boards.iter().find(|board| board.id == scope.board_id) {
+                                    strong { class: "m1-add-to-board-heading", "Add to {board.name}" }
+                                }
                             }
-                        }
-                        section { "aria-label": "Layouts",
-                        h3 { "Layouts" }
-                        if existing_half.visible {
-                            button {
-                                r#type: "button",
-                                disabled: !existing_half_open.0,
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    existing_half_open.1.call(());
-                                },
-                                "Mirror existing half…"
-                                small { "Create a linked half from an existing layout" }
+                            Collapsible { keep_mounted: true, open: Some(layouts_open()), on_open_change: move |next| layouts_open.set(next), CollapsibleTrigger { "Layouts" } CollapsibleContent { hidden: !layouts_open(), inert: (!layouts_open()).then_some(""),
+
+                            if existing_half.visible {
+                                Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+disabled: !existing_half_open.0,
+onclick: move |_| {
+                                        menu_open.set(false);
+                                        existing_half_open.1.call(());
+                                    },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                    "Mirror existing half…"
+                                    small { "Create a linked half from an existing layout" }
+
+     } }
                             }
-                        }
-                        if let Some((can_open, on_open)) = mirrored_open {
-                            button {
-                                r#type: "button",
-                                disabled: !can_open,
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    on_open.call(());
-                                },
-                                "Mirrored pair…"
-                                small { "Create linked left and right halves" }
+                            if let Some((can_open, on_open)) = mirrored_open {
+                                Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+disabled: !can_open,
+onclick: move |_| {
+                                        menu_open.set(false);
+                                        on_open.call(());
+                                    },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                    "Mirrored pair…"
+                                    small { "Create linked left and right halves" }
+
+     } }
                             }
-                        }
-                        if let Some((can_open, on_open)) = matrix_open {
-                            button {
-                                r#type: "button",
-                                disabled: !can_open,
-                                onclick: move |_| {
-                                    menu_open.set(false);
-                                    on_open.call(());
-                                },
-                                "Matrix…"
-                                small { "Rows, columns & key assemblies" }
+                            if let Some((can_open, on_open)) = matrix_open {
+                                Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+disabled: !can_open,
+onclick: move |_| {
+                                        menu_open.set(false);
+                                        on_open.call(());
+                                    },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                    "Matrix…"
+                                    small { "Rows, columns & key assemblies" }
+
+     } }
                             }
-                        }
-                    }
-                    if let Some((matrix_label, on_add_row, on_add_column, selection, (add_row_pending, add_column_pending))) = matrix_actions {
-                        {
-                            let add_row_selection = selection.clone();
-                            let add_column_selection = selection.clone();
-                            let select_matrix_for_row = on_select;
-                            let select_matrix_for_column = on_select;
-                            rsx! {
-                                section { "aria-label": "Selected matrix",
-                                    h3 { "{matrix_label}" }
-                                    BoardButton {
-                                        r#type: "button",
-                                        disabled: add_row_pending,
-                                        onclick: move |_| {
-                                            menu_open.set(false);
-                                            if let Some((scope, matrix_id)) = add_row_selection.clone() {
-                                                select_matrix_for_row.call(TreeSelectRequest {
-                                                    scope,
-                                                    context: TreeContext::Matrix { matrix_id },
-                                                    mode: SelectionMode::Replace,
-                                                    outline_action: None,
-                                                });
-                                            }
-                                            on_add_row.call(());
-                                        },
-                                        "Add row"
-                                    }
-                                    BoardButton {
-                                        r#type: "button",
-                                        disabled: add_column_pending,
-                                        onclick: move |_| {
-                                            menu_open.set(false);
-                                            if let Some((scope, matrix_id)) = add_column_selection.clone() {
-                                                select_matrix_for_column.call(TreeSelectRequest {
-                                                    scope,
-                                                    context: TreeContext::Matrix { matrix_id },
-                                                    mode: SelectionMode::Replace,
-                                                    outline_action: None,
-                                                });
-                                            }
-                                            on_add_column.call(());
-                                        },
-                                        "Add column"
-                                    }
+                         } }
+                        if let Some((matrix_label, on_add_row, on_add_column, selection, (add_row_pending, add_column_pending))) = matrix_actions {
+                            {
+                                let add_row_selection = selection.clone();
+                                let add_column_selection = selection.clone();
+                                let select_matrix_for_row = on_select;
+                                let select_matrix_for_column = on_select;
+                                rsx! {
+                                    Collapsible { keep_mounted: true, open: Some(matrix_actions_open()), on_open_change: move |next| matrix_actions_open.set(next), CollapsibleTrigger { "{matrix_label}" } CollapsibleContent { hidden: !matrix_actions_open(), inert: (!matrix_actions_open()).then_some(""),
+
+                                        Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+disabled: add_row_pending,
+onclick: move |_| {
+                                                menu_open.set(false);
+                                                if let Some((scope, matrix_id)) = add_row_selection.clone() {
+                                                    select_matrix_for_row.call(TreeSelectRequest {
+                                                        scope,
+                                                        context: TreeContext::Matrix { matrix_id },
+                                                        mode: SelectionMode::Replace,
+                                                        outline_action: None,
+                                                    });
+                                                }
+                                                on_add_row.call(());
+                                            },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                            "Add row"
+
+     } }
+                                        Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+disabled: add_column_pending,
+onclick: move |_| {
+                                                menu_open.set(false);
+                                                if let Some((scope, matrix_id)) = add_column_selection.clone() {
+                                                    select_matrix_for_column.call(TreeSelectRequest {
+                                                        scope,
+                                                        context: TreeContext::Matrix { matrix_id },
+                                                        mode: SelectionMode::Replace,
+                                                        outline_action: None,
+                                                    });
+                                                }
+                                                on_add_column.call(());
+                                            },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                            "Add column"
+
+     } }
+                                     } }
                                 }
                             }
                         }
-                    }
-                    section { "aria-label": "Parts",
-                        super::parts::AddObjectComponentChooser {
-                            snapshot,
-                            scope: scope.clone(),
-                            layout_target,
-                            query: parts_query,
-                            on_browse: on_browse_parts,
-                            on_place: EventHandler::new(move |action| {
-                                menu_open.set(false);
-                                on_place_component.call(action);
-                            }),
-                        }
-                    }
-                    if let Some(scope) = scope.as_ref() {
-                        section { "aria-label": "Board geometry",
-                            h3 { "Board geometry" }
-                            button {
-                                r#type: "button",
-                                onclick: {
-                                    let scope = scope.clone();
-                                    move |_| {
-                                        menu_open.set(false);
-                                        on_select.call(TreeSelectRequest {
-                                            scope: scope.clone(),
-                                            context: TreeContext::Outline {
-                                                board_id: scope.board_id.clone(),
-                                            },
-                                            mode: SelectionMode::Replace,
-                                            outline_action: None,
-                                        });
-                                    }
-                                },
-                                "Board outline…"
-                            }
-                            button {
-                                r#type: "button",
-                                onclick: move |_| {
+                        section { "aria-label": "Parts",
+                            super::parts::AddObjectComponentChooser {
+                                snapshot,
+                                scope: scope.clone(),
+                                layout_target,
+                                query: parts_query,
+                                on_browse: on_browse_parts,
+                                on_place: EventHandler::new(move |action| {
                                     menu_open.set(false);
-                                    on_open_geometry_scripts.call(());
-                                },
-                                "Geometry scripts…"
+                                    on_place_component.call(action);
+                                }),
                             }
                         }
+                        if let Some(scope) = scope.as_ref() {
+                            Collapsible { keep_mounted: true, open: Some(geometry_open()), on_open_change: move |next| geometry_open.set(next), CollapsibleTrigger { "Board geometry" } CollapsibleContent { hidden: !geometry_open(), inert: (!geometry_open()).then_some(""),
+
+                                Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+onclick: {
+                                        let scope = scope.clone();
+                                        move |_| {
+                                            menu_open.set(false);
+                                            on_select.call(TreeSelectRequest {
+                                                scope: scope.clone(),
+                                                context: TreeContext::Outline {
+                                                    board_id: scope.board_id.clone(),
+                                                },
+                                                mode: SelectionMode::Replace,
+                                                outline_action: None,
+                                            });
+                                        }
+                                    },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                    "Board outline…"
+
+     } }
+                                Item { class: "p-0", Button { variant: ButtonVariant::Secondary,
+button_type: "button",
+onclick: move |_| {
+                                        menu_open.set(false);
+                                        on_open_geometry_scripts.call(());
+                                    },
+class: "w-full justify-start whitespace-normal h-auto min-h-control",
+
+                                    "Geometry scripts…"
+
+     } }
+                             } }
+                            }
                         }
                     }
                 }
             }
-        }
-        if let Some(projection) = existing_half.projection.clone() {
-            ExistingHalfSetup {
-                projection,
-                on_cancel: existing_half.on_cancel,
-                on_create: existing_half.on_create,
+            if let Some(projection) = existing_half.projection.clone() {
+                ExistingHalfSetup {
+                    projection,
+                    on_cancel: existing_half.on_cancel,
+                    on_create: existing_half.on_create,
+                }
             }
         }
-    }
 }
 
 fn focus_add_object() {

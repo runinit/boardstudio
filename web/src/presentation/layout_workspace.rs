@@ -1,7 +1,10 @@
 //! Layout-owned Objects, toolbar and Inspector composition.
+use boardstudio_web_ui_shared::ui::tabs::{Tabs,TabsList,TabsTrigger,TabsContent};
+use boardstudio_web_ui_shared::ui::collapsible::{Collapsible,CollapsibleTrigger,CollapsibleContent};
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
-use boardstudio_web_ui_shared::controls::{BoardButton, BoardDisclosure};
+use boardstudio_web_ui_shared::controls::BoardDisclosure;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -381,86 +384,100 @@ pub(super) fn objects(input: ObjectsInput) -> Element {
 pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
     let open = menu_open();
     rsx! {
-        div { class: "m1-layout-add-object",
-            button {
-                r#type: "button",
-                id: "m1-add-object-trigger",
-                aria_label: "Add object",
-                title: "Add object",
-                class: "m1-layout-add-trigger",
-                aria_expanded: if open { "true" } else { "false" },
-                onclick: move |_| menu_open.set(!menu_open()),
-                svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
-                    path { d: "M8 3v10M3 8h10" }
-                }
-                "Add object"
+            div { class: "m1-layout-add-object",
+                Button {
+    variant: ButtonVariant::Secondary,
+    button_type: "button",
+    id: "m1-add-object-trigger",
+    aria_label: "Add object",
+    class: "m1-layout-add-trigger",
+    aria_expanded: open,
+    onclick: move |_| menu_open.set(!menu_open()),
+
+                    svg { class: "m1-add-icon", "aria-hidden": "true", view_box: "0 0 16 16",
+                        path { d: "M8 3v10M3 8h10" }
+                    }
+                    "Add object"
+
+    }
             }
         }
-    }
 }
 
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
-        div { class: "m1-layout-toolbar-region",
-            div { class: "m1-canvas-toolbar",
-                if !input.assembly_3d {
-                    objects::LayoutCommandPill {
-                        command_label: input.command_label,
-                        menu_owner_key: input.menu_owner_key,
-                        open_menu: input.open_menu,
-                        transform: input.transform,
-                        align: input.align,
-                        selection_kind: input.selection_kind,
-                        snap_settings: input.snap_settings,
-                        on_selection_kind: input.on_selection_kind,
-                        on_snap_intent: input.on_snap_intent,
-                        has_selection_context: input.has_selection_context,
-                        show_relationships: input.show_relationships,
-                        on_show_relationships: input.on_show_relationships,
-                        snap_in_dock: false,
+            div { class: "m1-layout-toolbar-region",
+                div { class: "m1-canvas-toolbar",
+                    if !input.assembly_3d {
+                        objects::LayoutCommandPill {
+                            command_label: input.command_label,
+                            menu_owner_key: input.menu_owner_key,
+                            open_menu: input.open_menu,
+                            transform: input.transform,
+                            align: input.align,
+                            selection_kind: input.selection_kind,
+                            snap_settings: input.snap_settings,
+                            on_selection_kind: input.on_selection_kind,
+                            on_snap_intent: input.on_snap_intent,
+                            has_selection_context: input.has_selection_context,
+                            show_relationships: input.show_relationships,
+                            on_show_relationships: input.on_show_relationships,
+                            snap_in_dock: false,
+                        }
                     }
                 }
-            }
-            if let Some(reason) = input.save_failure.as_ref() {
-                p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
-                if !input.save_conflict {
-                    BoardButton { onclick: move |_| input.on_retry_save.call(()), "Retry save" }
+                if let Some(reason) = input.save_failure.as_ref() {
+                    p { role: "alert", class: "m1-save-error", "Save failed: {reason}" }
+                    if !input.save_conflict {
+                        Button {
+    variant: ButtonVariant::Secondary,
+    onclick: move |_| input.on_retry_save.call(()),
+     "Retry save"
+    }
+                    }
+                    Button {
+    variant: ButtonVariant::Secondary,
+    onclick: move |_| input.on_download_pending.call(()),
+     "Download my pending edits"
+    }
                 }
-                BoardButton { onclick: move |_| input.on_download_pending.call(()), "Download my pending edits" }
-            }
-            if input.recovery_required {
-                BoardButton { onclick: move |_| input.on_recover_saved.call(()), "Reload saved version" }
-            }
-            div { class: "m1-layout-view-group board-tool-pill", role: "group", aria_label: "Design view",
-                button {
-                    r#type: "button",
-                    aria_label: "2D", title: "2D layout",
-                    aria_pressed: "{!input.assembly_3d}",
-                    onclick: move |_| input.on_view_mode.call(false),
-                    svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } path { d: "M3 8h14M8 3v14" } }
-                    span { class: "m1-visually-hidden", "2D" }
+                if input.recovery_required {
+                    Button {
+    variant: ButtonVariant::Secondary,
+    onclick: move |_| input.on_recover_saved.call(()),
+     "Reload saved version"
+    }
                 }
-                button {
-                    r#type: "button",
-                    aria_label: "3D assembly", title: "3D assembly",
-                    aria_pressed: "{input.assembly_3d}",
-                    onclick: move |_| input.on_view_mode.call(true),
-                    svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" } }
-                    span { class: "m1-visually-hidden", "3D assembly" }
-                }
-                if !input.assembly_3d {
+                div { class: "m1-layout-view-group board-tool-pill", role: "group", aria_label: "Design view",
                     button {
                         r#type: "button",
-                        aria_label: "Footprints", title: "Footprints",
-                        aria_pressed: "{input.footprints_pressed}",
-                        onclick: move |_| input.on_toggle_footprints.call(()),
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "5", y: "4", width: "10", height: "12", rx: "1" } path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" } }
-                        span { class: "m1-visually-hidden", "Footprints" }
+                        aria_label: "2D", title: "2D layout",
+                        aria_pressed: "{!input.assembly_3d}",
+                        onclick: move |_| input.on_view_mode.call(false),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "3", y: "3", width: "14", height: "14", rx: "2" } path { d: "M3 8h14M8 3v14" } }
+                        span { class: "m1-visually-hidden", "2D" }
+                    }
+                    button {
+                        r#type: "button",
+                        aria_label: "3D assembly", title: "3D assembly",
+                        aria_pressed: "{input.assembly_3d}",
+                        onclick: move |_| input.on_view_mode.call(true),
+                        svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" } }
+                        span { class: "m1-visually-hidden", "3D assembly" }
+                    }
+                    if !input.assembly_3d {
+                        button {
+                            r#type: "button",
+                            aria_label: "Footprints", title: "Footprints",
+                            aria_pressed: "{input.footprints_pressed}",
+                            onclick: move |_| input.on_toggle_footprints.call(()),
+                            svg { view_box: "0 0 20 20", "aria-hidden": "true", rect { x: "5", y: "4", width: "10", height: "12", rx: "1" } path { d: "M2 7h3M2 13h3M15 7h3M15 13h3" } }
+                            span { class: "m1-visually-hidden", "Footprints" }
+                        }
                     }
                 }
             }
         }
-    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]
@@ -513,25 +530,55 @@ mod workspace_state_tests {
         };
         let selection_present = selected_context().is_some();
         rsx! {
-            button { id: "layout-state-relations", onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations), "Relations" }
-            button { id: "layout-state-select", onclick: move |_| {
-                let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
-                selected_context.set(Some(objects::ScopedTreeContext {
-                    scope: selection_owner.scope.clone(),
-                    context: context.clone(),
-                }));
-                state.set_selection_kind_from_context(&context);
-            }, "Select matrix" }
-            button { id: "layout-state-arm-pick", onclick: move |_| pending_pick.set(Some(pick_owner.clone())), "Arm origin pick" }
-            button { id: "layout-state-enter-3d", onclick: move |_| state.set_assembly_3d(true), "Enter 3D" }
-            button { id: "layout-state-tool", onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)), "Activate tool" }
-            button { id: "layout-state-switch", onclick: move |_| workspace.set("Keycaps"), "Switch workspace" }
-            output { id: "layout-state-tab", "{inspector_tab_label}" }
-            output { id: "layout-state-selection-kind", "{selection_kind_label}" }
-            output { id: "layout-state-selection-present", "{selection_present}" }
-            output { id: "layout-state-pending", "{pending_pick().is_some()}" }
-            output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-relations",
+        onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations),
+         "Relations"
         }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-select",
+        onclick: move |_| {
+                        let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
+                        selected_context.set(Some(objects::ScopedTreeContext {
+                            scope: selection_owner.scope.clone(),
+                            context: context.clone(),
+                        }));
+                        state.set_selection_kind_from_context(&context);
+                    },
+         "Select matrix"
+        }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-arm-pick",
+        onclick: move |_| pending_pick.set(Some(pick_owner.clone())),
+         "Arm origin pick"
+        }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-enter-3d",
+        onclick: move |_| state.set_assembly_3d(true),
+         "Enter 3D"
+        }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-tool",
+        onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)),
+         "Activate tool"
+        }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "layout-state-switch",
+        onclick: move |_| workspace.set("Keycaps"),
+         "Switch workspace"
+        }
+                    output { id: "layout-state-tab", "{inspector_tab_label}" }
+                    output { id: "layout-state-selection-kind", "{selection_kind_label}" }
+                    output { id: "layout-state-selection-present", "{selection_present}" }
+                    output { id: "layout-state-pending", "{pending_pick().is_some()}" }
+                    output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
+                }
     }
 
     fn click(document: &web_sys::Document, id: &str) {
@@ -652,6 +699,7 @@ mod workspace_state_tests {
 }
 
 pub(super) fn inspector(mut input: InspectorInput) -> Element {
+let mut key_size_open = use_signal(|| true);
     let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
     let component_owner = input
         .component_inspector
@@ -741,131 +789,123 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()
         && input.matrix_transform_inspector.projection.is_some();
-    let show_matrix_relations =
-        matrix_context_tabs && (input.inspector_tab)() == LayoutInspectorTab::Relations;
-    rsx! {
-        PendingSplayOriginPickEscape {
-            pending: input.splay_origin_pick_pending,
-            on_cancel: input.on_cancel_splay_origin_pick,
-        }
-        super::layout_key_selection_actions::SelectedKeysActions {}
-        MatrixRelationshipEscape {
-            target: matrix_relationship_escape_target(),
-            component_owner,
-            on_escape: on_matrix_relationship_escape,
-        }
-        if input.findings_return_available {
-            div { class: "m1-layout-findings-return",
-                button {
-                    class: "m1-layout-findings-back",
-                    id: "m1-layout-findings-back-to-selection",
-                    r#type: "button",
-                    onclick: move |_| input.on_findings_return.call(()),
-                    "Back to selection"
+    let properties = rsx! { 
+                if input.outline_inspector.is_none() {
+                    if let Some(projection) = input.component_inspector {
+                        super::inspector::LayoutComponentInspector {
+                            projection,
+                            inspector_tab: input.inspector_tab,
+                            pending_edits: input.component_inspector_pending_edits,
+                            x: input.component_inspector_x,
+                            y: input.component_inspector_y,
+                            margin: input.component_inspector_margin,
+                            error: input.component_inspector_error,
+                            x_failure: input.component_inspector_x_failure,
+                            y_failure: input.component_inspector_y_failure,
+                            margin_failure: input.component_inspector_margin_failure,
+                            layout_pending: input.component_inspector_layout_pending,
+                            constraint_pending: input.component_inspector_constraint_pending,
+                            remove_pending: input.component_inspector_remove_pending,
+                            mirrored_half_pending: input.component_inspector_mirrored_half_pending,
+                            on_action: input.on_component_inspector_action,
+                        }
+                    } else if input.show_position_inspector { super::inspector::Inspector {} }
                 }
-            }
-        }
-        if input.outline_inspector.is_none() && input.component_inspector.is_none() {
-        if let Some(title) = input.context_title.as_ref() {
-            section { class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" }, "aria-label": "Selected context",
-                h2 { "{title}" }
-                if let Some(detail) = input.context_detail.as_ref() { p { "{detail}" } }
-            }
-        }
-        }
-        if matrix_context_tabs {
-            div { class: "m1-layout-component-tabs", role: "tablist", aria_label: "Inspector details",
-                button {
-                    role: "tab",
-                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Properties}",
-                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Properties),
-                    "Properties"
-                }
-                button {
-                    role: "tab",
-                    aria_selected: "{(input.inspector_tab)() == LayoutInspectorTab::Relations}",
-                    onclick: move |_| input.inspector_tab.set(LayoutInspectorTab::Relations),
-                    "Relations"
-                }
-            }
-        }
-        if show_matrix_relations {
-            super::layout_matrix_relations::MatrixRelationsPanel {
-                relations: input.matrix_relations.clone(),
-                mount: input.matrix_transform_inspector.clone(),
-                on_navigate: on_navigate_relation,
-            }
-        } else {
-            if input.outline_inspector.is_none() {
-                if let Some(projection) = input.component_inspector {
-                    super::inspector::LayoutComponentInspector {
+                if let Some(projection) = input.companion_placement {
+                    super::inspector::CompanionPlacementInspector {
                         projection,
-                        inspector_tab: input.inspector_tab,
-                        pending_edits: input.component_inspector_pending_edits,
-                        x: input.component_inspector_x,
-                        y: input.component_inspector_y,
-                        margin: input.component_inspector_margin,
-                        error: input.component_inspector_error,
-                        x_failure: input.component_inspector_x_failure,
-                        y_failure: input.component_inspector_y_failure,
-                        margin_failure: input.component_inspector_margin_failure,
-                        layout_pending: input.component_inspector_layout_pending,
-                        constraint_pending: input.component_inspector_constraint_pending,
-                        remove_pending: input.component_inspector_remove_pending,
-                        mirrored_half_pending: input.component_inspector_mirrored_half_pending,
-                        on_action: input.on_component_inspector_action,
+                        pending: input.companion_placement_pending,
+                        error: input.companion_placement_error,
+                        pending_edits: input.companion_placement_edits,
+                        on_apply: input.on_companion_placement_action,
                     }
-                } else if input.show_position_inspector { super::inspector::Inspector {} }
-            }
-            if let Some(projection) = input.companion_placement {
-                super::inspector::CompanionPlacementInspector {
-                    projection,
-                    pending: input.companion_placement_pending,
-                    error: input.companion_placement_error,
-                    pending_edits: input.companion_placement_edits,
-                    on_apply: input.on_companion_placement_action,
                 }
-            }
-            if let Some(projection) = input.matrix_inspector.projection.clone() {
-                objects::MatrixInspector {
-                    projection,
-                    request_sequence: input.matrix_inspector.request_sequence,
-                    editable: input.matrix_inspector.editable,
-                    busy: input.matrix_inspector.busy,
-                    inspector_mounted: input.matrix_inspector.inspector_mounted,
-                    fields: input.matrix_inspector.fields.clone(),
-                    pending_fields: input.matrix_inspector.pending_fields.clone(),
-                    feedback: input.matrix_inspector.feedback.clone(),
-                    on_edit: input.matrix_inspector.on_edit,
-                    on_apply_preset: input.matrix_inspector.on_apply_preset,
-                    on_delete: input.matrix_inspector.on_delete,
-                    on_unlink: input.matrix_inspector.on_unlink,
-                    on_duplicate: input.matrix_inspector.on_duplicate,
+                if let Some(projection) = input.matrix_inspector.projection.clone() {
+                    objects::MatrixInspector {
+                        projection,
+                        request_sequence: input.matrix_inspector.request_sequence,
+                        editable: input.matrix_inspector.editable,
+                        busy: input.matrix_inspector.busy,
+                        inspector_mounted: input.matrix_inspector.inspector_mounted,
+                        fields: input.matrix_inspector.fields.clone(),
+                        pending_fields: input.matrix_inspector.pending_fields.clone(),
+                        feedback: input.matrix_inspector.feedback.clone(),
+                        on_edit: input.matrix_inspector.on_edit,
+                        on_apply_preset: input.matrix_inspector.on_apply_preset,
+                        on_delete: input.matrix_inspector.on_delete,
+                        on_unlink: input.matrix_inspector.on_unlink,
+                        on_duplicate: input.matrix_inspector.on_duplicate,
+                    }
                 }
-            }
-            if input.key_size.projection.is_some() {
-                BoardDisclosure {
-                    class: "m1-layout-key-size-section m1-matrix-transform-section", open: true,
-                    heading: rsx! { summary { "Key size" } },
-                    objects::KeySizeControls { mount: input.key_size }
+                if input.key_size.projection.is_some() {
+                    Collapsible { class: "m1-layout-key-size-section m1-matrix-transform-section", keep_mounted: true, open: Some(key_size_open()), on_open_change: move |next| key_size_open.set(next), CollapsibleTrigger {  "Key size"  } CollapsibleContent { hidden: !key_size_open(), inert: (!key_size_open()).then_some(""), 
+                        objects::KeySizeControls { mount: input.key_size }
+                     } }
                 }
-            }
-            if input.matrix_transform_inspector.projection.is_some() {
-                objects::MatrixTransformInspector {
-                    mount: input.matrix_transform_inspector,
-                    on_pick_splay_origin: input.on_pick_splay_origin,
+                if input.matrix_transform_inspector.projection.is_some() {
+                    objects::MatrixTransformInspector {
+                        mount: input.matrix_transform_inspector,
+                        on_pick_splay_origin: input.on_pick_splay_origin,
+                    }
                 }
-            }
-            if let Some(projection) = input.outline_inspector {
-                super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
-            }
-            if input.board_inspector_mount.projection.is_some() {
-                super::board_inspector::BoardInspector {
-                    mount: input.board_inspector_mount,
+                if let Some(projection) = input.outline_inspector {
+                    super::outline_lifecycle::OutlineVersionInspector { projection: *projection }
                 }
+                if input.board_inspector_mount.projection.is_some() {
+                    super::board_inspector::BoardInspector {
+                        mount: input.board_inspector_mount,
+                    }
+                }
+             };
+    rsx! {
+            PendingSplayOriginPickEscape {
+                pending: input.splay_origin_pick_pending,
+                on_cancel: input.on_cancel_splay_origin_pick,
             }
-        }
+            super::layout_key_selection_actions::SelectedKeysActions {}
+            MatrixRelationshipEscape {
+                target: matrix_relationship_escape_target(),
+                component_owner,
+                on_escape: on_matrix_relationship_escape,
+            }
+            if input.findings_return_available {
+                div { class: "m1-layout-findings-return",
+                    Button {
+    variant: ButtonVariant::Secondary,
+    class: "m1-layout-findings-back",
+    id: "m1-layout-findings-back-to-selection",
+    button_type: "button",
+    onclick: move |_| input.on_findings_return.call(()),
+
+                        "Back to selection"
+
     }
+                }
+            }
+            if input.outline_inspector.is_none() && input.component_inspector.is_none() {
+            if let Some(title) = input.context_title.as_ref() {
+                section { class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" }, "aria-label": "Selected context",
+                    h2 { "{title}" }
+                    if let Some(detail) = input.context_detail.as_ref() { p { "{detail}" } }
+                }
+            }
+            }
+            
+            if matrix_context_tabs {
+ Tabs { horizontal: true, value: Some(if (input.inspector_tab)() == LayoutInspectorTab::Properties { "properties".to_owned() } else { "relations".to_owned() }),
+ on_value_change: move |value: String| input.inspector_tab.set(if value == "relations" { LayoutInspectorTab::Relations } else { LayoutInspectorTab::Properties }),
+ TabsList { aria_label: "Inspector details", class: "layout-inspector-tabs", TabsTrigger { index: 0usize, value: "properties", "Properties" } TabsTrigger { index: 1usize, value: "relations", "Relations" } }
+ TabsContent { index: 0usize, value: "properties", {properties.clone()} }
+ TabsContent { index: 1usize, value: "relations", 
+                super::layout_matrix_relations::MatrixRelationsPanel {
+                    relations: input.matrix_relations.clone(),
+                    mount: input.matrix_transform_inspector.clone(),
+                    on_navigate: on_navigate_relation,
+                }
+             }
+ }
+} else { {properties} }
+        }
 }
 
 #[component]
@@ -1083,17 +1123,20 @@ mod origin_pick_escape_regression_tests {
     fn pending_pick_host() -> Element {
         let mut pending = use_signal(|| false);
         rsx! {
-            PendingSplayOriginPickEscape {
-                pending: pending(),
-                on_cancel: EventHandler::new(move |()| pending.set(false)),
-            }
-            button {
-                id: "arm-origin-pick",
-                onclick: move |_| pending.set(true),
-                "Pick origin"
-            }
-            output { id: "pending-origin-pick", "{pending()}" }
+                    PendingSplayOriginPickEscape {
+                        pending: pending(),
+                        on_cancel: EventHandler::new(move |()| pending.set(false)),
+                    }
+                    Button {
+        variant: ButtonVariant::Secondary,
+        id: "arm-origin-pick",
+        onclick: move |_| pending.set(true),
+
+                        "Pick origin"
+
         }
+                    output { id: "pending-origin-pick", "{pending()}" }
+                }
     }
 
     #[wasm_bindgen_test]

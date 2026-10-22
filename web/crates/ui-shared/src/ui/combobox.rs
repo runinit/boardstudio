@@ -11,6 +11,8 @@
 //! - rust-ui has no combobox file at this commit; the input takes `Input`'s classes (filled with `bg-field`,
 //! -   no border) and the list and options take `select.rs`'s classes;
 //! - icons come from `crate::ui::icons` (ticket 004).
+//! - an existing root `id` targets the actual input for native label association (ticket 016);
+//!   the primitive still owns its generated fallback, list and active-descendant identities.
 
 use dioxus::prelude::*;
 use dioxus_primitives::combobox::{
@@ -59,8 +61,19 @@ pub struct ComboboxProps<T: Clone + PartialEq + 'static = String> {
 
 #[component]
 pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Element {
+    let (input_identity, root_attributes): (Vec<_>, Vec<_>) = props
+        .attributes
+        .into_iter()
+        .partition(|attribute| attribute.name == "id" && attribute.namespace.is_none());
+    let input_id = input_identity.into_iter().last().and_then(|attribute| {
+        if let dioxus::core::AttributeValue::Text(id) = attribute.value {
+            Some(id)
+        } else {
+            None
+        }
+    });
     let base = attributes!(div { class: "relative inline-block w-full", "data-slot": "combobox" });
-    let merged = merge_attributes(vec![base, props.attributes]);
+    let merged = merge_attributes(vec![base, root_attributes]);
     rsx! {
         combobox::Combobox {
             value: props.value,
@@ -78,6 +91,7 @@ pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Elem
             attributes: merged,
             div { class: "relative", "data-slot": "combobox-input-wrapper",
                 combobox::ComboboxInput {
+                    id: input_id,
                     class: "text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-control w-full min-w-0 rounded-md bg-field pl-3 pr-8 py-1 text-base transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:ring-ring/50 focus-visible:ring-2",
                     "data-slot": "combobox-input",
                     placeholder: props.placeholder,
@@ -126,5 +140,63 @@ pub fn ComboboxOption<T: Clone + PartialEq + 'static>(props: ComboboxOptionProps
                 Check { class: "ml-auto size-4 text-muted-foreground" }
             }
         }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod identity_tests {
+    use super::*;
+    use wasm_bindgen::JsCast;
+    use crate::{test_role::by_role_name, test_wait::wait_until, ui::field::FieldLabel};
+
+    fn fixture() -> Element {
+        rsx! {
+            for (id, label) in [("combo-first", "First part"), ("combo-second", "Second part")] {
+                FieldLabel { html_for: id, "{label}" }
+                Combobox::<String> { id, aria_label: label, list_aria_label: label,
+                    ComboboxOption::<String> { index: 0usize, value: "part", text_value: "Part", "Part" }
+                }
+            }
+            Combobox::<String> { aria_label: "Default identity", list_aria_label: "Default choices",
+                ComboboxOption::<String> { index: 0usize, value: "default", text_value: "Default", "Default" }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn field_labels_focus_unique_combobox_inputs_and_preserve_primitive_relationships() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(VirtualDom::new(fixture), dioxus_web::Config::new().rootnode(root.clone().into()));
+        wait_until("actual labeled Comboboxes mount", || by_role_name(&root, "combobox", "Second part").is_some()).await;
+        let mut ids = std::collections::BTreeSet::new();
+        for (expected_id, label) in [(Some("combo-first"), "First part"), (Some("combo-second"), "Second part"), (None, "Default identity")] {
+            let input = by_role_name(&root, "combobox", label).unwrap();
+            let id = input.id();
+            if let Some(expected_id) = expected_id {
+                // Labels have no accessible role; follow their native `for` association.
+                root.query_selector(&format!("[for='{expected_id}']")).unwrap().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap().click();
+                assert_eq!(document.active_element().unwrap(), input.clone().into(), "FieldLabel must focus its actual combobox input");
+                assert_eq!(id, expected_id);
+            }
+            assert!(!id.is_empty());
+            assert!(ids.insert(id.clone()));
+            assert_eq!(document.query_selector_all(&format!("[id='{id}']")).unwrap().length(), 1);
+            input.focus().unwrap();
+            let init = web_sys::KeyboardEventInit::new(); init.set_key("ArrowDown"); init.set_bubbles(true);
+            input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
+            wait_until("named list opens", || input.get_attribute("aria-expanded").as_deref() == Some("true")).await;
+            let list_id = input.get_attribute("aria-controls").unwrap();
+            assert_eq!(document.get_element_by_id(&list_id).unwrap().get_attribute("role").as_deref(), Some("listbox"));
+            let active = input.get_attribute("aria-activedescendant").unwrap();
+            assert_eq!(document.get_element_by_id(&active).unwrap().get_attribute("role").as_deref(), Some("option"));
+            let init = web_sys::KeyboardEventInit::new(); init.set_key("Escape"); init.set_bubbles(true);
+            input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
+            wait_until("Combobox closes on Escape", || input.get_attribute("aria-expanded").as_deref() == Some("false")).await;
+            assert_eq!(document.active_element().unwrap(), input.clone().into());
+            assert!(!input.closest("[data-slot=combobox]").unwrap().unwrap().has_attribute("id"));
+        }
+        root.remove();
     }
 }
