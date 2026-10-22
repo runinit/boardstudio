@@ -122,7 +122,7 @@ pub(super) fn Header(
             if show_workspaces { super::workspace_navigation::WorkspaceObjectNavigation { workspace } }
             Button { variant: ButtonVariant::Ghost, aria_label: "Search commands",
                 aria_haspopup: "dialog", aria_expanded: palette_open,
-                aria_controls: palette_open.then_some("command-palette"),
+                aria_controls: palette_open.then(|| "command-palette".to_owned()),
                 onclick: move |_| { mobile_open.set(false); on_search.call(()); }, "Search" Kbd { "Ctrl/Cmd K" } }
             if !compact() { {save_status.clone()} }
             if has_project {
