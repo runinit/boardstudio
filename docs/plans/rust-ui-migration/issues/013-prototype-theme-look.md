@@ -64,3 +64,6 @@ Decided with the user, 2026-10-21, after two rounds on the prototype (`.scratch/
   including `dark:` rules, are removed in the copies.
 - **Header:** a 56px borderless card (the prototype used 48px).
 - Inter costs 48 KB; the shipped Sidenav is not an in-flow dock, only its `collapsible: None` form is usable and needs adapting.
+
+Prototype captured on the throwaway branch `prototype/theme-look` (pushed, no pull request, never merged): source, token file, `run.sh`,
+screenshots and a README. The main plan branch keeps only the decision.
