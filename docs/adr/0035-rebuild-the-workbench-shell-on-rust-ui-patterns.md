@@ -8,7 +8,10 @@ The workbench's overall structure is rebuilt to follow rust-ui's own site, not o
 ([ADR-0034](0034-adopt-rust-ui-components-with-two-themes.md)). The user chose this on 2026-10-21 so the
 Header, Docks and menus share one visual and interaction language instead of a re-skinned old shell.
 
-- **Header.** A sticky 56px bar with a bottom border and a solid background, composed like rust-ui.com's:
+- **Cards.** Surfaces are cards on a darker desk, separated by fill and elevation instead of borders ([theme contract](../plans/rust-ui-migration/theme-contract.md)
+  section 8): the Header, both Docks and the canvas are rounded cards, controls are filled rather than outlined, and the copied rust-ui
+  components have their built-in borders removed.
+- **Header.** A 56px borderless card, composed like rust-ui.com's header:
   logo, Project menu and Workspace links on the left; on the right a Command search button (Ctrl/Cmd+K),
   save status, Undo and Redo, one theme control for Theme and Appearance, and Export as the primary
   button. The Project and Settings menus become Dropdown Menus.

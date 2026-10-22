@@ -36,7 +36,7 @@ hover surface and `muted` a quiet surface. Mapping by meaning, not by name:
 
 | rust-ui token | From today's token | Light | Dark |
 | --- | --- | --- | --- |
-| `background` / `foreground` | `paper` / `ink` | #f7f8fa / #182331 | #1B1E25 / #EDF1F7 |
+| `background` (the "desk" the cards sit on) / `foreground` | `canvas` / `ink` | #E9EEF2 / #182331 | #181B21 / #EDF1F7 |
 | `card`, `popover` (+ `-foreground`) | `panel` / `ink` | #FFFFFF / #182331 | #242831 / #EDF1F7 |
 | `primary` / `primary-foreground` | `accent` / `on-accent` | #3858D6 / #FFFFFF | #9AADFF / #101725 |
 | `primary-dark` / `primary-light` | `accent-dark` / `selection-surface` | #2945b6 / #E9EDFF | #b6c4ff / #303B56 |
@@ -47,7 +47,7 @@ hover surface and `muted` a quiet surface. Mapping by meaning, not by name:
 | `ring` | `accent` | #3858D6 | #9AADFF |
 | `destructive` (+ `-light`, `-dark`) | `status-error` and `-surface` | #a2191f / #fff1f1 | #ff8389 / #491217 |
 | `success`, `warning` `-light` / `-dark` | `status-*-surface` / `status-*` | e.g. #e2f2e9 / #226c50 | e.g. #18352d / #6ab99d |
-| `selection` / `selection-foreground` | `selection-surface` / `selection-ink` | #E9EDFF / #253EAC | #303B56 / #D5DDFF |
+| `selection` / `selection-foreground` (text highlight only, rust-ui's meaning) | `selection-surface` / `selection-ink` | #E9EDFF / #253EAC | #303B56 / #D5DDFF |
 | `sidenav-*` | aliases of `card`, `foreground`, `primary`, `accent`, `border`, `ring` | | |
 
 **New values to author** (Graphite has none): the saturated fills for `success`, `warning`, `info` and their foregrounds, the whole
@@ -59,7 +59,9 @@ Fonts: Original keeps Source Sans 3 and Source Code Pro.
 
 | Token | Today's | Why it stays |
 | --- | --- | --- |
-| `canvas` | `canvas` | drawing-area background, distinct from `background` |
+| `canvas` | `canvas` | the inset drawing surface inside the canvas card (same value as `background` in Original) |
+| `selected`, `selected-foreground` | `selection-surface`, `selection-ink` | the selected object, row or key. Original: #E9EDFF / #253EAC light, #303B56 / #D5DDFF dark; shadcn: `accent` / `accent-foreground`. rust-ui's `selection` is saturated orange in the shadcn palette and rendered the selected row loud orange in the prototype |
+| `field` | `field` | fill of inputs and select triggers. Original: #f7f8fa light, #20242D dark; shadcn: transparent (5% white in dark), as rust-ui ships |
 | `border-strong` | `rule-strong` | stronger rule used by tables and focused groups |
 | `toolbar`, `toolbar-border` | `toolbar`, `toolbar-rule` | the tinted canvas toolbars |
 | `geometry-outline`, `-fill`, `-fill-muted`, `-key`, `-part`, `-label`, `-body`, `-board`, `-graphic`, `-zone`, `-text` | `geometry-*` | 2D drawing colours |
@@ -87,3 +89,18 @@ fetch it.
 Whether to apply the preference before first paint (the app currently sets the attribute after load, so a flash is possible);
 the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in the prototype
 [013](issues/013-prototype-theme-look.md).
+
+## 8. Cards style (decided from prototype 013)
+
+Decided with the user, 2026-10-21, after [013](issues/013-prototype-theme-look.md): surfaces are **cards on a desk**, separated by fill and
+elevation, not outlines ("the white outline around everything" was the one thing the user disliked).
+
+- The page (`background`) is a darker desk; the header, Objects dock, canvas and Inspector are rounded cards (`card`, `rounded-xl`,
+  soft shadow). The drawing surface is an inset rounded panel inside the canvas card. Dark mode relies on the lighter card fill, as shadows
+  are invisible there.
+- Controls are filled, not outlined: Secondary and Ghost buttons (the Outline variant is not used in the workbench), a filled Toggle Group
+  and tool groups, filled input fields, tinted Alerts, soft inner cards for Inspector sections.
+- **The built-in borders of the copied rust-ui components are removed in the copies** (Card, Alert, Input Group, Select trigger, Toggle Group,
+  Outline Button), including their `dark:`-prefixed classes, which a plain override does not replace. Focus rings stay.
+- The header is a **56px borderless card** (the prototype used 48px; ADR-0035's height is kept).
+- Prototype: `.scratch/theme-proto`, branch `prototype/theme-look`.

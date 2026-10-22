@@ -1,6 +1,6 @@
 # 013: Prototype the Original and shadcn Themes on copied components
 
-Status: claimed
+Status: resolved
 Type: prototype
 Blocked by: None
 Parent: [Map](../map.md)
@@ -51,3 +51,16 @@ elevation, no borders. What it needed:
 - The page background must be the darker "desk" so cards read: Original `background` would become today's canvas colour (light `#E9EEF2`,
   dark `#181B21`) with `card` white / `#242831`, instead of `#f7f8fa` / `#1B1E25`.
 - The prototype header is a 48px card; ADR-0035 says 56px, solid and bordered. To be settled with the user.
+
+## Answer
+
+Decided with the user, 2026-10-21, after two rounds on the prototype (`.scratch/theme-proto`, captured on branch `prototype/theme-look`):
+
+- **Both Themes approved in light and dark, in a cards style.** Round 1 looked good except "the white outline around everything"; round 2
+  moved to cards on a desk, filled controls and no borders, and was approved. Details in
+  [theme-contract.md](../theme-contract.md) section 8 and [ADR-0035](../../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md).
+- **Contract changes accepted:** extras `selected` / `selected-foreground` (rust-ui's `selection` stays for text highlight, since in the
+  shadcn palette it is saturated orange) and `field`; `background` becomes the darker desk; the copied components' built-in borders,
+  including `dark:` rules, are removed in the copies.
+- **Header:** a 56px borderless card (the prototype used 48px).
+- Inter costs 48 KB; the shipped Sidenav is not an in-flow dock, only its `collapsible: None` form is usable and needs adapting.

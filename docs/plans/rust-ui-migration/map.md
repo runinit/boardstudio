@@ -37,6 +37,7 @@ decided.
 
 <!-- every ticket, open or resolved; status lives in the ticket -->
 
+- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md): both Themes approved in a cards style (cards on a desk, filled controls, no borders); contract adds `selected` and `field`, `background` becomes the desk, built-in borders removed in the copies; header is a 56px borderless card.
 - [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md): [command palette](command-palette.md): Ctrl/Cmd+K, existing actions only (Go to, Project, Edit, View, current Workspace, object search), never destructive edits, only Ctrl/Cmd+K added as a shortcut.
 - [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md): [accessibility floor](accessibility-floor.md) measured on 15 controls; 9 pass, Select, Dropdown Menu, Toolbar, Slider and Toggle Group need fixes in our copy first.
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
