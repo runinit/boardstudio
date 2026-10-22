@@ -45,6 +45,17 @@ def production_tests(url):
             click("Close panels")
             browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
 
+    def add_view():
+        was_sheet_open = sheet_open()
+        click("Add object")
+        browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=Add]')")
+        check("document.getElementById('m1-objects-panel').contains(document.querySelector('[role=dialog][aria-label=Add]'))")
+        browser("focus", primitives.by_role_name("button", "← Back to objects"))
+        browser("press", "Escape")
+        browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=Add]')")
+        assert sheet_open() == was_sheet_open
+        check("document.activeElement.id==='m1-add-object-trigger'")
+
     navigate("Layout")
     for name in ["objects", "inspector"]:
         label = "Show " + name
@@ -98,6 +109,9 @@ def production_tests(url):
             click("Objects")
         browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
         check("document.querySelectorAll('#workspace-panel-sheet').length===1")
+        if workspace == "Layout":
+            browser("find", "role", "tab", "click", "--name", "Objects", "--exact")
+            add_view()
         for name in ["Objects", "Inspector"]:
             browser("find", "role", "tab", "click", "--name", name, "--exact")
         check("document.querySelectorAll('[role=dialog][aria-label=\"Workspace panels\"]').length===1")
@@ -136,6 +150,7 @@ def production_tests(url):
         label = "Show " + name
         if any(item.get("name") == label for item in browser("snapshot", "-i")["refs"].values()):
             click(label)
+    add_view()
     check("(() => {const left=document.querySelector('[role=complementary][aria-label=Objects]').getBoundingClientRect(),right=document.querySelector('[role=complementary][aria-label=Inspector]').getBoundingClientRect(),canvas=document.querySelector('[role=region][aria-label=\"Layout workspace\"]').getBoundingClientRect();return left.right<=canvas.left && canvas.right<=right.left && canvas.width>=280})()")
     browser("screenshot", str(ROOT / ".evidence/011-production-desktop.png"))
     (ROOT / ".evidence/011-production-browser-errors.json").write_text(primitives.json.dumps(browser("errors")))
