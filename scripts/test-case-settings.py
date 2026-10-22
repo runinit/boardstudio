@@ -129,11 +129,24 @@ def tests(url, evidence):
     action("button", "Purpose for Dwgs.User")
     browser("press", "End")
     browser("press", "Enter")
+    before_collapse = int(status("Requests"))
+    action("spinbutton", "Access openings volume 1 Height", "fill", "0.05")
+    browser("press", "Tab")
+    action("spinbutton", "Access openings volume 1 Height", "focus")
+    assert evaluate("document.activeElement.getAttribute('aria-invalid')") == "true"
+    evaluate("window.profileVolumeDraft=document.activeElement")
     action("button", "Switch fit profiles", "focus")
     browser("press", "Enter")
     assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
     assert evaluate("getComputedStyle(document.getElementById(document.activeElement.getAttribute('aria-controls'))).display === 'none'")
+    browser("press", "Tab")
+    assert evaluate("!profileVolumeDraft.closest('[data-slot=collapsible-content]').contains(document.activeElement)"), "closed retained profile content stays out of Tab order"
+    action("button", "Switch fit profiles", "focus")
     browser("press", "Space")
+    action("spinbutton", "Access openings volume 1 Height", "focus")
+    assert evaluate("document.activeElement===profileVolumeDraft && document.activeElement.value==='0.05' && document.activeElement.getAttribute('aria-invalid')==='true'"), "real local invalid draft and input identity survive collapse"
+    assert int(status("Requests")) == before_collapse, "invalid retained draft never submits"
+    browser("press", "Escape")
     action("checkbox", geometry_name, "focus")
     assert evaluate("document.activeElement.getAttribute('aria-checked')") == "true", "real local extraction selection survives collapse"
     assert evaluate("document.activeElement===geometryCheckbox"), "collapse preserves the actual local control identity"
