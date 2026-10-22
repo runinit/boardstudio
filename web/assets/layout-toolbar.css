@@ -1,0 +1,30 @@
+/* Layout owns these two strips; their controls stay outside the transformed canvas. */
+.m1-canvas-toolbar:has(> .layout-toolbar-strips), .layout-toolbar-strips { pointer-events: none; }
+.layout-scope-strip, .layout-action-strip, .layout-menu-actions { pointer-events: auto; }
+.layout-toolbar-strips { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.layout-scope-strip, .layout-context-strip { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; max-width: 100%; padding: 4px; border-radius: var(--radius); background: var(--toolbar); color: var(--foreground); }
+.layout-context-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); box-sizing: border-box; width: 100%; gap: 8px; padding: 0; background: transparent; }
+.layout-action-slot { display: flex; align-items: center; justify-content: center; min-height: calc(var(--control-height) + 8px); }
+.layout-menu-actions { display: flex; align-items: center; justify-content: center; justify-self: center; gap: 2px; padding: 4px; border-radius: var(--radius); background: var(--toolbar); }
+.layout-menu-actions { position: relative; }
+.layout-menu-actions > [data-slot=popover] { position: static; }
+.layout-scope-toolbar[data-slot], .layout-action-strip[data-slot] { display: flex; flex-wrap: nowrap; gap: 2px; padding: 0; background: transparent; box-shadow: none; }
+.layout-action-slot > .layout-action-strip[data-slot] { padding: 4px; border-radius: var(--radius); background: var(--toolbar); }
+.layout-scope-toolbar > [data-slot=toggle-group] { gap: 2px; padding: 0; background: transparent; }
+.layout-scope-toolbar > [data-slot=toggle-group] > [data-slot=popover] { position: static; }
+.layout-toolbar-strips span { padding: 0; }
+.layout-scope-trigger[data-slot], .layout-action-control[data-slot], .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-geometry-control[data-slot], .layout-popup-close[data-slot] { display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; height: var(--control-height); min-height: var(--control-height); padding: 6px 8px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: inherit; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.layout-scope-trigger[data-slot][aria-pressed=true], .layout-action-control[data-slot][aria-pressed=true], .layout-geometry-control[data-slot][aria-pressed=true] { background: var(--selected); color: var(--selected-foreground); }
+.layout-toolbar-strips [data-slot]:is(button):hover { background-color: var(--accent); color: var(--accent-foreground); }
+.layout-toolbar-strips [data-slot]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.layout-toolbar-strips svg { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: var(--icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.layout-settings-popup, .layout-scope-popup { box-sizing: border-box; width: 276px; max-width: calc(100vw - 32px); }
+.layout-scope-popup .layout-action-strip[data-slot] { flex-wrap: wrap; max-width: 100%; }
+.layout-popup-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.layout-popup-close[data-slot] { width: var(--control-height); }
+.layout-snap-fields { display: grid; gap: 8px; }
+.layout-alignment-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+@media (pointer: coarse) {
+  .layout-action-slot { min-height: calc(var(--control-touch) + 8px); }
+  .layout-toolbar-strips [data-slot]:is(button) { min-width: var(--control-touch); height: var(--control-touch); min-height: var(--control-touch); }
+}

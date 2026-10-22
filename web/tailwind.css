@@ -1,4 +1,5 @@
 @layer theme, base, utilities;
+@import "./assets/layout-toolbar.css";
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @import "./assets/docks.css";

@@ -6,8 +6,13 @@ pub use super::layout_align_geometry::{
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::tree::TreeContext;
 use boardstudio_application::Scope;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardPopover, BoardSelectField,
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::Callout,
+    combobox::{Combobox, ComboboxOption},
+    label::Label,
+    select::{Select, SelectOption},
+    toast::{ToastOptions, use_toast},
 };
 use dioxus::prelude::*;
 
@@ -58,59 +63,45 @@ pub fn LayoutAlignToolbar(
     on_show_relationships: EventHandler<()>,
 ) -> Element {
     let on_align = mount.on_align;
-    let is_open = open_menu() == Some(LayoutCommandMenu::Align);
+    let selected_reference = use_memo(use_reactive((&mount.selected_reference,), |(value,)| value));
+    let toast = use_toast();
+    use_effect(use_reactive((&mount.feedback,), move |(feedback,)| {
+        if let Some(feedback) = feedback {
+            if feedback.succeeded {
+                toast.success(feedback.message, ToastOptions::new());
+            } else {
+                toast.error(feedback.message, ToastOptions::new());
+            }
+        }
+    }));
     rsx! {
-        BoardPopover {
-            open: is_open,
-            on_open_change: move |next: bool| {
-                let mut open_menu = open_menu;
-                if next {
-                    open_menu.set(Some(LayoutCommandMenu::Align));
-                } else if open_menu() == Some(LayoutCommandMenu::Align) {
-                    open_menu.set(None);
+        super::layout_toolbar::LayoutCommandPopup {
+            open_menu, menu: LayoutCommandMenu::Align, label: "Align",
+            trigger: rsx! { span { "Align" } },
+            Label { "Reference part" }
+            if mount.references.len() > 12 {
+                Combobox::<String> {
+                    aria_label: "Alignment reference", list_aria_label: "Alignment reference",
+                    value: Some(selected_reference.into()),
+                    on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
+                    for (index, part) in mount.references.iter().enumerate() {
+                        ComboboxOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                    }
                 }
-            },
-            trigger_id: "m1-layout-align-trigger",
-            content_id: "m1-layout-align-menu",
-            trigger_label: "Align",
-            root_class: "m1-layout-command-menu m1-layout-align-menu",
-            menu_kind: "align",
-            content_class: "m1-layout-align-popover grid gap-1",
-            content_role: "group",
-            content_label: "Alignment tools",
-            trigger: rsx! {
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    path { d: "M3 2v16M6 4h10v4H6zM6 12h6v4H6z" }
-                }
-                span { class: "layout-action-label", "Align" }
-            },
-            super::layout_toolbar::LayoutCommandMenuHeader {
-                label: "Align".to_owned(),
-                close_label: "Close Align".to_owned(),
-                open_menu,
-                menu: LayoutCommandMenu::Align,
-            }
-            BoardSelectField {
-                label: "Reference part",
-                aria_label: "Alignment reference",
-                value: mount.selected_reference.clone().unwrap_or_default(),
-                disabled: mount.references.is_empty(),
-                onchange: move |event: FormEvent| mount.on_reference.call(event.value()),
-                if mount.references.is_empty() {
-                    option { value: "", disabled: true, "No independent reference parts" }
-                }
-                for part in &mount.references {
-                    option { key: "{part.id}", value: "{part.id}", "{part.label}" }
+            } else {
+                Select::<String> {
+                    aria_label: "Alignment reference", value: Some(selected_reference.into()), disabled: mount.references.is_empty(),
+                    on_value_change: move |value: Option<String>| if let Some(value) = value { mount.on_reference.call(value); },
+                    for (index, part) in mount.references.iter().enumerate() {
+                        SelectOption::<String> { index, value: part.id.clone(), text_value: part.label.clone(), "{part.label}" }
+                    }
                 }
             }
-            if let Some(reason) = mount.disabled_reason.as_ref() {
-                p { class: "m1-layout-align-status", role: "status", "{reason}" }
-            }
-            div { class: "m1-layout-align-actions", role: "group", aria_label: "Align selection",
+            if let Some(reason) = mount.disabled_reason.as_ref() { Callout { "{reason}" } }
+            div { class: "layout-alignment-actions", role: "group", aria_label: "Align selection",
                 for command in AlignCommand::ALL {
-                    BoardButton {
-                        key: "{command.label()}",
-                        density: BoardButtonDensity::Compact,
+                    Button {
+                        key: "{command.label()}", size: ButtonSize::Sm, variant: ButtonVariant::Secondary,
                         disabled: !mount.enabled || mount.busy || mount.selected_reference.is_none(),
                         onclick: {
                             let action = mount.action.as_ref().map(|action| AlignAction { command, ..action.clone() });
@@ -123,22 +114,10 @@ pub fn LayoutAlignToolbar(
                     }
                 }
             }
-            if let Some(feedback) = mount.feedback.as_ref() {
-                p {
-                    title: "{feedback.command.label()} alignment",
-                    class: if feedback.succeeded { "m1-layout-align-feedback" } else { "m1-layout-align-feedback is-error" },
-                    role: if feedback.succeeded { "status" } else { "alert" },
-                    "{feedback.message}"
-                }
-            }
             if show_relationships {
-                BoardButton {
-                    density: BoardButtonDensity::Compact,
-                    disabled: !has_selection_context,
-                    onclick: move |_| {
-                        on_show_relationships.call(());
-                        close_layout_command_menu(open_menu, LayoutCommandMenu::Align);
-                    },
+                Button {
+                    size: ButtonSize::Sm, variant: ButtonVariant::Secondary, disabled: !has_selection_context,
+                    onclick: move |_| { on_show_relationships.call(()); close_layout_command_menu(open_menu, LayoutCommandMenu::Align); },
                     "Relationships"
                 }
             }
@@ -149,25 +128,66 @@ pub fn LayoutAlignToolbar(
 #[cfg(all(test, target_arch = "wasm32"))]
 mod tests {
     use super::*;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
 
     #[component]
     fn align_host() -> Element {
         let open_menu = use_signal(|| Some(LayoutCommandMenu::Align));
         let reference = use_signal(|| "reference".to_owned());
+        let mut feedback = use_signal(|| None::<AlignFeedback>);
         rsx! {
+            boardstudio_web_ui_shared::ui::toast::ToastProvider {
             LayoutAlignToolbar {
                 mount: LayoutAlignMount {
                     references: vec![AlignReference { id: "reference".into(), label: "Reference switch".into() }],
                     selected_reference: Some(reference()), action: None, enabled: false,
-                    disabled_reason: Some("Select a part to align.".into()), busy: false, feedback: None,
+                    disabled_reason: Some("Select a part to align.".into()), busy: false, feedback: feedback(),
                     on_reference: EventHandler::new(move |_| {}), on_align: EventHandler::new(move |_| {}),
                 },
                 open_menu, show_relationships: false, has_selection_context: false,
                 on_show_relationships: move |_| {},
             }
+            for (label, succeeded) in [("Alignment complete", true), ("Alignment failed", false)] {
+                Button { onclick: move |_| feedback.set(Some(AlignFeedback { reference: "reference".into(), command: AlignCommand::Left, message: label.into(), succeeded })), "{label}" }
+            }
+            }
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn alignment_results_announce_toasts_while_unavailability_stays_inline() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_cfg(
+            align_host,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("align renders", || {
+            by_role_name(&root, "button", "Alignment complete").is_some()
+        })
+        .await;
+        let menu = by_role_name(&root, "dialog", "Align").unwrap();
+        assert!(
+            menu.query_selector("[data-slot=callout]")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("Select a part to align.")
+        );
+        for message in ["Alignment complete", "Alignment failed"] {
+            by_role_name(&root, "button", message).unwrap().click();
+            wait_until("alignment result is announced", || {
+                let statuses = root.query_selector_all("[role=status]").unwrap();
+                (0..statuses.length())
+                    .filter_map(|i| statuses.item(i))
+                    .any(|status| status.text_content().unwrap_or_default().contains(message))
+            })
+            .await;
+        }
+        root.remove();
     }
 
     #[wasm_bindgen_test]
@@ -180,17 +200,15 @@ mod tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         gloo_timers::future::TimeoutFuture::new(80).await;
-        let menu = root
-            .query_selector("#m1-layout-align-menu")
-            .unwrap()
-            .unwrap();
-        assert_eq!(menu.get_attribute("role").as_deref(), Some("group"));
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let menu = by_role_name(&root, "dialog", "Align").unwrap();
+        assert_eq!(menu.get_attribute("role").as_deref(), Some("dialog"));
+        assert!(by_role_name(&menu, "button", "Alignment reference").is_some());
         assert!(
-            menu.query_selector("select[aria-label='Alignment reference']")
+            by_role_name(&menu, "button", "Left")
                 .unwrap()
-                .is_some()
+                .has_attribute("disabled")
         );
-        assert!(menu.query_selector("button:disabled").unwrap().is_some());
         let event = web_sys::KeyboardEventInit::new();
         event.set_key("Escape");
         event.set_bubbles(true);
@@ -199,27 +217,14 @@ mod tests {
         )
         .unwrap();
         gloo_timers::future::TimeoutFuture::new(80).await;
-        assert!(
-            root.query_selector("#m1-layout-align-menu")
-                .unwrap()
-                .is_none()
-        );
+        assert!(by_role_name(&root, "dialog", "Align").is_none());
         assert_eq!(
             document.active_element().unwrap().id(),
             "m1-layout-align-trigger"
         );
-        root.query_selector("#m1-layout-align-trigger")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        by_role_name(&root, "button", "Align").unwrap().click();
         gloo_timers::future::TimeoutFuture::new(80).await;
-        assert!(
-            root.query_selector("#m1-layout-align-menu")
-                .unwrap()
-                .is_some()
-        );
+        assert!(by_role_name(&root, "dialog", "Align").is_some());
         root.remove();
     }
 }

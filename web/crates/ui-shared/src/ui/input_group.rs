@@ -163,6 +163,8 @@ pub fn InputGroupInput(
     #[props(optional)] readonly: bool,
     #[props(optional)] required: bool,
     #[props(into, optional)] step: Option<String>,
+    #[props(into, optional)] min: Option<String>,
+    #[props(into, optional)] aria_label: Option<String>,
     #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
 ) -> Element {
     let merged = tw_merge!(
@@ -182,6 +184,8 @@ pub fn InputGroupInput(
             value: value,
             autocomplete: autocomplete,
             step: step,
+            min: min,
+            aria_label: aria_label,
             disabled: disabled,
             readonly: readonly,
             required: required,
@@ -203,5 +207,41 @@ pub fn InputGroupTextarea(#[props(into, optional)] class: Option<String>) -> Ele
     );
     rsx! {
         textarea { "data-slot": "input-group-control", class: "{merged}" }
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod tests {
+    use super::*;
+    use crate::{test_role::by_role_name, test_wait::wait_until};
+
+    fn fixture() -> Element {
+        rsx! {
+            InputGroupInput { r#type: InputType::Number, min: "0", step: "any", aria_label: "Snap gap" }
+            InputGroupInput { r#type: InputType::Number }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn numeric_input_forwards_constraints_and_omits_optional_defaults() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("numeric controls mount", || {
+            by_role_name(&root, "spinbutton", "Snap gap").is_some()
+        })
+        .await;
+        let gap = by_role_name(&root, "spinbutton", "Snap gap").unwrap();
+        assert_eq!(gap.get_attribute("min").as_deref(), Some("0"));
+        assert_eq!(gap.get_attribute("step").as_deref(), Some("any"));
+        let default = by_role_name(&root, "spinbutton", "").unwrap();
+        for attribute in ["min", "step", "aria-label"] {
+            assert!(!default.has_attribute(attribute));
+        }
+        root.remove();
     }
 }

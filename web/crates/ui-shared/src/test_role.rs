@@ -14,6 +14,7 @@ fn role_selector(role: &str) -> String {
         "button" => ", button, input[type=button], input[type=submit]",
         "link" => ", a[href]",
         "checkbox" => ", input[type=checkbox]",
+        "spinbutton" => ", input[type=number]",
         "textbox" => ", input:not([type]), input[type=text], textarea",
         "combobox" => ", select",
         _ => "",

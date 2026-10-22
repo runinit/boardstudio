@@ -19,8 +19,12 @@ use boardstudio_core::model::{
     MatrixSplayChange, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardPopover, BoardToolbar, BoardToolbarButton,
+use boardstudio_web_ui_shared::ui::{
+    callout::Callout,
+    dropdown_menu::{DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger},
+    kbd::Kbd,
+    toolbar::{Toolbar, ToolbarButton},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -1931,6 +1935,7 @@ pub fn LayoutContextActionToolbar(
     mount: LayoutTransformMenuMount,
     open_menu: Signal<Option<LayoutCommandMenu>>,
     selection_kind: LayoutSelectionKind,
+    #[props(default)] menu_items: bool,
 ) -> Element {
     let property_action = mount.pointer_tools_visible
         && mount.properties_available
@@ -2033,26 +2038,50 @@ pub fn LayoutContextActionToolbar(
     };
 
     rsx! {
-        BoardToolbar {
-            class: "layout-context-actions flex items-center gap-1 px-2",
-            label: "Actions for {selection_label}",
+        if menu_items {
             if property_action {
-                BoardToolbarButton {
-                    index: 0,
-                    class: "layout-context-action",
+                DropdownMenuItem::<()> {
+                    index: 0usize, value: (), aria_label: property_accessible_label,
+                    on_select: move |_| {
+                        on_show_properties.call(());
+                        if selection_kind == LayoutSelectionKind::Row { on_selection_kind.call(LayoutSelectionKind::Row); }
+                        close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
+                    },
+                    "{property_label}"
+                }
+            }
+            for (index, (tool, label, accessible_label, _)) in visible_tools.into_iter().enumerate() {
+                DropdownMenuItem {
+                    index: index + usize::from(property_action), value: tool,
+                    role: "menuitemradio", aria_checked: mount.active_tool == Some(tool),
+                    aria_label: accessible_label,
+                    on_select: move |_: LayoutTransformTool| {
+                        mount.on_transform_tool.call(tool);
+                        close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                    },
+                    "{label}"
+                }
+            }
+        } else {
+        Toolbar {
+            class: "layout-action-strip",
+            aria_label: "Actions for {selection_label}",
+            if property_action {
+                ToolbarButton {
+                    index: 0usize,
+                    class: "layout-action-control",
                     aria_label: property_accessible_label.clone(),
-                    title: property_accessible_label,
-                    on_activate: move |_| {
+                    on_click: move |_| {
                         on_show_properties.call(());
                         if selection_kind == LayoutSelectionKind::Row {
                             on_selection_kind.call(LayoutSelectionKind::Row);
                         }
                         close_layout_command_menu(position_menu, LayoutCommandMenu::Transform);
                     },
-                    svg { class: "m1-context-tool-icon", view_box: "0 0 20 20", "aria-hidden": "true",
+                    svg { view_box: "0 0 20 20", "aria-hidden": "true",
                         path { d: "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3M5 7l-3 3 3 3M15 7l3 3-3 3" }
                     }
-                    span { class: "layout-action-label", "{property_label}" }
+                    span { "{property_label}" }
                 }
             }
             for (index, (tool, label, accessible_label, _)) in visible_tools.into_iter().enumerate() {
@@ -2066,6 +2095,7 @@ pub fn LayoutContextActionToolbar(
                     pressed: mount.active_tool == Some(tool),
                 }
             }
+        }
         }
     }
 }
@@ -2088,22 +2118,34 @@ fn LayoutContextToolButton(
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
     };
     rsx! {
-        BoardToolbarButton {
+        Tooltip {
+        TooltipTrigger { r#as: move |mut attributes: Vec<Attribute>| {
+            // The toolbar owns its single tab stop; the tooltip supplies only description/events.
+            attributes.retain(|attribute| attribute.name != "tabindex");
+            rsx! {
+        ToolbarButton {
             index,
-            class: "layout-context-action",
+            attributes,
+            "data-slot": "toolbar-button",
+            class: "layout-action-control",
             aria_label: accessible_label.clone(),
-            title: accessible_label,
-            pressed,
-            on_activate: move |_| {
+            aria_pressed: pressed,
+            on_click: move |_| {
                 on_transform_tool.call(tool);
                 close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
             },
-            svg { class: "m1-context-tool-icon", view_box: "0 0 20 20", "aria-hidden": "true", path { d: glyph } }
-            span { class: "layout-action-label", {match label.as_str() {
+            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: glyph } }
+            span { {match label.as_str() {
                 "Stagger column" => "Stagger",
                 "Offset column" | "Offset row" => "Offset",
                 _ => label.as_str(),
             }} }
+        }
+        } } }
+        TooltipContent {
+            Kbd { "Alt" } " bypass snapping · " Kbd { "Shift" } " coarser steps"
+            if tool == LayoutTransformTool::Stagger { " · " Kbd { "Ctrl" } " quick offset" }
+        }
         }
     }
 }
@@ -2114,101 +2156,72 @@ pub fn LayoutTransformToolbar(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     #[props(default)] selection_kind: Option<LayoutSelectionKind>,
 ) -> Element {
-    let is_open = open_menu() == Some(LayoutCommandMenu::Transform);
-    let position_label = "Position & rotation";
-
     rsx! {
-        BoardPopover {
-            open: is_open,
+        DropdownMenu {
+            open: Some(open_menu() == Some(LayoutCommandMenu::Transform)),
             on_open_change: move |next: bool| {
                 let mut open_menu = open_menu;
-                if next {
-                    open_menu.set(Some(LayoutCommandMenu::Transform));
-                } else if open_menu() == Some(LayoutCommandMenu::Transform) {
-                    open_menu.set(None);
-                }
+                if next { open_menu.set(Some(LayoutCommandMenu::Transform)); }
+                else if open_menu() == Some(LayoutCommandMenu::Transform) { open_menu.set(None); }
             },
-            trigger_id: "m1-layout-transform-trigger",
-            content_id: "m1-layout-transform-menu",
-            trigger_label: "Transform",
-            root_class: "m1-layout-command-menu m1-layout-transform-menu",
-            menu_kind: "transform",
-            content_class: "m1-layout-transform-popover grid gap-1",
-            content_role: "group",
-            content_label: "Transform tools and properties",
-            trigger: rsx! {
-                svg { class: "m1-layout-command-trigger-icon", view_box: "0 0 20 20", "aria-hidden": "true",
-                    circle { cx: "4", cy: "10", r: "1.2", fill: "currentColor" }
-                    circle { cx: "10", cy: "10", r: "1.2", fill: "currentColor" }
-                    circle { cx: "16", cy: "10", r: "1.2", fill: "currentColor" }
-                }
-                span { class: "layout-action-label", "Transform" }
-            },
-            super::layout_toolbar::LayoutCommandMenuHeader {
-                label: "Transform".to_owned(),
-                close_label: "Close Transform".to_owned(),
-                open_menu,
-                menu: LayoutCommandMenu::Transform,
-            }
-            if let Some(selection_kind) = selection_kind {
-                LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind }
-                BoardButton {
-                    density: BoardButtonDensity::Compact,
-                    disabled: !mount.pointer_tools_available || !mount.column_available,
-                    pressed: mount.active_tool == Some(LayoutTransformTool::Origin),
-                    onclick: move |_| {
-                        mount.on_transform_tool.call(LayoutTransformTool::Origin);
-                        close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                    },
-                    "Origin"
-                }
-            } else {
-            for (tool, label) in LayoutTransformTool::ALL {
-                if mount.pointer_tools_visible {
-                    BoardButton {
-                        density: BoardButtonDensity::Compact,
-                        disabled: !mount.pointer_tools_available,
-                        pressed: mount.active_tool == Some(tool),
-                        onclick: move |_| {
-                            mount.on_transform_tool.call(tool);
+            DropdownMenuTrigger { id: "m1-layout-transform-trigger", aria_label: "Transform", "Transform" }
+            DropdownMenuContent { id: "m1-layout-transform-menu",
+                if let Some(selection_kind) = selection_kind {
+                    LayoutContextActionToolbar { mount: mount.clone(), open_menu, selection_kind, menu_items: true }
+                    DropdownMenuItem {
+                        index: 10usize, value: LayoutTransformTool::Origin,
+                        role: "menuitemradio", aria_checked: mount.active_tool == Some(LayoutTransformTool::Origin),
+                        disabled: !mount.pointer_tools_available || !mount.column_available,
+                        on_select: move |_: LayoutTransformTool| {
+                            mount.on_transform_tool.call(LayoutTransformTool::Origin);
                             close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
                         },
-                        "{label}"
+                        "Origin"
+                    }
+                } else {
+                    for (index, (tool, label)) in LayoutTransformTool::ALL.into_iter().enumerate() {
+                        if mount.pointer_tools_visible {
+                            DropdownMenuItem {
+                                index, value: tool, role: "menuitemradio", aria_checked: mount.active_tool == Some(tool),
+                                disabled: !mount.pointer_tools_available,
+                                on_select: move |_: LayoutTransformTool| {
+                                    mount.on_transform_tool.call(tool);
+                                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                                },
+                                "{label}"
+                            }
+                        }
+                    }
+                    DropdownMenuItem::<()> {
+                        index: 10usize, value: (), disabled: !mount.properties_available,
+                        on_select: move |_| {
+                            mount.on_show_properties.call(());
+                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                        },
+                        "Position & rotation"
+                    }
+                    DropdownMenuItem::<()> {
+                        index: 11usize, value: (), disabled: !mount.column_available,
+                        on_select: move |_| {
+                            mount.on_show_properties.call(());
+                            mount.on_selection_kind.call(LayoutSelectionKind::Column);
+                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                        },
+                        "Splay & origin"
+                    }
+                    DropdownMenuItem::<()> {
+                        index: 12usize, value: (), disabled: !mount.row_available,
+                        on_select: move |_| {
+                            mount.on_show_properties.call(());
+                            mount.on_selection_kind.call(LayoutSelectionKind::Row);
+                            close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
+                        },
+                        "Row offsets"
                     }
                 }
-            }
-            BoardButton {
-                density: BoardButtonDensity::Compact,
-                disabled: !mount.properties_available,
-                onclick: move |_| {
-                    mount.on_show_properties.call(());
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                },
-                "{position_label}"
-            }
-            BoardButton {
-                density: BoardButtonDensity::Compact,
-                disabled: !mount.column_available,
-                onclick: move |_| {
-                    mount.on_show_properties.call(());
-                    mount.on_selection_kind.call(LayoutSelectionKind::Column);
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                },
-                "Splay & origin"
-            }
-            BoardButton {
-                density: BoardButtonDensity::Compact,
-                disabled: !mount.row_available,
-                onclick: move |_| {
-                    mount.on_show_properties.call(());
-                    mount.on_selection_kind.call(LayoutSelectionKind::Row);
-                    close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
-                },
-                "Row offsets"
-            }
-            }
-            if !mount.properties_available {
-                p { "Select a matrix, row, column, key or part to open its current transform properties." }
+                if !mount.properties_available {
+                    Callout { "Select a matrix, row, column, key or part to open its current transform properties." }
+                }
             }
         }
     }
@@ -2351,38 +2364,64 @@ mod shortcut_tests {
         use boardstudio_web_ui_shared::test_role::by_role_name;
         let root = mount_context_actions(LayoutSelectionKind::Column, true).await;
         let toolbar = by_role_name(&root, "toolbar", "Actions for Column").unwrap();
-        assert_eq!(toolbar.query_selector_all("[tabindex='0']").unwrap().length(), 1,
-            "the contextual toolbar must expose a single tab stop");
-        let position = by_role_name(&toolbar, "button", "Open Position and rotation properties for Column").unwrap();
+        assert_eq!(
+            toolbar
+                .query_selector_all("[tabindex='0']")
+                .unwrap()
+                .length(),
+            1,
+            "the contextual toolbar must expose a single tab stop"
+        );
+        let position = by_role_name(
+            &toolbar,
+            "button",
+            "Open Position and rotation properties for Column",
+        )
+        .unwrap();
         position.focus().unwrap();
         let key = web_sys::KeyboardEventInit::new();
         key.set_key("End");
         key.set_bubbles(true);
-        position.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key).unwrap()).unwrap();
+        position
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
         gloo_timers::future::TimeoutFuture::new(40).await;
-        assert_eq!(web_sys::window().unwrap().document().unwrap().active_element(),
-            Some(by_role_name(&toolbar, "button", "Activate Splay for the selected column").unwrap().into()));
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element(),
+            Some(
+                by_role_name(&toolbar, "button", "Activate Splay for the selected column")
+                    .unwrap()
+                    .into()
+            )
+        );
         root.remove();
     }
 
     #[wasm_bindgen_test]
     async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
         let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
-        let buttons = root.query_selector_all(".layout-context-action").unwrap();
-        let labels = (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
-            .map(|button| button.text_content().unwrap_or_default())
-            .collect::<Vec<_>>();
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let toolbar = by_role_name(&root, "toolbar", "Actions for Row").unwrap();
+        let names = [
+            "Open Row offsets properties for Row",
+            "Activate Offset for the selected row",
+            "Activate Stagger column; selection changes to Column",
+        ];
+        let labels = names.map(|name| {
+            by_role_name(&toolbar, "button", name)
+                .unwrap()
+                .text_content()
+                .unwrap_or_default()
+        });
         assert_eq!(labels, ["Row offsets", "Offset", "Stagger"]);
-        root.query_selector(
-            "button[aria-label='Activate Stagger column; selection changes to Column']",
-        )
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
+        by_role_name(&toolbar, "button", names[2]).unwrap().click();
         gloo_timers::future::TimeoutFuture::new(40).await;
         assert_eq!(
             root.query_selector("#context-action-state")
@@ -2393,19 +2432,14 @@ mod shortcut_tests {
             Some("Column:Stagger")
         );
         assert_eq!(
-            root.query_selector("button[aria-label='Activate Stagger for the selected column']")
-                .unwrap()
+            by_role_name(&root, "button", "Activate Stagger for the selected column")
                 .unwrap()
                 .get_attribute("aria-pressed")
                 .as_deref(),
             Some("true")
         );
-        let stagger = root
-            .query_selector("button[aria-label='Activate Stagger for the selected column']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let stagger =
+            by_role_name(&root, "button", "Activate Stagger for the selected column").unwrap();
         stagger.focus().unwrap();
         let key = web_sys::KeyboardEventInit::new();
         key.set_key("ArrowRight");
@@ -2433,9 +2467,7 @@ mod shortcut_tests {
 
         let pcb = mount_context_actions(LayoutSelectionKind::Matrix, false).await;
         assert!(
-            pcb.query_selector(".layout-context-actions")
-                .unwrap()
-                .is_none(),
+            by_role_name(&pcb, "toolbar", "Actions for Matrix").is_none(),
             "PCB must not inherit Layout-only contextual quick actions"
         );
         pcb.remove();
@@ -2458,17 +2490,9 @@ mod shortcut_tests {
             ("Splay & origin", "true:1"),
             ("Row offsets", "true:1"),
         ] {
-            let button = root.query_selector_all("button").unwrap();
-            let target = (0..button.length())
-                .filter_map(|index| button.item(index))
-                .find(|element| {
-                    element
-                        .text_content()
-                        .is_some_and(|text| text.trim() == label)
-                })
-                .expect("transform shortcut button exists")
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap();
+            let target =
+                boardstudio_web_ui_shared::test_role::by_role_name(&root, "menuitem", label)
+                    .expect("transform shortcut menu item exists");
             target.click();
             gloo_timers::future::TimeoutFuture::new(40).await;
             assert_eq!(
@@ -3278,25 +3302,13 @@ mod tool_tests {
     async fn transform_popover_preserves_escape_and_outside_focus() {
         let root = mount_menu(true).await;
         let document = web_sys::window().unwrap().document().unwrap();
-        let trigger = root
-            .query_selector("#m1-layout-transform-trigger")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
-        let content = root
-            .query_selector("#m1-layout-transform-menu")
-            .unwrap()
-            .unwrap();
-        assert_eq!(content.get_attribute("role").as_deref(), Some("group"));
-        let label_id = content.get_attribute("aria-labelledby").unwrap();
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let trigger = by_role_name(&root, "button", "Transform").unwrap();
+        let content = by_role_name(&root, "menu", "Transform").unwrap();
+        assert_eq!(content.get_attribute("role").as_deref(), Some("menu"));
         assert_eq!(
-            document
-                .get_element_by_id(&label_id)
-                .unwrap()
-                .text_content()
-                .as_deref(),
-            Some("Transform tools and properties")
+            content.get_attribute("aria-labelledby").as_deref(),
+            Some(trigger.id().as_str())
         );
         let escape = web_sys::KeyboardEventInit::new();
         escape.set_key("Escape");
@@ -3344,27 +3356,23 @@ mod tool_tests {
     async fn the_menu_lists_stagger_offset_splay_origin_and_follows_availability() {
         for available in [true, false] {
             let root = mount_menu(available).await;
-            let buttons = root.query_selector_all("button").unwrap();
-            let tools = (0..buttons.length())
-                .filter_map(|index| buttons.item(index))
-                .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
-                .filter(|button| {
-                    matches!(
-                        button.text_content().as_deref(),
-                        Some("Stagger" | "Offset" | "Splay" | "Origin")
-                    )
-                })
-                .collect::<Vec<_>>();
+            use boardstudio_web_ui_shared::test_role::by_role_name;
+            let tools = ["Stagger", "Offset", "Splay", "Origin"].map(|name| {
+                by_role_name(&root, "menuitemradio", name)
+                    .expect("each existing tool remains a named menu item")
+            });
             let labels = tools
                 .iter()
                 .map(|button| button.text_content().unwrap_or_default())
                 .collect::<Vec<_>>();
             assert_eq!(labels, ["Stagger", "Offset", "Splay", "Origin"]);
             for button in &tools {
-                assert_eq!(button.has_attribute("disabled"), !available);
-                let pressed = button.get_attribute("aria-pressed");
                 assert_eq!(
-                    pressed.as_deref(),
+                    button.get_attribute("aria-disabled").as_deref(),
+                    Some(if available { "false" } else { "true" })
+                );
+                assert_eq!(
+                    button.get_attribute("aria-checked").as_deref(),
                     Some(if button.text_content().as_deref() == Some("Offset") {
                         "true"
                     } else {
