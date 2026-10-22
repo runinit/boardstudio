@@ -66,3 +66,23 @@ Every ticket that touches UI code holds to these, so they are not repeated in ea
 - Behaviour that decides what a control does (selection, Undo, shortcuts, precise values) does not change.
 - Record in the ticket's outcome: what changed, the commands run and their results, screenshots where the ticket asks for them, and anything
   that revised a decision (then update the source document and say why).
+
+## Lane protocol
+
+How any agent works a ticket here, so prompts only need to point at a ticket and this section.
+
+1. **Worktree.** Never edit in the integration checkout. Create a lane worktree from `feat/rust-ui-migration` per
+   [parallel lanes](../typed-core-edits/parallel-lanes.md) (branch `lane/<NNN-slug>`, worktree under `.worktrees/`, `target` linked into
+   `~/.cache/boardstudio-target/<lane>`, the ignored `.claude/settings.json` from `.worktreeinclude`, and the `cad/.cache` and `cad/wasm/pkg`
+   copies when a build needs them). One cargo or wasm-pack run per `target`; builds and tests lift the sandbox unless the target path is
+   allowlisted (AGENTS.md).
+2. **Claim.** Set the ticket's `Status: claimed` and commit it on the lane branch before any other change.
+3. **Work.** Follow the ticket, its [shared contract](#shared-contract) and the documents it links. Prefer the supported `scripts/check.py`
+   steps the change needs (`quick`, `build`, `browser`); put long logs under the gitignored `.evidence/` and report results only.
+4. **Resolve.** Append an `## Outcome` section to the ticket (what changed, commands run and results, screenshots where asked, anything that
+   revised a decision and the source document updated for it) and set `Status: resolved`.
+5. **Merge back, locally.** Merge `feat/rust-ui-migration` into the lane branch, resolve conflicts there, re-run the checks the merge could
+   affect, then update the migration branch with a fast-forward only: `git push . HEAD:refs/heads/feat/rust-ui-migration`. If it is rejected,
+   merge again and retry. Never push to `origin`, never force, never touch `dev`.
+6. **Report** to the coordinator in at most ten lines: ticket, result, final commit, evidence path, follow-ups or risks. Everything else
+   lives in the ticket's outcome.
