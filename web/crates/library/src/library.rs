@@ -1344,13 +1344,22 @@ mod mounted_tests {
         use_context_provider(|| error);
         let noop = use_callback(|()| {});
         let count = registry.commands().len();
+        let captured = use_hook(|| {
+            Rc::new(RefCell::new(
+                None::<boardstudio_web_ui_shared::ui::command::Command>,
+            ))
+        });
+        let capture = captured.clone();
         rsx! {
             ProjectHeaderMenu { project_name: "Test project", on_undo: noop, on_redo: noop, on_export: noop, on_settings: noop }
+            button { onclick: move |_| *capture.borrow_mut() = registry.commands().into_iter().find(|c| c.label == "Rename project"), "Capture Rename" }
+            button { onclick: move |_| captured.borrow().as_ref().unwrap().on_select.call(()), "Run captured Rename" }
             button { onclick: move |_| mounted.set(!mounted()), "Toggle Library owner" }
             for label in ["Rename project", "Open demo"] {
                 button { onclick: move |_| registry.commands().into_iter().find(|c| c.label == label).unwrap().on_select.call(()), "Palette {label}" }
             }
             output { role: "status", aria_label: "Registered tools", "{count}" }
+            output { role: "status", aria_label: "Header version", "{version}" }
             output { role: "status", aria_label: "Tool pending", "{request.0().is_some()}" }
             if mounted() { Library { project_menu: false } }
         }
@@ -1383,7 +1392,14 @@ mod mounted_tests {
             status("Registered tools").is_some_and(|s| s == "7")
         })
         .await;
-        click("Palette Rename project");
+        click("Capture Rename");
+        let mut version = seed.state.borrow().unwrap();
+        version += 1;
+        wait_until("same project refreshed", || {
+            status("Header version").as_deref() == Some("1")
+        })
+        .await;
+        click("Run captured Rename");
         wait_until("rename queued before Library mount", || {
             status("Tool pending").as_deref() == Some("true")
         })
@@ -1401,6 +1417,12 @@ mod mounted_tests {
         assert!(
             by_role_name(&root, "textbox", "Project name").is_none(),
             "stale rename must not select the new project"
+        );
+        click("Run captured Rename");
+        assert_eq!(
+            status("Tool pending").as_deref(),
+            Some("false"),
+            "old project callback must remain stale"
         );
         click("Palette Rename project");
         wait_until("current project rename focused", || {
