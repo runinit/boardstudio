@@ -418,7 +418,8 @@ def main():
     check("""
         const checkbox = [...document.querySelectorAll('[role=checkbox], input[type=checkbox]')].find(e => e.closest('label')?.textContent.trim() === 'Geometry snap');
         const enabled = checkbox.checked ?? checkbox.getAttribute('aria-checked') === 'true';
-        if (document.querySelector('button[aria-label="Geometry snap"]').getAttribute('aria-pressed') !== String(enabled)) throw Error('Snap options must use the native geometry owner');
+        const buttons = [...document.querySelectorAll('button[aria-label="Geometry snap"]')].filter(e => e.getAttribute('role') !== 'checkbox');
+        if (buttons.length !== 1 || buttons[0].getAttribute('aria-pressed') !== String(enabled)) throw Error('Snap options must use the native geometry owner');
     """)
     action("checkbox", "Geometry snap")
     action("spinbutton", "Snap gap", "fill", "0.75")
