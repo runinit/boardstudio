@@ -15,6 +15,7 @@ fn fixture() -> Element {
     let mut requests = use_signal(|| 0);
     let mut last = use_signal(String::new);
     let mut editable = use_signal(|| true);
+    let mut target_count = use_signal(|| 13);
     let mut selected = use_signal(String::new);
     let mut values = use_signal(|| MechanicalSettingsValues {
         board_id: "board".into(),
@@ -105,10 +106,12 @@ fn fixture() -> Element {
     }));
     rsx! {
         boardstudio_web_ui_shared::ui::button::Button { onclick: move |_| editable.set(!editable()), "Toggle editing" }
+        boardstudio_web_ui_shared::ui::button::Button { onclick: move |_| target_count.set(12), "Twelve profile targets" }
         output { role: "status", aria_label: "Requests", "{requests}" }
         output { role: "status", aria_label: "Last request", "{last}" }
         output { role: "status", aria_label: "Accepted plate thickness", "{values().plate_thickness}" }
         output { role: "status", aria_label: "Selected layer", "{selected}" }
+        div { class: "m1-inspector-body",
         MechanicalSettings {
             identity, request_sequence: sequence, values: Some(values()),
             profiles: Rc::from([MechanicalProfileChoice {
@@ -116,11 +119,14 @@ fn fixture() -> Element {
                 family: None, plate_to_pcb: Some(3.5), supported_thickness: None,
                 switch_family_selectable: true, profile: profile(), kicad_source: Some("fixture".into()),
             }]),
-            profile_targets: Rc::from((1..=13).map(|i|MechanicalProfileTargetChoice {
+            profile_targets: Rc::from((1..=target_count()).map(|i|MechanicalProfileTargetChoice {
                 definition_id:format!("part-{i}"),name:format!("Part {i}"),switch_profile:true,imported_geometry:true,
             }).collect::<Vec<_>>()),
             extract_profile: Some(extraction), process_targets: Rc::from([]), stabilizer_fits: Rc::from([]),
-            layers: Rc::from([MechanicalLayerRow { id:"fixture-layer".into(),label:"Fixture layer".into(),z:0.0,thickness:1.5,resolved_body_thickness:None,is_previous:false }]),
+            layers: Rc::from([
+                MechanicalLayerRow { id:"fixture-layer".into(),label:"Fixture layer".into(),z:0.0,thickness:1.5,resolved_body_thickness:None,is_previous:false },
+                MechanicalLayerRow { id:"second-layer".into(),label:"Second layer".into(),z:2.0,thickness:1.6,resolved_body_thickness:None,is_previous:false },
+            ]),
             gasket_supports: Rc::from([]),fit_parts:Rc::from([]),fit_parts_resolved:false,
             hardware_mounts:Rc::from([]),suggested_mounts:Rc::from([]),findings:Rc::from([]),
             selected_layer:selected(),mismatch:None,editable:editable(),disabled_reason:None,
@@ -140,6 +146,7 @@ fn fixture() -> Element {
                     _=>{},
                 });
             },
+        }
         }
     }
 }

@@ -146,7 +146,7 @@ def tests(url, evidence):
     action("button", "Apply selected geometry")
     assert "UpdateProfile" in status("Last request") and "-9.5" in status("Last request")
     action("spinbutton", "Plate cutout geometry contour 1 vertex 1 X", "fill", "-9.123456789012345")
-    assert "-9.123456789012345" in status("Last request")
+    assert repr(float("-9.123456789012345")) in status("Last request"), "exact parsed f64 reaches the profile callback"
     action("spinbutton", "Access openings volume 1 Height", "fill", "6.123456789012345")
     browser("press", "Enter")
     assert "6.123456789012345" in status("Last request")
@@ -161,11 +161,25 @@ def tests(url, evidence):
     browser("press", "ArrowDown")
     browser("press", "Escape")
     assert evaluate("document.activeElement.getAttribute('role')") == "combobox"
+    action("button", "Twelve profile targets")
+    action("button", "Assign library fit profile to")
+    browser("press", "End")
+    browser("press", "Enter")
+    assert "part-12" in status("Last request"), "12 choices use Select; 13 use searchable Combobox"
     action("button", "Fixture layer, 1.50 mm, Z 0.00", "focus")
     browser("press", "Space")
     assert status("Selected layer") == "fixture-layer"
     browser("press", "Space")
     assert status("Selected layer") == ""
+    browser("press", "ArrowDown")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Second layer, 1.60 mm, Z 2.00"
+    browser("press", "Enter")
+    assert status("Selected layer") == "second-layer"
+    browser("press", "Home")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Fixture layer, 1.50 mm, Z 0.00"
+    browser("press", "End")
+    assert evaluate("document.activeElement.getAttribute('aria-label')") == "Second layer, 1.60 mm, Z 2.00"
+    assert evaluate("[...document.activeElement.parentElement.children].filter(e=>e.tabIndex===0).length") == 1
     action("button", "Toggle editing")
     for role, name in [("button", "Plate method"), ("checkbox", "Add middle frame"), ("spinbutton", "Plate thickness")]:
         assert not browser("is", "enabled", driver.by_role_name(role, name))["enabled"]

@@ -32,7 +32,6 @@ use boardstudio_web_ui_shared::ui::{
     field::{Field, FieldError, FieldLabel},
     input::InputType,
     input_group::{InputGroup, InputGroupInput, InputGroupText},
-    label::Label,
     select::{Select, SelectOption},
     toggle_group::{ToggleGroup, ToggleItem},
 };
@@ -3552,7 +3551,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                     SelectOption { index: 1, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
-                Label { html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                FieldLabel { html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
                     Checkbox {
                         id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
                         aria_label: "Add middle frame", disabled: !props.editable,
@@ -3567,7 +3566,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                     span { "Add middle frame" }
                 }
             }
-            Label { html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+            FieldLabel { html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
                 Checkbox {
                     id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
                     aria_label: "Integrate plate frame into case",
@@ -3910,7 +3909,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
                             div { class: "m1-mechanical-geometry-row", role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
-                                Label { html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                FieldLabel { html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                     Checkbox {
                                         id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                         checked: Some(if selected().contains(&primitive.id) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
