@@ -6,7 +6,7 @@ on `dev`. Inputs: [inventory](inventory.md), [mapping](mapping.md), [theme contr
 
 ## 1. Branch topology
 
-0. **Docs first.** Merge the docs on `chris`'s `chore/mcp` (22 commits ahead of `dev`, docs, glossary and PRODUCT.md only) into `dev`.
+0. **Docs first.** Merge the docs on `chore/mcp` (22 commits ahead of `dev`, docs, glossary and PRODUCT.md only) into `dev`.
    This is a user action; the plan does not perform it.
 1. Cut `feat/rust-ui-migration` from `dev`. Lanes branch from it and merge back into it.
 2. At every lane merge, merge `dev` into the migration branch and resolve conflicts there, so drift stays small.
