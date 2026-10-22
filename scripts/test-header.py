@@ -139,6 +139,19 @@ def main():
             if (document.querySelector('[aria-label=Project]').textContent.trim() !== 'Header outcome') throw Error('Invisible history activated');
         """)
     check("document.body.removeAttribute('tabindex');")
+    check("headerExitAnimation.finish();")
+    browser("wait", "--fn", "!headerExitContent.isConnected")
+    action("button", "Workbench menu")
+    check("""
+        const content = document.getElementById('header-mobile-commands');
+        if (content === headerExitContent || content.hasAttribute('inert')) throw Error('Finished exit must unmount; reopen must omit inert');
+        window.headerExitContent = content;
+        window.headerExitAnimation = content.animate([{opacity: 1}, {opacity: 0}], 1000);
+        headerExitAnimation.pause();
+    """)
+    browser("wait", "--fn", "headerExitAnimation.playState === 'paused'")
+    browser("press", "Escape")
+    browser("wait", "--fn", "headerExitContent.isConnected && headerExitContent.dataset.state === 'closed' && document.activeElement.id === 'header-mobile-trigger'")
     # Reopening a controlled popup must clear inert and survive the old animation's completion.
     action("button", "Workbench menu")
     browser("wait", "--fn", "headerExitContent.dataset.state === 'open' && !headerExitContent.hasAttribute('inert')")

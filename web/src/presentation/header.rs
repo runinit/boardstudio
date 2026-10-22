@@ -153,6 +153,7 @@ pub(super) fn Header(
                     PopoverTrigger { id: "header-mobile-trigger", aria_label: "Workbench menu", aria_haspopup: "dialog", aria_expanded: mobile_open(),
                         aria_controls: mobile_open().then_some("header-mobile-commands"), "Menu" ChevronDown {} }
                     PopoverContent { id: "header-mobile-commands", class: "header-mobile-menu", aria_label: "Workbench menu",
+                        inert: (!mobile_open()).then_some(""),
                         {commands} }
                 }
             }
