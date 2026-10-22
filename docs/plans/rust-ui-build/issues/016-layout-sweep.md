@@ -1,6 +1,6 @@
 # 016: Layout sweep
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [015: Layout toolbar strips](015-layout-toolbar-strips.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
