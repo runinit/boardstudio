@@ -2142,7 +2142,7 @@ fn LayoutContextToolButton(
             }} }
         }
         } } }
-        TooltipContent {
+        TooltipContent { class: "layout-tool-hint",
             Kbd { "Alt" } " bypass snapping · " Kbd { "Shift" } " coarser steps"
             if tool == LayoutTransformTool::Stagger { " · " Kbd { "Ctrl" } " quick offset" }
         }

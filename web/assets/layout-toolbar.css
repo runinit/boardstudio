@@ -17,6 +17,10 @@
 @container (max-width: 22rem) {
   .layout-action-slot { min-height: calc(2 * var(--control-height) + 10px); }
 }
+/* Keep modifier hints above their bounded action group, including wrapped rows. */
+.layout-action-strip[data-slot] { position: relative; }
+.layout-action-strip > [data-slot=tooltip] { position: static; }
+.layout-action-strip .layout-tool-hint[data-slot=tooltip-content] { width: max-content; max-width: 100%; box-sizing: border-box; white-space: normal; }
 .layout-scope-toolbar > [data-slot=toggle-group] > [data-slot=popover] { position: static; }
 .layout-toolbar-strips span { padding: 0; }
 .layout-scope-trigger[data-slot], .layout-action-control[data-slot], .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-geometry-control[data-slot], .layout-popup-close[data-slot] { display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; height: var(--control-height); min-height: var(--control-height); padding: 6px 8px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: inherit; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
