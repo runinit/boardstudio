@@ -110,3 +110,57 @@ Physical target is `/home/chris/.cache/boardstudio-target/014-shell-lineage`: **
 Retain this committed ticket plus `.evidence/014-build.json*`, `.evidence/014-final-mounted.json`, `.evidence/014-final-*.log`, `.evidence/014-final-repo.json*`, `.evidence/014-browser-r3/`, all RED/failure receipts and detector output before any authorized fully-merged worktree removal. Evidence is valuable untracked handoff material, not disposable generated build output. No target/source copies/custom hash manifests were created inside `.evidence/`, and no worktree, target or unrelated work was deleted.
 
 Global full/quick/full-browser acceptance, CAD `worker.onerror`, first-paint timing, screen-reader speech, human review/ticket 026 and the final merge remain open. Coordinator's one combined Spec + Standards review at the clean handoff pin and explicit landing approval are still required. Only after approval may local fast-forward landing occur; origin/dev remain untouched.
+
+## R1 review and Position CSS correction
+
+The frozen reviewed pin `93edc682fc3f1ef8ef9ad8f5121ffd98d1e0b8dd` and its receipts remain intact. Coordinator supplied both R1 results:
+
+- Spec: **APPROVE, zero findings**, at that pin. Receipt: `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui014-spec-review-r1`.
+- Standards: **CHANGES, one P2**: copied Position fields still inherited unlayered legacy inspector backgrounds, rounding, label styles and margins. No other finding, including `test_role`. Receipt: `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui014-standards-review-r1`.
+
+The correction is implemented and verified below; **targeted Standards re-review and explicit landing approval remain pending**. Spec approval carries only for unchanged behavior and scope. The Theme/coexistence CSS contract is explicitly checked by the new evidence, not implied by the earlier empty-canvas/Keymap captures. This child has started no additional agent or review.
+
+### Caller inventory and minimal correction
+
+Before editing, inspected the legacy selector callers, copied `data-slot` values and specificity. `.m1-inspector` is the old Inspector root, reached through the Layout fallback and PCB Selection inspector. `.m1-inspector-body` is the shared InspectorPanel body; its unmigrated fields/selects must retain the legacy rules. Current production `InputGroupInput`/`FieldLabel` call sites are the two Position fields; the navigation fixture and primitive mounts are test-only. Refreshed source inventory is `.evidence/014-position-selector-callers.log`.
+
+Production commit `0ba39d855` changes exactly three selectors, with every declaration retained:
+
+- `web/assets/m1.css`: exclude `[data-slot='field-label']` from `.m1-inspector label` and `[data-slot='input-group-control']` from `.m1-inspector input`.
+- `web/tailwind.css`: exclude `[data-slot='input-group-control']` from the shared inspector native-input/select rule; its separate `.board-select` branch remains unchanged.
+
+Each exclusion uses `:where(:not(...))`, adding zero specificity. Existing specificity stays `(0,1,1)` for the label/input rules and `(0,3,1)` for the shared native-input branch. No stylesheet ordering, declarations, global body styles, broad deletion, copied-component API or visibility changes. The copied components now supply the field appearance while unmigrated callers keep the existing legacy styling. No Layout-owned file or InputGroup implementation was edited.
+
+### Actual production RED and GREEN
+
+The new `scripts/test-shell-position.py` creates a real matrix, opens PCB, selects **SW1**, opens **Selection**, and exercises the actual **X (mm)** and **Y (mm)** Position controls. Navigation/actions/focus use accessible roles/names or snapshot refs. Computed-style sampling reads the actual focused native input and associated label, comparing them with transient copies of the same copied components outside legacy selectors under Theme foreground tokens. Probes are removed immediately. No test-only UI or CSS override supplies the result.
+
+| Evidence / command | Result and freshness |
+| --- | --- |
+| `python3 scripts/test-shell-position.py http://127.0.0.1:4184/boardstudio/ --evidence .evidence/014-position-red-r3` | **Actual RED** on the frozen reviewed production page: four Theme/Appearance combinations, **16 mismatched input/label comparisons**. Inputs retained opaque legacy fill, 8px rounding and 4px top margin; labels retained legacy display, size, color and margins. `.evidence/014-position-red-r3.log`, `computed.json` and four captures retained. |
+| `python3 scripts/build-web.py --fast --skip-providers` | **Passed**, fresh page/CSS at production correction `0ba39d855`; `.evidence/014-position-page-build.log`. Reused unchanged providers from the earlier checked build. Packaged `assets/m1.css` matched source with `cmp`. |
+| `python3 scripts/test-shell-position.py http://127.0.0.1:4184/boardstudio/ --evidence .evidence/014-position-green-r3` | **Passed**, final test source `a60e4dccd12efe8b67365488796f936684b842c6`: four combinations, **zero computed mismatches**; actual unmigrated **Wiring mode** still matches legacy tokens. Its recorded computed results are exactly equal between RED and GREEN in all four combinations. Log, `computed.json` and `result.json` retained. |
+| Frozen production native behavior at `93edc682` | `.evidence/014-position-baseline/behavior.json`, `snapshot.json` and `frozen-position.png`: actual DOM value `0.1234567890123456`, native `type=number`, `step=any`, valid; Escape and one Undo restore `0`. |
+| Final production native behavior | The GREEN test asserts the same exact DOM value and validity, Escape cancellation, Enter save, durable saved state, and one Ctrl+Z restoring `0`. Undo begins from the stable **Project** button as a non-typing focus owner. The AX numeric snapshot can display a rounded number; actual DOM value remains full precision. No precision policy was changed. |
+| Reused mounted Rust evidence | The earlier **22 passed** mounted tests at `1ec908c7` remain applicable: `git diff --quiet 93edc682..a60e4dcc -- web/src web/crates` passes. No Rust/domain state, validation, callback, selection, transaction, keyboard handler, focus ID or Undo source changed. No redundant Cargo/wasm-pack test build was run for this CSS correction. |
+
+Final GREEN captures, all visually inspected, show the actual selected SW1 Position fields at 1440×960:
+
+- `.evidence/014-position-green-r3/position-original-light.png`
+- `.evidence/014-position-green-r3/position-original-dark.png`
+- `.evidence/014-position-green-r3/position-shadcn-light.png`
+- `.evidence/014-position-green-r3/position-shadcn-dark.png`
+
+Earlier attempts remain visible: `014-position-red` stopped on an incorrect test text wait; `red-r2` encountered a cancelled CSS transition promise before producing a style verdict. The style sampler now awaits finite animation settlement, including cancellation. `green` and `green-r2` each recorded zero style mismatches but failed to focus the changing save-status control for Undo. Final test explicitly awaits saved state/exact DOM value and focuses Project instead. No sleep, retry loop, CSS masking, product behavior change or weakened assertion was used. Only the final run above is complete GREEN.
+
+### Correction closure and protected cleanup inventory
+
+Local `feat/rust-ui-migration` remained `3c0f6e26c17e53312eb29e67ca86b18c6fb2732a`; merge before correction closure checks reported **Already up to date**. `python3 -m py_compile scripts/test-shell-position.py` and `git diff --check` passed. Repository check passed with this addendum staged for handoff (`.evidence/014-position-repo.log` / `.evidence/014-position-repo.json`); final clean-pin receipt is `.evidence/014-position-repo-clean.json` and its corresponding log. The clean correction handoff pin is the commit containing this addendum, reported to the coordinator.
+
+Owned preview PID `3969480` (port 4184) was stopped after verifying its exact arguments and `/proc` cwd matched this checkout. The frozen baseline browser session `shell-position-014-r1` was closed; script sessions close in `finally`. Preview log `.evidence/014-position-preview.log` remains. No owned preview server remains running.
+
+Fresh physical target size: `/home/chris/.cache/boardstudio-target/014-shell-lineage` = **10,845,125,505 bytes**. It remains protected. Current disposable output sizes are `web/target` **457,726,628 bytes** and `web/assets/tailwind.css` **205,049 bytes**; all other generated paths in the earlier inventory retain their recorded sizes. No build was repeated solely for cleanup, and no output/worktree was deleted.
+
+Retain the original receipts plus `.evidence/014-position-baseline/`, `014-position-red*`, `014-position-green*`, `014-position-page-build.log`, `014-position-selector-callers.log`, `014-position-repo*` and preview log before any coordinator-authorized, fully-merged worktree removal. Evidence is valuable handoff material. The worktree and target must remain until approved landing/verification and explicit cleanup authorization.
+
+Landing remains **HOLD** for targeted Standards re-review of this correction. Global acceptance, CAD `worker.onerror`, first paint, screen-reader speech, human/ticket 026 and final merge remain open; computed styles and author screenshot inspection do not satisfy those gates.
