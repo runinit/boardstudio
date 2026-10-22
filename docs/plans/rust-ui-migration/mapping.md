@@ -37,7 +37,7 @@ Reading the table. **Look** is the rust-ui component whose markup and classes we
 | Header | `Button` (`Ghost` links), `Separator`, `Command` search trigger, `Dropdown Menu` | primitives, ours | ADR-0035 |
 | Footer, zoom and history controls | `Toolbar` + `Button`; findings counts as `Badge` | primitives Toolbar | |
 | Layout strips | `Toolbar` + `Toggle Group` + `Dropdown Menu` (Transform) | primitives | Stationary Controls Rule kept |
-| Command palette (new) | `Command` | ours (rewritten without scripts) | contents in [012](issues/012-command-palette-contents.md) |
+| Command palette (new) | `Command` | ours (Dialog and Combobox behaviour, no script) | [command palette](command-palette.md) |
 | Toasts (new) | `Toast` | primitives Toast | upstream's depends on a script not in the components |
 | Library landing, `KeyboardCard` | `Card`; no project → `Empty` | native | |
 | `EmptyBoardCanvas` text | `Empty` | native | |

@@ -362,3 +362,8 @@ One of the two side panels beside the canvas: Objects on the left and Inspector 
 either shown beside the canvas or collapsed, and on narrow screens both appear as one sheet over the
 lower part of the screen so the canvas stays visible.
 _Avoid_: sidebar, drawer, pane
+
+**Command palette**:
+A searchable list, opened with Ctrl/Cmd+K, of the workbench's existing actions and of the project's objects by name. Choosing an
+entry navigates, opens a tool or selects an object; it never performs a destructive or numeric edit itself.
+_Avoid_: command bar, quick open

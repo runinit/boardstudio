@@ -1,6 +1,6 @@
 # 012: Command palette contents and shortcut hints
 
-Status: claimed
+Status: resolved
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
@@ -29,3 +29,14 @@ dispatches existing events)?
   rename, delete, save a copy, Setup guide, Workspace settings); Layout selection scopes (Matrix, Row, Column, Key, Part), contextual tools
   (Position, Stagger, Offset, Splay, Origin, Align, Transform), Snap and Geometry snap options, Add sections (Layouts, Parts, Board geometry,
   Encoders and others), Case Generate / Cancel / Retry, footer zoom and fit, 2D / 3D / Footprints.
+
+## Answer
+
+Decided with the user, 2026-10-21; all six proposals accepted. Written in [command-palette.md](../command-palette.md):
+
+- Ctrl/Cmd+K opens it from anywhere, including inside a field (which blurs by its normal click-away rule).
+- Groups: Go to, Project, Edit, View, Current Workspace, and Objects (search and select parts, matrices, keys, outlines by name).
+- Existing actions only, dispatching the same events as the controls they mirror; it opens tools and never performs destructive or
+  parameterized edits.
+- Other Workspaces' commands are hidden; unavailable ones are shown disabled with the UI's existing reason.
+- Ctrl/Cmd+K is the only new shortcut; pointer modifiers (Alt, Shift, Ctrl) become `Kbd` hints in tooltips, not commands.
