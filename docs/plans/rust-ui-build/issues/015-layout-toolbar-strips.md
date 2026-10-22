@@ -1,6 +1,6 @@
 # 015: Layout toolbar strips
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [007: Accessible action menus](007-accessible-action-menus.md), [008: Accessible Toolbar, Toggle Group, Slider and Toast](008-accessible-toolbar-toggle-slider-toast.md), [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
