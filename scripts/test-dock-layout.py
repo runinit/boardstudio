@@ -200,13 +200,19 @@ def production_local_draft_tests():
     for activation, opened in [("click", True), ("click", False), ("Enter", True), ("Space", False), ("Space", True), ("Enter", False), ("click", True)]:
         evaluate("disclosureChanges.length=0;disclosureKeys.length=0;window.disclosureClick=null;window.addEventListener('click',event=>{disclosureClick={trusted:event.isTrusted,prevented:event.defaultPrevented}},{once:true})")
         if activation == "click":
+            summary_text = browser("find", "role", "DisclosureTriangle", "text", "--name", "Layout constraint Optional", "--exact")["text"]
+            assert browser("snapshot")["snapshot"].count('DisclosureTriangle "Layout constraint Optional"') == 1
             browser("focus", ".m1-layout-component-constraint > summary")
+            check(f"document.activeElement===constraintDisclosure.querySelector('summary') && document.activeElement.innerText==={primitives.json.dumps(summary_text)}")
             point = evaluate("(() => {const summary=constraintDisclosure.querySelector('summary'),r=summary.getBoundingClientRect(),x=Math.round(r.x+r.width/2),y=Math.round(r.y+r.height/2);if(!summary.contains(document.elementFromPoint(x,y)))throw Error('Disclosure click point is covered');return {x,y}})()")
             browser("mouse", "move", point["x"], point["y"])
             browser("mouse", "down")
             browser("mouse", "up")
         else:
+            summary_text = browser("find", "role", "DisclosureTriangle", "text", "--name", "Layout constraint Optional", "--exact")["text"]
+            assert browser("snapshot")["snapshot"].count('DisclosureTriangle "Layout constraint Optional"') == 1
             browser("focus", ".m1-layout-component-constraint > summary")
+            check(f"document.activeElement===constraintDisclosure.querySelector('summary') && document.activeElement.innerText==={primitives.json.dumps(summary_text)}")
             if activation == "Space":
                 evaluate("window.summaryKeydown=null;window.addEventListener('keydown',event=>{summaryKeydown=event},{once:true,capture:true})")
                 browser("keydown", " ")
