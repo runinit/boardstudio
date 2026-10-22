@@ -1324,6 +1324,138 @@ mod mounted_tests {
         }
     }
 
+    fn project_tools_host() -> Element {
+        use boardstudio_web_ui_shared::ui::command::use_command_registry;
+        let registry = use_command_registry();
+        use_project_tools();
+        let request = use_context::<ProjectToolRequest>();
+        let seed = use_context::<Rc<Seed>>();
+        let version = use_signal(|| 0u64);
+        *seed.state.borrow_mut() = Some(version);
+        let mut mounted = use_signal(|| false);
+        let browser = ProjectBrowserState(use_signal(|| false));
+        let created = use_signal(|| None::<SetupGuideRequest>);
+        let pending = use_signal(|| None::<PendingNewKeyboard>);
+        let error = use_signal(String::new);
+        use_context_provider(|| version);
+        use_context_provider(|| browser);
+        use_context_provider(|| created);
+        use_context_provider(|| pending);
+        use_context_provider(|| error);
+        let noop = use_callback(|()| {});
+        let count = registry.commands().len();
+        rsx! {
+            ProjectHeaderMenu { project_name: "Test project", on_undo: noop, on_redo: noop, on_export: noop, on_settings: noop }
+            button { onclick: move |_| mounted.set(!mounted()), "Toggle Library owner" }
+            for label in ["Rename project", "Open demo"] {
+                button { onclick: move |_| registry.commands().into_iter().find(|c| c.label == label).unwrap().on_select.call(()), "Palette {label}" }
+            }
+            output { role: "status", aria_label: "Registered tools", "{count}" }
+            output { role: "status", aria_label: "Tool pending", "{request.0().is_some()}" }
+            if mounted() { Library { project_menu: false } }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn palette_project_tools_consume_once_and_reject_rename_after_project_switch() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let runtime = support::new_runtime();
+        let (session, core) = accepted(ProjectDoc::empty("palette-tools-a", "Project A"));
+        support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(project_tools_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(seed.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let status = |name| by_role_name(&root, "status", name).map(|e| e.text_content().unwrap());
+        let click = |name| by_role_name(&root, "button", name).unwrap().click();
+        wait_until("header tools registered", || {
+            status("Registered tools").is_some_and(|s| s == "7")
+        })
+        .await;
+        click("Palette Rename project");
+        wait_until("rename queued before Library mount", || {
+            status("Tool pending").as_deref() == Some("true")
+        })
+        .await;
+        let (session, core) = accepted(ProjectDoc::empty("palette-tools-b", "Project B"));
+        support::install(&runtime, session, core);
+        let mut version = seed.state.borrow().unwrap();
+        version += 1;
+        click("Toggle Library owner");
+        wait_until("old project request consumed", || {
+            status("Tool pending").as_deref() == Some("false")
+                && by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "textbox", "Project name").is_none(),
+            "stale rename must not select the new project"
+        );
+        click("Palette Rename project");
+        wait_until("current project rename focused", || {
+            by_role_name(&root, "textbox", "Project name")
+                .is_some_and(|e| document.active_element().as_ref() == Some(e.as_ref()))
+        })
+        .await;
+        assert_eq!(field().value(), "Project B");
+        assert_eq!(status("Tool pending").as_deref(), Some("false"));
+        click("Toggle Library owner");
+        wait_until("Library unmounted", || {
+            by_role_name(&root, "textbox", "Project name").is_none()
+        })
+        .await;
+        click("Toggle Library owner");
+        wait_until("Library remounted", || {
+            by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "textbox", "Project name").is_none(),
+            "consumed rename must not replay"
+        );
+        click("Palette Open demo");
+        wait_until("demo tool focused", || {
+            document
+                .active_element()
+                .is_some_and(|e| e.text_content().as_deref() == Some("Open demo"))
+        })
+        .await;
+        let demo = document.active_element().unwrap();
+        assert!(demo.closest("details[open]").unwrap().is_some());
+        assert_eq!(status("Tool pending").as_deref(), Some("false"));
+        click("Toggle Library owner");
+        wait_until("demo owner unmounted", || !root.contains(Some(&demo))).await;
+        click("Toggle Library owner");
+        wait_until("demo owner remounted", || {
+            by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        let demos = root
+            .query_selector("[aria-label='Demo keyboards']")
+            .unwrap()
+            .unwrap();
+        assert!(
+            demos.closest("details[open]").unwrap().is_none(),
+            "consumed demo must not replay"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "palette-tools-b"
+        );
+        root.remove();
+    }
+
     fn saved_card_count(root: &web_sys::Element) -> u32 {
         root.query_selector_all(".m1-keyboard-card")
             .unwrap()
