@@ -35,6 +35,226 @@ mod forwarding_tests {
     use super::*;
     use crate::{test_role::by_role_name, test_wait::wait_until};
 
+    fn identity_fixture() -> Element {
+        use crate::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
+        let mut phase = use_signal(|| 0);
+        let mut focused = use_signal(Vec::<String>::new);
+        let owner = match phase() {
+            1 => Some("owner-one"),
+            3 => Some("owner-two"),
+            6 => Some("owner-last"),
+            _ => None,
+        };
+        let fallback = match phase() {
+            0..=2 => Some("fallback-one"),
+            3..=4 => Some("fallback-two"),
+            _ => None,
+        };
+        rsx! {
+            for (label, href) in [("Identity native", None), ("Identity link", Some("#identity"))] {
+                Tooltip {
+                    TooltipTrigger { id: fallback.map(|id| format!("{label}-{id}")), r#as: move |attributes: Vec<Attribute>| rsx! {
+                        Button { attributes, id: owner.map(|id| format!("{label}-{id}")), href: href.map(str::to_owned), aria_label: label,
+                            onfocus: move |_| focused.write().push(label.into()), "{label}"
+                        }
+                    } }
+                    TooltipContent { "{label} description" }
+                }
+            }
+            Button { onclick: move |_| phase += 1, "Next identity" }
+            output { role: "status", aria_label: "Identity phase", "{phase}" }
+            output { role: "status", aria_label: "Identity focus", "{focused:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn button_updating_attributes_keep_one_effective_id_and_focus_description() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(identity_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("identity fixture mounts", || {
+            by_role_name(&root, "link", "Identity link").is_some()
+        })
+        .await;
+        for (phase, expected) in [
+            Some("fallback-one"),
+            Some("owner-one"),
+            Some("fallback-one"),
+            Some("owner-two"),
+            Some("fallback-two"),
+            None,
+            Some("owner-last"),
+            None,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if phase > 0 {
+                by_role_name(&root, "button", "Next identity")
+                    .unwrap()
+                    .click();
+                wait_until("owner identity update renders", || {
+                    by_role_name(&root, "status", "Identity phase")
+                        .unwrap()
+                        .text_content()
+                        .as_deref()
+                        == Some(&phase.to_string())
+                })
+                .await;
+            }
+            for (role, label) in [("button", "Identity native"), ("link", "Identity link")] {
+                let action = by_role_name(&root, role, label).unwrap();
+                assert_eq!(
+                    action.get_attribute("id"),
+                    expected.map(|id| format!("{label}-{id}")),
+                    "{label}, phase {phase}"
+                );
+                action.focus().unwrap();
+                wait_until("updated identity still opens its Tooltip", || {
+                    by_role_name(&root, "tooltip", &format!("{label} description")).is_some()
+                })
+                .await;
+                let description = action.get_attribute("aria-describedby").unwrap();
+                assert!(document.get_element_by_id(&description).is_some());
+                if let Some(id) = expected {
+                    let element: web_sys::Element = action.clone().into();
+                    assert_eq!(
+                        document
+                            .get_element_by_id(&format!("{label}-{id}"))
+                            .unwrap(),
+                        element
+                    );
+                }
+                action.blur().unwrap();
+            }
+        }
+        let focused = by_role_name(&root, "status", "Identity focus")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        for label in ["Identity native", "Identity link"] {
+            assert_eq!(focused.matches(label).count(), 8, "{focused}");
+        }
+        root.remove();
+    }
+
+    fn listener_update_fixture() -> Element {
+        let mut removed = use_signal(|| false);
+        let mut events = use_signal(Vec::<String>::new);
+        rsx! {
+            for (label, href) in [("Updating native", None), ("Updating link", Some("#update"))] {
+                Button {
+                    href: href.map(str::to_owned), aria_label: label, class: "font-mono",
+                    onfocus: (!removed()).then(|| EventHandler::new(move |_| events.write().push(format!("{label}:owner:focus")))),
+                    onblur: move |_| events.write().push(format!("{label}:owner:blur")),
+                    attributes: {
+                        let mut attributes = Vec::new();
+                        if !removed() { attributes.push(dioxus::events::onfocus(move |_| events.write().push(format!("{label}:raw:focus")))); }
+                        attributes.push(dioxus::events::onblur(move |_| events.write().push(format!("{label}:raw:blur"))));
+                        attributes.push(Attribute::new("data-retained", "kept", None, false));
+                        attributes.push(Attribute::new("class", "collision", None, false));
+                        if !removed() { attributes.push(Attribute::new("data-removed", "remove", None, false)); }
+                        attributes
+                    },
+                    "{label}"
+                }
+            }
+            Button { onclick: move |_| removed.set(true), "Remove focus listeners" }
+            Button { onclick: move |_| events.write().push("flush".into()), "Flush listener updates" }
+            output { role: "status", aria_label: "Listener phase", "{removed}" }
+            output { role: "status", aria_label: "Listener events", "{events:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn button_updating_attributes_remove_focus_but_retain_composed_nonbubbling_blur() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(listener_update_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("listener fixture mounts", || {
+            by_role_name(&root, "link", "Updating link").is_some()
+        })
+        .await;
+        for phase in 0..2 {
+            if phase == 1 {
+                by_role_name(&root, "button", "Remove focus listeners")
+                    .unwrap()
+                    .click();
+                wait_until("focus listener removal renders", || {
+                    by_role_name(&root, "status", "Listener phase")
+                        .unwrap()
+                        .text_content()
+                        .as_deref()
+                        == Some("true")
+                })
+                .await;
+            }
+            for (role, label) in [("button", "Updating native"), ("link", "Updating link")] {
+                let action = by_role_name(&root, role, label).unwrap();
+                if phase == 0 {
+                    assert_eq!(
+                        action.get_attribute("data-retained").as_deref(),
+                        Some("kept")
+                    );
+                    assert!(action.has_attribute("data-removed"));
+                    assert!(!action.get_attribute("class").unwrap().contains("collision"));
+                }
+                action.focus().unwrap();
+                action.blur().unwrap();
+            }
+            by_role_name(&root, "button", "Flush listener updates")
+                .unwrap()
+                .click();
+            wait_until("listener event render barrier", || {
+                by_role_name(&root, "status", "Listener events")
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .matches("flush")
+                    .count()
+                    == phase + 1
+            })
+            .await;
+        }
+        let log = by_role_name(&root, "status", "Listener events")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        for label in ["Updating native", "Updating link"] {
+            for (event, count) in [("focus", 1), ("blur", 2)] {
+                for owner in ["raw", "owner"] {
+                    assert_eq!(
+                        log.matches(&format!("{label}:{owner}:{event}\"")).count(),
+                        count,
+                        "{log}"
+                    );
+                }
+                assert!(
+                    log.contains(&format!("{label}:raw:{event}\", \"{label}:owner:{event}")),
+                    "{log}"
+                );
+            }
+        }
+        for (role, label) in [("button", "Updating native"), ("link", "Updating link")] {
+            let action = by_role_name(&root, role, label).unwrap();
+            assert_eq!(
+                action.get_attribute("data-retained").as_deref(),
+                Some("kept")
+            );
+            assert!(!action.has_attribute("data-removed"));
+            assert!(!action.get_attribute("class").unwrap().contains("collision"));
+        }
+        root.remove();
+    }
+
     fn fixture() -> Element {
         let mut events = use_signal(Vec::<String>::new);
         rsx! {
