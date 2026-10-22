@@ -1,6 +1,6 @@
 # 012: Command palette
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [004: Vendored Lucide icons](004-lucide-icons.md), [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -12,9 +12,9 @@ Ctrl/Cmd+K opens a searchable palette of the workbench's existing actions and ob
 
 ## Acceptance criteria
 
-- [ ] The palette follows the command palette spec: the groups, object search by name, hidden commands for other Workspaces, disabled-with-reason for unavailable ones, and no destructive or numeric edits
-- [ ] It opens from the header button and from Ctrl/Cmd+K anywhere, including inside a field, which blurs as on a click-away; Escape closes it first
-- [ ] Undo and redo show their existing hints; the Alt, Shift and Ctrl pointer modifiers are documented as `Kbd` hints in tooltips on the controls they affect
+- [x] The palette follows the command palette spec: the groups, object search by name, hidden commands for other Workspaces, disabled-with-reason for unavailable ones, and no destructive or numeric edits
+- [x] It opens from the header button and from Ctrl/Cmd+K anywhere, including inside a field, which blurs as on a click-away; Escape closes it first
+- [x] Undo and redo show their existing hints; the Alt, Shift and Ctrl pointer modifiers are documented as `Kbd` hints in tooltips on the controls they affect
 - [ ] Built on Dialog and Combobox behaviour with no script; it passes the floor; every command dispatches the same event or UI change as the control it mirrors
 - [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
@@ -486,3 +486,62 @@ Targeted Spec and explicit Standards review through the coordinator is still
 required at the completed clean correction pin. Ticket remains claimed and
 landing HOLD; 015 combined acceptance and every previously named global gate
 remain open. No new agents, threads, watchers or remote/local feature pushes.
+
+### Final coordinator-approved closure and local landing — 2026-10-22
+
+**Resolved within the coordinator's explicit bounded 012 acceptance.** This
+supersedes the earlier claimed/review-pending/landing-HOLD entries above, which
+remain as historical evidence. The two unchecked floor/shared-contract criteria
+are intentional: 015's combined popup-entry-focus/root-Space-guard acceptance
+and the global gates below are still open; resolution does not waive them.
+
+Review results are coordinator-reported, not additional reviews executed by this
+implementation child:
+
+- Standards R1: APPROVE, 0 findings across the full 22-path closure at
+  `e974b961a74436540255fb60e5d1822c49863925`.
+- Spec R1: the native Delete top-layer P2 was the sole correction request; its
+  actual RED and completed correction remain documented above.
+- Standards R2 and Spec R2: both APPROVE, 0 findings at
+  `a0d83bc9387c1426a7db49e25e3efee2f63db325`. Standards explicitly covered the
+  meaningful new native host; Spec resolved only that P2 and connected host
+  regressions, alongside the original review scope.
+- R2 receipts:
+  `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui012-standards-review-r2`
+  and
+  `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui012-spec-review-r2`.
+
+Fresh T3 binding/CWD/branch and clean tracked/untracked inventory matched the
+isolated continuation at the approved pin. Local feature remained
+`a1828bb3aa15f46a45b355880ba5e31ab0aa9262`, an ancestor of this branch and not
+checked out in another worktree. Source and tests are byte-identical to the
+approved pin; changes since the final harness `4028631b` are this ticket only.
+The final root/subpath, Header, nine palette/Export browser tests and
+lint/typecheck/repo receipts above are reused with their exact source pins and
+limits. No runtime rerun or new global acceptance is claimed for this doc-only
+closure. Fresh closure `git diff --check` and repository validation are recorded
+in `.evidence/012-lineage/landing-repo.log`; final local-FF refs and clean inventory
+are recorded in `.evidence/012-lineage/landing-receipt.log` after commit.
+The coordinator explicitly authorized the lane-protocol local fast-forward to
+`feat/rust-ui-migration`; no origin/dev push or original-worktree edit is involved.
+
+015 integration handoff (no unlanded 015 source copied): preserve the additive
+`LayoutCommandPill` command registration/callback block in
+`web/crates/layout/src/objects/layout_toolbar.rs:645`, the synchronous Snap-only
+canonical handoff at line 658, and the canonical `m1-layout-snap-trigger` predicate
+in the single root key handler at line 771. Compose 015's approved broader native
+button Space guard there without preventing default or duplicating callbacks.
+The 012 caller decisions remain `snap_in_dock: false` in
+`web/src/presentation/layout_workspace.rs:420` and removal of only the redundant
+Objects `LayoutSnapDock` mount in `web/src/presentation.rs`. Keep the existing
+menu/settings owner and the transform-toolbar command adapters. Combined
+validation must use `scripts/test-command-palette.py:396` onward (canonical
+handoff, settings, trusted Enter/held Space counts, Escape, outside focus,
+canvas pan and typing) plus 015's toolbar keyboard/actions checks. Its new popup
+entry-focus adapter will require reviewing/updating the current legacy
+canonical-trigger-on-open expectation to test the actual inside-popup floor.
+This remains ticket 015/final-integration work, not 012 full-floor acceptance.
+
+Global full/quick, CAD `worker.onerror`, first paint, screen-reader, human026 and
+final merge gates remain open. Existing 013 notification and 011 persistent dock,
+Sheet, Button ARIA and summary Space changes remain preserved.
