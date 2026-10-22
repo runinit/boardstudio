@@ -19,7 +19,7 @@ Each lane has its own worktree and its own `target` directory (AGENTS.md: one ca
 
 | Lane | Scope (files from the [inventory](inventory.md)) | Raw / Board |
 | --- | --- | --- |
-| **Foundation** (serial, first) | copy the base `ui/` components, add the `tw_merge` and `strum` dependencies and the vendored Lucide icon components; tokens, both Themes, `data-appearance` / `data-theme`; the shared size tokens; the role-and-name test helper; the old-CSS check (section 4) | `ui-shared` 8 files, 22 / 7 |
+| **Foundation** (serial, first) | copy the base `ui/` components, add the `tw_merge` and `strum` dependencies and the vendored Lucide icon components; tokens, both Themes, `data-appearance` / `data-theme`; the shared size tokens; the role-and-name test helper; the accessibility fixes listed in [accessibility-floor.md](accessibility-floor.md) section 3 (Select, Dropdown Menu, Toolbar, Slider, Toggle Group, Toast) with their tests; the old-CSS check (section 4) | `ui-shared` 8 files, 22 / 7 |
 | **Shell** | `web/src/presentation.rs`, `workspace_navigation.rs`, `workbench_shortcuts.rs`, `workspace_composition.rs`, `inspector.rs`, `canvas_status_footer.rs`, `empty_board_canvas.rs`; header, docks (Sidenav, Sheet), Command palette, Toasts; fallback for saved auto-hide settings; `ui-shared/panels.rs` | app shell share of 73 / 32 |
 | **Layout** | `crates/layout` (18 files) and the Layout files in `web/src/presentation` (`layout_*`, `inspector/layout_component_inspector.rs`, `inspector/companion_placement.rs`) | 54 / 77 plus its share of the shell |
 | **Case** | `crates/case` (8 files; `mechanical_settings.rs` alone has 86 `Board*` uses) and `presentation/case_workspace.rs` | 49 / 121 |
@@ -47,7 +47,7 @@ most 3 lanes at once; then Parts, the small workspaces, and Library and Export; 
   `check.py test --update-native-baseline` in the same commit. The wasm baseline file is currently `{}`.
 - **Accessibility floor.** Every adopted interactive control (Select, Combobox, Collapsible, Dialog, Alert Dialog, Popover, Dropdown
   Menu, Tabs, Toggle Group, Checkbox, Slider, Tooltip) must pass the keyboard and ARIA checks from
-  [010](issues/010-measure-keyboard-and-aria-conformance.md) (roles, arrows, Home/End, Enter/Space, Escape, focus return, a trap
+  [accessibility-floor.md](accessibility-floor.md) (roles, arrows, Home/End, Enter/Space, Escape, focus return, a trap
   where needed) before its lane merges.
 
 ## 4. Old-CSS retirement

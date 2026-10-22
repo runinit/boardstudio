@@ -37,6 +37,7 @@ decided.
 
 <!-- every ticket, open or resolved; status lives in the ticket -->
 
+- [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md): [accessibility floor](accessibility-floor.md) measured on 15 controls; 9 pass, Select, Dropdown Menu, Toolbar, Slider and Toggle Group need fixes in our copy first.
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
 - [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md): [branch plan](branch-plan.md): one `feat/rust-ui-migration` branch from `dev`, a Foundation lane then Shell, Layout and Case in parallel (max 3), role-and-name tests, an accessibility floor, an old-CSS check, and a six-part merge gate.
