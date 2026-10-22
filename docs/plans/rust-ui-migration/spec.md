@@ -52,8 +52,9 @@ contributing fixes upstream to rust-ui; single-key tool shortcuts.
 
 ## 4. Build tickets
 
-Convert each row to one ticket (the repo's issue format) in a new plan directory, not in this one, whose numbers belong to the decision
-tickets. Lanes follow the [branch plan](branch-plan.md); a ticket is done when its acceptance holds and its tests pass on the migration
+**Published 2026-10-21 as 26 tickets in [rust-ui-build](../rust-ui-build/map.md)**, regrouped from the rows below into expand, migrate and
+contract tickets with explicit blocking edges (the rows are the rationale; the tickets are the work). The plan lives in its own directory because
+this one's ticket numbers belong to the decision tickets. Lanes follow the [branch plan](branch-plan.md); a ticket is done when its acceptance holds and its tests pass on the migration
 branch. "Floor" means the control's rows in the [accessibility floor](accessibility-floor.md) section 3.
 
 ### Step 0 (user)
