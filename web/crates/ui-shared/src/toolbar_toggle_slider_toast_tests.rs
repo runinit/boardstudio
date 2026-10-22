@@ -35,6 +35,14 @@ fn fixture() -> Element {
         Toolbar { aria_label: "Disabled tools", disabled: true,
             ToolbarButton { index: 0usize, on_click: move |_| actions += 100, "Disabled action" }
         }
+        Toolbar { aria_label: "Tool modes",
+            ToolbarButton { index: 0usize, "Pointer tool" }
+            ToggleGroup { aria_label: "Tool scope", horizontal: true,
+                ToggleItem { index: 0usize, "Keys scope" }
+                ToggleItem { index: 1usize, "Points scope" }
+            }
+            ToolbarButton { index: 1usize, "Finish tool" }
+        }
         ToggleGroup { aria_label: "Alignment", horizontal: true,
             on_pressed_change: move |_| toggle_changes += 1,
             ToggleItem { index: 0usize, "Left" }
@@ -153,6 +161,51 @@ async fn toolbar_end_reaches_last_item() {
             .unwrap()
     })
     .await;
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_roves_across_an_embedded_toggle_group() {
+    let root = mount();
+    ready(&root).await;
+    let toolbar = control(&root, "toolbar", "Tool modes");
+    assert_eq!(
+        toolbar
+            .query_selector_all("[tabindex='0']")
+            .unwrap()
+            .length(),
+        1
+    );
+    let pointer = control(&root, "button", "Pointer tool");
+    pointer.focus().unwrap();
+    key(&pointer, "ArrowRight");
+    wait_until("toolbar enters toggle group", || {
+        control(&root, "button", "Keys scope")
+            .matches(":focus")
+            .unwrap()
+    })
+    .await;
+    key(&control(&root, "button", "Keys scope"), "ArrowRight");
+    wait_until("toolbar crosses toggle items", || {
+        control(&root, "button", "Points scope")
+            .matches(":focus")
+            .unwrap()
+    })
+    .await;
+    key(&control(&root, "button", "Points scope"), "End");
+    wait_until("toolbar End leaves toggle group", || {
+        control(&root, "button", "Finish tool")
+            .matches(":focus")
+            .unwrap()
+    })
+    .await;
+    assert_eq!(
+        toolbar
+            .query_selector_all("[tabindex='0']")
+            .unwrap()
+            .length(),
+        1
+    );
     root.remove();
 }
 

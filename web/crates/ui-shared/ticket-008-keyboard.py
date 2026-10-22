@@ -69,6 +69,9 @@ def toolbar():
     focus('button', 'Top tool'); press('ArrowDown'); focused('Bottom tool')
     press('Home'); focused('Top tool'); press('End'); focused('Bottom tool')
     expect('control("button", "Disabled action").disabled')
+    focus('button', 'Pointer tool'); press('ArrowRight'); focused('Keys scope')
+    press('ArrowRight'); focused('Points scope'); press('End'); focused('Finish tool')
+    expect('control("toolbar", "Tool modes").querySelectorAll("[tabindex=\\"0\\"]").length === 1')
 
 
 def toggle():
