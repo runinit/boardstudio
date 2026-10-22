@@ -3515,10 +3515,10 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMethod(method));
                         }
                     },
-                SelectOption { index: 0, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), "PCB FR-4" }
-                    SelectOption { index: 1, value: "printed".to_owned(), text_value: "3D printed".to_owned(), "3D printed" }
-                    SelectOption { index: 2, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), "CNC machined" }
-                    SelectOption { index: 3, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), "Cut sheet" }
+                SelectOption::<String> { index: 0usize, value: "pcb-fr4".to_owned(), text_value: "PCB FR-4".to_owned(), "PCB FR-4" }
+                    SelectOption::<String> { index: 1usize, value: "printed".to_owned(), text_value: "3D printed".to_owned(), "3D printed" }
+                    SelectOption::<String> { index: 2usize, value: "cnc".to_owned(), text_value: "CNC machined".to_owned(), "CNC machined" }
+                    SelectOption::<String> { index: 3usize, value: "cut-sheet".to_owned(), text_value: "Cut sheet".to_owned(), "Cut sheet" }
             }
             SettingsSelect {
                 label: "Mount style", disabled: !props.editable,
@@ -3531,9 +3531,9 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetMount(mount));
                         }
                     },
-                SelectOption { index: 0, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
-                    SelectOption { index: 1, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), "Rigid mount" }
-                    SelectOption { index: 2, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), "Gasket mount" }
+                SelectOption::<String> { index: 0usize, value: "tray".to_owned(), text_value: "Tray".to_owned(), "Tray" }
+                    SelectOption::<String> { index: 1usize, value: "rigid".to_owned(), text_value: "Rigid mount".to_owned(), "Rigid mount" }
+                    SelectOption::<String> { index: 2usize, value: "gasket".to_owned(), text_value: "Gasket mount".to_owned(), "Gasket mount" }
             }
             SettingsSelect {
                 label: "Bottom construction",
@@ -3547,8 +3547,8 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                             send_request(&mut sequence, &identity, on_request, MechanicalSettingsPatch::SetBottomStyle(style));
                         }
                     },
-                SelectOption { index: 0, value: "shell".to_owned(), text_value: "Tray shell".to_owned(), "Tray shell" }
-                    SelectOption { index: 1, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
+                SelectOption::<String> { index: 0usize, value: "shell".to_owned(), text_value: "Tray shell".to_owned(), "Tray shell" }
+                    SelectOption::<String> { index: 1usize, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
                 FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
@@ -3589,17 +3589,18 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
 #[component]
 fn SettingsSelect(
     label: String,
-    value: String,
+    value: ReadSignal<String>,
     #[props(default)] aria_label: Option<String>,
     #[props(default)] disabled: bool,
     on_change: EventHandler<Option<String>>,
     children: Element,
 ) -> Element {
     let id = format!("case-choice-{}", dioxus::core::current_scope_id().0);
+    let selected = use_memo(move || Some(value()));
     rsx! {
         Field { class: "gap-1.5", disabled,
             FieldLabel { html_for: id.clone(), "{label}" }
-            Select { id, aria_label: aria_label.unwrap_or(label), value: Some(value), disabled, on_value_change: on_change, {children} }
+            Select::<String> { id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
         }
     }
 }
@@ -3613,20 +3614,21 @@ fn ProfileTargetField(
     disabled: bool,
     on_change: EventHandler<Option<String>>,
 ) -> Element {
+    let selected = use_memo(|| None::<String>);
     if options.len() <= 12 {
         return rsx! { SettingsSelect { label, aria_label, value: "", disabled, on_change,
-            SelectOption { index: 0, value: String::new(), text_value: placeholder.clone(), "{placeholder}" }
+            SelectOption::<String> { index: 0usize, value: String::new(), text_value: placeholder.clone(), "{placeholder}" }
             for (index, target) in options.iter().enumerate() {
-                SelectOption { key: "{target.definition_id}", index: index + 1, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+                SelectOption::<String> { key: "{target.definition_id}", index: index + 1, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
             }
         } };
     }
     let name = aria_label.unwrap_or_else(|| label.clone());
     rsx! { Field { class: "gap-1.5", disabled,
         FieldLabel { "{label}" }
-        Combobox { aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(None::<String>), on_value_change: on_change,
+        Combobox::<String> { aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
             for (index, target) in options.iter().enumerate() {
-                ComboboxOption { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
+                ComboboxOption::<String> { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
             }
         }
     } }
@@ -3681,10 +3683,10 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                                         }
                                     }
                                 },
-                            SelectOption { index: 0, value: "".to_owned(), text_value: "Choose switch family…".to_owned(), "Choose switch family…" }
-                                SelectOption { index: 1, value: "mx".to_owned(), text_value: "MX".to_owned(), "MX" }
-                                SelectOption { index: 2, value: "choc-v1".to_owned(), text_value: "Choc v1".to_owned(), "Choc v1" }
-                                SelectOption { index: 3, value: "choc-v2".to_owned(), text_value: "Choc v2".to_owned(), "Choc v2" }
+                            SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose switch family…".to_owned(), "Choose switch family…" }
+                                SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX".to_owned(), "MX" }
+                                SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1".to_owned(), "Choc v1" }
+                                SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2".to_owned(), "Choc v2" }
                         }
                     } else if let Some(family) = profile.family {
                         p { "Switch fit: {family_label(family)}" }
@@ -3733,10 +3735,10 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         disabled: !props.editable,
                         value: (selected_family()).to_string(),
                         on_change: move |event: Option<String>| selected_family.set(event.clone().unwrap_or_default()),
-                        SelectOption { index: 0, value: "".to_owned(), text_value: "Choose a switch family…".to_owned(), "Choose a switch family…" }
-                            SelectOption { index: 1, value: "mx".to_owned(), text_value: "MX switch".to_owned(), "MX switch" }
-                            SelectOption { index: 2, value: "choc-v1".to_owned(), text_value: "Choc v1 switch".to_owned(), "Choc v1 switch" }
-                            SelectOption { index: 3, value: "choc-v2".to_owned(), text_value: "Choc v2 switch".to_owned(), "Choc v2 switch" }
+                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a switch family…".to_owned(), "Choose a switch family…" }
+                            SelectOption::<String> { index: 1usize, value: "mx".to_owned(), text_value: "MX switch".to_owned(), "MX switch" }
+                            SelectOption::<String> { index: 2usize, value: "choc-v1".to_owned(), text_value: "Choc v1 switch".to_owned(), "Choc v1 switch" }
+                            SelectOption::<String> { index: 3usize, value: "choc-v2".to_owned(), text_value: "Choc v2 switch".to_owned(), "Choc v2 switch" }
                     }
                     ProfileTargetField {
                         label: "Assign library fit profile to",
@@ -3775,9 +3777,9 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         disabled: !props.editable,
                         value: (selected_stabilizer()).to_string(),
                         on_change: move |event: Option<String>| selected_stabilizer.set(event.clone().unwrap_or_default()),
-                        SelectOption { index: 0, value: "".to_owned(), text_value: "Choose a stabilizer size…".to_owned(), "Choose a stabilizer size…" }
-                            SelectOption { index: 1, value: "mx-stab2u".to_owned(), text_value: "MX stabilizer · 2u".to_owned(), "MX stabilizer · 2u" }
-                            SelectOption { index: 2, value: "mx-stab625u".to_owned(), text_value: "MX stabilizer · 6.25u".to_owned(), "MX stabilizer · 6.25u" }
+                        SelectOption::<String> { index: 0usize, value: "".to_owned(), text_value: "Choose a stabilizer size…".to_owned(), "Choose a stabilizer size…" }
+                            SelectOption::<String> { index: 1usize, value: "mx-stab2u".to_owned(), text_value: "MX stabilizer · 2u".to_owned(), "MX stabilizer · 2u" }
+                            SelectOption::<String> { index: 2usize, value: "mx-stab625u".to_owned(), text_value: "MX stabilizer · 6.25u".to_owned(), "MX stabilizer · 6.25u" }
                     }
                     ProfileTargetField {
                         label: "Assign library stabilizer profile to",
@@ -3945,10 +3947,10 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                                                 purposes.set(entries);
                                             }
                                         },
-                                    SelectOption { index: 0, value: "plate-cutout".to_owned(), text_value: "Plate cutout".to_owned(), "Plate cutout" }
-                                        SelectOption { index: 1, value: "electrical-pcb-mounting-hole".to_owned(), text_value: "PCB mounting hole".to_owned(), "PCB mounting hole" }
-                                        SelectOption { index: 2, value: "clearance-envelope".to_owned(), text_value: "Clearance envelope".to_owned(), "Clearance envelope" }
-                                        SelectOption { index: 3, value: "drawing-guide".to_owned(), text_value: "Drawing guide".to_owned(), "Drawing guide" }
+                                    SelectOption::<String> { index: 0usize, value: "plate-cutout".to_owned(), text_value: "Plate cutout".to_owned(), "Plate cutout" }
+                                        SelectOption::<String> { index: 1usize, value: "electrical-pcb-mounting-hole".to_owned(), text_value: "PCB mounting hole".to_owned(), "PCB mounting hole" }
+                                        SelectOption::<String> { index: 2usize, value: "clearance-envelope".to_owned(), text_value: "Clearance envelope".to_owned(), "Clearance envelope" }
+                                        SelectOption::<String> { index: 3usize, value: "drawing-guide".to_owned(), text_value: "Drawing guide".to_owned(), "Drawing guide" }
                                 }
                             }
                         }

@@ -225,6 +225,33 @@ def page_tests(url, evidence):
     original = evaluate("document.activeElement.value")
     assert evaluate("document.activeElement.dataset.slot") == "input-group-control"
     precise = "2.1234567890123457"
+
+    def saved_wall(value, owner=None):
+        # Observe the real durable document, not the previous operation's save indicator.
+        expression = """(async()=>{
+            const database='boardstudio-m1-'+(location.pathname.startsWith('/boardstudio/')?'boardstudio':'root');
+            const id=localStorage.getItem('boardstudio-m1-active-project:'+database);
+            if(!id) return false;
+            const doc=await new Promise((resolve,reject)=>{
+                const request=indexedDB.open(database);
+                request.onerror=()=>reject(request.error);
+                request.onupgradeneeded=()=>{request.transaction.abort();reject(Error('expected existing project database'))};
+                request.onsuccess=()=>{const db=request.result,transaction=db.transaction('projects','readonly');
+                    const read=transaction.objectStore('projects').get(id);
+                    read.onsuccess=()=>resolve(read.result);read.onerror=()=>reject(read.error);
+                    transaction.oncomplete=()=>db.close();transaction.onabort=()=>{db.close();reject(transaction.error)};};
+            });
+            if(!doc) return false;
+            const owners=[['project',doc.mechanical],['shared',doc.hardware?.sharedConstruction],
+                ...(doc.hardware?.instances??[]).map(instance=>['instance:'+instance.id,instance.mechanical])];
+            const matches=owners.filter(([name,config])=>config?.wallThickness===EXPECTED && (OWNER===null || name===OWNER));
+            if(matches.length!==1) return false;
+            window.caseSavedWall={id:doc.id,revision:doc.revision,owner:matches[0][0],wallThickness:matches[0][1].wallThickness};
+            return true;
+        })()""".replace('EXPECTED', json.dumps(float(value))).replace('OWNER', json.dumps(owner))
+        browser("wait", "--fn", expression)
+        return evaluate("window.caseSavedWall")
+
     action("spinbutton", "Wall thickness", "fill", precise)
     browser("press", "Escape")
     browser("wait", "--fn", f"document.activeElement.value === {json.dumps(original)}")
@@ -235,18 +262,21 @@ def page_tests(url, evidence):
     browser("press", "Escape")
     action("spinbutton", "Wall thickness", "fill", precise)
     browser("press", "Enter")
-    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]')")
+    saved = saved_wall(precise)
     action("spinbutton", "Wall thickness", "focus")
     browser("wait", "--fn", f"document.activeElement.value === {json.dumps(precise)}")
     action("button", "Project", "focus")
     browser("press", "Control+z")
     action("spinbutton", "Wall thickness", "focus")
     browser("wait", "--fn", f"document.activeElement.value === {json.dumps(original)}")
+    undone = saved_wall(original, saved["owner"])
+    assert undone["id"] == saved["id"] and undone["revision"] > saved["revision"]
     action("button", "Project", "focus")
     browser("press", "Control+Shift+z")
     action("spinbutton", "Wall thickness", "focus")
     browser("wait", "--fn", f"document.activeElement.value === {json.dumps(precise)}")
-    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]')")
+    redone = saved_wall(precise, saved["owner"])
+    assert redone["id"] == saved["id"] and redone["revision"] > undone["revision"]
     for theme in ("Original", "shadcn"):
         action("button", "Settings")
         action("menuitemradio", theme)
@@ -260,7 +290,7 @@ def page_tests(url, evidence):
                 if item.get("role") == "button" and item.get("name") == "close":
                     browser("click", "@"+ref)
             browser("screenshot", str(evidence/f"page-{theme.lower()}-{appearance.lower()}.png"))
-    (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"savedLocally":True,"themes":4},indent=2)+"\n")
+    (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"saved":saved,"undone":undone,"redone":redone,"themes":4},indent=2)+"\n")
     print("PASS packaged Case Runtime: native precision/validation/Escape, durable save, exact Undo/Redo, four Theme/Appearance captures",flush=True)
 
 
