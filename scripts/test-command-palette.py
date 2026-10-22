@@ -67,22 +67,12 @@ def main():
         action("option", name)
         browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
 
-    def pan_canvas():
-        canvas = '[role="group"][aria-label^="Keyboard layout;"]'
-        browser("focus", canvas)
-        check("""
-            const canvas = document.activeElement;
-            if (!canvas.getAttribute('aria-label')?.startsWith('Keyboard layout;')) throw Error('Pan test must focus the canvas');
-            window.palettePanBefore = canvas.getAttribute('viewBox');
-            window.palettePanEvents = [];
-            for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) canvas.addEventListener(type, e => palettePanEvents.push({type, trusted:e.isTrusted}));
-        """)
-        box = json.loads(browser("eval", "(() => { const b = document.activeElement.getBoundingClientRect(); return {x:b.x, y:b.y, width:b.width, height:b.height}; })()"))
+    def held_space(mode, box=None):
         endpoint = browser("get", "cdp-url").strip()
-        # agent-browser press releases the key immediately; CDP holds it across the drag.
+        # The same trusted driver holds Space across either an assertion or a canvas drag.
         result = subprocess.run(["node", "--input-type=module", "-e", """
             import assert from 'node:assert/strict';
-            const [endpoint, url, box] = process.argv.slice(1);
+            const [endpoint, url, mode, box] = process.argv.slice(1);
             const ws = new WebSocket(endpoint);
             await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
             let next = 0;
@@ -101,24 +91,58 @@ def main():
                 ws.send(JSON.stringify({id, method, params, sessionId}));
             });
             const targets = (await send('Target.getTargets')).targetInfos.filter(t => t.type === 'page' && t.url.startsWith(url));
-            assert.equal(targets.length, 1, 'pan only the current palette test page');
+            assert.equal(targets.length, 1, 'use only the current palette test page');
             const {sessionId} = await send('Target.attachToTarget', {targetId: targets[0].targetId, flatten: true});
             const input = (method, params) => send('Input.' + method, params, sessionId);
-            const bounds = JSON.parse(box);
-            const x = bounds.x + bounds.width * 0.55, y = bounds.y + bounds.height * 0.55;
+            const evaluate = async expression => {
+                const result = await send('Runtime.evaluate', {expression, returnByValue:true}, sessionId);
+                assert.equal(result.exceptionDetails, undefined, JSON.stringify(result));
+                return result.result.value;
+            };
+            const snapState = `(() => {
+                const event = paletteSnapRawKeys.at(-1);
+                return {open:document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded'),
+                    clicks:paletteSnapEvents.filter(e=>e.type==='click').length,
+                    key:event?.key, trusted:event?.isTrusted, prevented:event?.defaultPrevented};
+            })()`;
+            const before = mode === 'snap' ? await evaluate(snapState) : null;
             try {
                 await input('dispatchKeyEvent', {type:'keyDown', key:' ', code:'Space', windowsVirtualKeyCode:32});
-                await input('dispatchMouseEvent', {type:'mouseMoved', x, y});
-                await input('dispatchMouseEvent', {type:'mousePressed', x, y, button:'left', buttons:1, clickCount:1});
-                await input('dispatchMouseEvent', {type:'mouseMoved', x:x+75, y:y+40, button:'left', buttons:1});
-                await input('dispatchMouseEvent', {type:'mouseReleased', x:x+75, y:y+40, button:'left', buttons:0, clickCount:1});
+                if (mode === 'snap') {
+                    const held = await evaluate(snapState);
+                    assert.equal(held.open, before.open, 'Space keydown must not toggle Snap');
+                    assert.equal(held.clicks, before.clicks, 'native click waits for keyup');
+                    assert.equal(held.key, ' ');
+                    assert.equal(held.trusted, true);
+                    assert.equal(held.prevented, false, 'Space default must remain unprevented');
+                } else {
+                    const bounds = JSON.parse(box);
+                    const x = bounds.x + bounds.width * 0.55, y = bounds.y + bounds.height * 0.55;
+                    await input('dispatchMouseEvent', {type:'mouseMoved', x, y});
+                    await input('dispatchMouseEvent', {type:'mousePressed', x, y, button:'left', buttons:1, clickCount:1});
+                    await input('dispatchMouseEvent', {type:'mouseMoved', x:x+75, y:y+40, button:'left', buttons:1});
+                    await input('dispatchMouseEvent', {type:'mouseReleased', x:x+75, y:y+40, button:'left', buttons:0, clickCount:1});
+                }
             } finally {
                 await input('dispatchKeyEvent', {type:'keyUp', key:' ', code:'Space', windowsVirtualKeyCode:32});
                 ws.close();
             }
-        """, endpoint, args.url, json.dumps(box)], text=True, capture_output=True, timeout=60)
-        print("Held-Space canvas pan", result.stdout, result.stderr, flush=True)
+        """, endpoint, args.url, mode, json.dumps(box)], text=True, capture_output=True, timeout=60)
+        print("Held-Space", mode, result.stdout, result.stderr, flush=True)
         assert result.returncode == 0, "Trusted held-Space input failed"
+
+    def pan_canvas():
+        canvas = '[role="group"][aria-label^="Keyboard layout;"]'
+        browser("focus", canvas)
+        check("""
+            const canvas = document.activeElement;
+            if (!canvas.getAttribute('aria-label')?.startsWith('Keyboard layout;')) throw Error('Pan test must focus the canvas');
+            window.palettePanBefore = canvas.getAttribute('viewBox');
+            window.palettePanEvents = [];
+            for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) canvas.addEventListener(type, e => palettePanEvents.push({type, trusted:e.isTrusted}));
+        """)
+        box = json.loads(browser("eval", "(() => { const b = document.activeElement.getBoundingClientRect(); return {x:b.x, y:b.y, width:b.width, height:b.height}; })()"))
+        held_space('pan', box)
         browser("wait", "--fn", f"document.querySelector({json.dumps(canvas)}).getAttribute('viewBox') !== palettePanBefore")
         check("""
             for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) {
@@ -295,18 +319,26 @@ def main():
     action("button", "Snap settings", "focus")
     check("""
         window.paletteSnapEvents = [];
+        window.paletteSnapRawKeys = [];
+        document.activeElement.addEventListener('keydown', e => paletteSnapRawKeys.push(e));
         for (const type of ['keydown', 'keyup', 'click']) document.activeElement.addEventListener(type, e => paletteSnapEvents.push({type, key:e.key, trusted:e.isTrusted}));
     """)
     browser("press", "Enter")
     browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
     check("if (document.activeElement.getAttribute('aria-label') !== 'Snap settings') throw Error('Snap must retain focus after Enter');")
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 1) throw Error('Enter must toggle once');")
-    browser("press", "Space")
+    held_space('snap')
     check("""
         if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once: ' + JSON.stringify(paletteSnapEvents));
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
+    held_space('snap')
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
+    check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 3) throw Error('Held Space must close exactly once');")
+    held_space('snap')
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
+    check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 4) throw Error('Held Space must reopen exactly once');")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
     browser("press", "Tab")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")

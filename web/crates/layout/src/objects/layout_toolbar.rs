@@ -5,6 +5,7 @@ use boardstudio_core::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardPopover, BoardToolbar};
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
@@ -767,6 +768,16 @@ pub fn LayoutCommandPill(
 
     rsx! {
         div { id: "m1-layout-command-pill", class: "m1-layout-command-pill layout-command-pill--contextual", role: "group", aria_label: "{command_label}",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " "
+                    && let Some(raw) = event.data().try_as_web_event()
+                    && raw.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+                        .is_some_and(|target| target.id() == "m1-layout-snap-trigger")
+                {
+                    event.stop_propagation();
+                    raw.stop_propagation();
+                }
+            },
             "data-compact": false,
             div { class: "m1-layout-primary-pill board-tool-pill",
             if pointer_tools_visible {
