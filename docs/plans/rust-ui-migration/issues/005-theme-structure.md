@@ -1,6 +1,6 @@
 # 005: How Themes and Appearance are structured
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: [002](002-rust-ui-catalogue-facts.md)
 Parent: [Map](../map.md)
