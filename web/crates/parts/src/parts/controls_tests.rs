@@ -11,7 +11,9 @@ fn picker_host() -> Element {
     rsx! {
         PartsChoiceField {
             label: "Host connector", aria_label: "Module host connector", value: selected(),
-            options: (0..count()).map(|index| (index.to_string(), format!("Connector {index}"))).collect(),
+            options: (0..count()).map(|index| (index.to_string(),
+                if index == 0 && renders() > 0 { "Renamed connector".to_owned() }
+                else { format!("Connector {index}") })).collect(),
             on_value_change: move |value| selected.set(value),
         }
         Button { onclick: move |_| count.set(13), "More connectors" }

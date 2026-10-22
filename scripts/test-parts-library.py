@@ -99,6 +99,29 @@ def main():
         check("document.activeElement.getAttribute('aria-label')==='3D model' && document.activeElement.getAttribute('aria-pressed')==='false'")
         browser("press", "Enter")
         browser("wait", "--fn", "!!document.querySelector('[aria-label=\"View controls\"]')")
+        action("button", "Case layers and colors")
+        action("button", "Select PCB")
+        assert attr("button", "Select PCB", "aria-pressed") == "true"
+        focus("button", "Toggle visibility for PCB")
+        visible = attr("button", "Toggle visibility for PCB", "aria-pressed")
+        browser("press", "Space")
+        assert attr("button", "Toggle visibility for PCB", "aria-pressed") != visible
+        action("button", "Toggle visibility for PCB")
+        assert attr("button", "Toggle visibility for PCB", "aria-pressed") == visible
+        # Color wells have a browser-specific accessibility role; use their snapshot role/name ref.
+        refs = browser("snapshot", "-i")["refs"]
+        color_refs = [(ref, item) for ref, item in refs.items() if item.get("name") == "Color for PCB"]
+        assert len(color_refs) == 1, color_refs
+        browser("focus", "@" + color_refs[0][0])
+        original_color = evaluate("document.activeElement.value")
+        check("document.activeElement.type==='color' && document.activeElement.id && [...document.querySelectorAll('label[for]')].some(e=>e.htmlFor===document.activeElement.id)")
+        # Native color dialog UI is outside this check; this exercises the retained native input callback.
+        evaluate("window.partsColor=document.activeElement;partsColor.value='#123456';partsColor.dispatchEvent(new Event('input',{bubbles:true}))")
+        browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=button]')].find(e=>e.textContent.trim()==='Reset color').disabled")
+        action("button", "Reset color")
+        assert evaluate("partsColor.value") == original_color
+        assert attr("button", "Reset color", "disabled") is not None
+        action("button", "Case layers and colors")
         action("button", "View controls")
         action("button", "exploded")
         focus("slider", "Explode amount")
@@ -159,7 +182,7 @@ def main():
                         action("button", "Close panels")
         action("button", "2D footprint")
         browser("wait", "--fn", "document.querySelector('[aria-label=\"2D footprint\"]').getAttribute('aria-pressed')==='true'")
-        print("PASS: packaged Parts Select, preview ToggleGroup, retained production owner values/identity, sliders, checkbox Space/Enter/labels, and 12 theme/width captures", flush=True)
+        print("PASS: packaged Parts Select, preview ToggleGroup, retained production owner values/identity, sliders, checkbox Space/Enter/labels, and 24 library/preview theme-width captures", flush=True)
     except Exception:
         browser("screenshot", str((args.evidence / "failure.png").resolve()))
         raise

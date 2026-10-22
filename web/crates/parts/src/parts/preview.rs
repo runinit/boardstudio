@@ -365,7 +365,9 @@ pub fn PartsPreviewPanel(
     rsx! {
         section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
             h2 { class: "m1-library-workspace-title", "{preview_title.as_deref().map(str::to_owned).unwrap_or_else(|| super::placement_label(&definition).to_owned())}" }
-            if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) { {view_controls.clone()} }
+            if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) {
+                div { class: "absolute right-3 top-3 z-10 [.m1-controller-picker_&]:static [.m1-controller-picker_&]:my-2 [.m1-controller-picker_&]:self-start", {view_controls.clone()} }
+            }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
                     GeneratorPreviewStatus::Pending => rsx! { div { role: "status", Spinner {} "Generating the current generator preview…" } },

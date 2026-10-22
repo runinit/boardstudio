@@ -1032,7 +1032,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-controller-picker .m1-parts-preview { position: relative; grid-column: auto; grid-row: auto; display: flex; flex-direction: column; min-height: 260px; height: 320px; padding: 12px; border-radius: var(--wb-radius-toolbar); background: var(--wb-canvas); overflow: hidden; }
 .m1-controller-picker .m1-parts-preview h2 { font-size: 16px; }
 .m1-controller-picker .m1-parts-preview > .m1-library-workspace-title { padding: 0; margin: 0; }
-.m1-controller-picker .m1-parts-preview > .m1-design-view-group { position: static; transform: none; margin: 8px 0; padding: 0; align-self: flex-start; }
 .m1-controller-picker .m1-parts-preview > .m1-parts-preview-note { display: none; }
 .m1-controller-picker .m1-parts-preview > svg { position: static; flex: 1; min-height: 0; width: 100%; height: 180px; }
 .m1-controller-hint { color: var(--wb-muted); font-size: 14px; }
@@ -1097,7 +1096,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-design-canvas-toolbar .board-toolbar .board-button { background: transparent; border-color: transparent; }
 .m1-design-canvas-toolbar .board-toolbar .board-button:hover { background: var(--wb-surface-soft); border-color: transparent; }
 /* Keep section controls in document flow and preview geometry legible. */
-.m1-parts-preview > .m1-design-view-group { position: static; display: flex; width: fit-content; margin: var(--wb-space-3); }
 .m1-keymap-navigation :is(.m1-keymap-layer-name-label, .m1-keymap-search-label) { display: grid; gap: var(--wb-space-2); }
 .m1-keymap-navigation :is(.m1-keymap-layer-name, .m1-keymap-search) { width: 100%; min-width: 0; }
 .m1-library-landing .m1-keyboard-preview rect { stroke: var(--wb-geometry-key); }
@@ -1380,7 +1378,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-workspace-content .m1-layout-command-pill,
 .m1-workspace-content .m1-design-canvas-toolbar,
 .m1-workspace-content .m1-case-view-toolbar,
-.m1-parts-preview > .m1-design-view-group { padding: 6px 10px; border: 1px solid var(--wb-command-rule); border-radius: var(--wb-command-radius); background: var(--wb-command-surface); box-shadow: none; }
 .m1-workspace-content .m1-case-view-toolbar { border: 0; }
 .m1-workspace-content .m1-layout-command-pill { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--wb-space-1); }
 .m1-workspace-content .m1-layout-command-pill :is(button,.board-popover-trigger),
@@ -1427,7 +1424,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-view-toolbar .m1-case-view-settings { position: static; }
 .m1-case-view-toolbar .m1-case-view-settings-body { position: absolute; top: calc(100% + 8px); bottom: auto; left: 0; right: auto; max-height: 60vh; overflow: auto; width: min(320px,calc(100vw - 32px)); padding: var(--wb-space-3); background: var(--wb-panel); border: 0; border-radius: var(--wb-radius-pill); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
 .m1-parts-preview { position: relative; }
-.m1-parts-preview > .m1-design-view-group { position: absolute; z-index: 5; top: 12px; bottom: auto; right: 12px; left: auto; transform: none; margin: 0; }
 .m1-parts-preview > .m1-library-workspace-title { flex: none; min-height: 72px; margin: 0; padding: 20px 120px 20px 16px; font-size: 18px; }
 .m1-case-view-toolbar .m1-design-view-group { position: static; transform: none; margin: 0; padding: 0; border: 0; background: transparent; }
 .m1-case-view-toolbar.board-tool-pill { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 5px; border: 0; border-radius: var(--wb-radius-pill); background: var(--wb-toolbar); box-shadow: 0 6px 18px rgb(0 0 0 / 16%); }
