@@ -25,6 +25,57 @@ pub(super) fn use_palette_state() -> PaletteState {
     }
 }
 
+fn popover_opener(active: &web_sys::HtmlElement) -> Option<web_sys::HtmlElement> {
+    let popup = active
+        .closest("[data-slot=popover-content], .board-popover-content")
+        .ok()??;
+    let id = popup.id();
+    if id.is_empty() {
+        return None;
+    }
+    let document = active.owner_document()?;
+    let controls = document.query_selector_all("[aria-controls]").ok()?;
+    let mut found = None;
+    for index in 0..controls.length() {
+        let Some(control) = controls
+            .item(index)
+            .and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok())
+        else {
+            continue;
+        };
+        let rect = control.get_bounding_client_rect();
+        if !control
+            .get_attribute("aria-controls")
+            .is_some_and(|ids| ids.split_ascii_whitespace().any(|value| value == id))
+            || !control.is_connected()
+            || control.matches(":disabled").ok()?
+            || !(control.tab_index() >= 0
+                || control.has_attribute("tabindex")
+                || control.is_content_editable())
+            || control
+                .closest("[hidden], [inert], [aria-hidden=true]")
+                .ok()?
+                .is_some()
+            || rect.width() <= 0.0
+            || rect.height() <= 0.0
+            || document
+                .default_view()?
+                .get_computed_style(&control)
+                .ok()??
+                .get_property_value("visibility")
+                .ok()?
+                != "visible"
+        {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(control);
+    }
+    found
+}
+
 impl PaletteState {
     pub fn show(mut self) {
         if (self.open)() {
@@ -34,7 +85,9 @@ impl PaletteState {
             .and_then(|w| w.document())
             .and_then(|d| d.active_element())
             .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok());
-        self.opener.set(active.clone());
+        // Opening the palette dismisses Popovers and can unmount their focused fields.
+        self.opener
+            .set(active.as_ref().and_then(popover_opener).or(active.clone()));
         self.pending.set(None);
         if let Some(active) = active
             && matches!(active.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
@@ -354,4 +407,71 @@ pub(super) fn editor_commands(
         });
     }
     commands
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn popover_opener_requires_the_unique_nearest_visible_focusable_relationship() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        root.set_inner_html(r#"
+            <button aria-label="Outer opener" aria-controls="palette-test-outer">Outer</button>
+            <div data-slot="popover-content" id="palette-test-outer">
+                <button aria-label="Inner opener" aria-controls="other palette-test-inner" tabindex="-1">Inner</button>
+                <div class="board-popover-content" id="palette-test-inner">
+                    <input aria-label="Popup field">
+                </div>
+            </div>
+            <div hidden><button aria-controls="palette-test-inner">Hidden duplicate</button></div>
+            <div inert><button aria-controls="palette-test-inner">Inert duplicate</button></div>
+            <span aria-controls="palette-test-inner">Not focusable</span>
+            <input aria-label="Ordinary field">
+            <div role="dialog" id="palette-test-sheet"><input aria-label="Sheet field"></div>
+            <button aria-controls="palette-test-sheet">Sheet opener</button>
+        "#);
+        document.body().unwrap().append_child(&root).unwrap();
+        let field = by_role_name(&root, "textbox", "Popup field")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        let inner = by_role_name(&root, "button", "Inner opener")
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap();
+        assert_eq!(popover_opener(&field), Some(inner.clone()));
+        for name in ["Ordinary field", "Sheet field"] {
+            let field = by_role_name(&root, "textbox", name)
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap();
+            assert!(popover_opener(&field).is_none());
+        }
+        let duplicate = document.create_element("button").unwrap();
+        duplicate.set_text_content(Some("Ambiguous duplicate"));
+        duplicate
+            .set_attribute("aria-controls", "palette-test-inner")
+            .unwrap();
+        root.append_child(&duplicate).unwrap();
+        assert!(popover_opener(&field).is_none());
+        duplicate.remove();
+        for (name, value) in [
+            ("disabled", ""),
+            ("hidden", ""),
+            ("inert", ""),
+            ("aria-hidden", "true"),
+            ("style", "visibility:hidden"),
+        ] {
+            inner.set_attribute(name, value).unwrap();
+            assert!(popover_opener(&field).is_none(), "must reject {name}");
+            inner.remove_attribute(name).unwrap();
+        }
+        inner.remove();
+        assert!(popover_opener(&field).is_none());
+        root.remove();
+    }
 }
