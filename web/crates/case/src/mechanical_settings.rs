@@ -3503,7 +3503,7 @@ fn parse_stabilizer_kind(value: &str) -> Option<MechanicalStabilizerKind> {
 fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     let values = &props.values;
     rsx! {
-        fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", disabled: !props.editable,
             legend { "Construction" }
             SettingsSelect {
                 label: "Plate method", disabled: !props.editable,
@@ -3656,7 +3656,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
     let mut selected_family = use_signal(String::new);
     let mut selected_stabilizer = use_signal(String::new);
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Switch fit profiles",
+        section { class: "grid gap-3", aria_label: "Switch fit profiles",
             h3 { "Switch fit profiles" }
             if props.profiles.is_empty() {
                 Callout { "No explicit switch fit profile is assigned. The supported plate thickness range is unavailable until a fit profile is assigned in Parts." }
@@ -3866,10 +3866,10 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
     let error = use_signal(String::new);
     let extraction_port = props.extract_profile.clone();
     rsx! {
-        section { class: "m1-mechanical-profile-editor", aria_label: "Profile geometry",
+        section { class: "grid gap-3", aria_label: "Profile geometry",
             if let Some(port) = extraction_port.clone() {
                 section { class: "m1-mechanical-geometry-picker", aria_label: "Custom KiCad geometry",
-                    div { class: "m1-mechanical-geometry-head",
+                    div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
                         Button {
                             variant: ButtonVariant::Secondary, button_type: "button",
@@ -4058,63 +4058,139 @@ struct ProfilePolygonListEditorProps {
 #[component]
 fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
+        section {
+            class: "m1-mechanical-profile-points",
+            aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
-                    aria_label: "Add polygon to {props.title}", disabled: !props.editable,
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet",
+                    aria_label: "Add polygon to {props.title}",
+                    disabled: !props.editable,
                     onclick: {
                         let mut polygons = props.polygons.clone();
                         let on_change = props.on_change;
                         move |_| {
-                            polygons.push(vec![
-                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
-                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
-                            ]);
+                            polygons
+                                .push(
+                                    vec![
+                                        Vec2 { x: -2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: 2.5 },
+                                        Vec2 { x: -2.5, y: 2.5 },
+                                    ],
+                                );
                             on_change.call(polygons.clone());
                         }
                     },
                     "Add polygon"
                 }
             }
-            if props.polygons.is_empty() { Callout { "No contours assigned." } }
+            if props.polygons.is_empty() {
+                Callout { "No contours assigned." }
+            }
             for (polygon_index, polygon) in props.polygons.iter().enumerate() {
-                fieldset { class: "m1-mechanical-profile-polygon", aria_label: "{props.title} contour {polygon_index + 1}", key: "{props.title}:{polygon_index}", disabled: !props.editable,
+                fieldset {
+                    class: "m1-mechanical-profile-polygon",
+                    aria_label: "{props.title} contour {polygon_index + 1}",
+                    key: "{props.title}:{polygon_index}",
+                    disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Contour {polygon_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
-                            aria_label: "Remove contour {polygon_index + 1} from {props.title}", disabled: !props.editable,
+                            variant: ButtonVariant::Secondary,
+                            button_type: "button",
+                            class: "m1-mechanical-quiet",
+                            aria_label: "Remove contour {polygon_index + 1} from {props.title}",
+                            disabled: !props.editable,
                             onclick: {
                                 let mut polygons = props.polygons.clone();
                                 let on_change = props.on_change;
-                                move |_| { polygons.remove(polygon_index); on_change.call(polygons.clone()); }
+                                move |_| {
+                                    polygons.remove(polygon_index);
+                                    on_change.call(polygons.clone());
+                                }
                             },
                             "Remove"
                         }
                     }
                     for (point_index, point) in polygon.iter().enumerate() {
-                        div { class: "flex flex-wrap items-end gap-2", key: "{polygon_index}:{point_index}",
+                        div {
+                            class: "flex flex-wrap items-end gap-2",
+                            key: "{polygon_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            InputGroupInput {
-                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.x}", disabled: !props.editable,
-                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
-                                oninput: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        polygons[polygon_index][point_index].x = value; on_change.call(polygons.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-profile-{}-{polygon_index}-{point_index}-x",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "X"
+                                }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-profile-{}-{polygon_index}-{point_index}-x",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.x}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} X",
+                                        oninput: {
+                                            let mut polygons = props.polygons.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    polygons[polygon_index][point_index].x = value;
+                                                    on_change.call(polygons.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            InputGroupInput {
-                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.y}", disabled: !props.editable,
-                                aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
-                                oninput: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        polygons[polygon_index][point_index].y = value; on_change.call(polygons.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-profile-{}-{polygon_index}-{point_index}-y",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "Y"
+                                }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-profile-{}-{polygon_index}-{point_index}-y",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.y}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} contour {polygon_index + 1} vertex {point_index + 1} Y",
+                                        oninput: {
+                                            let mut polygons = props.polygons.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    polygons[polygon_index][point_index].y = value;
+                                                    on_change.call(polygons.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
                             Button {
@@ -4124,19 +4200,30 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                 aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
-                                    let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                                    move |_| { polygons[polygon_index].remove(point_index); on_change.call(polygons.clone()); }
+                                    let mut polygons = props.polygons.clone();
+                                    let on_change = props.on_change;
+                                    move |_| {
+                                        polygons[polygon_index].remove(point_index);
+                                        on_change.call(polygons.clone());
+                                    }
                                 },
                                 "Remove vertex"
                             }
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
-                            let mut polygons = props.polygons.clone(); let on_change = props.on_change;
-                            move |_| { polygons[polygon_index].push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(polygons.clone()); }
+                            let mut polygons = props.polygons.clone();
+                            let on_change = props.on_change;
+                            move |_| {
+                                polygons[polygon_index].push(Vec2 { x: 0.0, y: 0.0 });
+                                on_change.call(polygons.clone());
+                            }
                         },
                         "Add vertex"
                     }
@@ -4163,84 +4250,174 @@ struct ProfileOpeningListEditorProps {
 #[component]
 fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
     rsx! {
-        section { class: "m1-mechanical-profile-points", aria_label: "{props.title}",
+        section {
+            class: "m1-mechanical-profile-points",
+            aria_label: "{props.title}",
             header {
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
-                    aria_label: "Add volume to {props.title}", disabled: !props.editable,
+                    variant: ButtonVariant::Secondary,
+                    button_type: "button",
+                    class: "m1-mechanical-quiet",
+                    aria_label: "Add volume to {props.title}",
+                    disabled: !props.editable,
                     onclick: {
-                        let mut openings = props.openings.clone(); let on_change = props.on_change;
+                        let mut openings = props.openings.clone();
+                        let on_change = props.on_change;
                         move |_| {
-                            openings.push(CaseOpening { points: vec![
-                                Vec2 { x: -2.5, y: -2.5 }, Vec2 { x: 2.5, y: -2.5 },
-                                Vec2 { x: 2.5, y: 2.5 }, Vec2 { x: -2.5, y: 2.5 },
-                            ], z: 0.0, height: 10.0 });
+                            openings
+                                .push(CaseOpening {
+                                    points: vec![
+                                        Vec2 { x: -2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: -2.5 },
+                                        Vec2 { x: 2.5, y: 2.5 },
+                                        Vec2 { x: -2.5, y: 2.5 },
+                                    ],
+                                    z: 0.0,
+                                    height: 10.0,
+                                });
                             on_change.call(openings.clone());
                         }
                     },
                     "Add volume"
                 }
             }
-            if props.openings.is_empty() { Callout { "No volumes configured." } }
+            if props.openings.is_empty() {
+                Callout { "No volumes configured." }
+            }
             for (opening_index, opening) in props.openings.iter().enumerate() {
-                fieldset { class: "m1-mechanical-opening", aria_label: "{props.title} volume {opening_index + 1}", key: "{props.title}:{opening_index}", disabled: !props.editable,
+                fieldset {
+                    class: "m1-mechanical-opening",
+                    aria_label: "{props.title} volume {opening_index + 1}",
+                    key: "{props.title}:{opening_index}",
+                    disabled: !props.editable,
                     div { class: "m1-mechanical-opening-title",
                         strong { "Volume {opening_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet",
-                            aria_label: "Remove {props.title} volume {opening_index + 1}", disabled: !props.editable,
+                            variant: ButtonVariant::Secondary,
+                            button_type: "button",
+                            class: "m1-mechanical-quiet",
+                            aria_label: "Remove {props.title} volume {opening_index + 1}",
+                            disabled: !props.editable,
                             onclick: {
-                                let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                move |_| { openings.remove(opening_index); on_change.call(openings.clone()); }
+                                let mut openings = props.openings.clone();
+                                let on_change = props.on_change;
+                                move |_| {
+                                    openings.remove(opening_index);
+                                    on_change.call(openings.clone());
+                                }
                             },
                             "Remove"
                         }
                     }
                     DimensionField {
-                        identity: props.identity.clone(), request_sequence: props.request_sequence,
-                        on_request: props.on_request, feedback: props.feedback.clone(),
-                        field: MechanicalDimension::OpeningBottomZ, label: "Bottom Z", value: opening.z,
+                        identity: props.identity.clone(),
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningBottomZ,
+                        label: "Bottom Z",
+                        value: opening.z,
                         editable: props.editable,
                         accessible_label: format!("{} volume {} Bottom Z", props.title, opening_index + 1),
                         profile_volume_target: ProfileVolumeDimensionTarget {
-                            profile: props.profile.clone(), opening_index,
+                            profile: props.profile.clone(),
+                            opening_index,
                             clearance_volume: props.clearance_volume,
                         },
                     }
                     DimensionField {
-                        identity: props.identity.clone(), request_sequence: props.request_sequence,
-                        on_request: props.on_request, feedback: props.feedback.clone(),
-                        field: MechanicalDimension::OpeningHeight, label: "Height", value: opening.height,
+                        identity: props.identity.clone(),
+                        request_sequence: props.request_sequence,
+                        on_request: props.on_request,
+                        feedback: props.feedback.clone(),
+                        field: MechanicalDimension::OpeningHeight,
+                        label: "Height",
+                        value: opening.height,
                         editable: props.editable,
                         accessible_label: format!("{} volume {} Height", props.title, opening_index + 1),
                         profile_volume_target: ProfileVolumeDimensionTarget {
-                            profile: props.profile.clone(), opening_index,
+                            profile: props.profile.clone(),
+                            opening_index,
                             clearance_volume: props.clearance_volume,
                         },
                     }
                     h4 { "XY footprint" }
                     for (point_index, point) in opening.points.iter().enumerate() {
-                        div { class: "flex flex-wrap items-end gap-2", key: "{opening_index}:{point_index}",
+                        div {
+                            class: "flex flex-wrap items-end gap-2",
+                            key: "{opening_index}:{point_index}",
                             span { "V{point_index + 1}" }
-                            InputGroupInput {
-                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.x}", disabled: !props.editable,
-                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
-                                oninput: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        openings[opening_index].points[point_index].x = value; on_change.call(openings.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-volume-{}-{opening_index}-{point_index}-x",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "X"
+                                }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-volume-{}-{opening_index}-{point_index}-x",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.x}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} X",
+                                        oninput: {
+                                            let mut openings = props.openings.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    openings[opening_index].points[point_index].x = value;
+                                                    on_change.call(openings.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
-                            InputGroupInput {
-                                class: "font-mono w-24", r#type: InputType::Number, step: "0.1", value: "{point.y}", disabled: !props.editable,
-                                aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
-                                oninput: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |event: FormEvent| if let Ok(value) = event.value().parse::<f64>() {
-                                        openings[opening_index].points[point_index].y = value; on_change.call(openings.clone());
+                            Field {
+                                class: "w-28 gap-1.5",
+                                disabled: !props.editable,
+                                FieldLabel {
+                                    html_for: format!(
+                                        "case-volume-{}-{opening_index}-{point_index}-y",
+                                        dioxus::core::current_scope_id().0,
+                                    ),
+                                    "Y"
+                                }
+                                InputGroup {
+                                    InputGroupInput {
+                                        id: format!(
+                                            "case-volume-{}-{opening_index}-{point_index}-y",
+                                            dioxus::core::current_scope_id().0,
+                                        ),
+                                        class: "font-mono",
+                                        r#type: InputType::Number,
+                                        step: "0.1",
+                                        value: "{point.y}",
+                                        disabled: !props.editable,
+                                        aria_label: "{props.title} volume {opening_index + 1} vertex {point_index + 1} Y",
+                                        oninput: {
+                                            let mut openings = props.openings.clone();
+                                            let on_change = props.on_change;
+                                            move |event: FormEvent| {
+                                                if let Ok(value) = event.value().parse::<f64>() {
+                                                    openings[opening_index].points[point_index].y = value;
+                                                    on_change.call(openings.clone());
+                                                }
+                                            }
+                                        },
                                     }
+                                    InputGroupText { class: "pr-3", "mm" }
                                 }
                             }
                             Button {
@@ -4250,19 +4427,30 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                 aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
-                                    let mut openings = props.openings.clone(); let on_change = props.on_change;
-                                    move |_| { openings[opening_index].points.remove(point_index); on_change.call(openings.clone()); }
+                                    let mut openings = props.openings.clone();
+                                    let on_change = props.on_change;
+                                    move |_| {
+                                        openings[opening_index].points.remove(point_index);
+                                        on_change.call(openings.clone());
+                                    }
                                 },
                                 "Remove vertex"
                             }
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary, button_type: "button", class: "m1-mechanical-quiet", disabled: !props.editable,
+                        variant: ButtonVariant::Secondary,
+                        button_type: "button",
+                        class: "m1-mechanical-quiet",
+                        disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
-                            let mut openings = props.openings.clone(); let on_change = props.on_change;
-                            move |_| { openings[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 }); on_change.call(openings.clone()); }
+                            let mut openings = props.openings.clone();
+                            let on_change = props.on_change;
+                            move |_| {
+                                openings[opening_index].points.push(Vec2 { x: 0.0, y: 0.0 });
+                                on_change.call(openings.clone());
+                            }
                         },
                         "Add vertex"
                     }
@@ -4349,7 +4537,7 @@ fn DimensionControls(props: DimensionControlsProps) -> Element {
     ];
     let request_sequence = props.request_sequence;
     rsx! {
-        fieldset { class: "m1-mechanical-group", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", disabled: !props.editable,
             legend { "Dimensions and clearances · mm" }
             for (field, label, value) in fields {
                 DimensionField {
@@ -4870,7 +5058,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
         .iter()
         .position(|layer| layer.id == props.selected_layer);
     rsx! {
-        section { class: "m1-mechanical-group", aria_label: "Resolved mechanical stack",
+        section { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", aria_label: "Resolved mechanical stack",
             h3 { if is_previous { "Previous resolved stack · {props.layers.len()} layers" } else { "Resolved stack · {props.layers.len()} layers" } }
             if props.layers.is_empty() {
                 div { role: "status", Callout { "The stack appears after the current revision resolves." } }
@@ -6706,7 +6894,7 @@ mod contextual_layer_tests {
         rendered().await;
 
         // Reachable only for a legacy half, and it submits nothing on its own.
-        let make_local = element("button[aria-label='Make construction local for left']");
+        let make_local = by_role_name(&root, "button", "Make construction local for left").unwrap();
         assert!(
             element("#case-legacy-construction-last-request")
                 .text_content()
@@ -6737,7 +6925,9 @@ mod contextual_layer_tests {
         );
 
         // Cancelling keeps the shared construction.
-        element("button[aria-label='Keep shared construction for left']").click();
+        by_role_name(&root, "button", "Keep shared construction for left")
+            .unwrap()
+            .click();
         rendered().await;
         assert!(
             element("#case-legacy-construction-last-request")
@@ -6748,9 +6938,17 @@ mod contextual_layer_tests {
         );
 
         // Confirming submits exactly one typed conversion naming one instance.
-        element("button[aria-label='Make construction local for left']").click();
+        by_role_name(&root, "button", "Make construction local for left")
+            .unwrap()
+            .click();
         rendered().await;
-        element("button[aria-label='Confirm making construction local for left']").click();
+        by_role_name(
+            &root,
+            "button",
+            "Confirm making construction local for left",
+        )
+        .unwrap()
+        .click();
         rendered().await;
         let submitted = element("#case-legacy-construction-last-request")
             .text_content()
