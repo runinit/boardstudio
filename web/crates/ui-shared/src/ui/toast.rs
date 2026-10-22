@@ -11,7 +11,7 @@
 //! - upstream's `show_toast` builds toasts with `document::eval` and a script outside the registry; here the
 //! -   primitive's provider and `use_toast()` drive them, and the item takes Card's look (filled card, soft shadow,
 //! -   no border) with upstream's container placement (`fixed`, bottom right);
-//! - the `role` of each toast and Escape are ticket 008 (accessibility floor).
+//! - ticket 008 uses one atomic status announcement; Escape stays with the surrounding workspace.
 
 use std::time::Duration;
 
@@ -26,6 +26,10 @@ fn StyledToast(props: ToastProps) -> Element {
     let base = attributes!(div {
         class: "pointer-events-auto relative flex w-full items-start gap-3 rounded-xl bg-card text-card-foreground shadow-lg p-4 pr-8 text-sm data-[type=error]:text-destructive",
         "data-slot": "toast",
+        role: "status",
+        aria_atomic: "true",
+        aria_modal: Option::<String>::None,
+        tabindex: "-1",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
     rsx! {
@@ -39,7 +43,7 @@ fn StyledToast(props: ToastProps) -> Element {
             permanent: props.permanent,
             duration: props.duration,
             attributes: merged,
-            toast::ToastContent { class: "flex flex-1 flex-col gap-1", "data-slot": "toast-content",
+            toast::ToastContent { role: "none", class: "flex flex-1 flex-col gap-1", "data-slot": "toast-content",
                 toast::ToastTitle { class: "font-medium leading-none", "data-slot": "toast-title" }
                 toast::ToastDescription { class: "text-muted-foreground", "data-slot": "toast-description" }
             }

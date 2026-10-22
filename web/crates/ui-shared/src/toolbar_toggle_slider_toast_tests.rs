@@ -254,6 +254,7 @@ async fn toast_is_an_announcement_with_reachable_dismiss() {
         0
     );
     let toast = control(&root, "status", "Saved");
+    assert_eq!(root.query_selector_all("[role=alert]").unwrap().length(), 0);
     assert_eq!(toast.get_attribute("aria-atomic").as_deref(), Some("true"));
     let close = control(&root, "button", "close");
     assert_eq!(close.tab_index(), 0);
