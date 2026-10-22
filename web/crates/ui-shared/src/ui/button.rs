@@ -153,11 +153,11 @@ mod forwarding_tests {
                     onblur: move |_| events.write().push(format!("{label}:owner:blur")),
                     attributes: {
                         let mut attributes = Vec::new();
-                        if !removed() { attributes.push(dioxus::events::onfocus(move |_| events.write().push(format!("{label}:raw:focus")))); }
-                        attributes.push(dioxus::events::onblur(move |_| events.write().push(format!("{label}:raw:blur"))));
-                        attributes.push(Attribute::new("data-retained", "kept", None, false));
                         attributes.push(Attribute::new("class", "collision", None, false));
                         if !removed() { attributes.push(Attribute::new("data-removed", "remove", None, false)); }
+                        attributes.push(Attribute::new("data-retained", "kept", None, false));
+                        if !removed() { attributes.push(dioxus::events::onfocus(move |_| events.write().push(format!("{label}:raw:focus")))); }
+                        attributes.push(dioxus::events::onblur(move |_| events.write().push(format!("{label}:raw:blur"))));
                         attributes
                     },
                     "{label}"
