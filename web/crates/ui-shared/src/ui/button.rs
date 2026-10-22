@@ -14,7 +14,7 @@
 //!   contract section 8); focus rings kept.
 //! - optional `aria-current` and `aria-pressed` forward caller-owned header/navigation state.
 
-use dioxus::prelude::*;
+use dioxus::{core::AttributeValue, prelude::*};
 use tw_merge::tw_merge;
 
 #[derive(Default, Clone, PartialEq, Eq)]
@@ -60,6 +60,216 @@ mod forwarding_tests {
             span { id: "button-contract-description", "The owner describes this action." }
             output { role: "status", aria_label: "Contract events", "{events:?}" }
         }
+    }
+
+    fn tooltip_fixture() -> Element {
+        use crate::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
+        let mut events = use_signal(Vec::<String>::new);
+        rsx! {
+            for (label, href) in [("Composed native", None), ("Composed link", Some("#composed"))] {
+                Tooltip { on_open_change: move |open| events.write().push(format!("{label}:tip:{open}")),
+                    TooltipTrigger { id: format!("fallback-{label}"), r#as: move |mut attributes: Vec<Attribute>| {
+                        attributes.extend([
+                            Attribute::new("data-extra", "kept", None, false),
+                            Attribute::new("aria-describedby", "owner-description owner-description", None, false),
+                            dioxus::events::onpointerenter(move |_| events.write().push(format!("{label}:raw:enter"))),
+                            dioxus::events::onclick(move |_| events.write().push(format!("{label}:raw:click"))),
+                            dioxus::events::onpointerdown(move |_| events.write().push(format!("{label}:raw:pointerdown"))),
+                            dioxus::events::onpointerup(move |_| events.write().push(format!("{label}:raw:pointerup"))),
+                            dioxus::events::onpointerleave(move |_| events.write().push(format!("{label}:raw:pointerleave"))),
+                            dioxus::events::onpointercancel(move |_| events.write().push(format!("{label}:raw:pointercancel"))),
+                        ]);
+                        rsx! { Button {
+                            attributes, href: href.map(str::to_owned), id: format!("owner-{label}"),
+                            aria_label: label, aria_describedby: "owner-description", class: "font-mono",
+                            onfocus: move |_| events.write().push(format!("{label}:owner:focus")),
+                            onblur: move |_| events.write().push(format!("{label}:owner:blur")),
+                            onkeydown: move |_| events.write().push(format!("{label}:owner:key")),
+                            onpointerenter: move |_| events.write().push(format!("{label}:owner:enter")),
+                            onclick: move |_| events.write().push(format!("{label}:owner:click")),
+                            onpointerdown: move |_| events.write().push(format!("{label}:owner:pointerdown")),
+                            onpointerup: move |_| events.write().push(format!("{label}:owner:pointerup")),
+                            onpointerleave: move |_| events.write().push(format!("{label}:owner:pointerleave")),
+                            onpointercancel: move |_| events.write().push(format!("{label}:owner:pointercancel")),
+                            "{label}"
+                        } }
+                    } }
+                    TooltipContent { "{label} tooltip" }
+                }
+            }
+            Button { class: "font-mono", aria_label: "Reference style", "Reference" }
+            Button { disabled: true, aria_label: "Disabled native", onclick: move |_| events.write().push("disabled-native".into()), "Disabled" }
+            Button { disabled: true, href: "#disabled-link", aria_label: "Disabled link", onclick: move |_| events.write().push("disabled-link".into()), "Link" }
+            span { id: "owner-description", "Owner description" }
+            output { role: "status", aria_label: "Composition events", "{events:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn tooltip_and_button_owners_compose_once_in_order_without_a_style_fork() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(tooltip_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("composed Button description settles", || {
+            by_role_name(&root, "button", "Composed native").is_some_and(|action| {
+                action
+                    .get_attribute("aria-describedby")
+                    .unwrap_or_default()
+                    .split_ascii_whitespace()
+                    .count()
+                    == 2
+            })
+        })
+        .await;
+        let observed = || {
+            by_role_name(&root, "status", "Composition events")
+                .unwrap()
+                .text_content()
+                .unwrap()
+        };
+        let reference_class = by_role_name(&root, "button", "Reference style")
+            .unwrap()
+            .get_attribute("class");
+        for (role, label) in [("button", "Composed native"), ("link", "Composed link")] {
+            let action = by_role_name(&root, role, label).unwrap();
+            assert_eq!(action.get_attribute("class"), reference_class);
+            assert_eq!(action.get_attribute("data-slot").as_deref(), Some("button"));
+            assert_eq!(action.get_attribute("id"), Some(format!("owner-{label}")));
+            assert_eq!(action.get_attribute("data-extra").as_deref(), Some("kept"));
+            assert!(!action.has_attribute("style"));
+            let descriptions = action.get_attribute("aria-describedby").unwrap();
+            assert_eq!(
+                descriptions
+                    .split_ascii_whitespace()
+                    .filter(|id| *id == "owner-description")
+                    .count(),
+                1
+            );
+            action.focus().unwrap();
+            wait_until("Tooltip opens on the same Button focus", || {
+                by_role_name(&root, "tooltip", &format!("{label} tooltip")).is_some()
+            })
+            .await;
+            for id in descriptions.split_ascii_whitespace() {
+                assert!(document.get_element_by_id(id).is_some());
+            }
+            let key = web_sys::KeyboardEventInit::new();
+            key.set_key("Escape");
+            key.set_bubbles(true);
+            key.set_cancelable(true);
+            let escape =
+                web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key).unwrap();
+            assert!(!action.dispatch_event(&escape).unwrap());
+            assert!(escape.default_prevented());
+            action.blur().unwrap();
+            for name in ["mouseenter", "mouseleave"] {
+                let event = web_sys::MouseEvent::new(name).unwrap();
+                event.init_event_with_bubbles(name, true);
+                action.dispatch_event(&event).unwrap();
+                let open = name == "mouseenter";
+                wait_until("Tooltip mouse state changes", || {
+                    by_role_name(&root, "tooltip", &format!("{label} tooltip")).is_some() == open
+                })
+                .await;
+            }
+            for name in [
+                "pointerenter",
+                "pointerdown",
+                "pointerup",
+                "pointerleave",
+                "pointercancel",
+            ] {
+                let event = web_sys::PointerEvent::new(name).unwrap();
+                event.init_event_with_bubbles(name, true);
+                action.dispatch_event(&event).unwrap();
+            }
+            let click = web_sys::MouseEvent::new("click").unwrap();
+            click.init_event_with_bubbles_and_cancelable("click", true, true);
+            assert!(
+                action.dispatch_event(&click).unwrap(),
+                "composition keeps click's default action"
+            );
+            wait_until("composed events render", || {
+                observed().contains(&format!("{label}:owner:click"))
+            })
+            .await;
+            let log = observed();
+            for event in [
+                "focus",
+                "blur",
+                "key",
+                "enter",
+                "click",
+                "pointerdown",
+                "pointerup",
+                "pointerleave",
+                "pointercancel",
+            ] {
+                assert_eq!(
+                    log.matches(&format!("{label}:owner:{event}\"")).count(),
+                    1,
+                    "{log}"
+                );
+            }
+            for event in [
+                "enter",
+                "click",
+                "pointerdown",
+                "pointerup",
+                "pointerleave",
+                "pointercancel",
+            ] {
+                assert_eq!(
+                    log.matches(&format!("{label}:raw:{event}\"")).count(),
+                    1,
+                    "{log}"
+                );
+                assert!(
+                    log.contains(&format!("{label}:raw:{event}\", \"{label}:owner:{event}")),
+                    "{log}"
+                );
+            }
+            for (first, second) in [
+                ("tip:true", "owner:focus"),
+                ("tip:false", "owner:key"),
+                ("tip:false", "owner:blur"),
+            ] {
+                assert!(
+                    log.contains(&format!("{label}:{first}\", \"{label}:{second}")),
+                    "{log}"
+                );
+            }
+            assert_eq!(
+                log.matches(&format!("{label}:tip:true")).count(),
+                2,
+                "pointer events do not reopen Tooltip: {log}"
+            );
+            assert_eq!(
+                log.matches(&format!("{label}:tip:false")).count(),
+                3,
+                "{log}"
+            );
+        }
+        let disabled = by_role_name(&root, "button", "Disabled native").unwrap();
+        assert!(disabled.has_attribute("disabled"));
+        disabled.click();
+        let link = by_role_name(&root, "link", "Disabled link").unwrap();
+        assert!(!link.has_attribute("disabled"));
+        assert_eq!(
+            link.get_attribute("href").as_deref(),
+            Some("#disabled-link")
+        );
+        link.click();
+        wait_until("link retains its existing disabled semantics", || {
+            observed().contains("disabled-link")
+        })
+        .await;
+        assert!(!observed().contains("disabled-native"));
+        root.remove();
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
@@ -266,6 +476,156 @@ impl ButtonSize {
     }
 }
 
+// Compose platform listeners before their typed adapters, matching the public Dioxus event API.
+fn button_attributes(
+    mut attributes: Vec<Attribute>,
+    owners: Vec<Attribute>,
+    id: Option<&str>,
+    description: Option<&str>,
+) -> Vec<Attribute> {
+    let mut descriptions = Vec::new();
+    for value in description
+        .into_iter()
+        .chain(attributes.iter().filter_map(|attribute| {
+            if attribute.namespace.is_none()
+                && attribute.name == "aria-describedby"
+                && let AttributeValue::Text(value) = &attribute.value
+            {
+                Some(value.as_str())
+            } else {
+                None
+            }
+        }))
+    {
+        for token in value.split_ascii_whitespace() {
+            if !descriptions.iter().any(|existing| existing == token) {
+                descriptions.push(token.to_owned());
+            }
+        }
+    }
+    attributes.retain(|attribute| {
+        if attribute.namespace == Some("style") {
+            return false;
+        }
+        attribute.namespace.is_some()
+            || !(matches!(
+                attribute.name,
+                "class"
+                    | "style"
+                    | "data-slot"
+                    | "type"
+                    | "href"
+                    | "disabled"
+                    | "aria-label"
+                    | "aria-describedby"
+                    | "aria-current"
+                    | "aria-pressed"
+                    | "aria-expanded"
+                    | "aria-controls"
+                    | "aria-haspopup"
+                    | "title"
+            ) || (attribute.name == "id" && id.is_some()))
+    });
+    if !descriptions.is_empty() {
+        attributes.push(Attribute::new(
+            "aria-describedby",
+            descriptions.join(" "),
+            None,
+            false,
+        ));
+    }
+    for mut owner in owners {
+        if let Some(attribute) = attributes.iter_mut().find(|attribute| {
+            attribute.name == owner.name && attribute.namespace == owner.namespace
+        }) {
+            if let (AttributeValue::Listener(trigger), AttributeValue::Listener(handler)) =
+                (&attribute.value, &owner.value)
+            {
+                let trigger = trigger.clone();
+                let handler = handler.clone();
+                owner.value = AttributeValue::listener(
+                    move |event: Event<dioxus::events::PlatformEventData>| {
+                        trigger.call(event.clone().into_any());
+                        handler.call(event.into_any());
+                    },
+                );
+            }
+            *attribute = owner;
+        } else {
+            attributes.push(owner);
+        }
+    }
+    attributes
+}
+
+#[cfg(test)]
+mod attribute_tests {
+    use super::*;
+
+    #[test]
+    fn button_owns_scalars_and_styles_but_keeps_id_fallback_and_unknown_attributes() {
+        let canonical = [
+            "class",
+            "style",
+            "data-slot",
+            "type",
+            "href",
+            "disabled",
+            "aria-label",
+            "aria-current",
+            "aria-pressed",
+            "aria-expanded",
+            "aria-controls",
+            "aria-haspopup",
+            "title",
+        ];
+        let mut raw: Vec<_> = canonical
+            .iter()
+            .map(|name| Attribute::new(name, "collision", None, false))
+            .collect();
+        raw.extend([
+            Attribute::new("color", "red", Some("style"), false),
+            Attribute::new("id", "trigger-id", None, false),
+            Attribute::new("aria-describedby", "tip owner tip", None, false),
+            Attribute::new("data-extra", "kept", None, false),
+            Attribute::new("tabindex", "0", None, false),
+            Attribute::new("custom", "kept", Some("example"), false),
+        ]);
+        let merged = button_attributes(raw.clone(), vec![], None, Some("owner shared owner"));
+        assert!(
+            merged
+                .iter()
+                .all(|attribute| !canonical.contains(&attribute.name)
+                    && attribute.namespace != Some("style"))
+        );
+        for (name, value) in [
+            ("id", "trigger-id"),
+            ("aria-describedby", "owner shared tip"),
+            ("data-extra", "kept"),
+            ("tabindex", "0"),
+            ("custom", "kept"),
+        ] {
+            assert_eq!(
+                merged
+                    .iter()
+                    .find(|attribute| attribute.name == name)
+                    .unwrap()
+                    .value,
+                AttributeValue::Text(value.into())
+            );
+        }
+        assert!(
+            !button_attributes(raw, vec![], Some("owner-id"), None)
+                .iter()
+                .any(|attribute| attribute.name == "id")
+        );
+        assert!(button_attributes(vec![], vec![], None, None).is_empty());
+    }
+}
+
+/// Explicit attributes support public trigger composition. Button owns its structural/style and
+/// typed scalar attributes; id falls back to the vector, descriptions combine tokens, and raw
+/// listeners run before typed owner listeners. Other attributes pass through on both branches.
 #[component]
 pub fn Button(
     #[props(into, optional)] class: Option<String>,
@@ -293,6 +653,7 @@ pub fn Button(
     #[props(into, optional)] aria_controls: Option<String>,
     #[props(into, optional)] aria_haspopup: Option<String>,
     #[props(into, optional)] title: Option<String>,
+    #[props(default)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     let merged_class = tw_merge!(
@@ -300,6 +661,31 @@ pub fn Button(
         variant.as_str(),
         size.as_str(),
         class.as_deref().unwrap_or("")
+    );
+
+    let owners = [
+        onclick.map(|handler| dioxus::events::onclick(move |event| handler.call(event))),
+        onkeydown.map(|handler| dioxus::events::onkeydown(move |event| handler.call(event))),
+        onfocus.map(|handler| dioxus::events::onfocus(move |event| handler.call(event))),
+        onblur.map(|handler| dioxus::events::onblur(move |event| handler.call(event))),
+        onpointerenter
+            .map(|handler| dioxus::events::onpointerenter(move |event| handler.call(event))),
+        onpointerdown
+            .map(|handler| dioxus::events::onpointerdown(move |event| handler.call(event))),
+        onpointerup.map(|handler| dioxus::events::onpointerup(move |event| handler.call(event))),
+        onpointerleave
+            .map(|handler| dioxus::events::onpointerleave(move |event| handler.call(event))),
+        onpointercancel
+            .map(|handler| dioxus::events::onpointercancel(move |event| handler.call(event))),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let attributes = button_attributes(
+        attributes,
+        owners,
+        id.as_deref(),
+        aria_describedby.as_deref(),
     );
 
     if let Some(url) = href {
@@ -310,17 +696,13 @@ pub fn Button(
                 class: "{merged_class}",
                 href: url,
                 "aria-label": aria_label.as_deref(),
-                "aria-describedby": aria_describedby.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
                 "aria-expanded": aria_expanded,
                 "aria-controls": aria_controls.as_deref(),
                 "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
-                onkeydown: move |event| { if let Some(handler) = onkeydown { handler.call(event); } },
-                onfocus: move |event| { if let Some(handler) = onfocus { handler.call(event); } },
-                onblur: move |event| { if let Some(handler) = onblur { handler.call(event); } },
-                onpointerenter: move |event| { if let Some(handler) = onpointerenter { handler.call(event); } },
+                ..attributes,
                 {children}
             }
         }
@@ -333,42 +715,13 @@ pub fn Button(
                 r#type: button_type.as_deref().unwrap_or("button"),
                 disabled,
                 "aria-label": aria_label.as_deref(),
-                "aria-describedby": aria_describedby.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
                 "aria-expanded": aria_expanded,
                 "aria-controls": aria_controls.as_deref(),
                 "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
-                onkeydown: move |event| { if let Some(handler) = onkeydown { handler.call(event); } },
-                onfocus: move |event| { if let Some(handler) = onfocus { handler.call(event); } },
-                onblur: move |event| { if let Some(handler) = onblur { handler.call(event); } },
-                onpointerenter: move |event| { if let Some(handler) = onpointerenter { handler.call(event); } },
-                onclick: move |e| {
-                    if let Some(handler) = &onclick {
-                        handler.call(e);
-                    }
-                },
-                onpointerdown: move |e| {
-                    if let Some(handler) = &onpointerdown {
-                        handler.call(e);
-                    }
-                },
-                onpointerup: move |e| {
-                    if let Some(handler) = &onpointerup {
-                        handler.call(e);
-                    }
-                },
-                onpointerleave: move |e| {
-                    if let Some(handler) = &onpointerleave {
-                        handler.call(e);
-                    }
-                },
-                onpointercancel: move |e| {
-                    if let Some(handler) = &onpointercancel {
-                        handler.call(e);
-                    }
-                },
+                ..attributes,
                 {children}
             }
         }
