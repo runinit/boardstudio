@@ -4,6 +4,7 @@ use boardstudio_web_ui_shared::{
     panels::{PanelSide, use_panel_settings},
     ui::{
         button::Button,
+        select::{Select, SelectOption},
         sheet::{Sheet, SheetClose, SheetContent, SheetDirection, SheetTrigger},
         sidenav::Sidenav,
     },
@@ -41,6 +42,10 @@ fn fixture() -> Element {
                         p { "The canvas remains interactive." }
                         Button { onclick: move |_| {}, "Sheet action" }
                         SheetClose { "Close settings" }
+                        Select::<String> { aria_label: "Sheet choice",
+                            SelectOption::<String> { index: 0usize, value: "one", "One" }
+                            SelectOption::<String> { index: 1usize, value: "two", "Two" }
+                        }
                     }
                 }
             }

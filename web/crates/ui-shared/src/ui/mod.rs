@@ -16,6 +16,7 @@ pub mod item;
 pub mod kbd;
 pub mod label;
 pub mod separator;
+pub mod sidenav;
 pub mod skeleton;
 pub mod spinner;
 pub mod stepper;
@@ -39,6 +40,8 @@ pub mod dropdown_menu;
 pub mod popover;
 #[cfg(target_arch = "wasm32")]
 pub mod select;
+#[cfg(target_arch = "wasm32")]
+pub mod sheet;
 #[cfg(target_arch = "wasm32")]
 pub mod slider;
 #[cfg(target_arch = "wasm32")]
