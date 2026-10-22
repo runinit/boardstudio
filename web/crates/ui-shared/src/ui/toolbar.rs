@@ -37,7 +37,7 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
 #[component]
 pub fn ToolbarButton(props: ToolbarButtonProps) -> Element {
     let base = attributes!(button {
-        class: "inline-flex items-center justify-center gap-2 rounded-sm px-2 h-8 text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring bg-transparent hover:bg-accent hover:text-accent-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
+        class: "inline-flex items-center justify-center gap-2 rounded-sm px-2 h-control-compact text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring bg-transparent hover:bg-accent hover:text-accent-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
         "data-slot": "toolbar-button",
     });
     let merged = merge_attributes(vec![base, props.attributes]);

@@ -26,27 +26,17 @@ pub enum BadgeVariant {
 impl BadgeVariant {
     const fn as_str(&self) -> &'static str {
         match self {
-            Self::Default => {
-                "border-transparent shadow bg-primary text-primary-foreground hover:bg-primary/80"
-            }
-            Self::Secondary => {
-                "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            }
-            Self::Accent => {
-                "border-transparent bg-accent text-accent-foreground hover:bg-accent/80"
-            }
-            Self::Muted => "border-transparent bg-muted text-muted-foreground hover:bg-muted/80",
+            Self::Default => "shadow bg-primary text-primary-foreground hover:bg-primary/80",
+            Self::Secondary => "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+            Self::Accent => "bg-accent text-accent-foreground hover:bg-accent/80",
+            Self::Muted => "bg-muted text-muted-foreground hover:bg-muted/80",
             Self::Destructive => {
-                "border-transparent shadow bg-destructive text-destructive-foreground hover:bg-destructive/80"
+                "shadow bg-destructive text-destructive-foreground hover:bg-destructive/80"
             }
             Self::Outline => "text-foreground",
-            Self::Success => {
-                "border-transparent bg-success-light text-success-dark hover:bg-success-light/80"
-            }
-            Self::Warning => {
-                "border-transparent bg-warning-light text-warning-dark hover:bg-warning-light/80"
-            }
-            Self::Info => "border-transparent bg-info-light text-info-dark hover:bg-info-light/80",
+            Self::Success => "bg-success-light text-success-dark hover:bg-success-light/80",
+            Self::Warning => "bg-warning-light text-warning-dark hover:bg-warning-light/80",
+            Self::Info => "bg-info-light text-info-dark hover:bg-info-light/80",
         }
     }
 }

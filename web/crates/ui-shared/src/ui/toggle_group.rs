@@ -41,7 +41,7 @@ pub fn ToggleGroup(props: ToggleGroupProps) -> Element {
 #[component]
 pub fn ToggleItem(props: ToggleItemProps) -> Element {
     let base = attributes!(button {
-        class: "inline-flex flex-1 gap-2 justify-center items-center px-2 min-w-0 h-8 rounded-sm text-sm font-medium whitespace-nowrap bg-transparent shadow-none outline-none focus:z-10 focus-visible:z-10 disabled:opacity-50 disabled:pointer-events-none data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 transition-[color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        class: "inline-flex flex-1 gap-2 justify-center items-center px-2 min-w-0 h-control-compact rounded-sm text-sm font-medium whitespace-nowrap bg-transparent shadow-none outline-none focus:z-10 focus-visible:z-10 disabled:opacity-50 disabled:pointer-events-none data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 transition-[color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         "data-slot": "toggle-group-item",
     });
     let merged = merge_attributes(vec![base, props.attributes]);

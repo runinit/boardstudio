@@ -8,8 +8,8 @@
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
 //!   appended, not `tw_merge`d;
 //! - every part carries a `data-slot` (theme contract section 9);
-//! - the trigger is filled with `bg-field` and has no border, cards style (theme contract section 8); the floating
-//! -   list keeps its border; focus rings kept;
+//! - built-in trigger and floating-list borders removed, cards style (theme contract section 8); focus rings kept;
+//! - control height reads the shared theme-independent metric;
 //! - upstream's scroll arrows (`use_can_scroll_vertical`) are dropped: the list scrolls natively;
 //! - icons come from `crate::ui::icons` (ticket 004);
 //! - the list's accessible name and focus return are ticket 006 (accessibility floor).
@@ -40,13 +40,13 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
             typeahead_timeout: props.typeahead_timeout,
             attributes: merged,
             select::SelectTrigger {
-                class: "w-full p-2 h-9 inline-flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap rounded-md transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 bg-field hover:bg-accent hover:text-accent-foreground [&_[data-placeholder=true]]:text-muted-foreground",
+                class: "w-full p-2 h-control inline-flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap rounded-md transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 bg-field hover:bg-accent hover:text-accent-foreground [&_[data-placeholder=true]]:text-muted-foreground",
                 "data-slot": "select-trigger",
                 select::SelectValue {}
                 ChevronDown { class: "text-muted-foreground" }
             }
             select::SelectList {
-                class: "absolute top-[calc(100%+4px)] left-0 min-w-full z-50 p-1 rounded-md border bg-card shadow-md max-h-[300px] overflow-auto transition-all duration-200 origin-top data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
+                class: "absolute top-[calc(100%+4px)] left-0 min-w-full z-50 p-1 rounded-md bg-card shadow-md max-h-[300px] overflow-auto transition-all duration-200 origin-top data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
                 "data-slot": "select-content",
                 {props.children}
             }

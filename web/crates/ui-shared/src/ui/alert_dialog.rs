@@ -76,7 +76,7 @@ pub fn AlertDialogActions(props: AlertDialogActionsProps) -> Element {
 #[component]
 pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
     let base = attributes!(button {
-        class: "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-secondary text-secondary-foreground shadow-xs hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        class: "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-secondary text-secondary-foreground shadow-xs hover:bg-accent hover:text-accent-foreground h-control px-4 py-2 cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         "data-slot": "alert-dialog-cancel",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
@@ -88,7 +88,7 @@ pub fn AlertDialogCancel(props: AlertDialogCancelProps) -> Element {
 #[component]
 pub fn AlertDialogAction(props: AlertDialogActionProps) -> Element {
     let base = attributes!(button {
-        class: "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 h-9 px-4 py-2 cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        class: "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 h-control px-4 py-2 cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         "data-slot": "alert-dialog-action",
     });
     let merged = merge_attributes(vec![base, props.attributes]);

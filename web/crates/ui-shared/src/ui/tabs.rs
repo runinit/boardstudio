@@ -41,7 +41,7 @@ pub fn Tabs(props: TabsProps) -> Element {
 #[component]
 pub fn TabsList(props: TabListProps) -> Element {
     let base = attributes!(div {
-        class: "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground bg-muted group-data-[orientation=horizontal]/tabs:h-8 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
+        class: "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground bg-muted group-data-[orientation=horizontal]/tabs:h-control-compact group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
         "data-slot": "tabs-list",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
@@ -53,7 +53,7 @@ pub fn TabsList(props: TabListProps) -> Element {
 #[component]
 pub fn TabsTrigger(props: TabTriggerProps) -> Element {
     let base = attributes!(button {
-        class: "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap transition-all cursor-pointer select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start text-foreground/60 hover:text-foreground data-[state=active]:text-foreground data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:bg-input/30",
+        class: "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-0.5 text-sm font-medium whitespace-nowrap transition-all cursor-pointer select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start text-foreground/60 hover:text-foreground data-[state=active]:text-foreground data-[state=active]:bg-background data-[state=active]:shadow-sm dark:data-[state=active]:bg-input/30",
         "data-slot": "tabs-trigger",
     });
     let merged = merge_attributes(vec![base, props.attributes]);

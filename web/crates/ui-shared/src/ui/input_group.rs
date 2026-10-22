@@ -14,7 +14,7 @@ use crate::ui::input::InputType;
 #[component]
 pub fn InputGroup(#[props(into, optional)] class: Option<String>, children: Element) -> Element {
     let merged = tw_merge!(
-        "group/input-group bg-field relative flex w-full items-center rounded-md transition-[color,box-shadow] outline-none h-9 min-w-0 has-[>textarea]:h-auto has-[>[data-align=inline-start]]:[&>input]:pl-2 has-[>[data-align=inline-end]]:[&>input]:pr-2 has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
+        "group/input-group bg-field relative flex w-full items-center rounded-md transition-[color,box-shadow] outline-none h-control min-w-0 has-[>textarea]:h-auto has-[>[data-align=inline-start]]:[&>input]:pl-2 has-[>[data-align=inline-end]]:[&>input]:pr-2 has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3 has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px] has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
         class.as_deref().unwrap_or("")
     );
     rsx! {
@@ -113,9 +113,9 @@ impl InputGroupButtonSize {
             Self::Xs => {
                 "h-6 gap-1 px-2 rounded-[calc(var(--radius)-5px)] [&>svg:not([class*='size-'])]:size-3.5 has-[>svg]:px-2"
             }
-            Self::Sm => "h-8 px-2.5 gap-1.5 rounded-md has-[>svg]:px-2.5",
+            Self::Sm => "h-control-compact px-2.5 gap-1.5 rounded-md has-[>svg]:px-2.5",
             Self::IconXs => "size-6 rounded-[calc(var(--radius)-5px)] p-0 has-[>svg]:p-0",
-            Self::IconSm => "size-8 p-0 has-[>svg]:p-0",
+            Self::IconSm => "size-control-compact p-0 has-[>svg]:p-0",
         }
     }
 }
@@ -167,7 +167,7 @@ pub fn InputGroupInput(
 ) -> Element {
     let merged = tw_merge!(
         "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
-        "placeholder:text-muted-foreground h-9 w-full min-w-0 px-3 py-1 text-base outline-none transition-[color,box-shadow]",
+        "placeholder:text-muted-foreground h-control w-full min-w-0 px-3 py-1 text-base outline-none transition-[color,box-shadow]",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         class.as_deref().unwrap_or("")
     );

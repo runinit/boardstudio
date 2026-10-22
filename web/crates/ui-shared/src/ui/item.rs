@@ -3,7 +3,7 @@
 //! `web/assets/licenses/rust-ui-MIT.txt`). Upstream changes are pulled in by hand.
 //!
 //! Edits to the upstream file:
-//! - built-in borders removed, cards style (theme contract section 8); focus rings kept (icon media); the opt-in `Outline` variant keeps its border
+//! - built-in borders removed, cards style (theme contract section 8); focus rings kept
 //! - every root element carries a `data-slot` (theme contract section 9)
 
 use dioxus::prelude::*;
@@ -21,8 +21,7 @@ impl ItemVariant {
     #[must_use]
     pub const fn class(self) -> &'static str {
         match self {
-            Self::Default => "bg-transparent",
-            Self::Outline => "border-border",
+            Self::Default | Self::Outline => "bg-transparent",
             Self::Muted => "bg-muted/50",
         }
     }
@@ -68,7 +67,7 @@ impl ItemMediaVariant {
     }
 }
 
-const ITEM_BASE: &str = "group/item flex items-center border border-transparent text-sm rounded-md transition-colors [a]:hover:bg-accent/50 [a]:transition-colors duration-100 flex-wrap outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
+const ITEM_BASE: &str = "group/item flex items-center text-sm rounded-md transition-colors [a]:hover:bg-accent/50 [a]:transition-colors duration-100 flex-wrap outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]";
 
 const ITEM_MEDIA_BASE: &str = "flex shrink-0 items-center justify-center gap-2 group-has-[[data-slot=item-description]]/item:self-start [&_svg]:pointer-events-none group-has-[[data-slot=item-description]]/item:translate-y-0.5";
 

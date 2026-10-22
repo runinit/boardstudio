@@ -78,7 +78,7 @@ pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Elem
             attributes: merged,
             div { class: "relative", "data-slot": "combobox-input-wrapper",
                 combobox::ComboboxInput {
-                    class: "text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-9 w-full min-w-0 rounded-md bg-field pl-3 pr-8 py-1 text-base transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:ring-ring/50 focus-visible:ring-2",
+                    class: "text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-control w-full min-w-0 rounded-md bg-field pl-3 pr-8 py-1 text-base transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:ring-ring/50 focus-visible:ring-2",
                     "data-slot": "combobox-input",
                     placeholder: props.placeholder,
                     aria_label: props.aria_label.clone(),
@@ -86,7 +86,7 @@ pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Elem
                 ChevronsUpDown { class: "pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" }
             }
             combobox::ComboboxList {
-                class: "absolute top-[calc(100%+4px)] left-0 min-w-full z-50 p-1 rounded-md border bg-card shadow-md max-h-[300px] overflow-auto transition-all duration-200 origin-top data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
+                class: "absolute top-[calc(100%+4px)] left-0 min-w-full z-50 p-1 rounded-md bg-card shadow-md max-h-[300px] overflow-auto transition-all duration-200 origin-top data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
                 "data-slot": "combobox-list",
                 aria_label: props.list_aria_label.clone(),
                 {props.children}

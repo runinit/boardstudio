@@ -8,8 +8,8 @@
 //! - rust-ui classes go on the primitive's parts through `merge_attributes`, so a caller's `class` is
 //!   appended, not `tw_merge`d;
 //! - every part carries a `data-slot` (theme contract section 9);
-//! - the trigger is filled (`bg-secondary`) instead of outlined, cards style (theme contract section 8); the floating
-//! -   content keeps its border;
+//! - built-in trigger and floating-content borders removed, cards style (theme contract section 8); focus rings kept;
+//! - control height reads the shared theme-independent metric;
 //! - only the parts the primitive drives are kept (menu, trigger, content, item) plus the presentational label, group
 //! -   and separator; sub-menus, links and radio items wait for ticket 007, which also fixes the roles and focus
 //! -   ([accessibility floor](../../../../../docs/plans/rust-ui-migration/accessibility-floor.md)).
@@ -41,7 +41,7 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
 #[component]
 pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
     let base = attributes!(button {
-        class: "px-4 py-2 h-9 inline-flex justify-center items-center text-sm font-medium whitespace-nowrap rounded-md transition-colors w-fit focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+        class: "px-4 py-2 h-control inline-flex justify-center items-center text-sm font-medium whitespace-nowrap rounded-md transition-colors w-fit focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg:not([class*='size-'])]:size-4 bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
         "data-slot": "dropdown-menu-trigger",
     });
     let merged = merge_attributes(vec![base, props.attributes]);
@@ -53,7 +53,7 @@ pub fn DropdownMenuTrigger(props: DropdownMenuTriggerProps) -> Element {
 #[component]
 pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
     let base = attributes!(div {
-        class: "absolute top-full left-0 mt-1 z-50 p-1 min-w-[180px] rounded-md border bg-card shadow-md h-fit transition-all duration-200 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
+        class: "absolute top-full left-0 mt-1 z-50 p-1 min-w-[180px] rounded-md bg-card shadow-md h-fit transition-all duration-200 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
         "data-slot": "dropdown-menu-content",
     });
     let merged = merge_attributes(vec![base, props.attributes.clone()]);
