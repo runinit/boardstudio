@@ -117,10 +117,21 @@ def main():
     browser("wait", '[aria-label="Snap"][aria-expanded="true"]')
     action("button", "Snap", "focus")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Keyboard test must focus Snap');")
+    check("""
+        window.paletteSnapEvents = [];
+        for (const type of ['keydown', 'keyup', 'click']) document.activeElement.addEventListener(type, e => paletteSnapEvents.push({type, key:e.key, trusted:e.isTrusted}));
+    """)
     browser("press", "Enter")
     browser("wait", '[aria-label="Snap"][aria-expanded="false"]')
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Snap must retain focus after Enter');")
+    check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 1) throw Error('Enter must toggle once');")
     browser("press", "Space")
     browser("wait", '[aria-label="Snap"][aria-expanded="true"]')
+    check("""
+        if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Snap must retain focus after Space');
+        if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once');
+        if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
+    """)
     browser("press", "Control+k")
     opened()
     action("combobox", "Search commands and objects", "fill", "Position & rotation")

@@ -8597,13 +8597,23 @@ fn Editor() -> Element {
     let on_fit_keymap_board = EventHandler::new(on_fit_keymap_board);
     let on_zoom_keymap_out = EventHandler::new(on_zoom_keymap_out);
     let on_zoom_keymap_in = EventHandler::new(on_zoom_keymap_in);
-    let mut palette_commands = command_palette::editor_commands(
-        &model,
-        active_workspace,
-        &render_scope,
-        render_generation,
-        workspace_routing.select_tree,
-    );
+    let object_commands = use_memo(use_reactive(
+        (
+            &accepted_canvas_source,
+            &snapshot.token,
+            &render_scope,
+            &render_generation,
+            &active_workspace,
+        ),
+        {
+            let model = model.clone();
+            let on_select = workspace_routing.select_tree;
+            move |(_, _, scope, generation, workspace)| {
+                command_palette::editor_commands(&model, workspace, &scope, generation, on_select)
+            }
+        },
+    ));
+    let mut palette_commands = object_commands();
     if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d()
     {
         for (label, on_select) in [

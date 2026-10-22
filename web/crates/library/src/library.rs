@@ -539,6 +539,7 @@ pub fn Library(
     });
     use_effect({
         let current = current.clone();
+        let runtime = runtime.clone();
         move || {
             let Some(mut request) = tool_request else {
                 return;
@@ -551,6 +552,11 @@ pub fn Library(
                 ProjectTool::Rename(id) => {
                     if let Some(current) = &current
                         && current.id == id
+                        && runtime
+                            .model()
+                            .accepted
+                            .as_ref()
+                            .is_some_and(|s| s.document.id == id)
                     {
                         selected_project.set(Some(current.clone()));
                         rename_tool_open.set(true);

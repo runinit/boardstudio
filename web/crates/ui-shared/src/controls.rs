@@ -11,6 +11,7 @@ use dioxus_primitives::{
     toggle::Toggle,
     toolbar::{Toolbar, ToolbarButton},
 };
+use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -144,7 +145,16 @@ pub fn BoardAccordionSection(
         return rsx! {
             Collapsible { open, on_open_change, class: "board-accordion {class}",
                 attributes: vec![dioxus::events::onkeydown(move |event| onkeydown.call(event))],
-                CollapsibleTrigger { id, class: "board-accordion-trigger", aria_label: label, {heading} }
+                CollapsibleTrigger { id, class: "board-accordion-trigger", aria_label: label,
+                    attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                        // Layout's window Space-pan listener must not consume this button's native activation.
+                        if event.key().to_string() == " " {
+                            event.stop_propagation();
+                            if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                        }
+                    })],
+                    {heading}
+                }
                 CollapsibleContent { class: "board-accordion-content", {children} }
             }
         };

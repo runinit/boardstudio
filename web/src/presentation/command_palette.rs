@@ -89,7 +89,13 @@ fn PaletteLifetime(on_closed: EventHandler<()>) -> Element {
 #[component]
 pub(super) fn CommandPalette(state: PaletteState) -> Element {
     let registry = use_context::<CommandRegistry>();
-    let registered_commands = use_memo(move || registry.commands());
+    let registered_commands = use_memo(move || {
+        if (state.open)() {
+            registry.commands()
+        } else {
+            Vec::new()
+        }
+    });
     let mut query = use_signal(String::new);
     let open = (state.open)();
     let on_show = use_callback(move |()| state.show());
