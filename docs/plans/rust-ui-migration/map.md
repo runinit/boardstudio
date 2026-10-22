@@ -24,7 +24,7 @@ decided.
   look-and-feel; `research` for research tickets.
 - Settled scope (2026-10-21, user): rust-ui supplies the look and `dioxus-primitives` the
   behaviour; no inline scripts or ownerless document listeners in copied code; restructuring
-  the app (workspaces, panels, navigation) is in scope, canvases are not; call components
+  the app shell follows ADR-0035 and canvases are out of scope; call components
   directly and delete the `Board*` wrappers; copy source to `web/crates/ui-shared/src/ui/<name>.rs` with an
   upstream-commit provenance note and manual re-sync; rust-ui colour names only, `--wb-*`
   and legacy CSS retired; icon set open (see 008); Theme is a saved preference, Original by
@@ -44,6 +44,7 @@ decided.
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; blocked by: None
 - [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; blocked by: None
+- [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md) — `wayfinder:grilling`; blocked by: None
 - [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md) — `wayfinder:grilling`; blocked by: None
 - [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md) — `wayfinder:task`; blocked by: None
 - [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md) — `wayfinder:grilling`; blocked by: 003
@@ -55,6 +56,7 @@ decided.
 
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md): no Solar exists in the app; rust-ui uses 35 Lucide icons; icon set reopened as 008.
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md): [inventory](inventory.md) of 210 components, 397 `Board*` uses and 331 raw controls with an 88-file sweep checklist; wrappers cover about half the controls.
+- [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md): rebuild the header like rust-ui.com's, docks on Sidenav with a non-modal Sheet on narrow screens, drop auto-hide, add a Command palette and Toasts ([ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md)).
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md): button, popover, select and dialog compile and run on 0.7.10 with `tw_merge`, `strum`, `icons` and one `Link` edit; inline scripts execute; keyboard and ARIA gaps confirmed in a browser.
 - [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md): rust-ui supplies the look, `dioxus-primitives` the behaviour; no inline scripts; accessibility measured (010); restructuring added to scope (011).
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md): 86 components; overlays/Select/Tabs/Switch uncontrolled with thin keyboard and ARIA (→ 009); shadcn token set plus extras, with gaps.
@@ -71,7 +73,7 @@ decided.
   and keyboard behaviour must be re-proven, feeding the test-rewrite rules.
 - Legacy CSS retirement order across lanes, and layout rules in `m1.css` that are not
   component styling.
-- Sweep checklist for the ~200 app-specific components, per workspace.
+- Shell build details: customising Sheet to be non-modal, extracting Sidenav's classes, per-side dock resize and persisted widths, a fallback for saved auto-hide preferences, the header's mobile menu, and the DESIGN.md rewrite.
 
 ## Out of scope
 

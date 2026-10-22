@@ -350,3 +350,15 @@ _Avoid_: skin, palette
 Whether the workbench is shown light, dark, or following the system setting. Every
 Theme has both a light and a dark form.
 _Avoid_: theme (for light/dark), color mode
+
+**Workspace**:
+One of the main working views of a project: Layout, PCB, Keymap, Keycaps, Case or Parts. It is chosen
+from the header and shows its own canvas with the Objects and Inspector docks. Export is a separate
+page, not a workspace.
+_Avoid_: stage, mode, Design (the former name of Layout)
+
+**Dock**:
+One of the two side panels beside the canvas: Objects on the left and Inspector on the right. A dock is
+either shown beside the canvas or collapsed, and on narrow screens both appear as one sheet over the
+lower part of the screen so the canvas stays visible.
+_Avoid_: sidebar, drawer, pane

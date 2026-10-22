@@ -1,6 +1,6 @@
 # 011: Target structure of the workbench around rust-ui patterns
 
-Status: claimed
+Status: resolved
 Type: grilling
 Blocked by: [003](003-inventory-existing-ui.md)
 Parent: [Map](../map.md)
@@ -48,3 +48,20 @@ Facts read from rust-ui at `7120636e` (not run in a browser):
 - Our vocabulary: GLOSSARY.md has no "workspace" or "dock"; PRODUCT.md names the workspaces Design / PCB /
   Case / Parts / Export while the header shows Layout / PCB / Keymap / Keycaps / Case / Parts; DESIGN.md
   says in one section that workspace links are header tabs and in another that they are Objects-dock links.
+
+## Answer
+
+Decided with the user, 2026-10-21. Recorded in
+[ADR-0035](../../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md); terms **Workspace** and
+**Dock** added to the glossary; PRODUCT.md renamed Design to Layout.
+
+- **Header:** copies rust-ui.com's composition (sticky 56px, bordered, solid), with a ⌘K Command search,
+  one theme control for Theme and Appearance (built by [005](005-theme-structure.md)), and Export as the
+  primary button. Project and Settings become Dropdown Menus; Workspace links stay in the header.
+- **Docks:** Sidenav layout and classes for pinned and collapsed docks; our own resize and per-side
+  persisted widths. **Auto-hide is dropped.** Narrow screens: one non-modal Sheet for every Workspace.
+- **Added capabilities:** Command palette (existing actions only) and Toasts for transient results.
+- **Kept:** Layout's two strips and the Stationary Controls Rule, rebuilt on Toolbar, Toggle Group and
+  Dropdown Menu. Old layout commitments are defaults that the spec may relax with a stated reason.
+- **Follow-on:** the palette's action list becomes [012](012-command-palette-contents.md); DESIGN.md is
+  rewritten as a build step.
