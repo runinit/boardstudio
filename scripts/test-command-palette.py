@@ -128,7 +128,7 @@ def main():
                     assert.equal(held.prevented, false, 'Space default must remain unprevented');
                 } else {
                     const bounds = JSON.parse(box);
-                    const x = bounds.x + bounds.width * 0.55, y = bounds.y + bounds.height * 0.55;
+                    const x = bounds.x + bounds.width * 0.8, y = bounds.y + bounds.height * 0.75;
                     await input('dispatchMouseEvent', {type:'mouseMoved', x, y});
                     await input('dispatchMouseEvent', {type:'mousePressed', x, y, button:'left', buttons:1, clickCount:1});
                     await input('dispatchMouseEvent', {type:'mouseMoved', x:x+75, y:y+40, button:'left', buttons:1});
@@ -152,7 +152,19 @@ def main():
             window.palettePanEvents = [];
             for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) canvas.addEventListener(type, e => palettePanEvents.push({type, trusted:e.isTrusted}));
         """)
-        box = json.loads(browser("eval", "(() => { const b = document.activeElement.getBoundingClientRect(); return {x:b.x, y:b.y, width:b.width, height:b.height}; })()"))
+        box = json.loads(browser("eval", """(() => {
+            const canvas=document.activeElement,b=canvas.getBoundingClientRect(),samples=[];
+            for (const fraction of [0,.25,.5,.75,1]) {
+                const x=b.x+b.width*.8+75*fraction,y=b.y+b.height*.75+40*fraction;
+                const hit=document.elementFromPoint(x,y);
+                if (!hit || !canvas.contains(hit) || (hit!==canvas && hit.ownerSVGElement!==canvas)) throw Error('Pan path must hit the actual SVG surface');
+                for (let node=hit;node && node!==canvas;node=node.parentElement) {
+                    if (node.matches('button,a[href],input,select,textarea,[role=button],[role=checkbox],[role=menuitem],[contenteditable=true],[tabindex]:not([tabindex="-1"])')) throw Error('Pan path must avoid interactive SVG controls');
+                }
+                samples.push({x,y,tag:hit.tagName,role:hit.getAttribute('role')});
+            }
+            return {x:b.x,y:b.y,width:b.width,height:b.height,samples};
+        })()"""))
         held_space('pan', box)
         browser("wait", "--fn", f"document.querySelector({json.dumps(canvas)}).getAttribute('viewBox') !== palettePanBefore")
         check("""

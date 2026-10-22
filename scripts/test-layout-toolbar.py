@@ -127,7 +127,7 @@ def snap_checkbox_tests(url, *, fixture=False):
     browser("mouse", "down")
     browser("mouse", "up")
     # Label text must also respect the same disabled owner.
-    point = evaluate("(()=>{const r=snapBox.closest('label').getBoundingClientRect();return {x:r.right-8,y:r.y+r.height/2}})()")
+    point = evaluate("(()=>{const label=snapBox.closest('label'),text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()===snapBox.getAttribute('aria-label'));const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
     browser("mouse", "move", round(point["x"]), round(point["y"]))
     browser("mouse", "down")
     browser("mouse", "up")
