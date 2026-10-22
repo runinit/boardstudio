@@ -1,6 +1,6 @@
 //! Project menu pieces shared by the shell's menu and the Library page.
 use boardstudio_application::Durability;
-use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
+use boardstudio_web_ui_model::state::{AppearanceState, PreferenceStorageWarning, ThemeState};
 use dioxus::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
@@ -27,8 +27,10 @@ pub fn close_project_menu() {
     }
 }
 
+/// The Appearance and Theme choices (ticket 010 moves both into the header).
 #[component]
 pub fn ThemePicker() -> Element {
+    let mut appearance = use_context::<AppearanceState>().0;
     let mut theme = use_context::<ThemeState>().0;
     let preference_warning = use_context::<PreferenceStorageWarning>().0;
     rsx! {
@@ -36,15 +38,28 @@ pub fn ThemePicker() -> Element {
             class: "m1-theme-picker",
             label: "Appearance",
             aria_label: "Color theme",
-            value: theme().to_string(),
+            value: appearance().to_string(),
             onchange: move |event: FormEvent| {
                 let preference = match event.value().as_str() { "light" => "light", "dark" => "dark", _ => "system" };
-                crate::panels::write_theme_preference(preference_warning, preference);
-                theme.set(preference);
+                crate::panels::write_appearance_preference(preference_warning, preference);
+                appearance.set(preference);
             },
             option { value: "system", "System" }
             option { value: "light", "Light" }
             option { value: "dark", "Dark" }
+        }
+        crate::controls::BoardSelectField {
+            class: "m1-theme-picker",
+            label: "Theme",
+            aria_label: "Workbench theme",
+            value: theme().to_string(),
+            onchange: move |event: FormEvent| {
+                let preference = if event.value() == "shadcn" { "shadcn" } else { "original" };
+                crate::panels::write_workbench_theme_preference(preference_warning, preference);
+                theme.set(preference);
+            },
+            option { value: "original", "Original" }
+            option { value: "shadcn", "shadcn" }
         }
     }
 }

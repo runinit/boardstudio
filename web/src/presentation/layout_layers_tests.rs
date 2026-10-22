@@ -67,9 +67,9 @@ fn host() -> Element {
     let warning = use_signal(|| false);
     use_context_provider(|| PreferenceStorageWarning(warning));
     let theme = use_signal(|| "light");
-    use_context_provider(|| ThemeState(theme));
+    use_context_provider(|| AppearanceState(theme));
     let resolved = use_memo(|| "light");
-    use_context_provider(|| ResolvedTheme(resolved));
+    use_context_provider(|| ResolvedAppearance(resolved));
     let selected = use_signal(|| None);
     let anchor = use_signal(|| None);
     let generation = use_signal(|| 0u64);

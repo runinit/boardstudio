@@ -19,6 +19,7 @@ pub mod footprint_forms;
 pub mod layout_camera;
 pub mod owned_edits;
 pub mod pending_edit_helpers;
+pub mod ui;
 
 #[cfg(target_arch = "wasm32")]
 pub mod board_reference_effect;
@@ -45,6 +46,9 @@ pub mod project_menu;
 // Bounded waits for the browser tests of the workspace crates (test-support only).
 #[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
 pub mod test_wait;
+// Finds controls by accessible role and name, as a user or assistive technology would (test-support only).
+#[cfg(all(target_arch = "wasm32", any(test, feature = "test-support")))]
+pub mod test_role;
 // Panel policy is plain logic; compile it natively too so its unit tests run under `cargo test`.
 #[cfg(not(target_arch = "wasm32"))]
 mod panels {

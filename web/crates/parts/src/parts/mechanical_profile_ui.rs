@@ -313,7 +313,7 @@ mod mounted_tests {
         let workspace = use_signal(|| "Parts");
         use_context_provider(|| WorkspaceState(workspace));
         let theme = use_memo(|| "light");
-        use_context_provider(|| super::super::super::ResolvedTheme(theme));
+        use_context_provider(|| super::super::super::ResolvedAppearance(theme));
         let version = use_signal(|| 0_u64);
         use_context_provider(|| version);
         let _ = version();

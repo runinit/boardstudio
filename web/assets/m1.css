@@ -48,7 +48,7 @@
   --wb-header-height: 64px; --wb-footer-height: 52px;
   --wb-dock-left: clamp(240px, 18vw, 288px); --wb-dock-right: clamp(280px, 20vw, 336px);
 }
-:root[data-theme='dark'] {
+:root[data-appearance='dark'] {
   color-scheme: dark;
   --wb-selection-ink: #D5DDFF; --wb-paper: #1B1E25; --wb-canvas: #181B21;
   --wb-panel: #242831; --wb-raised: #373E4B; --wb-surface-soft: #2C323D;
@@ -72,12 +72,12 @@
 * { box-sizing: border-box; }
 html, body, #main { width: 100%; height: 100%; margin: 0; }
 body { overflow: hidden; background: var(--wb-paper); color: var(--wb-ink); font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
-button, input, select { min-width: 0; color: inherit; border: 1px solid var(--wb-rule-control); border-radius: var(--wb-radius-control); padding: 6px 9px; font: inherit; }
-button { min-height: 36px; border-color: transparent; background: var(--wb-surface-soft); cursor: pointer; }
-input, select { background: var(--wb-field); }
-button:disabled { opacity: .5; cursor: default; }
-button:hover:not(:disabled) { border-color: transparent; background: var(--wb-raised); }
-:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+button:where(:not([data-slot])), input:where(:not([data-slot])), select:where(:not([data-slot])) { min-width: 0; color: inherit; border: 1px solid var(--wb-rule-control); border-radius: var(--wb-radius-control); padding: 6px 9px; font: inherit; }
+button:where(:not([data-slot])) { min-height: 36px; border-color: transparent; background: var(--wb-surface-soft); cursor: pointer; }
+input:where(:not([data-slot])), select:where(:not([data-slot])) { background: var(--wb-field); }
+button:where(:not([data-slot])):disabled { opacity: .5; cursor: default; }
+button:where(:not([data-slot])):hover:not(:disabled) { border-color: transparent; background: var(--wb-raised); }
+:focus-visible:where(:not([data-slot])) { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 h1, h2, p { margin-top: 0; }
 h1 { font-size: var(--wb-type-title); line-height: 1.2; margin-bottom: var(--wb-space-2); }
 h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 650; }
@@ -1342,9 +1342,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-empty-cursor svg { width: 20px; height: 20px; fill: var(--wb-panel); stroke: currentColor; stroke-width: 1.4; }
 .m1-canvas-empty h2 { margin: 0; color: var(--wb-ink); font: 600 18px var(--wb-display); letter-spacing: -.03em; }
 .m1-canvas-empty p { max-width: 28ch; margin: 8px 0 17px; color: var(--wb-muted); font-size: 12px; line-height: 1.55; }
-.m1-empty-primary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 34px; padding: 0 13px; border: 1px solid var(--wb-accent); border-radius: 4px; background: var(--wb-accent); color: var(--wb-on-accent); font: 400 13px var(--wb-body); }
-.m1-empty-primary svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.m1-empty-secondary { min-height: 40px; margin-top: 6px; padding: 8px; border: 0; background: transparent; color: var(--wb-ink); font: 400 13px var(--wb-body); }
 .m1-canvas-placement-hint { position: absolute; right: 17px; bottom: 62px; display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--wb-rule); border-radius: 4px; color: var(--wb-muted); background: var(--wb-panel); box-shadow: 0 4px 14px #24373312; font-size: 10px; pointer-events: none; }
 
 /* The saved assembly editor stays inside Parts' existing inspector and draft owner. */

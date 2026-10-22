@@ -53,12 +53,14 @@ pub(crate) use boardstudio_web_ui_model::selection::{
 };
 #[cfg(test)]
 pub(crate) use boardstudio_web_ui_model::state::use_empty_test_instance_selection;
+pub(crate) use boardstudio_web_ui_model::state::{
+    AppearanceState, PreferenceStorageWarning, ThemeState,
+};
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedTheme, WorkspaceState,
+    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedAppearance, WorkspaceState,
 };
-pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     coordinates, coordinates_at, pointer_location,
 };
@@ -536,25 +538,27 @@ pub fn App() -> Element {
     use_context_provider(|| layer_visibility);
     let preference_warning = use_signal(|| false);
     use_context_provider(|| PreferenceStorageWarning(preference_warning));
-    let theme = use_signal(move || panels::read_theme_preference(preference_warning));
-    let system_theme = use_signal(read_system_theme);
+    let appearance = use_signal(move || panels::read_appearance_preference(preference_warning));
+    let system_appearance = use_signal(read_system_appearance);
+    use_context_provider(|| AppearanceState(appearance));
+    let theme = use_signal(move || panels::read_workbench_theme_preference(preference_warning));
     use_context_provider(|| ThemeState(theme));
-    let resolved_theme = use_memo(move || {
-        let preference = theme();
+    let resolved_appearance = use_memo(move || {
+        let preference = appearance();
         if preference == "system" {
-            system_theme()
+            system_appearance()
         } else {
             preference
         }
     });
-    use_context_provider(|| ResolvedTheme(resolved_theme));
+    use_context_provider(|| ResolvedAppearance(resolved_appearance));
     let media_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(web_sys::MediaQueryList, Closure<dyn FnMut(web_sys::Event)>)>,
         ))
     });
     use_effect({
-        let mut system_theme = system_theme;
+        let mut system_appearance = system_appearance;
         let media_listener = media_listener.clone();
         move || {
             if let Some(query) = web_sys::window().and_then(|window| {
@@ -565,7 +569,7 @@ pub fn App() -> Element {
             }) {
                 let observed_query = query.clone();
                 let listener = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                    system_theme.set(if observed_query.matches() {
+                    system_appearance.set(if observed_query.matches() {
                         "dark"
                     } else {
                         "light"
@@ -588,13 +592,14 @@ pub fn App() -> Element {
             }
         }
     });
-    use_effect(use_reactive((&resolved_theme(),), {
-        move |(effective,)| {
+    use_effect(use_reactive((&resolved_appearance(), &theme()), {
+        move |(effective, theme)| {
             if let Some(root) = web_sys::window()
                 .and_then(|window| window.document())
                 .and_then(|document| document.document_element())
             {
-                let _ = root.set_attribute("data-theme", effective);
+                let _ = root.set_attribute("data-appearance", effective);
+                let _ = root.set_attribute("data-theme", theme);
             }
         }
     }));
@@ -762,7 +767,7 @@ fn RuntimeReportBanner() -> Element {
     }
 }
 
-fn read_system_theme() -> &'static str {
+fn read_system_appearance() -> &'static str {
     if web_sys::window()
         .and_then(|window| {
             window

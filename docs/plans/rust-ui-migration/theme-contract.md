@@ -104,3 +104,18 @@ elevation, not outlines ("the white outline around everything" was the one thing
   Outline Button), including their `dark:`-prefixed classes, which a plain override does not replace. Focus rings stay.
 - The header is a **56px borderless card** (the prototype used 48px; ADR-0035's height is kept).
 - Prototype: `.scratch/theme-proto`, branch `prototype/theme-look`.
+
+## 9. Coexistence with the legacy CSS (revised by build ticket 001)
+
+Found while building the walking skeleton: `m1.css` is unlayered and sets `button`, `input`, `select` and `:focus-visible` globally,
+and unlayered rules beat Tailwind's layered utilities, so a copied component's `bg-primary`, padding and focus ring never applied. The app
+also has no Tailwind preflight. Until ticket 024 deletes the legacy rules:
+
+- the root element of every copied component carries a `data-slot` attribute (Button: `data-slot="button"`);
+- the legacy global element rules are written `button:where(:not([data-slot]))` (specificity unchanged) so they skip copied components;
+- `tailwind.css` declares `@layer theme, base, utilities;` and a small `@layer base { [data-slot] { border: 0 solid; background-color:
+  transparent; color: inherit; font: inherit } }` standing in for preflight.
+
+Rust names follow the glossary: `AppearanceState` and `ResolvedAppearance` (formerly `ThemeState` and `ResolvedTheme`) hold Appearance;
+`ThemeState` now holds Original or shadcn. The legacy tailwind alias `--color-accent` (the brand colour, unused) was removed because
+`accent` is now rust-ui's hover surface; `--color-muted` is still the legacy alias until ticket 002 maps `muted`.

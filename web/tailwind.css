@@ -1,8 +1,61 @@
+@layer theme, base, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 
 @source "./src/**/*.rs";
 @source "./crates/**/*.rs";
+
+/* Copied rust-ui components read these tokens (docs/plans/rust-ui-migration/theme-contract.md). Appearance is
+   data-appearance on <html>, Theme is data-theme; Original is also the value before either attribute is set.
+   Ticket 001 defines only what Button needs; ticket 002 completes both Themes. */
+@custom-variant dark (&:where([data-appearance=dark], [data-appearance=dark] *));
+
+:root, [data-theme=original] {
+  --background: #E9EEF2; --foreground: #182331;
+  --primary: #3858D6; --primary-foreground: #FFFFFF;
+  --secondary: #edf0f8; --secondary-foreground: #182331;
+  --accent: #e9eef2; --accent-foreground: #182331;
+  --destructive: #a2191f; --success: #1f7a58; --success-foreground: #ffffff;
+  --warning: #b86a00; --warning-foreground: #ffffff;
+  --border: #e2e7ed; --input: #7D8B9A; --ring: #3858D6;
+  --radius: 10px;
+}
+:root[data-appearance=dark] {
+  --background: #181B21; --foreground: #EDF1F7;
+  --primary: #9AADFF; --primary-foreground: #101725;
+  --secondary: #2C323D; --secondary-foreground: #EDF1F7;
+  --accent: #373E4B; --accent-foreground: #EDF1F7;
+  --destructive: #ff8389; --success: #6ab99d; --success-foreground: #101725;
+  --warning: #F4BA68; --warning-foreground: #1B1E25;
+  --border: #30343B; --input: #626D7B; --ring: #9AADFF;
+}
+/* shadcn: rust-ui's own neutral palette, verbatim */
+[data-theme=shadcn] {
+  --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.92 0 0); --secondary-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.65 0.16 145); --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.65 0.16 55); --warning-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+}
+[data-theme=shadcn][data-appearance=dark] {
+  --background: oklch(0.18 0 0); --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.371 0 0); --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.65 0.16 145); --success-foreground: oklch(0.205 0 0);
+  --warning: oklch(0.65 0.16 55); --warning-foreground: oklch(0.205 0 0);
+  --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0);
+}
+
+/* The app has no Tailwind preflight: this is the part of it that copied components need. */
+@layer base {
+  [data-slot] { border: 0 solid; background-color: transparent; color: inherit; font: inherit; }
+}
 
 @theme inline {
   --color-paper: var(--wb-paper);
@@ -21,7 +74,26 @@
   --color-rule: var(--wb-rule);
   --color-rule-strong: var(--wb-rule-strong);
   --color-rule-control: var(--wb-rule-control);
-  --color-accent: var(--wb-accent);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-accent-dark: var(--wb-accent-dark);
   --color-accent-secondary: var(--wb-accent-secondary);
   --color-selection-ink: var(--wb-selection-ink);
@@ -1385,9 +1457,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 /* Empty-state actions share one row and the same button system as the editor. */
 .m1-canvas-empty { width: min(460px, calc(100% - 32px)); }
 .m1-empty-actions { display: flex; width: 100%; align-items: stretch; justify-content: center; gap: var(--wb-space-2); }
-.m1-empty-actions > .board-button { flex: 1 1 0; min-width: 0; min-height: var(--wb-control-touch); padding-inline: 10px; border-radius: var(--wb-radius-control); font-size: var(--wb-type-label); line-height: 1.2; white-space: normal; }
-.m1-empty-actions > .m1-empty-primary { display: inline-flex; border-color: var(--wb-accent); color: var(--wb-on-accent); background: var(--wb-accent); }
-.m1-empty-actions > .m1-empty-secondary { margin: 0; border: 1px solid var(--wb-rule-control); color: var(--wb-ink); background: var(--wb-surface-soft); }
 
 @media (max-width: 1100px) {
   .m1-topbar { gap: var(--wb-space-2); padding-inline: var(--wb-space-3); }

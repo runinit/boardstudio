@@ -250,16 +250,29 @@ fn preference_storage(storage_warning: &mut Signal<bool>) -> Option<Storage> {
     }
 }
 
-pub fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'static str {
-    let stored = preference_storage(&mut storage_warning).and_then(|storage| {
-        match storage.get_item("boardstudio:v2:theme") {
-            Ok(value) => value,
-            Err(_) => {
-                storage_warning.set(true);
-                None
-            }
+fn read_preference(mut storage_warning: Signal<bool>, key: &str) -> Option<String> {
+    preference_storage(&mut storage_warning).and_then(|storage| match storage.get_item(key) {
+        Ok(value) => value,
+        Err(_) => {
+            storage_warning.set(true);
+            None
         }
-    });
+    })
+}
+
+fn write_preference(mut storage_warning: Signal<bool>, key: &str, value: &str) {
+    if let Some(storage) = preference_storage(&mut storage_warning)
+        && storage.set_item(key, value).is_err()
+    {
+        storage_warning.set(true);
+    }
+}
+
+/// Appearance is saved under `boardstudio:v2:appearance`; until it is first saved, the legacy
+/// `boardstudio:v2:theme` value (the same three words) still applies.
+pub fn read_appearance_preference(storage_warning: Signal<bool>) -> &'static str {
+    let stored = read_preference(storage_warning, "boardstudio:v2:appearance")
+        .or_else(|| read_preference(storage_warning, "boardstudio:v2:theme"));
     match stored.as_deref() {
         Some("light") => "light",
         Some("dark") => "dark",
@@ -267,14 +280,23 @@ pub fn read_theme_preference(mut storage_warning: Signal<bool>) -> &'static str 
     }
 }
 
-pub fn write_theme_preference(mut storage_warning: Signal<bool>, preference: &'static str) {
-    if let Some(storage) = preference_storage(&mut storage_warning)
-        && storage
-            .set_item("boardstudio:v2:theme", preference)
-            .is_err()
-    {
-        storage_warning.set(true);
+pub fn write_appearance_preference(storage_warning: Signal<bool>, preference: &'static str) {
+    write_preference(storage_warning, "boardstudio:v2:appearance", preference);
+}
+
+pub fn read_workbench_theme_preference(storage_warning: Signal<bool>) -> &'static str {
+    match read_preference(storage_warning, "boardstudio:v2:workbench-theme").as_deref() {
+        Some("shadcn") => "shadcn",
+        _ => "original",
     }
+}
+
+pub fn write_workbench_theme_preference(storage_warning: Signal<bool>, preference: &'static str) {
+    write_preference(
+        storage_warning,
+        "boardstudio:v2:workbench-theme",
+        preference,
+    );
 }
 
 #[component]

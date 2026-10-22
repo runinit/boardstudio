@@ -38,7 +38,7 @@ contributing fixes upstream to rust-ui; single-key tool shortcuts.
 - **Behaviour layer.** `dioxus-primitives` (rev `9a758255`, already pinned) drives every control it covers; the rust-ui class strings are
   applied on top. Sheet, Drawer, Command and Navigation Menu have no primitive: we write their behaviour in Rust. Copied code contains no
   inline `<script>` and no document listener without an owner (one shared hook, listeners removed on unmount).
-- **Edits made to the copies** (not at call sites): remove built-in borders, including `dark:` rules (cards style); make Select, Dropdown
+- **Edits made to the copies** (not at call sites): a `data-slot` on the root element so the legacy global CSS skips it ([theme contract](theme-contract.md) section 9); remove built-in borders, including `dark:` rules (cards style); make Select, Dropdown
   Menu, Toolbar, Slider, Toggle Group and Toast pass the floor; replace upstream sizes with the shared size tokens (40 / 36 / 44px); make
   Sidenav's `collapsible: None` in-flow form usable (the shipped container is `fixed inset-y-0` and hidden below 768px).
 - **Themes.** `data-appearance="light|dark"` and `data-theme="original|shadcn"` on `<html>`; one `@custom-variant dark` line;

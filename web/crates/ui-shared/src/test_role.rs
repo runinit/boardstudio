@@ -1,0 +1,66 @@
+//! Finds controls by accessible role and name, so browser tests do not depend on `.m1-*` or
+//! `.board-*` classes or on tag names. Test-support only, like [`crate::test_wait`].
+//!
+//! shortcut: the name comes from `aria-label`, `aria-labelledby` or text content only (no
+//! `label[for]`, `title` or `alt`), and `aria-hidden` or hidden subtrees are not excluded; extend
+//! it when a migrated test needs more.
+use wasm_bindgen::JsCast;
+use web_sys::{Element, HtmlElement};
+
+/// CSS selector for the elements whose role is `role`: the explicit attribute, plus the native
+/// elements that carry the role implicitly.
+fn role_selector(role: &str) -> String {
+    let implicit = match role {
+        "button" => ", button, input[type=button], input[type=submit]",
+        "link" => ", a[href]",
+        "checkbox" => ", input[type=checkbox]",
+        "textbox" => ", input:not([type]), input[type=text], textarea",
+        "combobox" => ", select",
+        _ => "",
+    };
+    format!("[role={role}]{implicit}")
+}
+
+fn collapse(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The accessible name of `element`.
+pub fn accessible_name(element: &Element) -> String {
+    if let Some(label) = element.get_attribute("aria-label") {
+        return collapse(&label);
+    }
+    if let Some(ids) = element.get_attribute("aria-labelledby") {
+        let document = element.owner_document().expect("element is in a document");
+        let names: Vec<String> = ids
+            .split_whitespace()
+            .filter_map(|id| document.get_element_by_id(id))
+            .map(|labelling| collapse(&labelling.text_content().unwrap_or_default()))
+            .collect();
+        return names.join(" ");
+    }
+    collapse(&element.text_content().unwrap_or_default())
+}
+
+/// The elements under `root` with `role` whose accessible name is exactly `name`.
+pub fn all_by_role_name(root: &Element, role: &str, name: &str) -> Vec<HtmlElement> {
+    let found = root
+        .query_selector_all(&role_selector(role))
+        .expect("role selector is valid");
+    (0..found.length())
+        .filter_map(|index| found.item(index)?.dyn_into::<HtmlElement>().ok())
+        .filter(|element| accessible_name(element) == name)
+        .collect()
+}
+
+/// The only element under `root` with `role` and `name`; `None` when there is none yet, so a test
+/// can wait for it. Panics when the role and name are ambiguous.
+pub fn by_role_name(root: &Element, role: &str, name: &str) -> Option<HtmlElement> {
+    let mut found = all_by_role_name(root, role, name);
+    assert!(
+        found.len() <= 1,
+        "{} elements have role {role:?} and name {name:?}",
+        found.len()
+    );
+    found.pop()
+}

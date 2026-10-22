@@ -5,7 +5,7 @@ use super::shared_viewer::{
     CaseDisplay, CaseSharedViewer, HandleGesturePhase, ScopedDisplayChange, ScopedViewerSignal,
     ViewerFocusRequest, ViewerHandle, ViewerHandleTarget, ViewerIdentity, ViewerSignalKind,
 };
-use super::{InstanceSelection, ResolvedTheme, selection::SelectionAdapter};
+use super::{InstanceSelection, ResolvedAppearance, selection::SelectionAdapter};
 use crate::runtime::{CadScene, Runtime};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::polygon_contains;
@@ -328,7 +328,7 @@ pub fn CaseViewer(
     let _ = runtime_version();
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
-    let theme = use_context::<ResolvedTheme>().0;
+    let theme = use_context::<ResolvedAppearance>().0;
     #[cfg(all(test, target_arch = "wasm32"))]
     let gesture_probe = try_consume_context::<CaseViewerGestureProbe>();
     let selected_reference = {
@@ -607,7 +607,7 @@ pub fn CasePreviewViewer(
     let instance_selection = use_context::<InstanceSelection>();
     let selection_adapter = use_context::<SelectionAdapter>();
     let selection = use_context::<CaseSelection>();
-    let theme = use_context::<ResolvedTheme>().0;
+    let theme = use_context::<ResolvedAppearance>().0;
     let selected_reference = {
         let model = runtime.model();
         let selected = selection_adapter

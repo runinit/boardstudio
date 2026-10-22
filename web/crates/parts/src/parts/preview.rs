@@ -462,7 +462,7 @@ fn PartsSampleViewer(
     #[props(default = rsx! {})] view_controls: Element,
 ) -> Element {
     let runtime = use_context::<Rc<crate::runtime::Runtime>>();
-    let theme = use_context::<super::super::ResolvedTheme>().0;
+    let theme = use_context::<super::super::ResolvedAppearance>().0;
     let mut display = use_signal(super::super::case_display::CaseDisplay::default);
     let on_signal = {
         let runtime = runtime.clone();
@@ -1170,7 +1170,7 @@ mod tests {
         let workspace = use_signal(|| "Parts");
         use_context_provider(|| super::super::super::WorkspaceState(workspace));
         let theme = use_memo(|| "light");
-        use_context_provider(|| super::super::super::ResolvedTheme(theme));
+        use_context_provider(|| super::super::super::ResolvedAppearance(theme));
         let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
 
         rsx! {

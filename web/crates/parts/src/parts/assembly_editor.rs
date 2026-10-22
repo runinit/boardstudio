@@ -2391,7 +2391,7 @@ mod resolution_tests {
         let activation = use_signal(|| 0_u64);
         use_context_provider(|| super::super::PartsPreviewActivation(activation));
         let theme = use_memo(|| "light");
-        use_context_provider(|| crate::presentation::ResolvedTheme(theme));
+        use_context_provider(|| crate::presentation::ResolvedAppearance(theme));
         let selected_context = use_signal(|| None);
         let scope = use_signal(|| runtime.scope());
         let adapter = use_hook(|| {

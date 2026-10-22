@@ -130,7 +130,7 @@ pub enum ProjectMenuPage {
 }
 
 #[derive(Clone, Copy)]
-pub struct ResolvedTheme(pub Memo<&'static str>);
+pub struct ResolvedAppearance(pub Memo<&'static str>);
 
 #[derive(Clone, Copy)]
 pub struct LayerVisibility {
@@ -169,6 +169,10 @@ pub struct TreeCellAnchor {
     pub column: u32,
 }
 
+/// Appearance preference: "system", "light" or "dark" (`ResolvedAppearance` is light or dark).
+#[derive(Clone, Copy)]
+pub struct AppearanceState(pub Signal<&'static str>);
+/// Theme preference: "original" or "shadcn".
 #[derive(Clone, Copy)]
 pub struct ThemeState(pub Signal<&'static str>);
 #[derive(Clone, Copy)]

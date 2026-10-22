@@ -15,3 +15,6 @@ fonts/dejavu-LICENSE.txt. Source: https://dejavu-fonts.github.io/
 
 ttf-parser 0.25.1 is used under its MIT license, reproduced in
 ttf-parser-MIT.txt. Source: https://github.com/harfbuzz/ttf-parser/tree/v0.25.1
+
+Components under web/crates/ui-shared/src/ui/ are copied from rust-ui (https://github.com/rust-ui/ui,
+MIT, Copyright (c) 2026 Max Wells), reproduced in rust-ui-MIT.txt. Each file names its upstream path and commit.

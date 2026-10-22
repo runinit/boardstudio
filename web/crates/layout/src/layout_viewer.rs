@@ -62,7 +62,7 @@ pub struct LayoutCanonicalViewerProps {
 pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let selection = use_context::<SelectionAdapter>();
-    let theme = use_context::<super::ResolvedTheme>().0;
+    let theme = use_context::<super::ResolvedAppearance>().0;
     let _ = use_context::<Signal<u64>>()();
     let alive = use_hook(|| Rc::new(Cell::new(true)));
     use_drop({
@@ -506,7 +506,7 @@ mod mounted_keycaps_preview_tests {
             use_hook(|| SelectionAdapter::new(selected_context, anchor_scope, generation));
         use_context_provider(|| adapter.clone());
         let theme = use_memo(|| "light");
-        use_context_provider(|| super::super::ResolvedTheme(theme));
+        use_context_provider(|| super::super::ResolvedAppearance(theme));
         let _: Signal<u64> = use_context_provider(|| Signal::new(0_u64));
 
         let fit = fit_signal();

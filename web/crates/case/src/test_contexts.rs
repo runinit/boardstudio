@@ -1,7 +1,7 @@
 //! Context providers that mounted Case tests, here and in the page, wrap their components in.
 use crate::runtime::Runtime;
 use crate::{
-    InstanceSelection, ResolvedTheme, WorkspaceState, case_viewer, mechanical_settings_mount,
+    InstanceSelection, ResolvedAppearance, WorkspaceState, case_viewer, mechanical_settings_mount,
     objects,
 };
 use boardstudio_application::Scope;
@@ -32,7 +32,7 @@ pub fn use_case_viewer_test_contexts() {
     use_context_provider(|| case_selection);
 
     let theme = use_memo(|| "light");
-    use_context_provider(|| ResolvedTheme(theme));
+    use_context_provider(|| ResolvedAppearance(theme));
 }
 
 // Assemble the real mechanical owner hook's contexts for mounted Case tests.
