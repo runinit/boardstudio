@@ -1,6 +1,6 @@
 # 009: Dock primitives
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [002: Complete Theme system](002-complete-theme-system.md), [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -16,11 +16,11 @@ The two building blocks of the new docks exist and work on their own: a non-moda
 - [x] Sidenav's `collapsible: None` form is an in-flow dock that sits under the header (not fixed to the viewport) at the desktop widths
 - [x] A dock resizes by pointer drag and by arrow keys, within its minimum and maximum, and each side saves its own width (no shared key)
 - [x] Repository browser tests cover resize, persistence per side and the Sheet's non-modal behaviour
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Outcome
 
-The first Standards + Spec closure review requested changes. The correction below is implemented; the ticket remains claimed pending substantive targeted re-review and local-landing approval.
+The first Standards + Spec closure review requested changes. Both targeted closure reviews approved the corrected snapshot with zero findings; the coordinator explicitly approved local landing after latest-feature verification.
 
 ### Scope and ownership
 
@@ -62,7 +62,7 @@ The first Standards + Spec closure review requested changes. The correction belo
 
 ### Remaining gates
 
-Coordinator closure review and local landing are pending. No origin push or dev merge. Global full/quick, CAD `worker.onerror`, first paint, human Workspace checks and final migration merge remain open.
+Closure review is approved and local landing is authorized by fast-forward only. No origin push or dev merge. Modal Popover trapping remains untested. Global full/quick, CAD `worker.onerror`, first paint, human Workspace checks and final migration merge remain open.
 
 ### Closure correction (2026-10-22)
 
@@ -85,3 +85,16 @@ Coordinator closure review and local landing are pending. No origin push or dev 
   WASM clippy with `-D warnings` (`009-correction-clippy-wasm.log`); scoped rustfmt, Python compile, diff whitespace and 565-file Markdown link checks (`009-correction-doc-links.log`).
   These use the same commands and partial scope as the initial verification above. The only subsequent change is this ticket's correction record.
   The browser suite receipt records a clean tree at `65899d6a`. No full browser/product gate or reviewer runtime execution is claimed.
+
+### Closure approval and local landing (2026-10-22)
+
+- Both substantive targeted reviews approved `c8a02f3936ab2a8a7a88f23e6300c8f67088d579..774fc32f55535d62476749777d1a0b82e341f107` with **zero findings**:
+  - Standards: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui009-standards-review-20261022-r2`.
+  - Spec: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui009-spec-review-20261022-r2`.
+- The reviews confirm the role/name P3 and description P2 are resolved, and that the connected pinned primitive synchronously prevents its document Escape before the Sheet's window listener observes it.
+  Owned cleanup is preserved. The actual public non-modal Popover regression covers first-Escape Sheet survival, normal Popover unmount and second-Escape Sheet close/focus return.
+  These are source reviews reusing author runtime receipts, with no reviewer reruns.
+- Before landing, verified the T3 binding, clean lane inventory and unchanged local feature tip `7b1bb75386f0b43dcc5d7a85530bb5789cdb7156`.
+  The reviewed lane differs from validated `65899d6a86e6306e92c99c58f3bda20bf2d042c7` only in this ticket, so the sufficient native 15/15, shared WASM 49/49,
+  trusted fixture and clippy evidence above is reused; no code or harness changes require a rerun. Resolution changes only this ticket; diff and Markdown-link checks precede the local fast-forward.
+- Local landing uses `git push . HEAD:refs/heads/feat/rust-ui-migration`, with no force, origin push or dev merge. The lane and evidence remain available; implementation slot 009 is released after successful landing.
