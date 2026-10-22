@@ -133,7 +133,7 @@ def main():
         action("spinbutton", "X (mm)", "fill", "0.1234567890123456")
         browser("press", "Enter")
         browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]') && document.activeElement?.value === '0.1234567890123456'")
-        action("button", "Saved locally", "focus")
+        action("button", "Project", "focus")
         browser("press", "Control+z")
         action("spinbutton", "X (mm)", "focus")
         browser("wait", "--fn", "document.activeElement?.value === '0'")
