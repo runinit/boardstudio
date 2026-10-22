@@ -37,3 +37,17 @@ Findings:
 - **Inter costs 48 KB** (variable woff2, latin, OFL-1.1, `@fontsource-variable/inter` 5.3.0); Source Sans 3 is 170 KB and Source
   Code Pro 90 KB, already bundled.
 - No console errors; fonts need copying next to the generated CSS (`run.sh` does it).
+
+**2026-10-21, round 2 (user feedback: "looks good except the white outline around everything; focus more on a cards style").**
+
+Rebuilt the prototype as a cards style (`.scratch/theme-proto`, same URL and variants): a "desk" background with floating rounded cards for
+the header, Objects dock, canvas and Inspector; filled controls instead of outlined ones (Secondary and Ghost buttons, a filled Toggle
+Group, filled input fields, tinted Alerts, soft inner cards); the drawing surface is an inset rounded panel; separation by fill and
+elevation, no borders. What it needed:
+
+- Copied rust-ui components hard-code borders (Card, Alert, Input Group, Select trigger, Toggle Group, Outline Button), including
+  `dark:`-prefixed ones that a plain override does not replace (the dark Alert kept a red outline until `dark:border-transparent`).
+  The build edits the copies, not call sites.
+- The page background must be the darker "desk" so cards read: Original `background` would become today's canvas colour (light `#E9EEF2`,
+  dark `#181B21`) with `card` white / `#242831`, instead of `#f7f8fa` / `#1B1E25`.
+- The prototype header is a 48px card; ADR-0035 says 56px, solid and bordered. To be settled with the user.
