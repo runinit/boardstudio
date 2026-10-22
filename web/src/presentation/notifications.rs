@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 #[component]
 pub(super) fn NotificationProvider(children: Element) -> Element {
-    rsx! { ToastProvider { max_toasts: usize::MAX, {children} } }
+    rsx! { ToastProvider { max_toasts: usize::MAX, class: "workbench-notifications", {children} } }
 }
 
 #[component]
