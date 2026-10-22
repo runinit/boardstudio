@@ -127,11 +127,12 @@ def main():
         assert not failures, json.dumps(failures, indent=2)
         # The same production selected component keeps precise native values and one Undo step.
         action("spinbutton", "X (mm)", "fill", "0.1234567890123456")
+        assert evaluate("({value:document.activeElement.value,valid:document.activeElement.validity.valid})") == {"value": "0.1234567890123456", "valid": True}
         browser("press", "Escape")
         browser("wait", "--fn", "document.activeElement?.value === '0'")
         action("spinbutton", "X (mm)", "fill", "0.1234567890123456")
         browser("press", "Enter")
-        browser("wait", "--fn", "document.activeElement?.value === '0.1234567890123456'")
+        browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]') && document.activeElement?.value === '0.1234567890123456'")
         action("button", "Saved locally", "focus")
         browser("press", "Control+z")
         action("spinbutton", "X (mm)", "focus")
