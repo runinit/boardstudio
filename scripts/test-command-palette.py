@@ -207,6 +207,8 @@ def main():
     check("""
         window.paletteDeleteConfirmation = document.querySelector('dialog[open]');
         window.paletteDeleteOpener = document.activeElement;
+        window.paletteDeleteProjectId = document.querySelector('[aria-label="Delete Untitled keyboard"]').getAttribute('data-project-id');
+        if (!paletteDeleteProjectId) throw Error('Delete fixture must expose its saved project identity');
         window.paletteDeleteEvents = [];
         for (const name of ['cancel', 'close']) paletteDeleteConfirmation.addEventListener(name, event => paletteDeleteEvents.push({type:event.type,trusted:event.isTrusted}));
         if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteOpener.textContent.trim() !== 'Cancel') throw Error('Delete must use its native modal confirmation and safe initial focus');
@@ -257,7 +259,7 @@ def main():
     browser("wait", "dialog[open]")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('dialog[open]') && paletteDeleteEvents.filter(e=>e.type==='close').length === 2")
-    check("if (paletteDeleteEvents.filter(e=>e.type==='cancel' && e.trusted).length !== 1 || !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')) throw Error('Native Escape must cancel without deleting the fixture project');")
+    check("if (paletteDeleteEvents.filter(e=>e.type==='cancel' && e.trusted).length !== 1 || document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id') !== paletteDeleteProjectId) throw Error('Native Escape must cancel without deleting the fixture project');")
     action("button", "Delete keyboard")
     browser("wait", "dialog[open]")
     confirmation = json.loads(browser("snapshot", "--json", "-i", "--selector", 'dialog[open][aria-labelledby="m1-project-delete-title"]'))["data"]
@@ -265,7 +267,8 @@ def main():
     assert len(confirms) == 1, ("Expected one native confirmation action", confirmation)
     assert confirmation["refs"][confirms[0]]["role"] == "button" and confirmation["refs"][confirms[0]]["name"] == "Delete keyboard"
     browser("click", "@" + confirms[0])
-    browser("wait", "--fn", "!document.querySelector('dialog[open]') && !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')")
+    browser("wait", "--fn", "!document.querySelector('dialog[open]') && ![...document.querySelectorAll('[data-project-id]')].some(e=>e.getAttribute('data-project-id') === paletteDeleteProjectId)")
+    check("if (!document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id') || document.querySelector('[aria-label=\"Delete Untitled keyboard\"]').getAttribute('data-project-id') === paletteDeleteProjectId) throw Error('Deleting the last project must retain its distinct durable replacement');")
     action("button", "Project")
     action("menuitem", "New project")
     for name in ("Continue to layout", "Hide guide", "Cancel"):
