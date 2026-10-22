@@ -1,6 +1,6 @@
 # 010: Measure keyboard and ARIA conformance of the controls we would adopt
 
-Status: open
+Status: claimed
 Type: task
 Blocked by: None
 Parent: [Map](../map.md)
