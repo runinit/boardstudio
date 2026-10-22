@@ -17,3 +17,18 @@ Dropdown Menu is usable for the Project, Settings, Transform and Layout command 
 - [ ] Repository browser tests cover the floor rows and pass
 - [ ] If the fix proves larger than one ticket, this ticket records that and the documented fallback (keep the `Popover`-based menus used today) is adopted, with the decision noted in the plan map
 - [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+
+## Estimate (2026-10-22)
+
+The copied source now exists and was inspected at local base `ec6318c6d`. It forwards to pinned
+`dioxus-primitives` DropdownMenu. That primitive's menu context and ordered focus collection are
+private; no public hook lets the copy request initial focus or typeahead. It also couples open state
+to that private collection's focus. Merely overriding ARIA attributes cannot meet the floor.
+
+Estimated scope: keep the copied styling and public props, use the existing public Popover primitive
+for overlay lifecycle/dismissal, and add menu-specific focus/navigation in this copy. Checkbox and radio
+items can use the existing item's role/checked attributes with caller-owned selection. No dependency,
+visibility change, Select/Combobox edit or application menu migration is needed. This is a coherent
+007-sized adaptation if the representative mounted floor passes. The permitted fallback remains the
+existing application Popover menus if that cannot be demonstrated; it is not a claim those menus
+already pass the action-menu floor.
