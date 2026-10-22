@@ -46,6 +46,10 @@ mod forwarding_tests {
                         onfocus: move |_| events.write().push(format!("{label}:focus")),
                         onblur: move |_| events.write().push(format!("{label}:blur")),
                         onpointerenter: move |_| events.write().push(format!("{label}:enter")),
+                        onpointerdown: move |_| events.write().push(format!("{label}:pointerdown")),
+                        onpointerup: move |_| events.write().push(format!("{label}:pointerup")),
+                        onpointerleave: move |_| events.write().push(format!("{label}:pointerleave")),
+                        onpointercancel: move |_| events.write().push(format!("{label}:pointercancel")),
                         onclick: move |_| events.write().push(format!("{label}:click")),
                         "{label}"
                     }
@@ -56,6 +60,60 @@ mod forwarding_tests {
             span { id: "button-contract-description", "The owner describes this action." }
             output { role: "status", aria_label: "Contract events", "{events:?}" }
         }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn owner_click_and_pointer_callbacks_forward_once_on_native_and_link() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("owner callback controls mount", || {
+            by_role_name(&root, "link", "Link contract").is_some()
+        })
+        .await;
+        for (role, label) in [("button", "Native contract"), ("link", "Link contract")] {
+            let action = by_role_name(&root, role, label).unwrap();
+            action
+                .dispatch_event(&web_sys::MouseEvent::new("click").unwrap())
+                .unwrap();
+            for name in ["pointerdown", "pointerup", "pointerleave", "pointercancel"] {
+                action
+                    .dispatch_event(&web_sys::PointerEvent::new(name).unwrap())
+                    .unwrap();
+            }
+        }
+        wait_until("owner callback render flushes", || {
+            by_role_name(&root, "status", "Contract events")
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("Native contract:pointercancel")
+        })
+        .await;
+        let observed = by_role_name(&root, "status", "Contract events")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        for label in ["Native contract", "Link contract"] {
+            for event in [
+                "click",
+                "pointerdown",
+                "pointerup",
+                "pointerleave",
+                "pointercancel",
+            ] {
+                assert_eq!(
+                    observed.matches(&format!("{label}:{event}\"")).count(),
+                    1,
+                    "{observed}"
+                );
+            }
+        }
+        root.remove();
     }
 
     #[wasm_bindgen_test::wasm_bindgen_test]
