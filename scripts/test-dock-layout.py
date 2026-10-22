@@ -127,7 +127,17 @@ def production_tests(url):
             browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
     click("Workbench menu")
     click("Inspector")
+    browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
     browser("screenshot", str(ROOT / ".evidence/011-production-narrow.png"))
+    close_sheet()
+    browser("set", "viewport", 1440, 900)
+    navigate("Layout")
+    for name in ["objects", "inspector"]:
+        label = "Show " + name
+        if any(item.get("name") == label for item in browser("snapshot", "-i")["refs"].values()):
+            click(label)
+    check("(() => {const left=document.querySelector('[role=complementary][aria-label=Objects]').getBoundingClientRect(),right=document.querySelector('[role=complementary][aria-label=Inspector]').getBoundingClientRect(),canvas=document.querySelector('[role=region][aria-label=\"Layout workspace\"]').getBoundingClientRect();return left.right<=canvas.left && canvas.right<=right.left && canvas.width>=280})()")
+    browser("screenshot", str(ROOT / ".evidence/011-production-desktop.png"))
     (ROOT / ".evidence/011-production-browser-errors.json").write_text(primitives.json.dumps(browser("errors")))
     print("PASS: packaged six-Workspace Sheet, real Case stage role/name, browse Parts and pin Inspector callbacks at979/980 with saved widths, legacy focus IDs, mobile opener connected/inert and unmounted fallbacks", flush=True)
 
