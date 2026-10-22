@@ -1,6 +1,6 @@
 # 001: Walking skeleton: one copied Button, both Themes, one migrated control
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (can start immediately)
 Parent: [Spec](../../rust-ui-migration/spec.md)
