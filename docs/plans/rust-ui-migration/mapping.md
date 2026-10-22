@@ -66,6 +66,7 @@ dock) and **Mirror existing half**. They become in-dock views built from `Collap
 | Range inputs (4) | `Slider` | primitives Slider behaviour |
 | Search inputs (5), text inputs, `textarea` | `InputGroup`, `Input`, `Textarea` | |
 | Datalist (1) | `Combobox` | primitives |
+| Inline SVG icons (84, 71 distinct drawings) | vendored Lucide, one component per icon, replacing hand-drawn ones where a match exists; domain glyphs stay custom ([008](issues/008-choose-icon-set.md)) | decorative by default; stroke from `--icon-stroke` |
 | Headings `h2`/`h3` (104) | no component: Theme type scale | |
 | Lists (17), table (1) | `Item` / `Table` | |
 | Loading text | `Spinner`, `Skeleton` | |
