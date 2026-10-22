@@ -49,6 +49,99 @@ def held_space(url):
     assert result.returncode == 0, "Held Space must remain native, unprevented, and activate exactly once on keyup"
 
 
+def snap_checkbox_tests(url, *, fixture=False):
+    """Native settings buttons and label text retain checkbox behavior at their owner."""
+    failures = []
+    captures = ROOT / ".evidence/015" / datetime.now().strftime("checkboxes-%Y%m%d-%H%M%S")
+    captures.mkdir(parents=True)
+
+    def checked(name):
+        return browser("get", "attr", driver.by_role_name("checkbox", name), "aria-checked")["value"]
+
+    def geometry(enabled):
+        if checked("Geometry snap") != str(enabled).lower():
+            browser("find", "role", "checkbox", "click", "--name", "Geometry snap", "--exact")
+        assert checked("Geometry snap") == str(enabled).lower()
+
+    def observe(name):
+        browser("focus", driver.by_role_name("checkbox", name))
+        evaluate(f"window.snapBox=document.querySelector('#m1-layout-snap-menu [role=checkbox][aria-label={driver.json.dumps(name)}]'); window.snapClicks=[];window.snapChanges=0;window.snapClick=e=>snapClicks.push(e.isTrusted);snapBox.addEventListener('click',snapClick);window.snapObserver=new MutationObserver(records=>snapChanges+=records.filter(r=>r.oldValue!==snapBox.getAttribute('aria-checked')).length);snapObserver.observe(snapBox,{{attributes:true,attributeFilter:['aria-checked'],attributeOldValue:true}})")
+        return int(evaluate("document.querySelector('[aria-label=\"Snap calls\"]').textContent")) if fixture else None
+
+    def finish(name, before, calls, expected):
+        state = evaluate("({clicks:snapClicks,changes:snapChanges,value:snapBox.getAttribute('aria-checked')})")
+        print("Checkbox outcome:", name, before, state, flush=True)
+        evaluate("snapBox.removeEventListener('click',snapClick);snapObserver.disconnect()")
+        good = state == {"clicks": [True] if expected else [], "changes": expected,
+                         "value": ("false" if before == "true" else "true") if expected else before}
+        if fixture:
+            good = good and int(evaluate("document.querySelector('[aria-label=\"Snap calls\"]').textContent")) == calls + expected
+        if not good:
+            failures.append((name, before, state, expected))
+            browser("screenshot", str(captures / f"{len(failures)}-{name.replace(' ', '-')}.png"))
+
+    click("Snap settings")
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label')==='Snap increment'")
+    for name in ["Geometry snap", "Envelope gap"]:
+        geometry(True)
+        before = checked(name)
+        calls = observe(name)
+        try:
+            held_space(url)
+        except AssertionError as error:
+            # Collect the two independent Space regressions before failing the run.
+            failures.append((name, "held Space", str(error)))
+            browser("screenshot", str(captures / f"{len(failures)}-{name.replace(' ', '-')}-Space.png"))
+        finish(name, before, calls, 1)
+        geometry(True)
+        before = checked(name)
+        calls = observe(name)
+        browser("press", "Enter")
+        finish(name, before, calls, 0)
+
+    for name in ["Geometry snap", "Envelope gap"]:
+        geometry(True)
+        before = checked(name)
+        calls = observe(name)
+        point = evaluate("(()=>{const label=snapBox.closest('label'),text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim()===snapBox.getAttribute('aria-label'));const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,for:label.htmlFor,id:snapBox.id}})()")
+        print("Label TEXT target:", name, point, flush=True)
+        browser("mouse", "move", round(point["x"]), round(point["y"]))
+        browser("mouse", "down")
+        browser("mouse", "up")
+        finish(name + " label text", before, calls, 1)
+        if not point["id"] or point["for"] != point["id"]:
+            failures.append((name, "label association", point))
+
+    geometry(False)
+    check("document.querySelector('#m1-layout-snap-menu [role=checkbox][aria-label=\"Envelope gap\"]').disabled")
+    before = checked("Envelope gap")
+    # A disabled native button cannot take focus; Tab skips it to the numeric field.
+    calls = observe("Envelope gap")
+    check("document.activeElement!==snapBox")
+    browser("focus", driver.by_role_name("checkbox", "Geometry snap"))
+    browser("press", "Tab")
+    check("document.activeElement.getAttribute('aria-label')==='Snap gap'")
+    browser("press", "Space")
+    point = evaluate("(()=>{const r=snapBox.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+    browser("mouse", "move", round(point["x"]), round(point["y"]))
+    browser("mouse", "down")
+    browser("mouse", "up")
+    # Label text must also respect the same disabled owner.
+    point = evaluate("(()=>{const r=snapBox.closest('label').getBoundingClientRect();return {x:r.right-8,y:r.y+r.height/2}})()")
+    browser("mouse", "move", round(point["x"]), round(point["y"]))
+    browser("mouse", "down")
+    browser("mouse", "up")
+    finish("disabled Envelope gap pointer/label/Space", before, calls, 0)
+    geometry(True)
+    values = [checked(name) for name in ["Geometry snap", "Envelope gap"]]
+    browser("press", "Escape")
+    click("Snap settings")
+    assert [checked(name) for name in ["Geometry snap", "Envelope gap"]] == values, "Owner values must survive reopening"
+    browser("press", "Escape")
+    print("Checkbox failures:", failures, "evidence:", captures, flush=True)
+    assert not failures, failures
+
+
 def production_tests(url):
     """Check native keyboard and one action/Undo through the real Layout owner."""
     browser("set", "viewport", 1440, 900)
@@ -142,6 +235,8 @@ def production_tests(url):
         browser("focus", driver.by_role_name("button", "Geometry snap"))
         held_space(url)
         assert browser("get", "attr", driver.by_role_name("button", "Geometry snap"), "aria-pressed")["value"] == expected
+    snap_checkbox_tests(url)
+
     def check_tool_hint(capture=None):
         browser("wait", "--fn", "document.getElementById(document.activeElement.getAttribute('aria-describedby'))?.textContent.includes('Alt')")
         check("(()=>{const t=document.getElementById(document.activeElement.getAttribute('aria-describedby')),r=t.getBoundingClientRect();return t.textContent.includes('Shift') && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight && t.checkVisibility()})()")
@@ -208,6 +303,7 @@ def tests(url):
     browser("set", "viewport", 1440, 900)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Select Column\"]')")
+    snap_checkbox_tests(url, fixture=True)
     click("Clear selection")
     click("Transform")
     browser("wait", "--fn", "document.activeElement.id==='m1-layout-transform-menu'")
