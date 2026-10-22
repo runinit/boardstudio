@@ -481,6 +481,7 @@ def main():
     browser("press", "Escape")
     browser("screenshot", str((args.evidence / "palette-closed.png").resolve()))
     # Tear down an open palette with its document, then remount on the same route.
+    browser("set", "viewport", "1440", "960")
     browser("press", "Control+k")
     opened()
     browser("open", "about:blank")
