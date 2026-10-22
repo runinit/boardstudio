@@ -62,6 +62,31 @@ pub fn ProjectHeaderMenu(
             browser.set(false);
         }
     });
+    let rename_project = use_memo(use_reactive((&project_id,), {
+        let rename_runtime = runtime.clone();
+        move |(rename_id,)| {
+            let rename_runtime = rename_runtime.clone();
+            EventHandler::new(move |()| {
+                if let Some(mut request) = tool_request
+                    && let Some(id) = &rename_id
+                    && rename_runtime
+                        .model()
+                        .accepted
+                        .as_ref()
+                        .is_some_and(|s| s.document.id == *id)
+                {
+                    request.0.set(Some(ProjectTool::Rename(id.clone())));
+                    browser.set(true);
+                }
+            })
+        }
+    }));
+    let open_demo = use_callback(move |()| {
+        if let Some(mut request) = tool_request {
+            request.0.set(Some(ProjectTool::Demo));
+            browser.set(true);
+        }
+    });
     let mut commands = vec![
         Command {
             group: "Project",
@@ -101,36 +126,20 @@ pub fn ProjectHeaderMenu(
             on_select: on_settings,
         },
     ];
-    if let Some(mut request) = tool_request {
-        let rename_runtime = runtime.clone();
-        let rename_id = project_id.clone();
+    if tool_request.is_some() {
         commands.push(Command {
             group: "Project",
             label: "Rename project".into(),
             reason: (!has_current).then(|| "Open a project first.".into()),
             hint: None,
-            on_select: EventHandler::new(move |()| {
-                if let Some(id) = &rename_id
-                    && rename_runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .is_some_and(|s| s.document.id == *id)
-                {
-                    request.0.set(Some(ProjectTool::Rename(id.clone())));
-                    browser.set(true);
-                }
-            }),
+            on_select: rename_project(),
         });
         commands.push(Command {
             group: "Project",
             label: "Open demo".into(),
             reason: None,
             hint: None,
-            on_select: EventHandler::new(move |()| {
-                request.0.set(Some(ProjectTool::Demo));
-                browser.set(true);
-            }),
+            on_select: open_demo,
         });
     }
     use_commands(commands);

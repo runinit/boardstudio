@@ -1349,11 +1349,15 @@ mod mounted_tests {
                 None::<boardstudio_web_ui_shared::ui::command::Command>,
             ))
         });
-        let capture = captured.clone();
         rsx! {
             ProjectHeaderMenu { project_name: "Test project", on_undo: noop, on_redo: noop, on_export: noop, on_settings: noop }
-            button { onclick: move |_| *capture.borrow_mut() = registry.commands().into_iter().find(|c| c.label == "Rename project"), "Capture Rename" }
-            button { onclick: move |_| captured.borrow().as_ref().unwrap().on_select.call(()), "Run captured Rename" }
+            for label in ["Rename project", "Open demo"] {
+                {
+                    let capture = captured.clone();
+                    rsx! { button { onclick: move |_| *capture.borrow_mut() = registry.commands().into_iter().find(|c| c.label == label), "Capture {label}" } }
+                }
+            }
+            button { onclick: move |_| captured.borrow().as_ref().unwrap().on_select.call(()), "Run captured tool" }
             button { onclick: move |_| mounted.set(!mounted()), "Toggle Library owner" }
             for label in ["Rename project", "Open demo"] {
                 button { onclick: move |_| registry.commands().into_iter().find(|c| c.label == label).unwrap().on_select.call(()), "Palette {label}" }
@@ -1392,14 +1396,14 @@ mod mounted_tests {
             status("Registered tools").is_some_and(|s| s == "7")
         })
         .await;
-        click("Capture Rename");
+        click("Capture Rename project");
         let mut version = seed.state.borrow().unwrap();
         version += 1;
         wait_until("same project refreshed", || {
             status("Header version").as_deref() == Some("1")
         })
         .await;
-        click("Run captured Rename");
+        click("Run captured tool");
         wait_until("rename queued before Library mount", || {
             status("Tool pending").as_deref() == Some("true")
         })
@@ -1418,7 +1422,7 @@ mod mounted_tests {
             by_role_name(&root, "textbox", "Project name").is_none(),
             "stale rename must not select the new project"
         );
-        click("Run captured Rename");
+        click("Run captured tool");
         assert_eq!(
             status("Tool pending").as_deref(),
             Some("false"),
@@ -1446,7 +1450,13 @@ mod mounted_tests {
             by_role_name(&root, "textbox", "Project name").is_none(),
             "consumed rename must not replay"
         );
-        click("Palette Open demo");
+        click("Capture Open demo");
+        version += 1;
+        wait_until("same project refreshed before demo", || {
+            status("Header version").as_deref() == Some("3")
+        })
+        .await;
+        click("Run captured tool");
         wait_until("demo tool focused", || {
             document
                 .active_element()
