@@ -9,6 +9,8 @@ every existing building block and plain HTML control mapped to one rust-ui compo
 approved composition), the Original and shadcn Themes defined, and the single-branch lane plan
 decided.
 
+**Reached 2026-10-21:** the [spec](spec.md) is assembled and ready to hand off as build tickets. All 13 decision tickets are resolved.
+
 ## Notes
 
 - Decisions so far are recorded in [ADR-0034](../../adr/0034-adopt-rust-ui-components-with-two-themes.md)
@@ -35,45 +37,43 @@ decided.
 
 ## Tickets
 
-<!-- every ticket, open or resolved; status lives in the ticket -->
+<!-- every ticket, with its type and status; the answers are in the tickets -->
 
-- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md): both Themes approved in a cards style (cards on a desk, filled controls, no borders); contract adds `selected` and `field`, `background` becomes the desk, built-in borders removed in the copies; header is a 56px borderless card.
-- [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md): [command palette](command-palette.md): Ctrl/Cmd+K, existing actions only (Go to, Project, Edit, View, current Workspace, object search), never destructive edits, only Ctrl/Cmd+K added as a shortcut.
-- [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md): [accessibility floor](accessibility-floor.md) measured on 15 controls; 9 pass, Select, Dropdown Menu, Toolbar, Slider and Toggle Group need fixes in our copy first.
-- [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
-- [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
-- [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md): [branch plan](branch-plan.md): one `feat/rust-ui-migration` branch from `dev`, a Foundation lane then Shell, Layout and Case in parallel (max 3), role-and-name tests, an accessibility floor, an old-CSS check, and a six-part merge gate.
-- [005: How Themes and Appearance are structured](issues/005-theme-structure.md): [theme-contract](theme-contract.md) decided: `data-appearance` and `data-theme`, rust-ui token names mapped by meaning plus a few extras, a Theme sets colour / radius / font only, shared layout metrics, Inter for shadcn, 3D keeps its own palettes.
-- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md): [mapping](mapping.md) decided; no new custom components; sizes by pixels, Select vs Combobox, Stepper, message and Tooltip rules, file inputs stay native.
-- [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; blocked by: None
-- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 003, 011
-- [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
-- [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; blocked by: None
-- [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; blocked by: None
-- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md) — `wayfinder:prototype`; blocked by: None
-- [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md) — `wayfinder:grilling`; blocked by: None
-- [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md) — `wayfinder:grilling`; blocked by: None
-- [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md) — `wayfinder:task`; blocked by: None
-- [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md) — `wayfinder:grilling`; blocked by: 003
-- [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md) — `wayfinder:grilling`; blocked by: 004, 005
+- [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; resolved
+- [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; resolved
+- [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; resolved
+- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; resolved
+- [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; resolved
+- [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; resolved
+- [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md) — `wayfinder:grilling`; resolved
+- [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; resolved
+- [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md) — `wayfinder:grilling`; resolved
+- [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md) — `wayfinder:task`; resolved
+- [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md) — `wayfinder:grilling`; resolved
+- [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md) — `wayfinder:grilling`; resolved
+- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md) — `wayfinder:prototype`; resolved
 
 ## Decisions so far
 
-<!-- one line per resolved ticket: linked title, then a one-line gist -->
+<!-- one line per resolved ticket, in ticket order: linked title, then a one-line gist -->
 
-- [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md): no Solar exists in the app; rust-ui uses 35 Lucide icons; icon set reopened as 008.
-- [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md): [inventory](inventory.md) of 210 components, 397 `Board*` uses and 331 raw controls with an 88-file sweep checklist; wrappers cover about half the controls.
-- [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md): rebuild the header like rust-ui.com's, docks on Sidenav with a non-modal Sheet on narrow screens, drop auto-hide, add a Command palette and Toasts ([ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md)).
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md): button, popover, select and dialog compile and run on 0.7.10 with `tw_merge`, `strum`, `icons` and one `Link` edit; inline scripts execute; keyboard and ARIA gaps confirmed in a browser.
+- [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md): 86 components; overlays/Select/Tabs/Switch uncontrolled with thin keyboard and ARIA (→ 009); shadcn token set plus extras, with gaps.
+- [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md): [inventory](inventory.md) of 210 components, 397 `Board*` uses and 331 raw controls with an 88-file sweep checklist; wrappers cover about half the controls.
+- [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md): [mapping](mapping.md) decided; no new custom components; sizes by pixels, Select vs Combobox, Stepper, message and Tooltip rules, file inputs stay native.
+- [005: How Themes and Appearance are structured](issues/005-theme-structure.md): [theme-contract](theme-contract.md) decided: `data-appearance` and `data-theme`, rust-ui token names mapped by meaning plus a few extras, a Theme sets colour / radius / font only, shared layout metrics, Inter for shadcn, 3D keeps its own palettes.
+- [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md): no Solar exists in the app; rust-ui uses 35 Lucide icons; icon set reopened as 008.
+- [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md): [branch plan](branch-plan.md): one `feat/rust-ui-migration` branch from `dev`, a Foundation lane then Shell, Layout and Case in parallel (max 3), role-and-name tests, an accessibility floor, an old-CSS check, and a six-part merge gate.
 - [008: Choose the workbench icon set](issues/008-choose-icon-set.md): Lucide, vendored per icon (not the `icons` crate), one set for both Themes, custom glyphs only where no Lucide match, decorative by default with a Theme-settable stroke.
 - [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md): rust-ui supplies the look, `dioxus-primitives` the behaviour; no inline scripts; accessibility measured (010); restructuring added to scope (011).
-- [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md): 86 components; overlays/Select/Tabs/Switch uncontrolled with thin keyboard and ARIA (→ 009); shadcn token set plus extras, with gaps.
+- [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md): [accessibility floor](accessibility-floor.md) measured on 15 controls; 9 pass, Select, Dropdown Menu, Toolbar, Slider and Toggle Group need fixes in our copy first.
+- [011: Target structure of the workbench around rust-ui patterns](issues/011-target-workbench-structure.md): rebuild the header like rust-ui.com's, docks on Sidenav with a non-modal Sheet on narrow screens, drop auto-hide, add a Command palette and Toasts ([ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md)).
+- [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md): [command palette](command-palette.md): Ctrl/Cmd+K, existing actions only (Go to, Project, Edit, View, current Workspace, object search), never destructive edits, only Ctrl/Cmd+K added as a shortcut.
+- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md): both Themes approved in a cards style (cards on a desk, filled controls, no borders); contract adds `selected` and `field`, `background` becomes the desk, built-in borders removed in the copies; header is a 56px borderless card.
 
 ## Not yet specified
 
-- Assembling the spec: once the tickets are resolved, `spec.md` gathers the decisions, the mapping and the lane plan
-  into build tickets.
-- Shell build details: customising Sheet to be non-modal, extracting Sidenav's classes, per-side dock resize and persisted widths, a fallback for saved auto-hide preferences, the header's mobile menu, and the DESIGN.md rewrite.
+Nothing. The way is clear: the shell build details became the Shell and Foundation build tickets in the [spec](spec.md).
 
 ## Out of scope
 
