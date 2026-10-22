@@ -89,11 +89,16 @@ pub fn Button(
     // TODO: replace button_type with a proper ButtonType enum (e.g. ButtonType::Submit/Reset/Button)
     #[props(into, optional)] button_type: Option<String>,
     #[props(optional)] onclick: Option<EventHandler<MouseEvent>>,
+    #[props(optional)] onkeydown: Option<EventHandler<KeyboardEvent>>,
+    #[props(optional)] onfocus: Option<EventHandler<FocusEvent>>,
+    #[props(optional)] onblur: Option<EventHandler<FocusEvent>>,
+    #[props(optional)] onpointerenter: Option<EventHandler<PointerEvent>>,
     #[props(optional)] onpointerdown: Option<EventHandler<PointerEvent>>,
     #[props(optional)] onpointerup: Option<EventHandler<PointerEvent>>,
     #[props(optional)] onpointerleave: Option<EventHandler<PointerEvent>>,
     #[props(optional)] onpointercancel: Option<EventHandler<PointerEvent>>,
     #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] aria_describedby: Option<String>,
     #[props(into, optional)] aria_current: Option<String>,
     #[props(optional)] aria_pressed: Option<bool>,
     #[props(optional)] aria_expanded: Option<bool>,
@@ -117,12 +122,17 @@ pub fn Button(
                 class: "{merged_class}",
                 href: url,
                 "aria-label": aria_label.as_deref(),
+                "aria-describedby": aria_describedby.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
                 "aria-expanded": aria_expanded,
                 "aria-controls": aria_controls.as_deref(),
                 "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
+                onkeydown: move |event| { if let Some(handler) = onkeydown { handler.call(event); } },
+                onfocus: move |event| { if let Some(handler) = onfocus { handler.call(event); } },
+                onblur: move |event| { if let Some(handler) = onblur { handler.call(event); } },
+                onpointerenter: move |event| { if let Some(handler) = onpointerenter { handler.call(event); } },
                 {children}
             }
         }
@@ -135,12 +145,17 @@ pub fn Button(
                 r#type: button_type.as_deref().unwrap_or("button"),
                 disabled,
                 "aria-label": aria_label.as_deref(),
+                "aria-describedby": aria_describedby.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
                 "aria-expanded": aria_expanded,
                 "aria-controls": aria_controls.as_deref(),
                 "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
+                onkeydown: move |event| { if let Some(handler) = onkeydown { handler.call(event); } },
+                onfocus: move |event| { if let Some(handler) = onfocus { handler.call(event); } },
+                onblur: move |event| { if let Some(handler) = onblur { handler.call(event); } },
+                onpointerenter: move |event| { if let Some(handler) = onpointerenter { handler.call(event); } },
                 onclick: move |e| {
                     if let Some(handler) = &onclick {
                         handler.call(e);

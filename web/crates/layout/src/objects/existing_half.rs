@@ -777,3 +777,47 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
         }
     }
 }
+
+#[cfg(test)]
+mod adoption_tests {
+    use super::*;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen::JsCast;
+
+    fn form() -> Element {
+        let owner = ExistingHalfOwner {
+            editor_instance_id: 1, open_id: 1, scope_generation: 1,
+            scope: Scope { session_epoch: boardstudio_application::SessionEpoch(1), document_id: "dock".into(), board_id: "board".into(), instance_id: None },
+            snapshot_token: SnapshotToken(1), revision: 1,
+            options: vec![ExistingHalfOption { matrix_id: "matrix".into(), label: "Left".into() }],
+            default_axis_x: 12.125,
+        };
+        let mut submitted = use_signal(|| None::<f64>);
+        rsx! {
+            ExistingHalfSetup {
+                projection: ExistingHalfProjection { owner, editable: true, can_cancel: true, error: None },
+                on_cancel: |_| {}, on_create: move |request: ExistingHalfCreateRequest| submitted.set(Some(request.axis_x)),
+            }
+            output { aria_label: "Submitted axis", "{submitted:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn mirror_existing_half_is_an_in_dock_view_with_its_own_precise_axis_draft() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(VirtualDom::new(form), dioxus_web::Config::new().rootnode(root.clone().into()));
+        wait_until("actual Mirror form mounts", || by_role_name(&root, "spinbutton", "Mirror axis X").is_some()).await;
+        assert!(by_role_name(&root, "dialog", "Mirror existing half").is_none(), "Mirror must stay in the Objects dock, without dialog semantics");
+        assert!(by_role_name(&root, "region", "Mirror existing half").is_some(), "the dock view has a name");
+        let axis = by_role_name(&root, "spinbutton", "Mirror axis X").unwrap().dyn_into::<web_sys::HtmlInputElement>().unwrap();
+        axis.set_value("12.123456789");
+        let init = web_sys::EventInit::new(); init.set_bubbles(true);
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
+        wait_until("axis local draft renders", || axis.value() == "12.123456789").await;
+        by_role_name(&root, "button", "Create linked half").unwrap().click();
+        wait_until("precise draft submitted", || root.text_content().unwrap().contains("12.123456789")).await;
+        root.remove();
+    }
+}
