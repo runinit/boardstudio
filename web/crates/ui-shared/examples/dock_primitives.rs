@@ -39,8 +39,8 @@ fn fixture() -> Element {
                 output { role: "status", aria_label: "Canvas clicks", "{clicks}" }
                 Sheet { open,
                     SheetTrigger { "Open settings" }
-                    SheetContent { direction: direction(), aria_label: "Dock settings",
-                        p { "The canvas remains interactive." }
+                    SheetContent { direction: direction(), aria_label: "Dock settings", aria_describedby: "dock-settings-description",
+                        p { id: "dock-settings-description", "The canvas remains interactive." }
                         Button { onclick: move |_| {}, "Sheet action" }
                         SheetClose { "Close settings" }
                         Select::<String> { aria_label: "Sheet choice",

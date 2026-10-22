@@ -52,14 +52,14 @@ struct SheetContext {
 }
 
 struct EscapeListener {
-    document: web_sys::Document,
+    window: web_sys::Window,
     callback: Closure<dyn FnMut(web_sys::KeyboardEvent)>,
 }
 
 impl Drop for EscapeListener {
     fn drop(&mut self) {
         let _ = self
-            .document
+            .window
             .remove_event_listener_with_callback("keydown", self.callback.as_ref().unchecked_ref());
     }
 }
@@ -85,18 +85,19 @@ pub fn Sheet(mut open: Signal<bool>, children: Element) -> Element {
                 });
             }
             listener.borrow_mut().take();
-            if is_open && let Some(document) = web_sys::window().and_then(|w| w.document()) {
+            if is_open && let Some(window) = web_sys::window() {
                 let callback = Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
                     if event.key() == "Escape" && !event.default_prevented() {
                         event.prevent_default();
                         open.set(false);
                     }
                 }) as Box<dyn FnMut(_)>);
-                if document
+                // Bubble after primitives' document listeners have consumed their own Escape.
+                if window
                     .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref())
                     .is_ok()
                 {
-                    *listener.borrow_mut() = Some(EscapeListener { document, callback });
+                    *listener.borrow_mut() = Some(EscapeListener { window, callback });
                 }
             }
         }
@@ -129,6 +130,7 @@ pub fn SheetTrigger(children: Element) -> Element {
 #[component]
 pub fn SheetContent(
     aria_label: String,
+    aria_describedby: String,
     #[props(default)] direction: SheetDirection,
     #[props(into, optional)] class: Option<String>,
     children: Element,
@@ -143,7 +145,7 @@ pub fn SheetContent(
         if open() {
             section {
                 id, "data-slot": "sheet-content", "data-state": "open", "data-side": direction.side(),
-                class, role: "dialog", aria_label, aria_modal: "false", tabindex: -1,
+                class, role: "dialog", aria_label, aria_describedby, aria_modal: "false", tabindex: -1,
                 onmounted: move |event| async move { let _ = event.data().set_focus(true).await; },
                 {children}
             }

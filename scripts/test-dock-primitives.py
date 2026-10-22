@@ -131,6 +131,7 @@ def tests(url):
         dialog = control("dialog", "Dock settings")
         browser("wait", "[role=dialog][aria-label='Dock settings']")
         check(f"{dialog}.getAttribute('aria-modal')==='false' && {dialog}===document.activeElement")
+        check(f"document.getElementById({dialog}.getAttribute('aria-describedby'))?.textContent==='The canvas remains interactive.'")
         check("getComputedStyle(document.body).overflow !== 'hidden' && !document.querySelector('[inert]')")
         check(f"{dialog}.getAttribute('data-side')==='{edge.lower()}'")
         rect = evaluate(f"(() => {{const r={dialog}.getBoundingClientRect(); return {{top:r.top,bottom:r.bottom,left:r.left,right:r.right}}}})()")
@@ -171,8 +172,10 @@ def tests(url):
     click("Details action")
     browser("press", "Escape")
     check(f"!!{control('dialog', 'Dock settings')} && !{control('dialog', 'Sheet details')}?.matches('[data-state=open]')")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Sheet details\"]')")
     browser("press", "Escape")
     check("!document.querySelector('[role=dialog]') && document.activeElement.textContent==='Open settings'")
+    print("PASS: actual nested free-form Popover consumes the first Escape; the second closes Sheet and restores its opener", flush=True)
     click("Open settings")
     click("External close")
     check("!document.querySelector('[role=dialog]') && document.activeElement.textContent==='Open settings'")
@@ -192,7 +195,7 @@ def tests(url):
     assert rect["left"] == 0 and rect["right"] == 390 and rect["bottom"] == 844 and rect["top"] > 0, rect
     browser("screenshot", str(ROOT / ".evidence/009-correction-narrow-sheet.png"))
     assert browser("errors").get("errors", []) == []
-    print("PASS: trusted per-side drag/capture/release, keyboard bounds, reload/persistence, in-flow geometry, four-edge non-modal Sheet, Tab/Escape and controlled focus return", flush=True)
+    print("PASS: trusted per-side drag/capture/release, keyboard bounds, reload/persistence, in-flow geometry, four-edge non-modal Sheet, role/name trigger popup state, description reference, Tab/Escape and controlled focus return", flush=True)
 
 
 def main():
