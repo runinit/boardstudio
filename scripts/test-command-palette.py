@@ -198,6 +198,29 @@ def main():
     for name in ("Continue to layout", "Hide guide", "Cancel"):
         browser("wait", "--text", name)
         action("button", name)
+    choose("Browse projects")
+    action("button", "Preview Untitled keyboard")
+    browser("wait", "--text", "Delete keyboard")
+    action("button", "Delete keyboard")
+    browser("wait", "dialog[open]")
+    check("""
+        window.paletteDeleteConfirmation = document.querySelector('dialog[open]');
+        window.paletteDeleteOpener = document.activeElement;
+        if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteOpener.textContent.trim() !== 'Cancel') throw Error('Delete must use its native modal confirmation and safe initial focus');
+    """)
+    browser("press", "Control+k")
+    browser("wait", '[role=combobox][aria-label="Search commands and objects"]')
+    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal'),palette:document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]').outerHTML})")
+    browser("screenshot", str((args.evidence / "native-confirmation-palette.png").resolve()))
+    opened()
+    action("combobox", "Search commands and objects", "fill", "no matching command")
+    check("if (!paletteDeleteConfirmation.matches(':modal')) throw Error('Palette changed the native confirmation owner');")
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
+    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal')) throw Error('Palette Escape must retain the SAME native confirmation');")
+    action("button", "Cancel")
+    browser("wait", "--fn", "!document.querySelector('dialog[open]')")
+    choose("Layout")
     browser("press", "Control+k")
     opened()
     action("combobox", "Search commands and objects", "fill", "PCB")
