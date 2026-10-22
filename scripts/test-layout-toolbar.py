@@ -347,7 +347,7 @@ def tests(url):
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
         assert all(size == sizes[0] for size in sizes), (width, sizes)
     assert browser("errors").get("errors", []) == []
-    print("PASS: production strips, trusted scope/action/menu/Snap keyboard, owner callbacks, precise numeric validity, four widths and four theme appearances", flush=True)
+    print("PASS: production strips, empty/enabled Transform focus, trusted keyboard, owner callbacks, numeric validity, requested and wrap-boundary widths x four theme appearances", flush=True)
 
 
 def main():
