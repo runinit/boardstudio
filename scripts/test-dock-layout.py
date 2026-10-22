@@ -151,6 +151,13 @@ def production_tests(url):
         if any(item.get("name") == label for item in browser("snapshot", "-i")["refs"].values()):
             click(label)
     add_view()
+    for key in ["Home", "End"]:
+        browser("focus", primitives.by_role_name("separator", "Resize Objects"))
+        browser("press", key)
+        for name in ["Add object", "Objects options", "Collapse objects"]:
+            browser("focus", primitives.by_role_name("button", name))
+            check("(() => {const button=document.activeElement,heading=button.closest('.dock-heading'),dock=button.closest('[role=complementary]'),r=button.getBoundingClientRect(),d=dock.getBoundingClientRect();return heading.scrollWidth<=heading.clientWidth && r.left>=d.left && r.right<=d.right})()")
+        browser("screenshot", str(ROOT / f".evidence/011-production-objects-{key.lower()}.png"))
     check("(() => {const left=document.querySelector('[role=complementary][aria-label=Objects]').getBoundingClientRect(),right=document.querySelector('[role=complementary][aria-label=Inspector]').getBoundingClientRect(),canvas=document.querySelector('[role=region][aria-label=\"Layout workspace\"]').getBoundingClientRect();return left.right<=canvas.left && canvas.right<=right.left && canvas.width>=280})()")
     browser("screenshot", str(ROOT / ".evidence/011-production-desktop.png"))
     (ROOT / ".evidence/011-production-browser-errors.json").write_text(primitives.json.dumps(browser("errors")))
@@ -272,6 +279,7 @@ def tests(url):
         for appearance in ["light", "dark"]:
             evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
             click("Inspector")
+            browser("wait", "--fn", "document.querySelector('[role=tab][aria-selected=true]')?.textContent==='Inspector'")
             browser("screenshot", str(ROOT / f".evidence/011-narrow-{theme}-{appearance}.png"))
             browser("press", "Escape")
     assert browser("errors").get("errors", []) == []

@@ -12,7 +12,7 @@
 .workbench-dock > [data-slot='sidenav-resize'] { position: absolute; top: 0; bottom: 0; width: 12px; touch-action: none; cursor: col-resize; }
 .workbench-dock > [data-slot='sidenav-content'] { padding: 0; overflow: hidden; }
 .dock-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
-.dock-heading { position: relative; display: flex; flex: none; align-items: center; gap: 4px; padding: 8px; }
+.dock-heading { position: relative; display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px; }
 .dock-heading h2 { margin: 0 auto 0 0; font-size: 14px; }
 .dock-heading [data-slot='button'], .dock-heading [data-slot='popover-trigger'] { padding-inline: 8px; }
 .dock-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
