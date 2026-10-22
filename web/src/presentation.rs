@@ -681,7 +681,7 @@ fn WorkbenchApp() -> Element {
                 has_project: runtime.model().accepted.is_some(),
                 save_state,
                 settings_open,
-                palette_open: (palette.open)(),
+                palette_open: palette.open,
                 on_search: move |_| palette.show(),
                 on_undo,
                 on_redo,
