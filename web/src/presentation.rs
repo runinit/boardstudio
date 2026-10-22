@@ -12,6 +12,7 @@ mod case_workspace;
 mod context_summary;
 mod empty_board_canvas;
 mod export_workspace;
+mod header;
 pub(crate) use boardstudio_web_pcb::firmware_positions;
 pub(crate) use boardstudio_web_ui_shared::geometry_scripts;
 mod inspector;
@@ -59,15 +60,13 @@ pub(crate) use boardstudio_web_ui_model::state::{
 #[allow(unused_imports)]
 pub(crate) use boardstudio_web_ui_model::state::{
     CaseGenerationState, CompactPanelState, Drag, InstanceSelection, LayerVisibility,
-    LayoutOwnerIdentity, ProjectMenuPage, RelationHighlight, ResolvedAppearance, WorkspaceState,
+    LayoutOwnerIdentity, RelationHighlight, ResolvedAppearance, WorkspaceState,
 };
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
     coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
-pub(crate) use boardstudio_web_ui_shared::project_menu;
-pub(crate) use boardstudio_web_ui_shared::project_menu::close_project_menu;
 mod layout_key_selection_actions;
 mod layout_matrix_relations;
 mod layout_workspace;
@@ -619,11 +618,29 @@ pub fn App() -> Element {
     } else {
         durability_state(&runtime.model().durability)
     };
-    let mut project_menu_page = use_signal(|| ProjectMenuPage::Project);
+    let mut settings_open = use_signal(|| false);
     let header_undo = runtime.clone();
     let header_redo = runtime.clone();
+    let on_undo = EventHandler::new(move |()| {
+        header_undo.submit(Event::Undo {
+            operation_id: header_undo.operation(),
+        })
+    });
+    let on_redo = EventHandler::new(move |()| {
+        header_redo.submit(Event::Redo {
+            operation_id: header_redo.operation(),
+        })
+    });
+    let on_export = EventHandler::new(move |()| {
+        if workspace() == "Export" {
+            workspace.set(return_workspace())
+        } else {
+            workspace.set("Export")
+        }
+    });
     rsx! {
         link { rel: "stylesheet", href: "assets/m1.css" }
+        link { rel: "stylesheet", href: "assets/header.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
         main { class: if project_browser() || runtime.model().accepted.is_none() { "m1-workbench is-project-browser" } else { "m1-workbench" },
@@ -633,103 +650,21 @@ pub fn App() -> Element {
                     workbench_shortcuts::handle_history_shortcut(runtime.clone(), event);
                 }
             },
-            header { class: "m1-topbar",
-                div { class: "m1-header-identity",
-                    div { class: "m1-brand", role: "img", aria_label: "BoardStudio",
-                        svg { view_box: "0 0 24 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
-                            rect { x: "1", y: "2", width: "22", height: "16", rx: "2" }
-                            path { d: "M1 7h22M1 12h22M6 2v10M12 2v10M18 2v10M5 12v6M19 12v6" }
-                        }
-                        span { "BoardStudio" }
-                    }
-                    details { class: "m1-project-menu", onkeydown: move |event: KeyboardEvent| {
-                        if event.data().key().to_string() == "Escape" {
-                            event.prevent_default();
-                            close_project_menu();
-                        }
-                    },
-                        summary { role: "button", "aria-label": "Project", "aria-controls": "m1-project-menu-dropdown", title: "Project menu — {project_name}", onclick: move |_| project_menu_page.set(ProjectMenuPage::Project),
-                            svg { class: "m1-project-mark", view_box: "0 0 30 30", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M4 4h22v22H4z" }, path { d: "m8 20 5-10 4 8 3-5 3 7" }, circle { cx: "13", cy: "10", r: "1.3" } }
-                            span { class: "m1-project-name", "{project_name}" }
-                            svg { class: "m1-project-chevron", view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m5 7 5 5 5-5" } }
-                        }
-                        Library { project_menu: true, menu_page: Some(project_menu_page) }
-                    }
-                }
-                if runtime.model().accepted.is_some() && !project_browser() {
-                    workspace_navigation::WorkspaceObjectNavigation { workspace }
-                }
-                div { class: "m1-header-actions",
-                details { class: "m1-save-state", "data-state": "{save_state}", onkeydown: move |event: KeyboardEvent| {
-                    if event.data().key().to_string() == "Escape" {
-                        event.prevent_default();
-                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
-                            let _ = menu.remove_attribute("open");
-                            if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
-                                let _ = summary.focus();
-                            }
-                        }
-                    }
+            header::Header {
+                project_menu: rsx! { library::ProjectHeaderMenu { project_name, on_undo, on_redo, on_export,
+                    on_settings: move |_| settings_open.set(true),
+                } },
+                workspace,
+                show_workspaces: runtime.model().accepted.is_some() && !project_browser(),
+                has_project: runtime.model().accepted.is_some(),
+                save_state,
+                settings_open,
+                on_undo,
+                on_redo,
+                on_export,
+                panel_controls: rsx! {
+                    if runtime.model().accepted.is_some() && workspace() != "Export" { panels::CompactPanelControls {} }
                 },
-                    summary {
-                        aria_label: match save_state { "saved" => "Saved locally", "saving" => "Saving locally", "failed" => "Local save failed", _ => "Local save status unavailable" },
-                        i { "aria-hidden": "true" }
-                        span { class: "m1-save-label",
-                            match save_state {
-                                "saved" => "Saved",
-                                "saving" => "Saving…",
-                                "failed" => "Save failed",
-                                "ready" => "Ready",
-                                _ => "Pending",
-                            }
-                        }
-                    }
-                    div { role: "status",
-                        if save_state == "saved" { "Changes are saved in this browser. Use Save project copy for a portable backup." }
-                        else if save_state == "saving" { "Saving changes in this browser…" }
-                        else if save_state == "failed" { "Changes could not be saved locally. Check available browser storage before editing further." }
-                        else { "Local save status is unavailable." }
-                    }
-                }
-                if runtime.model().accepted.is_some() {
-                    div { class: "m1-header-history", role: "group", aria_label: "Edit history",
-                        BoardButton { aria_label: "Undo", title: "Undo (Ctrl/Cmd+Z)", onclick: move |_| header_undo.submit(Event::Undo { operation_id: header_undo.operation() }),
-                            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } }
-                        }
-                        BoardButton { aria_label: "Redo", title: "Redo (Ctrl/Cmd+Shift+Z)", onclick: move |_| header_redo.submit(Event::Redo { operation_id: header_redo.operation() }),
-                            svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } }
-                        }
-                    }
-                }
-                if runtime.model().accepted.is_some() && workspace() != "Export" {
-                    panels::CompactPanelControls {}
-                }
-                details { class: "m1-settings-menu", onkeydown: move |event: KeyboardEvent| {
-                    if event.data().key().to_string() == "Escape" {
-                        event.prevent_default();
-                        if let Some(menu) = event.data().try_as_web_event().and_then(|event| event.current_target()).and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
-                            let _ = menu.remove_attribute("open");
-                            if let Some(summary) = menu.query_selector("summary").ok().flatten().and_then(|element| element.dyn_into::<HtmlElement>().ok()) {
-                                let _ = summary.focus();
-                            }
-                        }
-                    }
-                },
-                    summary { role: "button", "aria-label": "Settings", "aria-controls": "m1-settings-popover", title: "Settings",
-                        svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true",
-                            path { d: "M8.4 2.5h3.2l.5 1.8a6 6 0 0 1 1.2.7l1.8-.6 1.6 2.8-1.3 1.3a6 6 0 0 1 0 1.4l1.3 1.3-1.6 2.8-1.8-.6a6 6 0 0 1-1.2.7l-.5 1.8H8.4l-.5-1.8a6 6 0 0 1-1.2-.7l-1.8.6-1.6-2.8 1.3-1.3a6 6 0 0 1 0-1.4L3.3 7.2l1.6-2.8 1.8.6a6 6 0 0 1 1.2-.7z" }
-                            circle { cx: "10", cy: "9.2", r: "2.3" }
-                        }
-                    }
-                    div { id: "m1-settings-popover", class: "m1-settings-popover", role: "group", aria_label: "Settings",
-                        project_menu::ThemePicker {}
-                    }
-                }
-                button { class: "m1-export-tab", id: "m1-tab-Export", aria_label: "Export", "aria-pressed": "{workspace() == \"Export\"}", onclick: move |_| if workspace() == "Export" { workspace.set(return_workspace()) } else { workspace.set("Export") },
-                    svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", stroke_linecap: "round", stroke_linejoin: "round", "aria-hidden": "true", path { d: "M4 12v5h12v-5M10 13V3M6 7l4-4 4 4" } }
-                    span { "Export" }
-                }
-                }
             }
             if runtime.model().accepted.is_some() {
                 div { class: "m1-editor-host", hidden: project_browser(), Editor {} }

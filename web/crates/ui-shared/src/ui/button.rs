@@ -93,6 +93,8 @@ pub fn Button(
     #[props(optional)] onpointerleave: Option<EventHandler<PointerEvent>>,
     #[props(optional)] onpointercancel: Option<EventHandler<PointerEvent>>,
     #[props(into, optional)] aria_label: Option<String>,
+    #[props(into, optional)] aria_current: Option<String>,
+    #[props(optional)] aria_pressed: Option<bool>,
     #[props(into, optional)] title: Option<String>,
     children: Element,
 ) -> Element {
@@ -111,6 +113,8 @@ pub fn Button(
                 class: "{merged_class}",
                 href: url,
                 "aria-label": aria_label.as_deref(),
+                "aria-current": aria_current.as_deref(),
+                "aria-pressed": aria_pressed,
                 title: title.as_deref(),
                 {children}
             }
@@ -124,6 +128,8 @@ pub fn Button(
                 r#type: button_type.as_deref().unwrap_or("button"),
                 disabled,
                 "aria-label": aria_label.as_deref(),
+                "aria-current": aria_current.as_deref(),
+                "aria-pressed": aria_pressed,
                 title: title.as_deref(),
                 onclick: move |e| {
                     if let Some(handler) = &onclick {

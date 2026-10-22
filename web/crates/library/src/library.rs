@@ -24,6 +24,9 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
+mod header_actions;
+pub use header_actions::ProjectHeaderMenu;
+
 /// Presentation-only browser visibility. The editor remains mounted while browsing.
 #[derive(Clone, Copy)]
 pub struct ProjectBrowserState(pub Signal<bool>);
@@ -453,6 +456,29 @@ fn DemoActionCard() -> Element {
     }
 }
 
+fn start_new_keyboard(
+    runtime: Rc<Runtime>,
+    browser: Option<ProjectBrowserState>,
+    mut pending_new: Signal<Option<PendingNewKeyboard>>,
+    mut new_error: Signal<String>,
+) {
+    super::close_project_menu();
+    if let Some(mut browser) = browser {
+        browser.0.set(false);
+    }
+    if pending_new().is_some() {
+        return;
+    }
+    new_error.set(String::new());
+    match runtime.create_new_keyboard() {
+        Ok((project_id, outcome)) => pending_new.set(Some(PendingNewKeyboard {
+            project_id,
+            outcome,
+        })),
+        Err(error) => new_error.set(error),
+    }
+}
+
 #[component]
 pub fn Library(
     project_menu: bool,
@@ -473,23 +499,7 @@ pub fn Library(
     let start_new: Rc<dyn Fn()> = Rc::new({
         let runtime = runtime.clone();
         move || {
-            let mut pending_new = pending_new;
-            let mut new_error = new_error;
-            super::close_project_menu();
-            if let Some(mut browser) = browser {
-                browser.0.set(false);
-            }
-            if pending_new().is_some() {
-                return;
-            }
-            new_error.set(String::new());
-            match runtime.create_new_keyboard() {
-                Ok((project_id, outcome)) => pending_new.set(Some(PendingNewKeyboard {
-                    project_id,
-                    outcome,
-                })),
-                Err(error) => new_error.set(error),
-            }
+            start_new_keyboard(runtime.clone(), browser, pending_new, new_error);
         }
     });
     let start_new_menu_top = start_new.clone();

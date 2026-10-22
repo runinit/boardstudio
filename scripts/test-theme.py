@@ -31,13 +31,13 @@ def main():
         browser("wait", "--text", name)
         browser("find", "role", "button", "click", "--name", name, "--exact")
     browser("wait", "--text", "Browse parts")
-    browser("find", "role", "button", "click", "--name", "Settings", "--exact")
-    browser("wait", 'select[aria-label="Workbench theme"]')
     observations = []
     for theme in ("original", "shadcn"):
-        browser("select", 'select[aria-label="Workbench theme"]', theme)
+        browser("find", "role", "button", "click", "--name", "Settings", "--exact")
+        browser("find", "role", "menuitemradio", "click", "--name", "Original" if theme == "original" else "shadcn", "--exact")
         for appearance in ("light", "dark"):
-            browser("select", 'select[aria-label="Color theme"]', appearance)
+            browser("find", "role", "button", "click", "--name", "Settings", "--exact")
+            browser("find", "role", "menuitemradio", "click", "--name", appearance.title(), "--exact")
             browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}'")
             result = browser("eval", """(async () => {
                 const root = document.documentElement;

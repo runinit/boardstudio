@@ -1,34 +1,19 @@
 //! Header workspace navigation; document trees keep their own selection and visibility owners.
-use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
 #[component]
 pub(super) fn WorkspaceObjectNavigation(mut workspace: Signal<&'static str>) -> Element {
-    use_effect(move || {
-        let _ = workspace();
-        let _ = document::eval(
-            r#"document.querySelector('.m1-workflow-navigation [aria-current="page"]')?.scrollIntoView({block:'nearest', inline:'nearest'});"#,
-        );
-    });
     rsx! {
-        nav { class: "m1-workflow-navigation", aria_label: "Workspaces",
-            for (name, glyph) in [
-                ("Layout", "M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"),
-                ("PCB", "M2 2h12v12H2zM5 5h6v6H5zM1 5h4M11 11h4"),
-                ("Keymap", "M2 3h12v10H2zM4 6h2M7 6h2M10 6h2M4 10h8"),
-                ("Keycaps", "M4 3h8l2 10H2ZM2 13v2h12v-2M5 6h6"),
-                ("Case", "m2 5 6-3 6 3v7l-6 3-6-3ZM2 5l6 3 6-3M8 8v7"),
-                ("Parts", "M2 5h12v9H2zM5 5V2h6v3M6 9h4"),
-            ] {
-                BoardButton {
-                    key: "{name}", "id": "m1-workspace-{name}",
-                    class: "m1-workspace-tree-link", aria_label: "Open {name} workspace",
-                    title: "{name}",
-                    "aria-controls": "m1-workspace-panel",
-                    "aria-current": if workspace() == name { "page" },
+        nav { class: "header-workspaces", aria_label: "Workspaces",
+            for name in ["Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts"] {
+                Button {
+                    key: "{name}", id: "m1-workspace-{name}",
+                    variant: ButtonVariant::Ghost,
+                    aria_label: "Open {name} workspace",
+                    aria_current: (workspace() == name).then_some("page".to_string()),
                     onclick: move |_| workspace.set(name),
-                    svg { view_box: "0 0 16 16", fill: "none", stroke: "currentColor", stroke_width: "1.3", "aria-hidden": "true", path { d: glyph } }
-                    span { "{name}" }
+                    "{name}"
                 }
             }
         }

@@ -64,6 +64,46 @@ def main():
     check("if (document.activeElement.textContent.trim() !== 'Browse projects') throw Error('Project typeahead');")
     browser("press", "Escape")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Project') throw Error('Project return focus');")
+    browser("wait", '[aria-label="Saved locally"]')
+    action("button", "Saved locally")
+    browser("wait", "--text", "Changes are saved in this browser.")
+    browser("press", "Escape")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Saved locally') throw Error('Save return focus');")
+    original_name = browser("get", "text", '[aria-label="Project"]').strip()
+    action("button", "Project")
+    action("menuitem", "Browse projects")
+    browser("wait", "--text", "Your keyboards")
+    action("button", "Preview " + original_name)
+    browser("find", "text", "Rename project", "click", "--exact")
+    browser("find", "role", "textbox", "fill", "Header outcome", "--name", "Project name", "--exact")
+    browser("press", "Tab")
+    browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Header outcome'")
+    action("button", "Project")
+    action("menuitem", "Return to editor")
+    action("button", "Undo")
+    browser("wait", "--fn", f"document.querySelector('[aria-label=Project]').textContent.trim() === {original_name!r}")
+    action("button", "Redo")
+    browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Header outcome'")
+    action("button", "Export")
+    browser("wait", "--fn", "document.querySelector('[aria-label=Export][aria-pressed=true]') !== null")
+    action("button", "Export")
+    browser("wait", "--fn", "document.querySelector('[aria-label=\"Open Layout workspace\"][aria-current=page]') !== null")
+    action("button", "Project")
+    download = (args.evidence / "header-copy.boardstudio").resolve()
+    browser("download", '[role=menuitem][aria-label="Save project copy…"]', str(download))
+    assert download.stat().st_size > 0, "Save project copy must produce a real file"
+    browser("upload", "#header-open-project", str(download))
+    browser("wait", '[aria-label="Saved locally"]')
+    action("button", "Settings")
+    browser("press", "End")
+    check("if (document.activeElement.textContent.trim() !== 'shadcn') throw Error('Settings End');")
+    browser("press", "Home")
+    browser("press", "ArrowDown")
+    browser("press", "ArrowDown")
+    check("if (document.activeElement.textContent.trim() !== 'Dark') throw Error('Settings arrows');")
+    browser("press", "Enter")
+    browser("wait", "--fn", "document.documentElement.dataset.appearance === 'dark'")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Settings') throw Error('Settings activation return focus');")
     observations = []
     for theme, theme_label in (("original", "Original"), ("shadcn", "shadcn")):
         action("button", "Settings")
@@ -74,6 +114,10 @@ def main():
             browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}'")
             for width in (1440, 1024, 768, 390):
                 browser("set", "viewport", str(width), "960")
+                if width <= 1250:
+                    action("button", "Workbench menu")
+                    browser("wait", '[aria-label="Open Layout workspace"]')
+                browser("eval", "(async () => { await Promise.all(document.getAnimations().filter(a => a.effect.getComputedTiming().iterations !== Infinity).map(a => a.finished)); return true; })()")
                 observations.append(browser("eval", """(() => {
                     const h = document.querySelector('main > header'), r = h.getBoundingClientRect(), c = getComputedStyle(h);
                     if (r.height !== 56 || parseFloat(c.borderBottomWidth)) throw Error('Header geometry');
@@ -86,6 +130,9 @@ def main():
                     return {width:innerWidth, height:r.height, theme:document.documentElement.dataset.theme, appearance:document.documentElement.dataset.appearance};
                 })()"""))
                 browser("screenshot", str((args.evidence / f"{theme}-{appearance}-{width}.png").resolve()))
+                if width <= 1250:
+                    browser("press", "Escape")
+                    check("if (document.activeElement.getAttribute('aria-label') !== 'Workbench menu') throw Error('Mobile return focus');")
             browser("set", "viewport", "1440", "960")
             browser("reload")
             browser("wait", '[aria-label="Saved locally"]')
@@ -99,7 +146,7 @@ def main():
             """)
             browser("press", "Escape")
     (args.evidence / "geometry.txt").write_text("\n".join(observations) + "\n")
-    print("PASS: production header navigation, action-menu keyboard floor, inert Search, persisted Theme/Appearance, geometry at four widths")
+    print("PASS: production header navigation, action-menu keyboard floor, new/rename/Undo/Redo/Export/copy/import outcomes, inert Search, persisted Theme/Appearance, mobile focus and geometry at four widths")
 
 
 if __name__ == "__main__":
