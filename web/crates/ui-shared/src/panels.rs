@@ -205,11 +205,11 @@ pub fn DockLayout(
                                     set_bool(state.inspector_open, value == "inspector");
                                 },
                                 TabsList { aria_label: "Workspace panels",
-                                    TabsTrigger { value: "objects", index: 0usize, disabled: objects.is_none(), "Objects" }
-                                    TabsTrigger { value: "inspector", index: 1usize, disabled: inspector.is_none(), "Inspector" }
+                                    TabsTrigger { id: "workspace-objects-tab", value: "objects", index: 0usize, disabled: objects.is_none(), "Objects" }
+                                    TabsTrigger { id: "workspace-inspector-tab", value: "inspector", index: 1usize, disabled: inspector.is_none(), "Inspector" }
                                 }
-                                TabsContent { value: "objects", index: 0usize, {objects} }
-                                TabsContent { value: "inspector", index: 1usize, {inspector} }
+                                TabsContent { aria_labelledby: "workspace-objects-tab", value: "objects", index: 0usize, {objects} }
+                                TabsContent { aria_labelledby: "workspace-inspector-tab", value: "inspector", index: 1usize, {inspector} }
                             }
                             SheetClose { "Close panels" }
                         }

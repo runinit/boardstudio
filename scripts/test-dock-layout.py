@@ -159,6 +159,7 @@ def tests(url):
         for role, name in [("tab", "Objects"), ("tab", "Inspector")]:
             browser("find", "role", role, "click", "--name", name, "--exact")
             check(f"document.querySelector('[role=tab][aria-selected=true]').textContent==='{name}'")
+            check("(() => {const tab=document.querySelector('[role=tab][aria-selected=true]');return document.getElementById(tab.getAttribute('aria-controls')).getAttribute('aria-labelledby')===tab.id})()")
         clicks = evaluate("document.querySelector('[role=status][aria-label=\"Canvas clicks\"]').textContent")
         click("Canvas action")
         check(f"document.querySelector('[role=status][aria-label=\"Canvas clicks\"]').textContent==='{int(clicks)+1}'")
