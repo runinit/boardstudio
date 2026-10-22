@@ -39,12 +39,14 @@ decided.
 
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
+- [005: How Themes and Appearance are structured](issues/005-theme-structure.md): [theme-contract](theme-contract.md) decided: `data-appearance` and `data-theme`, rust-ui token names mapped by meaning plus a few extras, a Theme sets colour / radius / font only, shared layout metrics, Inter for shadcn, 3D keeps its own palettes.
 - [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md): [mapping](mapping.md) decided; no new custom components; sizes by pixels, Select vs Combobox, Stepper, message and Tooltip rules, file inputs stay native.
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; blocked by: None
 - [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md) — `wayfinder:grilling`; blocked by: 003, 011
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md) — `wayfinder:grilling`; blocked by: 002
 - [006: Solar replacements for rust-ui's icons](issues/006-solar-icons-for-rust-ui.md) — `wayfinder:research`; blocked by: None
 - [008: Choose the workbench icon set](issues/008-choose-icon-set.md) — `wayfinder:grilling`; blocked by: None
+- [013: Prototype the Original and shadcn Themes on copied components](issues/013-prototype-theme-look.md) — `wayfinder:prototype`; blocked by: None
 - [012: Command palette contents and shortcut hints](issues/012-command-palette-contents.md) — `wayfinder:grilling`; blocked by: None
 - [009: How to close rust-ui's control and accessibility gaps](issues/009-close-rust-ui-behaviour-gaps.md) — `wayfinder:grilling`; blocked by: None
 - [010: Measure keyboard and ARIA conformance of the controls we would adopt](issues/010-measure-keyboard-and-aria-conformance.md) — `wayfinder:task`; blocked by: None
@@ -64,8 +66,6 @@ decided.
 
 ## Not yet specified
 
-- Theme look: what the shadcn Theme's base palette is and how Original's Graphite values
-  land in rust-ui's names; likely a prototype once the Theme structure is decided.
 - Assembling the spec: once the tickets are resolved, `spec.md` gathers the decisions, the mapping and the lane plan
   into build tickets.
 - Shell build details: customising Sheet to be non-modal, extracting Sidenav's classes, per-side dock resize and persisted widths, a fallback for saved auto-hide preferences, the header's mobile menu, and the DESIGN.md rewrite.

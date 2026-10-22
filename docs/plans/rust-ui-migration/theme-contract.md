@@ -1,6 +1,6 @@
 # Theme contract: Themes, Appearance and tokens
 
-Ticket: [005](issues/005-theme-structure.md). **DRAFT**, proposed 2026-10-21; rows marked ❓ wait on the user's answer.
+Ticket: [005](issues/005-theme-structure.md). Decided with the user, 2026-10-21 (all seven proposals accepted as drafted).
 Terms are in the [glossary](../../../GLOSSARY.md): a **Theme** is Original or shadcn; **Appearance** is light, dark or system.
 Inputs: [ADR-0034](../../adr/0034-adopt-rust-ui-components-with-two-themes.md), the rust-ui token list in
 `research/rust-ui-catalogue`, and today's tokens in `web/assets/m1.css` and `web/tailwind.css`.
@@ -21,12 +21,12 @@ the 3D views through CSS.
 
 | Piece | Design |
 | --- | --- |
-| Attributes on `<html>` | ❓ Q1 `data-appearance="light|dark"` (resolved) and `data-theme="original|shadcn"`. Copied `dark:` classes are keyed with one line, `@custom-variant dark (&:where([data-appearance=dark], [data-appearance=dark] *))`, so no `.dark` class is needed. |
-| Token contract | ❓ Q2 rust-ui's names are the base; BoardStudio adds the short extras in section 4; `--wb-*` retires. |
-| What a Theme sets | ❓ Q3 colours, `--radius`, fonts and shadows. Never layout metrics (section 5). |
+| Attributes on `<html>` | `data-appearance="light|dark"` (resolved) and `data-theme="original|shadcn"`. Copied `dark:` classes are keyed with one line, `@custom-variant dark (&:where([data-appearance=dark], [data-appearance=dark] *))`, so no `.dark` class is needed. |
+| Token contract | rust-ui's names are the base; BoardStudio adds the short extras in section 4; `--wb-*` retires. |
+| What a Theme sets | colours, `--radius`, fonts and shadows. Never layout metrics (section 5). |
 | Blocks | one `[data-theme=original]` block and one `[data-theme=shadcn]` block, each with light values and a `[data-appearance=dark]` override |
-| Preference storage | ❓ Q6 Appearance: `boardstudio:v2:appearance` (reads the legacy `boardstudio:v2:theme` once). Theme: `boardstudio:v2:workbench-theme`, default `original`. Browser preferences, not in the project file. |
-| 3D renderer | ❓ Q7 receives Appearance only; its palettes are the same in both Themes. |
+| Preference storage | Appearance: `boardstudio:v2:appearance` (reads the legacy `boardstudio:v2:theme` once). Theme: `boardstudio:v2:workbench-theme`, default `original`. Browser preferences, not in the project file. |
+| 3D renderer | receives Appearance only; its palettes are the same in both Themes. |
 | Header control | one button with a Dropdown Menu holding two radio groups, Appearance and Theme ([ADR-0035](../../adr/0035-rebuild-the-workbench-shell-on-rust-ui-patterns.md)) |
 
 ## 3. Core token mapping (Original Theme, light / dark)
@@ -79,11 +79,11 @@ tokens.
 ## 6. shadcn Theme
 
 Source: rust-ui's own `tailwind.css` neutral palette (oklch) at the pinned commit, verbatim, with its three gaps defined
-(`destructive-foreground`, `surface`, `font-mono`). ❓ Q4 Font: Inter, bundled as a variable woff2 (OFL) so the offline app does not
+(`destructive-foreground`, `surface`, `font-mono`). Font: Inter, bundled as a variable woff2 (OFL) so the offline app does not
 fetch it.
 
 ## 7. Open build details
 
 Whether to apply the preference before first paint (the app currently sets the attribute after load, so a flash is possible);
-the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in a prototype
-(❓ Q5).
+the exact `info` and chart-free extras; migrating the 80 `--wb-*` references; the look of both Themes is checked in the prototype
+[013](issues/013-prototype-theme-look.md).
