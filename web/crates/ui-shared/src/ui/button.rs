@@ -7,9 +7,11 @@
 //! - `data-slot="button"` on both elements: the legacy unlayered `button`, `input` and `select`
 //!   rules in `m1.css` skip elements with a `data-slot`, and `tailwind.css` gives them a minimal
 //!   reset instead (the app has no Tailwind preflight). Every copied component's root element
-//!   carries a `data-slot` for the same reason, until the legacy rules are deleted;
+//!   carries a `data-slot` for the same reason, until the legacy rules are deleted.
 //! - heights read the shared control sizes (`h-9` → `h-control`, `h-8` → `h-control-compact`,
 //!   `h-10` → `h-control-touch`, `size-9`/`size-8` likewise; theme contract section 5).
+//! - the `Outline` variant's border, including `dark:border-input`, is removed: cards style (theme
+//!   contract section 8); focus rings kept.
 
 use dioxus::prelude::*;
 use tw_merge::tw_merge;
@@ -50,7 +52,7 @@ impl ButtonVariant {
             Self::Warning => "bg-warning text-warning-foreground hover:bg-warning/90",
             Self::Success => "bg-success text-success-foreground hover:bg-success/90",
             Self::Outline => {
-                "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/5"
+                "bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/5"
             }
             Self::Secondary => {
                 "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80"

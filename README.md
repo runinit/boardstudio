@@ -95,6 +95,11 @@ Running the `browser` step by itself first rebuilds the checked page so its real
 cannot pass against stale frontend assets. Run `python3 scripts/check.py drag-smoke` for that small
 drag preflight by itself before a longer browser or performance run.
 
+**Old-CSS count.** The `repo` step reports how many `.board-*` and `.m1-*` selectors and `--wb-*` variables
+remain under `web/` (distinct names, build output skipped) and never fails on them. `python3 scripts/check.py old-css`
+(or `python3 scripts/check-old-css.py --strict`) fails while any remain; it is not in the default run and gates the
+final merge to `dev` only.
+
 **KiCad in native tests.** The native tests call `kicad-cli` (KiCad 10) and fail with a clear message when it
 is missing; CI installs it. Only the generator export check (`core/tests/generator_export.rs`) can be skipped
 on purpose, with `BOARDSTUDIO_ALLOW_NO_KICAD=1`; the KiCad integration tests have no skip.

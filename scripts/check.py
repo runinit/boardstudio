@@ -143,6 +143,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
         [PY, "scripts/check-core-tests.py"],
         [PY, "-B", "scripts/test-check-adr-index.py"],
         [PY, "scripts/check-adr-index.py"],
+        [PY, "-B", "scripts/test-check-old-css.py"],
+        [PY, "scripts/check-old-css.py"],
     ]),
     "tooling": (True, [["node", "--version"], *[
         ["node", script] if script.endswith(".cjs") else [PY, "-B", script]
@@ -156,6 +158,8 @@ STEPS: dict[str, tuple[bool, list[Command]]] = {
     "browser": (True, browser()),
     "drag-smoke": (False, [DRAG_SMOKE]),
     "security": (False, [[PY, "-B", "scripts/security-audit.test.py"], [PY, "scripts/security-audit.py"]]),
+    # Fails while any .board-*, .m1-* selector or --wb-* variable remains (the final merge gate).
+    "old-css": (False, [[PY, "scripts/check-old-css.py", "--strict"]]),
     "deny": (False, [["cargo", "deny", "--locked", "check", "licenses", "bans", "sources"]]),
     "precommit": (False, typecheck()),
 }
