@@ -24,10 +24,12 @@ members = [
 exclude = [
   "cad/wasm",
   "renderer/vendor/cgmath-next-0.18.1",
+  "web/vendor/dioxus-interpreter-js-0.7.10",
 ]
 
 [patch.crates-io]
 cgmath = { path = "renderer/vendor/cgmath-next-0.18.1" }
+dioxus-interpreter-js = { path = "web/vendor/dioxus-interpreter-js-0.7.10" }
 
 # `dx serve` builds the page with this profile. Full debuginfo made the debug wasm
 # about 550 MB, and dx's `wasm-bindgen --keep-debug` pass over it took about 52 s of a
