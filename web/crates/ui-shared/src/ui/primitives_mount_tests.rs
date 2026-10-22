@@ -366,3 +366,131 @@ async fn combobox_floor_filter_active_descendant_selection_and_escape() {
     );
     root.remove();
 }
+
+#[component]
+fn CloseTracePicker(controlled: bool) -> Element {
+    let mut open = use_signal(|| Some(false));
+    let mut requests = use_signal(Vec::<bool>::new);
+    rsx! {
+        Select::<String> {
+            open: if controlled { open() } else { None },
+            on_open_change: move |value| {
+                requests.write().push(value);
+                open.set(Some(value));
+            },
+            SelectOption::<String> { index: 0usize, value: "a", text_value: "Apple", "Apple" }
+        }
+        button { onclick: move |_| requests.clear(), "Clear requests" }
+        button { onclick: move |_| open.set(Some(false)), "External close" }
+        output { role: "status", aria_label: "Open requests", "{requests():?}" }
+    }
+}
+
+fn animation_method(animation: &wasm_bindgen::JsValue, method: &str) {
+    js_sys::Reflect::get(animation, &method.into())
+        .unwrap()
+        .dyn_into::<js_sys::Function>()
+        .unwrap()
+        .call0(animation)
+        .unwrap();
+}
+
+fn hold_popup_animation(list: &web_sys::Element) -> wasm_bindgen::JsValue {
+    let animate = js_sys::Reflect::get(list, &"animate".into())
+        .unwrap()
+        .dyn_into::<js_sys::Function>()
+        .unwrap();
+    let frames = js_sys::JSON::parse(r#"[{"opacity":1},{"opacity":0}]"#).unwrap();
+    let animation = animate.call2(list, &frames, &1000.into()).unwrap();
+    // Pause before yielding: retention ends only when the test explicitly finishes it.
+    animation_method(&animation, "pause");
+    animation
+}
+
+#[wasm_bindgen_test]
+async fn select_close_requests_are_not_duplicated_while_popup_is_retained() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut observed = Vec::new();
+    let mut expected = Vec::new();
+    for controlled in [false, true] {
+        for action in ["Escape", "Enter", "external"] {
+            if !controlled && action == "external" {
+                continue;
+            }
+            let root = document.create_element("div").unwrap();
+            document.body().unwrap().append_child(&root).unwrap();
+            dioxus_web::launch::launch_virtual_dom(
+                VirtualDom::new_with_props(CloseTracePicker, CloseTracePickerProps { controlled }),
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            wait_until("trace picker mounts", || {
+                by_role_name(&root, "button", "Select an option").is_some()
+            })
+            .await;
+            let trigger = by_role_name(&root, "button", "Select an option").unwrap();
+            trigger.focus().unwrap();
+            key(&trigger, "ArrowDown");
+            let apple = focus_option(&root, "Apple").await;
+            let list_id = trigger.get_attribute("aria-controls").unwrap();
+            let list = document.get_element_by_id(&list_id).unwrap();
+            let animation = hold_popup_animation(&list);
+            by_role_name(&root, "button", "Clear requests")
+                .unwrap()
+                .click();
+            wait_until("trace is cleared", || {
+                by_role_name(&root, "status", "Open requests")
+                    .unwrap()
+                    .text_content()
+                    .as_deref()
+                    == Some("[]")
+            })
+            .await;
+            if action == "external" {
+                by_role_name(&root, "button", "External close")
+                    .unwrap()
+                    .click();
+            } else {
+                key(&apple, action);
+            }
+            wait_until(
+                "close restores focus while the popup remains mounted",
+                || {
+                    trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                        && focused(&trigger)
+                },
+            )
+            .await;
+            assert!(
+                list.is_connected(),
+                "the closing animation must retain the option"
+            );
+            assert!(apple.is_connected());
+            animation_method(&animation, "finish");
+            wait_until("finishing the animation removes the popup", || {
+                !list.is_connected()
+            })
+            .await;
+            let trace = by_role_name(&root, "status", "Open requests")
+                .unwrap()
+                .text_content()
+                .unwrap();
+            console_log!("controlled={controlled}, action={action}, close requests={trace}");
+            observed.push((controlled, action, trace));
+            expected.push((
+                controlled,
+                action,
+                if action == "external" {
+                    "[]"
+                } else {
+                    "[false]"
+                }
+                .to_string(),
+            ));
+            root.remove();
+        }
+    }
+    assert_eq!(
+        observed, expected,
+        "one callback per close action; an external close must not echo a request"
+    );
+}
