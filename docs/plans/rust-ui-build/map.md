@@ -74,7 +74,7 @@ How any agent works a ticket here, so prompts only need to point at a ticket and
 1. **Worktree.** Never edit in the integration checkout. Create a lane worktree from `feat/rust-ui-migration` per
    [parallel lanes](../typed-core-edits/parallel-lanes.md) (branch `lane/<NNN-slug>`, worktree under `.worktrees/`, `target` linked into
    `~/.cache/boardstudio-target/<lane>`, the ignored `.claude/settings.json` from `.worktreeinclude`, and the `cad/.cache` and `cad/wasm/pkg`
-   copies when a build needs them). One cargo or wasm-pack run per `target`; builds and tests lift the sandbox unless the target path is
+   copies when a build needs them). `scripts/new-lane.sh <NNN-slug>` does all of this from any worktree and prints the next steps. One cargo or wasm-pack run per `target`; builds and tests lift the sandbox unless the target path is
    allowlisted (AGENTS.md).
 2. **Claim.** Set the ticket's `Status: claimed` and commit it on the lane branch before any other change.
 3. **Work.** Follow the ticket, its [shared contract](#shared-contract) and the documents it links. Prefer the supported `scripts/check.py`
