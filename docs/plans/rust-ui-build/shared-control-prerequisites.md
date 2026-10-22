@@ -92,6 +92,87 @@ Pending: one combined Standards and Spec review through the coordinator, then ap
 feature landing. No workspace ticket is closed by this note. No full workspace, physical/native
 desktop interaction or global acceptance claim is made.
 
+## Closure review correction: dynamic attributes
+
+The combined closure review of `34846a6cc37e11a092f89144d10cbbbc52a717d2` approved Standards with
+zero findings. Spec requested two P2 corrections before landing:
+
+1. Button's explicit id slot and raw fallback id slot could issue conflicting writes on an
+   update from fallback id to owner id, removing the final DOM id.
+2. Button and InputGroupInput completed spreads were not sorted. Dioxus 0.7.10's
+   `VNode::diff_attributes` compares attribute **names** using a sorted-list merge; it can add a
+   retained blur listener and then remove its old copy when a preceding focus listener disappears.
+   That detaches the native nonbubbling blur listener. Attribute composition still matches both
+   name and namespace; sorting must follow the framework's name comparator without discarding
+   unrelated namespaced attributes.
+
+`697204b4` adds mounted regressions before either production correction: native/link Button id
+fallback/owner/default transitions with actual Tooltip focus descriptions; native/link Button
+focus-listener removal retaining raw-before-owner blur; InputGroupInput focus-listener removal
+retaining blur, unknown attributes, namespaced style and precise caller-owned value/input handling.
+The tests use an explicit render barrier after native focus/blur events, with no sleep or missing
+callback retry. Earlier review pins and receipts above remain unchanged.
+
+The first transition batch at `697204b4320b6cabb03df8d20aea955359fab60f` failed during the listener
+update with an uncaught `RawInterpreter.removeNonBubblingListener` error, `Cannot convert undefined
+or null to object`. That poisoned the remaining mounted fixtures; their mount timeouts do not
+establish independent REDs. `.evidence/shared-control-prereq/attribute-transitions-red.log` preserves
+the complete trace. `90061acd` narrows the fixtures so only the focus/blur pair is out of name order;
+unknown attribute removal and collisions remain covered.
+
+Three fresh-browser runs at `90061acd`, with no production fix, each failed:
+
+- `id-transition-red.log`: phase 1 expected `Identity native-owner-one`, observed **no DOM id**.
+- `button-blur-transition-red.log`: removing focus from native/link Buttons reached the same
+  nonbubbling-listener removal error before the update render barrier completed.
+- `input-blur-transition-red.log`: the InputGroupInput update independently reached that same
+  nonbubbling-listener removal error. These are executed runtime failures, not compile REDs; the
+  callback-count assertions remain required after the update can complete.
+
+These logs are under `.evidence/shared-control-prereq/`. Each isolated process ran its one named
+regression and reported 0 passed, 1 failed, 78 filtered out. The sequence did not change production
+source or retry a failing case until it passed.
+
+Correction implementation/test pin: `15371a4acdc139d1292761059f1094ef1bf53031`, tree
+`282039752f890d83a3b09d1031e08e428b7ade5d`. Button resolves owner-or-fallback id once, filters the
+raw id, and renders that effective value through its single id slot in both branches. Button and
+InputGroupInput sort their **completed** vectors by attribute name, exactly as Dioxus 0.7.10's diff
+compares them; existing namespace-aware filtering/composition is preserved. No API, dependency or
+shared helper framework was added for these corrections.
+
+Correction GREEN checks and targeted Spec re-review remain pending. The coordinator reallocated
+the 017 build slot for these checks; the target remains exclusive to this slice.
+
+### Additional pinned-renderer blocker after sorting
+
+The combined run at `15371a4a` is **not GREEN**:
+`.evidence/shared-control-prereq/combined-wasm-ui-corrected.log` first fails removing focus listeners
+with the same `removeNonBubblingListener` error; later mount failures are cascading, not independent
+regressions. A fresh-browser run of only the sorted Button blur test also fails:
+`.evidence/shared-control-prereq/button-blur-sorted-isolated-diagnostic.log`.
+
+A native mutation regression now verifies that the sorted native/link Button update emits exactly
+two focus removals (one per branch), and **no blur removal**. It passes:
+`.evidence/shared-control-prereq/native-listener-mutations-two-branches.log`. Its first diagnostic
+compile attempt incorrectly matched the owned `Mutation.name` String with a string-literal pattern;
+that compile error is retained separately in `native-listener-mutations-diagnostic.log` and is not
+behavior evidence. The corrected diagnostic passed before expanding to both branches.
+
+The remaining failure is in pinned `dioxus-interpreter-js` 0.7.10:
+`src/unified_bindings.rs:86-87` removes `data-dioxus-id` **before** calling `removeListener`.
+`src/js/core.js` / `src/ts/core.ts` then reads that removed attribute to index the nonbubbling listener
+table. Even the now-correct single focus-removal mutation therefore indexes the table with null and
+throws. The native mutation guard and executed browser failure distinguish this from the original
+unsorted-vector defect. No renderer dependency or private API has been changed.
+
+Coordinator decision is required for a local workaround: retain previously used listener names as
+`AttributeValue::None` slots when the caller removes the callback. That keeps native listener
+bookkeeping stable while Dioxus dispatch stops calling the removed callback, retains the blur
+callback, and keeps initially omitted/default events absent. It would require a small, scope-local
+history of listener identities in Button and InputGroupInput, with the same public Dioxus path on
+all targets and no new API/dependency. The alternative is a separately authorized pinned-renderer
+correction. Neither additional change has been made.
+
 Builds use the exclusive target
 `/home/chris/.cache/boardstudio-target/shared-control-prereq-t3-b5fe12f0`, outside `.evidence/`.
 The coordinator allocated the 017 slot to this slice while 017 continues independent source work;

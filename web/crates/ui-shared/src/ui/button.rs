@@ -796,6 +796,56 @@ mod attribute_tests {
     use super::*;
 
     #[test]
+    fn removing_focus_preserves_the_native_blur_listener_mutation() {
+        use std::{cell::RefCell, rc::Rc};
+        fn fixture(state: Rc<RefCell<Option<Signal<bool>>>>) -> Element {
+            let removed = use_signal(|| false);
+            *state.borrow_mut() = Some(removed);
+            rsx! {
+                for href in [None, Some("#mutations")] {
+                    Button { href: href.map(str::to_owned), class: "font-mono",
+                        onfocus: (!removed()).then(|| EventHandler::new(|_| {})), onblur: |_| {},
+                        attributes: {
+                            let mut attributes = Vec::new();
+                            attributes.push(Attribute::new("class", "collision", None, false));
+                            if !removed() { attributes.push(Attribute::new("data-removed", "remove", None, false)); }
+                            attributes.push(Attribute::new("data-retained", "kept", None, false));
+                            if !removed() { attributes.push(dioxus::events::onfocus(|_| {})); }
+                            attributes.push(dioxus::events::onblur(|_| {}));
+                            attributes
+                        }, "Native mutations"
+                    }
+                }
+            }
+        }
+        let state = Rc::new(RefCell::new(None));
+        let mut dom = VirtualDom::new_with_props(fixture, state.clone());
+        dom.rebuild_to_vec();
+        state.borrow_mut().as_mut().unwrap().set(false);
+        dom.render_immediate_to_vec();
+        state.borrow_mut().as_mut().unwrap().set(true);
+        let edits = dom.render_immediate_to_vec().edits;
+        assert_eq!(
+            edits
+                .iter()
+                .filter(|edit| matches!(
+                    edit,
+                    dioxus::core::Mutation::RemoveEventListener { name, .. } if name == "focus"
+                ))
+                .count(),
+            2,
+            "{edits:?}"
+        );
+        assert!(
+            !edits.iter().any(|edit| matches!(
+                edit,
+                dioxus::core::Mutation::RemoveEventListener { name, .. } if name == "blur"
+            )),
+            "{edits:?}"
+        );
+    }
+
+    #[test]
     fn button_owns_scalars_and_styles_but_keeps_id_fallback_and_unknown_attributes() {
         let canonical = [
             "class",
