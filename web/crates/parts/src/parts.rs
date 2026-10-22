@@ -1267,12 +1267,13 @@ pub fn ControllerSetupPicker(
                         let id = entry.definition.id.clone();
                         let active = chosen_id.as_ref() == Some(&id);
                         let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
-                        rsx! { div { key: "{id}", "data-match": matching, hidden: !matching,
-                            Button { class: "m1-controller-card", variant: ButtonVariant::Ghost, aria_pressed: active, disabled: !matching,
+                        rsx! { Button {
+                            key: "{id}", class: "m1-controller-card", variant: ButtonVariant::Ghost, aria_pressed: active,
+                            "data-match": matching, aria_hidden: (!matching).then_some("true"), disabled: !matching,
                             onclick: move |_| choose.call(id.clone()),
                             preview::ControllerFootprintThumbnail { definition: entry.definition.clone() }
                             strong { "{preferred_label(&entry.definition)}" }
-                        } } }
+                        } }
                     }
                 }
             }

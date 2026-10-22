@@ -92,6 +92,20 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
     .await;
     let combo = by_role_name(&root, "combobox", "Module host connector").unwrap();
     let input: web_sys::HtmlInputElement = combo.clone().unchecked_into();
+    let label = combo
+        .closest("label")
+        .unwrap()
+        .expect("the actual Parts picker supplies its visible label");
+    assert_eq!(
+        js_sys::Reflect::get(label.as_ref(), &"control".into()).unwrap(),
+        wasm_bindgen::JsValue::from(input.clone()),
+        "the actual Parts long-picker label must associate with its nested Combobox input"
+    );
+    label.dyn_into::<web_sys::HtmlElement>().unwrap().click();
+    wait_until("the actual long-picker label activates its input", || {
+        document.active_element() == Some(combo.clone().unchecked_into())
+    })
+    .await;
     input.set_value("Connector 12");
     let event = web_sys::EventInit::new();
     event.set_bubbles(true);

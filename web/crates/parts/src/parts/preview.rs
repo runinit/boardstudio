@@ -10,7 +10,6 @@ use boardstudio_web_ui_shared::ui::{
     callout::{Callout, CalloutVariant},
     spinner::Spinner,
     toggle_group::{ToggleGroup, ToggleItem},
-    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
 use std::{
@@ -348,26 +347,18 @@ pub fn PartsPreviewPanel(
                     lease_slot.invalidate();
                 } else if next.contains(&1) { show_3d.set(true); }
             },
-            Tooltip {
-                TooltipTrigger { as: move |attributes| rsx! {
-                    ToggleItem { index: 0, aria_label: "2D footprint", attributes,
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                            rect { x: "4", y: "4", width: "12", height: "12", rx: "2" }
-                            path { d: "M1 7h3M1 13h3M16 7h3M16 13h3M7 1v3M13 1v3M7 16v3M13 16v3" }
-                        }
-                    }
-                } }
-                TooltipContent { "2D footprint" }
+            ToggleItem { index: 0, aria_label: "2D footprint",
+                svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                    rect { x: "4", y: "4", width: "12", height: "12", rx: "2" }
+                    path { d: "M1 7h3M1 13h3M16 7h3M16 13h3M7 1v3M13 1v3M7 16v3M13 16v3" }
+                }
+                "2D"
             }
-            Tooltip {
-                TooltipTrigger { as: move |attributes| rsx! {
-                    ToggleItem { index: 1, aria_label: "3D model", attributes,
-                        svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                            path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
-                        }
-                    }
-                } }
-                TooltipContent { "3D model" }
+            ToggleItem { index: 1, aria_label: "3D model",
+                svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                    path { d: "m10 2 7 4v8l-7 4-7-4V6ZM3 6l7 4 7-4M10 10v8" }
+                }
+                "3D"
             }
         }
     };
