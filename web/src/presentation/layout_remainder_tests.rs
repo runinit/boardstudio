@@ -388,31 +388,27 @@ async fn mounted_apply_position_commits_both_axes_as_one_undo_entry() {
         dom,
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     wait_until("the old position inputs mount", || {
-        root.query_selector("#m1-position-x")
-            .is_ok_and(|input| input.is_some())
+        by_role_name(&root, "spinbutton", "X (mm)").is_some()
     })
     .await;
-    let input = |selector: &str| {
-        root.query_selector(selector)
-            .unwrap()
+    let input = |name: &str| {
+        by_role_name(&root, "spinbutton", name)
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap()
     };
     let bubbling = web_sys::EventInit::new();
     bubbling.set_bubbles(true);
-    for (selector, value) in [("#m1-position-x", "45"), ("#m1-position-y", "7")] {
-        let field = input(selector);
+    for (name, value) in [("X (mm)", "45"), ("Y (mm)", "7")] {
+        let field = input(name);
         field.set_value(value);
         field
             .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap())
             .unwrap();
     }
-    root.query_selector("button")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
+    by_role_name(&root, "button", "Apply position")
         .unwrap()
         .click();
     wait_until_step("Apply commits both position axes", async || {

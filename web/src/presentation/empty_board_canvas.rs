@@ -1,5 +1,8 @@
 //! Shared empty-board entry; Session and the existing setup/Parts owners own actions.
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::empty::{
+    Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle,
+};
 use dioxus::prelude::*;
 
 #[component]
@@ -9,21 +12,15 @@ pub(super) fn EmptyBoardCanvas(
     on_parts: EventHandler<()>,
 ) -> Element {
     rsx! {
-        div { class: "m1-canvas-empty",
-            div { class: "m1-empty-cursor", aria_hidden: "true",
-                svg { view_box: "0 0 24 24",
-                    path { d: "M5 3l14 9-6 1-3 6z" }
-                }
+        Empty { class: "shell-empty",
+            EmptyHeader {
+                EmptyTitle { "Build your keyboard layout" }
+                EmptyDescription { "Start with a key matrix. Its switches and companions create the board outline as you edit." }
             }
-            h2 { "Build your keyboard layout" }
-            p { "Start with a key matrix. Its switches and companions create the board outline as you edit." }
-            div { class: "m1-empty-actions",
+            EmptyContent { class: "w-full items-stretch",
                 Button { class: "h-11 min-w-0 flex-1 whitespace-normal", disabled: !editable,
                     onclick: move |_| on_matrix.call(()),
                     "Add key matrix",
-                    svg { view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true",
-                        path { d: "M5 12h14m-6-6 6 6-6 6" }
-                    }
                 }
                 Button { variant: ButtonVariant::Secondary, class: "h-11 min-w-0 flex-1 whitespace-normal",
                     onclick: move |_| on_parts.call(()), "Browse parts"

@@ -661,6 +661,7 @@ fn WorkbenchApp() -> Element {
         link { rel: "stylesheet", href: "assets/m1.css" }
         link { rel: "stylesheet", href: "assets/header.css" }
         link { rel: "stylesheet", href: "assets/command-palette.css" }
+        link { rel: "stylesheet", href: "assets/shell.css" }
         link { rel: "stylesheet", href: "assets/firmware-keymap-panel.css" }
         link { rel: "stylesheet", href: "assets/tailwind.css" }
         main { class: if project_browser() || runtime.model().accepted.is_none() { "m1-workbench is-project-browser" } else { "m1-workbench" },
@@ -9097,9 +9098,11 @@ fn Editor() -> Element {
                 }
                 }
             }
-            footer { class: "m1-editor-footer",
-                button { "aria-label": "Undo", onclick: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "M8 6 4 10l4 4M4 10h7a5 5 0 0 1 5 5" } } }
-                button { "aria-label": "Redo", onclick: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), svg { view_box: "0 0 20 20", fill: "none", stroke: "currentColor", stroke_width: "1.5", "aria-hidden": "true", path { d: "m12 6 4 4-4 4m4-4H9a5 5 0 0 0-5 5" } } }
+            footer { class: "m1-editor-footer shell-footer",
+                boardstudio_web_ui_shared::ui::toolbar::Toolbar { class: "shell-history", aria_label: "Footer edit history",
+                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 0usize, aria_label: "Undo", on_click: move |_| undo.submit(Event::Undo { operation_id: undo.operation() }), "Undo" }
+                    boardstudio_web_ui_shared::ui::toolbar::ToolbarButton { index: 1usize, aria_label: "Redo", on_click: move |_| redo.submit(Event::Redo { operation_id: redo.operation() }), "Redo" }
+                }
                 if matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps") && !layout_assembly_3d() {
                     canvas_status_footer::CanvasStatusFooter {
                         snap_settings: layout_snap_settings.read().clone(),
@@ -9129,7 +9132,7 @@ fn Editor() -> Element {
                     && !(matches!(active_workspace, "Layout" | "PCB" | "Keymap" | "Keycaps")
                         && !layout_assembly_3d())
                 {
-                    layout_findings::LayoutFindingsFooterButton {
+                    canvas_status_footer::FindingsButton {
                         count: keycaps_fit::presented_findings(
                             &findings,
                             &snapshot.document,

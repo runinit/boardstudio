@@ -1,8 +1,14 @@
 use crate::runtime::Runtime;
 use boardstudio_application::{Event, Scope};
 use boardstudio_core::model::{EditOperation, Position, Vec2};
-use boardstudio_web_ui_shared::controls::BoardButton;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    button::Button,
+    callout::{Callout, CalloutVariant},
+    field::{Field, FieldError, FieldLabel},
+    input::InputType,
+    input_group::{InputGroup, InputGroupInput, InputGroupText},
+};
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
@@ -216,7 +222,11 @@ pub(super) fn Inspector() -> Element {
         h2 { "Position" }
         if let Some(part) = selected {
             p { "{part.reference}" }
-            label { "X (mm)" input { id: "m1-position-x", r#type: "number", step: "any", value: "{x}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+            div { onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
+            Field {
+            FieldLabel { html_for: "m1-position-x", "X (mm)" }
+            InputGroup {
+            InputGroupInput { id: "m1-position-x", r#type: InputType::Number, step: "any", value: "{x}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
                 draft.write().0 = event.value();
                 let id = runtime.model().selected_part_ids.first().cloned();
                 let (draft_id, _, y_dirty) = dirty_axes.peek().clone();
@@ -229,8 +239,12 @@ pub(super) fn Inspector() -> Element {
                 let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.x_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
-            }} } }
-            label { "Y (mm)" input { id: "m1-position-y", r#type: "number", step: "any", value: "{y}", onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) }, oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
+            }} } InputGroupText { "mm" } } } }
+            div { onkeydown: { let cancel = cancel_numeric.clone(); move |event| (cancel.borrow_mut())(event) },
+            Field {
+            FieldLabel { html_for: "m1-position-y", "Y (mm)" }
+            InputGroup {
+            InputGroupInput { id: "m1-position-y", r#type: InputType::Number, step: "any", value: "{y}", oninput: { let runtime = runtime.clone(); let numeric_edit = numeric_edit.clone(); move |event: FormEvent| {
                 draft.write().1 = event.value();
                 let id = runtime.model().selected_part_ids.first().cloned();
                 let (draft_id, x_dirty, _) = dirty_axes.peek().clone();
@@ -243,11 +257,11 @@ pub(super) fn Inspector() -> Element {
                 let mut edit = numeric_edit.borrow_mut().take().unwrap_or_else(|| NumericEdit { id: part.id.clone(), transaction_id: format!("position-{}", runtime.operation().0), start: part.pose.at, part_ids: runtime.model().selected_part_ids, board_id: runtime.model().active_board_id, x_changed: false, y_changed: false });
                 edit.y_changed = true;
                 submit_position(&runtime, &numeric_edit, edit, Vec2 { x: px, y: py });
-            }} } }
-            BoardButton { disabled: apply_disabled(), onclick: submit, "Apply position" }
-            if let Some(message) = failure() { p { role: "alert", "{message}" } }
-            if numeric_edit.borrow().is_some() { p { role: "status", "Preview only. Press Enter or Apply position to save, or Escape to cancel." } }
-        } else { p { "Select a component to edit its position." } }
+            }} } InputGroupText { "mm" } } } }
+            Button { disabled: apply_disabled(), onclick: submit, "Apply position" }
+            if let Some(message) = failure() { FieldError { "{message}" } }
+            if numeric_edit.borrow().is_some() { div { role: "status", Callout { variant: CalloutVariant::Info, "Preview only. Press Enter or Apply position to save, or Escape to cancel." } } }
+        } else { Callout { variant: CalloutVariant::Info, "Select a component to edit its position." } }
     }}
 }
 
@@ -344,6 +358,7 @@ mod tests {
     use super::*;
     use crate::runtime::project_name_test_support as support;
     use boardstudio_core::model::{Board, Part, Pose2, ProjectDoc, Side};
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use wasm_bindgen_test::*;
 
@@ -445,34 +460,94 @@ mod tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the mounted position Inspector renders", || {
-            root.query_selector("#m1-position-x")
-                .is_ok_and(|input| input.is_some())
+            by_role_name(&root, "spinbutton", "X (mm)").is_some()
         })
         .await;
         (runtime, root)
     }
 
     #[wasm_bindgen_test]
+    async fn mounted_position_keeps_native_precision_escape_enter_and_focus_owner() {
+        let (runtime, root) = mounted_position_inspector().await;
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap();
+        assert_eq!(x.step(), "any");
+        assert_eq!(
+            x.get_attribute("data-slot").as_deref(),
+            Some("input-group-control")
+        );
+        x.focus().unwrap();
+        let bubbling = web_sys::EventInit::new();
+        bubbling.set_bubbles(true);
+        let keyboard = |key: &str| {
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            x.dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+        };
+        let input = |value: &str| {
+            x.set_value(value);
+            x.dispatch_event(
+                &web_sys::Event::new_with_event_init_dict("input", &bubbling).unwrap(),
+            )
+            .unwrap();
+        };
+        let accepted_x = || {
+            runtime.model().accepted.unwrap().document.parts[0]
+                .pose
+                .at
+                .x
+        };
+        input("0.1234567890123456");
+        support::run_pending(&runtime).await;
+        keyboard("Escape");
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.0);
+        assert_eq!(x.value(), "0");
+        input("0.1234567890123456");
+        support::run_pending(&runtime).await;
+        keyboard("Enter");
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.1234567890123456);
+        assert_eq!(
+            web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element(),
+            Some(x.clone().into())
+        );
+        assert_eq!(
+            by_role_name(&root, "spinbutton", "X (mm)").unwrap(),
+            x.clone().into()
+        );
+        runtime.submit(Event::Undo {
+            operation_id: runtime.operation(),
+        });
+        support::run_pending(&runtime).await;
+        assert_eq!(accepted_x(), 0.0);
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn mounted_failed_position_restores_the_clean_axis_and_preserves_a_newer_draft() {
         let (runtime, root) = mounted_position_inspector().await;
-        let x = root
-            .query_selector("#m1-position-x")
-            .unwrap()
+        let x = by_role_name(&root, "spinbutton", "X (mm)")
             .unwrap()
             .dyn_into::<HtmlInputElement>()
             .unwrap();
-        let y = root
-            .query_selector("#m1-position-y")
-            .unwrap()
+        let y = by_role_name(&root, "spinbutton", "Y (mm)")
             .unwrap()
             .dyn_into::<HtmlInputElement>()
             .unwrap();
-        let apply = root
-            .query_selector("button")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let apply = by_role_name(&root, "button", "Apply position").unwrap();
         let bubbling = web_sys::EventInit::new();
         bubbling.set_bubbles(true);
         for (field, value) in [(&x, "5"), (&y, "7")] {

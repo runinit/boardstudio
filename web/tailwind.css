@@ -725,7 +725,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-export-tab { order: 6; height: var(--wb-control-height); min-height: var(--wb-control-height); padding: 6px 14px; border-radius: var(--wb-radius-control); background: var(--wb-accent); color: var(--wb-on-accent); }
 .m1-export-tab:hover:not(:disabled) { background: var(--wb-accent-dark); }
 .m1-export-tab[aria-pressed='true'] { color: var(--wb-on-accent); background: var(--wb-accent); }
-.m1-editor-footer > button[aria-label='Undo'], .m1-editor-footer > button[aria-label='Redo'] { display: none; }
 
 /* Dock dimensions are defaults only; persisted widths and resize controls retain authority. */
 .m1-editor-body { --m1-left-panel-width: var(--wb-dock-left); --m1-right-panel-width: var(--wb-dock-right); }
@@ -742,7 +741,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-component-tabs button { min-height: var(--wb-control-touch); padding-inline: var(--wb-space-3); border-radius: 0; }
 .m1-layout-component-tabs button[aria-selected='true'] { color: var(--wb-accent); }
 .m1-inspector-body { background: var(--wb-panel); }
-:is(.m1-inspector, .m1-inspector-body) :is(input[type='text'], input[type='number'], select):not(.board-field-control), .board-select { min-height: var(--wb-control-height); border-radius: var(--wb-radius-control); background: var(--wb-field); }
+:is(.m1-inspector, .m1-inspector-body) :is(input[type='text'], input[type='number'], select):not(.board-field-control):where(:not([data-slot='input-group-control'])), .board-select { min-height: var(--wb-control-height); border-radius: var(--wb-radius-control); background: var(--wb-field); }
 :is(.m1-inspector, .m1-inspector-body) .board-field { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(100px, 1.15fr); align-items: center; gap: var(--wb-space-2); }
 :is(.m1-inspector, .m1-inspector-body) .board-field > span:first-child { color: var(--wb-muted); font-size: var(--wb-type-body); }
 :is(.m1-inspector, .m1-inspector-body) .board-field > small[role='alert'] { grid-column: 1 / -1; }
@@ -778,8 +777,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-snap-dock .board-popover-trigger { display: flex; gap: 6px; align-items: center; min-height: var(--wb-control-height); padding: 6px 8px; border: 1px solid transparent; border-radius: var(--wb-radius-control); color: var(--wb-ink); background: var(--wb-surface-soft); }
 .m1-layout-snap-dock .board-popover-content { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 12px); width: 250px; max-width: calc(100vw - 32px); padding: var(--wb-space-3); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-radius-toolbar); background: var(--wb-panel); color: var(--wb-ink); box-shadow: 0 8px 24px #0005; }
 .m1-editor-footer { flex-basis: var(--wb-footer-height); min-height: var(--wb-footer-height); background: var(--wb-topbar); font-size: var(--wb-type-label); }
-.m1-canvas-footer-view-controls { order: -1; }
-.m1-canvas-footer-coordinates { margin-left: auto; }
 
 @media (max-width: 1240px) {
   .m1-brand span { display: none; }
@@ -788,7 +785,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 }
 @media (max-width: 1100px) {
   .m1-header-history { display: none; }
-  .m1-editor-footer > button[aria-label='Undo'], .m1-editor-footer > button[aria-label='Redo'] { display: grid; }
   .m1-topbar { gap: var(--wb-space-2); padding-inline: var(--wb-space-2); }
   .m1-project-menu { max-width: 140px; }
 }
@@ -817,7 +813,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
   .m1-layout-snap-dock { padding: 10px 12px; }
   .m1-layout-snap-dock .board-popover-trigger { min-height: var(--wb-control-touch); }
   .m1-editor-footer { gap: 4px; padding-inline: 6px; }
-  .m1-canvas-footer-coordinates { display: none; }
 }
 @media (pointer: coarse) {
   .board-button, .board-toggle, .board-field-input, .board-field-control, .board-select { min-height: var(--wb-control-touch); }
@@ -882,7 +877,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
   .m1-editor-body:has(.m1-layout-toolbar-region) .m1-inspector-body { overflow: auto; overscroll-behavior: contain; }
   .m1-editor-body:has(.m1-layout-toolbar-region) .m1-objects { max-height: none; }
   .m1-project-menu > summary { width: 100%; max-width: 100%; justify-content: flex-start; }
-  .m1-editor:has(.m1-layout-toolbar-region) > .m1-editor-footer { flex-wrap: nowrap; overflow-x: auto; gap: 2px; }
 }
 
 /* Review revisions: shared navigation and compact, contextual subfunctions. */
@@ -1586,9 +1580,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .board-accordion .board-accordion-content[data-open='true'] { animation-duration: var(--wb-motion-reveal); animation-timing-function: var(--wb-ease-out); }
 .board-accordion .board-accordion-content[data-open='false'] { animation-duration: var(--wb-motion-feedback); animation-timing-function: ease-in; }
 
-/* Empty-state actions share one row and the same button system as the editor. */
-.m1-canvas-empty { width: min(460px, calc(100% - 32px)); }
-.m1-empty-actions { display: flex; width: 100%; align-items: stretch; justify-content: center; gap: var(--wb-space-2); }
 
 @media (max-width: 1100px) {
   .m1-topbar { gap: var(--wb-space-2); padding-inline: var(--wb-space-3); }
