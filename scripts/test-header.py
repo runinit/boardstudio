@@ -103,6 +103,70 @@ def main():
     browser("wait", "--fn", f"document.querySelector('[aria-label=Project]').textContent.trim() === {original_name!r}")
     browser("press", "Control+Shift+z")
     browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Header outcome'")
+    browser("set", "viewport", "390", "960")
+    action("button", "Workbench menu")
+    browser("wait", "--fn", "document.getElementById('header-mobile-commands')?.dataset.state === 'open'")
+    check("""
+        window.headerExitContent = document.getElementById('header-mobile-commands');
+        if (headerExitContent.hasAttribute('inert')) throw Error('Open compact popup must omit inert, including inert=false');
+        window.headerExitAnimation = headerExitContent.animate([{opacity: 1}, {opacity: 0}], 1000);
+        headerExitAnimation.pause();
+    """)
+    browser("wait", "--fn", "headerExitAnimation.playState === 'paused'")
+    browser("press", "Escape")
+    browser("wait", "--fn", "document.getElementById('header-mobile-trigger').getAttribute('aria-expanded') === 'false' && document.activeElement.id === 'header-mobile-trigger'")
+    check("""
+        if (!headerExitContent.isConnected || headerExitContent !== document.getElementById('header-mobile-commands')) throw Error('Actual closing content must remain connected during the paused Web Animation');
+    """)
+    browser("press", "Tab")
+    check("""
+        if (headerExitContent.contains(document.activeElement)) throw Error('Tab re-entered retained closing compact popup: ' + document.activeElement.outerHTML);
+        if (!headerExitContent.hasAttribute('inert')) throw Error('Closing compact popup must be inert');
+        document.body.setAttribute('tabindex', '-1');
+    """)
+    for name in [f"Open {w} workspace" for w in ("Layout", "PCB", "Keymap", "Keycaps", "Case", "Parts")] + ["Undo", "Redo", "Export"]:
+        check(f"""
+            document.body.focus();
+            const button = headerExitContent.querySelector('[aria-label="{name}"]');
+            if (!button) throw Error('Missing retained command: {name}');
+            button.focus();
+            if (document.activeElement !== document.body) throw Error('Retained command regained focus: {name}');
+        """)
+        browser("press", "Enter")
+        check("""
+            if (!headerExitContent.isConnected || headerExitContent.dataset.state !== 'closed') throw Error('Exit retention lost');
+            if (!headerExitContent.querySelector('[aria-label="Open Layout workspace"][aria-current=page]') || headerExitContent.querySelector('[aria-label=Export][aria-pressed=true]')) throw Error('Invisible workspace/Export activated');
+            if (document.querySelector('[aria-label=Project]').textContent.trim() !== 'Header outcome') throw Error('Invisible history activated');
+        """)
+    check("document.body.removeAttribute('tabindex');")
+    # Reopening a controlled popup must clear inert and survive the old animation's completion.
+    action("button", "Workbench menu")
+    browser("wait", "--fn", "headerExitContent.dataset.state === 'open' && !headerExitContent.hasAttribute('inert')")
+    check("headerExitAnimation.finish();")
+    browser("wait", "--fn", "headerExitAnimation.playState === 'finished'")
+    check("if (!headerExitContent.isConnected || document.getElementById('header-mobile-trigger').getAttribute('aria-expanded') !== 'true') throw Error('Old exit removed reopened controlled popup');")
+    action("button", "Open PCB workspace")
+    browser("wait", "--fn", "!headerExitContent.isConnected")
+    check("if (document.activeElement.id !== 'header-mobile-trigger') throw Error('Normal compact unmount must return focus');")
+    action("button", "Workbench menu")
+    check("""
+        const content = document.getElementById('header-mobile-commands');
+        if (content === headerExitContent || content.hasAttribute('inert')) throw Error('Normal reopen must mount interactive content without inert');
+        if (!content.querySelector('[aria-label="Open PCB workspace"][aria-current=page]')) throw Error('Reopened compact navigation outcome');
+    """)
+    action("button", "Undo")
+    browser("wait", "--fn", f"document.querySelector('[aria-label=Project]').textContent.trim() === {original_name!r}")
+    action("button", "Redo")
+    browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Header outcome'")
+    action("button", "Export")
+    action("button", "Workbench menu")
+    check("if (!document.querySelector('[aria-label=Export][aria-pressed=true]')) throw Error('Compact Export outcome');")
+    action("button", "Export")
+    action("button", "Workbench menu")
+    check("if (!document.querySelector('[aria-label=\"Open PCB workspace\"][aria-current=page]')) throw Error('Compact Export must return to PCB');")
+    action("button", "Open Layout workspace")
+    browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
+    browser("set", "viewport", "1440", "960")
     action("button", "Export")
     browser("wait", "--fn", "document.querySelector('[aria-label=Export][aria-pressed=true]') !== null")
     action("button", "Export")
