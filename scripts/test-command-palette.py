@@ -339,7 +339,12 @@ def main():
     held_space('snap')
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 4) throw Error('Held Space must reopen exactly once');")
-    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
+    check("""
+        const menus = document.querySelectorAll('#m1-layout-snap-menu');
+        if (menus.length !== 1 || !menus[0].checkVisibility() ||
+            !(document.activeElement.id === 'm1-layout-snap-trigger' || menus[0].contains(document.activeElement))) throw Error('Native Snap focus escaped its trigger and popup');
+    """)
+    action("button", "Snap settings", "focus")
     browser("press", "Tab")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")
     browser("press", "Control+k")
