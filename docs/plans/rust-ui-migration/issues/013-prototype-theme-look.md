@@ -1,6 +1,6 @@
 # 013: Prototype the Original and shadcn Themes on copied components
 
-Status: open
+Status: claimed
 Type: prototype
 Blocked by: None
 Parent: [Map](../map.md)
