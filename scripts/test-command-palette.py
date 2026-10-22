@@ -56,6 +56,7 @@ def main():
                 if (!document.getElementById(dialog.getAttribute(attr))) throw Error(attr + ' must resolve');
             }
             if (document.activeElement.getAttribute('role') !== 'combobox') throw Error('Search must receive focus');
+            if (document.activeElement.closest('[hidden],[inert],[aria-hidden=true]')) throw Error('Search focus must remain in visible active palette content');
         """)
 
     def choose(name):
@@ -254,6 +255,7 @@ def main():
     browser("press", "Escape")
     browser("press", "Control+k")
     opened()
+    action("combobox", "Search commands and objects", "fill", "no matching command after rapid reopen")
     check("if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('Rapid palette reopen must retain the native confirmation');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
