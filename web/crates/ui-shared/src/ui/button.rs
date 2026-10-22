@@ -12,6 +12,7 @@
 //!   `h-10` → `h-control-touch`, `size-9`/`size-8` likewise; theme contract section 5).
 //! - the `Outline` variant's border, including `dark:border-input`, is removed: cards style (theme
 //!   contract section 8); focus rings kept.
+//! - optional `aria-current` and `aria-pressed` forward caller-owned header/navigation state.
 
 use dioxus::prelude::*;
 use tw_merge::tw_merge;

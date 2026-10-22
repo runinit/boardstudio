@@ -18,9 +18,10 @@
 .header-settings-menu[data-slot] { right: 0; left: auto; }
 .header-save-content[data-slot] { left: auto; right: 0; translate: none; }
 .header-mobile-menu[data-slot] { box-sizing: border-box; right: 0; left: auto; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 88px); overflow-y: auto; translate: none; }
-.header-mobile-menu .header-commands { flex-wrap: wrap; gap: 8px; }
+.header-mobile-menu .header-commands { flex-wrap: wrap; align-items: flex-start; gap: 8px; }
 .header-mobile-menu .header-workspaces { flex: 1 0 100%; display: grid; grid-template-columns: repeat(3, 1fr); }
 .header-mobile-menu .header-workspaces [data-slot] { width: 100%; }
+.header-mobile-menu .header-settings-menu[data-slot] { position: static; }
 .header-mobile-menu .m1-compact-panel-controls { display: flex; }
 @media (min-width: 1600px) { .header-brand span { display: inline; } }
 @media (max-width: 1250px) { .workbench-header > [data-slot=popover] { margin-left: auto; }
