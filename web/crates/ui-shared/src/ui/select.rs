@@ -80,7 +80,12 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
             on_value_change: props.on_value_change,
             disabled: props.disabled,
             open: Some(open()),
-            on_open_change: set_open,
+            // Restoring focus can blur an option retained by its exit animation.
+            on_open_change: move |next| {
+                if next != open() {
+                    set_open.call(next);
+                }
+            },
             name: props.name,
             roving_loop: props.roving_loop,
             typeahead_timeout: props.typeahead_timeout,
