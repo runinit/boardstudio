@@ -124,3 +124,64 @@ read directly as historical evidence, not relabeled fresh final acceptance.
   pin. Keep the ticket claimed and landing HOLD until substantive approval.
 - Global full/quick, CAD `worker.onerror`, first-paint, screen-reader, human026
   and final-merge gates remain open.
+
+### Landed 013 stack integration and compact history correction
+
+**2026-10-22 follow-up: Header integration GREEN; ticket still claimed and landing HOLD.**
+This section supersedes the notification integration blocker above, preserving
+both historical RED receipts. T3 binding, CWD, branch and clean inventory matched
+`ca00747d1dfb95a8583e62b3738f7e8199ef355d` before integration; the isolated target
+and retained port 4222 preview were unchanged.
+
+Merged local feature `1a692e0eece287f094eafaf7e395920c18585f73` at
+`c0f7fd11efef7108bfdc2eba6c73b789040b50a9`, without conflicts. Its four incoming
+013 files (notification provider, scoped CSS, toast production driver and ticket)
+had no overlap with 012 changes and remain identical to the landed feature.
+No notification/runtime/test fix was made here. The coordinator reported both
+review axes approved for that incoming slice; this is not a review of 012.
+
+The first unchanged Header run against that merge cleared the original toast
+obstruction, then failed with **`Control overflow: Edit history`** at 1024x960,
+shadcn light, with the compact menu open. The source diff attributes the increased
+row width to 012's Undo/Redo `Kbd` hints. The history flex row did not wrap.
+Actual new RED: `.evidence/012-lineage/post-toast/header.log`, exit1; screenshot
+`post-toast/header/failure.png` and `failure-dom.txt`. Original
+`.evidence/012-lineage/header.log` and `header/failure.png` remain untouched.
+
+Source pin `2679e5d1e872cc3c8af6d4629a084de22d545434` adds one scoped rule in
+`web/assets/header.css`: `.header-mobile-menu .header-history { flex-wrap: wrap; }`.
+It preserves both hints, callbacks and desktop layout. No Header or palette
+driver changes, notification dismissals, retries without a source correction,
+or assertion workarounds were used.
+
+Fresh logs below are under `.evidence/012-lineage/post-toast/`:
+
+| Command/check | Result and limits |
+| --- | --- |
+| `python3 scripts/build-web.py --fast --skip-providers --routes subpath,root` at merge `c0f7fd11efef7108bfdc2eba6c73b789040b50a9` | PASS, exit0; `build.log`. Reuses the earlier validated providers; both routes rebuilt. |
+| Unchanged `scripts/test-command-palette.py` at root and subpath against that build | PASS, both exit0; `palette-root.log`, `palette-subpath.log`. Complete expanded harness; superseded by the final source-pin runs below. |
+| `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py lint repo` at the merge | PASS, exit0; `lint-repo.log`. |
+| `python3 scripts/run-wasm-tests.py --files web/src/presentation/export_workspace.rs web/src/presentation/zmk_firmware_export.rs --result-json web/target/test-results/palette-export-post-toast.json` | BLOCKED, explicit `PAGE_RUN_EXIT=1`; `export.log`, structured report `complete: false`, zero executed. `/usr/bin/chromedriver` cannot load `libsimdutf.so.36`; its startup failure is not behavioral evidence. No host packages or driver configuration changed. |
+| Same both-route build command at source pin `2679e5d1e872cc3c8af6d4629a084de22d545434` | PASS, exit0; `history-build.log`. Both page routes rebuilt, providers reused unchanged. |
+| `python3 scripts/test-header.py http://127.0.0.1:4222/boardstudio/ --evidence .evidence/012-lineage/post-toast/history-header-green` | PASS, exit0; `history-header-green.log`. Unchanged Header driver completes real shell actions, Settings interaction, compact focus/lifecycle and all sixteen Theme/Appearance/width geometry cases. Its inherited summary still says "inert Search"; active palette behavior is established by the separate 012 harness. |
+| `python3 scripts/test-command-palette.py http://127.0.0.1:4222/boardstudio/ --evidence .evidence/012-lineage/post-toast/history-palette-subpath` | PASS, exit0; `history-palette-subpath.log`. Complete expanded harness at the final source pin. |
+| Same palette driver at `http://127.0.0.1:4222/`, evidence `post-toast/history-palette-root` | PASS, exit0; `history-palette-root.log`. Complete expanded harness at the final source pin. |
+| `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py lint repo` at the final source pin | PASS, exit0; `history-lint-repo.log`. Old-CSS count remains informational. |
+
+Inspected `history-header-green/shadcn-light-1024.png`: both history buttons and
+their hints fit on separate rows. Existing 013 stack behavior and its sixteen
+burst-case receipts are reused from the landed 013 Outcome; its files are
+unchanged here. Export source files also match `ca00747` exactly: reuse the
+earlier six-test `page-export-final.log` / `palette-export-final.json` receipt
+with explicit exit0, while retaining the fresh driver failure separately.
+No fresh mounted Export pass is claimed. The earlier native/affected-browser
+receipts retain their stated source and subset limits; no global gate is inferred.
+
+Latest local feature remained `1a692e0eece287f094eafaf7e395920c18585f73` after
+these checks. **011 landing and its approved Objects/Inspector commands plus
+Header Search ARIA remain pending**, with no competing edits. One combined
+Standards+Spec closure review must still run through the coordinator at a clean
+completed pin after that integration. No review was self-delegated; no agents,
+threads, watchers, feature landing, origin/dev push, visibility widening or new
+dependency. Global full/quick, CAD `worker.onerror`, first-paint, screen-reader,
+human026 and final-merge gates remain open.
