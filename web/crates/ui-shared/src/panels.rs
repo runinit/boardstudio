@@ -3,7 +3,7 @@ use crate::ui::{
     popover::{Popover, PopoverContent, PopoverTrigger},
     sheet::{Sheet, SheetClose, SheetContent, SheetDirection},
     sidenav::Sidenav,
-    tabs::{Tabs, TabsContent, TabsList, TabsTrigger},
+    tabs::{Tabs, TabsList, TabsTrigger},
 };
 use dioxus::prelude::*;
 use policy::decode_settings;
@@ -149,9 +149,11 @@ pub fn DockLayout(
     let mut sheet_open = use_signal(|| false);
     let requested_before = use_hook(|| Rc::new(std::cell::Cell::new(false)));
     let opener = use_hook(|| Rc::new(RefCell::new(Vec::<HtmlElement>::new())));
-    use_effect(move || {
+    let has_panels = objects.is_some() || inspector.is_some();
+    use_effect(use_reactive((&has_panels,), move |(has_panels,)| {
         let open = sheet_open();
-        let requested = compact() && ((state.objects_open)() || (state.inspector_open)());
+        let requested =
+            has_panels && compact() && ((state.objects_open)() || (state.inspector_open)());
         let was_requested = requested_before.replace(requested);
         if requested != was_requested {
             if requested {
@@ -183,7 +185,7 @@ pub fn DockLayout(
             set_bool(state.objects_open, false);
             set_bool(state.inspector_open, false);
         }
-    });
+    }));
     let active_tab = use_memo(move || {
         if (state.inspector_open)() {
             Some("inspector".to_owned())
@@ -193,32 +195,35 @@ pub fn DockLayout(
     });
     rsx! {
         {children}
-        if compact() {
-            if objects.is_some() || inspector.is_some() {
-                Sheet { open: sheet_open, id: "workspace-panel-sheet",
-                    SheetContent { direction: SheetDirection::Bottom, aria_label: "Workspace panels", aria_describedby: "workspace-panel-description", class: "dock-sheet",
-                        p { id: "workspace-panel-description", class: "sr-only", "Objects and Inspector settings. The canvas remains interactive." }
-                        div { class: "dock-sheet-heading",
-                            Tabs { value: active_tab, horizontal: true,
-                                on_value_change: move |value: String| {
-                                    set_bool(state.objects_open, value == "objects");
-                                    set_bool(state.inspector_open, value == "inspector");
-                                },
-                                TabsList { aria_label: "Workspace panels",
-                                    TabsTrigger { id: "workspace-objects-tab", value: "objects", index: 0usize, disabled: objects.is_none(), "Objects" }
-                                    TabsTrigger { id: "workspace-inspector-tab", value: "inspector", index: 1usize, disabled: inspector.is_none(), "Inspector" }
-                                }
-                                TabsContent { aria_labelledby: "workspace-objects-tab", value: "objects", index: 0usize, {objects} }
-                                TabsContent { aria_labelledby: "workspace-inspector-tab", value: "inspector", index: 1usize, {inspector} }
+        Sheet { open: sheet_open, id: "workspace-panel-sheet",
+            SheetContent { direction: SheetDirection::Bottom, aria_label: "Workspace panels", aria_describedby: "workspace-panel-description", class: "dock-sheet",
+                keep_mounted: true, inline: !compact(),
+                p { id: "workspace-panel-description", class: "sr-only", hidden: !compact(), "Objects and Inspector settings. The canvas remains interactive." }
+                div { class: "dock-sheet-heading",
+                    Tabs { value: active_tab, horizontal: true, class: "dock-tabs",
+                        on_value_change: move |value: String| {
+                            set_bool(state.objects_open, value == "objects");
+                            set_bool(state.inspector_open, value == "inspector");
+                        },
+                        TabsList { aria_label: "Workspace panels", hidden: !compact(), inert: (!compact()).then_some(""),
+                            TabsTrigger { id: "workspace-objects-tab", value: "objects", index: 0usize, disabled: objects.is_none(), aria_controls: "workspace-objects-content", "Objects" }
+                            TabsTrigger { id: "workspace-inspector-tab", value: "inspector", index: 1usize, disabled: inspector.is_none(), aria_controls: "workspace-inspector-content", "Inspector" }
+                        }
+                        // The primitive's TabContent unmounts inactive domain owners.
+                        for (side, label, content) in [("objects", "Objects", objects), ("inspector", "Inspector", inspector)] {
+                            div { key: "{side}", class: "dock-tab-panel", id: "workspace-{side}-content",
+                                role: compact().then_some("tabpanel"), aria_label: compact().then_some(label),
+                                aria_labelledby: compact().then_some(format!("workspace-{side}-tab")),
+                                tabindex: compact().then_some(0),
+                                hidden: compact() && active_tab().as_deref() != Some(side),
+                                inert: (compact() && active_tab().as_deref() != Some(side)).then_some(""),
+                                {content}
                             }
-                            SheetClose { "Close panels" }
                         }
                     }
+                    div { class: "dock-sheet-close", hidden: !compact(), inert: (!compact()).then_some(""), SheetClose { "Close panels" } }
                 }
             }
-        } else {
-            {objects}
-            {inspector}
         }
     }
 }
@@ -398,6 +403,7 @@ fn panel_frame(
         "inspector"
     };
     let mut focus_rail = use_signal(|| false);
+    let mut options_open = use_signal(|| false);
     use_effect(move || {
         if focus_rail() {
             focus_rail.set(false);
@@ -414,8 +420,8 @@ fn panel_frame(
                 h2 { "{label}" }
                 {header_action}
                 if let Some(options) = options {
-                    Popover { is_modal: false,
-                        PopoverTrigger { aria_label: "Objects options", "Options" }
+                    Popover { is_modal: false, class: "dock-options", open: options_open(), on_open_change: move |open| options_open.set(open),
+                        PopoverTrigger { aria_label: "Objects options", aria_expanded: options_open(), aria_haspopup: "dialog", "Options" }
                         PopoverContent { aria_label: "Objects panel options", {options} }
                     }
                 }

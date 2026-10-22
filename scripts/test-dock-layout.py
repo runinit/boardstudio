@@ -72,6 +72,7 @@ def production_tests(url):
     navigate("Layout")
     click("Collapse objects")
     browser("set", "viewport", 979, 900)
+    browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
     close_sheet()
     click("Browse parts")
     browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
@@ -95,6 +96,7 @@ def production_tests(url):
     assert not sheet_open()
     click("Collapse inspector")
     browser("set", "viewport", 979, 900)
+    browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
     close_sheet()
     click("Open Position and rotation properties for Key")
     browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
@@ -157,11 +159,127 @@ def production_tests(url):
         for name in ["Add object", "Objects options", "Collapse objects"]:
             browser("focus", primitives.by_role_name("button", name))
             check("(() => {const button=document.activeElement,heading=button.closest('.dock-heading'),dock=button.closest('[role=complementary]'),r=button.getBoundingClientRect(),d=dock.getBoundingClientRect();return heading.scrollWidth<=heading.clientWidth && r.left>=d.left && r.right<=d.right})()")
+        options_ref = primitives.by_role_name("button", "Objects options")
+        for attr, value in [("aria-expanded", "false"), ("aria-haspopup", "dialog")]:
+            assert browser("get", "attr", options_ref, attr)["value"] == value
+        click("Objects options")
+        browser("wait", "--fn", "document.querySelector('[role=dialog][aria-label=\"Objects panel options\"]')?.dataset.state==='open'")
+        assert browser("get", "attr", primitives.by_role_name("button", "Objects options"), "aria-expanded")["value"] == "true"
+        check("(() => {const popup=document.querySelector('[role=dialog][aria-label=\"Objects panel options\"]'),control=popup.querySelector('[aria-label=\"Tree grouping\"]'),r=control.getBoundingClientRect(),d=popup.closest('[role=complementary]').getBoundingClientRect();return r.left>=d.left && r.right<=d.right && document.elementFromPoint(r.left+2,r.top+r.height/2)===control && document.elementFromPoint(r.right-2,r.top+r.height/2)===control})()")
+        browser("select", primitives.by_role_name("combobox", "Tree grouping"), "row" if key == "Home" else "column")
+        check(f"localStorage.getItem('boardstudio:v2:tree-grouping')==={'row' if key == 'Home' else 'column'!r}")
+        browser("press", "Escape")
+        browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Objects panel options\"]')")
+        assert browser("get", "attr", primitives.by_role_name("button", "Objects options"), "aria-expanded")["value"] == "false"
+        check("document.activeElement.getAttribute('aria-label')==='Objects options'")
         browser("screenshot", str(ROOT / f".evidence/011-production-objects-{key.lower()}.png"))
     check("(() => {const left=document.querySelector('[role=complementary][aria-label=Objects]').getBoundingClientRect(),right=document.querySelector('[role=complementary][aria-label=Inspector]').getBoundingClientRect(),canvas=document.querySelector('[role=region][aria-label=\"Layout workspace\"]').getBoundingClientRect();return left.right<=canvas.left && canvas.right<=right.left && canvas.width>=280})()")
     browser("screenshot", str(ROOT / ".evidence/011-production-desktop.png"))
+    production_local_draft_tests()
     (ROOT / ".evidence/011-production-browser-errors.json").write_text(primitives.json.dumps(browser("errors")))
     print("PASS: packaged six-Workspace Sheet, real Case stage role/name, browse Parts and pin Inspector callbacks at979/980 with saved widths, legacy focus IDs, mobile opener connected/inert and unmounted fallbacks", flush=True)
+
+
+def production_local_draft_tests():
+    """Use the real component-local constraint draft, without submitting it."""
+    for index in [1, 2]:
+        click("Add object")
+        click("Add battery connector jst ph 2")
+        browser("wait", "--fn", "document.body.textContent.includes('Place battery connector jst ph 2')")
+        browser("find", "role", "group", "click", "--name", "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls", "--exact")
+        browser("wait", "--fn", f"document.querySelector('[aria-label=\"Component inspector\"] h2')?.textContent==='J{index}'")
+    browser("set", "viewport", 979, 900)
+    browser("wait", "--fn", "!document.querySelector('[role=separator][aria-label=\"Resize Objects\"]')?.checkVisibility()")
+    if not evaluate("!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')"):
+        click("Workbench menu")
+        click("Inspector")
+    browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
+    browser("wait", "--fn", "!document.getElementById('header-mobile-commands') && document.querySelector('[role=tabpanel][aria-label=Inspector]')?.checkVisibility()")
+    evaluate("window.constraintDisclosure=document.querySelector('.m1-layout-component-constraint');window.disclosureChanges=[];new MutationObserver(records=>records.forEach(r=>disclosureChanges.push({oldOpen:r.oldValue,open:constraintDisclosure.open}))).observe(constraintDisclosure,{attributes:true,attributeOldValue:true,attributeFilter:['open']})")
+    evaluate("window.disclosureKeys=[];['keydown','keyup'].forEach(type=>window.addEventListener(type,event=>disclosureKeys.push({type,key:event.key,code:event.code,prevented:event.defaultPrevented,target:event.target.tagName})))")
+    for activation, opened in [("click", True), ("click", False), ("Enter", True), ("Space", False), ("Space", True), ("Enter", False), ("click", True)]:
+        evaluate("disclosureChanges.length=0;disclosureKeys.length=0;window.disclosureClick=null;window.addEventListener('click',event=>{disclosureClick={trusted:event.isTrusted,prevented:event.defaultPrevented}},{once:true})")
+        if activation == "click":
+            browser("focus", ".m1-layout-component-constraint > summary")
+            point = evaluate("(() => {const summary=constraintDisclosure.querySelector('summary'),r=summary.getBoundingClientRect(),x=Math.round(r.x+r.width/2),y=Math.round(r.y+r.height/2);if(!summary.contains(document.elementFromPoint(x,y)))throw Error('Disclosure click point is covered');return {x,y}})()")
+            browser("mouse", "move", point["x"], point["y"])
+            browser("mouse", "down")
+            browser("mouse", "up")
+        else:
+            browser("focus", ".m1-layout-component-constraint > summary")
+            if activation == "Space":
+                evaluate("window.summaryKeydown=null;window.addEventListener('keydown',event=>{summaryKeydown=event},{once:true,capture:true})")
+                browser("keydown", " ")
+                check("summaryKeydown.isTrusted && summaryKeydown.key===' ' && !summaryKeydown.defaultPrevented && disclosureChanges.length===0 && disclosureClick===null")
+                browser("keyup", " ")
+            else:
+                browser("press", activation)
+        evaluate("new Promise(requestAnimationFrame).then(()=>true)")
+        observed = evaluate("({open:constraintDisclosure.open,changes:disclosureChanges,click:disclosureClick,keys:disclosureKeys})")
+        print("disclosure", activation, observed, flush=True)
+        assert observed["open"] == opened and len(observed["changes"]) == 1 and observed["click"] == {"trusted": True, "prevented": True}, observed
+    print("PASS: real Layout constraint summary click/Enter/Space each toggles exactly once", flush=True)
+    browser("wait", "--fn", "document.querySelector('[aria-label=\"Offset X (mm)\"]')?.checkVisibility()")
+    browser("find", "role", "spinbutton", "fill", "--name", "Offset X (mm)", "--exact", "123.456")
+    evaluate("window.constraintDraft=document.querySelector('[aria-label=\"Offset X (mm)\"]');window.objectsDock=document.getElementById('m1-objects-panel');window.inspectorDock=document.getElementById('m1-inspector-panel')")
+
+    def retained():
+        check("constraintDraft.isConnected && constraintDraft===document.querySelector('[aria-label=\"Offset X (mm)\"]') && constraintDraft.value==='123.456' && objectsDock===document.getElementById('m1-objects-panel') && inspectorDock===document.getElementById('m1-inspector-panel')")
+
+    def hidden_draft():
+        check("!!constraintDraft.closest('[hidden][inert]') && !constraintDraft.checkVisibility()")
+        assert not any(item.get("name") == "Offset X (mm)" for item in browser("snapshot", "-i")["refs"].values())
+        evaluate("constraintDraft.focus()")
+        check("document.activeElement!==constraintDraft && !document.activeElement.closest('[hidden], [inert]')")
+
+    for name in ["Objects", "Inspector", "Objects", "Inspector"]:
+        browser("find", "role", "tab", "click", "--name", name, "--exact")
+        browser("wait", "--fn", f"document.querySelector('[role=tab][aria-selected=true]').textContent==='{name}'")
+        retained()
+        if name == "Objects":
+            hidden_draft()
+    click("Close panels")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
+    retained()
+    hidden_draft()
+    click("Workbench menu")
+    click("Inspector")
+    browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
+    browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
+    retained()
+    for width in [980, 979, 980, 979]:
+        browser("set", "viewport", width, 900)
+        browser("wait", "--fn", f"document.getElementById('workspace-panel-sheet').dataset.inline==={str(width == 980).lower()!r}")
+        if width == 979:
+            if not evaluate("!!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')"):
+                click("Workbench menu")
+                click("Inspector")
+            browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
+        else:
+            check("!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]') && getComputedStyle(document.getElementById('workspace-panel-sheet')).position!=='fixed'")
+            browser("focus", primitives.by_role_name("spinbutton", "Offset X (mm)"))
+            evaluate("window.desktopEscapePrevented=null;window.addEventListener('keydown',event=>{window.desktopEscapePrevented=event.defaultPrevented},{once:true})")
+            browser("press", "Escape")
+            check("document.activeElement===constraintDraft && desktopEscapePrevented===false")
+        retained()
+    browser("screenshot", str(ROOT / ".evidence/011-production-local-constraint-draft.png"))
+    click("Close panels")
+    browser("set", "viewport", 1440, 900)
+    browser("wait", "--fn", "document.getElementById('workspace-panel-sheet').dataset.inline==='true'")
+    canvas = primitives.by_role_name("group", "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls")
+    browser("focus", canvas)
+    point = evaluate("(() => {window.panCanvas=document.querySelector('svg[role=group]');window.panBefore=panCanvas.getAttribute('viewBox');window.panSelection=document.querySelector('[role=treeitem][aria-selected=true]')?.textContent;const r=panCanvas.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()")
+    browser("keydown", " ")
+    browser("mouse", "move", point["x"], point["y"])
+    browser("mouse", "down")
+    browser("mouse", "move", point["x"] + 40, point["y"] + 24)
+    browser("mouse", "up")
+    browser("keyup", " ")
+    browser("wait", "--fn", "panCanvas.getAttribute('viewBox')!==panBefore")
+    check("document.querySelector('[role=treeitem][aria-selected=true]')?.textContent===panSelection")
+    retained()
+    print("PASS: canvas Space+pointer pan still changes viewBox outside the control without changing selected-part identity or losing the constraint draft", flush=True)
+    print("PASS: actual unsubmitted local Offset X draft and DOM owners survive both tab directions, Sheet close/reopen and979/980 in both directions; hidden draft rejects focus; desktop Escape leaves field focus", flush=True)
 
 
 def tests(url):
@@ -196,8 +314,13 @@ def tests(url):
         click("Canvas action")
         check(f"document.querySelector('[role=status][aria-label=\"Canvas clicks\"]').textContent==='{int(clicks)+1}'")
         assert evaluate("getComputedStyle(document.body).overflow") == body_overflow
-        check("!!document.querySelector('[role=dialog]') && !document.querySelector('[inert]')")
+        check("!!document.querySelector('[role=dialog]') && !document.querySelector('[role=region][aria-label=Canvas]').closest('[inert]')")
     browser("find", "role", "textbox", "fill", "--name", "Dock draft", "--exact", "retained draft")
+    browser("find", "role", "textbox", "fill", "--name", "Local dock draft", "--exact", "compact local draft")
+    evaluate("window.compactLocalDraft=document.querySelector('[aria-label=\"Local dock draft\"]')")
+    for name in ["Objects", "Inspector"]:
+        browser("find", "role", "tab", "click", "--name", name, "--exact")
+        check("compactLocalDraft.isConnected && compactLocalDraft.value==='compact local draft'")
     click("Open details")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Dock details\"]')")
@@ -208,6 +331,7 @@ def tests(url):
     click("Inspector")
     popup_state("Inspector", True)
     check("document.querySelector('[aria-label=\"Dock draft\"]').value==='retained draft'")
+    check("compactLocalDraft===document.querySelector('[aria-label=\"Local dock draft\"]') && compactLocalDraft.value==='compact local draft'")
     for key, expected in [("Home", "Objects"), ("End", "Inspector"), ("ArrowRight", "Objects")]:
         browser("focus", primitives.by_role_name("tab", "Inspector"))
         browser("press", key)
@@ -218,6 +342,7 @@ def tests(url):
     click("Close panels")
     check("!document.querySelector('[role=dialog]') && document.activeElement.getAttribute('aria-label')==='Inspector'")
     browser("set", "viewport", 1440, 900)
+    check("compactLocalDraft.isConnected && compactLocalDraft.value==='compact local draft'")
     evaluate("localStorage.setItem('boardstudio:v2:panel:left',JSON.stringify({mode:'autohide',width:250}));localStorage.setItem('boardstudio:v2:panel:right',JSON.stringify({mode:'autohide',width:340}))")
     browser("reload")
     browser("wait", "--fn", "!!document.querySelector('[role=separator][aria-label=\"Resize Objects\"]')")
@@ -278,7 +403,9 @@ def tests(url):
     for theme in ["original", "shadcn"]:
         for appearance in ["light", "dark"]:
             evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
-            click("Inspector")
+            browser("focus", primitives.by_role_name("button", "Inspector"))
+            check("document.activeElement.getAttribute('aria-label')==='Inspector'")
+            browser("press", "Enter")
             browser("wait", "--fn", "document.querySelector('[role=tab][aria-selected=true]')?.textContent==='Inspector'")
             browser("screenshot", str(ROOT / f".evidence/011-narrow-{theme}-{appearance}.png"))
             browser("press", "Escape")
