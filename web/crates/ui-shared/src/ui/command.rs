@@ -251,6 +251,88 @@ mod tests {
         }
     }
 
+    #[component]
+    fn DisclosureKeyboardFixture(calls: Rc<RefCell<Vec<String>>>) -> Element {
+        let mut open = use_signal(|| false);
+        let controlled_calls = calls.clone();
+        let uncontrolled_calls = calls.clone();
+        rsx! {
+            div { onkeydown: move |event| calls.borrow_mut().push(format!("ancestor:{}", event.key())),
+                crate::controls::BoardAccordionSection {
+                    class: "", label: "Controlled keyboard section", id: "controlled-keyboard-section",
+                    open: Some(open()), on_open_change: move |next| open.set(next),
+                    onkeydown: move |event: KeyboardEvent| controlled_calls.borrow_mut().push(format!("controlled:{}", event.key())),
+                    heading: rsx! { "Controlled keyboard section" }, "Controlled content"
+                }
+                crate::controls::BoardAccordionSection {
+                    class: "", label: "Uncontrolled keyboard section", id: "uncontrolled-keyboard-section",
+                    onkeydown: move |event: KeyboardEvent| uncontrolled_calls.borrow_mut().push(format!("uncontrolled:{}", event.key())),
+                    heading: rsx! { "Uncontrolled keyboard section" }, "Uncontrolled content"
+                }
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn controlled_space_preserves_caller_once_without_consuming_native_activation() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(
+                DisclosureKeyboardFixture,
+                DisclosureKeyboardFixtureProps {
+                    calls: calls.clone(),
+                },
+            ),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("keyboard disclosure fixture mounted", || {
+            by_role_name(&root, "button", "Uncontrolled keyboard section").is_some()
+        })
+        .await;
+        for (name, key, expected) in [
+            ("Controlled keyboard section", " ", vec!["controlled: "]),
+            (
+                "Controlled keyboard section",
+                "Enter",
+                vec!["controlled:Enter", "ancestor:Enter"],
+            ),
+            (
+                "Uncontrolled keyboard section",
+                " ",
+                vec!["uncontrolled: ", "ancestor: "],
+            ),
+            (
+                "Uncontrolled keyboard section",
+                "Enter",
+                vec!["uncontrolled:Enter", "ancestor:Enter"],
+            ),
+        ] {
+            calls.borrow_mut().clear();
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key(key);
+            init.set_bubbles(true);
+            init.set_cancelable(true);
+            let event = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                .unwrap();
+            by_role_name(&root, "button", name)
+                .unwrap()
+                .dispatch_event(&event)
+                .unwrap();
+            assert_eq!(
+                *calls.borrow(),
+                expected,
+                "{name} {key:?}: caller once, controlled Space stops before ancestor"
+            );
+            if name == "Controlled keyboard section" {
+                assert!(!event.default_prevented(), "preserve native key activation");
+            }
+        }
+        root.remove();
+    }
+
     #[wasm_bindgen_test]
     async fn controlled_disclosure_and_existing_uncontrolled_accordion_keep_their_owners() {
         let document = web_sys::window().unwrap().document().unwrap();
