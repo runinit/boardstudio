@@ -1,6 +1,6 @@
 # 012: Command palette
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [004: Vendored Lucide icons](004-lucide-icons.md), [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
