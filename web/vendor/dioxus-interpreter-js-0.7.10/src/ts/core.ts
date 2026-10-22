@@ -125,6 +125,7 @@ export class BaseInterpreter {
       if (!this.local[id]) {
         this.local[id] = {};
       }
+      this.local[id][event_name] = this.handler;
       element.addEventListener(event_name, this.handler);
     }
   }
@@ -154,11 +155,12 @@ export class BaseInterpreter {
 
   removeNonBubblingListener(element: HTMLElement, event_name: string) {
     const id = element.getAttribute("data-dioxus-id");
+    const callback = this.local[id][event_name];
     delete this.local[id][event_name];
     if (Object.keys(this.local[id]).length === 0) {
       delete this.local[id];
     }
-    element.removeEventListener(event_name, this.handler);
+    element.removeEventListener(event_name, callback);
   }
 
   removeAllNonBubblingListeners(element: HTMLElement) {
