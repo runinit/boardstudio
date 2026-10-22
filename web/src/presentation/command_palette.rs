@@ -152,7 +152,14 @@ fn sync_palette_host(host: &web_sys::HtmlDialogElement, open: bool) {
             .is_some()
     {
         let _ = host.show_modal();
-    } else if !open && host.open() {
+    } else if !open
+        && host.open()
+        && host
+            .query_selector("[data-slot=dialog-content]")
+            .ok()
+            .flatten()
+            .is_none()
+    {
         host.close();
     }
 }
@@ -207,7 +214,19 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
     let open = (state.open)();
     let on_show = use_callback(move |()| state.show());
     let on_escape = use_callback(move |()| state.close(None));
-    let on_closed = use_callback(move |()| state.finish_close());
+    let exit_host = host.clone();
+    let on_closed = use_callback(move |()| {
+        if *state.open.peek() {
+            return;
+        }
+        if let Some(host) = exit_host.borrow().as_ref()
+            && host.is_connected()
+            && host.open()
+        {
+            host.close();
+        }
+        state.finish_close();
+    });
     use_effect(move || {
         if !(state.open)() {
             query.set(String::new());
@@ -485,8 +504,93 @@ pub(super) fn editor_commands(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_web_ui_shared::test_role::by_role_name;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[derive(Clone, Copy)]
+    struct HostFixtureState {
+        mounted: Signal<bool>,
+        palette: PaletteState,
+    }
+
+    fn host_fixture() -> Element {
+        boardstudio_web_ui_shared::ui::command::use_command_registry();
+        let browser = super::super::library::ProjectBrowserState(use_signal(|| false));
+        use_context_provider(|| browser);
+        let palette = use_palette_state();
+        let mounted = use_signal(|| true);
+        *use_context::<Rc<RefCell<Option<HostFixtureState>>>>().borrow_mut() =
+            Some(HostFixtureState { mounted, palette });
+        rsx! {
+            button { onclick: move |_| palette.show(), "Open fixture palette" }
+            button { "Outside fixture" }
+            if mounted() { CommandPalette { state: palette } }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn native_host_unmount_releases_modal_and_remount_owns_a_new_host() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let seed = Rc::new(RefCell::new(None::<HostFixtureState>));
+        let dom = VirtualDom::new(host_fixture);
+        dom.provide_root_context(seed.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("fixture mounted", || seed.borrow().is_some()).await;
+        let opener = by_role_name(&root, "button", "Open fixture palette").unwrap();
+        opener.focus().unwrap();
+        opener.click();
+        wait_until("native palette modal", || {
+            root.query_selector("#command-palette:modal")
+                .unwrap()
+                .is_some()
+                && document.active_element().is_some_and(|element| {
+                    element.get_attribute("role").as_deref() == Some("combobox")
+                })
+        })
+        .await;
+        let old = root.query_selector("#command-palette").unwrap().unwrap();
+        let mut state = seed.borrow().unwrap();
+        state.mounted.set(false);
+        wait_until("native owner unmounted", || {
+            root.query_selector("#command-palette").unwrap().is_none()
+        })
+        .await;
+        assert!(!old.matches(":modal").unwrap());
+        let outside = by_role_name(&root, "button", "Outside fixture").unwrap();
+        outside.focus().unwrap();
+        gloo_timers::future::TimeoutFuture::new(0).await;
+        assert_eq!(document.active_element(), Some(outside.clone().into()));
+        state.mounted.set(true);
+        wait_until("new native owner modal", || {
+            root.query_selector("#command-palette:modal")
+                .unwrap()
+                .is_some()
+        })
+        .await;
+        assert_ne!(
+            root.query_selector("#command-palette").unwrap().unwrap(),
+            old.clone()
+        );
+        assert!(!old.matches(":modal").unwrap());
+        state.palette.close(None);
+        wait_until("native host closed", || {
+            root.query_selector("#command-palette[open]")
+                .unwrap()
+                .is_none()
+        })
+        .await;
+        state.mounted.set(false);
+        wait_until("fixture cleanup", || {
+            root.query_selector("#command-palette").unwrap().is_none()
+        })
+        .await;
+        root.remove();
+    }
 
     #[wasm_bindgen_test]
     fn popover_opener_requires_the_unique_nearest_visible_focusable_relationship() {

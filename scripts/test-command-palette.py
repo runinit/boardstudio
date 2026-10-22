@@ -199,6 +199,7 @@ def main():
         browser("wait", "--text", name)
         action("button", name)
     choose("Browse projects")
+    browser("wait", '[aria-label="Your keyboards"]')
     action("button", "Preview Untitled keyboard")
     browser("wait", "--text", "Delete keyboard")
     action("button", "Delete keyboard")
