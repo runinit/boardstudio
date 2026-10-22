@@ -144,15 +144,21 @@ fn sync_palette_host(host: &web_sys::HtmlDialogElement, open: bool) {
     if !host.is_connected() {
         return;
     }
-    if open
-        && !host.open()
-        && host
+    if open {
+        let Some(input) = host
             .query_selector("[data-slot=combobox-input]")
             .ok()
             .flatten()
-            .is_some()
-    {
-        let _ = host.show_modal();
+            .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
+        else {
+            return;
+        };
+        if !host.open() {
+            let _ = host.show_modal();
+        }
+        if host.open() {
+            let _ = input.focus();
+        }
     } else if !open
         && host.open()
         && host
@@ -641,6 +647,18 @@ mod tests {
         .await;
         let old = root.query_selector("#command-palette").unwrap().unwrap();
         let mut state = seed.borrow().unwrap();
+        state.palette.close(None);
+        state.palette.show();
+        wait_until("retained host reentry focuses search", || {
+            document
+                .active_element()
+                .is_some_and(|element| element.get_attribute("role").as_deref() == Some("combobox"))
+        })
+        .await;
+        assert_eq!(
+            root.query_selector("#command-palette").unwrap().as_ref(),
+            Some(&old)
+        );
         state.mounted.set(false);
         wait_until("native owner unmounted", || {
             root.query_selector("#command-palette").unwrap().is_none()
