@@ -302,11 +302,11 @@ def main():
     check("if (document.activeElement.getAttribute('aria-label') !== 'Snap settings') throw Error('Snap must retain focus after Enter');")
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 1) throw Error('Enter must toggle once');")
     browser("press", "Space")
-    browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     check("""
-        if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once');
+        if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once: ' + JSON.stringify(paletteSnapEvents));
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
     browser("press", "Tab")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")
