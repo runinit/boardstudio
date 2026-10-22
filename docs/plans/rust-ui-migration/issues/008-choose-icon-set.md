@@ -1,6 +1,6 @@
 # 008: Choose the workbench icon set
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
