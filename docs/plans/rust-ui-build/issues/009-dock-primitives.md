@@ -1,6 +1,6 @@
 # 009: Dock primitives
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [002: Complete Theme system](002-complete-theme-system.md), [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
