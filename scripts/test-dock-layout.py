@@ -116,7 +116,10 @@ def production_tests(url):
             check("document.getElementById('objects-sheet-toggle').isConnected && !!document.getElementById('objects-sheet-toggle').closest('[inert], [aria-hidden=true]')")
         else:
             browser("wait", "--fn", "!document.getElementById('header-mobile-commands')")
-        browser("press", "Escape")
+        if retained_exit:
+            click("Close panels")
+        else:
+            browser("press", "Escape")
         browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
         check("document.activeElement.getAttribute('aria-label')==='Workbench menu'")
         if retained_exit:

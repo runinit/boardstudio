@@ -4080,7 +4080,6 @@ fn Editor() -> Element {
         let generation = render_generation;
         let token = snapshot.token;
         let revision = snapshot.document.revision;
-        let objects_open = objects_open;
         let mut inspect_open = inspect_open;
         move |module_id: String| {
             if !matches!(workspace(), "PCB" | "Layout")
@@ -5221,7 +5220,6 @@ fn Editor() -> Element {
         let runtime = runtime.clone();
         let adapter = adapter.clone();
         let owner = layout_owner.clone();
-        let objects_open = objects_open;
         let inspect_open = inspect_open;
         let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
@@ -5311,7 +5309,6 @@ fn Editor() -> Element {
     let resume_pending_layout_finding = use_callback({
         let runtime = runtime.clone();
         let adapter = adapter.clone();
-        let objects_open = objects_open;
         let inspect_open = inspect_open;
         let findings_open = layout_findings.open;
         let inspector_settings = inspector_panel_settings;
