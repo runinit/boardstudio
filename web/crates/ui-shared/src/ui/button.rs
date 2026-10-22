@@ -8,6 +8,8 @@
 //!   rules in `m1.css` skip elements with a `data-slot`, and `tailwind.css` gives them a minimal
 //!   reset instead (the app has no Tailwind preflight). Every copied component's root element
 //!   carries a `data-slot` for the same reason, until the legacy rules are deleted.
+//! - the `Outline` variant's border, including `dark:border-input`, is removed: cards style (theme
+//!   contract section 8); focus rings kept.
 
 use dioxus::prelude::*;
 use tw_merge::tw_merge;
@@ -48,7 +50,7 @@ impl ButtonVariant {
             Self::Warning => "bg-warning text-warning-foreground hover:bg-warning/90",
             Self::Success => "bg-success text-success-foreground hover:bg-success/90",
             Self::Outline => {
-                "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/5"
+                "bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/5"
             }
             Self::Secondary => {
                 "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80"
