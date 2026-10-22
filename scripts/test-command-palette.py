@@ -273,7 +273,7 @@ def main():
     # Canvas Snap and the palette use the same menu and settings owner.
     choose("Snap settings")
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
-    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap increment'")
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")
     check("if (document.querySelectorAll('#m1-layout-snap-menu').length !== 1) throw Error('Snap command must open one menu');")
     browser("select", '[aria-label="Snap increment"]', "0.5")
     action("checkbox", "Geometry snap")
@@ -305,7 +305,7 @@ def main():
         if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once');
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
-    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap increment'")
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")
     browser("press", "Control+k")
     opened()
     action("combobox", "Search commands and objects", "fill", "Position & rotation")
