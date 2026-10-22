@@ -18,3 +18,7 @@ ttf-parser-MIT.txt. Source: https://github.com/harfbuzz/ttf-parser/tree/v0.25.1
 
 Components under web/crates/ui-shared/src/ui/ are copied from rust-ui (https://github.com/rust-ui/ui,
 MIT, Copyright (c) 2026 Max Wells), reproduced in rust-ui-MIT.txt. Each file names its upstream path and commit.
+
+The workbench fonts are under the SIL Open Font License 1.1: Source Sans 3 and Source Code Pro
+(fonts/source-sans-LICENSE.md, fonts/source-code-pro-LICENSE.md) and Inter (fonts/inter-LICENSE.txt,
+Copyright 2016 The Inter Project Authors, https://github.com/rsms/inter). See web/assets/fonts/README.md.

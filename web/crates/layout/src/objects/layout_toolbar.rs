@@ -943,7 +943,7 @@ fn LayoutSnapMenu(
                 }
                 span { "Snap" }
                 if show_layout_state {
-                    span { class: "text-xs text-muted", "{snap_label(settings.snap_fraction)}" }
+                    span { class: "text-xs text-muted-foreground", "{snap_label(settings.snap_fraction)}" }
                 }
             },
             children: rsx! {

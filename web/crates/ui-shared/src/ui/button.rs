@@ -7,7 +7,9 @@
 //! - `data-slot="button"` on both elements: the legacy unlayered `button`, `input` and `select`
 //!   rules in `m1.css` skip elements with a `data-slot`, and `tailwind.css` gives them a minimal
 //!   reset instead (the app has no Tailwind preflight). Every copied component's root element
-//!   carries a `data-slot` for the same reason, until the legacy rules are deleted.
+//!   carries a `data-slot` for the same reason, until the legacy rules are deleted;
+//! - heights read the shared control sizes (`h-9` → `h-control`, `h-8` → `h-control-compact`,
+//!   `h-10` → `h-control-touch`, `size-9`/`size-8` likewise; theme contract section 5).
 
 use dioxus::prelude::*;
 use tw_merge::tw_merge;
@@ -63,11 +65,11 @@ impl ButtonSize {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Default => "h-9 px-4 py-2 has-[>svg]:px-3",
-            Self::Sm => "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-            Self::Lg => "h-10 rounded-md px-6 has-[>svg]:px-4",
-            Self::Icon => "size-9",
-            Self::IconSm => "size-8 rounded-md",
+            Self::Default => "h-control px-4 py-2 has-[>svg]:px-3",
+            Self::Sm => "h-control-compact rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+            Self::Lg => "h-control-touch rounded-md px-6 has-[>svg]:px-4",
+            Self::Icon => "size-control",
+            Self::IconSm => "size-control-compact rounded-md",
             Self::IconXs => "size-6 rounded-md",
         }
     }
