@@ -107,6 +107,7 @@ async fn opened(root: &DomElement, name: &str) {
         })
     })
     .await;
+    assert!(!control(root, "menu", name).has_attribute("inert"));
     assert_eq!(
         trigger.get_attribute("aria-haspopup").as_deref(),
         Some("menu")
@@ -145,6 +146,11 @@ async fn action_menu_keyboard_roles_focus_and_action_outcomes() {
     focused(&root, "menuitem", "Align").await;
     key(&active(), "Escape");
     closed(&root, "Layout").await;
+
+    control(&root, "button", "Project").click();
+    focused(&root, "menuitem", "Open").await;
+    key(&active(), "Escape");
+    closed(&root, "Project").await;
 
     opened(&root, "Project").await;
     focused(&root, "menuitem", "Open").await;
@@ -336,4 +342,123 @@ async fn action_menu_respects_control_disabled_custom_trigger_and_nonlooping_ord
     key(&active(), " ");
     closed(&root, "Settings").await;
     root.remove();
+}
+
+#[component]
+fn RetainedMenu(controlled: bool) -> Element {
+    let mut open = use_signal(|| Some(false));
+    let mut requests = use_signal(Vec::<bool>::new);
+    rsx! {
+        DropdownMenu {
+            open: if controlled { open() } else { None },
+            on_open_change: move |next| { requests.write().push(next); open.set(Some(next)); },
+            DropdownMenuTrigger { "Animated actions" }
+            DropdownMenuContent {
+                DropdownMenuItem::<&'static str> { value: "Run", index: 0usize, "Run" }
+            }
+        }
+        button { onclick: move |_| requests.clear(), "Clear requests" }
+        button { onclick: move |_| open.set(Some(false)), "External close" }
+        output { role: "status", aria_label: "Requests", "{requests():?}" }
+    }
+}
+
+fn animation_method(animation: &wasm_bindgen::JsValue, method: &str) {
+    js_sys::Reflect::get(animation, &method.into())
+        .unwrap()
+        .dyn_into::<js_sys::Function>()
+        .unwrap()
+        .call0(animation)
+        .unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn action_menu_animated_closes_preserve_focus_and_emit_one_request() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let mut observed = Vec::new();
+    let mut expected = Vec::new();
+    for controlled in [false, true] {
+        for action in ["Escape", "Enter", "external"] {
+            if !controlled && action == "external" {
+                continue;
+            }
+            let root = document.create_element("div").unwrap();
+            document.body().unwrap().append_child(&root).unwrap();
+            dioxus_web::launch::launch_virtual_dom(
+                VirtualDom::new_with_props(RetainedMenu, RetainedMenuProps { controlled }),
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            wait_until("animated menu mounts", || {
+                by_role_name(&root, "button", "Animated actions").is_some()
+            })
+            .await;
+            opened(&root, "Animated actions").await;
+            focused(&root, "menuitem", "Run").await;
+            let menu = control(&root, "menu", "Animated actions");
+            let animate = js_sys::Reflect::get(&menu, &"animate".into())
+                .unwrap()
+                .dyn_into::<js_sys::Function>()
+                .unwrap();
+            let frames = js_sys::JSON::parse(r#"[{"opacity":1},{"opacity":0}]"#).unwrap();
+            let animation = animate.call2(&menu, &frames, &1000.into()).unwrap();
+            // Real Web Animation retention; finishing it, rather than elapsed time, releases the popup.
+            animation_method(&animation, "pause");
+            control(&root, "button", "Clear requests").click();
+            wait_until("requests cleared", || {
+                control(&root, "status", "Requests")
+                    .text_content()
+                    .as_deref()
+                    == Some("[]")
+            })
+            .await;
+            if action == "external" {
+                control(&root, "button", "External close").click();
+            } else {
+                key(&active(), action);
+            }
+            wait_until(
+                "close returns focus before the exit animation finishes",
+                || {
+                    let trigger = control(&root, "button", "Animated actions");
+                    trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+                        && active() == trigger
+                },
+            )
+            .await;
+            assert!(
+                menu.is_connected(),
+                "the actual exit animation must retain the menu"
+            );
+            assert!(
+                menu.has_attribute("inert"),
+                "a closing menu must leave the keyboard focus order"
+            );
+            control(&root, "button", "External close").focus().unwrap();
+            animation_method(&animation, "finish");
+            wait_until("finishing the animation removes the menu", || {
+                !menu.is_connected()
+            })
+            .await;
+            observed.push((
+                controlled,
+                action,
+                control(&root, "status", "Requests").text_content().unwrap(),
+            ));
+            expected.push((
+                controlled,
+                action,
+                if action == "external" {
+                    "[]"
+                } else {
+                    "[false]"
+                }
+                .to_string(),
+            ));
+            root.remove();
+        }
+    }
+    assert_eq!(
+        observed, expected,
+        "external closes and retained-popup dismissal must not echo callbacks"
+    );
 }

@@ -134,7 +134,7 @@ fn navigate(mut ctx: MenuContext, event: KeyboardEvent) {
             }
             prefix.push_str(&character.to_lowercase());
             // Repeating one letter cycles matches; different letters build a prefix.
-            let repeated = prefix.chars().all(|ch| Some(ch) == prefix.chars().next());
+            let repeated = prefix.chars().all(|ch| prefix.starts_with(ch));
             let query = if repeated {
                 character.to_lowercase()
             } else {
@@ -161,7 +161,12 @@ fn navigate(mut ctx: MenuContext, event: KeyboardEvent) {
 
 #[component]
 pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
-    let (open, set_open) = use_controlled(props.open, props.default_open, props.on_open_change);
+    let (open, update_open) = use_controlled(props.open, props.default_open, props.on_open_change);
+    let set_open = use_callback(move |next| {
+        if next != open() {
+            update_open.call(next);
+        }
+    });
     let trigger_id =
         use_signal(|| format!("action-menu-trigger-{}", dioxus::core::current_scope_id().0));
     let ctx = use_context_provider(|| MenuContext {
@@ -190,10 +195,10 @@ pub fn DropdownMenu(props: DropdownMenuProps) -> Element {
                 content.contains(active.as_ref().map(|element| element.as_ref()))
             });
             // Outside dismissal keeps the newly focused control, as BoardPopover does.
-            if inside || active == document.body().map(Into::into) || active.is_none() {
-                if let Some(trigger) = (ctx.trigger)() {
-                    let _ = trigger.focus();
-                }
+            if (inside || active == document.body().map(Into::into) || active.is_none())
+                && let Some(trigger) = (ctx.trigger)()
+            {
+                let _ = trigger.focus();
             }
         }
     });
@@ -268,6 +273,8 @@ pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
         class: "absolute top-full left-0 mt-1 z-50 p-1 min-w-[180px] rounded-md bg-card shadow-md h-fit transition-all duration-200 data-[state=closed]:opacity-0 data-[state=closed]:scale-95 data-[state=closed]:pointer-events-none data-[state=open]:opacity-100 data-[state=open]:scale-100",
         "data-slot": "dropdown-menu-content",
         role: "menu",
+        // Dioxus 0.7 serializes inert=false as a present attribute, which still disables focus.
+        inert: (!(ctx.open)()).then_some(""),
         aria_labelledby: (ctx.trigger)().map(|trigger| trigger.id()),
         onkeydown: move |event: KeyboardEvent| navigate(ctx, event),
         onmounted: move |event: MountedEvent| {
@@ -276,9 +283,7 @@ pub fn DropdownMenuContent(props: DropdownMenuContentProps) -> Element {
     });
     let merged = merge_attributes(vec![base, props.attributes.clone()]);
     rsx! {
-        if (ctx.open)() {
-            popover::PopoverContent { id: props.id, attributes: merged, {props.children} }
-        }
+        popover::PopoverContent { id: props.id, attributes: merged, {props.children} }
     }
 }
 
@@ -289,7 +294,7 @@ pub fn DropdownMenuItem<T: Clone + PartialEq + 'static>(
     let ctx: MenuContext = use_context();
     let disabled = move || (ctx.disabled)() || (props.disabled)();
     let activate = move || {
-        if !disabled() {
+        if (ctx.open)() && !disabled() {
             props.on_select.call((props.value)());
             ctx.set_open.call(false);
         }
