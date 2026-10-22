@@ -5004,6 +5004,10 @@ fn severity_label(value: &Severity) -> &'static str {
 }
 
 #[cfg(test)]
+#[path = "mechanical_settings_migration_tests.rs"]
+mod migration_tests;
+
+#[cfg(test)]
 mod contextual_layer_tests {
     use super::*;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
