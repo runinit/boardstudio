@@ -5,6 +5,11 @@
 @source "./src/**/*.rs";
 @source "./crates/**/*.rs";
 
+/* Keep every pending result scrollable, below header menus and above the footer action strip. */
+.workbench-notifications[data-slot=toast-provider] { z-index: 30; bottom: 4rem; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; }
+.workbench-notifications[data-slot=toast-provider]:has(li) { pointer-events: auto; }
+.workbench-notifications ol { margin: 0; padding: 0; list-style: none; }
+
 /* Theme tokens (docs/plans/rust-ui-migration/theme-contract.md). Appearance is data-appearance on <html>, Theme is data-theme;
    Original is also the value before either attribute is set. Each Theme's dark block must repeat every token its own light block
    and the Original dark block set: `:root[data-appearance=dark]` outranks `[data-theme=shadcn]`. */
