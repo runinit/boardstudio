@@ -1,5 +1,5 @@
 use super::*;
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -85,19 +85,17 @@ async fn mounted_action(
         apply_to_key,
     });
     dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
+    let root = document.get_element_by_id(root_id).unwrap();
+    let name = if apply_to_key {
+        "Apply to selected key"
+    } else {
+        "Place component"
+    };
     wait_until("the Parts Inspector placement control mounts", || {
-        document
-            .query_selector(&format!("#{root_id} .m1-parts-place-component"))
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", name).is_some()
     })
     .await;
-    let button = document
-        .query_selector(&format!("#{root_id} .m1-parts-place-component"))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let button = by_role_name(&root, "button", name).unwrap();
     (action, button)
 }
 
@@ -226,9 +224,7 @@ async fn mounted_add_object_chooser(
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Add Reset switch action mounts", || {
-        root.query_selector("button[aria-label='Add Reset switch']")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Add Reset switch").is_some()
     })
     .await;
     (actions, root)
@@ -238,18 +234,9 @@ async fn mounted_add_object_chooser(
 async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_on_mirror_board() {
     let (actions, mirror_root) =
         mounted_add_object_chooser("mirror-only-choice", "board-mirror").await;
-    let default = mirror_root
-        .query_selector("button[aria-label='Add Reset switch']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
-    let mirror_only = mirror_root
-        .query_selector("button[aria-label='Add Reset switch to this half only']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let default = by_role_name(&mirror_root, "button", "Add Reset switch").unwrap();
+    let mirror_only =
+        by_role_name(&mirror_root, "button", "Add Reset switch to this half only").unwrap();
     default.click();
     mirror_only.click();
     assert_eq!(
@@ -269,12 +256,7 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
 
     let (_source_actions, source_root) =
         mounted_add_object_chooser("source-only-choice", "board-main").await;
-    assert!(
-        source_root
-            .query_selector(".m1-mirror-only-choice")
-            .unwrap()
-            .is_none()
-    );
+    assert!(by_role_name(&source_root, "button", "Add Reset switch to this half only").is_none());
     source_root.remove();
 }
 

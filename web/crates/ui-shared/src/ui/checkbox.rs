@@ -12,8 +12,8 @@
 //! - icons come from `crate::ui::icons` (ticket 004).
 
 use dioxus::prelude::*;
-use dioxus_primitives::checkbox::{self, CheckboxProps};
 pub use dioxus_primitives::checkbox::CheckboxState;
+use dioxus_primitives::checkbox::{self, CheckboxProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
 use crate::ui::icons::Check;

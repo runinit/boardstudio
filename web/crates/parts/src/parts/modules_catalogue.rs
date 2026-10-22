@@ -4,7 +4,11 @@ use boardstudio_application::{AcceptedSnapshot, Scope, SnapshotToken};
 use boardstudio_core::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
-use boardstudio_web_ui_shared::controls::{BoardDisclosure, BoardSelectField};
+use boardstudio_web_ui_shared::ui::{
+    button::Button,
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    table::{Table, TableBody, TableCell, TableHead, TableRow},
+};
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
 use serde::Deserialize;
@@ -523,47 +527,41 @@ pub fn ModuleInspector(
         h2 { "{definition.name}" }
         small { "VIK · {family}" }
         if !variants.is_empty() {
-            BoardSelectField {
-                label: "Variant",
-                class: "m1-parts-search-label",
-                aria_label: "Module variant",
-                value: "{definition.id}",
-                onchange: move |event: FormEvent| {
-                        selected.set(Some((variant_scope.clone(), format!("module:{}", event.value()))));
-                        selection_generation.with_mut(|value| *value = value.wrapping_add(1));
-                        preview_activation.with_mut(|value| *value = value.wrapping_add(1));
-                    },
-                for variant in variants.iter() {
-                        option { value: "{variant.definition.id}", "{variant.definition.variant}" }
-                    }
+            super::PartsChoiceField {
+                label: "Variant", aria_label: "Module variant", value: definition.id.clone(),
+                options: variants.iter().map(|variant| (variant.definition.id.clone(), variant.definition.variant.clone())).collect(),
+                on_value_change: move |value: String| {
+                    selected.set(Some((variant_scope.clone(), format!("module:{value}"))));
+                    selection_generation.with_mut(|value| *value = value.wrapping_add(1));
+                    preview_activation.with_mut(|value| *value = value.wrapping_add(1));
+                },
             }
         }
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
-            button {
+            Button {
                 class: "m1-parts-place-assembly",
-                r#type: "button",
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"
             }
         }
-        table { class: "m1-module-readiness",
-            tbody {
+        Table { class: "m1-module-readiness",
+            TableBody {
                 for (output, label) in readiness {
                     { let pending = definition.gates.iter().filter(|gate| gate.output == output).count();
-                      rsx! { tr { th { scope: "row", "{label}" } td { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
+                      rsx! { TableRow { TableHead { "{label}" } TableCell { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
                     }
                 }
             }
         }
         if !definition.gates.is_empty() {
-            BoardDisclosure {
-                heading: rsx! { summary { "Review {gate_count} remaining {gate_noun}" } },
-                ul {
+            Collapsible { keep_mounted: true,
+                CollapsibleTrigger { "Review {gate_count} remaining {gate_noun}" }
+                CollapsibleContent { class: "data-[open=false]:hidden", ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }
                     }
-                }
+                } }
             }
         }
         a { href: "{source_url}", target: "_blank", rel: "noreferrer", "Pinned source ↗" }

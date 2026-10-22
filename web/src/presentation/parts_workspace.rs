@@ -3,6 +3,7 @@ use super::parts::{PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace
 use super::parts::{PartsQuery, PartsSelection};
 use super::workspace_composition::PlaceholderInput;
 use boardstudio_application::{AcceptedSnapshot, Scope};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
 /// State shared by the Parts library, preview, placement and assembly editors.
@@ -125,7 +126,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
         section { class: "m1-placeholder-workspace",
             h1 { "{input.name}" }
             p { "{input.message}" }
-            button { onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
         }
     }
 }
@@ -133,7 +134,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
 pub(super) fn preview(input: CanvasInput) -> Element {
     rsx! {
         if let Some(on_back) = input.controller_back {
-            button { class: "m1-parts-controller-back", type: "button", onclick: move |_| on_back.call(()), "Back to PCB" }
+            Button { class: "m1-parts-controller-back", variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
         }
         PartsPreviewWorkspace {
             snapshot: input.snapshot,
