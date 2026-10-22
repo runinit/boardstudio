@@ -1,0 +1,28 @@
+/* Shell presentation only; viewport, document and focus owners stay in Rust. */
+.m1-editor-footer.shell-footer {
+  flex-basis: auto;
+  min-height: var(--control-height);
+  border: 0;
+  background: var(--card);
+  color: var(--muted-foreground);
+}
+.shell-footer [data-slot='toolbar'] { background: transparent; box-shadow: none; padding: 0; flex-shrink: 0; }
+.shell-footer [data-slot='toolbar-button'], .shell-footer [data-slot='button'] { min-height: var(--control-compact); padding: 0 6px; color: var(--foreground); }
+.shell-footer [data-slot='toolbar-button']:hover:not(:disabled), .shell-footer [data-slot='button']:hover:not(:disabled) { background: var(--accent); }
+.shell-footer .shell-history { display: none; }
+.shell-camera-toolbar { order: -1; margin-right: auto; }
+.shell-coordinates { display: flex; align-items: center; gap: 7px; margin-left: auto; white-space: nowrap; }
+.shell-coordinates b { color: var(--foreground); font-family: var(--font-mono); font-weight: 500; }
+.shell-zoom-label { min-width: 38px; text-align: center; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.shell-empty { position: absolute; top: 50%; left: 50%; width: min(460px, calc(100% - 32px)); box-sizing: border-box; transform: translate(-50%, -49%); padding: 16px; color: var(--foreground); pointer-events: none; }
+.shell-empty > * { pointer-events: auto; }
+@media (max-width: 1100px) {
+  .shell-footer .shell-history { display: flex; }
+}
+@media (max-width: 760px) {
+  .m1-editor-footer.shell-footer { flex-wrap: wrap; gap: 4px; padding-block: 4px; }
+  .shell-coordinates { display: none; }
+}
+@media (pointer: coarse) {
+  .shell-footer [data-slot='toolbar-button'], .shell-footer [data-slot='button'] { min-height: var(--control-touch); }
+}

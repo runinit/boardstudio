@@ -1,8 +1,8 @@
 //! Finds controls by accessible role and name, so browser tests do not depend on `.m1-*` or
 //! `.board-*` classes or on tag names. Test-support only, like [`crate::test_wait`].
 //!
-//! shortcut: the name comes from `aria-label`, `aria-labelledby` or text content only (no
-//! `label[for]`, `title` or `alt`), and hidden controls are not excluded from lookup; extend
+//! shortcut: names cover ARIA labels, native `label[for]` and text content (no `title` or
+//! `alt`), and hidden controls are not excluded from lookup; extend
 //! it when a migrated test needs more.
 use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
@@ -16,6 +16,7 @@ fn role_selector(role: &str) -> String {
         "checkbox" => ", input[type=checkbox]",
         "textbox" => ", input:not([type]), input[type=text], textarea",
         "combobox" => ", select",
+        "spinbutton" => ", input[type=number]",
         _ => "",
     };
     format!("[role={role}]{implicit}")
@@ -55,6 +56,21 @@ pub fn accessible_name(element: &Element) -> String {
             .map(|labelling| collapse(&labelling.text_content().unwrap_or_default()))
             .collect();
         return names.join(" ");
+    }
+    if let Some(id) = element.get_attribute("id")
+        && let Some(document) = element.owner_document()
+    {
+        let labels = document
+            .query_selector_all("label[for]")
+            .expect("label selector");
+        let names: Vec<_> = (0..labels.length())
+            .filter_map(|index| labels.item(index)?.dyn_into::<Element>().ok())
+            .filter(|label| label.get_attribute("for").as_ref() == Some(&id))
+            .map(|label| collapse(&content_text(label.as_ref())))
+            .collect();
+        if !names.is_empty() {
+            return names.join(" ");
+        }
     }
     collapse(&content_text(element.as_ref()))
 }
