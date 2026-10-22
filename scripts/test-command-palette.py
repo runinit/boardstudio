@@ -2,6 +2,7 @@
 """Ticket 012: role/name checks against the packaged production workbench."""
 import argparse
 import atexit
+import json
 import re
 from pathlib import Path
 import subprocess
@@ -62,7 +63,67 @@ def main():
         opened()
         action("combobox", "Search commands and objects", "fill", name)
         action("option", name)
-        browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+        browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
+
+    def pan_canvas():
+        canvas = '[role="group"][aria-label^="Keyboard layout;"]'
+        browser("focus", canvas)
+        check("""
+            const canvas = document.activeElement;
+            if (!canvas.getAttribute('aria-label')?.startsWith('Keyboard layout;')) throw Error('Pan test must focus the canvas');
+            window.palettePanBefore = canvas.getAttribute('viewBox');
+            window.palettePanEvents = [];
+            for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) canvas.addEventListener(type, e => palettePanEvents.push({type, trusted:e.isTrusted}));
+        """)
+        box = json.loads(browser("eval", "(() => { const b = document.activeElement.getBoundingClientRect(); return {x:b.x, y:b.y, width:b.width, height:b.height}; })()"))
+        endpoint = browser("get", "cdp-url").strip()
+        # agent-browser press releases the key immediately; CDP holds it across the drag.
+        result = subprocess.run(["node", "--input-type=module", "-e", """
+            import assert from 'node:assert/strict';
+            const [endpoint, url, box] = process.argv.slice(1);
+            const ws = new WebSocket(endpoint);
+            await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+            let next = 0;
+            const pending = new Map();
+            ws.onmessage = event => {
+                const reply = JSON.parse(event.data);
+                if (pending.has(reply.id)) {
+                    const {resolve, reject} = pending.get(reply.id);
+                    pending.delete(reply.id);
+                    reply.error ? reject(Error(JSON.stringify(reply.error))) : resolve(reply.result);
+                }
+            };
+            const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+                const id = ++next;
+                pending.set(id, {resolve, reject});
+                ws.send(JSON.stringify({id, method, params, sessionId}));
+            });
+            const targets = (await send('Target.getTargets')).targetInfos.filter(t => t.type === 'page' && t.url.startsWith(url));
+            assert.equal(targets.length, 1, 'pan only the current palette test page');
+            const {sessionId} = await send('Target.attachToTarget', {targetId: targets[0].targetId, flatten: true});
+            const input = (method, params) => send('Input.' + method, params, sessionId);
+            const bounds = JSON.parse(box);
+            const x = bounds.x + bounds.width * 0.55, y = bounds.y + bounds.height * 0.55;
+            try {
+                await input('dispatchKeyEvent', {type:'keyDown', key:' ', code:'Space', windowsVirtualKeyCode:32});
+                await input('dispatchMouseEvent', {type:'mouseMoved', x, y});
+                await input('dispatchMouseEvent', {type:'mousePressed', x, y, button:'left', buttons:1, clickCount:1});
+                await input('dispatchMouseEvent', {type:'mouseMoved', x:x+75, y:y+40, button:'left', buttons:1});
+                await input('dispatchMouseEvent', {type:'mouseReleased', x:x+75, y:y+40, button:'left', buttons:0, clickCount:1});
+            } finally {
+                await input('dispatchKeyEvent', {type:'keyUp', key:' ', code:'Space', windowsVirtualKeyCode:32});
+                ws.close();
+            }
+        """, endpoint, args.url, json.dumps(box)], text=True, capture_output=True, timeout=60)
+        print("Held-Space canvas pan", result.stdout, result.stderr, flush=True)
+        assert result.returncode == 0, "Trusted held-Space input failed"
+        browser("wait", "--fn", f"document.querySelector({json.dumps(canvas)}).getAttribute('viewBox') !== palettePanBefore")
+        check("""
+            for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) {
+                if (!palettePanEvents.some(e => e.type === type && e.trusted)) throw Error('Pan missing trusted ' + type);
+            }
+            if (document.querySelector('[aria-label=Snap]').getAttribute('aria-expanded') !== 'true') throw Error('Canvas pan changed Snap');
+        """)
 
     browser("set", "viewport", "1440", "960")
     browser("open", args.url)
@@ -88,6 +149,10 @@ def main():
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Settings') throw Error('Shortcut must return focus to opener');")
+    browser("press", "Meta+k")
+    opened()
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     action("button", "Project")
     action("menuitem", "New project")
     for name in ("Continue to layout", "Hide guide", "Cancel"):
@@ -139,14 +204,19 @@ def main():
         const option = document.querySelector('[role=option][aria-label="Position & rotation"]');
         if (option?.getAttribute('aria-disabled') !== 'true' || !option.textContent.includes('Select a matrix')) throw Error('Unavailable tools must explain why');
     """)
+    browser("press", "Enter")
+    check("if (!document.querySelector('[role=dialog]')) throw Error('Unavailable command must not dispatch');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     check("if (document.querySelector('[aria-label=Snap]').getAttribute('aria-expanded') !== 'true') throw Error('Palette Escape closed the underlying tool');")
+    pan_canvas()
     # Open the existing Library rename from a different workspace.
     choose("Rename project")
     browser("wait", '[role="textbox"][aria-label="Project name"], input[aria-label="Project name"]')
     check("if (document.activeElement.getAttribute('aria-label') !== 'Project name') throw Error('Rename must focus the real draft field');")
     action("textbox", "Project name", "fill", "Palette committed name")
+    browser("press", "Space")
+    check("if (document.activeElement.value !== 'Palette committed name ') throw Error('Space must keep typing inside a field');")
     browser("press", "Control+k")
     opened()
     browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Palette committed name'")
@@ -167,10 +237,37 @@ def main():
     browser("wait", '[aria-label="Open Layout workspace"]')
     browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() !== 'Palette committed name'")
     choose("Layout")
+    choose("Add object")
+    browser("wait", "--text", "Matrix…")
+    browser("find", "role", "button", "click", "--name", "Matrix…")
+    browser("wait", '[aria-label="New matrix"]')
+    action("button", "Create matrix")
+    browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
     browser("press", "Control+k")
     opened()
     check("if (!document.querySelector('[role=group][aria-label=Objects] [role=option]')) throw Error('Demo objects must be searchable');")
+    objects = json.loads(browser("eval", "[...document.querySelectorAll('[role=group][aria-label=Objects] [role=option]')].map(e => e.getAttribute('aria-label'))"))
     browser("screenshot", str((args.evidence / "palette-open.png").resolve()))
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    for kind, selector in (
+        ("Matrix ", '[aria-label="Matrix inspector"]'),
+        ("Key ", '[aria-label="Key enabled"]'),
+        ("Part ", '[aria-label="Component inspector"]'),
+        ("outline", '[aria-label="Board outline"]'),
+    ):
+        matches = [name for name in objects
+                   if (name.endswith(" Outline") if kind == "outline" else name.startswith(kind))]
+        assert matches, f"Demo must exercise {kind} object search"
+        choose(matches[0])
+        browser("wait", selector)
+        if kind == "Part ":
+            check(f"if (document.querySelector('[aria-label=\"Component inspector\"] h2').textContent !== {json.dumps(matches[0][5:])}) throw Error('Part search must select its actual owner');")
+    choose("Align")
+    browser("wait", '[aria-label="Close Align"]')
+    browser("press", "Escape")
+    choose("Transform")
+    browser("wait", '[aria-label="Close Transform"]')
     browser("press", "Escape")
     choose("Export")
     browser("press", "Control+k")
@@ -180,6 +277,33 @@ def main():
         const option = document.querySelector('[role=option][aria-label="Export ZMK firmware"]');
         if (option?.getAttribute('aria-disabled') !== 'true' || !option.textContent.includes('resolve controller wiring')) throw Error('Export must mirror the actual blocker');
     """)
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    for theme in ("Original", "shadcn"):
+        action("button", "Settings")
+        action("menuitemradio", theme)
+        browser("wait", "--fn", "!document.querySelector('[role=menu]')")
+        for appearance in ("Light", "Dark"):
+            action("button", "Settings")
+            action("menuitemradio", appearance)
+            browser("wait", "--fn", f"!document.querySelector('[role=menu]') && document.documentElement.dataset.theme === '{theme.lower()}' && document.documentElement.dataset.appearance === '{appearance.lower()}'")
+            browser("press", "Control+k")
+            opened()
+            check("""
+                const dialog = document.querySelector('[role=dialog]').getBoundingClientRect();
+                if (dialog.left < 0 || dialog.right > innerWidth || dialog.top < 0 || dialog.bottom > innerHeight) throw Error('Palette must fit the viewport');
+            """)
+            browser("screenshot", str((args.evidence / f"palette-{theme.lower()}-{appearance.lower()}.png").resolve()))
+            browser("press", "Escape")
+            browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("set", "viewport", "375", "800")
+    browser("press", "Control+k")
+    opened()
+    check("""
+        const dialog = document.querySelector('[role=dialog]').getBoundingClientRect();
+        if (dialog.left < 0 || dialog.right > innerWidth || dialog.top < 0 || dialog.bottom > innerHeight) throw Error('Narrow palette must fit the viewport');
+    """)
+    browser("screenshot", str((args.evidence / "palette-narrow.png").resolve()))
     browser("press", "Escape")
     browser("screenshot", str((args.evidence / "palette-closed.png").resolve()))
     print("PASS: production palette dialog, combobox, navigation, context, focus and keyboard", flush=True)
