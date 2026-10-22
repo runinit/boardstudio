@@ -681,6 +681,7 @@ fn WorkbenchApp() -> Element {
                 has_project: runtime.model().accepted.is_some(),
                 save_state,
                 settings_open,
+                palette_open: (palette.open)(),
                 on_search: move |_| palette.show(),
                 on_undo,
                 on_redo,
@@ -8619,6 +8620,7 @@ fn Editor() -> Element {
             on_select: toggle_footprints,
         });
         let mut add_open = layout_state.add_object_menu_open();
+        let mut objects_open = objects_open;
         palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
             group: "Current Workspace",
             label: "Add object".into(),
@@ -8629,6 +8631,48 @@ fn Editor() -> Element {
                 add_open.set(true);
             }),
         });
+    }
+    if guide.is_none() && active_workspace != "Export" {
+        for (label, mut requested, mut opposite, mut settings, available) in [
+            (
+                "Show/hide Objects",
+                objects_open,
+                inspect_open,
+                objects_panel_settings,
+                true,
+            ),
+            (
+                "Show/hide Inspector",
+                inspect_open,
+                objects_open,
+                inspector_panel_settings,
+                has_inspector,
+            ),
+        ] {
+            if !available {
+                continue;
+            }
+            palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
+                group: "View",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select: EventHandler::new(move |()| {
+                    if is_compact_viewport() {
+                        let was_open = requested();
+                        opposite.set(false);
+                        requested.set(!was_open);
+                    } else {
+                        let mut current = settings();
+                        current.mode = match current.mode {
+                            PanelMode::Pinned => PanelMode::Collapsed,
+                            PanelMode::Collapsed => PanelMode::Pinned,
+                        };
+                        settings.set(current);
+                    }
+                }),
+            });
+        }
     }
     boardstudio_web_ui_shared::ui::command::use_commands(palette_commands);
 
@@ -8658,13 +8702,6 @@ fn Editor() -> Element {
                             pcb_layers::PcbLayerControls { initially_open: false, snapshot: snapshot.clone(), scope: render_scope.clone() }
                         }
                         boardstudio_web_ui_shared::layer_dock::LayerDockOutlet {}
-                    }
-                    if active_workspace == "Layout" && !layout_assembly_3d() {
-                        objects::LayoutSnapDock {
-                            settings: layout_snap_settings.read().clone(),
-                            open_menu: layout_command_menu,
-                            on_snap_intent: layout_snap_intent,
-                        }
                     }
                 }
                     }) } else { None },

@@ -20,6 +20,7 @@ pub(super) fn Header(
     has_project: bool,
     save_state: &'static str,
     mut settings_open: Signal<bool>,
+    palette_open: bool,
     on_search: EventHandler<()>,
     on_undo: EventHandler<()>,
     on_redo: EventHandler<()>,
@@ -119,7 +120,10 @@ pub(super) fn Header(
         div { class: "header-commands",
             onmounted: move |event: MountedEvent| menu_content.set(event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<web_sys::HtmlElement>()).cloned()),
             if show_workspaces { super::workspace_navigation::WorkspaceObjectNavigation { workspace } }
-            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands", onclick: move |_| { mobile_open.set(false); on_search.call(()); }, "Search" Kbd { "Ctrl/Cmd K" } }
+            Button { variant: ButtonVariant::Ghost, aria_label: "Search commands",
+                aria_haspopup: "dialog", aria_expanded: palette_open,
+                aria_controls: palette_open.then_some("command-palette"),
+                onclick: move |_| { mobile_open.set(false); on_search.call(()); }, "Search" Kbd { "Ctrl/Cmd K" } }
             if !compact() { {save_status.clone()} }
             if has_project {
                 div { role: "group", aria_label: "Edit history", class: "header-history",

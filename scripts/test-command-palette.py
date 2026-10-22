@@ -122,15 +122,24 @@ def main():
             for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup']) {
                 if (!palettePanEvents.some(e => e.type === type && e.trusted)) throw Error('Pan missing trusted ' + type);
             }
-            if (document.querySelector('[aria-label=Snap]').getAttribute('aria-expanded') !== 'true') throw Error('Canvas pan changed Snap');
+            if (document.querySelector('[aria-label="Snap settings"]').getAttribute('aria-expanded') !== 'false') throw Error('Canvas pan changed Snap');
         """)
 
     browser("set", "viewport", "1440", "960")
     browser("open", args.url)
     atexit.register(browser, "close")
     browser("wait", '[aria-label="Search commands"]')
+    check("""
+        const search = document.querySelector('[aria-label="Search commands"]');
+        if (search.getAttribute('aria-haspopup') !== 'dialog' || search.getAttribute('aria-expanded') !== 'false' || search.hasAttribute('aria-controls')) throw Error('Closed Search popup ARIA');
+    """)
     action("button", "Search commands")
     opened()
+    check("""
+        const search = document.querySelector('[aria-label="Search commands"]');
+        const popup = document.getElementById(search.getAttribute('aria-controls'));
+        if (search.getAttribute('aria-expanded') !== 'true' || !popup?.querySelector('[role=dialog]')) throw Error('Open Search popup ARIA must resolve');
+    """)
     check("""
         const rename = document.querySelector('[role=option][aria-label="Rename project"]');
         if (rename?.getAttribute('aria-disabled') !== 'true') throw Error('Rename without a project must be unavailable');
@@ -177,26 +186,101 @@ def main():
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     choose("Layout")
-    # Snap's normal trigger and the palette share the same controlled owner.
+    check("""
+        const triggers = document.querySelectorAll('[aria-label="Snap settings"]');
+        if (triggers.length !== 1 || !triggers[0].checkVisibility() || document.querySelector('.m1-layout-snap-dock')) throw Error('Canonical canvas Snap trigger must be visible and unique, without a dock duplicate');
+    """)
+    # Keep the palette open while crossing the dock breakpoint: dispatch must read it now.
+    check("""
+        localStorage.setItem('boardstudio:v2:panel:left', JSON.stringify({mode:'pinned',width:253}));
+        localStorage.setItem('boardstudio:v2:panel:right', JSON.stringify({mode:'pinned',width:347}));
+    """)
+    browser("reload")
+    browser("wait", '[aria-label="Saved locally"]')
+
+    def panels(left, right, tab=None):
+        browser("wait", "--fn", f"JSON.parse(localStorage.getItem('boardstudio:v2:panel:left')).mode === '{left}' && JSON.parse(localStorage.getItem('boardstudio:v2:panel:right')).mode === '{right}'")
+        check(f"""
+            const left = JSON.parse(localStorage.getItem('boardstudio:v2:panel:left'));
+            const right = JSON.parse(localStorage.getItem('boardstudio:v2:panel:right'));
+            if (left.mode !== '{left}' || left.width !== 253 || right.mode !== '{right}' || right.width !== 347) throw Error('Dock command changed the wrong mode or persisted width: ' + JSON.stringify({{left,right}}));
+        """)
+        if tab:
+            browser("wait", '[role=dialog][aria-label="Workspace panels"]')
+            check(f"if (document.querySelector('[role=tab][aria-selected=true]').textContent !== '{tab}') throw Error('Dock command selected wrong side');")
+        else:
+            browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')")
+
+    def dock(label, before, after):
+        browser("set", "viewport", str(before), "960")
+        browser("press", "Control+k")
+        opened()
+        action("combobox", "Search commands and objects", "fill", label)
+        check(f"if (!document.querySelector('[role=option][aria-label={json.dumps(label)}]')) throw Error('Missing View command: {label}');")
+        browser("set", "viewport", str(after), "960")
+        browser("press", "Enter")
+        browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
+
+    dock("Show/hide Objects", 980, 979)
+    panels("pinned", "pinned", "Objects")
+    dock("Show/hide Inspector", 979, 979)
+    panels("pinned", "pinned", "Inspector")
+    dock("Show/hide Objects", 979, 979)
+    panels("pinned", "pinned", "Objects")
+    dock("Show/hide Objects", 979, 979)
+    panels("pinned", "pinned")
+    dock("Show/hide Inspector", 979, 979)
+    panels("pinned", "pinned", "Inspector")
+    dock("Show/hide Inspector", 979, 979)
+    panels("pinned", "pinned")
+    dock("Show/hide Objects", 979, 980)
+    panels("collapsed", "pinned")
+    dock("Show/hide Inspector", 980, 980)
+    panels("collapsed", "collapsed")
+    dock("Show/hide Objects", 980, 980)
+    panels("pinned", "collapsed")
+    dock("Show/hide Inspector", 980, 980)
+    panels("pinned", "pinned")
+    browser("reload")
+    browser("wait", '[aria-label="Saved locally"]')
+    panels("pinned", "pinned")
+    browser("set", "viewport", "1440", "960")
+    # Canvas Snap and the palette use the same menu and settings owner.
     choose("Snap settings")
-    browser("wait", '[aria-label="Snap"][aria-expanded="true"]')
-    action("button", "Snap", "focus")
-    check("if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Keyboard test must focus Snap');")
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap increment'")
+    check("if (document.querySelectorAll('#m1-layout-snap-menu').length !== 1) throw Error('Snap command must open one menu');")
+    browser("select", '[aria-label="Snap increment"]', "0.5")
+    action("checkbox", "Geometry snap")
+    check("""
+        const checkbox = [...document.querySelectorAll('[role=checkbox], input[type=checkbox]')].find(e => e.closest('label')?.textContent.trim() === 'Geometry snap');
+        const enabled = checkbox.checked ?? checkbox.getAttribute('aria-checked') === 'true';
+        if (document.querySelector('button[aria-label="Geometry snap"]').getAttribute('aria-pressed') !== String(enabled)) throw Error('Snap options must use the native geometry owner');
+    """)
+    action("checkbox", "Geometry snap")
+    action("spinbutton", "Snap gap", "fill", "0.75")
+    browser("press", "Escape")
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
+    action("button", "Snap settings")
+    browser("wait", '[aria-label="Snap increment"]')
+    check("if (document.querySelector('[aria-label=\"Snap increment\"]').value !== '0.5' || document.querySelector('[aria-label=\"Snap gap\"]').value !== '0.75') throw Error('Snap settings callback values must survive closing/reopening');")
+    action("button", "Snap settings", "focus")
     check("""
         window.paletteSnapEvents = [];
         for (const type of ['keydown', 'keyup', 'click']) document.activeElement.addEventListener(type, e => paletteSnapEvents.push({type, key:e.key, trusted:e.isTrusted}));
     """)
     browser("press", "Enter")
-    browser("wait", '[aria-label="Snap"][aria-expanded="false"]')
-    check("if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Snap must retain focus after Enter');")
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Snap settings') throw Error('Snap must retain focus after Enter');")
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 1) throw Error('Enter must toggle once');")
     browser("press", "Space")
-    browser("wait", '[aria-label="Snap"][aria-expanded="true"]')
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     check("""
-        if (document.activeElement.getAttribute('aria-label') !== 'Snap') throw Error('Snap must retain focus after Space');
         if (paletteSnapEvents.filter(e=>e.type==='click').length !== 2) throw Error('Space must toggle exactly once');
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap increment'")
     browser("press", "Control+k")
     opened()
     action("combobox", "Search commands and objects", "fill", "Position & rotation")
@@ -208,7 +292,10 @@ def main():
     check("if (!document.querySelector('[role=dialog]')) throw Error('Unavailable command must not dispatch');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
-    check("if (document.querySelector('[aria-label=Snap]').getAttribute('aria-expanded') !== 'true') throw Error('Palette Escape closed the underlying tool');")
+    check("if (document.querySelector('[aria-label=\"Snap settings\"]').getAttribute('aria-expanded') !== 'true') throw Error('Palette Escape closed the underlying tool');")
+    browser("press", "Escape")
+    browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
+    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
     pan_canvas()
     # Open the existing Library rename from a different workspace.
     choose("Rename project")

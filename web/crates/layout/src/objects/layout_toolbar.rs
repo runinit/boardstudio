@@ -641,6 +641,7 @@ pub fn LayoutCommandPill(
             });
         }
         for (label, menu) in [
+            ("Snap settings", LayoutCommandMenu::Snap),
             ("Align", LayoutCommandMenu::Align),
             ("Transform", LayoutCommandMenu::Transform),
         ] {
@@ -916,20 +917,6 @@ pub fn LayoutSnapDock(
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
     let mut snap_open = use_signal(|| false);
-    let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
-    boardstudio_web_ui_shared::ui::command::use_commands(
-        if workspace.is_some_and(|w| w.0() == "Layout") {
-            vec![boardstudio_web_ui_shared::ui::command::Command {
-                group: "Current Workspace",
-                label: "Snap settings".into(),
-                reason: None,
-                hint: None,
-                on_select: EventHandler::new(move |()| snap_open.set(true)),
-            }]
-        } else {
-            Vec::new()
-        },
-    );
     rsx! {
         boardstudio_web_ui_shared::controls::BoardAccordionSection {
             class: "m1-layout-snap-dock", label: "Snap", id: "m1-layout-snap-trigger",
