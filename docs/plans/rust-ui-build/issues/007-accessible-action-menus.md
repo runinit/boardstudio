@@ -1,6 +1,6 @@
 # 007: Accessible action menus
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -16,7 +16,7 @@ Dropdown Menu is usable for the Project, Settings, Transform and Layout command 
 - [x] Escape and item activation return focus to the opener
 - [x] Repository browser tests cover the floor rows and pass
 - [x] If the fix proves larger than one ticket, this ticket records that and the documented fallback (keep the `Popover`-based menus used today) is adopted, with the decision noted in the plan map
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Estimate (2026-10-22)
 
@@ -33,7 +33,7 @@ visibility change, Select/Combobox edit or application menu migration is needed.
 existing application Popover menus if that cannot be demonstrated; it is not a claim those menus
 already pass the action-menu floor.
 
-## Outcome (implementation complete; closure review pending)
+## Outcome
 
 The adaptation fits this ticket: `dropdown_menu.rs` retains its public props and all copied class
 strings, uses the pinned public Popover primitive for overlay lifecycle and owned dismissal, and
@@ -90,5 +90,25 @@ no Theme/first-paint validation is claimed from it.
 Scope limits: these are mounted Chromium checks, not the full build/browser/product gate or a
 screen-reader/visual review. No full quick or CAD fix is claimed: the inherited first failure remains
 `worker.onerror` at `cad/scripts/browser-smoke/qualification.mjs:22:63`, unexplained despite later passes.
-First-paint, global gates and final human review/026 remain open. Closure Spec+Standards review and
-coordinator approval are pending; this lane has not locally landed and has not pushed to origin or dev.
+First-paint, global gates and final human review/026 remain open. No origin push or dev merge is part
+of this ticket.
+
+### Closure review and local landing authorization
+
+The coordinator supplied actual **Standards: 0 findings** and **Spec: 0 findings**, both approving
+`c1e2f7b574cc65d42fabb20813d41c43b641eedc` against base
+`20dd558763bf05681a305c227f58f5eca9375601`. Both reviews covered all three owned files and the
+connected public Popover, controlled-state, dismissal, animation and attribute behaviour. Props,
+classes and action ownership are preserved; no scope creep was found.
+
+Review receipts:
+
+- Standards: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui007-standards-review-20261022-r1`
+- Spec: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui007-spec-review-20261022-r1`
+
+Reviewers reused the author's 47+2 browser receipt at `3485a9d98e0d`; they did not independently
+rerun runtime checks. The subsequent review-outcome/resolution changes are documentation only.
+Before resolution, local feature still equalled `20dd5587`, the lane was clean, and both owned Rust
+files were identical to the validated source. Sufficient executed checks are reused. The coordinator
+authorized the plan's local fast-forward landing after this review record; its exact resulting HEAD
+and ref state are reported in the coordinator handoff.
