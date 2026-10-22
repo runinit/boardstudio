@@ -1,6 +1,6 @@
 # 012: Command palette contents and shortcut hints
 
-Status: open
+Status: claimed
 Type: grilling
 Blocked by: None
 Parent: [Map](../map.md)
