@@ -17,10 +17,18 @@ use dioxus::prelude::*;
 use dioxus_primitives::toolbar::{self, ToolbarButtonProps, ToolbarProps, ToolbarSeparatorProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 use dioxus_web::WebEventExt;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, closure::Closure};
 
-#[derive(Clone, Copy)]
-struct ToolbarRoot(Signal<Option<web_sys::Element>>);
+struct ToolbarObserver {
+    observer: web_sys::MutationObserver,
+    _callback: Closure<dyn FnMut()>,
+}
+
+impl Drop for ToolbarObserver {
+    fn drop(&mut self) {
+        self.observer.disconnect();
+    }
+}
 
 // The pinned primitive's collection is private; repair focus within this owned toolbar DOM only.
 fn buttons(root: &web_sys::Element) -> Vec<web_sys::HtmlElement> {
@@ -49,29 +57,49 @@ fn sync_tab_stop(root: &web_sys::Element) {
         .or_else(|| enabled.iter().copied().find(|item| item.tab_index() == 0))
         .or_else(|| enabled.first().copied());
     for item in &items {
-        item.set_tab_index(if selected == Some(item) { 0 } else { -1 });
+        let tabindex = if selected == Some(item) { 0 } else { -1 };
+        if item.tab_index() != tabindex {
+            item.set_tab_index(tabindex);
+        }
     }
 }
 
 #[component]
 pub fn Toolbar(props: ToolbarProps) -> Element {
-    let mut root = use_context_provider(|| ToolbarRoot(Signal::new(None)));
-    use_effect(use_reactive((&props.children,), move |_| {
-        let _ = (props.disabled)();
-        if let Some(element) = (root.0)() {
-            sync_tab_stop(&element);
-        }
-    }));
+    let mut root = use_signal(|| None::<web_sys::Element>);
+    let mut observer = use_hook(|| CopyValue::new(None::<ToolbarObserver>));
+    use_effect(move || {
+        let Some(element) = root() else {
+            return;
+        };
+        let observed = element.clone();
+        let callback = Closure::<dyn FnMut()>::new(move || sync_tab_stop(&observed));
+        let native = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref())
+            .expect("toolbar mutation observer");
+        let options = web_sys::MutationObserverInit::new();
+        options.set_attributes(true);
+        options.set_attribute_filter(&js_sys::Array::of2(&"tabindex".into(), &"disabled".into()));
+        options.set_child_list(true);
+        options.set_subtree(true);
+        native
+            .observe_with_options(&element, &options)
+            .expect("observe toolbar");
+        observer.set(Some(ToolbarObserver {
+            observer: native,
+            _callback: callback,
+        }));
+        sync_tab_stop(&element);
+    });
     let base = attributes!(div {
         class: "flex items-center gap-1 p-1 rounded-md bg-background shadow-sm w-fit data-[orientation=vertical]:flex-col",
         "data-slot": "toolbar",
-        onmounted: move |event: MountedEvent| root.0.set(event.data().try_as_web_event()),
+        onmounted: move |event: MountedEvent| root.set(event.data().try_as_web_event()),
         onfocusin: move |_| {
-            if let Some(element) = (root.0)() { sync_tab_stop(&element); }
+            if let Some(element) = root() { sync_tab_stop(&element); }
         },
         onkeydown: move |event: KeyboardEvent| {
             if (props.disabled)() { return; }
-            let Some(element) = (root.0)() else { return; };
+            let Some(element) = root() else { return; };
             let items: Vec<_> = buttons(&element).into_iter().filter(|item| !item.has_attribute("disabled")).collect();
             let active = element.owner_document().and_then(|document| document.active_element());
             let Some(index) = items.iter().position(|item| active.as_ref() == Some(item.as_ref())) else { return; };
@@ -104,13 +132,6 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
 
 #[component]
 pub fn ToolbarButton(props: ToolbarButtonProps) -> Element {
-    let root: ToolbarRoot = use_context();
-    use_effect(move || {
-        let _ = (props.disabled)();
-        if let Some(element) = (root.0)() {
-            sync_tab_stop(&element);
-        }
-    });
     let base = attributes!(button {
         class: "inline-flex items-center justify-center gap-2 rounded-sm px-2 h-control-compact text-sm font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring bg-transparent hover:bg-accent hover:text-accent-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
         "data-slot": "toolbar-button",

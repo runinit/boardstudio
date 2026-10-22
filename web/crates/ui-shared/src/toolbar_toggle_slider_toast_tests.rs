@@ -18,6 +18,10 @@ fn fixture() -> Element {
     let mut controlled = use_signal(|| Some(40.0));
     let mut toggle_changes = use_signal(|| 0);
     let mut pressed = use_signal(|| Some(std::collections::HashSet::<usize>::new()));
+    let mut caller_mounts = use_signal(|| 0);
+    let mut caller_keys = use_signal(|| 0);
+    let mut caller_focus = use_signal(|| 0);
+    let mut slider_keys = use_signal(|| 0);
     rsx! {
         button { "Before toolbar" }
         Toolbar { aria_label: "History",
@@ -43,6 +47,15 @@ fn fixture() -> Element {
             }
             ToolbarButton { index: 1usize, "Finish tool" }
         }
+        Toolbar { aria_label: "Caller tools", id: "caller-tools", title: "Caller title", class: "caller-class", "data-caller": "kept",
+            attributes: vec![
+                dioxus::events::onmounted(move |_| caller_mounts += 1),
+                dioxus::events::onfocusin(move |_| caller_focus += 1),
+                dioxus::events::onkeydown(move |_| caller_keys += 1),
+            ],
+            ToolbarButton { index: 0usize, "Caller first" }
+            ToolbarButton { index: 1usize, "Caller last" }
+        }
         ToggleGroup { aria_label: "Alignment", horizontal: true,
             on_pressed_change: move |_| toggle_changes += 1,
             ToggleItem { index: 0usize, "Left" }
@@ -64,9 +77,17 @@ fn fixture() -> Element {
         Slider { label: "Disabled zoom", disabled: true, default_value: 40.0,
             on_value_change: move |next| slider_changes.write().push(next),
         }
+        Slider { label: "Caller zoom", default_value: 40.0,
+            attributes: vec![dioxus::events::onkeydown(move |_| slider_keys += 1)],
+        }
+        button { "After sliders" }
         output { role: "status", aria_label: "Action count", "{actions}" }
         output { role: "status", aria_label: "Slider changes", "{slider_changes:?}" }
         output { role: "status", aria_label: "Toggle changes", "{toggle_changes}" }
+        output { role: "status", aria_label: "Caller mounts", "{caller_mounts}" }
+        output { role: "status", aria_label: "Caller keys", "{caller_keys}" }
+        output { role: "status", aria_label: "Caller focus", "{caller_focus}" }
+        output { role: "status", aria_label: "Slider keys", "{slider_keys}" }
         ToastProvider { ToastTrigger {} }
     }
 }
@@ -143,7 +164,9 @@ async fn toolbar_has_one_tab_stop() {
             .query_selector_all("[tabindex='0']")
             .unwrap()
             .length(),
-        1
+        1,
+        "{}",
+        toolbar.outer_html()
     );
     root.remove();
 }
@@ -174,7 +197,9 @@ async fn toolbar_roves_across_an_embedded_toggle_group() {
             .query_selector_all("[tabindex='0']")
             .unwrap()
             .length(),
-        1
+        1,
+        "{}",
+        toolbar.outer_html()
     );
     let pointer = control(&root, "button", "Pointer tool");
     pointer.focus().unwrap();
@@ -211,13 +236,151 @@ async fn toolbar_roves_across_an_embedded_toggle_group() {
 
 fn changing_toolbar() -> Element {
     let mut show_first = use_signal(|| true);
+    let mut show_toolbar = use_signal(|| true);
+    let mut first_disabled = use_signal(|| false);
     rsx! {
         button { onclick: move |_| show_first.set(false), "Remove first action" }
-        Toolbar { aria_label: "Changing tools",
-            if show_first() { ToolbarButton { index: 0usize, "First changing action" } }
-            ToolbarButton { index: 1usize, "Remaining action" }
+        button { onclick: move |_| show_toolbar.set(false), "Unmount tools" }
+        button { onclick: move |_| first_disabled.set(true), "Disable current action" }
+        if show_toolbar() {
+            Toolbar { aria_label: "Changing tools",
+                if show_first() { ToolbarButton { index: 0usize, disabled: first_disabled, "First changing action" } }
+                ToolbarButton { index: 1usize, "Remaining action" }
+            }
         }
     }
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_preserves_caller_attributes_and_callbacks() {
+    let root = mount();
+    ready(&root).await;
+    let toolbar = control(&root, "toolbar", "Caller tools");
+    assert_eq!(toolbar.id(), "caller-tools");
+    assert_eq!(
+        toolbar.get_attribute("title").as_deref(),
+        Some("Caller title")
+    );
+    assert_eq!(
+        toolbar.get_attribute("data-caller").as_deref(),
+        Some("kept")
+    );
+    assert!(toolbar.class_name().contains("caller-class"));
+    assert!(toolbar.class_name().contains("bg-background"));
+    assert_eq!(
+        control(&root, "status", "Caller mounts")
+            .text_content()
+            .as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        toolbar
+            .query_selector_all("[tabindex='0']")
+            .unwrap()
+            .length(),
+        1
+    );
+    let first = control(&root, "button", "Caller first");
+    first.focus().unwrap();
+    key(&first, "End");
+    wait_until("caller toolbar End", || {
+        control(&root, "button", "Caller last")
+            .matches(":focus")
+            .unwrap()
+    })
+    .await;
+    wait_until("caller key notification committed", || {
+        control(&root, "status", "Caller keys")
+            .text_content()
+            .as_deref()
+            == Some("1")
+    })
+    .await;
+    assert_eq!(
+        control(&root, "status", "Caller keys")
+            .text_content()
+            .as_deref(),
+        Some("1")
+    );
+    assert_eq!(
+        control(&root, "status", "Caller focus")
+            .text_content()
+            .as_deref(),
+        Some("2")
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn slider_preserves_caller_key_handler() {
+    let root = mount();
+    ready(&root).await;
+    let slider = control(&root, "slider", "Caller zoom");
+    key(&slider, "Home");
+    wait_until("caller slider Home", || {
+        slider.get_attribute("aria-valuenow").as_deref() == Some("0")
+    })
+    .await;
+    assert_eq!(
+        control(&root, "status", "Slider keys")
+            .text_content()
+            .as_deref(),
+        Some("1")
+    );
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_reassigns_the_entry_when_the_current_item_is_disabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(changing_toolbar),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("changing toolbar mounted", || {
+        by_role_name(&root, "toolbar", "Changing tools").is_some()
+    })
+    .await;
+    let first = control(&root, "button", "First changing action");
+    first.focus().unwrap();
+    control(&root, "button", "Disable current action").click();
+    wait_until("current item disabled", || first.has_attribute("disabled")).await;
+    assert_eq!(first.tab_index(), -1);
+    assert_eq!(control(&root, "button", "Remaining action").tab_index(), 0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_releases_its_observer_when_unmounted() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(changing_toolbar),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("changing toolbar mounted", || {
+        by_role_name(&root, "toolbar", "Changing tools").is_some()
+    })
+    .await;
+    let first = control(&root, "button", "First changing action");
+    let remaining = control(&root, "button", "Remaining action");
+    control(&root, "button", "Unmount tools").click();
+    wait_until("toolbar unmounted", || {
+        by_role_name(&root, "toolbar", "Changing tools").is_none()
+    })
+    .await;
+    first.set_tab_index(0);
+    remaining.set_tab_index(0);
+    // Cross the mutation-observer microtask checkpoint; a leaked observer would repair these detached nodes.
+    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&JsValue::UNDEFINED))
+        .await
+        .unwrap();
+    assert_eq!(first.tab_index(), 0);
+    assert_eq!(remaining.tab_index(), 0);
+    root.remove();
 }
 
 #[wasm_bindgen_test]

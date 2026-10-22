@@ -69,8 +69,12 @@ def toolbar():
     focus('button', 'Top tool'); press('ArrowDown'); focused('Bottom tool')
     press('Home'); focused('Top tool'); press('End'); focused('Bottom tool')
     expect('control("button", "Disabled action").disabled')
-    focus('button', 'Pointer tool'); press('ArrowRight'); focused('Keys scope')
+    focus('button', 'Pointer tool'); press('Tab'); focused('Caller first')
+    press('Shift+Tab'); focused('Pointer tool')
+    press('ArrowRight'); focused('Keys scope'); press('Tab'); focused('Caller first')
+    press('Shift+Tab'); focused('Keys scope')
     press('ArrowRight'); focused('Points scope'); press('End'); focused('Finish tool')
+    press('Tab'); focused('Caller first'); press('Shift+Tab'); focused('Finish tool')
     expect('control("toolbar", "Tool modes").querySelectorAll("[tabindex=\\"0\\"]").length === 1')
 
 
@@ -101,7 +105,9 @@ def slider():
             press(key); value(name, expected)
     expect('control("status", "Slider changes").textContent === "[42.0, 40.0, 42.0, 40.0, 10.0, 90.0, 70.0, 90.0, 42.0, 40.0, 42.0, 40.0, 10.0, 90.0, 70.0, 90.0]"')
     expect('control("slider", "Disabled zoom").disabled')
-    focus('slider', 'Controlled zoom'); press('Tab'); focused('Notify')
+    focus('slider', 'Controlled zoom'); press('Tab')
+    wait('document.activeElement === control("slider", "Caller zoom")')
+    press('Tab'); focused('After sliders'); press('Tab'); focused('Notify')
     expect('control("slider", "Disabled zoom").getAttribute("aria-valuenow") === "40"')
 
 
