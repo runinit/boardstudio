@@ -1,6 +1,6 @@
 # 011: Docks and narrow-screen sheet
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [009: Dock primitives](009-dock-primitives.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -21,7 +21,7 @@ Objects and Inspector are cards on the new docks, with pinned and collapsed mode
 
 ## Outcome
 
-Closure review at `10f6008bcc6b7323b58fbcbcdd3ca32714518077` returned Standards APPROVE (0 findings) and Spec CHANGES REQUIRED (3 findings). Targeted Spec R2 approved the corrections, new Sheet props and domain exceptions at `03b000e71ba4ea4449db0f87c862877266962132` with zero findings. Standards R2 requested one test-locator correction; the locator/docs-only response below awaits coordinator-owned targeted Standards R3. Status stays claimed and landing is held.
+Resolved after both closure axes approved with zero remaining findings: Spec R2 at `03b000e71ba4ea4449db0f87c862877266962132`, including all three corrections, both Sheet props and both summary handlers; Standards R2 found no other issues and Standards R3 approved the native AX locator response at `284f6d9779b6b5262cdbbd1cd3e7655bed4924d3`. The coordinator explicitly approved local fast-forward landing onto `feat/rust-ui-migration` after verifying its latest tip. Global acceptance gates remain open as recorded below.
 
 ### Behavior and ownership
 
@@ -62,7 +62,7 @@ The two retained production screenshots and four `011-narrow-{original,shadcn}-{
 
 The normal mobile Workbench -> Objects -> Inspector -> Escape sequence, with the menu unmounted, is distinct from the retained-menu candidate test. A retained connected+inert exiting Header Popover consumes Escape until it unmounts; 011 respects nested preventDefault. The approved retained-candidate test uses the real Close panels button and checks return to Workbench menu. This is a documented limitation, not an Escape pass. Header/Popover ownership is unchanged.
 
-Global full/quick, CAD worker.onerror, first paint, screen reader, human026 and final merge remain open. Neither reused nor fresh scoped checks certify every Workspace draft/focus route. No origin/dev push, local feature landing or review delegation has been performed by this child.
+Global full/quick, CAD worker.onerror, first paint, screen reader, human026 and final merge remain open. Neither reused nor fresh scoped checks certify every Workspace draft/focus route. Before closure approval, this child had performed no origin/dev push, local feature landing or review delegation; the authorized local landing below supersedes that checkpoint.
 
 
 ### Closure corrections after `10f6008`
@@ -95,7 +95,7 @@ All correction evidence is in this checkout's `.evidence/`, on `10f6008` plus th
 
 Intermediate failed replays remain preserved and are not passes: popup translation still active, closed disclosure, pending Header exit, breakpoint-open precondition, agent-browser's held `Space` alias emitting an empty key, and virtual-only propagation. The final harness uses condition-based render waits and a literal held space, verified against native SUMMARY activation. The final fixture first stopped at a selected-Inspector theme-capture wait (`011-r2-fixture-final.log`). Its diagnostic trace (`011-r2-fixture-theme-trace.log`) shows the Inspector-requested pointer action actually dispatched a trusted click on Objects after the theme changed, and the Sheet correctly selected Objects. Capture selection now uses focus plus trusted Enter on the Inspector button, asserting focus identity first; existing pointer coverage remains. The diagnostic replay with extra snapshots (`011-r2-fixture-theme-diagnostic.log`) passed but is not substituted for a correction. No retries, sleeps, weakened assertions or domain setup bypasses were added.
 
-Targeted Spec re-review must cover all three responses, the new optional Sheet props and cross-mode cleanup, and both approved summary hunks. Standards r1 approval covers only unchanged approved scope. Landing and all global gates listed above remain held/open; no new reviews were delegated by this child and no origin/dev push or feature landing occurred.
+At this correction checkpoint, targeted Spec re-review was required for all three responses, the new optional Sheet props and cross-mode cleanup, and both approved summary hunks. Standards r1 approval covered only unchanged approved scope. Landing was held; no new reviews were delegated by this child and no origin/dev push or feature landing had occurred. The final closure below supersedes that local landing hold.
 
 
 ### Standards R2 locator response
@@ -106,4 +106,15 @@ Fresh browser observation found the actual native AX role/name is `DisclosureTri
 
 The user/coordinator explicitly authorized a narrow test-only exception at **both** focus sites: resolve the exact native AX role/name with `find role DisclosureTriangle text --name 'Layout constraint Optional' --exact` before the existing focus operation. Each activation also asserts exactly one matching role/name in the full AX snapshot, then checks that the focused node is the existing fixture's exact constraint summary and its `innerText` equals the semantically resolved text. The full snapshot provides no focused marker (`011-r3-native-focused-full-snapshot.json`); the permitted text-plus-active-node identity check proves it does not validate one control and focus another (`011-r3-native-focused-identity-probe.log`). CSS serves only the focus operation after semantic identification. This explicit exception preserves the mapping rule's purpose: the real accessible name cannot regress silently. No production role alteration, helper/tool expansion, delay, retry or weakening is involved.
 
-The change preserves every trusted native event, single-mutation count, pointer hit-test and local draft-retention assertion. Fresh actual-package regression PASS is recorded in `011-r3-production-role-name.log`, using the unchanged checked page on port 4219, with zero browser errors in `011-production-browser-errors.json`. Python compilation, `git diff --check` and Markdown-link checks (566 files, `011-r3-doc-links.log`) PASS. `git diff --exit-code 03b000e71ba4ea4449db0f87c862877266962132 -- web` confirms production is byte-identical; no Cargo/provider build, fixture or Clippy rerun was needed for this locator/docs delta. Production, fixture, Clippy and mounted/native/provider evidence from the approved correction remains scoped reused evidence. Landing remains HOLD pending targeted Standards R3; all global gates and the documented retained Header Popover limitation remain open.
+The change preserves every trusted native event, single-mutation count, pointer hit-test and local draft-retention assertion. Fresh actual-package regression PASS is recorded in `011-r3-production-role-name.log`, using the unchanged checked page on port 4219, with zero browser errors in `011-production-browser-errors.json`. Python compilation, `git diff --check` and Markdown-link checks (566 files, `011-r3-doc-links.log`) PASS. `git diff --exit-code 03b000e71ba4ea4449db0f87c862877266962132 -- web` confirms production is byte-identical; no Cargo/provider build, fixture or Clippy rerun was needed for this locator/docs delta. Production, fixture, Clippy and mounted/native/provider evidence from the approved correction remains scoped reused evidence. At this locator-response checkpoint, landing remained held pending targeted Standards R3. The final closure below supersedes that local hold; all global gates and the documented retained Header Popover limitation remain open.
+
+
+### Approved closure and local landing
+
+The actual Standards R3 receipt is APPROVE (0 findings) at `284f6d9779b6b5262cdbbd1cd3e7655bed4924d3`: node `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui011-standards-review-r3`. It accepts the explicitly authorized native AX exception, uniqueness and focused-node identity checks, with all prior behavioral assertions intact. Spec R2 APPROVE (0 findings) remains applicable at `03b000e71ba4ea4449db0f87c862877266962132`: node `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui011-spec-review-r2`. Both reviews used source inspection and supplied author receipts; neither claims independent reviewer runtime execution.
+
+The coordinator then explicitly authorized local fast-forward landing. The feature tip was freshly verified unchanged at `1a692e0eece287f094eafaf7e395920c18585f73`, already an ancestor of the reviewed lane. No merge or new affected-source check was needed. This closure changes only ticket/map documentation after the reviewed `284f6d977` pin; checked production and test source remain identical. Fresh `scripts/check.py repo`, documentation/diff checks and clean inventory validate that documentation-only closure. Runtime/build evidence is reused from the source-pinned receipts above, including the final R3 real-package replay; no full/quick, Cargo, provider or browser rerun is represented as fresh here.
+
+Local landing uses only the plan's fast-forward update `git push . HEAD:refs/heads/feat/rust-ui-migration`; no `origin` or `dev` update is authorized or performed. Ticket 011's implementation slot is freed. Ticket 012 can integrate this local feature tip and proceed with its approved Editor-local commands seam using existing compact signals and desktop settings, under 012 ownership; no 012 branch is merged by 011.
+
+Global full/quick, CAD `worker.onerror`, first paint, screen reader, human026 and the final merge to `dev` remain open. The retained connected+inert Header Popover still consumes Escape until unmount; normal unmounted Escape passes, while the retained candidate uses the real Close panels button. Original lane/worktree/cache/evidence/server/browser are preserved; the new checkout retains its dedicated cache, evidence and latest own review server on port 4219.
