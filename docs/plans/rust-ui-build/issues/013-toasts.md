@@ -1,6 +1,6 @@
 # 013: Toasts
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [008: Accessible Toolbar, Toggle Group, Slider and Toast](008-accessible-toolbar-toggle-slider-toast.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -15,11 +15,11 @@ Transient results of one-shot actions appear as Toasts instead of inline text.
 - [x] A Toast provider is mounted in the shell; saving, copying, export started or finished and one-shot failures use it
 - [x] Blocking and persistent states stay inline (Export blockers, Case readiness, field errors); the classification rule in the mapping is applied to the shell's messages
 - [x] Toasts are announced to assistive technology and dismissible by keyboard; tests cover both
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Outcome
 
-Implementation and scoped verification are complete on `lane/013-toasts`; closure review and local landing are held pending substantive coordinator approval.
+Resolved after scoped verification and substantive Standards+Spec approval on `lane/013-toasts`; local landing follows the authorized fast-forward protocol.
 
 ### Ownership and contract
 
@@ -63,4 +63,13 @@ The earlier test-fixture Signal-capture compile failure (`presentation-browser.l
 
 ### Closure review
 
-One real Standards+Spec closure review is requested through the coordinator at the clean final documentation pin. Review must include the cross-crate notification contract, explicit classification, exact lease/error-map ownership, no-cap shell provider with bounded lifetime, and preservation of 011/012 ownership. Status remains claimed and the shared-contract checkbox remains open until substantive review approval. No local landing is performed before that approval.
+Both real coordinator closure axes approved `1620af409354adbec350b2fb8b8e03f70ca96585..2b25bdc9a48a9a8ba4ef4784ea9ed6bdbbf21484` with zero findings on 2026-10-22:
+
+- Standards: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui013-standards-review-20261022-r1`.
+- Spec: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui013-spec-review-20261022-r1`.
+
+The coordinator reported substantive approval of explicit classification/persistent inline output, ordered queue, exact operation/lease/error/source/latest gates, false-success correction, outline delivery once, stable WorkbenchApp/provider and scoped expiry. Reviewers inspected the author's runtime receipts; they did not rerun those tests. The coordinator explicitly authorized local fast-forward landing after latest-tip verification.
+
+That verification found local `feat/rust-ui-migration` still at `1620af409354adbec350b2fb8b8e03f70ca96585` and the lane clean at the reviewed pin. This resolution changes only ticket documentation, so the clean checked code receipts above remain sufficient. Fresh repository/documentation and diff checks precede the local fast-forward; final exact refs and clean inventory are reported to the coordinator. No origin push or dev merge is performed. Lanes 011/012 must preserve the App wrapper, notification/runtime integration and firmware test adapters when merging.
+
+All global quick/full/browser/CAD, CAD `worker.onerror`, first-paint, measured screen-reader, human workspace review and ticket 026/final-merge gates remain open. This scoped resolution does not close them.
