@@ -39,6 +39,7 @@ decided.
 
 - [001: Compile rust-ui components against our Dioxus 0.7.10 web build](issues/001-compile-rust-ui-against-our-build.md) — `wayfinder:task`; blocked by: None
 - [002: Fact sheet for rust-ui's component catalogue](issues/002-rust-ui-catalogue-facts.md) — `wayfinder:research`; blocked by: None
+- [007: Branch, lane and test-rewrite plan for the single merge](issues/007-branch-and-lane-plan.md): [branch plan](branch-plan.md): one `feat/rust-ui-migration` branch from `dev`, a Foundation lane then Shell, Layout and Case in parallel (max 3), role-and-name tests, an accessibility floor, an old-CSS check, and a six-part merge gate.
 - [005: How Themes and Appearance are structured](issues/005-theme-structure.md): [theme-contract](theme-contract.md) decided: `data-appearance` and `data-theme`, rust-ui token names mapped by meaning plus a few extras, a Theme sets colour / radius / font only, shared layout metrics, Inter for shadcn, 3D keeps its own palettes.
 - [004: Map each building block and control pattern to one rust-ui component](issues/004-map-building-blocks-to-rust-ui.md): [mapping](mapping.md) decided; no new custom components; sizes by pixels, Select vs Combobox, Stepper, message and Tooltip rules, file inputs stay native.
 - [003: Document the existing UI building blocks and control sites](issues/003-inventory-existing-ui.md) — `wayfinder:task`; blocked by: None

@@ -1,6 +1,6 @@
 # 007: Branch, lane and test-rewrite plan for the single merge
 
-Status: claimed
+Status: resolved
 Type: grilling
 Blocked by: [004](004-map-building-blocks-to-rust-ui.md), [005](005-theme-structure.md)
 Parent: [Map](../map.md)
@@ -29,3 +29,19 @@ and `dialog` become custom controls (typeahead, touch pickers, focus return, for
   test names (2,178 lines); `scripts/check-wasm-tests-baseline.json` is currently `{}`.
 - **Size per workspace (inventory):** case 8 files (49 raw, 121 `Board*`), parts 17, layout 18, app shell 18, pcb 9, keymap 5,
   keycaps 4, ui-shared 8, library 1.
+
+## Answer
+
+Decided with the user, 2026-10-21; all eight proposals accepted. Written in [branch-plan.md](../branch-plan.md):
+
+- Merge the docs on `chore/mcp` into `dev` first (a user action), cut `feat/rust-ui-migration` from `dev`, merge `dev` into it at every
+  lane merge, and merge it into `dev` once.
+- A serial Foundation lane, then Shell and Layout first with Case as the third parallel lane (at most 3 at once), then Parts, the small
+  workspaces, and Library and Export, then a Cleanup lane. Each lane has its own worktree and target directory.
+- A lane only adds files under `ui/`, deletes only the old CSS its files used, and leaves shared rules to Cleanup; `presentation.rs`
+  belongs to the Shell lane.
+- Tests find controls by role and name, assertions stay the same except for decided changes, native name baselines are updated in the
+  same commit, and every adopted interactive control passes [010](010-measure-keyboard-and-aria-conformance.md)'s checks first.
+- A check fails while any `.board-*`, `.m1-*` or `--wb-*` remains (622 selectors, 80 variables today); it gates the final merge.
+- Merge gate: full `check.py`, browser tests, the 010 checks, your review of every workspace in both Themes and Appearances at three
+  widths, one two-axis code review, and the old-CSS check.
