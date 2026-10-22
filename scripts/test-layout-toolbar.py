@@ -136,6 +136,12 @@ def production_tests(url):
     browser("focus", driver.by_role_name("button", "Close Align"))
     held_space(url)
     check("document.activeElement.id==='m1-layout-align-trigger' && document.activeElement.getAttribute('aria-expanded')==='false'")
+    geometry = driver.by_role_name("button", "Geometry snap")
+    before = browser("get", "attr", geometry, "aria-pressed")["value"]
+    for expected in ["false" if before == "true" else "true", before]:
+        browser("focus", driver.by_role_name("button", "Geometry snap"))
+        held_space(url)
+        assert browser("get", "attr", driver.by_role_name("button", "Geometry snap"), "aria-pressed")["value"] == expected
     print("PASS: packaged Layout native scope/tool Space and real nudge/Undo outcome", flush=True)
 
 

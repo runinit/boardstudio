@@ -65,8 +65,14 @@ def main():
         action("combobox", "Search commands and objects", "fill", name)
         if name == "Snap settings":
             check("if (document.querySelectorAll('[role=option][aria-label=\"Snap settings\"]').length !== 1) throw Error('Snap command must have one owner');")
+        if name == "Geometry snap":
+            check("if (document.querySelectorAll('[role=option][aria-label=\"Geometry snap\"]').length !== 1) throw Error('Geometry command must have one owner');")
         action("option", name)
         browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
+
+    def snap_opened():
+        browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap increment' && document.activeElement.closest('#m1-layout-snap-menu[data-state=open]') !== null")
+        check("if (document.querySelectorAll('#m1-layout-snap-menu').length !== 1) throw Error('Snap must have one canonical popup');")
 
     def held_space(mode, box=None):
         endpoint = browser("get", "cdp-url").strip()
@@ -394,13 +400,20 @@ def main():
     panels("pinned", "pinned")
     browser("set", "viewport", "1440", "960")
     # Canvas Snap and the palette use the same menu and settings owner.
+    check("window.paletteGeometryBefore = document.querySelector('button[aria-label=\"Geometry snap\"]').getAttribute('aria-pressed');")
+    choose("Geometry snap")
+    browser("wait", "--fn", "document.querySelector('button[aria-label=\\\"Geometry snap\\\"]').getAttribute('aria-pressed') !== paletteGeometryBefore")
+    choose("Geometry snap")
+    browser("wait", "--fn", "document.querySelector('button[aria-label=\\\"Geometry snap\\\"]').getAttribute('aria-pressed') === paletteGeometryBefore")
     choose("Snap settings")
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
-    browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
-    browser("press", "Tab")
+    snap_opened()
+    browser("press", "Shift+Tab")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Close Snap'")
     check("if (document.querySelectorAll('#m1-layout-snap-menu').length !== 1) throw Error('Snap command must open one menu');")
-    browser("select", '[aria-label="Snap increment"]', "0.5")
+    action("button", "Snap increment")
+    action("option", "½u")
+    browser("wait", "--fn", "!document.querySelector('[role=listbox][aria-label=\"Snap increment\"]')")
     action("checkbox", "Geometry snap")
     check("""
         const checkbox = [...document.querySelectorAll('[role=checkbox], input[type=checkbox]')].find(e => e.closest('label')?.textContent.trim() === 'Geometry snap');
@@ -413,8 +426,8 @@ def main():
     browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
     action("button", "Snap settings")
-    browser("wait", '[aria-label="Snap increment"]')
-    check("if (document.querySelector('[aria-label=\"Snap increment\"]').value !== '0.5' || document.querySelector('[aria-label=\"Snap gap\"]').value !== '0.75') throw Error('Snap settings callback values must survive closing/reopening');")
+    snap_opened()
+    check("if (document.querySelector('[aria-label=\"Snap increment\"]').textContent.trim() !== '½u' || document.querySelector('[aria-label=\"Snap gap\"]').value !== '0.75') throw Error('Snap settings callback values must survive closing/reopening');")
     action("button", "Snap settings", "focus")
     check("""
         window.paletteSnapEvents = [];
@@ -432,6 +445,7 @@ def main():
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
+    snap_opened()
     action("button", "Snap settings", "focus")
     held_space('snap')
     browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
@@ -440,10 +454,11 @@ def main():
     held_space('snap')
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 4) throw Error('Held Space must reopen exactly once');")
+    snap_opened()
     check("""
         const menus = document.querySelectorAll('#m1-layout-snap-menu');
         if (menus.length !== 1 || !menus[0].checkVisibility() ||
-            !(document.activeElement.id === 'm1-layout-snap-trigger' || menus[0].contains(document.activeElement))) throw Error('Native Snap focus escaped its trigger and popup');
+            !menus[0].contains(document.activeElement) || document.activeElement.getAttribute('aria-label') !== 'Snap increment') throw Error('Native Snap must focus inside on reopen');
     """)
     action("button", "Snap settings", "focus")
     browser("press", "Tab")
@@ -527,8 +542,10 @@ def main():
     browser("wait", '[aria-label="Close Align"]')
     browser("press", "Escape")
     choose("Transform")
-    browser("wait", '[aria-label="Close Transform"]')
+    browser("wait", '[role="menu"][id="m1-layout-transform-menu"]')
+    browser("wait", "--fn", "document.activeElement.closest('#m1-layout-transform-menu') !== null")
     browser("press", "Escape")
+    browser("wait", "--fn", "document.activeElement.id === 'm1-layout-transform-trigger'")
     choose("Export")
     browser("press", "Control+k")
     opened()
