@@ -38,6 +38,12 @@ def main():
     def check(js):
         browser("eval", "(() => { " + js + "; return true; })()")
 
+    def dismiss_notices():
+        snapshot = json.loads(browser("snapshot", "-i", "--json"))["data"]
+        for ref, item in snapshot["refs"].items():
+            if item.get("role") == "button" and item.get("name") == "close":
+                browser("click", "@" + ref)
+
     try:
         browser("set", "viewport", "1440", "960")
         browser("open", args.url)
@@ -77,12 +83,14 @@ def main():
         after = browser("get", "text", '[role="toolbar"][aria-label="Canvas view controls"]')
         assert before != after, ("zoom reaches the existing camera owner", before, after)
         camera("Fit board")
+        dismiss_notices()
         # Keep the empty state visible in all twelve requested combinations.
         for theme in ("original", "shadcn"):
             for appearance in ("light", "dark"):
                 browser("eval", f"localStorage.setItem('boardstudio:v2:workbench-theme', '{theme}'); localStorage.setItem('boardstudio:v2:appearance', '{appearance}')")
                 browser("reload")
                 browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}' && [...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
+                dismiss_notices()
                 for width, height in ((1440, 960), (1100, 900), (390, 844)):
                     browser("set", "viewport", str(width), str(height))
                     check("""
@@ -99,7 +107,7 @@ def main():
         browser("set", "viewport", "1440", "960")
         # The shell dispatches through the existing matrix owner and palette registry.
         action("button", "Add key matrix")
-        browser("wait", '[role=region][aria-label="New matrix"]')
+        browser("wait", "--text", "New matrix")
         action("button", "Create matrix")
         browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
         camera("Fit selection")
