@@ -1,6 +1,6 @@
 # 008: Accessible Toolbar, Toggle Group, Slider and Toast
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -57,6 +57,17 @@ Prior-source receipts `build-lint-repo-receipt.json` and `browser-receipt.json` 
 - `python3 web/crates/ui-shared/ticket-008-keyboard.py target/wasm32-unknown-unknown/debug/examples/ticket_008_fixture.wasm /home/chris/.cache/.wasm-pack/wasm-bindgen-9411bdb1a3e2bbb9/wasm-bindgen`: **4/4 trusted-key scenarios passed**, `final-source-trusted-browser.log`. Toolbar includes real Tab/Shift+Tab out of and back into nested Toggle items; Toggle Group selection, both Slider ownership modes/exact callbacks and Toast announcement/dismissal retain the original assertions.
 - `git diff --check`: **passed**. No native test was renamed or removed; no native test-name baseline change was needed.
 
-The check receipts identify a clean source revision and no local changes. Subsequent ticket-only documentation reuses those executed code checks; repository documentation checks are rerun for the final text. Closure review is pending. Before local landing, merge any newer local feature tip, rerun checks affected by its inputs, and wait for the coordinator's real Standards+Spec review resolution. No origin push or merge to dev is authorized here.
+The check receipts identify a clean source revision and no local changes. Subsequent ticket-only documentation reuses those executed code checks; repository documentation checks are rerun for the final text.
+
+### Closure review and local landing
+
+Both real coordinator closure reviews approved `44de5fad27b255b34167aa1481c8f6ff422e048c..c6bc53fad49c742addb44a52838399f4bcfeea6e` with zero actionable findings on 2026-10-22:
+
+- Standards: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui008-standards-review-20261022-r1`.
+- Spec: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui008-spec-review-20261022-r1`.
+
+These are source reviews, reusing the author's clean `b36fb14` runtime receipts above; `c6bc53fa` changes only ticket documentation. Spec confirmed scoped observer ownership, unchanged-write avoidance and cleanup, nested Toggle entry recovery, raw caller-listener composition, primitive state ownership, and the passive atomic Toast with workspace Escape. The coordinator explicitly authorized local landing after latest-feature verification. That verification found the feature tip still at `44de5fad27b255b34167aa1481c8f6ff422e048c`, with no subsequent control-source changes. This resolution changes only the ticket; the approved runtime evidence remains applicable. Landing follows the plan's local fast-forward protocol after fresh documentation/diff checks and clean inventory. No origin push or merge to dev is authorized here.
+
+Final resolution checks: `python3 scripts/check.py repo` and `git diff --check` passed; the repository log is `.evidence/008/landing-repo.log`. The lane inventory contains only this ticket update before committing the resolution.
 
 Full browser/quick/CAD acceptance, the unexplained CAD `worker.onerror`, first-paint timing and human workspace review remain open; scoped evidence here does not close those gates.
