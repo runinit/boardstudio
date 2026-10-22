@@ -73,3 +73,13 @@ The coordinator reported substantive approval of explicit classification/persist
 That verification found local `feat/rust-ui-migration` still at `1620af409354adbec350b2fb8b8e03f70ca96585` and the lane clean at the reviewed pin. This resolution changes only ticket documentation, so the clean checked code receipts above remain sufficient. Fresh repository/documentation and diff checks precede the local fast-forward; final exact refs and clean inventory are reported to the coordinator. No origin push or dev merge is performed. Lanes 011/012 must preserve the App wrapper, notification/runtime integration and firmware test adapters when merging.
 
 All global quick/full/browser/CAD, CAD `worker.onerror`, first-paint, measured screen-reader, human workspace review and ticket 026/final-merge gates remain open. This scoped resolution does not close them.
+
+## Follow-up: notification stack interoperability (2026-10-22)
+
+Status: claimed; landing HOLD for coordinator Spec+Standards review of the completed slice.
+
+The isolated T3 checkout `/home/chris/.t3/worktrees/ts-boardstudio2/t3-e62983e5`, branch `fix/notification-stack-interoperability`, started clean at `b237903705244a266b07a64e5f23b8a3b5219c03` and fast-forwarded the latest local feature pin `2de58e53aa5ca8a10d0223c2f32278ec42e3c623`. No parent dirty work was copied. Its target is `/home/chris/.cache/boardstudio-target/013-toast-stack-lineage`; ignored settings and CAD caches follow the lane protocol. Original 012/013 lanes remain untouched.
+
+012 supplied `.evidence/012-lineage/header.log` and `header/failure.png` in `/home/chris/.t3/worktrees/ts-boardstudio2/t3-7bb7f80c`: the real `Original` Settings click is intercepted by `div#toast-dxc-275-label`, with thirteen notices stacked into the header menu. The follow-up owns only notification presentation, a focused production-browser regression and this record. Pending results, multiplicity, atomic announcements, dismissal, five-second expiry and persistent inline classification remain required. No dropping cap, domain/header/registry/dock changes or shared Toast API changes are authorized by this slice.
+
+`scripts/test-toasts.py --stack-only` adds actual fourteen-result project-copy bursts and checks Settings reachability, bounded layout, focus-driven scrolling of every dismiss button, Tab/Enter dismissal and F6 notification access at 1440×960, 1024×960, 390×960 and 390×640 in both Themes and Appearances. Existing test modes are retained unchanged. RED/GREEN and affected checks follow below.
