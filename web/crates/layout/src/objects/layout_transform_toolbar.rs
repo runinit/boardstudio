@@ -2347,6 +2347,25 @@ mod shortcut_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn contextual_toolbar_has_one_tab_stop_and_end_reaches_last_action() {
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let root = mount_context_actions(LayoutSelectionKind::Column, true).await;
+        let toolbar = by_role_name(&root, "toolbar", "Actions for Column").unwrap();
+        assert_eq!(toolbar.query_selector_all("[tabindex='0']").unwrap().length(), 1,
+            "the contextual toolbar must expose a single tab stop");
+        let position = by_role_name(&toolbar, "button", "Open Position and rotation properties for Column").unwrap();
+        position.focus().unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("End");
+        key.set_bubbles(true);
+        position.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key).unwrap()).unwrap();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(web_sys::window().unwrap().document().unwrap().active_element(),
+            Some(by_role_name(&toolbar, "button", "Activate Splay for the selected column").unwrap().into()));
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn contextual_tools_show_for_layout_selection_and_follow_existing_activation_scope() {
         let root = mount_context_actions(LayoutSelectionKind::Row, true).await;
         let buttons = root.query_selector_all(".layout-context-action").unwrap();
