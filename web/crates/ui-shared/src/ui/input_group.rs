@@ -150,6 +150,9 @@ pub fn InputGroupButton(
     }
 }
 
+/// Native input with extra global attributes/events. Explicit props own same-name attributes,
+/// even when optional props are omitted; use those props for value, constraints and the label.
+/// Blur/key/mount listeners and validation ARIA stay on this native input.
 #[component]
 pub fn InputGroupInput(
     #[props(into, optional)] class: Option<String>,
@@ -164,8 +167,10 @@ pub fn InputGroupInput(
     #[props(optional)] required: bool,
     #[props(into, optional)] step: Option<String>,
     #[props(into, optional)] min: Option<String>,
+    #[props(into, optional)] max: Option<String>,
     #[props(into, optional)] aria_label: Option<String>,
     #[props(optional)] oninput: Option<EventHandler<FormEvent>>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
 ) -> Element {
     let merged = tw_merge!(
         "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
@@ -173,6 +178,33 @@ pub fn InputGroupInput(
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         class.as_deref().unwrap_or("")
     );
+    // Explicit props, including omitted options, own their native attributes and input listener.
+    // RSX requires the spread last; namespaced style properties and other events/ARIA pass through.
+    let attributes = attributes
+        .into_iter()
+        .filter(|attribute| {
+            attribute.namespace.is_some()
+                || !matches!(
+                    attribute.name,
+                    "data-slot"
+                        | "type"
+                        | "class"
+                        | "placeholder"
+                        | "name"
+                        | "id"
+                        | "value"
+                        | "autocomplete"
+                        | "step"
+                        | "min"
+                        | "max"
+                        | "aria-label"
+                        | "disabled"
+                        | "readonly"
+                        | "required"
+                        | "oninput"
+                )
+        })
+        .collect::<Vec<_>>();
     rsx! {
         input {
             "data-slot": "input-group-control",
@@ -185,6 +217,7 @@ pub fn InputGroupInput(
             autocomplete: autocomplete,
             step: step,
             min: min,
+            max: max,
             aria_label: aria_label,
             disabled: disabled,
             readonly: readonly,
@@ -194,6 +227,7 @@ pub fn InputGroupInput(
                     handler.call(e);
                 }
             },
+            ..attributes,
         }
     }
 }
@@ -239,9 +273,143 @@ mod tests {
         assert_eq!(gap.get_attribute("min").as_deref(), Some("0"));
         assert_eq!(gap.get_attribute("step").as_deref(), Some("any"));
         let default = by_role_name(&root, "spinbutton", "").unwrap();
-        for attribute in ["min", "step", "aria-label"] {
+        for attribute in ["min", "max", "step", "aria-label"] {
             assert!(!default.has_attribute(attribute));
         }
+        root.remove();
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod forwarding_tests {
+    use super::*;
+    use crate::{test_role::by_role_name, test_wait::wait_until};
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn fixture() -> Element {
+        let mut value = use_signal(|| "1.2345678901234567".to_owned());
+        let mut inputs = use_signal(|| 0);
+        let mut collisions = use_signal(|| 0);
+        let mut blurs = use_signal(|| 0);
+        let mut keys = use_signal(|| 0);
+        let mut mounts = use_signal(|| 0);
+        rsx! {
+            InputGroupInput {
+                r#type: InputType::Number, value: value(),
+                class: "font-mono", min: "0.1", max: "2", step: "any",
+                aria_label: "Precise forwarded input",
+                aria_invalid: "true", aria_describedby: "input-forwarding-error",
+                oninput: move |event: FormEvent| { inputs += 1; value.set(event.value()); },
+                attributes: vec![
+                    Attribute::new("value", "999", None, true),
+                    Attribute::new("class", "collision-class", None, false),
+                    Attribute::new("min", "99", None, false),
+                    Attribute::new("color", "rgb(1, 2, 3)", Some("style"), false),
+                    Attribute::new("data-forwarded", "kept", None, false),
+                    dioxus::events::oninput(move |_| collisions += 1),
+                    dioxus::events::onblur(move |_| blurs += 1),
+                    dioxus::events::onkeydown(move |_| keys += 1),
+                    dioxus::events::onmounted(move |_| mounts += 1),
+                ],
+            }
+            InputGroupInput {
+                aria_label: "Omitted native defaults",
+                attributes: vec![Attribute::new("max", "5", None, false)],
+            }
+            p { id: "input-forwarding-error", "Enter a dimension within the supported range." }
+            output { aria_label: "Forwarding counts", "{inputs}:{collisions}:{blurs}:{keys}:{mounts}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn native_input_forwards_constraints_events_and_error_aria_once() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("forwarded input mounts once", || {
+            root.text_content().unwrap().contains("0:0:0:0:1")
+        })
+        .await;
+        let input: web_sys::HtmlInputElement =
+            by_role_name(&root, "spinbutton", "Precise forwarded input")
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+        assert_eq!(input.value(), "1.2345678901234567");
+        for (name, value) in [
+            ("min", "0.1"),
+            ("max", "2"),
+            ("step", "any"),
+            ("aria-invalid", "true"),
+            ("aria-describedby", "input-forwarding-error"),
+            ("data-slot", "input-group-control"),
+        ] {
+            assert_eq!(input.get_attribute(name).as_deref(), Some(value), "{name}");
+        }
+        let class = input.get_attribute("class").unwrap();
+        assert!(class.contains("font-mono") && class.contains("h-control"));
+        assert!(!class.contains("collision-class"));
+        assert_eq!(
+            input.get_attribute("data-forwarded").as_deref(),
+            Some("kept")
+        );
+        assert_eq!(
+            input.style().get_property_value("color").unwrap(),
+            "rgb(1, 2, 3)"
+        );
+        assert!(
+            document
+                .get_element_by_id(&input.get_attribute("aria-describedby").unwrap())
+                .is_some()
+        );
+        let default = by_role_name(&root, "textbox", "Omitted native defaults").unwrap();
+        for name in [
+            "min",
+            "max",
+            "step",
+            "value",
+            "aria-invalid",
+            "aria-describedby",
+        ] {
+            assert!(!default.has_attribute(name), "{name} stays omitted");
+        }
+        input.focus().unwrap();
+        input.set_value("1.8765432109876543");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        let key = web_sys::KeyboardEventInit::new();
+        key.set_key("Escape");
+        key.set_bubbles(true);
+        input
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &key)
+                    .unwrap(),
+            )
+            .unwrap();
+        input.blur().unwrap();
+        wait_until(
+            "each forwarded listener runs once and explicit input owns collisions",
+            || root.text_content().unwrap().contains("1:0:1:1:1"),
+        )
+        .await;
+        assert_eq!(
+            input.value(),
+            "1.8765432109876543",
+            "native precision remains intact"
+        );
+        assert!(input.check_validity());
+        input.set_value("3");
+        assert!(!input.check_validity(), "native max stays enforced");
+        input.set_value("0");
+        assert!(!input.check_validity(), "native min stays enforced");
         root.remove();
     }
 }
