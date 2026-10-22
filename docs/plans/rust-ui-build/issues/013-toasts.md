@@ -1,6 +1,6 @@
 # 013: Toasts
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [008: Accessible Toolbar, Toggle Group, Slider and Toast](008-accessible-toolbar-toggle-slider-toast.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
