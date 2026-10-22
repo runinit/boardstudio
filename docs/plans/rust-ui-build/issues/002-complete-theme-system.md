@@ -39,7 +39,7 @@ API or test-name changes. The existing shell's other legacy colours remain for l
 Cargo and wasm-pack commands ran serially against lane002's isolated target, with project concurrency settings. Browser commands use
 `NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules`; check commands use `BOARDSTUDIO_CHECK_JOBS=1`.
 
-- RED: saved `scripts/test-theme.py http://127.0.0.1:4202/boardstudio/ --evidence .evidence/theme-002/resume-red` reached
+- RED: saved `python3 scripts/test-theme.py http://127.0.0.1:4202/boardstudio/ --evidence .evidence/theme-002/resume-red` reached
   `Legacy canvas alias` on shadcn light after Original light/dark passed (`resume-red.log`). Both legacy canvas definitions now
   point to `var(--canvas)`; the saved test's already accepted accessible-name bootstrap correction was preserved.
 - GREEN: the same command with evidence directory `.evidence/theme-002/final-green`, then `.evidence/theme-002/merged-green`
@@ -69,4 +69,10 @@ user; its former graph gates do not apply.
 
 Implementation commit `53bbacb0`; feature merge `0ee0d300` includes tickets003/005. The sole Button comment conflict was resolved
 with both 003's Outline-border removal/provenance comment and 002's shared size tokens retained. No 004/006 source was edited.
+Late feature merge `3999cee4` includes 004 (`ec6318c6`): the licence-index conflict retains both the font and Lucide notices;
+004's icon module is unchanged. The new tree passed `check.py build repo` (`with004-checks.log`), the four-way Theme test
+(`with004-green.log`) and the focused `vendored_icons_are_decorative_and_use_class_size_and_theme_stroke` mounted test
+(1 passed; `with004-icon-mounted.log`). The earlier 42 shared UI and 1 empty-board results are from the pre-004 tree above;
+the focused icon test covers the new module. The final tree also passed all 14 native shared UI tests (`with004-native.log`)
+and `check.py lint repo` (`with004-lint-repo.log`).
 Local fast-forward landing is recorded in the lane's completion report; no origin push or dev merge is performed.
