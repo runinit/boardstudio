@@ -25,9 +25,9 @@ def main():
     def action(role, name, verb="click"):
         return browser("find", "role", role, verb, "--name", name, "--exact")
 
-    def camera(name, verb="click"):
+    def camera(name, verb="click", toolbar="Canvas view controls"):
         snapshot = json.loads(browser("snapshot", "-i", "--json", "--selector",
-            '[role="toolbar"][aria-label="Canvas view controls"]'))["data"]
+            f'[role="toolbar"][aria-label="{toolbar}"]'))["data"]
         refs = re.findall(r'^\s*- button "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)',
                           snapshot["snapshot"], re.MULTILINE)
         assert len(refs) == 1, (name, snapshot)
@@ -71,6 +71,8 @@ def main():
         check("if (document.activeElement.getAttribute('aria-label') !== 'Zoom out') throw Error('camera skips disabled selection')")
         before = browser("get", "text", '[role="toolbar"][aria-label="Canvas view controls"]')
         camera("Zoom in")
+        percent = re.search(r"\d+%", before).group()
+        browser("wait", "--fn", f"!document.querySelector('[role=toolbar][aria-label=\"Canvas view controls\"]').textContent.includes('{percent}')")
         after = browser("get", "text", '[role="toolbar"][aria-label="Canvas view controls"]')
         assert before != after, ("zoom reaches the existing camera owner", before, after)
         camera("Fit board")
@@ -100,6 +102,16 @@ def main():
         action("button", "Create matrix")
         browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
         camera("Fit selection")
+        browser("set", "viewport", "1100", "900")
+        camera("Undo", "focus", "Footer edit history")
+        browser("press", "End")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Redo') throw Error('history End')")
+        browser("press", "Home")
+        check("if (document.activeElement.getAttribute('aria-label') !== 'Undo') throw Error('history Home')")
+        camera("Undo", toolbar="Footer edit history")
+        browser("wait", "--text", "Build your keyboard layout")
+        camera("Redo", toolbar="Footer edit history")
+        browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=empty-title]')].some(e => e.textContent === 'Build your keyboard layout')")
         browser("press", "Control+k")
         browser("wait", '[role=combobox][aria-label="Search commands and objects"]')
         browser("press", "Escape")
