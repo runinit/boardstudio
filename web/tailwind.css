@@ -5,8 +5,8 @@
 @source "./src/**/*.rs";
 @source "./crates/**/*.rs";
 
-/* Keep every pending result scrollable, below the header's menus even on short screens. */
-.workbench-notifications[data-slot=toast-provider] { z-index: 30; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; }
+/* Keep every pending result scrollable, below header menus and above the footer action strip. */
+.workbench-notifications[data-slot=toast-provider] { z-index: 30; bottom: 4rem; max-height: 40dvh; overflow-y: auto; overscroll-behavior: contain; }
 .workbench-notifications[data-slot=toast-provider]:has(li) { pointer-events: auto; }
 .workbench-notifications ol { margin: 0; padding: 0; list-style: none; }
 

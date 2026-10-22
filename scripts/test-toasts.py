@@ -21,7 +21,8 @@ def stack_interoperability(browser, action, check, evidence):
                     action("button", "Settings")
                     action("menuitemradio", label)
                 if compact:
-                    browser("press", "Escape")
+                    action("button", "Workbench menu")
+                    browser("wait", "--fn", "document.getElementById('header-mobile-trigger').getAttribute('aria-expanded') === 'false'")
                 # Exercise actual shell exports, in a burst shorter than the five-second expiry.
                 browser("eval", """(async () => {
                     const before = new Set(document.querySelectorAll('[role=status][data-type]'));
@@ -37,6 +38,7 @@ def stack_interoperability(browser, action, check, evidence):
                     }
                     window.stackToasts = [...document.querySelectorAll('[role=status][data-type]')].filter(e => !before.has(e));
                     if (stackToasts.length !== 14) throw Error('Lost export results');
+                    if (stackToasts.some(e => e.contains(document.activeElement))) throw Error('Result announcement stole focus');
                 })()""")
                 if compact:
                     action("button", "Workbench menu")
@@ -44,7 +46,8 @@ def stack_interoperability(browser, action, check, evidence):
                 # Original failure: a live Toast intercepted this actual menu click.
                 action("menuitemradio", theme_label)
                 if compact:
-                    browser("press", "Escape")
+                    action("button", "Workbench menu")
+                    browser("wait", "--fn", "document.getElementById('header-mobile-trigger').getAttribute('aria-expanded') === 'false'")
                 check(f"""
                     if (document.documentElement.dataset.theme !== '{theme}' || document.documentElement.dataset.appearance !== '{appearance}') throw Error('Theme outcome');
                     if (stackToasts.some(e => !e.isConnected)) throw Error('Results disappeared before interaction');
