@@ -8621,33 +8621,50 @@ fn Editor() -> Element {
         });
         let mut add_open = layout_state.add_object_menu_open();
         let mut objects_open = objects_open;
+        let mut inspect_open = inspect_open;
+        let mut objects_settings = objects_panel_settings;
         palette_commands.push(boardstudio_web_ui_shared::ui::command::Command {
             group: "Current Workspace",
             label: "Add object".into(),
             reason: None,
             hint: None,
             on_select: EventHandler::new(move |()| {
-                objects_open.set(true);
+                if is_compact_viewport() {
+                    inspect_open.set(false);
+                    objects_open.set(true);
+                } else {
+                    let mut current = objects_settings();
+                    current.mode = PanelMode::Pinned;
+                    objects_settings.set(current);
+                }
                 add_open.set(true);
             }),
         });
     }
+    let toggle_panel = |mut requested: Signal<bool>,
+                        mut opposite: Signal<bool>,
+                        mut settings: Signal<PanelSettings>| {
+        if is_compact_viewport() {
+            let was_open = requested();
+            opposite.set(false);
+            requested.set(!was_open);
+        } else {
+            let mut current = settings();
+            current.mode = match current.mode {
+                PanelMode::Pinned => PanelMode::Collapsed,
+                PanelMode::Collapsed => PanelMode::Pinned,
+            };
+            settings.set(current);
+        }
+    };
+    let toggle_objects =
+        use_callback(move |()| toggle_panel(objects_open, inspect_open, objects_panel_settings));
+    let toggle_inspector =
+        use_callback(move |()| toggle_panel(inspect_open, objects_open, inspector_panel_settings));
     if guide.is_none() && active_workspace != "Export" {
-        for (label, mut requested, mut opposite, mut settings, available) in [
-            (
-                "Show/hide Objects",
-                objects_open,
-                inspect_open,
-                objects_panel_settings,
-                true,
-            ),
-            (
-                "Show/hide Inspector",
-                inspect_open,
-                objects_open,
-                inspector_panel_settings,
-                has_inspector,
-            ),
+        for (label, on_select, available) in [
+            ("Show/hide Objects", toggle_objects, true),
+            ("Show/hide Inspector", toggle_inspector, has_inspector),
         ] {
             if !available {
                 continue;
@@ -8657,20 +8674,7 @@ fn Editor() -> Element {
                 label: label.into(),
                 reason: None,
                 hint: None,
-                on_select: EventHandler::new(move |()| {
-                    if is_compact_viewport() {
-                        let was_open = requested();
-                        opposite.set(false);
-                        requested.set(!was_open);
-                    } else {
-                        let mut current = settings();
-                        current.mode = match current.mode {
-                            PanelMode::Pinned => PanelMode::Collapsed,
-                            PanelMode::Collapsed => PanelMode::Pinned,
-                        };
-                        settings.set(current);
-                    }
-                }),
+                on_select,
             });
         }
     }
