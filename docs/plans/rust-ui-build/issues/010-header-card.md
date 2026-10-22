@@ -1,6 +1,6 @@
 # 010: Header card
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [002: Complete Theme system](002-complete-theme-system.md), [004: Vendored Lucide icons](004-lucide-icons.md), [007: Accessible action menus](007-accessible-action-menus.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
