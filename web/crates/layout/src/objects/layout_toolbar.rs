@@ -731,7 +731,7 @@ pub fn LayoutCommandPill(
                         .is_some_and(|target| target.id() == "m1-layout-snap-trigger"
                             || (target.tag_name() == "BUTTON"
                                 && target.closest("#m1-layout-command-pill").ok().flatten().is_some()
-                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger]").unwrap_or(false)))
+                                && target.matches(".layout-scope-trigger, .layout-action-control, .layout-geometry-control, .layout-popup-close, .layout-menu-actions [data-slot=popover-trigger], .layout-menu-actions [data-slot=dropdown-menu-trigger], .layout-scope-popup [data-slot=button], .layout-settings-popup [data-slot=button]").unwrap_or(false)))
                 {
                     // Native control activation must not become the canvas's Space-pan shortcut.
                     event.stop_propagation();
