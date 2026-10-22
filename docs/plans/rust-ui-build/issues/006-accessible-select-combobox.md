@@ -1,6 +1,6 @@
 # 006: Accessible Select and Combobox
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [003: Base component set](003-base-component-set.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -54,6 +54,8 @@ Executed on corrected source `bdaeffebaa7409f921734e76d1e7a2fffb9054e6`, includi
 - `NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py browser --only ui-shared`: **44 + 2 mounted tests passed**, including Select/Combobox floor, retained-animation callback regression, and 004 icon names; `final-ui-shared-browser.log`. The runner explicitly reports a partial browser subset, not full browser acceptance.
 - `git diff --check`: passed. No test names were renamed or removed.
 
-Targeted review of the corrected implementation and this completed Outcome remains pending; ticket remains claimed and local landing is held for that approval.
+Closure approved: the coordinator delivered the real targeted Spec review of `c663c0524c11a64e3f4738af097eee7e6989db91`, with zero actionable findings. The P2 is resolved: the actual-open guard prevents duplicate/echo close callbacks while preserving genuine controlled requests awaiting acceptance and leaving selection/value ownership unchanged. The reviewer reused the executed runtime logs above rather than rerunning them. The earlier Standards review returned zero findings; neither review is global-gate approval.
+
+Before resolution/landing, the local feature tip was rechecked and remained `ba8b881c392cb2dde8fc7931f80348b234ee6e2c`, already merged into this lane. The lane was clean and only the three owned paths differed from that feature tip. This final change only records review resolution/status, so the sufficient executed checks above are reused without duplicate test runs. Local landing follows the lane protocol's fast-forward-only `git push . HEAD:refs/heads/feat/rust-ui-migration`; the final commit/ref verification is reported to the coordinator.
 
 Full browser/quick/CAD acceptance, the unresolved CAD browser `worker.onerror` root cause, first-paint timing, user workspace review and the final merge to `dev` remain outside this ticket's evidence. No push to origin or merge to dev.
