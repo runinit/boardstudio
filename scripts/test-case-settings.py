@@ -44,9 +44,9 @@ def styles(url, evidence):
                 return {slot:input.dataset.slot,height:group.getBoundingClientRect().height,labelFor:label.htmlFor,id:input.id,
                     font:s.fontFamily,border:s.borderTopWidth,bg:s.backgroundColor,boxHeight:input.getBoundingClientRect().height}})()''')
             action("checkbox", "Add middle frame", "focus")
-            metrics["checkbox"] = evaluate("({height:document.activeElement.getBoundingClientRect().height,border:getComputedStyle(document.activeElement).borderTopWidth})")
+            metrics["checkbox"] = evaluate("({height:document.activeElement.getBoundingClientRect().height,border:getComputedStyle(document.activeElement).borderTopWidth,labelHeight:document.activeElement.labels[0].getBoundingClientRect().height})")
             observations.append({"theme":theme,"appearance":appearance,**metrics})
-            if not (metrics["slot"] == "input-group-control" and metrics["height"] == 40 and metrics["border"] == "0px" and metrics["labelFor"] == metrics["id"] and metrics["id"] and metrics["checkbox"] == {"height":16,"border":"0px"}):
+            if not (metrics["slot"] == "input-group-control" and metrics["height"] == 40 and metrics["border"] == "0px" and metrics["labelFor"] == metrics["id"] and metrics["id"] and metrics["checkbox"]["height"] == 16 and metrics["checkbox"]["border"] == "0px" and metrics["checkbox"]["labelHeight"] >= 44):
                 failures.append(observations[-1])
             browser("screenshot", str(evidence/f"styles-{theme}-{appearance}.png"))
     (evidence/"style-observations.json").write_text(json.dumps(observations,indent=2)+"\n")
@@ -271,6 +271,7 @@ def main():
     parser.add_argument("--page-url")
     args = parser.parse_args()
     args.evidence.mkdir(parents=True, exist_ok=True)
+    print("Source pin:", subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), flush=True)
     if args.page_url:
         try:
             page_tests(args.page_url,args.evidence)
@@ -295,6 +296,13 @@ def main():
             styles(url, args.evidence)
             if not args.styles_only:
                 tests(url, args.evidence)
+        except BaseException:
+            try:
+                browser("screenshot", str(args.evidence/"failure.png"))
+                (args.evidence/"failure-snapshot.json").write_text(json.dumps(browser("snapshot"),indent=2)+"\n")
+            except Exception as capture_error:
+                print("Failure capture unavailable:", capture_error, flush=True)
+            raise
         finally:
             browser("close")
             server.shutdown()

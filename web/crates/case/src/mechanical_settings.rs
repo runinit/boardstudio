@@ -1140,7 +1140,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
     let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
     let mut confirming_state = confirming;
     rsx! {
-        fieldset { class: "m1-mechanical-legacy-construction", disabled: !props.editable,
+        fieldset { class: "m1-mechanical-legacy-construction grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-muted", disabled: !props.editable,
             legend { "Shared construction" }
             if confirming() {
                 p { class: "m1-mechanical-help",
@@ -3551,7 +3551,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                     SelectOption { index: 1, value: "sheet".to_owned(), text_value: "Flat sheet".to_owned(), "Flat sheet" }
             }
             if values.bottom_style == MechanicalBottomStyle::Sheet {
-                FieldLabel { html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
+                FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
                     Checkbox {
                         id: format!("case-construction-{}-middle", dioxus::core::current_scope_id().0),
                         aria_label: "Add middle frame", disabled: !props.editable,
@@ -3566,7 +3566,7 @@ fn ConstructionControls(props: ConstructionControlsProps) -> Element {
                     span { "Add middle frame" }
                 }
             }
-            FieldLabel { html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
+            FieldLabel { class: "min-h-control-touch", html_for: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
                 Checkbox {
                     id: format!("case-construction-{}-integrated", dioxus::core::current_scope_id().0),
                     aria_label: "Integrate plate frame into case",
@@ -3909,7 +3909,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         p { class: "m1-mechanical-help", "Select exact primitives for plate cutouts, PCB holes, clearances or drawing guides, then apply the selected geometry." }
                         for primitive in loaded_geometry.primitives.iter() {
                             div { class: "m1-mechanical-geometry-row", role: "group", aria_label: "Geometry {primitive.id}", key: "{primitive.id}",
-                                FieldLabel { html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
+                                FieldLabel { class: "min-h-control-touch", html_for: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                     Checkbox {
                                         id: format!("case-geometry-{}-{}", dioxus::core::current_scope_id().0, primitive.id),
                                         checked: Some(if selected().contains(&primitive.id) { CheckboxState::Checked } else { CheckboxState::Unchecked }),
@@ -4058,9 +4058,9 @@ struct ProfilePolygonListEditorProps {
 fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
     rsx! {
         section {
-            class: "m1-mechanical-profile-points",
+            class: "grid gap-3",
             aria_label: "{props.title}",
-            header {
+            header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
                     variant: ButtonVariant::Secondary,
@@ -4092,7 +4092,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
             }
             for (polygon_index, polygon) in props.polygons.iter().enumerate() {
                 fieldset {
-                    class: "m1-mechanical-profile-polygon",
+                    class: "grid gap-3 m-0 min-w-0 border-0 p-0",
                     aria_label: "{props.title} contour {polygon_index + 1}",
                     key: "{props.title}:{polygon_index}",
                     disabled: !props.editable,
@@ -4250,9 +4250,9 @@ struct ProfileOpeningListEditorProps {
 fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
     rsx! {
         section {
-            class: "m1-mechanical-profile-points",
+            class: "grid gap-3",
             aria_label: "{props.title}",
-            header {
+            header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
                     variant: ButtonVariant::Secondary,
@@ -4286,7 +4286,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
             }
             for (opening_index, opening) in props.openings.iter().enumerate() {
                 fieldset {
-                    class: "m1-mechanical-opening",
+                    class: "grid gap-3 m-0 min-w-0 border-0 p-0",
                     aria_label: "{props.title} volume {opening_index + 1}",
                     key: "{props.title}:{opening_index}",
                     disabled: !props.editable,
