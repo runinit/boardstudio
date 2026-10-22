@@ -56,12 +56,12 @@ fn sync_tab_stop(root: &web_sys::Element) {
 #[component]
 pub fn Toolbar(props: ToolbarProps) -> Element {
     let mut root = use_context_provider(|| ToolbarRoot(Signal::new(None)));
-    use_effect(move || {
+    use_effect(use_reactive((&props.children,), move |_| {
         let _ = (props.disabled)();
         if let Some(element) = (root.0)() {
             sync_tab_stop(&element);
         }
-    });
+    }));
     let base = attributes!(div {
         class: "flex items-center gap-1 p-1 rounded-md bg-background shadow-sm w-fit data-[orientation=vertical]:flex-col",
         "data-slot": "toolbar",

@@ -14,7 +14,7 @@ use crate::ui::{
 
 fn fixture() -> Element {
     let mut actions = use_signal(|| 0);
-    let mut slider_changes = use_signal(|| Vec::<f64>::new());
+    let mut slider_changes = use_signal(Vec::<f64>::new);
     let mut controlled = use_signal(|| Some(40.0));
     let mut toggle_changes = use_signal(|| 0);
     let mut pressed = use_signal(|| Some(std::collections::HashSet::<usize>::new()));
@@ -153,6 +153,42 @@ async fn toolbar_end_reaches_last_item() {
             .unwrap()
     })
     .await;
+    root.remove();
+}
+
+fn changing_toolbar() -> Element {
+    let mut show_first = use_signal(|| true);
+    rsx! {
+        button { onclick: move |_| show_first.set(false), "Remove first action" }
+        Toolbar { aria_label: "Changing tools",
+            if show_first() { ToolbarButton { index: 0usize, "First changing action" } }
+            ToolbarButton { index: 1usize, "Remaining action" }
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn toolbar_keeps_a_tab_stop_when_the_current_item_is_removed() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(changing_toolbar),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("changing toolbar mounted", || {
+        by_role_name(&root, "button", "First changing action").is_some()
+    })
+    .await;
+    control(&root, "button", "First changing action")
+        .focus()
+        .unwrap();
+    control(&root, "button", "Remove first action").click();
+    wait_until("current action removed", || {
+        by_role_name(&root, "button", "First changing action").is_none()
+    })
+    .await;
+    assert_eq!(control(&root, "button", "Remaining action").tab_index(), 0);
     root.remove();
 }
 
