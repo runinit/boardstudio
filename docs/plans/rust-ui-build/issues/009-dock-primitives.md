@@ -20,7 +20,7 @@ The two building blocks of the new docks exist and work on their own: a non-moda
 
 ## Outcome
 
-Implementation is complete; the ticket remains claimed pending the coordinator's single Standards + Spec closure review and local-landing approval.
+The first Standards + Spec closure review requested changes. The correction below is implemented; the ticket remains claimed pending substantive targeted re-review and local-landing approval.
 
 ### Scope and ownership
 
@@ -63,3 +63,25 @@ Implementation is complete; the ticket remains claimed pending the coordinator's
 ### Remaining gates
 
 Coordinator closure review and local landing are pending. No origin push or dev merge. Global full/quick, CAD `worker.onerror`, first paint, human Workspace checks and final migration merge remain open.
+
+### Closure correction (2026-10-22)
+
+- The reviewed snapshot `c8a02f3936ab2a8a7a88f23e6300c8f67088d579` and its receipts remain in Git / `.evidence/`; nothing was rewritten or overwritten.
+  Both closure reviews were source-only; all runtime receipts here are author-executed evidence.
+- **Standards P3, trigger lookup:** replaced `button[aria-haspopup=dialog]` with the browser accessibility snapshot's unique role/name lookup for button **Open settings**.
+  Its `aria-haspopup=dialog` and `aria-expanded=true` attributes are then read through that accessible ref. No production control or shared test helper changed.
+- **Spec P2, description:** `SheetContent` now forwards a required `aria_describedby` prop. The fixture connects it to `dock-settings-description` on its explanatory paragraph;
+  the trusted browser regression resolves that reference and checks the description text for every Sheet edge. The fixture is the only current caller.
+- **Nested free-form Popover objection:** added the actual public `Popover` / `PopoverTrigger` / `PopoverContent` inside Sheet, with `is_modal: false` and a real content button.
+  Before changing Sheet production code, trusted input reproduced one Escape dismissing both dialogs and restoring **Open settings**.
+  Expected RED: `.evidence/009-popover-escape-behavior-red.log`; reproducible test-only checkpoint `0de80f9e7df84d0ea4171d3701f2f999a2f2a8eb` retains the reviewed Sheet implementation.
+  The passing nested Select case was not used as evidence for this objection.
+- The narrow correction moves the owned Sheet listener from document to window bubbling, after primitives' document handlers can prevent their own Escape. Registration and removal use the same window target.
+  The regression now asserts that the first Escape closes only the actual Popover, waits for its normal exit/unmount, then verifies a second Escape closes Sheet and restores its opener.
+  The Popover source, dismissal lifecycle and classes are unchanged. Modal Popover focus-trap behavior is not exercised by this non-modal composition test.
+- Code/test correction: `65899d6a86e6306e92c99c58f3bda20bf2d042c7`. New evidence uses `009-correction-*` filenames, preserving original logs, receipt and screenshots.
+  Checks on that exact code passed: native **15/15** (`009-correction-native.log`); the full trusted fixture including role/name popup attributes, description references and actual free-form Popover first/second Escape
+  (`009-correction-browser-final.log`); shared WASM **49/49**, no failed/ignored/incomplete results (`009-correction-shared-browser-receipt.json` and summary, `009-correction-shared-browser.log`);
+  WASM clippy with `-D warnings` (`009-correction-clippy-wasm.log`); scoped rustfmt, Python compile, diff whitespace and 565-file Markdown link checks (`009-correction-doc-links.log`).
+  These use the same commands and partial scope as the initial verification above. The only subsequent change is this ticket's correction record.
+  The browser suite receipt may include that in-progress ticket edit; its Rust/test source is exactly `65899d6a`. No full browser/product gate or reviewer runtime execution is claimed.
