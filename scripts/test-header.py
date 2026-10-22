@@ -3,6 +3,7 @@
 import argparse
 import atexit
 import json
+import re
 from pathlib import Path
 import subprocess
 from uuid import uuid4
@@ -35,8 +36,9 @@ def main():
         if role == "button" and name in ("Undo", "Redo"):
             # The footer has the same names; this test exercises the Header controls.
             header = json.loads(browser("snapshot", "--json", "-i", "--selector", "main > header"))["data"]
-            refs = [ref for ref, item in header["refs"].items() if item["role"] == role and item["name"] == name]
+            refs = re.findall(r'^\s*- button "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)', header["snapshot"], re.MULTILINE)
             assert len(refs) == 1, ("Expected one Header button", name, header)
+            assert header["refs"][refs[0]]["role"] == role and header["refs"][refs[0]]["name"] == name
             assert browser("get", "attr", "@" + refs[0], "aria-label").strip() == name
             browser(verb, "@" + refs[0])
             return

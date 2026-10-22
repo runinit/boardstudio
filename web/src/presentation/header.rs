@@ -127,8 +127,8 @@ pub(super) fn Header(
             if !compact() { {save_status.clone()} }
             if has_project {
                 div { role: "group", aria_label: "Edit history", class: "header-history",
-                    Button { variant: ButtonVariant::Ghost, aria_label: "Undo", onclick: move |_| on_undo.call(()), "Undo" Kbd { "Ctrl/Cmd Z" } }
-                    Button { variant: ButtonVariant::Ghost, aria_label: "Redo", onclick: move |_| on_redo.call(()), "Redo" Kbd { "Ctrl/Cmd Shift Z / Ctrl Y" } }
+                    Button { variant: ButtonVariant::Ghost, aria_label: "Undo", onclick: move |_| { mobile_open.set(false); on_undo.call(()); }, "Undo" Kbd { "Ctrl/Cmd Z" } }
+                    Button { variant: ButtonVariant::Ghost, aria_label: "Redo", onclick: move |_| { mobile_open.set(false); on_redo.call(()); }, "Redo" Kbd { "Ctrl/Cmd Shift Z / Ctrl Y" } }
                 }
             }
             {panel_controls}

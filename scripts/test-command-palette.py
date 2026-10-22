@@ -62,6 +62,8 @@ def main():
         browser("press", "Control+k")
         opened()
         action("combobox", "Search commands and objects", "fill", name)
+        if name == "Snap settings":
+            check("if (document.querySelectorAll('[role=option][aria-label=\"Snap settings\"]').length !== 1) throw Error('Snap command must have one owner');")
         action("option", name)
         browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
 
@@ -158,6 +160,7 @@ def main():
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Settings') throw Error('Shortcut must return focus to opener');")
+    check("if (document.querySelector('[aria-label=\"Search commands\"]').getAttribute('aria-expanded') !== 'false') throw Error('Closed Search ARIA must refresh without dropping command owners');")
     browser("press", "Meta+k")
     opened()
     browser("press", "Escape")
@@ -217,7 +220,9 @@ def main():
         opened()
         action("combobox", "Search commands and objects", "fill", label)
         check(f"if (!document.querySelector('[role=option][aria-label={json.dumps(label)}]')) throw Error('Missing View command: {label}');")
+        browser("press", "ArrowDown")
         browser("set", "viewport", str(after), "960")
+        check(f"if (document.getElementById(document.activeElement.getAttribute('aria-activedescendant'))?.getAttribute('aria-label') !== {json.dumps(label)}) throw Error('Selected View command must survive the viewport change');")
         browser("press", "Enter")
         browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]')")
 
