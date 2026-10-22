@@ -48,9 +48,9 @@ def main():
 
     def opened():
         # First meaningful RED: the real incumbent Search button does nothing.
-        browser("wait", '[role="dialog"][aria-labelledby]')
+        browser("wait", '#command-palette[open][aria-labelledby]')
         check("""
-            const dialog = document.querySelector('[role=dialog]');
+            const dialog = document.querySelector('#command-palette[open]');
             if (dialog.getAttribute('aria-modal') !== 'true') throw Error('Palette must be modal');
             for (const attr of ['aria-labelledby', 'aria-describedby']) {
                 if (!document.getElementById(dialog.getAttribute(attr))) throw Error(attr + ' must resolve');
@@ -168,7 +168,7 @@ def main():
     check("""
         const search = document.querySelector('[aria-label="Search commands"]');
         const popup = document.getElementById(search.getAttribute('aria-controls'));
-        if (search.getAttribute('aria-expanded') !== 'true' || !popup?.querySelector('[role=dialog]')) throw Error('Open Search popup ARIA must resolve');
+        if (search.getAttribute('aria-expanded') !== 'true' || !popup?.matches('dialog:modal')) throw Error('Open Search popup ARIA must resolve');
     """)
     check("""
         const rename = document.querySelector('[role=option][aria-label="Rename project"]');
@@ -186,13 +186,13 @@ def main():
     browser("press", "Control+k")
     opened()
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Settings') throw Error('Shortcut must return focus to opener');")
     check("if (document.querySelector('[aria-label=\"Search commands\"]').getAttribute('aria-expanded') !== 'false') throw Error('Closed Search ARIA must refresh without dropping command owners');")
     browser("press", "Meta+k")
     opened()
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     action("button", "Project")
     action("menuitem", "New project")
     for name in ("Continue to layout", "Hide guide", "Cancel"):
@@ -206,6 +206,8 @@ def main():
     check("""
         window.paletteDeleteConfirmation = document.querySelector('dialog[open]');
         window.paletteDeleteOpener = document.activeElement;
+        window.paletteDeleteEvents = [];
+        for (const name of ['cancel', 'close']) paletteDeleteConfirmation.addEventListener(name, event => paletteDeleteEvents.push({type:event.type,trusted:event.isTrusted}));
         if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteOpener.textContent.trim() !== 'Cancel') throw Error('Delete must use its native modal confirmation and safe initial focus');
     """)
     browser("press", "Control+k")
@@ -213,13 +215,51 @@ def main():
     browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal'),palette:document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]').outerHTML})")
     browser("screenshot", str((args.evidence / "native-confirmation-palette.png").resolve()))
     opened()
+    snapshot = browser("snapshot")
+    (args.evidence / "native-confirmation-palette-ax.txt").write_text(snapshot)
+    dialogs = re.findall(r'^\s*- dialog(?: "([^"]*)")?(?:\s|$)', snapshot, re.MULTILINE)
+    assert dialogs == ["Command palette"], ("Expected one exposed named palette dialog", dialogs)
+    check("""
+        const content = document.querySelector('#command-palette [data-slot=dialog-content]');
+        if (content.getAttribute('role') !== 'presentation' || content.hasAttribute('aria-modal') || content.tabIndex >= 0) throw Error('Inner Dialog must be structural and unfocusable');
+    """)
+    browser("press", "Shift+Tab")
+    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal')})")
+    browser("screenshot", str((args.evidence / "native-confirmation-shift-tab.png").resolve()))
+    check("if (!document.querySelector('#command-palette[open]').contains(document.activeElement)) throw Error('Shift Tab escaped the native palette host');")
+    browser("press", "Tab")
+    check("if (document.activeElement.getAttribute('role') !== 'combobox') throw Error('Tab must wrap back into search');")
     action("combobox", "Search commands and objects", "fill", "no matching command")
     check("if (!paletteDeleteConfirmation.matches(':modal')) throw Error('Palette changed the native confirmation owner');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
-    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal')) throw Error('Palette Escape must retain the SAME native confirmation');")
+    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('Palette Escape must retain the SAME native confirmation without cancel/close events');")
+    browser("press", "Meta+k")
+    opened()
+    action("combobox", "Search commands and objects")
+    action("combobox", "Search commands and objects", "fill", "Workspace settings")
+    browser("press", "ArrowDown")
+    check("if (document.getElementById(document.activeElement.getAttribute('aria-activedescendant'))?.getAttribute('aria-label') !== 'Workspace settings') throw Error('Search list navigation must remain usable above native confirmation');")
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
+    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('CmdK palette Escape changed the native confirmation');")
     action("button", "Cancel")
     browser("wait", "--fn", "!document.querySelector('dialog[open]')")
+    browser("wait", "--fn", "paletteDeleteEvents.filter(e=>e.type==='close').length === 1")
+    action("button", "Delete keyboard")
+    browser("wait", "dialog[open]")
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('dialog[open]') && paletteDeleteEvents.filter(e=>e.type==='close').length === 2")
+    check("if (paletteDeleteEvents.filter(e=>e.type==='cancel' && e.trusted).length !== 1 || !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')) throw Error('Native Escape must cancel without deleting the fixture project');")
+    action("button", "Delete keyboard")
+    browser("wait", "dialog[open]")
+    action("button", "Delete keyboard")
+    browser("wait", "--fn", "!document.querySelector('dialog[open]') && !document.querySelector('[aria-label=\"Preview Untitled keyboard\"]')")
+    action("button", "Project")
+    action("menuitem", "New project")
+    for name in ("Continue to layout", "Hide guide", "Cancel"):
+        browser("wait", "--text", name)
+        action("button", name)
     choose("Layout")
     browser("press", "Control+k")
     opened()
@@ -234,11 +274,11 @@ def main():
         if (names.some(n => /Delete|Unlink/.test(n))) throw Error('Destructive command');
     """)
     browser("press", "Tab")
-    check("if (!document.querySelector('[role=dialog]').contains(document.activeElement)) throw Error('Tab escaped');")
+    check("if (!document.querySelector('#command-palette[open]').contains(document.activeElement)) throw Error('Tab escaped');")
     browser("press", "Shift+Tab")
-    check("if (!document.querySelector('[role=dialog]').contains(document.activeElement)) throw Error('Shift Tab escaped');")
+    check("if (!document.querySelector('#command-palette[open]').contains(document.activeElement)) throw Error('Shift Tab escaped');")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     choose("Layout")
     check("""
         const triggers = document.querySelectorAll('[aria-label="Snap settings"]');
@@ -394,9 +434,9 @@ def main():
         if (option?.getAttribute('aria-disabled') !== 'true' || !option.textContent.includes('Select a matrix')) throw Error('Unavailable tools must explain why');
     """)
     browser("press", "Enter")
-    check("if (!document.querySelector('[role=dialog]')) throw Error('Unavailable command must not dispatch');")
+    check("if (!document.querySelector('#command-palette[open]')) throw Error('Unavailable command must not dispatch');")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     check("if (document.querySelector('[aria-label=\"Snap settings\"]').getAttribute('aria-expanded') !== 'false') throw Error('Snap dismissed on palette open must remain closed');")
     browser("wait", "--fn", "document.activeElement.getAttribute('aria-label') === 'Snap settings'")
     choose("Snap settings")
@@ -418,7 +458,7 @@ def main():
     opened()
     browser("wait", "--fn", "document.querySelector('[aria-label=Project]').textContent.trim() === 'Palette committed name'")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Project name') throw Error('Field shortcut must return to its opener');")
     action("textbox", "Project name", "fill", "Cancelled name")
     browser("press", "Escape")
@@ -446,7 +486,7 @@ def main():
     objects = json.loads(browser("eval", "[...document.querySelectorAll('[role=group][aria-label=Objects] [role=option]')].map(e => e.getAttribute('aria-label'))"))
     browser("screenshot", str((args.evidence / "palette-open.png").resolve()))
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     for kind, selector in (
         ("Matrix ", '[aria-label="Matrix inspector"]'),
         ("Key ", '[aria-label="Key enabled"]'),
@@ -475,7 +515,7 @@ def main():
         if (option?.getAttribute('aria-disabled') !== 'true' || !option.textContent.includes('resolve controller wiring')) throw Error('Export must mirror the actual blocker');
     """)
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     for theme in ("Original", "shadcn"):
         action("button", "Settings")
         action("menuitemradio", theme)
@@ -487,17 +527,17 @@ def main():
             browser("press", "Control+k")
             opened()
             check("""
-                const dialog = document.querySelector('[role=dialog]').getBoundingClientRect();
+                const dialog = document.querySelector('#command-palette [data-slot=dialog-content]').getBoundingClientRect();
                 if (dialog.left < 0 || dialog.right > innerWidth || dialog.top < 0 || dialog.bottom > innerHeight) throw Error('Palette must fit the viewport');
             """)
             browser("screenshot", str((args.evidence / f"palette-{theme.lower()}-{appearance.lower()}.png").resolve()))
             browser("press", "Escape")
-            browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+            browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     browser("set", "viewport", "375", "800")
     browser("press", "Control+k")
     opened()
     check("""
-        const dialog = document.querySelector('[role=dialog]').getBoundingClientRect();
+        const dialog = document.querySelector('#command-palette [data-slot=dialog-content]').getBoundingClientRect();
         if (dialog.left < 0 || dialog.right > innerWidth || dialog.top < 0 || dialog.bottom > innerHeight) throw Error('Narrow palette must fit the viewport');
     """)
     browser("screenshot", str((args.evidence / "palette-narrow.png").resolve()))
@@ -508,7 +548,7 @@ def main():
     browser("press", "Control+k")
     opened()
     browser("open", "about:blank")
-    check("if (document.querySelector('[role=dialog]')) throw Error('Palette survived document teardown');")
+    check("if (document.querySelector('#command-palette[open]')) throw Error('Palette survived document teardown');")
     browser("open", args.url)
     browser("wait", '[aria-label="Search commands"]')
     check("if (document.querySelector('[role=combobox]') || document.querySelector('[aria-label=\"Search commands\"]').getAttribute('aria-expanded') !== 'false') throw Error('Remount retained an open palette');")
@@ -516,7 +556,7 @@ def main():
     opened()
     check("if (document.querySelectorAll('[role=combobox][aria-label=\"Search commands and objects\"]').length !== 1) throw Error('Remount duplicated the palette');")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     print("PASS: production palette dialog, combobox, navigation, context, focus and keyboard", flush=True)
 
 

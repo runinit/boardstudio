@@ -1,4 +1,19 @@
 /* Dialog and Combobox composition; both Themes supply its tokens. */
+.command-palette-host {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+.command-palette-host::backdrop { background: transparent; }
 .command-palette [data-slot="combobox-list"] {
   position: relative;
   top: auto;

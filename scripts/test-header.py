@@ -70,7 +70,7 @@ def main():
     action("button", "Search commands")
     browser("wait", '[role="combobox"][aria-label="Search commands and objects"]')
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     action("button", "Project")
     browser("wait", '[role="menu"][aria-label="Project"]')
     check("""

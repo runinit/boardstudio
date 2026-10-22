@@ -7,7 +7,7 @@ use boardstudio_web_ui_shared::ui::{
     kbd::Kbd,
 };
 use dioxus::prelude::*;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -139,8 +139,62 @@ fn PaletteLifetime(on_closed: EventHandler<()>) -> Element {
     rsx! {}
 }
 
+fn sync_palette_host(host: &web_sys::HtmlDialogElement, open: bool) {
+    if !host.is_connected() {
+        return;
+    }
+    if open
+        && !host.open()
+        && host
+            .query_selector("[data-slot=combobox-input]")
+            .ok()
+            .flatten()
+            .is_some()
+    {
+        let _ = host.show_modal();
+    } else if !open && host.open() {
+        host.close();
+    }
+}
+
 #[component]
 pub(super) fn CommandPalette(state: PaletteState) -> Element {
+    let host = use_hook(|| Rc::new(RefCell::new(None::<web_sys::HtmlDialogElement>)));
+    use_effect({
+        let host = host.clone();
+        move || {
+            let open = (state.open)();
+            if let Some(host) = host.borrow().as_ref() {
+                sync_palette_host(host, open);
+            }
+        }
+    });
+    use_drop({
+        let host = host.clone();
+        move || {
+            if let Some(host) = host.borrow_mut().take()
+                && host.is_connected()
+                && host.open()
+            {
+                host.close();
+            }
+        }
+    });
+    let mount_host = host.clone();
+    let content_host = host.clone();
+    let content_mounted = onmounted(move |event: MountedEvent| {
+        if let Some(content) = event.data().downcast::<web_sys::Element>()
+            && let Some(host) = content_host.borrow().as_ref()
+            && host
+                .query_selector("[data-slot=dialog-content]")
+                .ok()
+                .flatten()
+                .as_ref()
+                == Some(content)
+        {
+            sync_palette_host(host, *state.open.peek());
+        }
+    });
     let registry = use_context::<CommandRegistry>();
     let registered_commands = use_memo(move || {
         if (state.open)() {
@@ -210,11 +264,29 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
         "Objects",
     ];
     rsx! {
-        Dialog { id: "command-palette", open: Some(open), on_open_change: move |next: bool| { if !next { state.close(None); } },
-            class: "command-palette",
+        dialog {
+            id: "command-palette", class: "command-palette-host", aria_modal: "true",
+            aria_labelledby: "command-palette-title", aria_describedby: "command-palette-description",
+            onmounted: move |event: MountedEvent| {
+                if let Some(host) = event.data().downcast::<web_sys::Element>().and_then(|element| element.dyn_ref::<web_sys::HtmlDialogElement>()).cloned() {
+                    *mount_host.borrow_mut() = Some(host.clone());
+                    sync_palette_host(&host, *state.open.peek());
+                }
+            },
+            oncancel: move |event| {
+                event.prevent_default();
+                event.stop_propagation();
+                if host.borrow().as_ref().is_some_and(|host| host.is_connected() && host.open()) && *state.open.peek() {
+                    state.close(None);
+                }
+            },
+        Dialog { open: Some(open), on_open_change: move |next: bool| { if !next { state.close(None); } },
+            attributes: vec![content_mounted],
+            class: "command-palette", is_modal: false, role: "presentation",
+            aria_modal: None::<String>, aria_labelledby: None::<String>, aria_describedby: None::<String>,
             PaletteLifetime { on_closed }
-            DialogTitle { "Command palette" }
-            DialogDescription { "Search existing actions and objects. Unavailable actions explain why." }
+            DialogTitle { id: "command-palette-title", "Command palette" }
+            DialogDescription { id: "command-palette-description", "Search existing actions and objects. Unavailable actions explain why." }
             Combobox::<Command> {
                 open: Some(true),
                 query: Some(query()),
@@ -262,6 +334,7 @@ pub(super) fn CommandPalette(state: PaletteState) -> Element {
                 }
             }
             Button { variant: ButtonVariant::Ghost, aria_label: "Close command palette", onclick: move |_| state.close(None), "Close" Kbd { "Esc" } }
+        }
         }
     }
 }
