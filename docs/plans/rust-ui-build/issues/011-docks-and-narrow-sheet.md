@@ -1,6 +1,6 @@
 # 011: Docks and narrow-screen sheet
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [009: Dock primitives](009-dock-primitives.md), [010: Header card](010-header-card.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
