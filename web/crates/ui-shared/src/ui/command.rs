@@ -12,8 +12,10 @@ pub struct Command {
     pub on_select: EventHandler<()>,
 }
 
+type RegisteredCommands = BTreeMap<ScopeId, (Rc<()>, Vec<Command>)>;
+
 #[derive(Clone, Copy)]
-pub struct CommandRegistry(Signal<BTreeMap<ScopeId, (Rc<()>, Vec<Command>)>>);
+pub struct CommandRegistry(Signal<RegisteredCommands>);
 
 pub fn use_command_registry() -> CommandRegistry {
     let registry = CommandRegistry(use_signal(BTreeMap::new));
