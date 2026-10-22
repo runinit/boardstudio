@@ -77,13 +77,13 @@ mod forwarding_tests {
         .await;
         for (role, label) in [("button", "Native contract"), ("link", "Link contract")] {
             let action = by_role_name(&root, role, label).unwrap();
-            action
-                .dispatch_event(&web_sys::MouseEvent::new("click").unwrap())
-                .unwrap();
+            let click = web_sys::MouseEvent::new("click").unwrap();
+            click.init_event_with_bubbles_and_cancelable("click", true, true);
+            assert!(action.dispatch_event(&click).unwrap());
             for name in ["pointerdown", "pointerup", "pointerleave", "pointercancel"] {
-                action
-                    .dispatch_event(&web_sys::PointerEvent::new(name).unwrap())
-                    .unwrap();
+                let event = web_sys::PointerEvent::new(name).unwrap();
+                event.init_event_with_bubbles(name, true);
+                action.dispatch_event(&event).unwrap();
             }
         }
         wait_until("owner callback render flushes", || {
