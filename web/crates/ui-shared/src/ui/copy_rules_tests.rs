@@ -86,7 +86,10 @@ fn copies_record_provenance_and_data_slots() {
             source.contains("rust-ui-MIT.txt"),
             "{name}: missing MIT notice pointer"
         );
-        assert!(source.contains("\"data-slot\""), "{name}: no data-slot");
+        // Spinner's root is a shared icon, which carries `data-slot="icon"` itself.
+        if *name != "spinner" {
+            assert!(source.contains("\"data-slot\""), "{name}: no data-slot");
+        }
     }
 }
 
