@@ -18,7 +18,7 @@ use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardSelectField,
 };
 use boardstudio_web_ui_shared::ui::{
-    button::{Button as UiButton, ButtonVariant as UiButtonVariant},
+    button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
     checkbox::{Checkbox as UiCheckbox, CheckboxState},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     field::Field,
@@ -2817,7 +2817,7 @@ fn SharedViewer(
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
-            div { class: "m1-case-view-toolbar board-tool-pill",
+            div { class: if inline_case_controls { "m1-case-view-toolbar board-tool-pill" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
                 {toolbar_leading}
                 if inline_case_controls {
                     div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
@@ -2946,21 +2946,23 @@ fn SharedViewer(
                 }
                 if !inline_case_controls {
                 Tooltip {
-                    TooltipTrigger { aria_label: canvas_context.fit_label(),
-                        class: "size-control-compact items-center justify-center rounded-md bg-secondary text-secondary-foreground",
-                        onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
-                        {viewer_control_icon("Fit")}
-                    }
+                    TooltipTrigger { as: move |attributes| { let fit = fit.clone(); rsx! {
+                        UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                            aria_label: canvas_context.fit_label(),
+                            onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
+                            {viewer_control_icon("Fit")}
+                        }
+                    } } }
                     TooltipContent { "{canvas_context.fit_label()}" }
                 }
                 Collapsible { class: "m1-case-view-settings", keep_mounted: true,
                     Tooltip {
                         TooltipTrigger { as: move |attributes| rsx! {
-                            CollapsibleTrigger { aria_label: "View controls", attributes, {viewer_control_icon("View controls")} }
+                            CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center", attributes, {viewer_control_icon("View controls")} }
                         } }
                         TooltipContent { "View controls" }
                     }
-                    CollapsibleContent { class: "m1-case-view-settings-body data-[open=false]:hidden",
+                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[60vh] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
@@ -4439,3 +4441,7 @@ mod tests {
         root.remove();
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "shared_viewer_020_tests.rs"]
+mod rust_ui_020_tests;

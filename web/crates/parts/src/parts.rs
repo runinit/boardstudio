@@ -9,7 +9,7 @@ pub use boardstudio_web_catalogue::bundled::{
 use boardstudio_web_catalogue::catalogue;
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
-    button::{Button, ButtonVariant},
+    button::{Button, ButtonSize, ButtonVariant},
     callout::Callout,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     combobox::{Combobox, ComboboxOption},
@@ -53,12 +53,13 @@ fn AssemblyCreateButton() -> Element {
     let action = try_consume_context::<AssemblyCreateAction>();
     let current = action.and_then(|action| action.0.read().as_ref().map(|(_, action)| *action));
     rsx! { Tooltip {
-        TooltipTrigger {
-            aria_label: "New assembly", disabled: current.is_none(),
-            class: "size-control-compact items-center justify-center rounded-md bg-secondary text-secondary-foreground",
-            onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
-            svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
-        }
+        TooltipTrigger { as: move |attributes| rsx! {
+            Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::IconSm,
+                aria_label: "New assembly", disabled: current.is_none(),
+                onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
+                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
+            }
+        } }
         TooltipContent { "New key assembly" }
     } }
 }
@@ -109,7 +110,7 @@ fn PartsCatalogueCategory(label: String, reveal: bool, children: Element) -> Ele
     let mut open = use_signal(|| reveal);
     use_effect(use_reactive((&reveal,), move |(reveal,)| open.set(reveal)));
     rsx! {
-        Collapsible { class: "m1-parts-category", aria_label: label.clone(), keep_mounted: true,
+        Collapsible { class: "py-1", aria_label: label.clone(), keep_mounted: true,
             open: Some(open()), on_open_change: move |next| open.set(next),
             CollapsibleTrigger { "{label}" }
             CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { {children} } }
@@ -155,6 +156,8 @@ use mechanical_profile_editor::{
 };
 pub use preview::PartsPreviewPanel;
 pub use standard_profile_lifetime::PartsStandardProfileLifetime;
+#[cfg(all(test, target_arch = "wasm32"))]
+mod controls_tests;
 #[cfg(all(test, target_arch = "wasm32"))]
 mod placement_action_tests;
 
@@ -440,7 +443,7 @@ pub fn AddObjectComponentChooser(
             let groups = add_object_groups(&choices);
             rsx! {
                 for (label, items) in groups {
-                    Collapsible { key: "{label}", class: "m1-parts-category", default_open: label == "Components", keep_mounted: true,
+                    Collapsible { key: "{label}", class: "py-1", default_open: label == "Components", keep_mounted: true,
                         CollapsibleTrigger { "{label}" }
                         CollapsibleContent { class: "data-[open=false]:hidden", div { class: "m1-add-part-results",
                             for entry in items {
@@ -1023,9 +1026,9 @@ pub fn PartsLibraryPanel(
                     },
                 } }
             }
-            Collapsible { class: "m1-parts-catalogue-scroll m1-parts-assembly-list", default_open: true, keep_mounted: true,
+            Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
                 div { class: "flex items-center justify-between gap-2",
-                    CollapsibleTrigger { "Key assemblies" small { "{visible_assemblies.len()}" } }
+                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2", "Key assemblies" small { "{visible_assemblies.len()}" } }
                     AssemblyCreateButton {}
                 }
                 CollapsibleContent { class: "data-[open=false]:hidden",
@@ -1072,8 +1075,8 @@ pub fn PartsLibraryPanel(
             if entries.is_empty() {
                 div { role: "status", Callout { "No component definitions are available." } }
             } else if !groups.is_empty() {
-                Collapsible { class: "m1-parts-catalogue-scroll", default_open: true, keep_mounted: true,
-                    CollapsibleTrigger { "Components" small { "{result_count}" } }
+                Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
+                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2", "Components" small { "{result_count}" } }
                     CollapsibleContent { class: "data-[open=false]:hidden", div { role: "group", "aria-label": "Footprint library",
                         for (group, items) in groups {
                             PartsCatalogueCategory { key: "{group.label}", label: group.label,
@@ -1228,6 +1231,7 @@ pub fn ControllerSetupPicker(
         "#,
         );
     }));
+    let navigation_disabled = matches.len() < 2;
     rsx! {
         section { class: "m1-controller-picker", aria_label: "Controller selection", aria_roledescription: "carousel",
             Field {
@@ -1237,19 +1241,23 @@ pub fn ControllerSetupPicker(
             div { class: "m1-controller-carousel-navigation",
                 span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }
                 Tooltip {
-                    TooltipTrigger { aria_label: "Previous controller", disabled: matches.len() < 2,
-                        class: "size-control-compact items-center justify-center rounded-md bg-secondary text-secondary-foreground",
-                        onclick: move |_| { if let Some(id) = previous.clone() { choose.call(id); } },
-                        boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "rotate-90" }
-                    }
+                    TooltipTrigger { as: move |attributes| { let previous = previous.clone(); rsx! {
+                        Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            aria_label: "Previous controller", disabled: navigation_disabled,
+                            onclick: move |_| { if let Some(id) = previous.clone() { choose.call(id); } },
+                            boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "rotate-90" }
+                        }
+                    } } }
                     TooltipContent { "Previous controller" }
                 }
                 Tooltip {
-                    TooltipTrigger { aria_label: "Next controller", disabled: matches.len() < 2,
-                        class: "size-control-compact items-center justify-center rounded-md bg-secondary text-secondary-foreground",
-                        onclick: move |_| { if let Some(id) = next.clone() { choose.call(id); } },
-                        boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "-rotate-90" }
-                    }
+                    TooltipTrigger { as: move |attributes| { let next = next.clone(); rsx! {
+                        Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            aria_label: "Next controller", disabled: navigation_disabled,
+                            onclick: move |_| { if let Some(id) = next.clone() { choose.call(id); } },
+                            boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "-rotate-90" }
+                        }
+                    } } }
                     TooltipContent { "Next controller" }
                 }
             }
@@ -1277,12 +1285,12 @@ pub fn ControllerSetupPicker(
                     } }
                 }
             } else {
-                p { class: "m1-controller-hint", role: "status",
-                    if !loaded { "{catalogue.error.as_deref().unwrap_or(\"Loading controllers…\")}" }
-                    else { "No controllers match this search." }
-                }
+                if !loaded {
+                    if let Some(error) = catalogue.error { Alert { variant: AlertVariant::Destructive, "{error}" } }
+                    else { div { role: "status", Spinner {} "Loading controllers…" } }
+                } else { div { role: "status", Callout { "No controllers match this search." } } }
             }
-            if let Some(error) = error { p { role: "alert", "{error}" } }
+            if let Some(error) = error { Alert { variant: AlertVariant::Destructive, "{error}" } }
         }
     }
 }
@@ -1626,13 +1634,13 @@ pub fn PartsPreviewWorkspace(
         if let Some(error) = module_catalogue.error {
             return rsx! {
                 section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-                    p { class: "m1-parts-preview-error", role: "alert", "Module source preview could not be loaded: {error}" }
+                    Alert { variant: AlertVariant::Destructive, "Module source preview could not be loaded: {error}" }
                 }
             };
         }
         return rsx! {
             section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Module source preview",
-                p { class: "m1-parts-preview-status", role: "status", "Loading module source preview…" }
+                div { role: "status", Spinner {} "Loading module source preview…" }
             }
         };
     }

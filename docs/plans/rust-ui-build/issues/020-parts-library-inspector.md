@@ -24,3 +24,12 @@ The Parts library, previews and inspector. Applies the shared contract in the pl
 - Keep editor implementations and their draft/validation/commit owners (021), canvas/rendering internals, Layout (016), and Case settings (017) outside this slice. No public API, visibility or dependency changes are planned.
 - Shared-hunk inventory before implementation: preserve `parts.rs` module declarations, imported editor bindings and child editor calls; only change its owned controls and relevant tests. Shared legacy CSS and shared controls stay for 024/other owners unless a concrete overlap is established.
 - Exclusive build target: `/home/chris/.cache/boardstudio-target/020-parts-library-inspector-lineage`; no inherited/root/015 target. Hold local integration landing for coordinator Standards + Spec approval of a clean implementation pin.
+
+## In-progress evidence
+
+Continuation and exact lease/decision log: [020 continuation](../020-lane-continuation.md).
+
+- Baseline expected RED at `d94a562f`: actual PartsPreviewPanel ArrowRight roving test; `.evidence/020/red-parts-browser.log`. The 41 later panic-hook failures are shared-WASM contamination after that first failure.
+- Native Parts tests: `cargo test --locked -p boardstudio-web-parts --lib`, 43 passed (`.evidence/020/native-parts.log`); native execution does not compile wasm UI.
+- Repository checks, documentation links, WASM source guard, Python script syntax/help, and diff checks passed in the scoped development loop. Runtime GREEN and screenshots remain pending the separately reviewed shared control prerequisite and landed 016 layer slice.
+- `1e2a8815` is an interwoven WIP checkpoint, not a completed isolated chooser slice. Landing remains held for one coordinator Standards + Spec closure at a clean verified pin.

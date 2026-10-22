@@ -7,7 +7,7 @@ use boardstudio_core::model::{
 use boardstudio_web_ui_shared::ui::{
     button::Button,
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
-    table::{Table, TableBody, TableCell, TableHead, TableRow},
+    table::{Table, TableBody, TableCell, TableRow},
 };
 use dioxus::prelude::*;
 use js_sys::Uint8Array;
@@ -549,7 +549,7 @@ pub fn ModuleInspector(
             TableBody {
                 for (output, label) in readiness {
                     { let pending = definition.gates.iter().filter(|gate| gate.output == output).count();
-                      rsx! { TableRow { TableHead { "{label}" } TableCell { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
+                      rsx! { TableRow { th { scope: "row", "{label}" } TableCell { if pending == 0 { "No recorded blockers" } else { "{pending} to review" } } } }
                     }
                 }
             }

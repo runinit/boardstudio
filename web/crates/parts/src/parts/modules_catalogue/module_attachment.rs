@@ -9,10 +9,13 @@ use boardstudio_core::model::{
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
     button::Button,
     callout::Callout,
     checkbox::{Checkbox, CheckboxState},
     label::Label,
+    spinner::Spinner,
+    toast::{ToastOptions, use_toast},
 };
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
@@ -45,6 +48,7 @@ pub fn ModuleAttachment(
     on_attached: EventHandler<AttachedModuleNavigation>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let toasts = use_toast();
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
     let mut pending = use_signal(|| false);
@@ -138,7 +142,8 @@ pub fn ModuleAttachment(
                             definition_id: definition.id.clone(),
                             selection_generation: initial_generation,
                         };
-                        feedback.set("Module attached.".into());
+                        toasts.success("Module attached.".into(), ToastOptions::new());
+                        feedback.set(String::new());
                         on_attached.call(navigation);
                     }
                     PendingEditResult::Failed { message, .. } => feedback.set(message),
@@ -388,7 +393,8 @@ pub fn ModuleAttachment(
                 div { role: "status", Callout { "Choose a PCB in the Parts workspace before attaching this module." } }
             }
             if !feedback().is_empty() {
-                div { role: "status", Callout { "{feedback()}" } }
+                if pending() { div { role: "status", Spinner {} "{feedback()}" } }
+                else { Alert { variant: AlertVariant::Destructive, "{feedback()}" } }
             }
         }
     }
@@ -600,6 +606,7 @@ mod mounted_settlement_tests {
             source: super::super::EntrySource::Project,
         };
         rsx! {
+            boardstudio_web_ui_shared::ui::toast::ToastProvider {
             ModuleAttachment {
                 snapshot,
                 module,
@@ -609,6 +616,7 @@ mod mounted_settlement_tests {
             }
             button { id: "depart-attachment-owner", onclick: move |_| selected.set(None), "Depart" }
             button { id: "return-attachment-owner", onclick: move |_| selected.set(Some((runtime.scope(), "module:module".into()))), "Return" }
+            }
         }
     }
 
@@ -697,6 +705,15 @@ mod mounted_settlement_tests {
         assert_eq!(navigation.revision, accepted.document.revision);
         assert_eq!(navigation.selection_generation, 1);
         assert!(!attach.has_attribute("disabled"));
+        wait_until("attachment success is a transient Toast", || {
+            by_role_name(&root, "status", "Module attached.").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "close").unwrap().click();
+        wait_until("the success Toast dismisses", || {
+            by_role_name(&root, "status", "Module attached.").is_none()
+        })
+        .await;
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();

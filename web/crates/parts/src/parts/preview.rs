@@ -7,6 +7,7 @@ use boardstudio_core::model::{EnvelopeOrigin, Pad, PadShape, PartDefinition, Sid
 use boardstudio_web_ui_shared::canvas_layers::{LayerPanel, LayerToggleButton};
 use boardstudio_web_ui_shared::ui::{
     alert::{Alert, AlertVariant},
+    callout::{Callout, CalloutVariant},
     spinner::Spinner,
     toggle_group::{ToggleGroup, ToggleItem},
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
@@ -309,7 +310,7 @@ pub fn PartsPreviewPanel(
         lease_slot.invalidate();
         return rsx! {
             section { class: "m1-workspace-content m1-parts-preview", "aria-label": "Parts footprint preview",
-                p { class: "m1-parts-empty", role: "status", "Select a component from the Parts catalogue to preview its footprint." }
+                div { role: "status", Callout { "Select a component from the Parts catalogue to preview its footprint." } }
             }
         };
     };
@@ -376,9 +377,9 @@ pub fn PartsPreviewPanel(
             if !show_3d() || recipe_pending || matching_sample.as_ref().is_none_or(|result| result.is_err()) { {view_controls.clone()} }
             if let Some(draft) = generator_draft.as_ref() {
                 match &draft.status {
-                    GeneratorPreviewStatus::Pending => rsx! { p { class: "m1-parts-preview-status", role: "status", "Generating the current generator preview…" } },
-                    GeneratorPreviewStatus::Ready => rsx! { p { class: "m1-parts-preview-status", role: "status", "Unapplied generator preview" } },
-                    GeneratorPreviewStatus::Failed(error) => rsx! { p { class: "m1-parts-preview-error", role: "alert", "Generator preview failed; showing the accepted footprint: {error}" } },
+                    GeneratorPreviewStatus::Pending => rsx! { div { role: "status", Spinner {} "Generating the current generator preview…" } },
+                    GeneratorPreviewStatus::Ready => rsx! { div { role: "status", Callout { "Unapplied generator preview" } } },
+                    GeneratorPreviewStatus::Failed(error) => rsx! { Alert { variant: AlertVariant::Destructive, "Generator preview failed; showing the accepted footprint: {error}" } },
                 }
             }
             if show_3d() {
@@ -397,14 +398,14 @@ pub fn PartsPreviewPanel(
                         div { role: "status", Spinner {} "Preparing {definition.name} footprint preview…" }
                     },
                     Some(Err(PreviewFailure::Unsupported)) => rsx! {
-                        p { class: "m1-parts-empty", role: "status", "A source-backed Parts preview is not available for this definition yet." }
+                        div { role: "status", Callout { "A source-backed Parts preview is not available for this definition yet." } }
                     },
                     Some(Err(PreviewFailure::Failed(error))) => rsx! {
                         Alert { variant: AlertVariant::Destructive, "Footprint preview failed: {error}" }
                     },
                     Some(Ok(content)) => rsx! {
                     if let Some(notice) = definition.envelope_notice.as_deref().filter(|notice| !notice.is_empty()) {
-                        p { class: "m1-parts-preview-note", role: "status", "{notice}" }
+                        div { role: "status", Callout { variant: CalloutVariant::Warning, "{notice}" } }
                     }
                     svg {
                         class: "m1-canvas",
@@ -506,7 +507,7 @@ fn PartsSampleViewer(
     rsx! {
         section { class: "m1-parts-sample-viewer", "aria-label": "3D footprint model preview",
             if preview.preview.models.is_empty() {
-                p { class: "m1-parts-preview-status", role: "status", "No 3D model is linked to this definition." }
+                div { role: "status", Callout { "No 3D model is linked to this definition." } }
             }
             if let Some(rows) = preview.model_rows.as_ref() {
                 for failure in &rows.failures {

@@ -940,8 +940,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-view-toolbar button[aria-pressed="true"] { background: var(--wb-accent); color: var(--wb-on-accent); border-color: transparent; }
 .m1-parts-library > h2 { display: none; }
 .m1-parts-library { min-height: 0; }
-.m1-parts-catalogue-choice { border-color: transparent; border-radius: var(--wb-radius-control); }
-.m1-parts-catalogue-choice[aria-selected="true"] { background: var(--wb-selection-surface); color: var(--wb-selection-ink); }
 .m1-parts-actions { border-top: 1px solid var(--wb-rule); padding-top: var(--wb-space-3); }
 .m1-export-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); align-content: start; gap: var(--wb-space-4) 32px; padding: 32px; max-width: none; }
 .m1-export-workspace > :is(.m1-export-heading, .m1-export-section-title, .m1-export-list, .m1-export-review-links) { grid-column: 1; }
@@ -1374,7 +1372,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-object-layer-dock .m1-case-assembly-layer-row { display: grid; text-align: left; background: transparent; }
 .m1-object-layer-dock .m1-case-assembly-layer-row[aria-pressed='true'] { background: var(--wb-surface-soft); color: var(--wb-accent); }
 
-.m1-object-scroll-content .m1-parts-catalogue-scroll[open] { flex: none; overflow: visible; }
 
 /* Shared command chrome follows the PCB pill across all workbenches. */
 :root { --wb-command-surface: var(--wb-panel); --wb-command-rule: var(--wb-rule-strong); --wb-command-radius: 16px; }
@@ -1449,9 +1446,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-canonical-viewer .m1-case-view-canvas-shell { position: relative; display: flex; flex: 1; min-width: 0; min-height: 160px; }
 .m1-layout-canonical-viewer .m1-case-view-canvas-shell > canvas { flex: 1; min-width: 0; min-height: 0; height: 100%; border: 0; }
 .m1-layout-view-group.board-tool-pill, .m1-design-view-group.board-tool-pill { padding: 5px; border: 0; border-radius: var(--wb-radius-pill); background: var(--wb-toolbar); }
-.m1-parts-catalogue-scroll > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--wb-space-2); }
-.m1-parts-catalogue-scroll > summary .board-button { width: 30px; min-height: 30px; padding: 5px; }
-.m1-parts-catalogue-scroll > summary svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .m1-stackup-preview { margin: 0 0 var(--wb-space-3); }
 .m1-stackup-preview svg { display: block; width: 100%; max-height: 180px; }
 .m1-stackup-preview rect { fill: var(--wb-surface-soft); stroke: var(--wb-accent); stroke-width: 1; }
