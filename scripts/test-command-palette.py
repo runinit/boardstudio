@@ -103,16 +103,20 @@ def main():
                 const event = paletteSnapRawKeys.at(-1);
                 return {open:document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded'),
                     clicks:paletteSnapEvents.filter(e=>e.type==='click').length,
-                    key:event?.key, trusted:event?.isTrusted, prevented:event?.defaultPrevented};
+                    focused:document.activeElement.id, keys:paletteSnapRawKeys.length,
+                    key:event?.key, target:event?.target.id, trusted:event?.isTrusted, prevented:event?.defaultPrevented};
             })()`;
             const before = mode === 'snap' ? await evaluate(snapState) : null;
+            if (before) assert.equal(before.focused, 'm1-layout-snap-trigger', 'hold Space on the actual Snap trigger');
             try {
                 await input('dispatchKeyEvent', {type:'keyDown', key:' ', code:'Space', windowsVirtualKeyCode:32});
                 if (mode === 'snap') {
                     const held = await evaluate(snapState);
                     assert.equal(held.open, before.open, 'Space keydown must not toggle Snap');
                     assert.equal(held.clicks, before.clicks, 'native click waits for keyup');
+                    assert.equal(held.keys, before.keys + 1, 'inspect this keydown, not an earlier event');
                     assert.equal(held.key, ' ');
+                    assert.equal(held.target, 'm1-layout-snap-trigger');
                     assert.equal(held.trusted, true);
                     assert.equal(held.prevented, false, 'Space default must remain unprevented');
                 } else {
@@ -333,9 +337,11 @@ def main():
         if (!paletteSnapEvents.some(e=>e.type==='keyup' && e.key===' ' && e.trusted)) throw Error('Space must use trusted keyup activation');
     """)
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
+    action("button", "Snap settings", "focus")
     held_space('snap')
     browser("wait", '[aria-label="Snap settings"][aria-expanded="false"]')
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 3) throw Error('Held Space must close exactly once');")
+    action("button", "Snap settings", "focus")
     held_space('snap')
     browser("wait", '[aria-label="Snap settings"][aria-expanded="true"]')
     check("if (paletteSnapEvents.filter(e=>e.type==='click').length !== 4) throw Error('Held Space must reopen exactly once');")
