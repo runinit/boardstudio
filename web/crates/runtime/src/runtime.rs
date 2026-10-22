@@ -118,7 +118,6 @@ struct Artifact {
     media_type: Option<String>,
     scope: Scope,
     token: SnapshotToken,
-    firmware: bool,
     board_outline: bool,
 }
 
@@ -132,6 +131,14 @@ enum RuntimeReportSeverity {
 struct RuntimeReport {
     message: String,
     severity: RuntimeReportSeverity,
+    notification_error: Option<bool>,
+}
+
+/// A one-shot result for the shell's single notification consumer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeNotification {
+    pub message: String,
+    pub is_error: bool,
 }
 
 impl RuntimeReport {
@@ -139,6 +146,7 @@ impl RuntimeReport {
         Self {
             message: message.into(),
             severity: RuntimeReportSeverity::Status,
+            notification_error: None,
         }
     }
 
@@ -146,7 +154,18 @@ impl RuntimeReport {
         Self {
             message: message.into(),
             severity: RuntimeReportSeverity::Alert,
+            notification_error: None,
         }
+    }
+
+    fn transient(mut self) -> Self {
+        self.notification_error = Some(self.severity == RuntimeReportSeverity::Alert);
+        self
+    }
+
+    fn transient_error(mut self) -> Self {
+        self.notification_error = Some(true);
+        self
     }
 
     fn clear_alert(&mut self) {
@@ -157,7 +176,7 @@ impl RuntimeReport {
     }
 }
 
-fn firmware_export_terminal_report(
+fn export_terminal_report(
     capture_is_current: bool,
     outcome: TerminalOutcome,
     delivery_error: Option<String>,
@@ -167,14 +186,16 @@ fn firmware_export_terminal_report(
     }
     match outcome {
         TerminalOutcome::Completed => Some(match delivery_error {
-            Some(error) => RuntimeReport::alert(error),
-            None => RuntimeReport::status("Saved locally."),
+            Some(error) => RuntimeReport::alert(error).transient(),
+            None => RuntimeReport::status("Saved locally.").transient(),
         }),
-        TerminalOutcome::Rejected(reason)
-        | TerminalOutcome::PersistenceFailed(reason)
-        | TerminalOutcome::BlockedByRecovery(reason)
-        | TerminalOutcome::ExecutorFailed(reason) => Some(RuntimeReport::alert(reason)),
-        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.")),
+        TerminalOutcome::Rejected(reason) | TerminalOutcome::ExecutorFailed(reason) => {
+            Some(RuntimeReport::alert(reason).transient())
+        }
+        TerminalOutcome::PersistenceFailed(reason) | TerminalOutcome::BlockedByRecovery(reason) => {
+            Some(RuntimeReport::alert(reason))
+        }
+        TerminalOutcome::Cancelled => Some(RuntimeReport::status("Cancelled.").transient()),
         TerminalOutcome::Closed => Some(RuntimeReport::status("Editor closed.")),
         TerminalOutcome::Superseded => None,
     }
@@ -320,6 +341,7 @@ pub struct Runtime {
     surface: RefCell<Option<SvgElement>>,
     notify: RefCell<Option<Notifier>>,
     status: RefCell<RuntimeReport>,
+    notifications: RefCell<Vec<RuntimeNotification>>,
     open_sequence: Cell<u64>,
     project_deletion_pending: Cell<bool>,
     project_deletion_open: Cell<Option<OperationId>>,
@@ -332,7 +354,7 @@ pub struct Runtime {
     keycaps_preview_worker: RefCell<Option<(u64, Rc<CadWorker>)>>,
     cad_jobs: RefCell<BTreeMap<JobId, Rc<Cell<bool>>>>,
     latest_firmware_export: Cell<Option<OperationId>>,
-    firmware_export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
+    export_delivery_errors: RefCell<BTreeMap<OperationId, String>>,
     export_workers: RefCell<BTreeMap<OperationId, Rc<CadWorker>>>,
     native_case_preview: RefCell<crate::case_preview::NativePreviewState>,
     case_model_delivery: crate::model_delivery::ModelDeliveryAdapter,
@@ -416,6 +438,7 @@ impl Runtime {
             status: RefCell::new(RuntimeReport::status(
                 "Open a saved keyboard or an editable demo copy.",
             )),
+            notifications: RefCell::default(),
             open_sequence: Cell::new(0),
             project_deletion_pending: Cell::new(false),
             project_deletion_open: Cell::new(None),
@@ -427,7 +450,7 @@ impl Runtime {
             keycaps_preview_worker: RefCell::new(None),
             cad_jobs: RefCell::new(BTreeMap::new()),
             latest_firmware_export: Cell::new(None),
-            firmware_export_delivery_errors: RefCell::new(BTreeMap::new()),
+            export_delivery_errors: RefCell::new(BTreeMap::new()),
             export_workers: RefCell::new(BTreeMap::new()),
             native_case_preview: RefCell::new(Default::default()),
             case_model_delivery: Default::default(),
@@ -751,6 +774,14 @@ impl Runtime {
     pub fn status_is_alert(&self) -> bool {
         self.status.borrow().severity == RuntimeReportSeverity::Alert
     }
+    pub fn status_is_transient(&self) -> bool {
+        self.status.borrow().notification_error.is_some()
+    }
+    /// Drain every pending result in order, including identical results between renders.
+    /// Only the shell consumes this queue; reading it does not trigger another render.
+    pub fn take_notifications(&self) -> Vec<RuntimeNotification> {
+        std::mem::take(&mut *self.notifications.borrow_mut())
+    }
     pub fn embed_used_models(&self) -> bool {
         self.archive_export_options.embed_used_models()
     }
@@ -772,6 +803,12 @@ impl Runtime {
         self.apply_report(RuntimeReport::status(status));
     }
     fn apply_report(&self, report: RuntimeReport) {
+        if let Some(is_error) = report.notification_error {
+            self.notifications.borrow_mut().push(RuntimeNotification {
+                message: report.message.clone(),
+                is_error,
+            });
+        }
         *self.status.borrow_mut() = report;
         self.changed();
     }
@@ -1944,7 +1981,7 @@ impl Runtime {
                     .flatten();
                 let is_firmware_export = firmware_capture.is_some();
                 let delivery_error = self
-                    .firmware_export_delivery_errors
+                    .export_delivery_errors
                     .borrow_mut()
                     .remove(&operation_id);
                 self.archive_export_options.settle(operation_id);
@@ -1953,11 +1990,9 @@ impl Runtime {
                         && self.latest_firmware_export.get() == Some(operation_id)
                 });
                 if is_firmware_export {
-                    if let Some(report) = firmware_export_terminal_report(
-                        firmware_owner_is_current,
-                        outcome,
-                        delivery_error,
-                    ) {
+                    if let Some(report) =
+                        export_terminal_report(firmware_owner_is_current, outcome, delivery_error)
+                    {
                         self.apply_report(report);
                     }
                 } else if is_board_outline_export {
@@ -1968,9 +2003,11 @@ impl Runtime {
                         match outcome {
                             TerminalOutcome::Completed => {}
                             TerminalOutcome::Rejected(reason)
-                            | TerminalOutcome::PersistenceFailed(reason)
-                            | TerminalOutcome::BlockedByRecovery(reason)
                             | TerminalOutcome::ExecutorFailed(reason) => {
+                                self.apply_report(RuntimeReport::alert(reason).transient());
+                            }
+                            TerminalOutcome::PersistenceFailed(reason)
+                            | TerminalOutcome::BlockedByRecovery(reason) => {
                                 self.apply_report(RuntimeReport::alert(reason));
                             }
                             TerminalOutcome::Cancelled => self.report("Cancelled."),
@@ -1982,14 +2019,36 @@ impl Runtime {
                             }
                         }
                     }
+                } else if let Some(lease) = lease {
+                    let downloaded =
+                        outcome == TerminalOutcome::Completed && delivery_error.is_none();
+                    if let Some(mut report) = export_terminal_report(
+                        self.export_source_is_current(&lease),
+                        outcome,
+                        delivery_error,
+                    ) {
+                        if downloaded {
+                            report.message = if kind == Some(ExportKind::ProjectCopy) {
+                                "Project copy downloaded."
+                            } else {
+                                "Export finished."
+                            }
+                            .into();
+                        }
+                        self.apply_report(report);
+                    }
                 } else {
                     match outcome {
-                        TerminalOutcome::Completed => self.report("Saved locally."),
+                        TerminalOutcome::Completed => {
+                            self.apply_report(RuntimeReport::status("Saved locally.").transient());
+                        }
                         TerminalOutcome::Rejected(reason)
                         | TerminalOutcome::PersistenceFailed(reason)
                         | TerminalOutcome::BlockedByRecovery(reason)
                         | TerminalOutcome::ExecutorFailed(reason) => self.report(reason),
-                        TerminalOutcome::Cancelled => self.report("Cancelled."),
+                        TerminalOutcome::Cancelled => {
+                            self.apply_report(RuntimeReport::status("Cancelled.").transient());
+                        }
                         TerminalOutcome::Closed => self.report("Editor closed."),
                         TerminalOutcome::Superseded => {
                             if observed {
@@ -2062,6 +2121,9 @@ impl Runtime {
                 scope,
                 snapshot,
             } => {
+                if self.export_current(operation_id, snapshot.token, &scope) {
+                    self.apply_report(RuntimeReport::status("Export started.").transient());
+                }
                 let kind = self
                     .export_leases
                     .borrow()
@@ -2209,7 +2271,6 @@ impl Runtime {
                                 media_type,
                                 scope: scope.clone(),
                                 token: delivery_token,
-                                firmware: is_firmware_export,
                                 board_outline: is_board_outline_export,
                             },
                         );
@@ -2240,18 +2301,20 @@ impl Runtime {
                 {
                     match self.deliver_artifact(&artifact) {
                         Ok(()) if artifact.board_outline => {
-                            self.report(format!("Saved {}.", artifact.filename));
+                            self.apply_report(
+                                RuntimeReport::status(format!("Saved {}.", artifact.filename))
+                                    .transient(),
+                            );
                         }
                         Ok(()) => {}
                         Err(error) if artifact.board_outline => {
-                            self.apply_report(RuntimeReport::alert(error));
+                            self.apply_report(RuntimeReport::alert(error).transient());
                         }
-                        Err(error) if artifact.firmware => {
-                            self.firmware_export_delivery_errors
+                        Err(error) => {
+                            self.export_delivery_errors
                                 .borrow_mut()
                                 .insert(artifact.operation_id, error);
                         }
-                        Err(error) => self.report(error),
                     }
                 }
                 vec![]
@@ -2275,6 +2338,9 @@ impl Runtime {
             }
             Effect::CancelExport { operation_id } => {
                 self.export_leases.borrow_mut().cancel(operation_id);
+                self.export_delivery_errors
+                    .borrow_mut()
+                    .remove(&operation_id);
                 self.archive_export_options.cancel(operation_id);
                 if let Some(worker) = self.export_workers.borrow_mut().remove(&operation_id) {
                     worker.close();
@@ -6878,7 +6944,10 @@ impl Runtime {
     }
     pub fn import_file(self: &Rc<Self>, file: web_sys::File) {
         if file.size() > boardstudio_core::archive::MAX_PROJECT_ARCHIVE_BYTES as f64 {
-            self.report("Project archive exceeds the 128 MiB size limit.");
+            self.apply_report(
+                RuntimeReport::status("Project archive exceeds the 128 MiB size limit.")
+                    .transient_error(),
+            );
             return;
         }
         let sequence = match self.begin_open() {
@@ -6906,7 +6975,7 @@ impl Runtime {
             if let Err(error) = result
                 && this.open_sequence.get() == sequence
             {
-                this.report(error);
+                this.apply_report(RuntimeReport::status(error).transient_error());
             }
             #[cfg(any(test, feature = "test-support"))]
             if let Some(done) = open_observer {
@@ -7100,7 +7169,12 @@ impl Runtime {
                 Err(error) => Err(error.to_string()),
             };
             if let Err(error) = result {
-                this.report(format!("Raw saved data could not be downloaded: {error}"));
+                this.apply_report(
+                    RuntimeReport::status(format!(
+                        "Raw saved data could not be downloaded: {error}"
+                    ))
+                    .transient_error(),
+                );
             }
         });
     }
@@ -7116,7 +7190,12 @@ impl Runtime {
                 )
             });
             if let Err(error) = result {
-                this.report(format!("Pending edits could not be downloaded: {error}"));
+                this.apply_report(
+                    RuntimeReport::status(format!(
+                        "Pending edits could not be downloaded: {error}"
+                    ))
+                    .transient_error(),
+                );
             }
         });
     }
@@ -8369,6 +8448,7 @@ mod firmware_export_tests {
         project_name_test_support::run_pending(&runtime).await;
         let next_accepted = runtime.model().accepted.unwrap();
         let next_scope = runtime.scope().unwrap();
+        runtime.take_notifications();
         release.send(()).expect("release old project generation");
         test_support::run_effects(&runtime, run.await).await;
 
@@ -8376,6 +8456,10 @@ mod firmware_export_tests {
         assert_eq!(runtime.scope().as_ref(), Some(&next_scope));
         assert!(runtime.artifacts.borrow().is_empty());
         assert!(test_support::take_deliveries(&runtime).is_empty());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "obsolete completion cannot Toast in the new project"
+        );
         assert!(
             !runtime.status_is_alert(),
             "an old project failure must not be announced in the new project"
@@ -8397,6 +8481,7 @@ mod firmware_export_tests {
         let new_deliveries = test_support::take_deliveries(&runtime);
         assert_eq!(new_deliveries.len(), 1, "newest attempt delivers once");
         assert_eq!(runtime.status(), "Saved locally.");
+        runtime.take_notifications();
 
         release.send(()).expect("release older generation");
         test_support::run_effects(&runtime, old_run.await).await;
@@ -8409,6 +8494,10 @@ mod firmware_export_tests {
         assert_eq!(older_deliveries[0].filename, "ZMK export test-zmk.zip");
         assert_eq!(runtime.status(), "Saved locally.");
         assert!(!runtime.status_is_alert());
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "older output cannot replay a terminal notification"
+        );
     }
 
     #[wasm_bindgen_test]
@@ -8417,18 +8506,15 @@ mod firmware_export_tests {
             "Firmware generation failed: worker rejected the plan.",
             "Firmware packaging failed: ZIP worker returned no bytes.",
         ] {
-            let report = firmware_export_terminal_report(
-                true,
-                TerminalOutcome::ExecutorFailed(reason.into()),
-                None,
-            )
-            .expect("current firmware failure is announced");
+            let report =
+                export_terminal_report(true, TerminalOutcome::ExecutorFailed(reason.into()), None)
+                    .expect("current firmware failure is announced");
             assert_eq!(report.message, reason);
             assert_eq!(report.severity, RuntimeReportSeverity::Alert);
         }
 
         assert!(
-            firmware_export_terminal_report(
+            export_terminal_report(
                 false,
                 TerminalOutcome::ExecutorFailed("late failure from old project".into()),
                 None,
@@ -8440,7 +8526,7 @@ mod firmware_export_tests {
             "Firmware generation failed: same text is routine status without typed severity.",
         );
         assert_eq!(report.severity, RuntimeReportSeverity::Status);
-        report = firmware_export_terminal_report(
+        report = export_terminal_report(
             true,
             TerminalOutcome::Completed,
             Some("Browser refused the firmware download.".into()),
@@ -8450,6 +8536,229 @@ mod firmware_export_tests {
         report.clear_alert();
         assert_eq!(report.severity, RuntimeReportSeverity::Status);
         assert!(report.message.is_empty());
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod notification_tests {
+    use super::firmware_export_test_support as support;
+    use super::*;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    async fn notification_queue_keeps_repeated_events_and_drains_once_without_notifying() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let changes = Rc::new(Cell::new(0));
+        let observed = changes.clone();
+        runtime.subscribe(Rc::new(move || observed.set(observed.get() + 1)));
+        runtime.apply_report(RuntimeReport::status("Same result").transient());
+        runtime.apply_report(RuntimeReport::status("Same result").transient());
+        runtime.apply_report(RuntimeReport::alert("Action failed").transient());
+        runtime.report("Saved locally.");
+        assert!(
+            !runtime.status_is_transient(),
+            "classification never matches message text"
+        );
+        assert_eq!(changes.get(), 4);
+        let pending = runtime.take_notifications();
+        assert_eq!(
+            pending
+                .iter()
+                .map(|n| (n.message.as_str(), n.is_error))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Same result", false),
+                ("Same result", false),
+                ("Action failed", true)
+            ]
+        );
+        assert!(runtime.take_notifications().is_empty());
+        assert_eq!(changes.get(), 4, "draining cannot schedule another render");
+    }
+
+    #[wasm_bindgen_test]
+    async fn matching_export_failure_toasts_once_but_other_operation_failures_stay_inline() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        support::fail(&runtime, support::Stage::Generation);
+        let effects = support::start_export(&runtime);
+        for outcome in [
+            TerminalOutcome::ExecutorFailed("executor unavailable".into()),
+            TerminalOutcome::PersistenceFailed("save conflict".into()),
+            TerminalOutcome::BlockedByRecovery("recovery required".into()),
+        ] {
+            let message = match &outcome {
+                TerminalOutcome::ExecutorFailed(s)
+                | TerminalOutcome::PersistenceFailed(s)
+                | TerminalOutcome::BlockedByRecovery(s) => s.clone(),
+                _ => unreachable!(),
+            };
+            runtime
+                .run(Effect::Settled {
+                    operation_id: OperationId(1_000_000),
+                    outcome,
+                    landing: None,
+                })
+                .await;
+            assert_eq!(runtime.status(), message);
+            assert!(
+                !runtime.status_is_transient(),
+                "another operation's active export lease is irrelevant"
+            );
+            assert!(runtime.take_notifications().is_empty());
+        }
+        support::run_effects(&runtime, effects).await;
+        let failure = runtime.take_notifications();
+        assert_eq!(failure.len(), 2, "start plus exactly one terminal failure");
+        assert_eq!(failure[0].message, "Export started.");
+        assert!(failure[1].is_error);
+        assert!(
+            failure[1]
+                .message
+                .contains("injected firmware-generation failure")
+        );
+        assert!(runtime.status_is_transient());
+        assert!(runtime.take_notifications().is_empty());
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        let retry = support::start_export(&runtime);
+        support::run_effects(&runtime, retry).await;
+        let success = runtime.take_notifications();
+        assert_eq!(
+            success
+                .iter()
+                .map(|n| n.message.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Export started.", "Saved locally."]
+        );
+        assert!(success.iter().all(|n| !n.is_error));
+        assert_eq!(support::take_deliveries(&runtime).len(), 1);
+    }
+
+    #[wasm_bindgen_test]
+    async fn export_delivery_errors_are_consumed_only_by_their_operation_and_cancel_cleans_them() {
+        let (runtime, _, _) = support::fixture().await;
+        runtime.take_notifications();
+        let effects = support::start_export(&runtime);
+        let operation = effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::RunExport { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .unwrap();
+        let unrelated = OperationId(1_000_001);
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(operation, "browser refused download".into());
+        runtime
+            .run(Effect::Settled {
+                operation_id: unrelated,
+                outcome: TerminalOutcome::ExecutorFailed("unrelated executor".into()),
+                landing: None,
+            })
+            .await;
+        assert!(runtime.take_notifications().is_empty());
+        assert!(
+            runtime
+                .export_delivery_errors
+                .borrow()
+                .contains_key(&operation)
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        let notifications = runtime.take_notifications();
+        assert_eq!(
+            notifications,
+            vec![RuntimeNotification {
+                message: "browser refused download".into(),
+                is_error: true
+            }]
+        );
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(unrelated, "cancelled delivery".into());
+        runtime
+            .run(Effect::CancelExport {
+                operation_id: unrelated,
+            })
+            .await;
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
+        runtime
+            .run(Effect::Settled {
+                operation_id: unrelated,
+                outcome: TerminalOutcome::ExecutorFailed("late executor result".into()),
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "a removed lease cannot turn a late executor failure into a Toast"
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn outline_delivery_notifies_once_and_completed_is_silent() {
+        let (runtime, accepted, scope) = support::fixture().await;
+        runtime.take_notifications();
+        let operation = runtime.operation();
+        runtime.begin_export_lease(
+            operation,
+            ExportKind::BoardOutline { dxf: false },
+            &accepted,
+            &scope,
+        );
+        runtime.artifacts.borrow_mut().insert(
+            "outline-result".into(),
+            Artifact {
+                operation_id: operation,
+                bytes: b"<svg/>".to_vec(),
+                filename: "board.svg".into(),
+                media_type: Some("image/svg+xml".into()),
+                scope,
+                token: accepted.token,
+                board_outline: true,
+            },
+        );
+        runtime
+            .run(Effect::DeliverExport {
+                operation_id: operation,
+                artifact_id: "outline-result".into(),
+                token: accepted.token,
+            })
+            .await;
+        assert_eq!(runtime.status(), "Saved board.svg.");
+        assert_eq!(
+            runtime.take_notifications(),
+            vec![RuntimeNotification {
+                message: "Saved board.svg.".into(),
+                is_error: false
+            }]
+        );
+        runtime
+            .run(Effect::Settled {
+                operation_id: operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "outline Completed cannot emit a second result"
+        );
+        let deliveries = support::take_deliveries(&runtime);
+        assert_eq!(deliveries.len(), 1);
+        assert_eq!(deliveries[0].filename, "board.svg");
+        assert_eq!(deliveries[0].bytes, b"<svg/>");
+        assert!(runtime.export_delivery_errors.borrow().is_empty());
     }
 }
 

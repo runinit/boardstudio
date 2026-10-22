@@ -3,6 +3,7 @@
 import argparse
 import atexit
 from pathlib import Path
+import re
 import subprocess
 from uuid import uuid4
 
@@ -67,15 +68,18 @@ def main():
         if (document.querySelector('[role=alertdialog]')) throw Error('Notification must not be modal');
         window.savedToast = toast;
     """)
-    action("button", "close", "focus")
+    close_refs = re.findall(r'button "close" \[ref=(e\d+)\]', browser("snapshot", "-i"))
+    assert close_refs, "The announced Toast exposes a close button"
+    browser("focus", "@" + close_refs[0])
     browser("press", "Shift+Tab")
     browser("press", "Tab")
     check("if (document.activeElement.getAttribute('aria-label') !== 'close') throw Error('Dismiss button must be reachable by Tab');")
     browser("press", "Enter")
     browser("wait", "--fn", "!savedToast.isConnected")
+    check("window.remainingSaveToasts = [...document.querySelectorAll('[role=status]')];")
     action("button", "Export")
     browser("wait", "--text", "Export package")
-    check("if ([...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Saved locally.'))) throw Error('Route change redrained save');")
+    check("if ([...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Saved locally.') && !remainingSaveToasts.includes(e))) throw Error('Route change redrained save');")
     action("button", "Download .boardstudio project")
     browser("wait", "--fn", "[...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Export started.'))")
     browser("wait", "--fn", "[...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('Project copy downloaded.'))")

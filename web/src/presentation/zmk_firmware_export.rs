@@ -203,11 +203,15 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::super::{ExportPanel, InstanceSelection, RuntimeReportBanner};
+    use super::super::{
+        ExportPanel, InstanceSelection,
+        notifications::{NotificationProvider, RuntimeNotifications},
+    };
     use super::*;
     use crate::runtime::firmware_export_test_support as runtime_test;
     use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
     use boardstudio_core::electrical::{ElectricalMode, ElectricalPlan};
+    use boardstudio_web_ui_shared::test_role::{accessible_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_step};
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -250,13 +254,17 @@ mod tests {
             instance_selection,
         );
         rsx! {
+            NotificationProvider {
             style { {include_str!("../../assets/m1.css")} }
-            RuntimeReportBanner {}
+            RuntimeNotifications {}
             ExportPanel { zmk_firmware: Some(firmware) }
+            }
         }
     }
 
     fn mount_production_export_panel(probe: ProductionExportProbe) -> web_sys::Element {
+        // The fixture's initial open/save predates mounting this consumer.
+        probe.runtime.take_notifications();
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         root.set_id("zmk-production-export-panel-test-root");
@@ -378,26 +386,21 @@ mod tests {
             "the mounted hook invokes the existing firmware export operation"
         );
         runtime_test::run_effects(&runtime, effects).await;
-        wait_until("firmware generation failure renders its alert", || {
-            root.query_selector("[role='alert']")
-                .is_ok_and(|alert| alert.is_some())
+        let failure_message = "Firmware generation failed: injected firmware-generation failure";
+        wait_until("firmware generation failure renders its Toast", || {
+            by_role_name(&root, "status", failure_message).is_some()
         })
         .await;
 
-        let alert = root
-            .query_selector("[role='alert']")
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "mounted report alert missing; runtime status={:?}, DOM={}",
-                    runtime.status(),
-                    root.inner_html()
-                )
-            });
-        assert_eq!(
-            alert.text_content().as_deref(),
-            Some("Firmware generation failed: injected firmware-generation failure")
-        );
+        let alert = by_role_name(&root, "status", failure_message).unwrap_or_else(|| {
+            panic!(
+                "mounted report alert missing; runtime status={:?}, DOM={}",
+                runtime.status(),
+                root.inner_html()
+            )
+        });
+        assert_eq!(accessible_name(&alert), failure_message);
+        assert_eq!(alert.get_attribute("data-type").as_deref(), Some("error"));
         assert_eq!(runtime_test::session_model(&runtime), before);
         assert!(!runtime_test::has_artifacts(&runtime));
         assert!(runtime_test::take_deliveries(&runtime).is_empty());
@@ -407,10 +410,10 @@ mod tests {
             "failure keeps the same row mounted for retry"
         );
 
+        by_role_name(&alert, "button", "close").unwrap().click();
         button.click();
         wait_until("retry clears the firmware export alert", || {
-            root.query_selector("[role='alert']")
-                .is_ok_and(|alert| alert.is_none())
+            by_role_name(&root, "status", failure_message).is_none()
         })
         .await;
         let mut retry_effects = None;
@@ -430,15 +433,12 @@ mod tests {
         )
         .await;
         wait_until("successful firmware retry renders its status", || {
-            root.query_selector("[role='status']")
-                .ok()
-                .flatten()
-                .is_some_and(|status| status.text_content().as_deref() == Some("Saved locally."))
+            by_role_name(&root, "status", "Saved locally.").is_some()
         })
         .await;
 
-        let status = root.query_selector("[role='status']").unwrap().unwrap();
-        assert_eq!(status.text_content().as_deref(), Some("Saved locally."));
+        let status = by_role_name(&root, "status", "Saved locally.").unwrap();
+        assert_eq!(accessible_name(&status), "Saved locally.");
         let deliveries = runtime_test::take_deliveries(&runtime);
         assert_eq!(deliveries.len(), 1);
         assert_eq!(deliveries[0].filename, "ZMK export test-zmk.zip");
