@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Ticket 015: trusted keyboard and owner callbacks on the production strips."""
 import functools
+import argparse
 import http.server
 import importlib
 import os
 from pathlib import Path
 import threading
+from datetime import datetime
 
 driver = importlib.import_module("test-dock-primitives")
 driver.SESSION = "layout-015"
@@ -14,7 +16,47 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "target/layout-toolbar-fixture"
 
 
+def production_tests(url):
+    """Check native keyboard and one action/Undo through the real Layout owner."""
+    browser("set", "viewport", 1440, 900)
+    browser("open", url)
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
+    click("Project")
+    browser("find", "role", "menuitem", "click", "--name", "New project", "--exact")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Keyboard setup\"]')")
+    click("4 Case (optional)")
+    click("Hide guide")
+    click("Open Layout workspace")
+    click("Add object")
+    click("Matrix…")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"New matrix\"]')")
+    click("Create matrix")
+    browser("wait", "--fn", "!document.querySelector('[aria-label=\"New matrix\"]')")
+    browser("focus", driver.by_role_name("button", "Select Column"))
+    browser("press", "Enter")
+    browser("press", "Escape")
+    browser("focus", driver.by_role_name("button", "Select Column"))
+    browser("press", "Space")
+    check("document.querySelector('[aria-label=\"Select Column\"]').getAttribute('aria-expanded')==='true'")
+    browser("press", "Escape")
+    button = driver.by_role_name("button", "Activate Stagger for the selected column")
+    browser("focus", button)
+    browser("press", "Space")
+    browser("wait", "--fn", "!!document.querySelector('[role=button][aria-label=\"Drag to stagger\"]')")
+    handle = driver.by_role_name("button", "Drag to stagger")
+    browser("focus", handle)
+    before = evaluate("document.activeElement.getAttribute('aria-description')")
+    browser("press", "ArrowUp")
+    browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to stagger\"]').getAttribute('aria-description')!=={driver.json.dumps(before)}")
+    click("Undo")
+    browser("wait", "--fn", f"document.querySelector('[role=button][aria-label=\"Drag to stagger\"]').getAttribute('aria-description')==={driver.json.dumps(before)}")
+    print("PASS: packaged Layout native scope/tool Space and real nudge/Undo outcome", flush=True)
+
+
 def tests(url):
+    captures = ROOT / ".evidence/015" / datetime.now().strftime("captures-%Y%m%d-%H%M%S")
+    captures.mkdir(parents=True)
+    print("Screenshot directory:", captures, flush=True)
     browser("set", "viewport", 1440, 900)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Select Column\"]')")
@@ -78,6 +120,17 @@ def tests(url):
     browser("wait", "--fn", "!document.querySelector('[role=listbox][aria-label=\"Alignment reference\"]')")
     browser("press", "Escape")
     click("Snap settings")
+    browser("focus", driver.by_role_name("button", "Close Snap"))
+    browser("press", "Shift+Tab")
+    print("Nonmodal backward Tab:", evaluate("({id:document.activeElement.id,name:document.activeElement.getAttribute('aria-label'),open:document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded')})"), flush=True)
+    check("document.activeElement.id==='m1-layout-snap-trigger'")
+    browser("focus", driver.by_role_name("spinbutton", "Snap gap"))
+    browser("press", "Tab")
+    print("Nonmodal forward Tab:", evaluate("({id:document.activeElement.id,name:document.activeElement.getAttribute('aria-label'),open:document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded')})"), flush=True)
+    check("document.activeElement.getAttribute('aria-label')==='Geometry snap' && !document.activeElement.closest('[role=dialog]')")
+    check("document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded')==='false'")
+    click("Snap settings")
+    check("document.activeElement.getAttribute('aria-label')==='Snap increment'")
     click("Snap increment")
     browser("press", "End")
     browser("press", "Enter")
@@ -124,8 +177,10 @@ def tests(url):
         click("Snap settings")
         browser("focus", driver.by_role_name("button", "Close Snap"))
         browser("wait", "--fn", "document.getElementById(document.activeElement.getAttribute('aria-describedby'))?.textContent==='Close Snap'")
-        evaluate("window.closeClicks=0; document.activeElement.addEventListener('click',()=>window.closeClicks++)")
+        evaluate("window.closeClicks=0; window.closeButton=document.activeElement; window.countClose=()=>window.closeClicks++; closeButton.addEventListener('click',countClose)")
         browser("press", key)
+        print("Close key:", key, "clicks:", evaluate("closeClicks"), flush=True)
+        evaluate("closeButton.removeEventListener('click',countClose)")
         check("closeClicks===1 && document.getElementById('m1-layout-snap-trigger').getAttribute('aria-expanded')==='false' && document.activeElement.id==='m1-layout-snap-trigger'")
     # Themes preserve control height and spacing; font-dependent widths may differ.
     for width in [1440, 1100, 980, 390]:
@@ -157,13 +212,22 @@ def tests(url):
                 assert int(evaluate("document.querySelector('[aria-label=\"Canvas clicks\"]').textContent")) == int(count) + 1
                 click("Restore selection")
                 browser("wait", "--fn", "!document.querySelector('[role=dialog][data-state=closed]')")
-                browser("screenshot", str(ROOT / f".evidence/015/{width}-{theme}-{appearance}.png"))
+                browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
         assert all(size == sizes[0] for size in sizes), (width, sizes)
     assert browser("errors").get("errors", []) == []
     print("PASS: production strips, trusted scope/action/menu/Snap keyboard, owner callbacks, precise numeric validity, four widths and four theme appearances", flush=True)
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--page-url", help="check the packaged application instead of the fixture")
+    args = parser.parse_args()
+    if args.page_url:
+        try:
+            production_tests(args.page_url)
+        finally:
+            browser("close")
+        return
     env = os.environ.copy()
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver.run("cargo", "build", "--locked", "-p", "boardstudio-web-layout", "--example", "toolbar_strips", "--target", "wasm32-unknown-unknown", env=env)
