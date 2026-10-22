@@ -653,6 +653,9 @@ pub fn LayoutCommandPill(
                 on_select: EventHandler::new(move |()| {
                     let mut open = open_menu;
                     open.set(Some(menu));
+                    if menu == LayoutCommandMenu::Snap {
+                        restore_layout_command_focus(menu);
+                    }
                 }),
             });
         }
