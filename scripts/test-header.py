@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Ticket 010: exercise the mounted production header with agent-browser."""
+import argparse
+import atexit
+from pathlib import Path
+import subprocess
+from uuid import uuid4
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("url")
+    parser.add_argument("--evidence", type=Path, required=True)
+    args = parser.parse_args()
+    args.evidence.mkdir(parents=True, exist_ok=True)
+    session = "header-010-" + uuid4().hex
+
+    def browser(*command):
+        result = subprocess.run(["agent-browser", "--session", session, *command],
+                                text=True, capture_output=True, timeout=90)
+        assert result.returncode == 0, f"{command}: {result.stdout}{result.stderr}"
+        return result.stdout
+
+    def action(role, name, verb="click"):
+        browser("find", "role", role, verb, "--name", name, "--exact")
+
+    def check(js):
+        return browser("eval", f"(() => {{ {js} return true; }})()")
+
+    browser("set", "viewport", "1440", "960")
+    browser("open", args.url)
+    atexit.register(browser, "close")
+    browser("wait", '[aria-label="Create new keyboard"]')
+    # This is the first RED on the incumbent header (64px, bottom border).
+    check("""
+        const header = document.querySelector('main > header');
+        const css = getComputedStyle(header);
+        if (header.getBoundingClientRect().height !== 56) throw Error('Header must be 56px; got ' + header.getBoundingClientRect().height);
+        if (parseFloat(css.borderBottomWidth)) throw Error('Header must be borderless');
+    """)
+    action("button", "Project")
+    action("menuitem", "New project")
+    for name in ("Continue to layout", "Hide guide", "Cancel"):
+        browser("wait", "--text", name)
+        action("button", name)
+    browser("wait", "--text", "Browse parts")
+    for workspace in ("PCB", "Keymap", "Keycaps", "Case", "Parts", "Layout"):
+        action("button", f"Open {workspace} workspace")
+        browser("wait", "--fn", f"document.querySelector('[aria-label=\"Open {workspace} workspace\"]').getAttribute('aria-current') === 'page'")
+    action("button", "Search commands")
+    check("if (document.querySelector('[role=dialog]')) throw Error('Search must stay inert until 012');")
+    action("button", "Project")
+    browser("wait", '[role="menu"][aria-label="Project"]')
+    check("""
+        if (document.activeElement.getAttribute('role') !== 'menuitem') throw Error('Project initial focus');
+        for (const name of ['New project', 'Open project…', 'Save project copy…', 'Browse projects', 'Setup guide', 'Undo', 'Redo', 'Export', 'Workspace settings']) {
+            if (![...document.querySelectorAll('[role=menuitem]')].some(e => e.textContent.trim() === name)) throw Error('Missing action: ' + name);
+        }
+    """)
+    browser("press", "End")
+    check("if (document.activeElement.textContent.trim() !== 'Workspace settings') throw Error('Project End');")
+    browser("press", "Home")
+    browser("press", "b")
+    check("if (document.activeElement.textContent.trim() !== 'Browse projects') throw Error('Project typeahead');")
+    browser("press", "Escape")
+    check("if (document.activeElement.getAttribute('aria-label') !== 'Project') throw Error('Project return focus');")
+    observations = []
+    for theme, theme_label in (("original", "Original"), ("shadcn", "shadcn")):
+        action("button", "Settings")
+        action("menuitemradio", theme_label)
+        for appearance, label in (("light", "Light"), ("dark", "Dark")):
+            action("button", "Settings")
+            action("menuitemradio", label)
+            browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}'")
+            for width in (1440, 1024, 768, 390):
+                browser("set", "viewport", str(width), "960")
+                observations.append(browser("eval", """(() => {
+                    const h = document.querySelector('main > header'), r = h.getBoundingClientRect(), c = getComputedStyle(h);
+                    if (r.height !== 56 || parseFloat(c.borderBottomWidth)) throw Error('Header geometry');
+                    if (r.left < 0 || r.right > innerWidth) throw Error('Header overflow');
+                    for (const e of h.querySelectorAll('[aria-label]')) {
+                        if (!e.checkVisibility() || e.closest('[role=menu]')) continue;
+                        const b = e.getBoundingClientRect();
+                        if (b.left < r.left || b.right > r.right + 1) throw Error('Control overflow: ' + e.getAttribute('aria-label'));
+                    }
+                    return {width:innerWidth, height:r.height, theme:document.documentElement.dataset.theme, appearance:document.documentElement.dataset.appearance};
+                })()"""))
+                browser("screenshot", str((args.evidence / f"{theme}-{appearance}-{width}.png").resolve()))
+            browser("set", "viewport", "1440", "960")
+            browser("reload")
+            browser("wait", '[aria-label="Saved locally"]')
+            browser("wait", "--fn", f"document.documentElement.dataset.theme === '{theme}' && document.documentElement.dataset.appearance === '{appearance}'")
+            action("button", "Settings")
+            check(f"""
+                for (const name of ['{theme_label}', '{label}']) {{
+                    const item = [...document.querySelectorAll('[role=menuitemradio]')].find(e => e.textContent.trim() === name);
+                    if (item?.getAttribute('aria-checked') !== 'true') throw Error('Preference not retained: ' + name);
+                }}
+            """)
+            browser("press", "Escape")
+    (args.evidence / "geometry.txt").write_text("\n".join(observations) + "\n")
+    print("PASS: production header navigation, action-menu keyboard floor, inert Search, persisted Theme/Appearance, geometry at four widths")
+
+
+if __name__ == "__main__":
+    main()
