@@ -142,22 +142,49 @@ def production_tests(url):
         browser("focus", driver.by_role_name("button", "Geometry snap"))
         held_space(url)
         assert browser("get", "attr", driver.by_role_name("button", "Geometry snap"), "aria-pressed")["value"] == expected
+    def check_tool_hint(capture=None):
+        browser("wait", "--fn", "document.getElementById(document.activeElement.getAttribute('aria-describedby'))?.textContent.includes('Alt')")
+        check("(()=>{const t=document.getElementById(document.activeElement.getAttribute('aria-describedby')),r=t.getBoundingClientRect();return t.textContent.includes('Shift') && r.left>=0 && r.right<=innerWidth && r.top>=0 && r.bottom<=innerHeight && t.checkVisibility()})()")
+        check("(()=>{const b=document.activeElement,t=document.getElementById(b.getAttribute('aria-describedby')),g=b.closest('[role=toolbar]'),r=t.getBoundingClientRect(),a=g.getBoundingClientRect();return t.getAttribute('role')==='tooltip' && t.classList.contains('layout-tool-hint') && t.offsetParent===g && r.left>=a.left && r.right<=a.right && r.width<=a.width && t.scrollWidth<=t.clientWidth && (!b.getAttribute('aria-label').includes('Stagger') || t.textContent.includes('Ctrl'))})()")
+        check("(()=>{const t=document.getElementById(document.activeElement.getAttribute('aria-describedby')),r=t.getBoundingClientRect();for(let p=t.parentElement;p;p=p.parentElement){const s=getComputedStyle(p),a=p.getBoundingClientRect();if (/(hidden|clip|auto|scroll)/.test(s.overflowX) && (r.left<a.left || r.right>a.right)) return false;if (/(hidden|clip|auto|scroll)/.test(s.overflowY) && (r.top<a.top || r.bottom>a.bottom)) return false;}return true})()")
+        print("Tool hint:", evaluate("({control:document.activeElement.getAttribute('aria-label'),text:document.getElementById(document.activeElement.getAttribute('aria-describedby')).textContent})"), flush=True)
+        evaluate("window.widthFocus=document.activeElement;window.widthTooltipId=widthFocus.getAttribute('aria-describedby');window.widthControlState=JSON.stringify([...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[hidden],[inert],[aria-hidden=true]') && e.checkVisibility()).map(e=>[e.getAttribute('aria-label'),e.getAttribute('aria-expanded'),e.getAttribute('aria-pressed')]));")
+        check("!document.querySelector('.layout-toolbar-strips :is([role=menu],[role=dialog])[data-state=open]')")
+        check("[...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[inert],[aria-hidden=true]') && e.checkVisibility()).every(e=>{const r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth})")
+        if capture is not None:
+            browser("screenshot", str(capture))
+        browser("press", "Escape")
+        browser("wait", "--fn", "!document.getElementById(widthTooltipId)")
+        print("Tooltip dismissal state:", evaluate("({sameFocus:document.activeElement===widthFocus,before:JSON.parse(widthControlState),after:[...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[hidden],[inert],[aria-hidden=true]') && e.checkVisibility()).map(e=>[e.getAttribute('aria-label'),e.getAttribute('aria-expanded'),e.getAttribute('aria-pressed')]),open:[...document.querySelectorAll('.layout-toolbar-strips :is([role=menu],[role=dialog])[data-state=open]')].map(e=>e.id)})"), flush=True)
+        check("document.activeElement===widthFocus && JSON.stringify([...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[hidden],[inert],[aria-hidden=true]') && e.checkVisibility()).map(e=>[e.getAttribute('aria-label'),e.getAttribute('aria-expanded'),e.getAttribute('aria-pressed')]))===widthControlState && !document.querySelector('.layout-toolbar-strips :is([role=menu],[role=dialog])[data-state=open]')")
+
     captures = ROOT / ".evidence/015" / datetime.now().strftime("page-captures-%Y%m%d-%H%M%S")
     captures.mkdir(parents=True)
     print("Packaged strip screenshots:", captures, flush=True)
-    for width in [1440, 1100, 980, 390, 1018, 1020, 1022]:
+    for width in [1440, 1100, 980, 1018, 1020, 1022, 390]:
         browser("set", "viewport", width, 900)
+        if width == 390:
+            # Normal Inspector-sheet setup, so the strip captures remain unobscured.
+            click("Close panels")
+            browser("wait", "--fn", "document.querySelector('[role=dialog][aria-label=\"Workspace panels\"]')?.hasAttribute('inert')")
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
                 evaluate("document.fonts.ready.then(()=>true)")
                 anchors = "['m1-layout-snap-trigger'].map(id=>{const r=document.getElementById(id).getBoundingClientRect();return [r.x,r.y]}).concat([...document.querySelectorAll('.layout-scope-strip')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y]}))"
                 before = evaluate(anchors)
+                hinted_scopes = set()
                 for selected in ["Key", "Row", "Part", "Matrix", "Column", "Matrix", "Part", "Row", "Key", "Column"]:
                     click("Select " + selected)
                     assert evaluate(anchors) == before, (width, theme, "open", selected, before, evaluate(anchors))
                     browser("press", "Escape")
                     assert evaluate(anchors) == before, (width, theme, "closed", selected, before, evaluate(anchors))
+                    if selected not in hinted_scopes:
+                        hinted_scopes.add(selected)
+                        labels = evaluate("[...document.querySelectorAll('.layout-action-slot button[aria-label^=Activate]')].filter(e=>!e.closest('[inert],[aria-hidden=true]') && e.checkVisibility()).map(e=>e.getAttribute('aria-label'))")
+                        for label in labels:
+                            browser("focus", driver.by_role_name("button", label))
+                            check_tool_hint(captures / f"{width}-{theme}-{appearance}-stagger.png" if width == 390 and selected == "Column" and 'Stagger' in label else None)
                 browser("focus", driver.by_role_name("button", "Select Column"))
                 browser("press", "Home")
                 check("document.activeElement.getAttribute('aria-label')==='Select Matrix'")
@@ -166,7 +193,7 @@ def production_tests(url):
                 browser("focus", driver.by_role_name("button", "Open Position and rotation properties for Column"))
                 browser("press", "End")
                 check("document.activeElement.getAttribute('aria-label')==='Activate Splay for the selected column'")
-                check("[...document.querySelectorAll('.layout-toolbar-strips button')].filter(e=>!e.closest('[inert],[aria-hidden=true]') && e.checkVisibility()).every(e=>{const r=e.getBoundingClientRect();return r.left>=0 && r.right<=innerWidth})")
+                check_tool_hint(captures / f"{width}-{theme}-{appearance}-tooltip.png")
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
                 metrics = evaluate("[...document.querySelectorAll('.layout-scope-strip,.layout-context-strip,.layout-toolbar-strips [role=toolbar]')].filter(e=>!e.closest('[inert],[aria-hidden=true]')).map(e=>({name:e.getAttribute('aria-label')||e.className,scroll:e.scrollWidth,client:e.clientWidth,left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right}))")
                 assert all(m["scroll"] <= m["client"] and m["left"] >= 0 and m["right"] <= width for m in metrics), (width, theme, appearance, metrics)
