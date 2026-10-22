@@ -2,6 +2,8 @@
 """Ticket 010: exercise the mounted production header with agent-browser."""
 import argparse
 import atexit
+import json
+import re
 from pathlib import Path
 import subprocess
 from uuid import uuid4
@@ -23,11 +25,23 @@ def main():
                 "JSON.stringify({focus:document.activeElement.outerHTML, popups:[...document.querySelectorAll('main > header [data-state]')].map(e=>({slot:e.dataset.slot,state:e.dataset.state,label:e.getAttribute('aria-label')}))})"],
                 text=True, capture_output=True, timeout=30)
             (args.evidence / "failure-dom.txt").write_text(diagnostic.stdout + diagnostic.stderr)
+            for name, scope in (("failure-snapshot.txt", ()), ("failure-header-snapshot.txt", ("--selector", "main > header"))):
+                snapshot = subprocess.run(["agent-browser", "--session", session, "snapshot", "-i", *scope], text=True, capture_output=True, timeout=30)
+                (args.evidence / name).write_text(snapshot.stdout + snapshot.stderr)
             subprocess.run(["agent-browser", "--session", session, "screenshot", str((args.evidence / "failure.png").resolve())], capture_output=True, timeout=30)
         assert result.returncode == 0, f"{command}: {result.stdout}{result.stderr}"
         return result.stdout
 
     def action(role, name, verb="click"):
+        if role == "button" and name in ("Undo", "Redo"):
+            # The footer has the same names; this test exercises the Header controls.
+            header = json.loads(browser("snapshot", "--json", "-i", "--selector", "main > header"))["data"]
+            refs = re.findall(r'^\s*- button "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)', header["snapshot"], re.MULTILINE)
+            assert len(refs) == 1, ("Expected one Header button", name, header)
+            assert header["refs"][refs[0]]["role"] == role and header["refs"][refs[0]]["name"] == name
+            assert browser("get", "attr", "@" + refs[0], "aria-label").strip() == name
+            browser(verb, "@" + refs[0])
+            return
         browser("find", "role", role, verb, "--name", name, "--exact")
 
     def check(js):
@@ -54,7 +68,9 @@ def main():
         action("button", f"Open {workspace} workspace")
         browser("wait", "--fn", f"document.querySelector('[aria-label=\"Open {workspace} workspace\"]').getAttribute('aria-current') === 'page'")
     action("button", "Search commands")
-    check("if (document.querySelector('[role=dialog]')) throw Error('Search must stay inert until 012');")
+    browser("wait", '[role="combobox"][aria-label="Search commands and objects"]')
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('#command-palette[open]')")
     action("button", "Project")
     browser("wait", '[role="menu"][aria-label="Project"]')
     check("""
@@ -307,7 +323,7 @@ def main():
     browser("wait", '[aria-label="Saved locally"]')
     browser("wait", "--fn", "document.documentElement.dataset.appearance === 'dark' && localStorage.getItem('boardstudio:v2:theme') === 'light' && localStorage.getItem('boardstudio:v2:appearance') === 'dark'")
     (args.evidence / "geometry.txt").write_text("\n".join(observations) + "\n")
-    print("PASS: production header navigation, action-menu keyboard floor, new/rename/Undo/Redo/Export/copy/import outcomes, inert Search, persisted Theme/Appearance, mobile focus and geometry at four widths")
+    print("PASS: production header navigation, action-menu keyboard floor, new/rename/Undo/Redo/Export/copy/import outcomes, Search palette, persisted Theme/Appearance, mobile focus and geometry at four widths")
 
 
 if __name__ == "__main__":

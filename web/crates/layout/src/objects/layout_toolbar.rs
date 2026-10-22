@@ -673,6 +673,83 @@ pub fn LayoutCommandPill(
 ) -> Element {
     let pointer_tools_visible = transform.pointer_tools_visible;
     let geometry_snap_enabled = snap_settings.geometry_snap;
+    let workspace = try_use_context::<boardstudio_web_ui_model::state::WorkspaceState>();
+    let mut commands = Vec::new();
+    if workspace.is_some_and(|w| w.0() == "Layout") {
+        use boardstudio_web_ui_shared::ui::command::Command;
+        for kind in LayoutSelectionKind::ALL {
+            commands.push(Command {
+                group: "Current Workspace",
+                label: format!("Select {}", kind.label()),
+                reason: None,
+                hint: None,
+                on_select: EventHandler::new(move |()| {
+                    on_selection_kind.call(kind);
+                    let mut menu = open_menu;
+                    menu.set(Some(LayoutCommandMenu::Select));
+                }),
+            });
+        }
+        for (label, menu) in [
+            ("Snap settings", LayoutCommandMenu::Snap),
+            ("Align", LayoutCommandMenu::Align),
+            ("Transform", LayoutCommandMenu::Transform),
+        ] {
+            commands.push(Command {
+                group: "Current Workspace",
+                label: label.into(),
+                reason: None,
+                hint: None,
+                on_select: EventHandler::new(move |()| {
+                    let mut open = open_menu;
+                    open.set(Some(menu));
+                    if menu == LayoutCommandMenu::Snap {
+                        restore_layout_command_focus(menu);
+                    }
+                }),
+            });
+        }
+        commands.push(Command {
+            group: "Current Workspace",
+            label: "Geometry snap".into(),
+            reason: None,
+            hint: None,
+            on_select: EventHandler::new(move |()| {
+                on_snap_intent.call(LayoutSnapIntent::GeometrySnap(!geometry_snap_enabled))
+            }),
+        });
+        let properties = transform.on_show_properties;
+        commands.push(Command { group: "Current Workspace", label: "Position & rotation".into(),
+            reason: (!transform.properties_available).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None, on_select: properties });
+        for (tool, label, available) in [
+            (
+                super::layout_transform_toolbar::LayoutTransformTool::Stagger,
+                "Stagger column",
+                transform.column_available,
+            ),
+            (
+                super::layout_transform_toolbar::LayoutTransformTool::Offset,
+                "Offset",
+                transform.column_available || transform.row_available,
+            ),
+            (
+                super::layout_transform_toolbar::LayoutTransformTool::Splay,
+                "Splay",
+                transform.column_available,
+            ),
+            (
+                super::layout_transform_toolbar::LayoutTransformTool::Origin,
+                "Origin",
+                transform.column_available,
+            ),
+        ] {
+            let callback = transform.on_transform_tool;
+            commands.push(Command { group: "Current Workspace", label: label.into(),
+                reason: (!(transform.pointer_tools_available && available)).then(|| "Select a matrix, row, column, key or part to open its current transform properties.".into()), hint: None,
+                on_select: EventHandler::new(move |()| callback.call(tool)) });
+        }
+    }
+    boardstudio_web_ui_shared::ui::command::use_commands(commands);
     let outside_listener = use_hook(|| {
         Rc::new(RefCell::new(
             None::<(Document, Closure<dyn FnMut(WebPointerEvent)>)>,
@@ -908,9 +985,11 @@ pub fn LayoutSnapDock(
     open_menu: Signal<Option<LayoutCommandMenu>>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
 ) -> Element {
+    let mut snap_open = use_signal(|| false);
     rsx! {
         boardstudio_web_ui_shared::controls::BoardAccordionSection {
             class: "m1-layout-snap-dock", label: "Snap", id: "m1-layout-snap-trigger",
+            open: Some(snap_open()), on_open_change: move |open| snap_open.set(open),
             heading: rsx! {
                 svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M5 3v8a5 5 0 0 0 10 0V3h-4v7a1 1 0 0 1-2 0V3ZM5 6h4M11 6h4" } }
                 span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }

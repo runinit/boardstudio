@@ -189,6 +189,30 @@ struct ExportRow {
 
 #[component]
 fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    let firmware_owned = row.label == "ZMK firmware" && zmk_firmware.is_some();
+    use_commands(if firmware_owned {
+        Vec::new()
+    } else {
+        vec![Command {
+            group: "Current Workspace",
+            label: format!("Export {}", row.label),
+            reason: if !row.ready {
+                row.reason.or(Some(row.status))
+            } else if !row.available {
+                Some("This export provider is not connected in this build.")
+            } else {
+                None
+            }
+            .map(str::to_owned),
+            hint: None,
+            on_select: EventHandler::new(move |()| {
+                if let Some(on_export) = row.on_export {
+                    on_export.call(());
+                }
+            }),
+        }]
+    });
     if row.label == "ZMK firmware"
         && let Some(firmware) = zmk_firmware
     {
@@ -563,6 +587,83 @@ mod tests {
             active_board_id: String::new(),
             ..ReadModel::default()
         }
+    }
+
+    fn palette_row_fixture() -> Element {
+        use boardstudio_web_ui_shared::ui::command::use_command_registry;
+        let registry = use_command_registry();
+        let mut blocked = use_signal(|| false);
+        let mut available = use_signal(|| true);
+        let calls = use_context::<Rc<std::cell::Cell<u32>>>();
+        let on_export = use_callback(move |()| calls.set(calls.get() + 1));
+        let reason = registry
+            .commands()
+            .first()
+            .map(|c| c.reason.clone().unwrap_or_else(|| "enabled".into()))
+            .unwrap_or_default();
+        rsx! {
+            ExportRowView { zmk_firmware: None, row: ExportRow {
+                label: "Test output", detail: "Owner output", status: "Needs owner review", action: "Export test output",
+                ready: !blocked(), available: available(), reason: blocked().then_some("Owner blocker"), on_export: Some(on_export),
+            } }
+            button { onclick: move |_| registry.commands()[0].on_select.call(()), "Invoke palette export" }
+            button { onclick: move |_| blocked.set(!blocked()), "Toggle owner blocker" }
+            button { onclick: move |_| available.set(!available()), "Toggle export provider" }
+            output { role: "status", aria_label: "Export command reason", "{reason}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn palette_export_reuses_the_row_callback_and_live_blockers() {
+        use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let calls = Rc::new(std::cell::Cell::new(0u32));
+        let dom = VirtualDom::new(palette_row_fixture);
+        dom.provide_root_context(calls.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let status = |name| by_role_name(&root, "status", name).map(|e| e.text_content().unwrap());
+        let click = |name| by_role_name(&root, "button", name).unwrap().click();
+        wait_until("ready export registered", || {
+            status("Export command reason").as_deref() == Some("enabled")
+        })
+        .await;
+        click("Export Test output");
+        assert_eq!(calls.get(), 1, "native owner callback once");
+        click("Invoke palette export");
+        assert_eq!(calls.get(), 2, "same owner callback from palette once");
+        click("Toggle owner blocker");
+        wait_until("owner blocker refreshed", || {
+            status("Export command reason").as_deref() == Some("Owner blocker")
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "button", "Export Test output")
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        click("Invoke palette export");
+        click("Export Test output");
+        assert_eq!(calls.get(), 2);
+        click("Toggle owner blocker");
+        click("Toggle export provider");
+        wait_until("provider gap refreshed", || {
+            status("Export command reason").as_deref()
+                == Some("This export provider is not connected in this build.")
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "button", "Export Test output")
+                .unwrap()
+                .has_attribute("disabled")
+        );
+        click("Invoke palette export");
+        assert_eq!(calls.get(), 2);
+        root.remove();
     }
 
     fn mount_export_row(probe: ExportRowProbe) -> web_sys::Element {

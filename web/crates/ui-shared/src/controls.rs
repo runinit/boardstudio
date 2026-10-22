@@ -11,6 +11,7 @@ use dioxus_primitives::{
     toggle::Toggle,
     toolbar::{Toolbar, ToolbarButton},
 };
+use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -126,6 +127,8 @@ pub fn BoardAccordionSection(
     label: String,
     id: String,
     #[props(default)] initially_open: bool,
+    #[props(default)] open: ReadSignal<Option<bool>>,
+    #[props(default)] on_open_change: EventHandler<bool>,
     #[props(default)] onkeydown: EventHandler<KeyboardEvent>,
     heading: Element,
     children: Element,
@@ -133,6 +136,30 @@ pub fn BoardAccordionSection(
     use dioxus_primitives::accordion::{
         Accordion, AccordionContent, AccordionItem, AccordionTrigger,
     };
+    use dioxus_primitives::collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger};
+    let heading = rsx! {
+        {heading}
+        svg { class: "board-accordion-chevron", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 8 5 5 5-5" } }
+    };
+    if open().is_some() {
+        return rsx! {
+            Collapsible { open, on_open_change, class: "board-accordion {class}",
+                attributes: vec![dioxus::events::onkeydown(move |event| onkeydown.call(event))],
+                CollapsibleTrigger { id, class: "board-accordion-trigger", aria_label: label,
+                    attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                        // Layout's window Space-pan listener must not consume this button's native activation.
+                        if event.key().to_string() == " " {
+                            onkeydown.call(event.clone());
+                            event.stop_propagation();
+                            if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                        }
+                    })],
+                    {heading}
+                }
+                CollapsibleContent { class: "board-accordion-content", {children} }
+            }
+        };
+    }
     rsx! {
         Accordion {
             attributes: vec![dioxus::events::onkeydown(move |event| onkeydown.call(event))],
@@ -140,7 +167,6 @@ pub fn BoardAccordionSection(
             AccordionItem { index: 0usize, default_open: initially_open,
                 AccordionTrigger { id, class: "board-accordion-trigger", aria_label: label,
                     {heading}
-                    svg { class: "board-accordion-chevron", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "m5 8 5 5 5-5" } }
                 }
                 AccordionContent { class: "board-accordion-content", {children} }
             }

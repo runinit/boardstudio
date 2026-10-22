@@ -25,7 +25,16 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlInputElement;
 
 mod header_actions;
-pub use header_actions::ProjectHeaderMenu;
+pub use header_actions::{ProjectHeaderMenu, use_project_tools};
+
+#[derive(Clone, PartialEq)]
+enum ProjectTool {
+    Rename(String),
+    Demo,
+}
+
+#[derive(Clone, Copy)]
+struct ProjectToolRequest(Signal<Option<ProjectTool>>);
 
 /// Presentation-only browser visibility. The editor remains mounted while browsing.
 #[derive(Clone, Copy)]
@@ -405,9 +414,15 @@ fn LibraryPreview(preview: Option<Preview>, fallback: String) -> Element {
 }
 
 #[component]
-fn DemoActionCard() -> Element {
+fn DemoActionCard(#[props(default)] open: bool) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let browser = try_use_context::<ProjectBrowserState>();
+    let mut summary = use_signal(|| None::<web_sys::HtmlElement>);
+    use_effect(use_reactive((&open,), move |(open,)| {
+        if open && let Some(summary) = summary() {
+            let _ = summary.focus();
+        }
+    }));
     rsx! {
         article { class: "m1-library-start-card",
             div { class: "m1-library-start-icon m1-library-start-icon--demo",
@@ -420,8 +435,10 @@ fn DemoActionCard() -> Element {
             }
             h2 { "Try a demo" }
             p { "Explore a sample keyboard to see BoardStudio in action." }
-            details { class: "m1-demo-picker",
-                summary { class: "board-button board-button--primary", "Open demo" }
+            details { class: "m1-demo-picker", open,
+                summary { class: "board-button board-button--primary",
+                    onmounted: move |event: MountedEvent| summary.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<web_sys::HtmlElement>()).cloned()),
+                    "Open demo" }
                 div { class: "m1-demo-options", aria_label: "Demo keyboards",
                     for demo in DEMO_PROJECTS {
                         {
@@ -509,6 +526,46 @@ pub fn Library(
     let current = current_snapshot
         .as_ref()
         .map(|snapshot| snapshot.document.clone());
+    let tool_request = try_use_context::<ProjectToolRequest>();
+    let mut rename_tool_open = use_signal(|| false);
+    let mut rename_input = use_signal(|| None::<HtmlInputElement>);
+    let mut demo_tool_open = use_signal(|| false);
+    use_effect(move || {
+        if rename_tool_open()
+            && let Some(input) = rename_input()
+        {
+            let _ = input.focus();
+        }
+    });
+    use_effect({
+        let current = current.clone();
+        let runtime = runtime.clone();
+        move || {
+            let Some(mut request) = tool_request else {
+                return;
+            };
+            let Some(tool) = request.0() else {
+                return;
+            };
+            request.0.set(None);
+            match tool {
+                ProjectTool::Rename(id) => {
+                    if let Some(current) = &current
+                        && current.id == id
+                        && runtime
+                            .model()
+                            .accepted
+                            .as_ref()
+                            .is_some_and(|s| s.document.id == id)
+                    {
+                        selected_project.set(Some(current.clone()));
+                        rename_tool_open.set(true);
+                    }
+                }
+                ProjectTool::Demo => demo_tool_open.set(true),
+            }
+        }
+    });
     let has_current = current.is_some();
     let current_revision = current
         .as_ref()
@@ -830,7 +887,7 @@ pub fn Library(
                 }
                 if !project_menu {
                     div { class: "m1-library-start-actions", aria_label: "Start a keyboard project",
-                        DemoActionCard {}
+                        DemoActionCard { open: demo_tool_open() }
                         article { class: "m1-library-start-card",
                             div { class: "m1-library-start-icon",
                                 svg { view_box: "0 0 96 56", "aria-hidden": "true",
@@ -1007,13 +1064,16 @@ pub fn Library(
                     if let Some(document) = selected_document {
                         h2 { "{project_display_name(&document)}" }
                         if current_project_id.as_deref() == Some(document.id.as_str()) {
-                            details { class: "m1-library-selection-rename-disclosure",
+                            details { class: "m1-library-selection-rename-disclosure", open: rename_tool_open(),
                                 summary { "Rename project" }
                                 label { class: "m1-library-selection-rename",
                                     span { "Project name" }
                                     input {
                                         "aria-label": "Project name",
                                         title: "Rename project",
+                                        onmounted: move |event: MountedEvent| {
+                                            rename_input.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<HtmlInputElement>()).cloned());
+                                        },
                                         value: "{project_name}",
                                         oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
                                         onkeydown: {
@@ -1024,7 +1084,7 @@ pub fn Library(
                                                         event.prevent_default();
                                                         if let Some(input) = event.data().try_as_web_event().and_then(|event| event.target()).and_then(|target| target.dyn_into::<HtmlInputElement>().ok()) { let _ = input.blur(); }
                                                     }
-                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); },
+                                                    "Escape" => { name_dirty.set(false); project_name.set(accepted_name.clone()); rename_tool_open.set(false); },
                                                     _ => {}
                                                 }
                                             }
@@ -1262,6 +1322,170 @@ mod mounted_tests {
         } else {
             rsx! { div { "Library unmounted" } }
         }
+    }
+
+    fn project_tools_host() -> Element {
+        use boardstudio_web_ui_shared::ui::command::use_command_registry;
+        let registry = use_command_registry();
+        use_project_tools();
+        let request = use_context::<ProjectToolRequest>();
+        let seed = use_context::<Rc<Seed>>();
+        let version = use_signal(|| 0u64);
+        *seed.state.borrow_mut() = Some(version);
+        let mut mounted = use_signal(|| false);
+        let browser = ProjectBrowserState(use_signal(|| false));
+        let created = use_signal(|| None::<SetupGuideRequest>);
+        let pending = use_signal(|| None::<PendingNewKeyboard>);
+        let error = use_signal(String::new);
+        use_context_provider(|| version);
+        use_context_provider(|| browser);
+        use_context_provider(|| created);
+        use_context_provider(|| pending);
+        use_context_provider(|| error);
+        let noop = use_callback(|()| {});
+        let count = registry.commands().len();
+        let captured = use_hook(|| {
+            Rc::new(RefCell::new(
+                None::<boardstudio_web_ui_shared::ui::command::Command>,
+            ))
+        });
+        rsx! {
+            ProjectHeaderMenu { project_name: "Test project", on_undo: noop, on_redo: noop, on_export: noop, on_settings: noop }
+            for label in ["Rename project", "Open demo"] {
+                {
+                    let capture = captured.clone();
+                    rsx! { button { onclick: move |_| *capture.borrow_mut() = registry.commands().into_iter().find(|c| c.label == label), "Capture {label}" } }
+                }
+            }
+            button { onclick: move |_| captured.borrow().as_ref().unwrap().on_select.call(()), "Run captured tool" }
+            button { onclick: move |_| mounted.set(!mounted()), "Toggle Library owner" }
+            for label in ["Rename project", "Open demo"] {
+                button { onclick: move |_| registry.commands().into_iter().find(|c| c.label == label).unwrap().on_select.call(()), "Palette {label}" }
+            }
+            output { role: "status", aria_label: "Registered tools", "{count}" }
+            output { role: "status", aria_label: "Header version", "{version}" }
+            output { role: "status", aria_label: "Tool pending", "{request.0().is_some()}" }
+            if mounted() { Library { project_menu: false } }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn palette_project_tools_consume_once_and_reject_rename_after_project_switch() {
+        use crate::runtime::project_name_test_support as support;
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let runtime = support::new_runtime();
+        let (session, core) = accepted(ProjectDoc::empty("palette-tools-a", "Project A"));
+        support::install(&runtime, session, core);
+        let seed = Rc::new(Seed {
+            state: Rc::new(RefCell::new(None)),
+            show_library: Rc::new(RefCell::new(None)),
+        });
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let dom = VirtualDom::new(project_tools_host);
+        dom.provide_root_context(runtime.clone());
+        dom.provide_root_context(seed.clone());
+        dioxus_web::launch::launch_virtual_dom(
+            dom,
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        let status = |name| by_role_name(&root, "status", name).map(|e| e.text_content().unwrap());
+        let click = |name| by_role_name(&root, "button", name).unwrap().click();
+        wait_until("header tools registered", || {
+            status("Registered tools").is_some_and(|s| s == "7")
+        })
+        .await;
+        click("Capture Rename project");
+        let mut version = seed.state.borrow().unwrap();
+        version += 1;
+        wait_until("same project refreshed", || {
+            status("Header version").as_deref() == Some("1")
+        })
+        .await;
+        click("Run captured tool");
+        wait_until("rename queued before Library mount", || {
+            status("Tool pending").as_deref() == Some("true")
+        })
+        .await;
+        let (session, core) = accepted(ProjectDoc::empty("palette-tools-b", "Project B"));
+        support::install(&runtime, session, core);
+        let mut version = seed.state.borrow().unwrap();
+        version += 1;
+        click("Toggle Library owner");
+        wait_until("old project request consumed", || {
+            status("Tool pending").as_deref() == Some("false")
+                && by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "textbox", "Project name").is_none(),
+            "stale rename must not select the new project"
+        );
+        click("Run captured tool");
+        assert_eq!(
+            status("Tool pending").as_deref(),
+            Some("false"),
+            "old project callback must remain stale"
+        );
+        click("Palette Rename project");
+        wait_until("current project rename focused", || {
+            by_role_name(&root, "textbox", "Project name")
+                .is_some_and(|e| document.active_element().as_ref() == Some(e.as_ref()))
+        })
+        .await;
+        assert_eq!(field().value(), "Project B");
+        assert_eq!(status("Tool pending").as_deref(), Some("false"));
+        click("Toggle Library owner");
+        wait_until("Library unmounted", || {
+            by_role_name(&root, "textbox", "Project name").is_none()
+        })
+        .await;
+        click("Toggle Library owner");
+        wait_until("Library remounted", || {
+            by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        assert!(
+            by_role_name(&root, "textbox", "Project name").is_none(),
+            "consumed rename must not replay"
+        );
+        click("Capture Open demo");
+        version += 1;
+        wait_until("same project refreshed before demo", || {
+            status("Header version").as_deref() == Some("3")
+        })
+        .await;
+        click("Run captured tool");
+        wait_until("demo tool focused", || {
+            document
+                .active_element()
+                .is_some_and(|e| e.text_content().as_deref() == Some("Open demo"))
+        })
+        .await;
+        let demo = document.active_element().unwrap();
+        assert!(demo.closest("details[open]").unwrap().is_some());
+        assert_eq!(status("Tool pending").as_deref(), Some("false"));
+        click("Toggle Library owner");
+        wait_until("demo owner unmounted", || !root.contains(Some(&demo))).await;
+        click("Toggle Library owner");
+        wait_until("demo owner remounted", || {
+            by_role_name(&root, "button", "Setup guide").is_some()
+        })
+        .await;
+        let demos = root
+            .query_selector("[aria-label='Demo keyboards']")
+            .unwrap()
+            .unwrap();
+        assert!(
+            demos.closest("details[open]").unwrap().is_none(),
+            "consumed demo must not replay"
+        );
+        assert_eq!(
+            runtime.model().accepted.unwrap().document.id,
+            "palette-tools-b"
+        );
+        root.remove();
     }
 
     fn saved_card_count(root: &web_sys::Element) -> u32 {

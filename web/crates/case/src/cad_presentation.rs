@@ -184,6 +184,40 @@ pub fn CasePanel(
         CaseGeometryStatus::Missing
     };
     let title = case_generation_title(&model.generation, geometry);
+    let on_generate = use_callback(move |()| {
+        if instance_selection.is_current(&generate.model())
+            && let Some(scope) = generate.scope()
+        {
+            generate.submit(Event::StartGeneration {
+                operation_id: generate.operation(),
+                scope,
+            });
+        }
+    });
+    let on_cancel = use_callback(move |()| {
+        live_preview.set(false);
+        automatic_generation.write().set_enabled(false);
+        cancel.submit(Event::CancelGeneration {
+            operation_id: cancel.operation(),
+        });
+    });
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    use_commands(vec![
+        Command {
+            group: "Current Workspace",
+            label: "Update preview".into(),
+            reason: (!generation_ready || generation_busy).then(|| title.to_string()),
+            hint: None,
+            on_select: on_generate,
+        },
+        Command {
+            group: "Current Workspace",
+            label: "Cancel".into(),
+            reason: (!generation_busy).then(|| title.to_string()),
+            hint: None,
+            on_select: on_cancel,
+        },
+    ]);
     rsx! {
         section { class: "m1-case-panel", "aria-label": "Case assembly",
             p { class: "m1-case-live-status", role: "status", "aria-live": "polite", "{title}" }
@@ -240,14 +274,10 @@ pub fn CasePanel(
                     }
                     span { "Live preview" }
                 }
-                BoardButton { disabled: !generation_ready || generation_busy, onclick: move |_| if instance_selection.is_current(&generate.model()) && let Some(scope) = generate.scope() { generate.submit(Event::StartGeneration { operation_id: generate.operation(), scope }); }, "Update preview" }
+                BoardButton { disabled: !generation_ready || generation_busy, onclick: move |_| on_generate.call(()), "Update preview" }
                 BoardButton {
                     disabled: !generation_busy,
-                    onclick: move |_| {
-                        live_preview.set(false);
-                        automatic_generation.write().set_enabled(false);
-                        cancel.submit(Event::CancelGeneration { operation_id: cancel.operation() });
-                    },
+                    onclick: move |_| on_cancel.call(()),
                     "Cancel"
                 }
                 if mechanical_export_configured {

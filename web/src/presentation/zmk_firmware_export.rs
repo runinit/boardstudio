@@ -173,6 +173,14 @@ pub(crate) fn ready_for_export(
 
 #[component]
 pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> Element {
+    use boardstudio_web_ui_shared::ui::command::{Command, use_commands};
+    use_commands(vec![Command {
+        group: "Current Workspace",
+        label: "Export ZMK firmware".into(),
+        reason: (!ready).then(|| "Review the layout and resolve controller wiring in PCB.".into()),
+        hint: None,
+        on_select: on_export,
+    }]);
     rsx! {
         div { class: "m1-export-row", "data-export-kind": "ZMK firmware",
             span {

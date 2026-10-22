@@ -417,7 +417,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         has_selection_context: input.has_selection_context,
                         show_relationships: input.show_relationships,
                         on_show_relationships: input.on_show_relationships,
-                        snap_in_dock: true,
+                        snap_in_dock: false,
                     }
                 }
             }
