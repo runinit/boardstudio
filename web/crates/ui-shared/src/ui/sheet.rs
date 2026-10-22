@@ -64,10 +64,16 @@ impl Drop for EscapeListener {
     }
 }
 
-/// Controlled non-modal Sheet. Keep domain drafts in the caller, as with other overlay primitives.
+/// Controlled non-modal Sheet. Content can retain its owner when used as a persistent dock.
 #[component]
-pub fn Sheet(mut open: Signal<bool>, children: Element) -> Element {
-    let id = use_hook(|| format!("sheet-{}", SHEET_COUNTER.fetch_add(1, Ordering::Relaxed)));
+pub fn Sheet(
+    mut open: Signal<bool>,
+    #[props(into, optional)] id: Option<String>,
+    children: Element,
+) -> Element {
+    let id = use_hook(|| {
+        id.unwrap_or_else(|| format!("sheet-{}", SHEET_COUNTER.fetch_add(1, Ordering::Relaxed)))
+    });
     let trigger = use_signal(|| None::<Rc<MountedData>>);
     use_context_provider(|| SheetContext { id, open, trigger });
     let listener = use_hook(|| Rc::new(RefCell::new(None::<EscapeListener>)));
@@ -133,20 +139,47 @@ pub fn SheetContent(
     aria_describedby: String,
     #[props(default)] direction: SheetDirection,
     #[props(into, optional)] class: Option<String>,
+    #[props(default)] keep_mounted: bool,
+    #[props(default)] inline: bool,
     children: Element,
 ) -> Element {
     let SheetContext { id, open, .. } = use_context::<SheetContext>();
+    let mut mounted = use_signal(|| None::<Rc<MountedData>>);
+    use_effect(use_reactive(
+        (&inline, &keep_mounted),
+        move |(inline, keep_mounted)| {
+            if keep_mounted
+                && open()
+                && !inline
+                && let Some(element) = mounted()
+            {
+                spawn(async move {
+                    let _ = element.set_focus(true).await;
+                });
+            }
+        },
+    ));
     let class = tw_merge::tw_merge!(
         "fixed box-border z-100 bg-card text-card-foreground shadow-lg rounded-xl p-6 overflow-y-auto overscroll-y-contain outline-none focus-visible:ring-2 focus-visible:ring-ring",
         direction.class(),
         class.as_deref().unwrap_or("")
     );
     rsx! {
-        if open() {
+        if open() || keep_mounted || inline {
             section {
-                id, "data-slot": "sheet-content", "data-state": "open", "data-side": direction.side(),
-                class, role: "dialog", aria_label, aria_describedby, aria_modal: "false", tabindex: -1,
-                onmounted: move |event| async move { let _ = event.data().set_focus(true).await; },
+                id, "data-slot": "sheet-content", "data-state": if open() { "open" } else { "closed" }, "data-side": direction.side(),
+                "data-inline": inline,
+                class: if inline { "contents".to_owned() } else { class },
+                role: (!inline && open()).then_some("dialog"),
+                aria_label: (!inline && open()).then_some(aria_label),
+                aria_describedby: (!inline && open()).then_some(aria_describedby),
+                aria_modal: (!inline && open()).then_some("false"),
+                tabindex: (!inline && open()).then_some(-1),
+                hidden: !inline && !open(), inert: (!inline && !open()).then_some(""),
+                onmounted: move |event| async move {
+                    if keep_mounted { mounted.set(Some(event.data())); }
+                    else if !inline { let _ = event.data().set_focus(true).await; }
+                },
                 {children}
             }
         }

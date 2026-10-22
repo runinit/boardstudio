@@ -96,6 +96,9 @@ pub fn Button(
     #[props(into, optional)] aria_label: Option<String>,
     #[props(into, optional)] aria_current: Option<String>,
     #[props(optional)] aria_pressed: Option<bool>,
+    #[props(optional)] aria_expanded: Option<bool>,
+    #[props(into, optional)] aria_controls: Option<String>,
+    #[props(into, optional)] aria_haspopup: Option<String>,
     #[props(into, optional)] title: Option<String>,
     children: Element,
 ) -> Element {
@@ -116,6 +119,9 @@ pub fn Button(
                 "aria-label": aria_label.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
+                "aria-expanded": aria_expanded,
+                "aria-controls": aria_controls.as_deref(),
+                "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
                 {children}
             }
@@ -131,6 +137,9 @@ pub fn Button(
                 "aria-label": aria_label.as_deref(),
                 "aria-current": aria_current.as_deref(),
                 "aria-pressed": aria_pressed,
+                "aria-expanded": aria_expanded,
+                "aria-controls": aria_controls.as_deref(),
+                "aria-haspopup": aria_haspopup.as_deref(),
                 title: title.as_deref(),
                 onclick: move |e| {
                     if let Some(handler) = &onclick {

@@ -11,9 +11,10 @@ fn composition() -> Element {
     let open = use_signal(|| true);
     rsx! {
         style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/docks.css")} }
         div { class: "m1-workbench",
             div { class: "m1-editor",
-                div { class: "m1-editor-body",
+                div { class: "m1-editor-body dock-desk",
                     ObjectsPanel { compact_open: open, settings: objects,
                         header_action: None,
                         aside { class: "m1-objects", "Objects fixture" }
@@ -119,17 +120,19 @@ async fn panel_drag_persists_only_its_final_width_on_pointer_cancel() {
     gloo_timers::future::TimeoutFuture::new(80).await;
     install_browser_spies();
 
-    let handle = element(".m1-panel-resize.is-left");
+    let root_element = document
+        .get_element_by_id("panel-resize-test-root")
+        .unwrap();
+    let handle =
+        crate::test_role::by_role_name(&root_element, "separator", "Resize Objects").unwrap();
     let frame = element(".m1-editor-body");
     let frame_left = frame.get_bounding_client_rect().left();
-    dispatch_pointer(&handle, "pointerdown", 17, frame_left + 240.0);
+    dispatch_pointer(&handle, "pointerdown", 17, frame_left + 260.0);
     for width in [290.0, 310.0, 330.0, 350.0] {
         dispatch_pointer(&handle, "pointermove", 17, frame_left + width);
     }
-    let preview_width = frame
-        .style()
-        .get_property_value("--m1-left-panel-width")
-        .unwrap();
+    gloo_timers::future::TimeoutFuture::new(40).await;
+    let preview_width = handle.get_attribute("aria-valuenow").unwrap();
     let writes_during_drag = panel_resize_write_count();
     dispatch_pointer(&handle, "pointercancel", 17, frame_left + 350.0);
     gloo_timers::future::TimeoutFuture::new(80).await;
@@ -142,7 +145,7 @@ async fn panel_drag_persists_only_its_final_width_on_pointer_cancel() {
     restore_browser_spies();
     root.remove();
 
-    assert_eq!(preview_width, "350px");
+    assert_eq!(preview_width, "350");
     assert_eq!(writes_during_drag, 0);
     assert_eq!(writes_after_cancel, 1);
     assert!(

@@ -40,6 +40,8 @@ old layer once no caller remains; 026 is the single merge to `dev`.
 
 ### Frontier and rationale
 
+- **011 resolved:** both closure axes approved; reviewed implementation and native AX locator response are recorded in [011 Outcome](issues/011-docks-and-narrow-sheet.md#outcome). Local fast-forward landing is coordinator-authorized; 012 may integrate the resulting feature tip. Global acceptance gates remain open.
+
 - **Initial frontier: 001 only.** It is the tracer bullet through every layer; nothing else builds on unproven dependencies.
 - After 001: 002, 003 and 005 can start. After 003: 004, 006, 007, 008 can run in parallel; 009 also needs 002.
 - 007 (Dropdown Menu) is the largest unknown: estimate it first. 010 and 012 depend on it only through the menus and palette.

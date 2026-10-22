@@ -6,12 +6,41 @@ use wasm_bindgen_test::*;
 
 use crate::test_role::by_role_name;
 use crate::test_wait::wait_until;
+use crate::ui::button::Button;
+
+#[wasm_bindgen_test]
+fn role_names_skip_hidden_chevrons_without_rewriting_inline_text_or_labels() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_inner_html(r#"<button><span>4</span> <strong>Case <em>(optional)</em></strong><span aria-hidden="true">⌄</span></button>
+        <button>Save<strong>As</strong></button><button>Plain name</button>
+        <button aria-label="Explicit"><span aria-hidden="true">Ignored</span>Content</button>
+        <span id="role-test-label">Referenced name</span><button aria-labelledby="role-test-label">Content</button>"#);
+    document.body().unwrap().append_child(&root).unwrap();
+    for name in [
+        "4 Case (optional)",
+        "SaveAs",
+        "Plain name",
+        "Explicit",
+        "Referenced name",
+    ] {
+        assert!(
+            by_role_name(&root, "button", name).is_some(),
+            "missing accessible name {name}"
+        );
+    }
+    root.remove();
+}
 use crate::ui::checkbox::Checkbox;
 use crate::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use crate::ui::toolbar::{Toolbar, ToolbarButton};
 
 fn fixture() -> Element {
     rsx! {
+        Button { "Plain button" }
+        Button { href: "#plain", "Plain link" }
+        Button { aria_expanded: true, aria_controls: "popup", aria_haspopup: "dialog", "Popup button" }
+        Button { href: "#popup", aria_expanded: false, aria_controls: "popup", aria_haspopup: "dialog", "Popup link" }
         Checkbox { aria_label: "Snap to grid" }
         Toolbar { aria_label: "History",
             ToolbarButton { index: 0usize, "Undo" }
@@ -40,6 +69,31 @@ async fn primitives_backed_copies_carry_role_slot_and_classes() {
         by_role_name(&root, "checkbox", "Snap to grid").is_some()
     })
     .await;
+
+    for (role, name, expanded) in [
+        ("button", "Popup button", "true"),
+        ("link", "Popup link", "false"),
+    ] {
+        let element = by_role_name(&root, role, name).unwrap();
+        assert_eq!(
+            element.get_attribute("aria-expanded").as_deref(),
+            Some(expanded)
+        );
+        assert_eq!(
+            element.get_attribute("aria-controls").as_deref(),
+            Some("popup")
+        );
+        assert_eq!(
+            element.get_attribute("aria-haspopup").as_deref(),
+            Some("dialog")
+        );
+    }
+    for (role, name) in [("button", "Plain button"), ("link", "Plain link")] {
+        let element = by_role_name(&root, role, name).unwrap();
+        for attribute in ["aria-expanded", "aria-controls", "aria-haspopup"] {
+            assert_eq!(element.get_attribute(attribute), None);
+        }
+    }
 
     let checkbox = by_role_name(&root, "checkbox", "Snap to grid").unwrap();
     assert_eq!(

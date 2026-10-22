@@ -1,0 +1,46 @@
+/* Shared dock desk and non-modal lower Sheet in every Workspace. */
+.m1-workbench:has(.dock-desk) { height: 100dvh; min-height: 0; overflow: hidden; }
+.m1-editor-body.dock-desk { display: flex; flex-direction: row; gap: 8px; padding: 8px; overflow: hidden; background: var(--background); }
+.dock-desk > .m1-workspace-content { order: 2; flex: 1; min-width: 0; min-height: 0; border: 0; border-radius: var(--radius-xl); background: var(--card); box-shadow: var(--theme-shadow-sm); overflow: hidden; }
+.dock-desk .dock-slot[data-side='left'] { order: 1; }
+.dock-desk .dock-slot[data-side='right'] { order: 3; }
+.dock-desk > [data-slot='sheet'], .dock-desk [data-slot='sheet-content'][data-inline='true'],
+.dock-desk [data-inline='true'] :is(.dock-sheet-heading, .dock-tabs, .dock-tab-panel) { display: contents; }
+.dock-desk :is([data-slot='sheet-content'], .dock-tabs > [data-slot='tabs-list'], .dock-tab-panel, .dock-sheet-close)[hidden] { display: none; }
+.dock-desk > .m1-setup-drawer { order: 1; }
+.dock-slot, .dock-mount { flex: none; min-width: 0; min-height: 0; height: 100%; }
+.dock-mount[hidden] { display: none; }
+.workbench-dock { position: relative; display: flex; flex: none; flex-direction: column; height: 100%; min-height: 0; box-sizing: border-box; }
+.workbench-dock > [data-slot='sidenav-content'] { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.workbench-dock > [data-slot='sidenav-resize'] { position: absolute; top: 0; bottom: 0; width: 12px; touch-action: none; cursor: col-resize; }
+.workbench-dock > [data-slot='sidenav-content'] { padding: 0; overflow: hidden; }
+.dock-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.dock-heading { position: relative; display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px; }
+.dock-heading h2 { margin: 0 auto 0 0; font-size: 14px; }
+.dock-heading [data-slot='button'], .dock-heading [data-slot='popover-trigger'] { padding-inline: 8px; }
+.dock-heading > .dock-options { position: static; }
+.dock-options > [data-slot='popover-content'] { box-sizing: border-box; width: min(250px, calc(100% - 16px)); left: 8px; translate: none; transform: none; }
+.dock-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.dock-body > .m1-inspector-body { flex: 1; min-height: 0; overflow: auto; }
+.dock-body :is(.m1-objects, .m1-inspector) { border: 0; }
+.dock-body :is(.m1-objects, .m1-inspector) > header { display: none; }
+.dock-body .m1-object-scroll-content { flex: 1; min-height: 0; overflow: auto; }
+.dock-rail { flex: none; width: 44px; border-radius: var(--radius-xl); background: var(--card); box-shadow: var(--theme-shadow-sm); }
+.dock-rail > [data-slot='button'] { width: 44px; height: 100%; writing-mode: vertical-rl; }
+.dock-controls { display: flex; gap: 4px; }
+.dock-controls [data-slot='button'] { padding-inline: 8px; }
+.dock-sheet { display: flex; height: min(45dvh, 400px); max-height: 45dvh; padding: 12px; }
+.dock-sheet-heading { display: flex; flex: 1; gap: 8px; min-width: 0; min-height: 0; }
+.dock-sheet-heading > [data-slot='tabs'] { flex: 1; min-width: 0; min-height: 0; }
+.dock-sheet [data-slot='tabs-list'] { flex: none; }
+.dock-sheet .dock-tab-panel { flex: 1; min-height: 0; overflow: hidden; }
+.dock-sheet-close { align-self: flex-start; }
+@media (width < 980px) {
+  .m1-editor-body.dock-desk { display: flex; flex-direction: row; min-height: 0; overflow: hidden; }
+  .dock-desk > .m1-workspace-content { min-height: 0; height: 100%; }
+  .dock-body :is(.m1-objects, .m1-inspector) { max-height: none; }
+}
+
+.dock-sheet:not([data-inline='true']) .dock-slot, .dock-sheet:not([data-inline='true']) .dock-mount { width: 100%; height: 100%; }
+.dock-sheet:not([data-inline='true']) .workbench-dock { width: 100% !important; box-shadow: none; }
+.dock-sheet:not([data-inline='true']) [data-slot='sidenav-resize'] { display: none; }

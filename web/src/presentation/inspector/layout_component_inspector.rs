@@ -1310,7 +1310,16 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     }
                 }
                 details { class: "m1-layout-component-constraint", open: constraint_open(),
-                    summary { onclick: move |_| constraint_open.set(!constraint_open()), span { "Layout constraint" } small { if active_constraint.is_some() { "Active" } else { "Optional" } } }
+                    summary {
+                        onclick: move |event| { event.prevent_default(); constraint_open.set(!constraint_open()); },
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                            }
+                        },
+                        span { "Layout constraint" } small { if active_constraint.is_some() { "Active" } else { "Optional" } }
+                    }
                     if board_parts.iter().filter(|part| part.id != owner.part_id).count() > 0 {
                         label { "Constraint type"
                             select { aria_label: "Constraint type", value: match constraint_kind() { ConstraintKind::Offset => "offset", ConstraintKind::Mirror => "mirror", ConstraintKind::MirrorLine => "mirror-line" }, onchange: move |event| constraint_kind.set(match event.value().as_str() { "mirror" => ConstraintKind::Mirror, "mirror-line" => ConstraintKind::MirrorLine, _ => ConstraintKind::Offset }),

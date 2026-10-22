@@ -57,9 +57,14 @@ fn element(selector: &str) -> web_sys::Element {
         .unwrap()
         .unwrap()
 }
-fn click(selector: &str) {
-    element(selector)
-        .dyn_into::<web_sys::HtmlElement>()
+fn click(name: &str) {
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .document_element()
+        .unwrap();
+    boardstudio_web_ui_shared::test_role::by_role_name(&root, "button", name)
         .unwrap()
         .click();
 }
@@ -83,7 +88,7 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
     let window = web_sys::window().unwrap();
     assert!(
         window
-            .match_media("(min-width: 981px)")
+            .match_media("(min-width: 980px)")
             .unwrap()
             .unwrap()
             .matches(),
@@ -105,7 +110,7 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("collapsed")
     );
-    click(".m1-setup-stage-accordion > div:nth-child(4) > button");
+    click("4Case (optional)");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
@@ -126,7 +131,7 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
         1,
         "Case readiness detail must appear once"
     );
-    click(".m1-setup-guide__secondary");
+    click("Open full case settings");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(
@@ -135,12 +140,12 @@ async fn desktop_case_stage_opens_settings_and_keeps_the_guide_available() {
             .as_deref(),
         Some("pinned")
     );
-    click("#test-layout-route");
+    click("Test ordinary Layout navigation");
     rendered().await;
-    click("#test-case-route");
+    click("Test ordinary Case navigation");
     rendered().await;
     assert_panels(true, true);
-    click("#test-reopen-guide");
+    click("Test same-workspace guide reveal");
     rendered().await;
     assert_panels(true, true);
     assert_eq!(

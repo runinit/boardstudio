@@ -2,7 +2,7 @@
 //! `.board-*` classes or on tag names. Test-support only, like [`crate::test_wait`].
 //!
 //! shortcut: the name comes from `aria-label`, `aria-labelledby` or text content only (no
-//! `label[for]`, `title` or `alt`), and `aria-hidden` or hidden subtrees are not excluded; extend
+//! `label[for]`, `title` or `alt`), and hidden controls are not excluded from lookup; extend
 //! it when a migrated test needs more.
 use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
@@ -25,6 +25,23 @@ fn collapse(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+fn content_text(node: &web_sys::Node) -> String {
+    if node
+        .dyn_ref::<Element>()
+        .is_some_and(|element| element.get_attribute("aria-hidden").as_deref() == Some("true"))
+    {
+        return String::new();
+    }
+    if node.node_type() == web_sys::Node::TEXT_NODE {
+        return node.node_value().unwrap_or_default();
+    }
+    let children = node.child_nodes();
+    (0..children.length())
+        .filter_map(|index| children.item(index))
+        .map(|child| content_text(&child))
+        .collect()
+}
+
 /// The accessible name of `element`.
 pub fn accessible_name(element: &Element) -> String {
     if let Some(label) = element.get_attribute("aria-label") {
@@ -39,7 +56,7 @@ pub fn accessible_name(element: &Element) -> String {
             .collect();
         return names.join(" ");
     }
-    collapse(&element.text_content().unwrap_or_default())
+    collapse(&content_text(element.as_ref()))
 }
 
 /// The elements under `root` with `role` whose accessible name is exactly `name`.

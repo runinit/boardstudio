@@ -11,15 +11,16 @@ fn composition() -> Element {
     });
     rsx! {
         style { {include_str!("../../../assets/m1.css")} }
+        style { {include_str!("../../../assets/docks.css")} }
         style { "@media (min-width:761px) {{ #inspector-scroll-test-root {{ height:600px; }} }}" }
         div { class: "m1-workbench",
             div { class: "m1-editor",
-                div { class: "m1-editor-body",
+                div { class: "m1-editor-body dock-desk",
                     ObjectsPanel { compact_open: open, settings,
                         header_action: Some(rsx! { button { id: "objects-panel-action-fixture", "Add object" } }),
                         aside { class: "m1-objects", "Objects fixture" }
                     }
-                    section { class: "m1-workspace-content", id: "scroll-test-canvas",
+                    section { class: "m1-workspace-content", role: "region", aria_label: "Canvas",
                         "Canvas fixture"
                     }
                     InspectorPanel { compact_open: open, settings,
@@ -97,15 +98,16 @@ fn scroll_owner(element: &HtmlElement) -> Option<HtmlElement> {
 async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_menu() {
     let root = mount_fixture(composition);
     gloo_timers::future::TimeoutFuture::new(80).await;
-    let header_action = element("#objects-panel-action-fixture");
-    let header_action_row = element("#m1-objects-panel .m1-panel-header-action");
-    let objects_body = element("#m1-objects-panel .m1-panel-content > .m1-objects");
-    assert!(header_action_row.contains(Some(header_action.as_ref())));
+    let by_role = |role, name| crate::test_role::by_role_name(&root, role, name).unwrap();
+    let header_action = by_role("button", "Add object");
+    let objects_heading = element("[role=complementary][aria-label=Objects] .dock-heading");
     assert!(
-        header_action_row.get_bounding_client_rect().bottom()
-            <= objects_body.get_bounding_client_rect().top() + 1.0
+        objects_heading
+            .parent_element()
+            .unwrap()
+            .contains(Some(header_action.as_ref()))
     );
-    let last = element("#scroll-test-control-39");
+    let last = by_role("button", "Control 39");
     let owner = scroll_owner(&last).expect("long Inspector content must have a wheel-scrollable ancestor before the clipped editor frame");
     let frame = element(".m1-editor-body");
     assert!(owner.client_height() > 0 && owner.client_height() < frame.client_height());
@@ -114,9 +116,9 @@ async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_me
         frame.client_height(),
         "Inspector cannot spill into the clipped editor frame"
     );
-    let heading = element("#m1-inspector-panel .m1-panel-heading");
+    let heading = element("[role=complementary][aria-label=Inspector] .dock-heading");
     let heading_top = heading.get_bounding_client_rect().top();
-    let canvas = element("#scroll-test-canvas").get_bounding_client_rect();
+    let canvas = by_role("region", "Canvas").get_bounding_client_rect();
     // Native focus scrolling proves keyboard targets stay inside the content viewport.
     last.focus().unwrap();
     assert!(owner.scroll_top() > 0);
@@ -124,15 +126,13 @@ async fn inspector_content_has_a_bounded_scroll_owner_outside_its_heading_and_me
         last.get_bounding_client_rect().bottom() <= owner.get_bounding_client_rect().bottom() + 1.0
     );
     assert_eq!(heading.get_bounding_client_rect().top(), heading_top);
-    element("#m1-inspector-panel-options").click();
-    gloo_timers::future::TimeoutFuture::new(40).await;
-    let menu = element("#m1-inspector-panel-options-group");
+    let collapse = by_role("button", "Collapse inspector");
     assert!(
-        !owner.contains(Some(menu.as_ref())),
-        "panel options must remain outside scrolling content"
+        !owner.contains(Some(collapse.as_ref())),
+        "panel actions remain outside scrolling content"
     );
-    assert!(menu.get_bounding_client_rect().top() >= heading_top);
-    let current_canvas = element("#scroll-test-canvas").get_bounding_client_rect();
+    assert!(collapse.get_bounding_client_rect().top() >= heading_top);
+    let current_canvas = by_role("region", "Canvas").get_bounding_client_rect();
     assert_eq!(
         (current_canvas.width(), current_canvas.height()),
         (canvas.width(), canvas.height())
