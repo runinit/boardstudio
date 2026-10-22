@@ -11,9 +11,9 @@
 //! - built-in border removed, cards style (theme contract section 8); focus rings kept;
 //! - upstream's list, link and toggle-group parts are dropped: Toolbar holds `ToolbarButton`s and a
 //! -   `ToggleGroup` (mapping section 1), and its separator is the primitive's.
-//! - ticket 008 repairs the private primitive collection's tab stops and End through owned DOM events.
+//! - ticket 008 repairs tab stops and End through owned DOM events and an observer disconnected on drop.
 
-use dioxus::prelude::*;
+use dioxus::{core::AttributeValue, prelude::*};
 use dioxus_primitives::toolbar::{self, ToolbarButtonProps, ToolbarProps, ToolbarSeparatorProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 use dioxus_web::WebEventExt;
@@ -21,6 +21,7 @@ use wasm_bindgen::{JsCast, closure::Closure};
 
 struct ToolbarObserver {
     observer: web_sys::MutationObserver,
+    // The native observer must disconnect before its Rust callback is released.
     _callback: Closure<dyn FnMut()>,
 }
 
@@ -66,6 +67,7 @@ fn sync_tab_stop(root: &web_sys::Element) {
 
 #[component]
 pub fn Toolbar(props: ToolbarProps) -> Element {
+    let mut attributes = props.attributes;
     let mut root = use_signal(|| None::<web_sys::Element>);
     let mut observer = use_hook(|| CopyValue::new(None::<ToolbarObserver>));
     use_effect(move || {
@@ -93,7 +95,9 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
     let base = attributes!(div {
         class: "flex items-center gap-1 p-1 rounded-md bg-background shadow-sm w-fit data-[orientation=vertical]:flex-col",
         "data-slot": "toolbar",
-        onmounted: move |event: MountedEvent| root.set(event.data().try_as_web_event()),
+        onmounted: move |event: MountedEvent| {
+            root.set(event.data().try_as_web_event());
+        },
         onfocusin: move |_| {
             if let Some(element) = root() { sync_tab_stop(&element); }
         },
@@ -118,7 +122,23 @@ pub fn Toolbar(props: ToolbarProps) -> Element {
             sync_tab_stop(&element);
         },
     });
-    let merged = merge_attributes(vec![base, props.attributes]);
+    // Attribute listeners consume raw platform data; compose before either typed event adapter runs.
+    for attribute in &mut attributes {
+        if let Some(required) = base.iter().find(|required| required.name == attribute.name)
+            && matches!(attribute.name, "onmounted" | "onfocusin" | "onkeydown")
+            && let (AttributeValue::Listener(required), AttributeValue::Listener(caller)) =
+                (&required.value, &attribute.value)
+        {
+            let required = required.clone();
+            let caller = caller.clone();
+            attribute.value =
+                AttributeValue::listener(move |event: Event<dioxus::events::PlatformEventData>| {
+                    required.call(event.clone().into_any());
+                    caller.call(event.into_any());
+                });
+        }
+    }
+    let merged = merge_attributes(vec![base, attributes]);
     rsx! {
         toolbar::Toolbar {
             aria_label: props.aria_label,

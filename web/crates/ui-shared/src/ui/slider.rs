@@ -14,7 +14,7 @@
 //! - ticket 008 adds Home/End and ten-step Page keys through the public controlled-state hook,
 //!   and applies native disabled semantics to the thumb; pointer and arrow behavior stays primitive-owned.
 
-use dioxus::prelude::*;
+use dioxus::{core::AttributeValue, prelude::*};
 use dioxus_primitives::slider::{self, SliderProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
 
@@ -23,6 +23,7 @@ pub fn Slider(props: SliderProps) -> Element {
     let (value, set_value) =
         dioxus_primitives::use_controlled(props.value, props.default_value, props.on_value_change);
     let controlled_value = use_memo(move || Some(value()));
+    let mut attributes = props.attributes;
     let base = attributes!(div {
         class: "relative flex w-full touch-none items-center select-none data-[disabled=true]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
         "data-slot": "slider",
@@ -42,7 +43,23 @@ pub fn Slider(props: SliderProps) -> Element {
             set_value.call(next.clamp(min, max));
         },
     });
-    let merged = merge_attributes(vec![base, props.attributes]);
+    // Keep caller shortcuts alongside value keys, using the raw attribute event boundary.
+    for attribute in &mut attributes {
+        if attribute.name == "onkeydown"
+            && let Some(required) = base.iter().find(|required| required.name == "onkeydown")
+            && let (AttributeValue::Listener(required), AttributeValue::Listener(caller)) =
+                (&required.value, &attribute.value)
+        {
+            let required = required.clone();
+            let caller = caller.clone();
+            attribute.value =
+                AttributeValue::listener(move |event: Event<dioxus::events::PlatformEventData>| {
+                    required.call(event.clone().into_any());
+                    caller.call(event.into_any());
+                });
+        }
+    }
+    let merged = merge_attributes(vec![base, attributes]);
     rsx! {
         slider::Slider {
             value: controlled_value,

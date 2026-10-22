@@ -198,8 +198,11 @@ async fn toolbar_roves_across_an_embedded_toggle_group() {
             .unwrap()
             .length(),
         1,
-        "{}",
-        toolbar.outer_html()
+        "{}; caller mounts {}",
+        toolbar.outer_html(),
+        control(&root, "status", "Caller mounts")
+            .text_content()
+            .unwrap()
     );
     let pointer = control(&root, "button", "Pointer tool");
     pointer.focus().unwrap();
@@ -365,6 +368,7 @@ async fn toolbar_releases_its_observer_when_unmounted() {
         by_role_name(&root, "toolbar", "Changing tools").is_some()
     })
     .await;
+    let toolbar = control(&root, "toolbar", "Changing tools");
     let first = control(&root, "button", "First changing action");
     let remaining = control(&root, "button", "Remaining action");
     control(&root, "button", "Unmount tools").click();
@@ -372,6 +376,8 @@ async fn toolbar_releases_its_observer_when_unmounted() {
         by_role_name(&root, "toolbar", "Changing tools").is_none()
     })
     .await;
+    toolbar.append_child(&first).unwrap();
+    toolbar.append_child(&remaining).unwrap();
     first.set_tab_index(0);
     remaining.set_tab_index(0);
     // Cross the mutation-observer microtask checkpoint; a leaked observer would repair these detached nodes.
