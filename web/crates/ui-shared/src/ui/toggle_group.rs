@@ -11,29 +11,45 @@
 //! - upstream's variants and spacing are kept as classes; the `Outline` variant's borders are removed and
 //! -   the group is filled (`bg-muted`), cards style (theme contract section 8); focus rings kept;
 //! - `ToggleGroupAction` (a link styled as an item) is dropped: nothing in the mapping uses it.
+//! - ticket 008 requires `aria_label` and supplies the group role.
 
 use dioxus::prelude::*;
-use dioxus_primitives::toggle_group::{self, ToggleGroupProps, ToggleItemProps};
+use dioxus_primitives::toggle_group::{self, ToggleItemProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
+use std::collections::HashSet;
 
+/// A named group; the primitive retains controlled/uncontrolled selection and roving focus.
 #[component]
-pub fn ToggleGroup(props: ToggleGroupProps) -> Element {
+pub fn ToggleGroup(
+    aria_label: String,
+    #[props(default)] default_pressed: HashSet<usize>,
+    pressed: ReadSignal<Option<HashSet<usize>>>,
+    #[props(default)] on_pressed_change: Callback<HashSet<usize>>,
+    #[props(default)] disabled: ReadSignal<bool>,
+    #[props(default)] allow_multiple_pressed: ReadSignal<bool>,
+    #[props(default)] horizontal: ReadSignal<bool>,
+    #[props(default = ReadSignal::new(Signal::new(true)))] roving_loop: ReadSignal<bool>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
+    children: Element,
+) -> Element {
     let base = attributes!(div {
         class: "group/toggle-group flex w-fit items-center gap-px rounded-md bg-muted p-0.5 data-[orientation=vertical]:flex-col",
         "data-slot": "toggle-group",
+        role: "group",
+        aria_label,
     });
-    let merged = merge_attributes(vec![base, props.attributes]);
+    let merged = merge_attributes(vec![base, attributes]);
     rsx! {
         toggle_group::ToggleGroup {
-            default_pressed: props.default_pressed,
-            pressed: props.pressed,
-            on_pressed_change: props.on_pressed_change,
-            disabled: props.disabled,
-            allow_multiple_pressed: props.allow_multiple_pressed,
-            horizontal: props.horizontal,
-            roving_loop: props.roving_loop,
+            default_pressed,
+            pressed,
+            on_pressed_change,
+            disabled,
+            allow_multiple_pressed,
+            horizontal,
+            roving_loop,
             attributes: merged,
-            {props.children}
+            {children}
         }
     }
 }
