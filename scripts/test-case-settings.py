@@ -205,12 +205,78 @@ def tests(url, evidence):
     print("PASS production Case Select/Combobox/Checkbox/Collapsible/Toggle controls; precise native entry, validation, retained local geometry drafts, real Core extraction; both Themes/Appearances and mid/narrow captures", flush=True)
 
 
+def page_tests(url, evidence):
+    """The packaged app, its Runtime, durable save and real Undo/Redo owners."""
+    browser("set", "viewport", 1440, 960)
+    browser("open", url)
+    browser("wait", "--text", "Your keyboards")
+    action("button", "Project")
+    action("menuitem", "New project")
+    for name in ("Continue to layout", "Hide guide", "Cancel"):
+        browser("wait", "--text", name)
+        action("button", name)
+    action("button", "Add key matrix")
+    action("button", "Create matrix")
+    browser("wait", "--text", "Matrix 1")
+    action("button", "Open Case workspace")
+    action("button", "Configure mechanical stack")
+    browser("wait", "--text", "Dimensions and clearances")
+    action("spinbutton", "Wall thickness", "focus")
+    original = evaluate("document.activeElement.value")
+    assert evaluate("document.activeElement.dataset.slot") == "input-group-control"
+    precise = "2.1234567890123457"
+    action("spinbutton", "Wall thickness", "fill", precise)
+    browser("press", "Escape")
+    browser("wait", "--fn", f"document.activeElement.value === {json.dumps(original)}")
+    action("spinbutton", "Wall thickness", "fill", "0.05")
+    browser("press", "Tab")
+    action("spinbutton", "Wall thickness", "focus")
+    assert evaluate("document.activeElement.getAttribute('aria-invalid')") == "true"
+    browser("press", "Escape")
+    action("spinbutton", "Wall thickness", "fill", precise)
+    browser("press", "Enter")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]')")
+    action("spinbutton", "Wall thickness", "focus")
+    browser("wait", "--fn", f"document.activeElement.value === {json.dumps(precise)}")
+    action("button", "Project", "focus")
+    browser("press", "Control+z")
+    action("spinbutton", "Wall thickness", "focus")
+    browser("wait", "--fn", f"document.activeElement.value === {json.dumps(original)}")
+    action("button", "Project", "focus")
+    browser("press", "Control+Shift+z")
+    action("spinbutton", "Wall thickness", "focus")
+    browser("wait", "--fn", f"document.activeElement.value === {json.dumps(precise)}")
+    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Saved locally\"]')")
+    for theme in ("Original", "shadcn"):
+        action("button", "Settings")
+        action("menuitemradio", theme)
+        for appearance in ("Light", "Dark"):
+            action("button", "Settings")
+            action("menuitemradio", appearance)
+            browser("wait", "--fn", "document.fonts.status==='loaded'")
+            action("spinbutton", "Wall thickness", "focus")
+            assert evaluate("document.activeElement.value") == precise
+            for ref, item in browser("snapshot", "-i")["refs"].items():
+                if item.get("role") == "button" and item.get("name") == "close":
+                    browser("click", "@"+ref)
+            browser("screenshot", str(evidence/f"page-{theme.lower()}-{appearance.lower()}.png"))
+    (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"savedLocally":True,"themes":4},indent=2)+"\n")
+    print("PASS packaged Case Runtime: native precision/validation/Escape, durable save, exact Undo/Redo, four Theme/Appearance captures",flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, default=ROOT/".evidence/017/browser")
     parser.add_argument("--styles-only", action="store_true")
+    parser.add_argument("--page-url")
     args = parser.parse_args()
     args.evidence.mkdir(parents=True, exist_ok=True)
+    if args.page_url:
+        try:
+            page_tests(args.page_url,args.evidence)
+        finally:
+            browser("close")
+        return
     env = os.environ.copy()
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver.run("cargo", "build", "--locked", "-p", "boardstudio-web-case", "--example", "settings", "--target", "wasm32-unknown-unknown", env=env)

@@ -5864,8 +5864,10 @@ mod contextual_layer_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
+        let custom_profile =
+            by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
         let query = |selector: &str| root.query_selector(selector).unwrap().unwrap();
-        by_role_name(&root, "button", "Add volume to Clearance volumes")
+        by_role_name(&custom_profile, "button", "Add volume to Clearance volumes")
             .unwrap()
             .dyn_into::<web_sys::HtmlElement>()
             .unwrap()
@@ -5981,6 +5983,8 @@ mod contextual_layer_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         rendered().await;
+        let custom_profile =
+            by_role_name(&root, "group", "Fit profile Custom tactile switch").unwrap();
         let element = |selector: &str| {
             root.query_selector(selector)
                 .unwrap()
@@ -5989,9 +5993,13 @@ mod contextual_layer_tests {
                 .unwrap()
         };
 
-        by_role_name(&root, "button", "Add polygon to Component clearance zones")
-            .unwrap()
-            .click();
+        by_role_name(
+            &custom_profile,
+            "button",
+            "Add polygon to Component clearance zones",
+        )
+        .unwrap()
+        .click();
         rendered().await;
 
         let request = element("#case-custom-profile-last-request")
@@ -6000,7 +6008,7 @@ mod contextual_layer_tests {
         assert!(request.contains("UpdateProfile"));
         assert!(request.contains("clearances: Some"));
         assert!(request.contains("x: -2.5"));
-        by_role_name(&root, "button", "Add volume to Access openings")
+        by_role_name(&custom_profile, "button", "Add volume to Access openings")
             .unwrap()
             .click();
         rendered().await;
@@ -6009,7 +6017,7 @@ mod contextual_layer_tests {
             .unwrap();
         assert!(request.contains("openings: Some"));
         assert!(request.contains("height: 10.0"));
-        by_role_name(&root, "button", "Add volume to Clearance volumes")
+        by_role_name(&custom_profile, "button", "Add volume to Clearance volumes")
             .unwrap()
             .click();
         rendered().await;

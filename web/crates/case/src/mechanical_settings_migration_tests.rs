@@ -67,9 +67,10 @@ async fn dimension_error_is_described_by_its_precise_input() {
     let described = input
         .get_attribute("aria-describedby")
         .expect("validation must describe the precise input");
-    let error = document
-        .get_element_by_id(&described)
-        .expect("description resolves");
+    let error = root
+        .query_selector(&format!("[id='{described}']"))
+        .unwrap()
+        .expect("description resolves in this production field");
     assert!(!error.text_content().unwrap().is_empty());
     assert!(root.contains(Some(&error)));
     root.remove();
