@@ -480,6 +480,19 @@ def main():
     browser("screenshot", str((args.evidence / "palette-narrow.png").resolve()))
     browser("press", "Escape")
     browser("screenshot", str((args.evidence / "palette-closed.png").resolve()))
+    # Tear down an open palette with its document, then remount on the same route.
+    browser("press", "Control+k")
+    opened()
+    browser("open", "about:blank")
+    check("if (document.querySelector('[role=dialog]')) throw Error('Palette survived document teardown');")
+    browser("open", args.url)
+    browser("wait", '[aria-label="Search commands"]')
+    check("if (document.querySelector('[role=combobox]') || document.querySelector('[aria-label=\"Search commands\"]').getAttribute('aria-expanded') !== 'false') throw Error('Remount retained an open palette');")
+    browser("press", "Control+k")
+    opened()
+    check("if (document.querySelectorAll('[role=combobox][aria-label=\"Search commands and objects\"]').length !== 1) throw Error('Remount duplicated the palette');")
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[role=dialog]')")
     print("PASS: production palette dialog, combobox, navigation, context, focus and keyboard", flush=True)
 
 
