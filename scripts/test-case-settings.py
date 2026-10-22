@@ -303,8 +303,16 @@ def page_tests(url, evidence):
                 if item.get("role") == "button" and item.get("name") == "close":
                     browser("click", "@"+ref)
             browser("screenshot", str(evidence/f"page-{theme.lower()}-{appearance.lower()}.png"))
-    (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"saved":saved,"undone":undone,"redone":redone,"themes":4},indent=2)+"\n")
+    (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"saved":saved,"undone":undone,"redone":redone,"themes":4,"browserErrors":browser("errors").get("errors",[])},indent=2)+"\n")
     print("PASS packaged Case Runtime: native precision/validation/Escape, durable save, exact Undo/Redo, four Theme/Appearance captures",flush=True)
+
+
+def capture_failure(evidence):
+    try:
+        browser("screenshot", str(evidence/"failure.png"))
+        (evidence/"failure-snapshot.json").write_text(json.dumps(browser("snapshot"),indent=2)+"\n")
+    except Exception as capture_error:
+        print("Failure capture unavailable:", capture_error, flush=True)
 
 
 def main():
@@ -318,6 +326,9 @@ def main():
     if args.page_url:
         try:
             page_tests(args.page_url,args.evidence)
+        except BaseException:
+            capture_failure(args.evidence)
+            raise
         finally:
             browser("close")
         return
@@ -340,11 +351,7 @@ def main():
             if not args.styles_only:
                 tests(url, args.evidence)
         except BaseException:
-            try:
-                browser("screenshot", str(args.evidence/"failure.png"))
-                (args.evidence/"failure-snapshot.json").write_text(json.dumps(browser("snapshot"),indent=2)+"\n")
-            except Exception as capture_error:
-                print("Failure capture unavailable:", capture_error, flush=True)
+            capture_failure(args.evidence)
             raise
         finally:
             browser("close")
