@@ -1,6 +1,6 @@
 # 014: Shell glue sweep
 
-Status: ready-for-human
+Status: resolved
 Type: build
 Blocked by: [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md), [012: Command palette](012-command-palette.md), [013: Toasts](013-toasts.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -164,3 +164,13 @@ Fresh physical target size: `/home/chris/.cache/boardstudio-target/014-shell-lin
 Retain the original receipts plus `.evidence/014-position-baseline/`, `014-position-red*`, `014-position-green*`, `014-position-page-build.log`, `014-position-selector-callers.log`, `014-position-repo*` and preview log before any coordinator-authorized, fully-merged worktree removal. Evidence is valuable handoff material. The worktree and target must remain until approved landing/verification and explicit cleanup authorization.
 
 Landing remains **HOLD** for targeted Standards re-review of this correction. Global acceptance, CAD `worker.onerror`, first paint, screen-reader speech, human/ticket 026 and final merge remain open; computed styles and author screenshot inspection do not satisfy those gates.
+
+## Approved local closure
+
+Coordinator supplied **Standards R2 APPROVE, zero findings**, at `d7902d9d37c282c3a0cb5a31e796a36be14eb245`, resolving the R1 P2. Receipt: `delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui014-standards-review-r2`. Prior Spec R1 APPROVE with zero findings carries for unchanged behavior/scope; its receipt remains above. Both review gates are satisfied, and the coordinator explicitly authorized local fast-forward landing to `feat/rust-ui-migration`.
+
+Immediately before closure, that feature ref was still `3c0f6e26c17e53312eb29e67ca86b18c6fb2732a`. Approved production/test source at `d7902d9d` is preserved exactly; this closure changes only this ticket's status and documentation. Reuse the recorded production RED/GREEN, four Position captures, native keyboard/value/Undo checks, fresh page build and unchanged-source mounted evidence. Fresh documentation diff/repository checks and clean-pin/landing results are retained under the absolute evidence directory `/home/chris/.t3/worktrees/ts-boardstudio2/t3-cff86af3/.evidence/` as `014-closure-repo.json`, `014-closure-repo.log` and `014-landing.json`. No origin/dev update is authorized or performed.
+
+After successful verified landing and final checks, the coordinator authorized removal of only the exclusive generated target `/home/chris/.cache/boardstudio-target/014-shell-lineage`, conditional on physical ownership and absence of live process references. The outside-target receipt `.evidence/014-target-cleanup.json` records the preflight proof, actual outcome and before/after bytes; uncertainty must hold cleanup without blocking approved landing. Worktree, branch, evidence, valuable ignored files, shared/root targets and active 015 remain preserved. No build is repeated for cleanup.
+
+This resolves ticket 014's implementation and reviews. Global full/quick acceptance, CAD `worker.onerror`, first paint, screen-reader speech, human/ticket 026 and the final integration merge remain open.
