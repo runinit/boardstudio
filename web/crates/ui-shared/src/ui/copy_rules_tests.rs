@@ -45,6 +45,9 @@ const FORBIDDEN: &[&str] = &[
     "addEventListener",
     "use icons::",
     "dark:border-",
+    " border ",
+    "border-transparent",
+    "border-border",
 ];
 
 #[test]
