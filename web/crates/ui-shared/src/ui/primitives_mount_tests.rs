@@ -98,10 +98,15 @@ use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, HtmlInputElement, KeyboardEvent, KeyboardEventInit};
 
 fn picker_fixture() -> Element {
+    let mut selected = use_signal(|| None::<String>);
+    let mut combo_selected = use_signal(|| None::<String>);
+    let mut open = use_signal(|| Some(false));
     rsx! {
         Field {
             FieldLabel { html_for: "fruit-trigger", span { id: "fruit-label", "Fruit" } }
             Select::<String> { id: "fruit-trigger", aria_labelledby: "fruit-label",
+                value: Some(selected.into()), on_value_change: move |value| selected.set(value),
+                open, on_open_change: move |value| open.set(Some(value)),
                 SelectOption::<String> { index: 0usize, value: "a", text_value: "Apple", "Apple" }
                 SelectOption::<String> { index: 1usize, value: "x", text_value: "Apricot", disabled: true, "Apricot" }
                 SelectOption::<String> { index: 2usize, value: "b", text_value: "Banana", "Banana" }
@@ -109,6 +114,7 @@ fn picker_fixture() -> Element {
             }
         }
         Combobox::<String> { aria_label: "Search fruit", list_aria_label: "Fruit matches",
+            value: Some(combo_selected.into()), on_value_change: move |value| combo_selected.set(value),
             ComboboxOption::<String> { index: 0usize, value: "a", text_value: "Apple", "Apple" }
             ComboboxOption::<String> { index: 1usize, value: "x", text_value: "Apricot", disabled: true, "Apricot" }
             ComboboxOption::<String> { index: 2usize, value: "b", text_value: "Banana", "Banana" }
@@ -118,7 +124,9 @@ fn picker_fixture() -> Element {
             SelectOption::<String> { index: 0usize, value: "disabled", "Disabled" }
         }
         Combobox::<String> { disabled: true, aria_label: "Unavailable fruit" }
-        output { role: "status", aria_label: "Selected fruit" }
+        button { onclick: move |_| open.set(Some(false)), "Close fruit" }
+        output { role: "status", aria_label: "Selected fruit", "{selected():?}" }
+        output { role: "status", aria_label: "Combobox selection", "{combo_selected():?}" }
     }
 }
 
@@ -216,6 +224,13 @@ async fn select_floor_label_navigation_selection_and_focus_return() {
         "Banana",
         "display the label, not b or icon text"
     );
+    assert_eq!(
+        by_role_name(&root, "status", "Selected fruit")
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Some(\"b\")")
+    );
     for opening_key in ["Enter", " ", "ArrowDown"] {
         key(&trigger, opening_key);
         wait_until("keyboard opens Select", || {
@@ -240,6 +255,15 @@ async fn select_floor_label_navigation_selection_and_focus_return() {
         })
         .await;
     }
+    key(&trigger, "ArrowDown");
+    focus_option(&root, "Apple").await;
+    by_role_name(&root, "button", "Close fruit")
+        .unwrap()
+        .click();
+    wait_until("a controlled close restores trigger focus", || {
+        trigger.get_attribute("aria-expanded").as_deref() == Some("false") && focused(&trigger)
+    })
+    .await;
     let disabled = by_role_name(&root, "button", "Select an option").unwrap();
     assert!(disabled.has_attribute("disabled"));
     disabled.click();
@@ -326,6 +350,13 @@ async fn combobox_floor_filter_active_descendant_selection_and_escape() {
     .await;
     assert!(focused(&input));
     assert_eq!(html_input.value(), "Cherry");
+    assert_eq!(
+        by_role_name(&root, "status", "Combobox selection")
+            .unwrap()
+            .text_content()
+            .as_deref(),
+        Some("Some(\"c\")")
+    );
     let disabled = by_role_name(&root, "combobox", "Unavailable fruit").unwrap();
     assert!(disabled.has_attribute("disabled"));
     disabled.click();
