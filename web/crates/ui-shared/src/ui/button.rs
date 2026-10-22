@@ -30,6 +30,136 @@ pub enum ButtonVariant {
     Link,
 }
 
+#[cfg(all(test, target_arch = "wasm32"))]
+mod forwarding_tests {
+    use super::*;
+    use crate::{test_role::by_role_name, test_wait::wait_until};
+
+    fn fixture() -> Element {
+        let mut events = use_signal(Vec::<String>::new);
+        rsx! {
+            div { onkeydown: move |event: KeyboardEvent| events.write().push(format!("owner:{}", event.key())),
+                for (label, href) in [("Native contract", None), ("Link contract", Some("#contract"))] {
+                    Button {
+                        href: href.map(str::to_owned), aria_label: label, aria_describedby: "button-contract-description",
+                        onkeydown: move |event: KeyboardEvent| events.write().push(format!("{label}:{}", event.key())),
+                        onfocus: move |_| events.write().push(format!("{label}:focus")),
+                        onblur: move |_| events.write().push(format!("{label}:blur")),
+                        onpointerenter: move |_| events.write().push(format!("{label}:enter")),
+                        onclick: move |_| events.write().push(format!("{label}:click")),
+                        "{label}"
+                    }
+                }
+                Button { aria_label: "Default native", "Default native" }
+                Button { href: "#default", aria_label: "Default link", "Default link" }
+            }
+            span { id: "button-contract-description", "The owner describes this action." }
+            output { role: "status", aria_label: "Contract events", "{events:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn button_additive_events_preserve_owner_handlers_and_optional_defaults_in_both_branches()
+    {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("Button contracts mount", || {
+            by_role_name(&root, "link", "Default link").is_some()
+        })
+        .await;
+        for (role, label) in [("button", "Native contract"), ("link", "Link contract")] {
+            let action = by_role_name(&root, role, label).unwrap();
+            let description = action.get_attribute("aria-describedby").unwrap();
+            assert_eq!(
+                document
+                    .get_element_by_id(&description)
+                    .unwrap()
+                    .text_content()
+                    .as_deref(),
+                Some("The owner describes this action.")
+            );
+            action.focus().unwrap();
+            action.blur().unwrap();
+            action
+                .dispatch_event(&web_sys::PointerEvent::new("pointerenter").unwrap())
+                .unwrap();
+            for key in ["Enter", " "] {
+                let init = web_sys::KeyboardEventInit::new();
+                init.set_key(key);
+                init.set_bubbles(true);
+                action
+                    .dispatch_event(
+                        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(
+                            "keydown", &init,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+            }
+            wait_until("all caller events forward", || {
+                by_role_name(&root, "status", "Contract events")
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .contains(&format!("{label}:enter"))
+            })
+            .await;
+            let observed = by_role_name(&root, "status", "Contract events")
+                .unwrap()
+                .text_content()
+                .unwrap();
+            for event in ["focus", "blur", "enter", "Enter", " "] {
+                assert_eq!(
+                    observed.matches(&format!("{label}:{event}\"")).count(),
+                    1,
+                    "{observed}"
+                );
+            }
+            assert!(
+                !observed.contains(&format!("{label}:click")),
+                "synthetic key events do not synthesize native clicks"
+            );
+        }
+        let observed = by_role_name(&root, "status", "Contract events")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        assert_eq!(
+            observed.matches("owner:Enter").count(),
+            2,
+            "owner listener is never overwritten"
+        );
+        for (role, label) in [("button", "Default native"), ("link", "Default link")] {
+            let action = by_role_name(&root, role, label).unwrap();
+            for attr in [
+                "aria-describedby",
+                "onkeydown",
+                "onfocus",
+                "onblur",
+                "onpointerenter",
+            ] {
+                assert!(!action.has_attribute(attr));
+            }
+            action.focus().unwrap();
+            action.blur().unwrap();
+            action.click();
+        }
+        assert_eq!(
+            by_role_name(&root, "button", "Default native")
+                .unwrap()
+                .get_attribute("type")
+                .as_deref(),
+            Some("button")
+        );
+        root.remove();
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Default, Clone, PartialEq, Eq)]
 pub enum ButtonSize {
