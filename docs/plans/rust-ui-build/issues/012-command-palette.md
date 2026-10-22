@@ -362,3 +362,127 @@ One complete Standards+Spec review must run through the coordinator at a clean
 completed pin. Ticket stays claimed and landing HOLD until substantive approval.
 Global full/quick, CAD `worker.onerror`, first-paint, screen-reader, human026 and
 final-merge gates remain open; no scoped receipt clears them.
+
+### Spec correction: palette above native modal confirmations
+
+**Correction candidate; claimed and landing HOLD.** The coordinator reported
+Standards APPROVE with0 findings across all22 paths at
+`e974b961a74436540255fb60e5d1822c49863925`, and Spec CHANGES with one P2:
+the div-based palette could render behind Library's native Delete confirmation.
+That finding was source-inferred; the correction first reproduced it with the
+actual trusted browser path. Original pin and first review receipts are retained;
+their approval does not cover this new host. A completed correction slice needs
+targeted Spec and explicit Standards coverage through the coordinator.
+
+The correction changes only palette presentation, owned CSS and its harnesses:
+
+- A palette-local native `<dialog>` uses public `show_modal` / `close` to enter
+  the top layer above existing native modal confirmations. It keeps the existing
+  `command-palette` ID, so Header's public ARIA target remains the actual popup.
+  The native host is the sole named semantic dialog, labelled/described by the
+  existing Title/Description components through their public ID props. The inner
+  copied Dialog uses public `is_modal:false`, `role:presentation` and
+  `aria_modal:None`; its structural content is unfocusable. Actual product AX
+  output is checked for exactly one exposed dialog named Command palette.
+- The host DOM handle is a local lifecycle resource, not new modal/domain state.
+  Existing palette open/opener/pending signals, query, registry admission and
+  command owners remain unchanged. The normal effect and public content mount
+  event synchronize the same connected host; showing waits for its actual
+  mounted input. Content-node identity is checked before the mount callback
+  acts. No timer, retry or shared primitive/API change. Current-open sync focuses
+  the actual input for both a newly shown host and reentry into a retained host.
+  It runs from the open effect/current mount event, without a query subscription
+  or refresh loop. The mounted test also covers rapid close/show of the same host.
+- The native host remains modal through the copied Dialog's retained exit.
+  Existing `PaletteLifetime` closes the current host synchronously before the
+  unchanged `finish_close` handoff. Current open state prevents an old exit from
+  closing a reopened palette. Unmount retires the owned DOM handle and closes
+  its connected open host. A mounted browser test removes an open owner, proves
+  modal/inert release and no late focus steal, then mounts a distinct new host
+  and closes/cleans it normally.
+- Native cancel prevents default/propagation and closes only the palette, with
+  exact event-target/current-host, connected/open and current palette guards.
+  The native Delete confirmation remains the same owner and DOM node throughout
+  palette open/Escape, with no native cancel/close event delivered to it.
+- Chromium's native Shift+Tab can escape the first control to BODY. The bounded
+  host handler wraps only first/last Tab boundaries, including single/empty
+  content. It uses current enabled, visible, non-inert tabbables in the current
+  content, checks raw target/active element and mounted modal identity, and
+  preserves already-prevented or modified Tab and every other key. Native
+  movement handles ordinary Tab. The copied primitive trap stays disabled;
+  no second trap or global keyboard handler was added. The existing upstream
+  focus helper is private `pub(crate)` JavaScript, so it was not exposed/reused.
+  Current palette controls use ordinary zero/negative tab indices.
+- Owned tests now assert native host `[open]` state; geometry still measures the
+  actual copied panel. Header's one palette-close wait follows that same native
+  state. Role/name actions and all original behavior outcomes remain. The actual
+  destructive confirmation click is resolved uniquely from its native dialog's
+  labelled ancestry snapshot, with button-role/name/ref assertions; it cannot
+  select the identically named background Library button. Only the test-created
+  keyboard in the isolated browser is deleted, after explicit native Confirm.
+
+No Library, BoardDialog, shared primitive, Header production, registry, domain
+callback, dependency or visibility changes. 011/013 and the approved Snap owner,
+callbacks and Space predicate remain intact. Native Snap entry-focus/floor and
+015's broader composed toolbar Space guard remain the previously stated combined
+acceptance gap, unchanged by this correction.
+
+| Preserved regression/probe | Result and attribution |
+| --- | --- |
+| `native-modal-red.log` | Fixture setup error: no Library card was selected. Not behavioral RED. |
+| `native-modal-red-2.log`, `native-modal-red-2/native-confirmation-palette.png`, checkpoint `bb4d4fb8` | Actual trusted CtrlK from existing Delete: native modal stays open, active element remains its Cancel button, palette appears behind it; Search-focus assertion fails. Confirms the P2. |
+| `native-host-platform-probe.log` | Isolated blank-document platform probe, not product GREEN: a native host with presentation role still exposes an outer dialog; native ShiftTab can reach BODY. Both conflicts informed the corrected local host. |
+| `native-host-tab-red.log`, `native-host-initial-focus-diagnostic.log` | Actual first host candidate focused an empty native host before animated content mounted. Public mounted-content synchronization corrects the ordering. The intervening E0599 for a direct `onmounted` builder was compile-only; the existing public attribute vector is used instead. |
+| `native-host-tab-red-2.log`, checkpoint `882a90db` | Initial focus worked, then Browse projects closed without showing Library. Keeping the native host through the existing content-exit/dispatch boundary restored this outcome. No claim about a registry marker was inferred, and the guard was unchanged. |
+| `native-host-tab-red-3.log`, `native-host-tab-red-3/native-confirmation-palette-ax.txt`, `native-confirmation-shift-tab.png`, checkpoint `2c1cfad0` | Actual product Search focus and one-dialog AX passed above Delete; trusted ShiftTab then left to BODY and failed containment. No boundary guard existed for this RED. |
+| `native-host-lifecycle.log` / `native-host-lifecycle-results.json` | PASS2/2, exit0 at the pre-boundary checkpoint: existing public relationship test plus native owner unmount/remount/inert/focus lifecycle. Later final page results include the additional boundary cases. |
+| `native-host-final-root.log`, `native-host-final-subpath.log` | Harness misexpectation after the correct native Confirm: deleting the last project creates a distinct durable replacement with the same Untitled keyboard name. Existing `runtime.rs`/Library mounted tests establish that behavior. The assertion now requires original project-ID removal, a different replacement ID and one explicit trusted confirmation click; cancellation must retain the original ID. No product deletion fix. |
+| `native-host-complete-root.log`, `native-host-complete-subpath.log` | Both routes passed the native sequence and old behavior through themes/narrow bounds, then rapid close/reopen before teardown failed initial Search focus. A retained native host does not rerun `show_modal` entry focus. The local current-open sync now restores its real input; opener/pending/field blur and stale admission remain unchanged. This failure is retained as a product host regression, not relabelled a complete pass. |
+
+Evidence paths in this section are relative to `.evidence/012-lineage/`.
+Final product source is `9af2a38a622745314ff9a953aa628d9ce32acd22`;
+final production harness is `4028631b7bf72cdac9544c5dcaa81b5c77b0f7ee`.
+`d36069db` is the earlier boundary-guard checkpoint. Later Outcome commits are
+documentation only. No temporary production markers or diagnostic focus forcing
+are present; all browser actions use the actual mounted UI.
+
+| Final correction command/check | Result and limits |
+| --- | --- |
+| `python3 scripts/build-web.py --fast --skip-providers --routes subpath,root` | PASS, exit0; `native-host-reentry-build.log`. Both page routes at the final product source; unchanged validated provider assets reused. |
+| `python3 scripts/test-command-palette.py http://127.0.0.1:4222/ --evidence .evidence/012-lineage/native-host-reentry-root` | PASS, exit0; `native-host-reentry-root.log`. Complete nondiagnostic production driver, including the real native Delete sequence and every prior palette outcome. |
+| Same driver at `http://127.0.0.1:4222/boardstudio/`, evidence `native-host-reentry-subpath` | PASS, exit0; `native-host-reentry-subpath.log`. Same complete assertions on the subpath package. |
+| `python3 scripts/test-header.py http://127.0.0.1:4222/boardstudio/ --evidence .evidence/012-lineage/native-host-reentry-header` | PASS, exit0; `native-host-reentry-header.log`. Existing Header navigation/history/domain outcomes, compact lifecycle and all16 geometry cases at the new host source. |
+| `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/run-wasm-tests.py --files web/src/presentation/command_palette.rs web/src/presentation/export_workspace.rs web/src/presentation/zmk_firmware_export.rs --result-json .evidence/012-lineage/native-host-reentry-page-results.json` | PASS9/9, exit0; `native-host-reentry-page.log`, complete structured report with0failed/0incomplete. Three palette tests cover public opener relationships, native host rapid reentry/unmount/remount and first/last/single/empty boundaries with disabled/hidden/inert/current-content guards; all six Export tests also pass. |
+| `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py lint typecheck repo` | PASS, exit0; `native-host-reentry-lint-typecheck-repo.log`. Source formatting, native/wasm Clippy, page typecheck and repository checks. |
+
+Both full route runs prove CtrlK and CmdK above the real existing native Delete
+confirmation, Search focus/typing/pointer/list navigation, one named exposed AX
+dialog and unfocusable structural inner content, trusted first/last Tab wrapping
+with prevention only at boundaries (`true,true,false,false` for four keys),
+Escape-first and rapid reopen with the SAME underlying confirmation and original
+Cancel focus. Underlying cancel/close counts stay zero across palette use;
+subsequent native Cancel/Escape retain the original project ID, and only one
+explicit trusted Confirm click removes that ID and retains the distinct durable
+replacement. No underlying confirmation was closed to make the palette usable.
+The same runs preserve field commit/cancel, Inspector Sheet identity/hidden-focus
+checks, Snap settings/canonical focus/native Space counts, outside focus, canvas
+pan/typing, command owner leases, real tools/objects, themes/narrow bounds and
+document teardown/reopen. The native mounted fixture separately verifies
+component-scope unmount/inert release and fresh host identity.
+
+Inspected `native-host-reentry-subpath/native-confirmation-palette.png` and its
+`native-confirmation-palette-ax.txt`: palette is above the retained confirmation,
+with one exposed named dialog. These are Chromium visual/AX and keyboard receipts;
+screen-reader and human026 clearance remain open.
+
+Final feature freshness remains `a1828bb3aa15f46a45b355880ba5e31ab0aa9262`.
+Exact diffs against `e974b961` remain empty for Library, BoardDialog/controls,
+copied Dialog, registry, Header production and Layout adapters; incoming011/013
+preservation checks also remain empty. Earlier registry223/Layout/dock/Library18
+receipts retain their stated scope and pins. The new host makes no shared source
+change that would turn them into fresh global acceptance. Final Outcome-only
+repository validation is recorded in `native-host-outcome-repo.log`.
+Targeted Spec and explicit Standards review through the coordinator is still
+required at the completed clean correction pin. Ticket remains claimed and
+landing HOLD; 015 combined acceptance and every previously named global gate
+remain open. No new agents, threads, watchers or remote/local feature pushes.
