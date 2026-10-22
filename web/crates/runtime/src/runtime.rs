@@ -8703,6 +8703,34 @@ mod notification_tests {
             runtime.take_notifications().is_empty(),
             "a removed lease cannot turn a late executor failure into a Toast"
         );
+        let stale_effects = support::start_export(&runtime);
+        let stale_operation = stale_effects
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::RunExport { operation_id, .. } => Some(*operation_id),
+                _ => None,
+            })
+            .unwrap();
+        runtime
+            .export_delivery_errors
+            .borrow_mut()
+            .insert(stale_operation, "obsolete delivery error".into());
+        runtime.latest_firmware_export.set(Some(unrelated));
+        runtime
+            .run(Effect::Settled {
+                operation_id: stale_operation,
+                outcome: TerminalOutcome::Completed,
+                landing: None,
+            })
+            .await;
+        assert!(
+            runtime.export_delivery_errors.borrow().is_empty(),
+            "stale latest-owner gate still consumes its exact error"
+        );
+        assert!(
+            runtime.take_notifications().is_empty(),
+            "obsolete delivery errors cannot replay"
+        );
     }
 
     #[wasm_bindgen_test]
