@@ -59,3 +59,6 @@ mod panels {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod toolbar_toggle_slider_toast_tests;
