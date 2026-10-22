@@ -702,7 +702,17 @@ fn button_attributes(
     owners: Vec<Attribute>,
     id: Option<&str>,
     description: Option<&str>,
-) -> Vec<Attribute> {
+) -> (Option<String>, Vec<Attribute>) {
+    let id = id.map(str::to_owned).or_else(|| {
+        attributes
+            .iter()
+            .rev()
+            .find(|attribute| attribute.namespace.is_none() && attribute.name == "id")
+            .and_then(|attribute| match &attribute.value {
+                AttributeValue::Text(value) => Some(value.clone()),
+                _ => None,
+            })
+    });
     let mut descriptions = Vec::new();
     for value in description
         .into_iter()
@@ -728,7 +738,7 @@ fn button_attributes(
             return false;
         }
         attribute.namespace.is_some()
-            || !(matches!(
+            || !matches!(
                 attribute.name,
                 "class"
                     | "style"
@@ -744,7 +754,8 @@ fn button_attributes(
                     | "aria-controls"
                     | "aria-haspopup"
                     | "title"
-            ) || (attribute.name == "id" && id.is_some()))
+                    | "id"
+            )
     });
     if !descriptions.is_empty() {
         attributes.push(Attribute::new(
@@ -775,7 +786,9 @@ fn button_attributes(
             attributes.push(owner);
         }
     }
-    attributes
+    // Dioxus diffs each completed spread as a name-sorted list.
+    attributes.sort_by_key(|attribute| attribute.name);
+    (id, attributes)
 }
 
 #[cfg(test)]
@@ -811,7 +824,8 @@ mod attribute_tests {
             Attribute::new("tabindex", "0", None, false),
             Attribute::new("custom", "kept", Some("example"), false),
         ]);
-        let merged = button_attributes(raw.clone(), vec![], None, Some("owner shared owner"));
+        let (id, merged) = button_attributes(raw.clone(), vec![], None, Some("owner shared owner"));
+        assert_eq!(id.as_deref(), Some("trigger-id"));
         assert!(
             merged
                 .iter()
@@ -819,7 +833,6 @@ mod attribute_tests {
                     && attribute.namespace != Some("style"))
         );
         for (name, value) in [
-            ("id", "trigger-id"),
             ("aria-describedby", "owner shared tip"),
             ("data-extra", "kept"),
             ("tabindex", "0"),
@@ -834,12 +847,12 @@ mod attribute_tests {
                 AttributeValue::Text(value.into())
             );
         }
-        assert!(
-            !button_attributes(raw, vec![], Some("owner-id"), None)
-                .iter()
-                .any(|attribute| attribute.name == "id")
-        );
-        assert!(button_attributes(vec![], vec![], None, None).is_empty());
+        assert!(!merged.iter().any(|attribute| attribute.name == "id"));
+        let (id, attributes) = button_attributes(raw, vec![], Some("owner-id"), None);
+        assert_eq!(id.as_deref(), Some("owner-id"));
+        assert!(!attributes.iter().any(|attribute| attribute.name == "id"));
+        let (id, attributes) = button_attributes(vec![], vec![], None, None);
+        assert!(id.is_none() && attributes.is_empty());
     }
 }
 
@@ -901,7 +914,7 @@ pub fn Button(
     .into_iter()
     .flatten()
     .collect();
-    let attributes = button_attributes(
+    let (id, attributes) = button_attributes(
         attributes,
         owners,
         id.as_deref(),

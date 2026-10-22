@@ -180,7 +180,7 @@ pub fn InputGroupInput(
     );
     // Explicit props, including omitted options, own their native attributes and input listener.
     // RSX requires the spread last; namespaced style properties and other events/ARIA pass through.
-    let attributes = attributes
+    let mut attributes = attributes
         .into_iter()
         .filter(|attribute| {
             attribute.namespace.is_some()
@@ -205,6 +205,8 @@ pub fn InputGroupInput(
                 )
         })
         .collect::<Vec<_>>();
+    // Dioxus diffs each completed spread as a name-sorted list.
+    attributes.sort_by_key(|attribute| attribute.name);
     rsx! {
         input {
             "data-slot": "input-group-control",
