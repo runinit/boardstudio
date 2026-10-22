@@ -1,6 +1,6 @@
 # 010: Header card
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [002: Complete Theme system](002-complete-theme-system.md), [004: Vendored Lucide icons](004-lucide-icons.md), [007: Accessible action menus](007-accessible-action-menus.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -157,5 +157,18 @@ source and dependencies are unchanged by this caller-only attribute fix. The ful
 Clippy and production browser scripts are fresh. Latest feature remains `95ef094d2152165e8da771c652b62bd677b06c9c`
 and is an ancestor; protected 006/007/008/009 source/registrations still match feature.
 
-Targeted re-review of P2 and coordinator substantive approval remain pending before local landing.
-Status remains claimed. Global gates listed above remain open.
+Targeted Spec r2 **APPROVE, zero findings** covers the delta from `fce60ef` to clean
+`03b7bfff19a5a925e9d039c2586f94d6804a3594`. Receipt:
+`node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui010-spec-review-20261022-r2`.
+The reviewer confirmed conditional inert resolves P2, attribute removal on reopen, actual paused
+animation coverage of blocked Tab/programmatic focus/Enter, normal removal/reopen, stale animation
+completion and real commands. The history/Export harness corrections were meaningful, not weakened.
+Prior Standards r1 **APPROVE, zero findings** at `fce60ef` is carried forward only; there was no new
+Standards review. Reviewer runtime evidence was reused from the author; no reviewer reruns occurred.
+
+The coordinator explicitly approved local landing after tip verification. Local feature was still
+`95ef094d2152165e8da771c652b62bd677b06c9c`, already an ancestor of the validated pin, so no new merge
+or source change was needed. This resolution changes only the ticket; the validated implementation
+and sufficient receipts above are reused. Final doc-link and diff checks and clean inventory precede
+the local fast-forward under the lane protocol. Ticket 010 is resolved and its implementation slot
+is free after landing. No origin/dev update is authorized. Global gates listed above remain open.
