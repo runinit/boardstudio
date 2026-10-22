@@ -112,5 +112,50 @@ parked extraction integration or coordinator cleanup edit was performed.
 
 ### Closure review
 
-Pending one real Standards + Spec closure review of this exact ticket slice and coordinator approval
-before local landing. Status remains claimed while that gate is open.
+The real closure review of `fce60ef544ad40b7f7d08ca5a5520bb7c3565c8a` returned Standards
+**APPROVE, zero findings** (`rust-ui010-standards-review-20261022-r1`) and Spec **CHANGES REQUIRED**
+(`rust-ui010-spec-review-20261022-r1`). Both tasks are under
+`node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3A`.
+These were source reviews reusing author runtime evidence, not fresh reviewer runtime checks.
+
+**P2 response:** the retained closing compact popup was still keyboard-active at `header.rs:155`.
+Before changing production source, the production test paused a real Web Animation on the original
+popup, closed with Escape, verified that same node remained connected and focus returned, then
+failed because Tab reached its hidden Layout button. `retained-exit-red.log` and
+`retained-exit-red/failure-dom.txt` retain that expected failure against the reviewed page;
+`550f770b` saved the regression before the fix.
+
+The correction is only `inert: (!mobile_open()).then_some("")` on that PopoverContent. No callback,
+state/composition owner, shared primitive or API changed. The expanded test verifies that closed
+retained commands cannot regain focus or activate workspace/history/Export with Enter, that finishing
+the paused animation removes the original node, and that reopening clears the attribute entirely
+(not `inert="false"`). A second retained close/reopen verifies controlled state survives completion
+of the old exit animation; normal close/remount and real compact navigation/Undo/Redo/Export outcomes
+remain asserted. History changes can close the popup as workspace state updates, so the test explicitly
+reopens for each command and verifies Export returns to the actual prior workspace.
+
+Fresh P2 checks on the corrected production source (one-line fix in `ea0e4c72`, final test harness
+`dc24c7c4914069e8c6380e685a7e7ec4e19cd151`):
+
+- `python3 scripts/build-web.py --fast --skip-providers`: **PASS**, `build-p2.log`; unchanged
+  providers reused as above. Build preceded test-only commits; production source is identical.
+- The Clippy command above: **PASS**, `clippy-p2.log`.
+- Full production `scripts/test-header.py` against port 4180: **PASS**, `header-p2-pass.log`,
+  captures/geometry in `header-p2-pass/`. This includes the paused-exit assertions and every earlier
+  action, persistence, keyboard and width/Theme/Appearance assertion.
+- Retained `scripts/test-theme.py`: **PASS**, `theme-p2.log` and `theme-p2/`.
+- Formatting, diff whitespace, Python compilation, doc links and WASM declarations: **PASS**,
+  `fmt-p2.log`, `doc-links-p2.log`, `wasm-declarations-p2.log`.
+
+`header-p2-green.log` and `header-p2-green-final.log` retain intermediate test-setup failures after
+the exit assertions passed: they assumed the compact popup stayed open across history changes and
+assumed a fixed Export return workspace. They are not GREEN receipts. No retries, skips or delays
+mask the failures; the final harness asserts the real controlled-state transitions explicitly.
+
+The previous native 20 and mounted shared/Library 83 passing checks remain reused, not rerun: their
+source and dependencies are unchanged by this caller-only attribute fix. The full affected page build,
+Clippy and production browser scripts are fresh. Latest feature remains `95ef094d2152165e8da771c652b62bd677b06c9c`
+and is an ancestor; protected 006/007/008/009 source/registrations still match feature.
+
+Targeted re-review of P2 and coordinator substantive approval remain pending before local landing.
+Status remains claimed. Global gates listed above remain open.
