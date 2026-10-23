@@ -97,6 +97,11 @@ async fn viewer_slot_exclusions_preserve_actual_native_inline_controls_in_four_t
     .await;
     let fit = control(&root, "button", "Fit");
     let shaded = control(&root, "button", "Shaded");
+    shaded.click();
+    wait_until("the native display control becomes selected", || {
+        shaded.get_attribute("aria-pressed").as_deref() == Some("true")
+    })
+    .await;
     let exploded = control(&root, "button", "Exploded");
     exploded.click();
     wait_until(
@@ -106,7 +111,7 @@ async fn viewer_slot_exclusions_preserve_actual_native_inline_controls_in_four_t
     .await;
     let probe = document.create_element("span").unwrap();
     probe
-        .set_attribute("style", "background-color:var(--selected)")
+        .set_attribute("style", "background-color:var(--wb-selection-surface)")
         .unwrap();
     root.append_child(&probe).unwrap();
     for theme in ["original", "shadcn"] {

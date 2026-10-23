@@ -194,7 +194,9 @@ def main():
                             position:getComputedStyle(toolbar).position,display:getComputedStyle(toolbar).display,wrap:getComputedStyle(toolbar).flexWrap,
                             popupPosition:getComputedStyle(content).position,popupOwner:content.offsetParent===toolbar,
                             nativeColor:{connected:partsColor.isConnected,type:partsColor.type,slot:partsColor.getAttribute('data-slot'),background:getComputedStyle(partsColor).backgroundColor},
-                            bounds:[bounds.left,bounds.right,bounds.top,bounds.bottom],scroll:toolbar.scrollWidth,client:toolbar.clientWidth,
+                            bounds:[bounds.left,bounds.right,bounds.top,bounds.bottom],
+                            clips:[...function*(e){while(e){const s=getComputedStyle(e);if(/hidden|clip|auto|scroll/.test(s.overflowY)){const r=e.getBoundingClientRect();yield {class:e.className,top:r.top,bottom:r.bottom,scroll:e.scrollTop};}e=e.parentElement;}}(content.parentElement)] ,
+                            scroll:toolbar.scrollWidth,client:toolbar.clientWidth,
                             expected,targets,checks,sliders,
                             selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))};
                     })()""")
@@ -204,6 +206,7 @@ def main():
                     assert metrics["nativeColor"]["connected"] and metrics["nativeColor"]["type"] == "color" and metrics["nativeColor"]["slot"] is None, metrics
                     assert 0 <= metrics["bounds"][0] < metrics["bounds"][1] <= width, metrics
                     assert 0 <= metrics["bounds"][2] < metrics["bounds"][3] <= height, metrics
+                    assert all(metrics["bounds"][2] >= clip["top"] and metrics["bounds"][3] <= clip["bottom"] for clip in metrics["clips"]), metrics
                     assert metrics["selected"], metrics
                     assert all(e["background"] == metrics["expected"] and e["border"] == "0px" and e["height"] >= 36 for e in metrics["selected"]), metrics
                     if width <= 960:
