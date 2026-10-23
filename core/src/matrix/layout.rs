@@ -1181,10 +1181,6 @@ pub(crate) fn reconcile_constraint_keys(
         let Some((source, row, column)) = primary_member(doc, id) else {
             continue;
         };
-        let cell = source
-            .cells
-            .iter()
-            .find(|cell| cell.row == row && cell.column == column);
         let evaluated = matrix::evaluated(source, doc)?;
         let geometry = evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Key frame is missing")?;
         let local = matrix::evaluation::inverse_offset(&geometry.offset_frame, Vec2 { x: next.at.x - geometry.pose.at.x, y: next.at.y - geometry.pose.at.y });

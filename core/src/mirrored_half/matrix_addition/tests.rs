@@ -718,7 +718,7 @@ fn a_layout_of_the_new_matrix_is_mirrored_with_its_independent_parts() {
         .expect("the layout is linked");
     let layout = document.layouts.iter().find(|l| l.id == mirror).unwrap();
     assert_eq!(layout.board_id, "right");
-    assert_eq!(layout.matrix_id, "right-thumbs");
+    assert_eq!(layout.matrix_ids, ["right-thumbs"]);
     assert_eq!(layout.name, "Thumbs");
     assert!(layout.mirror_link.is_none());
 }

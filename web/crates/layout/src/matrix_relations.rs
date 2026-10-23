@@ -222,7 +222,7 @@ impl View<'_> {
             .document
             .layouts
             .iter()
-            .find(|layout| layout.matrix_id == self.matrix.id)?;
+            .find(|layout| layout.matrix_ids.contains(&self.matrix.id))?;
         let partner = match &owner.mirror_link {
             Some(link) => self
                 .document
@@ -240,7 +240,10 @@ impl View<'_> {
             .document
             .matrices
             .iter()
-            .find(|matrix| matrix.id == partner.matrix_id)?;
+            .find(|matrix| {
+                let link = owner.mirror_link.as_ref().or(partner.mirror_link.as_ref());
+                link.and_then(|link| link.partner_matrix(&self.matrix.id)) == Some(matrix.id.as_str())
+            })?;
         Some((partner, matrix))
     }
 
@@ -282,7 +285,7 @@ impl View<'_> {
         self.matrix
             .column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
             .get(column as usize)
-            .is_some_and(Option::is_some)
+            .is_some_and(|origin| *origin != Vec2::default())
     }
 
     fn column_offset(&self, column: u32) -> Vec2 {

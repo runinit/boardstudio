@@ -21,7 +21,7 @@ pub(crate) mod deletion;
 pub mod kernel;
 pub(crate) mod evaluation;
 use crate::model::{
-    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,
+    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature,
     Part, Pin, Pose2, ProjectDoc, Side, Vec2,
 };
 use serde_json::json;
@@ -785,6 +785,13 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
 #[cfg(test)]
 mod projection_tests {
     use super::*;
+    use crate::model::Mirror;
+
+    fn project_matrix(matrix: &Matrix, parts: &[Part], mode: ProjectionMode) -> Result<MatrixScene, String> {
+        let mut doc = ProjectDoc::empty("test", "Test");
+        doc.parts = parts.to_vec();
+        super::project_matrix(matrix, &doc, mode)
+    }
 
     fn matrix() -> Matrix {
         Matrix {

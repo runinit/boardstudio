@@ -211,8 +211,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(pair.left.name, "Left half");
-        assert_eq!(pair.left.matrix_id, "left-matrix");
-        assert_eq!(pair.right.matrix_id, "right-matrix");
+        assert_eq!(pair.left.matrix_ids, ["left-matrix"]);
+        assert_eq!(pair.right.matrix_ids, ["right-matrix"]);
         assert_eq!(
             pair.right.mirror_link.as_ref().unwrap().source_id,
             "left-layout"

@@ -135,7 +135,7 @@ fn stagger(column: u32, value: f64) -> EditOperation {
 /// The spec's derived axis formula, computed independently of `location`.
 fn expected_axis(matrix: &Matrix, column: usize) -> Vec2 {
     let splays = &matrix.column_layout.iter().map(|record| record.splay).collect::<Vec<_>>();
-    let mut theta: f64 = splays.iter().take(column).sum();
+    let theta: f64 = splays.iter().take(column).sum();
     let (sin, cos) = theta.to_radians().sin_cos();
     // R(theta) applied to local (0, 1).
     let mut point = Vec2 { x: -sin, y: cos };

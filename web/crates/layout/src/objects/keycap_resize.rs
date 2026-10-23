@@ -154,7 +154,7 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     {
         let owner = layouts
             .iter()
-            .find(|layout| layout.matrix_id == placement.matrix_id);
+            .find(|layout| layout.matrix_ids.contains(&placement.matrix_id));
         let canonical_layout = owner
             .and_then(|owner| {
                 owner
@@ -163,9 +163,9 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .and_then(|link| layouts.iter().find(|layout| layout.id == link.source_id))
             })
             .or(owner);
-        let matrix_id = canonical_layout.map_or(placement.matrix_id.as_str(), |layout| {
-            layout.matrix_id.as_str()
-        });
+        let matrix_id = owner.and_then(|owner| owner.mirror_link.as_ref())
+            .and_then(|link| link.partner_matrix(&placement.matrix_id))
+            .unwrap_or(placement.matrix_id.as_str());
         let Some(matrix) = matrix_by_id.get(matrix_id).copied() else {
             continue;
         };
@@ -238,8 +238,9 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .as_ref()
                     .is_some_and(|link| link.source_id == canonical_layout.id)
             })
+            && let Some(paired_matrix_id) = paired.mirror_link.as_ref().and_then(|link| link.partner_matrix(matrix_id))
             && let Some(paired_id) =
-                scene_member(scenes, &paired.matrix_id, placement.row, placement.column)
+                scene_member(scenes, paired_matrix_id, placement.row, placement.column)
             && placements.iter().any(|candidate| candidate.id == paired_id)
         {
             updated_sizes.insert(paired_id.to_owned(), next_size);
@@ -1278,7 +1279,7 @@ mod tests {
             .iter()
             .position(|layout| layout.id == "right-keys-layout")
             .unwrap();
-        let right_matrix_id = document.layouts[right_index].matrix_id.clone();
+        let right_matrix_id = document.layouts[right_index].matrix_ids[0].clone();
         document.layouts[right_index].board_id = left.board_id.clone();
         document.layouts[right_index].mirror_link =
             Some(boardstudio_core::model::LayoutMirrorLink {
@@ -1333,7 +1334,7 @@ exceptions: vec![],
             .iter()
             .find(|layout| layout.id == "left-keys-layout")
             .unwrap()
-            .matrix_id
+            .matrix_ids[0]
             .clone();
         let source_matrix = accepted
             .matrices
@@ -1434,12 +1435,12 @@ exceptions: vec![],
         let original_partner_scene = scene
             .matrix_scenes
             .iter()
-            .find(|scene| scene.matrix_id == partner_layout.matrix_id)
+            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
             .unwrap();
         let partner_scene = saved_scene
             .matrix_scenes
             .iter()
-            .find(|scene| scene.matrix_id == partner_layout.matrix_id)
+            .find(|scene| partner_layout.matrix_ids.contains(&scene.matrix_id))
             .unwrap();
         let partner_id = partner_scene
             .cells

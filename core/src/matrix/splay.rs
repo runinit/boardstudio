@@ -102,6 +102,13 @@ mod tests {
     use super::*;
     use crate::model::Mirror;
 
+    fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange) -> Result<Matrix, String> {
+        super::update(matrix, column, change, &ProjectDoc::empty("test", "Test"))
+    }
+    fn origin_world(matrix: &Matrix, column: u32) -> Vec2 {
+        super::origin_world(matrix, column, &ProjectDoc::empty("test", "Test")).unwrap()
+    }
+
     fn matrix() -> Matrix {
         Matrix {
             id: "m".into(),
@@ -126,7 +133,7 @@ mod tests {
     }
 
     fn key(matrix: &Matrix, row: u32, column: u32) -> Vec2 {
-        location(matrix, row, column, None)
+        super::super::evaluation::cell_pose(&evaluated(matrix, &ProjectDoc::empty("test", "Test")).unwrap(), row, column).unwrap().at
     }
 
     #[test]
@@ -236,7 +243,7 @@ mod tests {
         )
         .unwrap();
         let reset = update(&changed, 1, &MatrixSplayChange::Origin { world: None }).unwrap();
-        assert!(reset.column_layout[1].splay_origin.is_none());
+        assert_eq!(reset.column_layout[1].splay_origin, Vec2::default());
         assert!(
             update(
                 &before,

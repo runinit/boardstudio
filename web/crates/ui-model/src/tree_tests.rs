@@ -446,7 +446,7 @@ fn bridge_has_same_board_selection_at_outline_and_owning_matrix_occurrences() {
     let layout = document
         .layouts
         .iter()
-        .find(|layout| layout.matrix_id == matrix_id)
+        .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
         .expect("synthetic fixture has a matrix layout");
     let bridge_id = "bridge-synthetic-matrix";
     let mut expanded = BTreeSet::from([

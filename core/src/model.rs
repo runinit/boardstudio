@@ -938,6 +938,16 @@ pub struct LayoutMirrorLink {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exceptions: Vec<MirroredException>,
 }
+impl LayoutMirrorLink {
+    pub fn partner_matrix(&self, id: &str) -> Option<&str> {
+        self.correspondences.iter().find_map(|record| {
+            if record.kind != MirroredItemKind::Matrix { return None; }
+            if record.source_id == id { Some(record.mirror_id.as_str()) }
+            else if record.mirror_id == id { Some(record.source_id.as_str()) }
+            else { None }
+        })
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {
     /// View-only physical context used by Rust assembly preparation; canonical edits omit it.

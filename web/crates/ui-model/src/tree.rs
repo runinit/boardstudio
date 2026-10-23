@@ -262,7 +262,7 @@ pub fn build_tree(
         .iter()
         .filter(|layout| {
             layout.board_id == board_id
-                && matrices.iter().any(|matrix| matrix.id == layout.matrix_id)
+                && matrices.iter().any(|matrix| layout.matrix_ids.contains(&matrix.id))
         })
         .collect();
     let mut tree = Vec::new();
@@ -433,7 +433,7 @@ pub fn build_tree(
     }
     let owner_layout: HashMap<&str, &Layout> = layouts
         .iter()
-        .map(|layout| (layout.matrix_id.as_str(), *layout))
+        .flat_map(|layout| layout.matrix_ids.iter().map(move |id| (id.as_str(), *layout)))
         .collect();
     let has_split = layouts.iter().any(|layout| layout.mirror_link.is_some())
         || layouts.iter().any(|layout| {
@@ -455,7 +455,7 @@ pub fn build_tree(
                 layouts
                     .iter()
                     .copied()
-                    .filter(|layout| matrix_origin_x(&matrices, &layout.matrix_id) < axis)
+                    .filter(|layout| layout.matrix_ids.iter().map(|id| matrix_origin_x(&matrices, id)).sum::<f64>() / (layout.matrix_ids.len().max(1) as f64) < axis)
                     .collect(),
             ),
             (
@@ -463,7 +463,7 @@ pub fn build_tree(
                 layouts
                     .iter()
                     .copied()
-                    .filter(|layout| matrix_origin_x(&matrices, &layout.matrix_id) >= axis)
+                    .filter(|layout| layout.matrix_ids.iter().map(|id| matrix_origin_x(&matrices, id)).sum::<f64>() / (layout.matrix_ids.len().max(1) as f64) >= axis)
                     .collect(),
             ),
         ]
@@ -577,8 +577,9 @@ pub fn build_tree(
                 detail: Some(if linked { "Linked" } else { "Independent" }.into()),
                 level: if half_level == 0 { 1 } else { 2 },
                 kind: TreeKind::Layout,
-                context: Some(TreeContext::Matrix {
-                    matrix_id: layout.matrix_id.clone(),
+                context: Some(TreeContext::LayoutGroup {
+                    board_id: board_id.to_owned(),
+                    layout_ids: vec![layout.id.clone()],
                 }),
                 expanded: Some(is_open),
                 primary_id: None,
@@ -586,10 +587,10 @@ pub fn build_tree(
             });
             if is_open {
                 let child_level = if half_level == 0 { 2 } else { 3 };
-                if let Some(matrix) = matrices
+                for matrix in matrices
                     .iter()
                     .copied()
-                    .find(|matrix| matrix.id == layout.matrix_id)
+                    .filter(|matrix| layout.matrix_ids.contains(&matrix.id))
                 {
                     append_matrix(
                         &mut tree,
@@ -601,7 +602,7 @@ pub fn build_tree(
                         grouping,
                         expanded,
                         child_level,
-                        false,
+                        layout.matrix_ids.len() > 1,
                         board_id,
                         outline_scenes,
                         &layout_key,
@@ -1131,9 +1132,10 @@ pub fn resolve_selection(
             let mut ids = Vec::new();
             for layout in current_layouts.into_iter().flatten() {
                 ids.extend(layout.part_ids.iter().filter(|id| is_live(id)).cloned());
-                let (matrix, scene) =
-                    matrix_for_board(document, &snapshot.scene, board, &layout.matrix_id)?;
-                ids.extend(matrix_ordered_members(matrix, scene, None));
+                for matrix_id in &layout.matrix_ids {
+                    let (matrix, scene) = matrix_for_board(document, &snapshot.scene, board, matrix_id)?;
+                    ids.extend(matrix_ordered_members(matrix, scene, None));
+                }
             }
             let mut seen = HashSet::new();
             ids.retain(|id| seen.insert(id.clone()));

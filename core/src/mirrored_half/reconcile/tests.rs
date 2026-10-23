@@ -5361,7 +5361,7 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
         .iter_mut()
         .find(|matrix| matrix.id == "source-matrix")
         .unwrap()
-        .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>() = vec![f64::MAX, f64::MAX, 0.0];
+        .column_layout = vec![crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, Default::default()];
     assert_rejected(document, &projection, "non-finite splay geometry");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
@@ -6436,7 +6436,7 @@ fn reconcile_projects_associated_independent_parts_and_preserves_fixed_layouts()
     assert_eq!(document.layouts[1].id, mirror_layout.id);
     assert_eq!(document.layouts[1].name, mirror_layout.name);
     assert_eq!(document.layouts[1].board_id, mirror_layout.board_id);
-    assert_eq!(document.layouts[1].matrix_id, mirror_layout.matrix_id);
+    assert_eq!(document.layouts[1].matrix_ids, mirror_layout.matrix_ids);
     assert_eq!(document.layouts[1].mirror_link, mirror_layout.mirror_link);
     assert_eq!(
         document.layouts[1].part_ids,
@@ -7552,13 +7552,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         id: "source-layout".into(),
         name: "Source matrix layout".into(),
         board_id: context.source_board_id.clone(),
-        matrix_id: context
-            .matrix_pair
-            .as_ref()
-            .unwrap()
-            .source_id
-            .as_str()
-            .to_owned(),
+        matrix_ids: vec![context.matrix_pair.as_ref().unwrap().source_id.as_str().to_owned()],
         part_ids: vec![source_member],
         mirror_link: None,
     };
@@ -7566,13 +7560,7 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         id: "mirror-layout".into(),
         name: "Target matrix layout".into(),
         board_id: context.mirror_board_id.clone(),
-        matrix_id: context
-            .matrix_pair
-            .as_ref()
-            .unwrap()
-            .mirror_id
-            .as_str()
-            .to_owned(),
+        matrix_ids: vec![context.matrix_pair.as_ref().unwrap().mirror_id.as_str().to_owned()],
         part_ids: vec![mirror_member],
         mirror_link: None,
     };

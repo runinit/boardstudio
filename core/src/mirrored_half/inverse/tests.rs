@@ -1166,7 +1166,7 @@ fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_loca
     };
     assert_eq!(layout.id, "left-layout");
     assert_eq!(layout.board_id, "left");
-    assert_eq!(layout.matrix_id, "left-keys");
+    assert_eq!(layout.matrix_ids, ["left-keys"]);
     assert_eq!(layout.part_ids, ["left/U1", "left/HEADER", "left/GONE"]);
 }
 
@@ -1317,7 +1317,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     ));
 
     let mut reassigned = document.layouts[1].clone();
-    reassigned.matrix_id = "left-keys".into();
+    reassigned.matrix_ids = vec!["left-keys".into()];
     assert!(matches!(
         canonicalize(&document, &EditOperation::SetLayout { layout: reassigned }),
         Err(Refusal::Request(message)) if message.contains("ownership")
