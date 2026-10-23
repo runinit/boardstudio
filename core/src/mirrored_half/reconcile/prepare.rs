@@ -651,6 +651,7 @@ pub(crate) fn prepare_transaction_with_ledger(
 
     let positions = operation_positions(&canonical.operation);
     let mut framed = initial_framed_constraints(&canonical);
+    crate::matrix::layout::resolve(&mut draft)?;
     changed.extend(crate::constraints::resolve_prepared(
         &mut draft, positions, &framed,
     )?);
@@ -669,6 +670,7 @@ pub(crate) fn prepare_transaction_with_ledger(
 
     framed = bind_deferred_constraints(&draft, &canonical, &framed)?;
     persist_retuned_constraints(accepted, &mut draft, &canonical, &framed)?;
+    crate::matrix::layout::resolve(&mut draft)?;
     changed.extend(crate::constraints::resolve_prepared(
         &mut draft, positions, &framed,
     )?);

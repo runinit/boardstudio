@@ -178,6 +178,63 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
 }
 
 #[test]
+fn omitted_matrix_membership_keeps_a_live_anchor_without_materialized_parts() {
+    let mut document = baseline();
+    document["constraints"] = json!([]);
+    document["parts"] = json!([]);
+    document["boards"][0]["partIds"] = json!([]);
+    document["matrices"][0]["columns"] = json!(1);
+    document["matrices"][0]["partIds"] = json!([]);
+    document["matrices"][0]["cells"] = json!([{
+        "row": 0, "column": 0, "enabled": true,
+        "shift": {"x": 2.0, "y": 0.0}, "bend": 90.0
+    }]);
+    let child = json!({
+        "id": "child", "boardId": "board", "rows": 1, "columns": 1,
+        "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": -19.0},
+        "definitionId": "def", "partIds": [],
+        "anchor": {"matrixId": "matrix", "row": 0, "column": 0}
+    });
+    let mut mirror_child = child.clone();
+    mirror_child["id"] = json!("mirror-child");
+    mirror_child["anchor"]["matrixId"] = json!("omitted");
+    mirror_child["mirror"] = json!("x");
+    document["matrices"].as_array_mut().unwrap().extend([mirror_child, child]);
+    document["layouts"] = json!([
+        {"id": "source", "name": "Source", "boardId": "board", "matrixIds": ["child", "matrix"], "partIds": []},
+        {"id": "mirror", "name": "Mirror", "boardId": "board", "matrixIds": ["omitted", "mirror-child"], "partIds": [],
+         "mirrorLink": {"sourceId": "source", "axisX": 50.0,
+            "correspondences": [
+                {"kind": "matrix", "sourceId": "child", "mirrorId": "mirror-child"},
+                {"kind": "matrix", "sourceId": "matrix", "mirrorId": "omitted"},
+                {"kind": "part", "sourceId": "matrix/matrix/r0c0", "mirrorId": "matrix/omitted/r0c0"}
+            ],
+            "exceptions": [{"kind": "matrix", "mirrorId": "omitted", "state": "omitted"}]
+        }}
+    ]);
+    let mut engine = CoreEngine::new();
+    let opened = open(&mut engine, "omitted", &document);
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let child_pose = |reply: &Value| reply["document"]["parts"].as_array().unwrap().iter().find(|part| part["id"] == "matrix/mirror-child/r0c0").unwrap()["pose"].clone();
+    assert!((child_pose(&opened)["at"]["x"].as_f64().unwrap() - 79.0).abs() < 1e-9);
+    assert_eq!(child_pose(&opened)["rotation"], -90.0);
+    let mut changed = opened["document"]["matrices"][0].clone();
+    changed["cells"][0]["shift"]["x"] = json!(5.0);
+    let edited = request(&mut engine, json!({"kind":"edit","id":"move-source","command":{
+        "baseRevision":0,"transactionId":"move-source","phase":"commit","targetIds":[],
+        "operation":{"kind":"set-matrix","matrix":changed}
+    }}));
+    assert_eq!(edited["kind"], "scene", "{edited}");
+    assert!((child_pose(&edited)["at"]["x"].as_f64().unwrap() - 76.0).abs() < 1e-9, "{edited}");
+    assert!(!edited["document"]["parts"].as_array().unwrap().iter().any(|part| part["id"].as_str().unwrap().starts_with("matrix/omitted/")));
+    assert_eq!(edited["document"]["layouts"][1]["matrixIds"], json!(["omitted", "mirror-child"]));
+    let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
+    assert_eq!(child_pose(&undone), child_pose(&opened));
+    let redone = request(&mut engine, json!({"kind":"redo","id":"redo"}));
+    assert_eq!(child_pose(&redone), child_pose(&edited));
+}
+
+#[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     use boardstudio_core::migrate::CURRENT_VERSION;
 

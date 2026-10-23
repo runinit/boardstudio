@@ -243,6 +243,9 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
     };
+    if exception_state(doc, MirroredItemKind::Matrix, &target_id) == Some(MirroredExceptionState::Omitted) {
+        return Ok(vec![]);
+    }
     let source = doc
         .matrices
         .iter()

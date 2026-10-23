@@ -635,7 +635,7 @@ impl CoreEngine {
             }
             let mut raw_changed = raw_changed;
             electrical::preserve_handoff(&self.document, &mut raw_next);
-            if let Err(message) = layout::validate(&raw_next) {
+            if let Err(message) = layout::resolve(&mut raw_next) {
                 return self.error(id, &message);
             }
             match constraints::resolve_edit(&mut raw_next, &command.operation) {
