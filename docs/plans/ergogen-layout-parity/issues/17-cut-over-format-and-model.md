@@ -5,6 +5,7 @@ Type: build
 Blocked by: [16](16-build-layout-kernel.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Split into: [17a](17a-grouped-model-and-core-callers.md) · [17b](17b-validation-and-ownership.md) · [17c](17c-kernel-production-routing.md) · [17d](17d-entry-path-gates.md) · [17e](17e-fixtures-and-final-gate.md)
 
 ## Outcome
 
