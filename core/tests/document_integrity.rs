@@ -55,6 +55,16 @@ fn assert_error(reply: &Value) {
     assert_eq!(reply["kind"], "error", "expected an error, got {reply}");
 }
 
+/// A refusal for the stated reason, not merely any refusal.
+fn assert_refused(reply: &Value, reason: &str) {
+    assert_error(reply);
+    let message = reply["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains(reason),
+        "expected a refusal containing {reason:?}, got {message:?}"
+    );
+}
+
 #[test]
 fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     let mut document = baseline();
@@ -112,28 +122,49 @@ fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically
     let mut engine = CoreEngine::new();
     assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
     let accepted = snapshot(&mut engine);
-    for (field, value) in [
-        ("columnLayout", json!([{}, {}, {}])),
-        ("rowLayout", json!([{}, {}])),
-        ("columnLayout", json!([{"spread": 0.0}])),
-        ("rowLayout", json!([{"padding": -2.0}])),
+    for (field, value, reason) in [
+        (
+            "columnLayout",
+            json!([{}, {}, {}]),
+            "layout list exceeds axis count",
+        ),
+        (
+            "rowLayout",
+            json!([{}, {}]),
+            "layout list exceeds axis count",
+        ),
+        (
+            "columnLayout",
+            json!([{"spread": 0.0}]),
+            "no Spread or Padding at axis zero",
+        ),
+        (
+            "rowLayout",
+            json!([{"padding": -2.0}]),
+            "no Spread or Padding at axis zero",
+        ),
         (
             "anchor",
             json!({"matrixId": "missing", "row": 0, "column": 0}),
+            "anchor target missing is missing",
         ),
         (
             "anchor",
             json!({"matrixId": "matrix", "row": 0, "column": 0}),
+            "Matrix anchor cycle at matrix",
         ),
     ] {
         let mut invalid = document.clone();
         invalid["matrices"][0][field] = value;
-        assert_error(&open(&mut engine, "invalid-layout", &invalid));
+        assert_refused(&open(&mut engine, "invalid-layout", &invalid), reason);
         assert_eq!(snapshot(&mut engine), accepted);
     }
     let mut empty = document;
     empty["layouts"][0]["matrixIds"] = json!([]);
-    assert_error(&open(&mut engine, "empty-layout", &empty));
+    assert_refused(
+        &open(&mut engine, "empty-layout", &empty),
+        "Layout matrix membership must be nonempty",
+    );
     assert_eq!(snapshot(&mut engine), accepted);
 }
 
@@ -810,4 +841,371 @@ fn refused_open_preserves_nonempty_history() {
     assert_eq!(undone["kind"], "scene");
     assert_eq!(undone["scene"]["revision"], 2);
     assert!(undone["document"].get("hardware").is_none());
+}
+
+fn two_matrix_document() -> Value {
+    let mut document = baseline();
+    document["constraints"] = json!([]);
+    document["parts"].as_array_mut().unwrap().push(json!(
+        {"id":"c","definitionId":"def","reference":"SW3","pose":{"at":{"x":0,"y":-19},"rotation":0},"side":"front"}
+    ));
+    document["boards"][0]["partIds"] = json!(["a", "b", "c"]);
+    document["matrices"].as_array_mut().unwrap().push(json!({
+        "id":"second","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":-19},
+        "definitionId":"def","partIds":["c"],"boardId":"board"
+    }));
+    document["layouts"] = json!([{
+        "id": "layout", "name": "Layout", "boardId": "board",
+        "matrixIds": ["matrix", "second"], "partIds": []
+    }]);
+    document
+}
+
+#[test]
+fn zero_and_negative_steps_are_accepted_while_axis_zero_steps_are_refused() {
+    let mut engine = CoreEngine::new();
+    let mut valid = two_matrix_document();
+    valid["matrices"][0]["columnLayout"] = json!([{}, {"spread": -4.0}]);
+    valid["matrices"][0]["rowLayout"] = json!([]);
+    assert_eq!(open(&mut engine, "negative", &valid)["kind"], "scene");
+    valid["matrices"][0]["columnLayout"] = json!([{}, {"spread": 0.0}]);
+    assert_eq!(open(&mut engine, "zero", &valid)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut axis_zero = valid.clone();
+    axis_zero["matrices"][0]["columnLayout"] = json!([{"spread": 3.0}]);
+    assert_refused(
+        &open(&mut engine, "axis-zero", &axis_zero),
+        "no Spread or Padding at axis zero",
+    );
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn anchors_must_resolve_to_an_in_range_key_in_the_same_layout() {
+    let mut engine = CoreEngine::new();
+    let mut valid = two_matrix_document();
+    valid["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
+    assert_eq!(open(&mut engine, "valid", &valid)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut cases = Vec::new();
+    let mut out_of_range = valid.clone();
+    out_of_range["matrices"][1]["anchor"]["column"] = json!(2);
+    cases.push((
+        "out-of-range",
+        out_of_range,
+        "anchor key matrix/matrix/r0c2 is missing",
+    ));
+    let mut other_layout = valid.clone();
+    other_layout["layouts"] = json!([
+        {"id":"layout","name":"Layout","boardId":"board","matrixIds":["matrix"],"partIds":[]},
+        {"id":"other","name":"Other","boardId":"board","matrixIds":["second"],"partIds":[]}
+    ]);
+    cases.push((
+        "other-layout",
+        other_layout,
+        "anchor must stay on the same board and Layout",
+    ));
+    let mut unowned = valid.clone();
+    unowned["layouts"][0]["matrixIds"] = json!(["matrix"]);
+    cases.push((
+        "unowned",
+        unowned,
+        "Anchored matrix second must belong to a Layout",
+    ));
+    let mut cycle = valid.clone();
+    cycle["matrices"][0]["anchor"] = json!({"matrixId": "second", "row": 0, "column": 0});
+    cases.push(("cycle", cycle, "Matrix anchor cycle at"));
+    let mut shared = valid.clone();
+    shared["layouts"].as_array_mut().unwrap().push(json!(
+        {"id":"again","name":"Again","boardId":"board","matrixIds":["second"],"partIds":[]}
+    ));
+    cases.push((
+        "two-layouts",
+        shared,
+        "Each layout must own distinct matrices on its board",
+    ));
+    for (name, case, reason) in cases {
+        assert_refused(&open(&mut engine, name, &case), reason);
+        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+    }
+}
+
+#[test]
+fn anchors_without_any_layout_are_refused_not_read_as_world_origin() {
+    let mut engine = CoreEngine::new();
+    let mut document = two_matrix_document();
+    document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 0});
+    document["layouts"] = json!([]);
+    assert_refused(
+        &open(&mut engine, "no-layout", &document),
+        "must belong to a Layout",
+    );
+}
+
+#[test]
+fn non_finite_evaluated_layouts_and_empty_ownership_are_refused() {
+    let mut engine = CoreEngine::new();
+    let valid = two_matrix_document();
+    assert_eq!(open(&mut engine, "valid", &valid)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut overflow = valid.clone();
+    overflow["matrices"][0]["columnLayout"] =
+        json!([{}, {"offset": {"x": 1e308, "y": 0.0}, "stagger": 1e308}]);
+    overflow["matrices"][0]["cells"] =
+        json!([{"row":0,"column":1,"enabled":true,"shift":{"x":1.7e308,"y":0.0}}]);
+    let mut orphan = valid.clone();
+    orphan["layouts"][0]["matrixIds"] = json!(["matrix", "missing"]);
+    let mut duplicate_member = valid.clone();
+    duplicate_member["layouts"][0]["matrixIds"] = json!(["matrix", "matrix"]);
+    let mut other_board = valid.clone();
+    other_board["boards"].as_array_mut().unwrap().push(json!({
+        "id":"board2","name":"Board 2","outlineIds":[],"partIds":[],"netIds":[],"thickness":1.6
+    }));
+    other_board["matrices"][1]["boardId"] = json!("board2");
+    other_board["boards"][0]["partIds"] = json!(["a", "b"]);
+    other_board["boards"][1]["partIds"] = json!(["c"]);
+    for (name, case, reason) in [
+        (
+            "overflow",
+            overflow,
+            "layout values and evaluated results must be finite",
+        ),
+        ("orphan", orphan, "Logical matrix missing is missing"),
+        (
+            "duplicate-member",
+            duplicate_member,
+            "Each layout must own distinct matrices on its board",
+        ),
+        (
+            "other-board",
+            other_board,
+            "Each layout must own distinct matrices on its board",
+        ),
+    ] {
+        assert_refused(&open(&mut engine, name, &case), reason);
+        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+    }
+}
+
+fn edit(engine: &mut CoreEngine, revision: u64, operation: Value) -> Value {
+    request(
+        engine,
+        json!({"kind":"edit","id":"probe","command":{
+            "baseRevision":revision,"transactionId":"probe","phase":"commit","targetIds":[],
+            "operation":operation
+        }}),
+    )
+}
+
+#[test]
+fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
+    let mut engine = CoreEngine::new();
+    let mut document = two_matrix_document();
+    document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut shrunk = accepted["matrices"][0].clone();
+    shrunk["columns"] = json!(1);
+    shrunk["partIds"] = json!(["a"]);
+    let reply = edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":shrunk}));
+    assert_refused(&reply, "anchor key matrix/matrix/r0c1 is missing");
+    assert_eq!(snapshot(&mut engine), accepted);
+    let mut unowned = accepted["matrices"][1].clone();
+    unowned["anchor"] = json!({"matrixId": "missing", "row": 0, "column": 0});
+    assert_refused(
+        &edit(
+            &mut engine,
+            0,
+            json!({"kind":"set-matrix","matrix":unowned}),
+        ),
+        "anchor target missing is missing",
+    );
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn an_anchor_without_follow_follows_all_three_components() {
+    let pose = |follow: Option<Value>| {
+        let mut engine = CoreEngine::new();
+        let mut document = two_matrix_document();
+        document["matrices"][0]["rotation"] = json!(30.0);
+        document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
+        if let Some(follow) = follow {
+            document["matrices"][1]["anchor"]["follow"] = follow;
+        }
+        let reply = open(&mut engine, "follow", &document);
+        assert_eq!(reply["kind"], "scene", "{reply}");
+        reply["scene"]["matrixScenes"][1]["cells"][0]["pose"].clone()
+    };
+    let default = pose(None);
+    assert_eq!(default, pose(Some(json!(["x", "y", "rotation"]))));
+    let own = pose(Some(json!([])));
+    assert_ne!(default, own);
+    // Following nothing contributes no anchor translation or rotation (pose pinned from output).
+    let number = |value: &Value| value.as_f64().unwrap();
+    assert_eq!(number(&own["at"]["x"]), 0.0);
+    assert_eq!(number(&own["at"]["y"]), 0.0);
+    assert_eq!(number(&own["rotation"]), 0.0);
+}
+
+/// Renames every string equal to `old` anywhere in the document.
+fn rename_id(value: &mut Value, old: &str, new: &str) {
+    match value {
+        Value::String(text) if text == old => *text = new.to_string(),
+        Value::Array(items) => items.iter_mut().for_each(|item| rename_id(item, old, new)),
+        Value::Object(fields) => fields
+            .values_mut()
+            .for_each(|item| rename_id(item, old, new)),
+        _ => {}
+    }
+}
+
+#[test]
+fn anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused() {
+    let mut engine = CoreEngine::new();
+    let mut document = two_matrix_document();
+    document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut constrained = document.clone();
+    for (old, new) in [
+        ("a", "matrix/matrix/r0c0"),
+        ("b", "matrix/matrix/r0c1"),
+        ("c", "matrix/second/r0c0"),
+    ] {
+        rename_id(&mut constrained, old, new);
+    }
+    constrained["constraints"] = json!([{
+        "kind":"offset","id":"constraint","sourcePartId":"matrix/matrix/r0c0",
+        "targetPartId":"matrix/matrix/r0c1","offset":{"x":19,"y":0},"rotation":0
+    }]);
+    let mut itself = document.clone();
+    itself["matrices"][1]["anchor"] = json!({"matrixId": "second", "row": 0, "column": 0});
+    let mut part_in_matrix_layout = document.clone();
+    part_in_matrix_layout["layouts"][0]["partIds"] = json!(["a"]);
+    let mut duplicate_parts = document.clone();
+    duplicate_parts["parts"].as_array_mut().unwrap().push(json!(
+        {"id":"d","definitionId":"def","reference":"SW4","pose":{"at":{"x":0,"y":40},"rotation":0},"side":"front"}
+    ));
+    duplicate_parts["boards"][0]["partIds"] = json!(["a", "b", "c", "d"]);
+    duplicate_parts["layouts"][0]["partIds"] = json!(["d", "d"]);
+    for (name, case, reason) in [
+        (
+            "constrained-anchor-key",
+            constrained,
+            "is constraint-driven",
+        ),
+        ("self-anchor", itself, "Matrix anchor cycle at second"),
+        (
+            "matrix-part-in-layout",
+            part_in_matrix_layout,
+            "Layout components must be independent parts on the same board",
+        ),
+        (
+            "duplicate-parts",
+            duplicate_parts,
+            "Layout components must be independent parts on the same board",
+        ),
+    ] {
+        assert_refused(&open(&mut engine, name, &case), reason);
+        assert_eq!(snapshot(&mut engine), accepted, "{name}");
+    }
+}
+
+const DIMENSION_REFUSAL: &str = "Matrix dimensions are invalid or exceed the part limit";
+// MAX_MATRIX_PARTS (core/src/matrix.rs) + 1; the constant is pub(crate), so tests cannot import it.
+const ONE_OVER_PART_LIMIT: u32 = 4097;
+
+fn anchored_document() -> Value {
+    let mut document = two_matrix_document();
+    document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
+    document
+}
+
+fn with_dimensions(document: &Value, rows: u32, columns: u32) -> Value {
+    let mut case = document.clone();
+    case["matrices"][0]["rows"] = json!(rows);
+    case["matrices"][0]["columns"] = json!(columns);
+    case
+}
+
+#[test]
+fn a_matrix_of_u32_max_rows_is_refused_on_open_before_any_row_walk() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let huge = with_dimensions(&document, u32::MAX, 2);
+    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn a_matrix_of_u32_max_columns_is_refused_on_open_before_any_column_walk() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let huge = with_dimensions(&document, 1, u32::MAX);
+    assert_refused(&open(&mut engine, "huge", &huge), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn a_matrix_one_over_the_part_limit_is_refused_on_open() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let over = with_dimensions(&document, ONE_OVER_PART_LIMIT, 1);
+    assert_refused(&open(&mut engine, "over", &over), DIMENSION_REFUSAL);
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
+fn oversized_matrices_are_refused_through_set_matrix_and_project_matrices_with_state_unchanged() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    for (rows, columns) in [(u32::MAX, 2), (1, u32::MAX), (ONE_OVER_PART_LIMIT, 1)] {
+        let mut matrix = accepted["matrices"][0].clone();
+        matrix["rows"] = json!(rows);
+        matrix["columns"] = json!(columns);
+        let reply = edit(
+            &mut engine,
+            0,
+            json!({"kind":"set-matrix","matrix":matrix.clone()}),
+        );
+        assert_refused(&reply, DIMENSION_REFUSAL);
+        assert_eq!(
+            snapshot(&mut engine),
+            accepted,
+            "set-matrix {rows}x{columns}"
+        );
+        let reply = request(
+            &mut engine,
+            json!({"kind":"project-matrices","id":"project","baseRevision":0,"matrices":[matrix]}),
+        );
+        // The golden transcript pins the kernel's wording for draft projections.
+        assert_refused(&reply, "invalid matrix dimensions");
+        assert_eq!(snapshot(&mut engine), accepted, "project {rows}x{columns}");
+    }
+}
+
+/// Characterization: cells beyond rows x columns are refused by `valid_matrix`.
+#[test]
+fn cells_beyond_the_matrix_dimensions_are_refused_by_set_matrix() {
+    let mut engine = CoreEngine::new();
+    let document = anchored_document();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    let mut matrix = accepted["matrices"][1].clone();
+    matrix["cells"] = json!([
+        {"row":0,"column":0,"enabled":true},
+        {"row":0,"column":1,"enabled":true}
+    ]);
+    let reply = edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":matrix}));
+    assert_refused(&reply, "Matrix cells exceed dimensions");
+    assert_eq!(snapshot(&mut engine), accepted);
 }

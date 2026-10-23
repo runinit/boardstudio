@@ -177,15 +177,7 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
     {
         return Err("Matrix ID must use letters, digits, _ or -".into());
     }
-    if matrix.rows == 0
-        || matrix.columns == 0
-        || matrix
-            .rows
-            .checked_mul(matrix.columns)
-            .is_none_or(|count| count > MAX_MATRIX_PARTS)
-    {
-        return Err("Matrix dimensions are invalid or exceed the part limit".into());
-    }
+    valid_dimensions(matrix)?;
     if !matrix.pitch.x.is_finite()
         || !matrix.pitch.y.is_finite()
         || matrix.pitch.x <= 0.0
@@ -290,7 +282,22 @@ pub(crate) enum ProjectionMode {
     Draft,
 }
 
+/// Must run before any work proportional to rows or columns.
+pub(crate) fn valid_dimensions(matrix: &Matrix) -> Result<(), String> {
+    if matrix.rows == 0
+        || matrix.columns == 0
+        || matrix
+            .rows
+            .checked_mul(matrix.columns)
+            .is_none_or(|count| count > MAX_MATRIX_PARTS)
+    {
+        return Err("Matrix dimensions are invalid or exceed the part limit".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
+    valid_dimensions(matrix)?;
     let gap = matrix.edge_gap.unwrap_or(Vec2 {
         x: DEFAULT_EDGE_GAP_MM,
         y: DEFAULT_EDGE_GAP_MM,
