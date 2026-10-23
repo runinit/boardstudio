@@ -67,11 +67,9 @@ fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![],
     }
 }
@@ -317,7 +315,9 @@ fn row_offset_moves_only_its_row() {
 fn companion_matrix() -> Matrix {
     let mut matrix = matrix("main", 1, 1);
     matrix.cells = vec![MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column: 0,
         enabled: true,
@@ -641,7 +641,9 @@ fn changed_ids_are_precise() {
     let (mut engine, _, doc) = open(doc);
     let mut matrix = matrix("main", 1, 3);
     matrix.cells = vec![MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column: 1,
         enabled: true,

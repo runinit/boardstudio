@@ -720,7 +720,9 @@ fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> Ed
         cell.enabled = enabled;
     } else {
         next.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column,
             enabled,
@@ -759,7 +761,9 @@ fn set_cell_assembly(
         }
     } else {
         next.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column,
             enabled: true,
@@ -835,7 +839,9 @@ fn set_cell_transform(
         .find(|cell| cell.row == row && cell.column == column)
         .cloned()
         .unwrap_or(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column,
             enabled: true,
@@ -1560,7 +1566,9 @@ mod tests {
     fn cell_edit_preserves_order_and_untouched_cell_fields() {
         let mut matrix = matrix();
         matrix.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 1,
             enabled: false,

@@ -2639,7 +2639,9 @@ mod tests {
             .push(passive_definition("imported:existing"));
         let mut matrix = matrix_fixture();
         matrix.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 1,
             column: 2,
             enabled: true,
@@ -3642,11 +3644,9 @@ mod tests {
             rotation: None,
             edge_gap: None,
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
     bend: None,
@@ -3728,7 +3728,9 @@ mod tests {
         let mut source = matrix_fixture();
         source.id = "matrix-source".into();
         source.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 0,
             enabled: true,

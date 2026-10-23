@@ -111,11 +111,9 @@ pub(in crate::mirrored_half) fn fixture_matrix(id: &str, board_id: &str) -> Matr
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: (0..2)
             .map(|column| MatrixCell {
                 shift: None,
@@ -2858,15 +2856,15 @@ fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) -> Mat
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: (0..2)
             .flat_map(|row| {
                 (0..3).map(move |column| MatrixCell {
-                    deleted: false,
+                    shift: None,
+    bend: None,
+    deleted: false,
                     row,
                     column,
                     enabled: true,
@@ -7211,11 +7209,9 @@ fn matrix(id: &str, board_id: &str, rows: u32, columns: u32, origin: Vec2) -> Ma
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![],
     }
 }
@@ -8276,7 +8272,9 @@ fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
         (0..2)
             .flat_map(|row| {
                 (0..4).map(move |column| MatrixCell {
-                    deleted: false,
+                    shift: None,
+    bend: None,
+    deleted: false,
                     row,
                     column,
                     enabled: true,
@@ -8752,7 +8750,9 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
     expanded.columns = 5;
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column: 4,
             enabled: true,
@@ -9371,7 +9371,9 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     expanded_source.origin = Vec2 { x: 5.0, y: 1.0 };
     for row in 0..2 {
         expanded_source.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column: 3,
             enabled: true,
@@ -11185,7 +11187,9 @@ fn membership_expansion_fixture() -> MembershipExpansionFixture {
     expanded.columns = 5;
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column: 4,
             enabled: true,

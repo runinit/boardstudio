@@ -209,11 +209,9 @@ fn fixture() -> (ProjectDoc, TreeContext) {
         rotation: None,
         edge_gap: None,
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
         cells: vec![MatrixCell {
             shift: None,
     bend: None,
@@ -256,7 +254,9 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
     matrix.part_ids[0] = first_key.into();
     matrix.part_ids.push(second_key.into());
     matrix.cells.push(MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column: 1,
         enabled: true,
@@ -312,7 +312,9 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
     matrix.columns = 3;
     matrix.part_ids.push(third_key.into());
     matrix.cells.push(MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column: 2,
         enabled: true,

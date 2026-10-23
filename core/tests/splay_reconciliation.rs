@@ -16,11 +16,9 @@ fn matrix() -> Matrix {
         edge_gap: None,
 
         diode_direction: None,
-        row_offsets: vec![],
-        column_offsets: vec![],
-        column_staggers: vec![],
-        column_splays: vec![0.0, 0.0, 0.0],
-        column_origins: vec![],
+        row_layout: vec![],
+        column_layout: vec![boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }],
+        anchor: None,
         cells: vec![],
     }
 }

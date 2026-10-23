@@ -806,11 +806,9 @@ mod projection_tests {
             edge_gap: None,
 
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![0.0, 3.0],
-            column_splays: vec![0.0, 15.0],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![crate::model::ColumnLayout { ..Default::default() }, crate::model::ColumnLayout { stagger: 3.0, splay: 15.0, ..Default::default() }],
+            anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
     bend: None,

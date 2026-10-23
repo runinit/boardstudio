@@ -118,11 +118,9 @@ mod tests {
             edge_gap: None,
 
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![0.0, 3.0, -2.0],
-            column_splays: vec![9.0, 17.0, -4.0],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![crate::model::ColumnLayout { splay: 9.0, ..Default::default() }, crate::model::ColumnLayout { stagger: 3.0, splay: 17.0, ..Default::default() }, crate::model::ColumnLayout { stagger: -2.0, splay: -4.0, ..Default::default() }],
+            anchor: None,
             cells: vec![],
         }
     }

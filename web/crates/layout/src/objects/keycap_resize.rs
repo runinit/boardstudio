@@ -661,15 +661,15 @@ mod tests {
             rotation: None,
             edge_gap: Some(point(1.0, 1.0)),
             diode_direction: None,
-            row_offsets: vec![],
-            column_offsets: vec![],
-            column_staggers: vec![],
-            column_splays: vec![],
-            column_origins: vec![],
+            row_layout: vec![],
+            column_layout: vec![],
+            anchor: None,
             cells: vec![0, 1, 2]
                 .into_iter()
                 .map(|column| MatrixCell {
-                    deleted: false,
+                    shift: None,
+    bend: None,
+    deleted: false,
                     row: 0,
                     column,
                     enabled: true,
@@ -911,7 +911,9 @@ mod tests {
         matrix.part_ids = vec!["a".into(), "b".into(), "c".into()];
         matrix.cells = (0..3)
             .map(|row| MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row,
                 column: 0,
                 enabled: true,
@@ -991,7 +993,9 @@ mod tests {
         matrix.part_ids = vec!["a".into(), "b".into(), "c".into()];
         matrix.cells = (0..3)
             .map(|row| MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row,
                 column: 0,
                 enabled: true,
@@ -1134,7 +1138,9 @@ mod tests {
             matrix.part_ids.clear();
             matrix.cells = (0..3)
                 .map(|row| MatrixCell {
-                    deleted: false,
+                    shift: None,
+    bend: None,
+    deleted: false,
                     row,
                     column: 0,
                     enabled: true,
