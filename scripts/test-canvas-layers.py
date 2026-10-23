@@ -9,9 +9,10 @@ from pathlib import Path
 import threading
 
 driver = importlib.import_module("test-dock-primitives")
-driver.SESSION = "canvas-layers-016"
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "target/canvas-layers-fixture"
+TARGET = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")).resolve()
+driver.SESSION = f"canvas-layers-{ROOT.name}"
+OUT = TARGET / "canvas-layers-fixture"
 CAPTURES = ROOT / ".evidence/016" / datetime.now().strftime("layer-captures-%Y%m%d-%H%M%S")
 CAPTURES.mkdir(parents=True)
 browser, check, evaluate = driver.browser, driver.check, driver.evaluate
@@ -144,7 +145,7 @@ def main():
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver.run("cargo", "build", "--locked", "-p", "boardstudio-web-ui-shared", "--example", "canvas_layers", "--target", "wasm32-unknown-unknown", env=env)
     OUT.mkdir(parents=True, exist_ok=True)
-    driver.run(str(driver.wasm_bindgen_dir(ROOT) / "wasm-bindgen"), "--target", "web", "--out-dir", str(OUT), str(ROOT / "target/wasm32-unknown-unknown/debug/examples/canvas_layers.wasm"))
+    driver.run(str(driver.wasm_bindgen_dir(ROOT) / "wasm-bindgen"), "--target", "web", "--out-dir", str(OUT), str(TARGET / "wasm32-unknown-unknown/debug/examples/canvas_layers.wasm"))
     driver.run(str(Path.home() / ".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(OUT / "tailwind.css"))
     if not (OUT / "assets").exists():
         (OUT / "assets").symlink_to(ROOT / "web/assets", target_is_directory=True)
