@@ -4,8 +4,8 @@ Label: wayfinder:map
 
 ## Destination
 
-This map is finished when two things exist. One is an implementation-ready spec for matrix
-layout that matches ergogen's point model, covering:
+This planning map is finished when two things exist. One is an implementation-ready spec for
+the accepted subset of ergogen's point-layout model, covering:
 
 - the parameters and their order of operations;
 - how each parameter carries to later rows and columns;
@@ -15,6 +15,14 @@ layout that matches ergogen's point model, covering:
 
 The other is a set of build tickets, sliced in this plan and ready for TDD work, that keep every
 BoardStudio extended layout feature working.
+
+## Planning status
+
+Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consolidated
+[spec](spec.md) and [dependent TDD build tickets](#build-tickets) now exist. This closes
+planning, not implementation. No version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
+is the implementation release gate. Build work starts with [15](issues/15-generate-parity-fixtures.md).
+The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
 
@@ -86,6 +94,27 @@ BoardStudio extended layout feature working.
 - [13: Decide the format reset and recovery behaviour](issues/13-format-reset-and-recovery.md)
 - [14: Decide how starters and demos are rebuilt](issues/14-starters-and-demos.md)
 
+## Build tickets
+
+All are `ready-for-agent` subject to their dependency headers. Use the coordinated,
+unshipped cutover lane in the spec; do not promote intermediate version-7 writers.
+
+| Ticket | Depends on | Outcome |
+| --- | --- | --- |
+| [15: Pinned parity fixtures](issues/15-generate-parity-fixtures.md) | 10 | Independent inputs/expected poses, provenance and tooling notices. |
+| [16: Pure kernel](issues/16-build-layout-kernel.md) | 15 | One geometry module and golden comparison, staged before live cutover. |
+| [17: Model/format cutover](issues/17-cut-over-format-and-model.md) | 16 | Grouped records, Layout membership, all removed-field callers and strict gates. |
+| [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
+| [19: Anchor/Layout groups](issues/19-anchor-layout-groups.md) | 18 | Dependency evaluation, typed anchor edits and identity lifecycle. |
+| [20: Linked group reflection](issues/20-reflect-linked-layouts.md) | 19 | Both linking systems, actual/transported frames and inverse edits. |
+| [21: Exception lifecycle](issues/21-exception-lifecycle.md) | 20 | Local/Omitted resize, Rejoin, confirmed detach and source removal. |
+| [22: Consumers](issues/22-update-layout-consumers.md) | 21 | Setup, Align, selection, size/snap and downstream geometry contracts. |
+| [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md) | 22 | Accepted D interaction through real controls and trusted pointer input. |
+| [24: Relations/highlights](issues/24-relations-and-highlights.md) | 23 | Core facts, placement explanation, navigation and reference lifecycle. |
+| [25: Project recovery](issues/25-project-format-recovery.md) | 17 | Safe unsupported-project actions, drafts, saves and history lifecycle. |
+| [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md) | 24, 25 | Exact approved examples and affected schema/scene contract updates. |
+| [27: End-to-end acceptance](issues/27-end-to-end-acceptance.md) | 26 | Full production-path proof and release gate, not planning evidence. |
+
 ## Decisions so far
 
 <!-- one line per resolved ticket: linked title, then the gist -->
@@ -105,7 +134,8 @@ BoardStudio extended layout feature working.
   - An opt-in `scripts/generate-ergogen-parity-fixtures.cjs` runs ergogen pinned at
     `8286e18f`, with exact Maker.js and Math.js versions and a lockfile.
   - It writes committed JSON goldens that carry provenance and ergogen key names.
-  - Rust compares poses by `(matrix, row, column)` within `1e-9`.
+  - Rust compares poses by `(matrix, row, column)`; ticket 04 qualifies the initial
+    tolerance to `1e-6` upstream and `1e-9` for BoardStudio-only regressions.
   - Licence notices travel with the tooling.
   - The old projection oracle is replaced by regenerated BoardStudio-only regressions (see the
     ticket's comment).
@@ -155,7 +185,7 @@ BoardStudio extended layout feature working.
     and vertical handles; Alt keeps disabling snapping.
   - Affected-key previews, changed-field status and one Undo entry make carried edits visible.
   - Primary source is archived on local branch `prototype/ergogen-parity-inspector`; the
-    prototype is not production implementation. Relations remains ticket 12.
+    prototype is not production implementation. Relations semantics are recorded in ticket 12.
 - [11: Decide mirrored-half rules](issues/11-mirrored-halves-rules.md#answer):
   - Both linking systems share per-matrix/key Local, Omitted and Rejoin behaviour. New local
     layout values copy unchanged; frames and anchor identities reflect through the pair map.
@@ -193,11 +223,17 @@ BoardStudio extended layout feature working.
     poses; approve right-main Row 2 X −5 mm and Row 3 X −10 mm to become exact reflection.
   - Keep other parameter/exception stress cases in focused fixtures. Rebuild affected schema,
     scene and pose goldens without retaining old-engine maths or weakening other contracts.
+- [10: Slice the build](issues/10-slice-the-build.md#answer): consolidated the accepted
+  contract in [spec.md](spec.md), split 13 dependent TDD build tickets (15–27), and
+  explicitly deferred aggregate anchors with a qualified first-build parity claim.
+  Source checks and planning validation are not implementation acceptance.
 
-## Not yet specified
+## Deferred beyond this build
 
-- **Aggregate anchors.** Ergogen's `aggregate` anchors (average or intersection of keys), if
-  parity work shows they are needed.
+- **Aggregate anchors.** The user explicitly deferred average/intersection anchors on
+  2026-10-23. This build covers accepted parameters and single-key anchors, not complete
+  Ergogen points coverage. Future aggregate support needs its own representation,
+  evaluation/degenerate-case and UI decisions; see [ADR-0034](../../adr/0034-matrices-follow-ergogen-point-layout.md).
 
 ## Out of scope
 

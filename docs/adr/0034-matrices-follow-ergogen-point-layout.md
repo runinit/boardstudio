@@ -50,3 +50,14 @@ No legacy editor, converter, archive exporter or global browser-data wipe is int
 Failed validation preserves current work; successful replacement follows the existing
 save/publication, session-history and recovery rules. This is a future implementation
 requirement; the decision itself neither resets storage nor bumps the running format.
+
+## Amendment: first-build parity scope (2026-10-23)
+
+During [build slicing](../plans/ergogen-layout-parity/issues/10-slice-the-build.md), the
+user explicitly deferred aggregate anchors. This build covers the accepted layout
+parameters and single-key matrix anchors, with the documented BoardStudio differences
+and exclusions; it does **not** claim complete Ergogen points coverage. Average and
+intersection anchors require a separate future decision on storage, evaluation,
+degenerate cases and UI. Do not add aggregate fields or claim their semantics through
+the single-key anchor representation. The earlier full-parity goal is qualified by
+this first-build scope.
