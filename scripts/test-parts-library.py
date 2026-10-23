@@ -59,17 +59,24 @@ def main():
         assert attr("checkbox", name, "aria-checked") != before, (name, "Space did not change checkbox")
         evaluate("window.partsCheckbox=document.activeElement")
         check("partsCheckbox.id && [...document.querySelectorAll('label[for]')].filter(e=>e.htmlFor===partsCheckbox.id).length===1")
+        # Font loading can move wrapped controls; measure trusted pointer targets after it settles.
+        evaluate("document.fonts.ready.then(()=>true)")
         # Native label activation through a trusted pointer at its text node.
         point = evaluate("(()=>{const label=[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id);const text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
         hit = evaluate(f"(()=>{{const target=document.elementFromPoint({round(point['x'])},{round(point['y'])}),label=[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id);return label.contains(target);}})()")
         assert hit, (name, point, "native label pointer target is occluded")
         evaluate("window.partsLabelClicks=[];partsCheckbox.addEventListener('click',e=>partsLabelClicks.push({trusted:e.isTrusted,target:e.target.getAttribute('aria-label')}));window.partsPointerEvents=[];['pointerdown','pointerup','click'].forEach(type=>document.addEventListener(type,e=>partsPointerEvents.push({type,tag:e.target.tagName,text:e.target.textContent?.slice(0,60),name:e.target.getAttribute('aria-label'),trusted:e.isTrusted,x:e.clientX,y:e.clientY}),{capture:true,once:true}))")
-        browser("mouse", "move", round(point["x"]), round(point["y"]))
-        browser("mouse", "down")
-        browser("mouse", "up")
-        browser("wait", "--fn", f"partsCheckbox.getAttribute('aria-checked')==='{before}'", "--timeout", 5000)
-        assert attr("checkbox", name, "aria-checked") == before, (name, "label activation")
-        print("Native label activation:", name, evaluate("partsLabelClicks"), flush=True)
+        opposite = "false" if before == "true" else "true"
+        for expected in (before, opposite, before):
+            browser("mouse", "move", round(point["x"]), round(point["y"]))
+            check(f"[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id).contains(document.elementFromPoint({round(point['x'])},{round(point['y'])}))")
+            browser("mouse", "down")
+            browser("mouse", "up")
+            browser("wait", "--fn", f"partsCheckbox.getAttribute('aria-checked')==='{expected}'", "--timeout", 5000)
+            assert attr("checkbox", name, "aria-checked") == expected, (name, "label activation")
+        clicks = evaluate("partsLabelClicks")
+        assert len(clicks) == 3 and all(event["trusted"] and event["target"] == name for event in clicks), clicks
+        print("Native label activation:", name, clicks, flush=True)
 
     def slider_geometry(name, width):
         focus("slider", name)
@@ -171,10 +178,12 @@ def main():
         assert float(attr("slider", "Section position", "aria-valuenow")) == -100
         browser("press", "End")
         assert float(attr("slider", "Section position", "aria-valuenow")) == 100
+        evaluate("window.partsDragThumb=document.activeElement")
         track = evaluate("(()=>{const r=document.activeElement.closest('[data-slot=slider]').getBoundingClientRect();return {x:r.left+r.width/4,y:r.top+r.height/2}})()")
         browser("mouse", "move", round(track["x"]), round(track["y"]))
         browser("mouse", "down")
         browser("mouse", "up")
+        browser("wait", "--fn", "partsDragThumb.isConnected && partsDragThumb.getAttribute('data-dragging')==='false'", "--timeout", 5000)
         assert -51 <= float(attr("slider", "Section position", "aria-valuenow")) <= -49
         focus("slider", "Section position")
         browser("press", "End")
@@ -194,6 +203,7 @@ def main():
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 browser("set", "viewport", 1440, 960)
+                browser("wait", "--fn", "document.querySelector('[aria-label=Settings]')?.checkVisibility()", "--timeout", 5000)
                 action("button", "Settings")
                 action("menuitemradio", "Original" if theme == "original" else "shadcn")
                 action("button", "Settings")
@@ -204,7 +214,7 @@ def main():
                     browser("set", "viewport", width, height)
                     if width < 980 and has("button", "Close panels"):
                         action("button", "Close panels")
-                    for name in ("Fit sample", "View controls"):
+                    for name in ("2D footprint", "3D model", "Fit sample", "View controls"):
                         focus("button", name)
                         icon = evaluate("(()=>{const button=document.activeElement,svg=button.querySelector('svg'),r=svg.getBoundingClientRect(),b=button.getBoundingClientRect(),s=getComputedStyle(svg);return {width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:parseFloat(s.strokeWidth),bounded:r.left>=b.left&&r.right<=b.right&&r.top>=b.top&&r.bottom<=b.bottom,targetWidth:b.width,targetHeight:b.height}})()")
                         assert icon["width"] == 16 and icon["height"] == 16 and icon["bounded"], icon
@@ -224,9 +234,11 @@ def main():
                             assert abs(geometry["value"]-expected_value) < 1e-6, geometry
                             print("Slider geometry:", width, theme, appearance, name, key, geometry, flush=True)
                         point = geometry["track"]
+                        evaluate("window.partsDragThumb=document.activeElement")
                         browser("mouse", "move", round(point[0]+point[2]/4), round(point[1]+point[3]/2))
                         browser("mouse", "down")
                         browser("mouse", "up")
+                        browser("wait", "--fn", "partsDragThumb.isConnected && partsDragThumb.getAttribute('data-dragging')==='false'", "--timeout", 5000)
                         geometry = slider_geometry(name, width)
                         assert abs(geometry["value"]-quarter) <= step, geometry
                         retained("View controls", "slider", name)
@@ -329,6 +341,10 @@ def main():
                     focus("searchbox", "Search footprints")
                     check("document.activeElement.getAttribute('data-slot')==='input-group-control' && document.activeElement.getBoundingClientRect().width>0")
                     check("document.documentElement.scrollWidth<=document.documentElement.clientWidth")
+                    assembly_icon = evaluate("""(()=>{const button=document.querySelector('[aria-label="New assembly"]'),svg=button.querySelector('svg'),r=svg.getBoundingClientRect(),s=getComputedStyle(svg);
+                        return {disabled:button.disabled,width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:parseFloat(s.strokeWidth)}})()""")
+                    assert assembly_icon["disabled"] and assembly_icon["width"] == 16 and assembly_icon["height"] == 16, assembly_icon
+                    assert assembly_icon["fill"] == "none" and assembly_icon["stroke"] != "none" and assembly_icon["strokeWidth"] == 1.5, assembly_icon
                     browser("screenshot", str((args.evidence / f"parts-{width}-{theme}-{appearance}.png").resolve()))
                     if width < 980:
                         action("tab", "Inspector")

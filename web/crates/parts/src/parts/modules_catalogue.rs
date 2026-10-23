@@ -5,7 +5,7 @@ use boardstudio_core::model::{
     HardwareOutput, ModuleDefinition, PartDefinition, PartModel, Side, Vec3, VikRole,
 };
 use boardstudio_web_ui_shared::ui::{
-    button::Button,
+    button::{Button, ButtonVariant},
     collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
     table::{Table, TableBody, TableCell, TableRow},
 };
@@ -539,7 +539,7 @@ pub fn ModuleInspector(
         }
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
-            Button {
+            Button { variant: ButtonVariant::Secondary,
                 class: "m1-parts-place-assembly",
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"

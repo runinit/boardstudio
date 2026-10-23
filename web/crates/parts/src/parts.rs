@@ -57,7 +57,7 @@ fn AssemblyCreateButton() -> Element {
             Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::IconSm,
                 aria_label: "New assembly", disabled: current.is_none(),
                 onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
-                svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
+                svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
             }
         } }
         TooltipContent { "New key assembly" }
