@@ -1,5 +1,6 @@
 //! Browser coverage for the mounted canvas composition and form ownership.
 use super::*;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 
@@ -182,8 +183,18 @@ async fn rendered() {
     gloo_timers::future::TimeoutFuture::new(10).await;
 }
 
-fn set_input(selector: &str, value: &str) {
-    let input = element(selector);
+fn control(role: &str, name: &str) -> web_sys::HtmlElement {
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id("mirror-overlay-test-root")
+        .unwrap();
+    by_role_name(&root, role, name).unwrap_or_else(|| panic!("missing {role}: {name}"))
+}
+
+fn set_input(role: &str, name: &str, value: &str) {
+    let input = control(role, name);
     input
         .dyn_ref::<web_sys::HtmlInputElement>()
         .unwrap()
@@ -217,56 +228,71 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .length()
         == 1;
     let paired_fields = [
-        "Left layout name",
-        "Right layout name",
-        "Rows per half",
-        "Columns per half",
+        ("textbox", "Left layout name"),
+        ("textbox", "Right layout name"),
+        ("spinbutton", "Rows per half"),
+        ("spinbutton", "Columns per half"),
     ]
     .into_iter()
-    .all(|label| {
-        document
-            .query_selector(&format!(
-                "#mirror-overlay-workspace .m1-mirrored-pair-fields > label input[aria-label='{label}']"
-            ))
+    .all(|(role, name)| {
+        control(role, name)
+            .closest(".m1-mirrored-pair-fields")
             .unwrap()
             .is_some()
     });
-    let assembly_options = element("#mirror-overlay-workspace select[aria-label='Key assembly']")
-        .text_content()
+    control("button", "Key assembly").click();
+    wait_until("the real mirrored-pair assembly choices open", || {
+        let root = document
+            .get_element_by_id("mirror-overlay-test-root")
+            .unwrap();
+        by_role_name(&root, "listbox", "Key assembly").is_some()
+    })
+    .await;
+    let choices = control("listbox", "Key assembly");
+    let assembly_options = choices.text_content().unwrap();
+    let escape_options = web_sys::KeyboardEventInit::new();
+    escape_options.set_bubbles(true);
+    escape_options.set_key("Escape");
+    document
+        .active_element()
+        .unwrap()
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape_options)
+                .unwrap(),
+        )
         .unwrap();
-    set_input(
-        "#mirror-overlay-workspace input[aria-label='Left layout name']",
-        "Kept left draft",
-    );
+    wait_until("the mirrored-pair choice popup returns focus", || {
+        control("button", "Key assembly")
+            .get_attribute("aria-expanded")
+            .as_deref()
+            == Some("false")
+            && document.active_element() == Some(control("button", "Key assembly").into())
+    })
+    .await;
+    set_input("textbox", "Left layout name", "Kept left draft");
     rendered().await;
-    set_input(
-        "#mirror-overlay-workspace input[aria-label='Rows per half']",
-        "4",
-    );
+    set_input("spinbutton", "Rows per half", "4");
     rendered().await;
-    set_input(
-        "#mirror-overlay-workspace input[aria-label='Columns per half']",
-        "6",
-    );
+    set_input("spinbutton", "Columns per half", "6");
     rendered().await;
-    element("#mirror-overlay-workspace button[type='submit']").click();
+    control("button", "Preview placement").click();
     rendered().await;
     let preview = element("#mirror-overlay-preview-result");
     let preview_owner = preview.get_attribute("data-owner").unwrap();
     let preview_values = preview.get_attribute("data-values").unwrap();
 
-    element("#mirror-overlay-return").click();
+    control("button", "Return to form").click();
     rendered().await;
-    let retained_left = element("#mirror-overlay-workspace input[aria-label='Left layout name']")
+    let retained_left = control("textbox", "Left layout name")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
-    let retained_rows = element("#mirror-overlay-workspace input[aria-label='Rows per half']")
+    let retained_rows = control("spinbutton", "Rows per half")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
 
-    let left = element("#mirror-overlay-workspace input[aria-label='Left layout name']");
+    let left = control("textbox", "Left layout name");
     let escape_options = web_sys::KeyboardEventInit::new();
     escape_options.set_bubbles(true);
     escape_options.set_key("Escape");
@@ -283,13 +309,13 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .unwrap()
         .is_none();
 
-    element("#mirror-overlay-new-owner").click();
+    control("button", "Open new form").click();
     rendered().await;
-    let reset_left = element("#mirror-overlay-workspace input[aria-label='Left layout name']")
+    let reset_left = control("textbox", "Left layout name")
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
-    element("#mirror-overlay-workspace footer button[type='button']").click();
+    control("button", "Cancel").click();
     rendered().await;
     let clicked_cancel_owner = element("#mirror-overlay-cancel-result")
         .get_attribute("data-owner")

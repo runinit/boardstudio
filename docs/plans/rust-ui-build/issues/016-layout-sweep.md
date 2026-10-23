@@ -430,3 +430,48 @@ No Add/action style change is made: a fresh page will independently report its
 Secondary result, and any remaining legacy accent cause will be identified before
 further scope. Source scope proof for the 78 variant replacements is
 `.evidence/016/secondary-owned-source-scope.log`; mapping has only the approved row.
+
+
+The full Layout run at `54f64bae` now executes 156 tests: 148 pass and eight fail.
+First failure is `mirrored_pair/canvas_overlay_tests.rs` still requesting the removed
+native Key assembly select; later failures follow a corrupted panic hook and must
+be rerun after that correction (`layout-browser-owned-3.log`). Before the test-only
+edit, this additional owned integration-test path is inventoried: replace control
+locators/native option enumeration only; retain canvas geometry/placement, keyed
+form draft, exact preview values, owner cancellation and Escape assertions. Canvas
+production source and all domain callbacks remain unchanged.
+
+
+## Add object legacy accent cause and narrow correction proposal
+
+Fresh page build `54f64bae` after the approved seven selector edits and 017 merge
+passed (`layout-production-fast-build-2.log`); providers are honestly reused from
+`96e00553` because their source/contracts are unchanged. Actual copied Layout view
+controls now pass all 12 combinations, with native legacy branch unchanged, 44×44
+rectangles, correct pressed fill, focus ring and disabled CSS:
+`layout-view-controls-verified-copy-padding.log` reports `View style failures: []`.
+Captures: `.evidence/016/view-controls-20261022-205239/`. These are style/empty-Layout
+captures, not complete populated Layout acceptance or owner-disabled behavior.
+
+The first post-fix probe expected zero block padding without a source basis. Targeted
+CDP matched-rule inspection of the actual role/name focused 2D control proves its
+only block padding comes from Chromium155's user-agent 1px rule; the copy sets px-2
+(8px inline), with no vertical padding class. No legacy rule matches it now. Receipt
+`view-padding-cascade-node-diagnostic.log`; the preceding diagnostic lacked a CDP
+document node and is retained separately. Corrected the expectation to that proven
+canonical contract; no production style was changed for the test.
+
+Owned Secondary Add object independently still fails fill/ink in all 12 combinations
+(the same log fails on that assertion). Exact cause: `web/assets/m1.css` lines 280–281:
+`.m1-layout-add-object > .m1-layout-add-trigger` supplies accent/on-accent, and
+`.m1-layout-add-trigger:hover:not(:disabled)` supplies accent-dark. Their only Rust
+callers are the two owned copied Secondary Buttons in `objects.rs::AddObjectEntry`
+and `presentation/layout_workspace.rs::add_objects`; no other native/landed caller
+uses that class. Proposed smallest correction: delete only those two exclusive old
+control-look rules. Preserve the adjacent width/min-height owner rule, container, SVG,
+all callbacks, native sizes and all other actions. No action style edit is made yet.
+
+Actual mirrored-pair overlay integration is now GREEN 1/1 (156 filtered), preserving
+its exact preview values, keyed draft identity and both cancel-owner outcomes:
+`mirrored-overlay-roles-green.log`. Only role/name form locators and real popup option
+enumeration changed; the canvas production source remains unchanged.

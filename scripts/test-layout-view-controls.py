@@ -83,7 +83,8 @@ def tests(url, captures):
                     "secondary fill": secondary["background"] == secondary["expectedBackground"],
                     "secondary ink": secondary["color"] == secondary["expectedColor"],
                     "copied font": copied["font"] == "14px",
-                    "copied padding": copied["padding"] == "0px 8px",
+                    # The copy sets px-2; Chromium's UA rule supplies 1px block padding.
+                    "copied padding": copied["padding"] == "1px 8px",
                     "copied pressed color": copied["pressed"] == "true" and copied["bg"] == result["expectedBackground"],
                     "copied focus": copied["outline"] == "none" and "3px" in copied["shadow"],
                     "touch rectangle": copied["width"] >= 44 and copied["height"] >= 44,
