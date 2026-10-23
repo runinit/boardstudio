@@ -368,3 +368,65 @@ because this crate does not enable PointerEventInit (`grouping-actual-pointer-gr
 used the already-enabled PointerEvent/Event initialization API instead, without a
 manifest, feature or dependency change. The event's default primary button and
 complete bubbling down/up gesture exercise the existing primitive listener.
+
+
+## Additional Layout view CSS lease proposal (actual Editor RED)
+
+Packaged production build at `96e00553` passed (`layout-production-fast-build-1.log`);
+`--fast` skips wasm-opt and is not the shipping/global build gate. The owned site is
+under the exclusive target and served only on 127.0.0.1:4186. After that command
+completed, reviewed 017 feature `43fae25436776955ec1b3f363e61be30f3425661` merged
+at `4d3b9d5256798c3c65ce51c71aabab9fc28af29c`, clean automatic CSS merge. Mechanical
+source/tests, CONTROL and lock match canonical feature; only the existing owned
+016 CSS deletions differ. The existing site remains attributed to its earlier build pin.
+
+Actual Editor view-control RED in all 12 combinations is captured in
+`.evidence/016/layout-view-controls-count-aware-red.log` and
+`.evidence/016/view-controls-20261022-204613/`: 12px font, 10px padding, 40×40 target,
+legacy selection fill and solid outline instead of the copied control look.
+Its secondary-action probe incorrectly picked the already-landed 014 Ghost footer;
+that part is not valid Secondary evidence and the footer is unchanged. The corrected
+probe targets actual owned Add object; eight desktop combinations show its Secondary
+class but legacy accent fill/white text (`layout-view-controls-owned-action-red.log`).
+The first run's hard-coded zero findings count was a locator setup failure. These
+raw receipts are retained, and the script now waits for real CSS animations to finish
+before measuring, rather than accepting transient colour/focus values.
+
+The previously approved m1.css button/pressed/focus and tailwind.css control-height
+exclusions alone cannot remove later overrides. Request exactly three additional
+Layout-only selector portions in `web/tailwind.css` (current lines 809, 1436–1437):
+
+- `.m1-layout-view-group button` in the narrow media rule becomes
+  `.m1-layout-view-group button:where(:not([data-slot]))`.
+- `.m1-layout-view-group.board-tool-pill button` becomes
+  `.m1-layout-view-group.board-tool-pill button:where(:not([data-slot]))`.
+- `.m1-layout-view-group.board-tool-pill button[aria-pressed='true']` becomes
+  `.m1-layout-view-group.board-tool-pill button:where(:not([data-slot]))[aria-pressed='true']`.
+
+All declarations and Case/design alternatives stay byte-for-byte; root/015 placement,
+44px sizing-only branches and SVG geometry are unchanged. These three extra portions
+remain unedited pending the coordinator decision. Original approved portions will
+use the same zero-specificity exclusion. This is outside the canonical landed layer slice.
+
+
+The compiled actual selected-tab focus RED is
+`finding-return-tab-actual-red-compiled.log` (0/1: destination was not found). The
+first attempt was a test-only Element/HtmlElement compile mismatch, retained in
+`finding-return-tab-actual-red.log`. Corrected only the stale class in the existing
+focus selector; actual mounted selected-tab return GREEN 1/1, 87 filtered,
+`finding-return-tab-actual-green.log`. All fallback order and focus/state owners stay.
+
+Completed valid 12-combination RED for both actual view controls and the owned
+Secondary Add object: `layout-view-controls-owned-action-complete-red.log`. Earlier
+owned-action capture stopped at the narrow opener because the responsive transition
+had already opened the Sheet; clicking Objects again closed it. The script now
+inspects actual Sheet state and explicitly selects its Objects tab before locating
+the same role/name Add button. No product change was made for that harness issue.
+
+Coordinator approved the three extra CSS portions. Applied exactly the seven
+approved selector edits (three m1.css and four tailwind.css); all declarations,
+Case/design alternatives, 015 placement/SVG and sizing-only branches remain.
+No Add/action style change is made: a fresh page will independently report its
+Secondary result, and any remaining legacy accent cause will be identified before
+further scope. Source scope proof for the 78 variant replacements is
+`.evidence/016/secondary-owned-source-scope.log`; mapping has only the approved row.

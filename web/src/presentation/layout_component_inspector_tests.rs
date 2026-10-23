@@ -2025,7 +2025,7 @@ async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab(
     );
     assert_eq!(
         document.active_element(),
-        Some(selected),
+        Some(selected.into()),
         "finding return restores the selected tab on the actual mounted Inspector"
     );
     inspector.remove();

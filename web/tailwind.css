@@ -769,7 +769,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-toolbar-region .m1-layout-command-pill .board-popover-content { color: var(--wb-ink); background: var(--wb-panel); }
 .m1-layout-toolbar-region .board-popover-trigger > span { padding: 0; }
 .m1-layout-toolbar-region > .m1-layout-view-group { position: absolute; top: auto; right: 16px; bottom: 16px; left: auto; margin: 0; box-shadow: none; border-radius: var(--wb-radius-toolbar); }
-.m1-layout-view-group button { min-height: var(--wb-control-height); }
+.m1-layout-view-group button:where(:not([data-slot])) { min-height: var(--wb-control-height); }
 
 /* Grid increment and geometry snapping are different preferences, both immediately visible. */
 .m1-layout-snap-dock { position: relative; flex: none; padding: var(--wb-space-4); border-top: 1px solid var(--wb-rule); background: var(--wb-panel); }
@@ -806,7 +806,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
   .m1-layout-toolbar-region .layout-context-actions { flex: 1 0 100%; order: 4; border-top: 1px solid var(--wb-rule-strong); padding-top: 4px; }
   .m1-layout-toolbar-region .layout-context-action,
   .m1-layout-toolbar-region .m1-layout-command-pill .board-popover-trigger,
-  .m1-layout-view-group button { min-height: var(--wb-control-touch); padding: 6px 8px; }
+  .m1-layout-view-group button:where(:not([data-slot])) { min-height: var(--wb-control-touch); padding: 6px 8px; }
   .m1-layout-toolbar-region .m1-layout-command-pill > .m1-layout-command-menu { position: static; }
   .m1-layout-toolbar-region .m1-layout-command-pill .board-popover-content { left: 0; max-width: calc(100vw - 32px); }
   .m1-layout-toolbar-region > .m1-layout-view-group { bottom: 12px; right: 8px; }
@@ -1433,8 +1433,8 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-case-view-toolbar.board-tool-pill { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 5px; border: 0; border-radius: var(--wb-radius-pill); background: var(--wb-toolbar); box-shadow: 0 6px 18px rgb(0 0 0 / 16%); }
 .m1-case-view-toolbar.board-tool-pill [role='group'] { flex: none; gap: 2px; margin: 0; padding: 0; }
 .m1-case-view-toolbar.board-tool-pill > [role='group'] + [role='group'] { padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--wb-surface-strong); }
-.m1-case-view-toolbar.board-tool-pill :is(button, .m1-case-view-settings > summary), .m1-design-view-group.board-tool-pill button, .m1-layout-view-group.board-tool-pill button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; min-width: 40px; min-height: 40px; padding: 10px; border: 0; border-radius: var(--wb-radius-toolbar); color: var(--wb-muted); background: transparent; }
-.m1-case-view-toolbar.board-tool-pill button[aria-pressed='true'], .m1-design-view-group.board-tool-pill button[aria-pressed='true'], .m1-layout-view-group.board-tool-pill button[aria-pressed='true'] { color: var(--wb-selection-ink); background: var(--wb-selection-surface); }
+.m1-case-view-toolbar.board-tool-pill :is(button, .m1-case-view-settings > summary), .m1-design-view-group.board-tool-pill button, .m1-layout-view-group.board-tool-pill button:where(:not([data-slot])) { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; min-width: 40px; min-height: 40px; padding: 10px; border: 0; border-radius: var(--wb-radius-toolbar); color: var(--wb-muted); background: transparent; }
+.m1-case-view-toolbar.board-tool-pill button[aria-pressed='true'], .m1-design-view-group.board-tool-pill button[aria-pressed='true'], .m1-layout-view-group.board-tool-pill button:where(:not([data-slot]))[aria-pressed='true'] { color: var(--wb-selection-ink); background: var(--wb-selection-surface); }
 .m1-case-view-toolbar.board-tool-pill svg, .m1-design-view-group.board-tool-pill svg, .m1-layout-view-group.board-tool-pill svg { display: block; flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .m1-case-view-toolbar.board-tool-pill .m1-case-view-settings { padding: 0; border: 0; border-radius: var(--wb-radius-toolbar); background: transparent; }
 .m1-case-view-settings[open] .m1-case-view-settings-body { animation: m1-layout-popover-enter var(--wb-motion-reveal) var(--wb-ease-out) both; }

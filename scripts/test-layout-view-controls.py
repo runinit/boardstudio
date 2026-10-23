@@ -27,7 +27,15 @@ def tests(url, captures):
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
-                browser("focus", driver.by_role_name("button", "Layout findings: 0"))
+                if width < 980:
+                    if not evaluate("!!document.getElementById('workspace-panel-sheet')?.matches('[role=dialog]')"):
+                        click("Workbench menu")
+                        click("Objects")
+                    browser("find", "role", "tab", "click", "--name", "Objects", "--exact")
+                    browser("wait", "--fn", "document.getElementById('m1-add-object-trigger')?.checkVisibility()")
+                browser("focus", driver.by_role_name("button", "Add object"))
+                evaluate("window.actualSecondary=document.activeElement")
+                browser("wait", "--fn", "!actualSecondary.getAnimations().some(a=>a.playState==='running')")
                 secondary = evaluate("""(()=>{
                     const action=document.activeElement, style=getComputedStyle(action);
                     const paint=document.createElement('span');
@@ -38,12 +46,15 @@ def tests(url, captures):
                         expectedBackground:expected.backgroundColor,expectedColor:expected.color};
                     paint.remove();return result;
                 })()""")
+                if width < 980:
+                    click("Close panels")
                 browser("focus", driver.by_role_name("button", "2D"))
                 evaluate("window.actualView=document.activeElement;window.actualViewGroup=actualView.closest('.m1-layout-view-group')")
                 # Exercise real keyboard focus on the production owner; no substitute state.
                 browser("press", "Tab")
                 browser("press", "Shift+Tab")
                 driver.check("document.activeElement===actualView && actualView.matches(':focus-visible')")
+                browser("wait", "--fn", "!actualView.getAnimations().some(a=>a.playState==='running')")
                 result = evaluate("""(()=>{
                     const style=getComputedStyle(actualView), rect=actualView.getBoundingClientRect();
                     const paint=document.createElement('span');paint.style.background='var(--background)';document.body.append(paint);
@@ -83,8 +94,12 @@ def tests(url, captures):
                     "unadopted pressed": result["legacyPressed"] != result["legacyStyle"]["bg"],
                 }
                 failures.extend((width, theme, appearance, name) for name, passed in checks.items() if not passed)
-    print("Style failures:", failures, "captures:", captures, flush=True)
-    assert not failures, failures
+    secondary_failures = [failure for failure in failures if failure[3].startswith(("secondary", "actual secondary"))]
+    view_failures = [failure for failure in failures if failure not in secondary_failures]
+    print("View style failures:", view_failures, flush=True)
+    print("Owned Secondary Add object failures:", secondary_failures, "captures:", captures, flush=True)
+    assert not view_failures, view_failures
+    assert not secondary_failures, secondary_failures
 
 
 def main():
