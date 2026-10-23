@@ -137,7 +137,16 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
     let snapshot_token = projection.snapshot_token;
     let revision = projection.revision;
     let mut splay_affect = props.mount.splay_affect;
-    let affect_choice = use_memo(move || Some(if splay_affect() == MatrixSplayAffect::Column { "column" } else { "following" }.to_owned()));
+    let affect_choice = use_memo(move || {
+        Some(
+            if splay_affect() == MatrixSplayAffect::Column {
+                "column"
+            } else {
+                "following"
+            }
+            .to_owned(),
+        )
+    });
     let (title, body) = match &projection.fields {
         MatrixTransformFields::Matrix {
             origin,
@@ -980,7 +989,9 @@ struct MirrorTransformFieldProps {
 
 #[component]
 fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
-    let mirror_choice = use_memo(use_reactive((&props.value,), |(value,)| Some(mirror_value(value).to_owned())));
+    let mirror_choice = use_memo(use_reactive((&props.value,), |(value,)| {
+        Some(mirror_value(value).to_owned())
+    }));
     let mut submitted = use_signal(|| None::<u64>);
     let current_value = props.value;
     let observed_value = use_signal(|| current_value);
@@ -1103,7 +1114,9 @@ struct OriginModeTransformFieldProps {
 
 #[component]
 fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
-    let origin_choice = use_memo(use_reactive((&props.custom,), |(custom,)| Some(if custom { "custom" } else { "base" }.to_owned())));
+    let origin_choice = use_memo(use_reactive((&props.custom,), |(custom,)| {
+        Some(if custom { "custom" } else { "base" }.to_owned())
+    }));
     let mut submitted = use_signal(|| None::<u64>);
     let current_custom = props.custom;
     let observed_custom = use_signal(|| current_custom);
@@ -1421,7 +1434,10 @@ struct AttachedComponentsFieldProps {
 #[component]
 fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
     let attachment_choices = use_memo(use_reactive((&props.value,), |(values,)| {
-        values.into_iter().map(|(assembly, definition)| (assembly, Some(definition))).collect::<std::collections::BTreeMap<_, _>>()
+        values
+            .into_iter()
+            .map(|(assembly, definition)| (assembly, Some(definition)))
+            .collect::<std::collections::BTreeMap<_, _>>()
     }));
     let mut submitted = use_signal(|| None::<u64>);
     let error = props

@@ -719,8 +719,12 @@ async fn overlap_status_matches_react_selection_deduplication_and_truncation() {
     initial.overlap_references = labels;
     let (_probe, root) = mounted(initial, None);
     rendered(20).await;
-    assert!(element(&root, ".m1-key-size-warning[role='status']")
-        .query_selector("[data-slot=callout]").unwrap().is_some());
+    assert!(
+        element(&root, ".m1-key-size-warning[role='status']")
+            .query_selector("[data-slot=callout]")
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
         element(&root, ".m1-key-size-warning[role='status']")
             .text_content()

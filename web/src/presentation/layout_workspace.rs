@@ -871,7 +871,8 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         };
     }
     let board_context_header = input.board_inspector_mount.projection.is_some();
-    let show_context_header = input.outline_inspector.is_none() && input.component_inspector.is_none();
+    let show_context_header =
+        input.outline_inspector.is_none() && input.component_inspector.is_none();
     let matrix_context_tabs = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()

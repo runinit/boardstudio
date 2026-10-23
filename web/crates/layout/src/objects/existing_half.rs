@@ -10,8 +10,8 @@ use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
-use boardstudio_web_ui_shared::ui::card::Card;
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::card::Card;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldLabel},
@@ -961,34 +961,70 @@ mod adoption_tests {
         let init = web_sys::EventInit::new();
         init.set_bubbles(true);
         axis.set_value("");
-        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
-        wait_until("empty local axis disables creation", || create.has_attribute("disabled")).await;
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        wait_until("empty local axis disables creation", || {
+            create.has_attribute("disabled")
+        })
+        .await;
         axis.set_value("12.123456789");
-        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
-        wait_until("valid local axis enables creation after render", || !create.has_attribute("disabled")).await;
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+            .unwrap();
+        wait_until("valid local axis enables creation after render", || {
+            !create.has_attribute("disabled")
+        })
+        .await;
         assert_eq!(axis.value(), "12.123456789");
         create.click();
         wait_until("precise draft submitted", || {
-            by_role_name(&root, "status", "Submitted axis").unwrap().text_content().as_deref()
+            by_role_name(&root, "status", "Submitted axis")
+                .unwrap()
+                .text_content()
+                .as_deref()
                 == Some("Some(12.123456789)")
-        }).await;
+        })
+        .await;
         let escape = web_sys::KeyboardEventInit::new();
-        escape.set_key("Escape"); escape.set_bubbles(true); escape.set_cancelable(true);
-        let event = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+        escape.set_key("Escape");
+        escape.set_bubbles(true);
+        escape.set_cancelable(true);
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
         axis.dispatch_event(&event).unwrap();
         assert!(event.default_prevented());
         wait_until("Escape calls the same cancel owner once", || {
-            by_role_name(&root, "status", "Cancelled owners").unwrap().text_content().as_deref() == Some("[1]")
-        }).await;
-        by_role_name(&root, "button", "Hold Mirror cancellation").unwrap().click();
+            by_role_name(&root, "status", "Cancelled owners")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("[1]")
+        })
+        .await;
+        by_role_name(&root, "button", "Hold Mirror cancellation")
+            .unwrap()
+            .click();
         wait_until("the pending owner disables Cancel", || {
-            by_role_name(&root, "button", "Cancel").unwrap().has_attribute("disabled")
-        }).await;
-        let event = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+            by_role_name(&root, "button", "Cancel")
+                .unwrap()
+                .has_attribute("disabled")
+        })
+        .await;
+        let event =
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
         axis.dispatch_event(&event).unwrap();
         assert!(!event.default_prevented());
-        assert_eq!(by_role_name(&root, "status", "Cancelled owners").unwrap().text_content().as_deref(), Some("[1]"));
-        assert_eq!(axis.value(), "12.123456789", "the actual local draft survives parent availability changes");
+        assert_eq!(
+            by_role_name(&root, "status", "Cancelled owners")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("[1]")
+        );
+        assert_eq!(
+            axis.value(),
+            "12.123456789",
+            "the actual local draft survives parent availability changes"
+        );
         root.remove();
     }
 }
