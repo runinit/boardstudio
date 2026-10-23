@@ -58,7 +58,7 @@ def main():
         check("partsCheckbox.id && [...document.querySelectorAll('label[for]')].filter(e=>e.htmlFor===partsCheckbox.id).length===1")
         # Native label activation through a trusted pointer at its text node.
         point = evaluate("(()=>{const label=[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id);const text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
-        browser("mouse", "move", point["x"], point["y"])
+        browser("mouse", "move", round(point["x"]), round(point["y"]))
         browser("mouse", "down")
         browser("mouse", "up")
         assert attr("checkbox", name, "aria-checked") == before, (name, "label activation")
@@ -69,7 +69,7 @@ def main():
         browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
         action("button", "Project")
         action("menuitem", "New project")
-        browser("wait", "--text", "Keyboard setup")
+        browser("wait", "--fn", "document.querySelector('[aria-label=\"Keyboard setup\"]')?.checkVisibility()")
         action("button", "4 Case (optional)")
         action("button", "Hide guide")
         action("button", "Open Parts workspace")
@@ -107,13 +107,10 @@ def main():
         assert attr("button", "Toggle visibility for PCB", "aria-pressed") != visible
         action("button", "Toggle visibility for PCB")
         assert attr("button", "Toggle visibility for PCB", "aria-pressed") == visible
-        # Color wells have a browser-specific accessibility role; use their snapshot role/name ref.
-        refs = browser("snapshot", "-i")["refs"]
-        color_refs = [(ref, item) for ref, item in refs.items() if item.get("name") == "Color for PCB"]
-        assert len(color_refs) == 1, color_refs
-        browser("focus", "@" + color_refs[0][0])
+        # agent-browser omits Chromium's native color well from both snapshots; Tab from its named predecessor.
+        browser("press", "Tab")
         original_color = evaluate("document.activeElement.value")
-        check("document.activeElement.type==='color' && document.activeElement.id && [...document.querySelectorAll('label[for]')].some(e=>e.htmlFor===document.activeElement.id)")
+        check("document.activeElement.type==='color' && document.activeElement.getAttribute('aria-label')==='Color for PCB' && document.activeElement.id && [...document.querySelectorAll('label[for]')].some(e=>e.htmlFor===document.activeElement.id)")
         # Native color dialog UI is outside this check; this exercises the retained native input callback.
         evaluate("window.partsColor=document.activeElement;partsColor.value='#123456';partsColor.dispatchEvent(new Event('input',{bubbles:true}))")
         browser("wait", "--fn", "![...document.querySelectorAll('[data-slot=button]')].find(e=>e.textContent.trim()==='Reset color').disabled")
