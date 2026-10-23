@@ -840,8 +840,10 @@ fn non_finite_evaluated_layouts_and_empty_ownership_are_refused() {
     assert_eq!(open(&mut engine, "valid", &valid)["kind"], "scene");
     let accepted = snapshot(&mut engine);
     let mut overflow = valid.clone();
-    overflow["matrices"][0]["columnLayout"] = json!([{}, {"offset": {"x": 1e308, "y": 0.0}, "stagger": 1e308}]);
-    overflow["matrices"][0]["cells"] = json!([{"row":0,"column":1,"enabled":true,"shift":{"x":1.7e308,"y":0.0}}]);
+    overflow["matrices"][0]["columnLayout"] =
+        json!([{}, {"offset": {"x": 1e308, "y": 0.0}, "stagger": 1e308}]);
+    overflow["matrices"][0]["cells"] =
+        json!([{"row":0,"column":1,"enabled":true,"shift":{"x":1.7e308,"y":0.0}}]);
     let mut orphan = valid.clone();
     orphan["layouts"][0]["matrixIds"] = json!(["matrix", "missing"]);
     let mut duplicate_member = valid.clone();
@@ -889,7 +891,11 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
     assert_eq!(snapshot(&mut engine), accepted);
     let mut unowned = accepted["matrices"][1].clone();
     unowned["anchor"] = json!({"matrixId": "missing", "row": 0, "column": 0});
-    assert_error(&edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":unowned})));
+    assert_error(&edit(
+        &mut engine,
+        0,
+        json!({"kind":"set-matrix","matrix":unowned}),
+    ));
     assert_eq!(snapshot(&mut engine), accepted);
 }
 
