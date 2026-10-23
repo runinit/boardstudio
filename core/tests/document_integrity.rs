@@ -510,7 +510,10 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
             };
             assert_error(&reply);
             let message = reply["message"].as_str().unwrap();
-            assert!(message.contains(explanation), "{route} {candidate}: {message}");
+            assert!(
+                message.contains(explanation),
+                "{route} {candidate}: {message}"
+            );
             assert_eq!(snapshot(&mut engine), accepted, "{route} changed state");
         }
     }

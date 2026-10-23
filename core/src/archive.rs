@@ -454,7 +454,10 @@ mod tests {
     fn unpacking_refuses_every_version_before_reading_the_asset_table() {
         // Each project has a malformed asset table; the version gate must win.
         for (version, explanation) in [
-            (Some(json!(CURRENT_VERSION - 1)), "No conversion is available"),
+            (
+                Some(json!(CURRENT_VERSION - 1)),
+                "No conversion is available",
+            ),
             (Some(json!(CURRENT_VERSION + 1)), "compatible newer build"),
             (Some(json!(0)), "invalid formatVersion"),
             (Some(json!("7")), "invalid formatVersion"),
@@ -466,7 +469,8 @@ mod tests {
             if let Some(version) = version {
                 document["formatVersion"] = version;
             }
-            let packed = vec![pack(&[("project.json", document.to_string().as_bytes())], None).unwrap()];
+            let packed =
+                vec![pack(&[("project.json", document.to_string().as_bytes())], None).unwrap()];
             let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
             assert!(error.contains(explanation), "{document}: {error}");
         }

@@ -997,7 +997,11 @@ async fn foreign_format_identifier_is_unsupported_and_preserved_on_list_and_load
     let listing = store.list_projects().await.unwrap();
     assert_eq!(listing.documents, vec![healthy]);
     assert_eq!(listing.unreadable.len(), 1);
-    assert!(listing.unreadable[0].error.contains("Unsupported document format"));
+    assert!(
+        listing.unreadable[0]
+            .error
+            .contains("Unsupported document format")
+    );
     let error = store.load_document("foreign".into()).await.unwrap_err();
     assert!(error.0.contains("Unsupported document format"), "{error:?}");
     let stored = load_value(&name, PROJECT_STORE, "foreign".into())
