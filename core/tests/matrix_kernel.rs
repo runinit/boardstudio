@@ -1081,3 +1081,136 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
         }
     }
 }
+
+/// The captured oracle predates grouped layout records, so the fixture keeps its legacy
+/// per-axis arrays and this adapter rewrites them as column and row records.
+fn grouped_from_legacy(mut matrix: Value) -> Value {
+    use serde_json::{Map, json};
+    let object = matrix.as_object_mut().unwrap();
+    let mut take = |key: &str| match object.remove(key) {
+        Some(Value::Array(items)) => items,
+        _ => vec![],
+    };
+    let (offsets, origins, splays, staggers) = (
+        take("columnOffsets"),
+        take("columnOrigins"),
+        take("columnSplays"),
+        take("columnStaggers"),
+    );
+    let row_offsets = take("rowOffsets");
+    let columns = [&offsets, &origins, &splays, &staggers]
+        .iter()
+        .map(|items| items.len())
+        .max()
+        .unwrap();
+    let record = |fields: Vec<(&str, Option<&Value>)>| {
+        let mut out = Map::new();
+        for (key, value) in fields {
+            if let Some(value) = value.filter(|value| !value.is_null()) {
+                out.insert(key.into(), value.clone());
+            }
+        }
+        Value::Object(out)
+    };
+    let column_layout: Vec<_> = (0..columns)
+        .map(|i| {
+            record(vec![
+                ("offset", offsets.get(i)),
+                ("splayOrigin", origins.get(i)),
+                ("splay", splays.get(i)),
+                ("stagger", staggers.get(i)),
+            ])
+        })
+        .collect();
+    let row_layout: Vec<_> = row_offsets
+        .iter()
+        .map(|offset| record(vec![("offset", Some(offset))]))
+        .collect();
+    object.insert("columnLayout".into(), json!(column_layout));
+    object.insert("rowLayout".into(), json!(row_layout));
+    matrix
+}
+
+/// The 17a-regenerated oracle fixture, opened through Core's public path: every cell's
+/// member id, row, column, enabled flag and pose must match, for none, x and y mirror
+/// modes. Saved-pose cases give each existing part a distinct pose, so an exact match
+/// proves the actual projection reads the saved pose and the `matrix/<id>/r{r}c{c}` id.
+#[test]
+fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() {
+    use boardstudio_core::{CoreEngine, model::ProjectDoc};
+    use serde_json::json;
+    let fixtures: Value =
+        serde_json::from_str(include_str!("fixtures/matrix-projections.json")).unwrap();
+    let cases = fixtures["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 9);
+    let mut saved_cases = 0;
+    for case in cases {
+        let name = case["name"].as_str().unwrap();
+        let mut matrix = grouped_from_legacy(case["matrix"].clone());
+        matrix["boardId"] = json!("board");
+        let parts = case["parts"].as_array().unwrap();
+        if !parts.is_empty() {
+            saved_cases += 1;
+            let poses: Vec<_> = parts.iter().map(|part| part["pose"].to_string()).collect();
+            let distinct: std::collections::BTreeSet<_> = poses.iter().collect();
+            assert_eq!(distinct.len(), poses.len(), "{name}: poses must be distinct");
+        }
+        let mut document = serde_json::to_value(ProjectDoc::empty("oracle", "Oracle")).unwrap();
+        document["definitions"] =
+            json!([{"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]}]);
+        document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,
+            "partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
+        document["parts"] = json!(parts);
+        // Open rewrites every matrix-owned part from its parametric pose except parts a
+        // linked layout marks Local, so Local is how a saved pose survives to be read.
+        // The fixture matrix shares the mirror layout with a dummy mirror of `src`.
+        let dummy = |id: &str, x: f64| {
+            json!({"id":id,"definitionId":"switch","boardId":"board","rows":1,"columns":1,
+                "pitch":{"x":19.0,"y":18.0},"origin":{"x":x,"y":0.0},"cells":[],"partIds":[]})
+        };
+        document["matrices"] = json!([matrix, dummy("src", 0.0), dummy("mir", 200.0)]);
+        let local: Vec<_> = parts
+            .iter()
+            .map(|part| json!({"kind":"part","mirrorId":part["id"],"state":"local"}))
+            .collect();
+        document["layouts"] = json!([
+            {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
+            {"id":"layout","name":"Layout","boardId":"board","partIds":[],"matrixIds":["fixture","mir"],
+             "mirrorLink":{"sourceId":"source","axisX":100.0,
+                "correspondences":[{"kind":"matrix","sourceId":"src","mirrorId":"mir"}],
+                "exceptions":local}}
+        ]);
+        let mut engine = CoreEngine::new();
+        let opened: Value = serde_json::from_str(
+            &engine.request(&json!({"kind":"open","id":"oracle","document":document}).to_string()),
+        )
+        .unwrap();
+        assert_eq!(opened["kind"], "scene", "{name}: {opened}");
+        let scene = opened["scene"]["matrixScenes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|scene| scene["matrixId"] == "fixture")
+            .unwrap();
+        let cells = scene["cells"].as_array().unwrap();
+        let expected = case["expected"].as_array().unwrap();
+        assert_eq!(cells.len(), expected.len(), "{name}: cell count");
+        for (actual, expected) in cells.iter().zip(expected) {
+            let at = format!("{name} r{}c{}", expected["row"], expected["column"]);
+            assert_eq!(actual["row"], expected["row"], "{at} row");
+            assert_eq!(actual["column"], expected["column"], "{at} column");
+            assert_eq!(actual["enabled"], expected["enabled"], "{at} enabled");
+            let expected_member = expected.get("memberId").cloned().unwrap_or(Value::Null);
+            assert_eq!(actual["memberId"], expected_member, "{at} memberId");
+            for (name, a, e) in [
+                ("x", &actual["pose"]["at"]["x"], &expected["pose"]["at"]["x"]),
+                ("y", &actual["pose"]["at"]["y"], &expected["pose"]["at"]["y"]),
+                ("rotation", &actual["pose"]["rotation"], &expected["pose"]["rotation"]),
+            ] {
+                let (a, e) = (a.as_f64().unwrap(), e.as_f64().unwrap());
+                assert!((a - e).abs() < 1e-9, "{at} pose {name}: expected {e}, got {a}");
+            }
+        }
+    }
+    assert_eq!(saved_cases, 3, "none, x and y each have a saved-pose case");
+}
