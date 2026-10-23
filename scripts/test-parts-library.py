@@ -187,10 +187,14 @@ def main():
                     check("document.documentElement.scrollWidth<=document.documentElement.clientWidth")
                     browser("screenshot", str((args.evidence / f"parts-{width}-{theme}-{appearance}.png").resolve()))
                     if width < 980:
+                        action("tab", "Inspector")
+                        focus("button", "Place component")
+                        check("document.activeElement.getAttribute('data-slot')==='button' && !document.activeElement.disabled && document.activeElement.getBoundingClientRect().width>0")
+                        browser("screenshot", str((args.evidence / f"inspector-{width}-{theme}-{appearance}.png").resolve()))
                         action("button", "Close panels")
         action("button", "2D footprint")
         browser("wait", "--fn", "document.querySelector('[aria-label=\"2D footprint\"]').getAttribute('aria-pressed')==='true'")
-        print("PASS: packaged Parts Select, preview ToggleGroup, retained production owner values/identity, sliders, checkbox Space/Enter/labels, and 24 library/preview theme-width captures", flush=True)
+        print("PASS: packaged Parts Select, preview ToggleGroup, retained production owner values/identity, sliders, checkbox Space/Enter/labels, and 28 library/preview/Inspector theme-width captures", flush=True)
     except Exception:
         browser("screenshot", str((args.evidence / "failure.png").resolve()))
         raise

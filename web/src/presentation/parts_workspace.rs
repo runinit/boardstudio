@@ -171,8 +171,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    use wasm_bindgen::JsCast;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -216,15 +215,11 @@ mod workspace_state_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the mounted module selector renders", || {
-            root.query_selector("#select-mounted-module")
-                .is_ok_and(|button| button.is_some())
+            by_role_name(&root, "button", "Select module").is_some()
         })
         .await;
 
-        root.query_selector("#select-mounted-module")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        by_role_name(&root, "button", "Select module")
             .unwrap()
             .click();
         wait_until(
