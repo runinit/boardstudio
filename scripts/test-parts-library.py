@@ -190,6 +190,25 @@ def main():
                         browser("press", "Tab")
                         check("document.querySelector('.m1-parts-sample-viewer .m1-case-view').scrollTop===0")
                         browser("press", "Shift+Tab")
+                    focus("button", "Top view")
+                    tab_order = []
+                    for _ in range(20):
+                        state = evaluate("""(()=>{const active=document.activeElement,r=active.getBoundingClientRect();
+                            return {name:active.getAttribute('aria-label')||active.textContent.trim(),
+                                visible:active.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)),
+                                scroll:active.closest('.m1-case-view')?.scrollTop,
+                                position:getComputedStyle(active).position,parentOverflow:getComputedStyle(active.parentElement).overflow,
+                                rect:[r.left,r.top,r.right,r.bottom],parentRect:(()=>{const p=active.parentElement.getBoundingClientRect();return [p.left,p.top,p.right,p.bottom]})(),
+                                hit:document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML};})()""")
+                        assert state["visible"] and state["scroll"] == 0, state
+                        tab_order.append(state["name"])
+                        if state["name"] == "Show hidden lines":
+                            break
+                        browser("press", "Tab")
+                    assert tab_order == ["Top view", "Bottom view", "Isometric view", "Rotate left", "Rotate right",
+                                         "Zoom in", "Zoom out", "hybrid", "section", "Section plane", "Section position",
+                                         "Show section plane", "Show hidden lines"], tab_order
+                    print("Reachable popup Tab order:", width, theme, appearance, tab_order, flush=True)
                     before_pointer = attr("checkbox", "Show hidden lines", "aria-checked")
                     action("checkbox", "Show hidden lines")
                     assert attr("checkbox", "Show hidden lines", "aria-checked") != before_pointer
