@@ -1,6 +1,6 @@
 //! Private form for matrix, row, column, and cell-local transform properties.
 use crate::matrix_transform_operation::{
-    MatrixTransformField, MatrixTransformFields, MatrixTransformValue,
+    MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
@@ -193,6 +193,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             offset,
             stagger,
             splay_angle,
+            rotation,
             splay_origin,
             custom_origin,
             convert,
@@ -228,7 +229,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::ColumnSplay, label: "Splay", unit: "°",
                         draft: props.mount.numeric_field(MatrixTransformField::ColumnSplay).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnSplay).1,
-                        value: *splay_angle, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        value: column_angle(*splay_angle, *rotation, &splay_affect()), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     BoardSelectField {
@@ -480,11 +481,15 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
     let mut dirty_effect = dirty;
     let mut error_effect = error;
     let mut observed_owner = use_signal(|| props.owner.clone());
+    let field_affect =
+        (props.field == MatrixTransformField::ColumnSplay).then(|| (props.splay_affect)());
+    let mut observed_affect = use_signal(|| field_affect.clone());
     use_effect(use_reactive(
-        (&accepted_value, &draft(), &props.owner),
-        move |(value, current_draft, owner)| {
-            if *observed_owner.peek() != owner {
+        (&accepted_value, &draft(), &props.owner, &field_affect),
+        move |(value, current_draft, owner, affect)| {
+            if *observed_owner.peek() != owner || *observed_affect.peek() != affect {
                 observed_owner.set(owner);
+                observed_affect.set(affect);
                 draft_effect.set(display(value));
                 baseline_effect.set(value);
                 dirty_effect.set(false);

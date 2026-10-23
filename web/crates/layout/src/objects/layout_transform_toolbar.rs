@@ -3,8 +3,8 @@ use super::layout_toolbar::LayoutSelectionKind;
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
-    ArrowKey, PlacementParameter, PlacementValue, SceneBasis, gesture_value, nudge_value,
-    placement_operation,
+    ArrowKey, PlacementParameter, PlacementValue, SceneBasis, column_angle, gesture_value,
+    nudge_value, placement_operation,
 };
 use crate::presentation::{
     LayoutOwnerIdentity,
@@ -445,7 +445,9 @@ pub fn LayoutTransformToolOverlay(
         .columns
         .iter()
         .find(|basis| basis.column == selected_column)
-        .map_or(0.0, |basis| basis.splay_angle);
+        .map_or(0.0, |basis| {
+            column_angle(basis.splay_angle, basis.rotation, &splay_affect())
+        });
     let arc = splay_arc(handle_point, angle_point, angle_degrees);
     let current_owner = owner.clone();
     let current_context = context.clone();
@@ -1316,7 +1318,8 @@ fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec
                         matrix_id: matrix_id.clone(),
                         column: *column,
                         change: MatrixSplayChange::Angle {
-                            angle: basis.splay_angle + degrees,
+                            angle: column_angle(basis.splay_angle, basis.rotation, affect)
+                                + degrees,
                             affect: affect.clone(),
                         },
                     }
@@ -1367,14 +1370,7 @@ fn transform_drag_result(
             },
         ) => Some(TransformDragResult::SplayAngle {
             column: *column,
-            delta_degrees: angle
-                - drag
-                    .matrix
-                    .column_layout
-                    .get(*column as usize)
-                    .map(|record| &record.splay)
-                    .copied()
-                    .unwrap_or(0.0),
+            delta_degrees: angle - stored_column_angle(&drag.matrix, *column, affect),
             affect: affect.clone(),
         }),
         (
@@ -1428,13 +1424,7 @@ fn transform_drag_resolver(
                     matrix_id: matrix_id.clone(),
                     column: *column,
                     change: MatrixSplayChange::Angle {
-                        angle: matrix
-                            .column_layout
-                            .get(*column as usize)
-                            .map(|record| &record.splay)
-                            .copied()
-                            .unwrap_or(0.0)
-                            + delta_degrees,
+                        angle: stored_column_angle(matrix, *column, affect) + delta_degrees,
                         affect: affect.clone(),
                     },
                 },
@@ -1744,12 +1734,7 @@ fn sample_transform(
             ) {
                 delta = -delta;
             }
-            let base = matrix
-                .column_layout
-                .get(column as usize)
-                .map(|record| &record.splay)
-                .copied()
-                .unwrap_or(0.0);
+            let base = stored_column_angle(matrix, column, &affect);
             let value = base + delta;
             let value = if pointer.alt_key() {
                 value
@@ -1779,6 +1764,15 @@ fn sample_transform(
     }
 }
 
+fn stored_column_angle(matrix: &Matrix, column: u32, affect: &MatrixSplayAffect) -> f64 {
+    matrix
+        .column_layout
+        .get(column as usize)
+        .map_or(0.0, |record| {
+            column_angle(record.splay, record.rotation, affect)
+        })
+}
+
 fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> bool {
     if let Some(gesture_parameter) = drag.gesture.parameter() {
         return placement_target(operation, &drag.matrix.id).is_some_and(|(parameter, value)| {
@@ -1791,19 +1785,12 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
             EditOperation::SetMatrixSplay {
                 matrix_id,
                 column: target,
-                change: MatrixSplayChange::Angle { angle, .. },
+                change: MatrixSplayChange::Angle { angle, affect },
             },
         ) => {
             matrix_id == &drag.matrix.id
                 && target == column
-                && *angle
-                    == drag
-                        .matrix
-                        .column_layout
-                        .get(*column as usize)
-                        .map(|record| &record.splay)
-                        .copied()
-                        .unwrap_or(0.0)
+                && *angle == stored_column_angle(&drag.matrix, *column, affect)
         }
         (
             TransformGesture::Origin { column },
@@ -2525,6 +2512,128 @@ mod nudge_tests {
             parameter: PlacementParameter::Stagger { column },
             delta: PlacementDelta::Stagger(along),
         }
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_angle_nudges_compose_without_overwriting_splay() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(1, Default::default);
+        document.matrices[0].column_layout[0].splay = 7.0;
+        document.matrices[0].column_layout[0].rotation = 10.0;
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let nudge = TransformNudge::SplayAngle {
+            column: 0,
+            degrees: 1.0,
+            affect: MatrixSplayAffect::Column,
+        };
+        let mut first = nudge_with(&runtime, nudge.clone());
+        settle_edit(&runtime, &mut first).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[0].rotation,
+            11.0
+        );
+        let mut second = nudge_with(&runtime, nudge);
+        settle_edit(&runtime, &mut second).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(matrix.column_layout[0].rotation, 12.0);
+        assert_eq!(matrix.column_layout[0].splay, 7.0);
+        let mut following = nudge_with(
+            &runtime,
+            TransformNudge::SplayAngle {
+                column: 0,
+                degrees: 1.0,
+                affect: MatrixSplayAffect::Following,
+            },
+        );
+        settle_edit(&runtime, &mut following).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(matrix.column_layout[0].splay, 8.0);
+        assert_eq!(matrix.column_layout[0].rotation, 12.0);
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[0].splay,
+            7.0
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_angle_drag_delta_composes_with_the_latest_rotation() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(1, Default::default);
+        document.matrices[0].column_layout[0].splay = 7.0;
+        document.matrices[0].column_layout[0].rotation = 10.0;
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let drag = begin_gesture(
+            &runtime,
+            fixture::MATRIX_ID,
+            TransformGesture::Splay {
+                column: 0,
+                start_angle: 0.0,
+                origin: Vec2::default(),
+            },
+        );
+        let operation = EditOperation::SetMatrixSplay {
+            matrix_id: fixture::MATRIX_ID.into(),
+            column: 0,
+            change: MatrixSplayChange::Angle {
+                angle: 12.0,
+                affect: MatrixSplayAffect::Column,
+            },
+        };
+        let result = transform_drag_result(&drag, &operation).unwrap();
+        assert_eq!(
+            result,
+            TransformDragResult::SplayAngle {
+                column: 0,
+                delta_degrees: 2.0,
+                affect: MatrixSplayAffect::Column,
+            }
+        );
+        assert!(same_transform_as_start(
+            &drag,
+            &EditOperation::SetMatrixSplay {
+                matrix_id: fixture::MATRIX_ID.into(),
+                column: 0,
+                change: MatrixSplayChange::Angle {
+                    angle: 10.0,
+                    affect: MatrixSplayAffect::Column
+                },
+            }
+        ));
+        let (entered, release) = support::gate_next_core_reply(&runtime);
+        let mut other = nudge_with(
+            &runtime,
+            TransformNudge::SplayAngle {
+                column: 0,
+                degrees: 1.0,
+                affect: MatrixSplayAffect::Column,
+            },
+        );
+        support::drive_pending(&runtime);
+        entered.await.expect("the nudge reached Core");
+        let mut queued = drag_edit(&runtime, fixture::MATRIX_ID, result);
+        release.send(()).unwrap();
+        settle_edit(&runtime, &mut other).await;
+        settle_edit(&runtime, &mut queued).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(matrix.column_layout[0].rotation, 13.0);
+        assert_eq!(matrix.column_layout[0].splay, 7.0);
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[0].rotation,
+            11.0
+        );
+        redo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[0].rotation,
+            13.0
+        );
     }
 
     /// The first terminal result of an edit, for tests that care how it ended.
@@ -3685,6 +3794,110 @@ mod tool_tests {
             .expect("an accepted document")
             .document
             .revision
+    }
+
+    #[wasm_bindgen_test]
+    async fn column_angle_pointer_preview_starts_at_rotation_and_preserves_mirror_direction() {
+        for (mirror, expected) in [
+            (None, 100.0),
+            (Some(boardstudio_core::model::Mirror::X), -80.0),
+        ] {
+            let mut document = fixture::matrix_document();
+            let matrix = &mut document.matrices[0];
+            matrix.mirror = mirror;
+            matrix.column_layout.resize_with(2, Default::default);
+            matrix.column_layout[1].splay = 7.0;
+            matrix.column_layout[1].rotation = 10.0;
+            let runtime = support::new_runtime();
+            support::open_document(&runtime, document).await;
+            let before = fixture_revision(&runtime);
+            let (root, _) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
+            let handle = root
+                .query_selector("[aria-label='Drag to splay']")
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                handle
+                    .query_selector("title")
+                    .unwrap()
+                    .unwrap()
+                    .text_content()
+                    .as_deref(),
+                Some("Drag to splay · 10°")
+            );
+            let stub = js_sys::Function::new_no_args("return true;");
+            for method in [
+                "setPointerCapture",
+                "hasPointerCapture",
+                "releasePointerCapture",
+            ] {
+                js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
+            }
+            let accepted = runtime.model().accepted.unwrap();
+            let origin = accepted.scene.matrix_scenes[0].columns[1].splay_origin;
+            let rect = root
+                .query_selector("svg")
+                .unwrap()
+                .unwrap()
+                .get_bounding_client_rect();
+            let client = |x: f64, y: f64| {
+                (
+                    (rect.left() + x * 4.0).round() as i32,
+                    (rect.top() - y * 4.0).round() as i32,
+                )
+            };
+            let start = client(origin.x + 20.0, origin.y);
+            let end = client(origin.x, origin.y + 20.0);
+            dispatch_pointer(&handle, "pointerdown", false, 1, start);
+            dispatch_pointer(&handle, "pointermove", false, 1, start);
+            support::run_pending(&runtime).await;
+            assert_eq!(
+                fixture_revision(&runtime),
+                before,
+                "initial preview never commits"
+            );
+            assert_eq!(
+                runtime
+                    .model()
+                    .display_preview
+                    .as_ref()
+                    .unwrap()
+                    .matrix_scenes[0]
+                    .columns[1]
+                    .rotation,
+                10.0,
+                "zero pointer delta previews the stored Column rotation"
+            );
+            dispatch_pointer(&handle, "pointermove", false, 1, end);
+            support::run_pending(&runtime).await;
+            assert_eq!(
+                runtime
+                    .model()
+                    .display_preview
+                    .as_ref()
+                    .unwrap()
+                    .matrix_scenes[0]
+                    .columns[1]
+                    .rotation,
+                expected,
+                "the pointer preview uses the selected angle and mirror direction"
+            );
+            assert_eq!(
+                fixture::accepted_matrix(&runtime).column_layout[1].rotation,
+                10.0
+            );
+            dispatch_pointer(&handle, "pointerup", false, 0, end);
+            wait_until_editable(&runtime).await;
+            let matrix = fixture::accepted_matrix(&runtime);
+            assert_eq!(matrix.column_layout[1].rotation, expected);
+            assert_eq!(matrix.column_layout[1].splay, 7.0);
+            fixture::undo(&runtime).await;
+            assert_eq!(
+                fixture::accepted_matrix(&runtime).column_layout[1].rotation,
+                10.0
+            );
+            root.remove();
+        }
     }
 
     #[wasm_bindgen_test]
