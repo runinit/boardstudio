@@ -810,3 +810,26 @@ reference1px border and retained actual nodes. Captures are
 The source diff has exactly six selector guards with unchanged declarations and
 13 existing InputGroup/Input pairs with a narrow height class, reviewed at
 `remaining-field-caller-classes.diff`. No domain expression or event changed.
+
+Further actual owner REDs at the same production bytes: Mirror width/target
+checks now record all12 overflows (`mirror-width-target-actual-red.log`). The
+source choice extends past the form right edge (262.8/287px vs252px desktop),
+while the actual axis input remains40px narrow. Attribution at
+`mirror-choice-width-css-attribution.log` shows the grid form228px wide but its
+Field/Select children retain their intrinsic238.8px minimum; this is caller
+layout, not shared Select identity/selection. Bound the source Field's minimum
+and the existing Select's width/value span, retain full accessible text, and give
+both existing short/long choice and axis callers a narrow44 target. No shared
+Select look or panel width changes.
+
+New mirrored-pair actual textbox/number/gap variants fail all36 combinations in
+`layout-new-pair-field-styles-red.log`: opaque bordered/radius inputs and legacy
+36px height. The real child-owned Left-name draft/node survives the12 variants;
+Cancel preserves the existing single-key matrix before aggregate assertion.
+Two legacy appearance selectors (`.m1-matrix-setup` and
+`.m1-mirrored-pair-setup` input/select branches) are exclusive to owned forms;
+MatrixSetup itself now has no visible native inputs, and its guide/canvas
+positioning/layout rules must stay for023. Exclude copied data-slots only from
+those two appearance selectors, keeping declarations/native branches, and add
+narrow44 classes to the five existing paired InputGroup/Input callers. No
+source/draft/submit/Cancel/geometry/state contract changes.

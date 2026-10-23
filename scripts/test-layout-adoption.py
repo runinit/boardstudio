@@ -135,11 +135,14 @@ def tests(url, captures):
     assert original[0]["transform"] == "translate(0 0) rotate(0)" and original[0]["width"] == original[0]["height"] == "18", original
     click("Add object")
     click("Mirror existing half… Create a linked half from an existing layout")
+    browser("focus", driver.by_role_name("button", "Source layouts"))
+    evaluate("window.sourceChoice=document.activeElement")
     browser("fill", driver.by_role_name("spinbutton", "Mirror axis X"), "12.123456789")
     browser("focus", driver.by_role_name("spinbutton", "Mirror axis X"))
     evaluate("window.axisDraft=document.activeElement")
     check("axisDraft.closest('[role=region]').getAttribute('aria-label')==='Mirror existing half' && !axisDraft.closest('[role=dialog][aria-label=\"Mirror existing half\"]') && document.getElementById('m1-objects-panel').contains(axisDraft)")
     check("axisDraft.labels.length===1 && axisDraft.labels[0].control===axisDraft && document.querySelectorAll('[id=\"'+axisDraft.id+'\"]').length===1")
+    flow_failures = []
     for width in [1440, 1100, 390]:
         browser("set", "viewport", width, 900)
         for theme in ["original", "shadcn"]:
@@ -151,13 +154,20 @@ def tests(url, captures):
                 check("document.activeElement===axisDraft && axisDraft.value==='12.123456789'")
                 flow = evaluate("""(()=>{
                     const region=axisDraft.closest('[role=region]'),card=axisDraft.closest('[data-slot=card]');
-                    const r=region.getBoundingClientRect(),c=card.getBoundingClientRect(),f=axisDraft.form.getBoundingClientRect();
+                    const r=region.getBoundingClientRect(),c=card.getBoundingClientRect(),f=axisDraft.form.getBoundingClientRect(),s=sourceChoice.getBoundingClientRect();
                     return {position:getComputedStyle(card).position,overflow:getComputedStyle(card).overflow,
-                        regionHeight:r.height,cardHeight:c.height,formHeight:f.height,scroll:card.scrollTop};
+                        regionHeight:r.height,cardHeight:c.height,formHeight:f.height,scroll:card.scrollTop,
+                        regionWidth:r.width,cardWidth:c.width,formWidth:f.width,sourceRight:s.right,formRight:f.right,
+                        sourceContentFits:[...sourceChoice.children].every(e=>{const b=e.getBoundingClientRect();return b.right<=s.right+1&&b.left>=s.left-1}),
+                        axisHeight:axisDraft.getBoundingClientRect().height};
                 })()""")
                 print("Mirror dock flow", width, theme, appearance, flow, flush=True)
                 assert flow["position"] == "static" and flow["overflow"] == "visible", flow
                 assert flow["regionHeight"] >= flow["cardHeight"] >= flow["formHeight"] > 100 and flow["scroll"] == 0, flow
+                if not (flow["cardWidth"] <= flow["regionWidth"] and flow["formWidth"] <= flow["cardWidth"] and flow["sourceRight"] <= flow["formRight"] + 1 and flow["sourceContentFits"]):
+                    flow_failures.append((width, theme, appearance, "Mirror choice clips or overflows", flow))
+                if flow["axisHeight"] < (44 if width < 760 else 40):
+                    flow_failures.append((width, theme, appearance, "Mirror axis target", flow["axisHeight"]))
                 assert geometry() == original, "theme/width changes must preserve accepted geometry"
                 browser("screenshot", str(captures / f"mirror-{width}-{theme}-{appearance}.png"))
                 if width < 980:
@@ -166,6 +176,8 @@ def tests(url, captures):
                     check("axisDraft.isConnected && axisDraft.value==='12.123456789'")
                     evaluate("axisDraft.focus()")
                     check("document.activeElement!==axisDraft")
+    print("Mirror dock width and target failures", flow_failures, flush=True)
+    assert not flow_failures, flow_failures
     browser("set", "viewport", 1440, 900)
     browser("focus", driver.by_role_name("spinbutton", "Mirror axis X"))
     check("document.activeElement===axisDraft && axisDraft.value==='12.123456789'")

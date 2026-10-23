@@ -26,7 +26,7 @@ def inspector_sheet():
     browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
 
 
-def check_fields(fields, owner, captures):
+def check_fields(fields, owner, captures, in_inspector=True):
     evaluate("window.fieldNodes={}")
     failures = []
     for width in [1440, 1100, 390]:
@@ -34,7 +34,7 @@ def check_fields(fields, owner, captures):
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
-                if width < 980:
+                if width < 980 and in_inspector:
                     inspector_sheet()
                 for role, name in fields:
                     browser("focus", driver.by_role_name(role, name))
@@ -81,7 +81,7 @@ def check_fields(fields, owner, captures):
                               "unadopted reference": result["reference"]["border"] == "1px"}
                     failures.extend((width, theme, appearance, name, check_name) for check_name, passed in checks.items() if not passed)
                 browser("screenshot", str(captures / f"{owner}-{width}-{theme}-{appearance}.png"))
-                if width < 980:
+                if width < 980 and in_inspector:
                     click("Close panels")
     print("Actual field style failures:", failures, "captures:", captures, flush=True)
     return failures
@@ -120,6 +120,17 @@ def tests(url, captures):
     click("SW1 switch mx · front")
     print("Actual component inspector", browser("snapshot", "-i")["snapshot"], flush=True)
     failures += check_fields([("spinbutton", "X mm")], "component", captures)
+    browser("set", "viewport", 1440, 900)
+    click("Add object")
+    click("Mirrored pair… Create linked left and right halves")
+    browser("fill", driver.by_role_name("textbox", "Left layout name"), "Left draft")
+    browser("focus", driver.by_role_name("textbox", "Left layout name"))
+    evaluate("window.pairNameDraft=document.activeElement")
+    failures += check_fields([("textbox", "Left layout name"), ("spinbutton", "Rows per half"),
+                              ("spinbutton", "Gap between key edges (mm)")], "new-pair", captures, in_inspector=False)
+    check("pairNameDraft.isConnected && pairNameDraft.value==='Left draft'")
+    click("Cancel")
+    check("document.querySelectorAll('.m1-matrix-key').length===1")
     print("All owned field style failures:", failures, flush=True)
     assert not failures, failures
 
