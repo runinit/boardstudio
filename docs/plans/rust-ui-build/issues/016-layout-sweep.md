@@ -1199,3 +1199,36 @@ function's actual adoption evidence. No remote/dev push or self landing occurred
 The owned4186 preview stays available for required review; cleanup of that preview
 and exclusive generated target follows approved verified landing, preserving this
 worktree, branch and evidence.
+
+
+## Review r1 correction (four unique P2; both initial axes complete)
+
+Both initial review rounds are complete: Spec three findings, independent Standards
+zero Standards findings and two Spec findings (Previous-step Tooltip duplicate,
+choice validation unique). Correct all four together; no landing/review request
+until the coherent correction is complete. Prior closure is superseded as a review
+candidate, and its execution pins/limits remain literal.
+
+Owned popup inventory includes KeySizeControls in LayoutInspectorContents;
+Objects Layouts/Boards/Shapes; MatrixInspector Key assembly/Keycap spacing/Matrix
+actions; MatrixTransform Position and rotation/Splay and origin/Key assembly/Attached
+components; Component mirrored-half/outline/constraint and Companion placement.
+Only picker-containing contents need expanded overflow. The primitive content uses
+`data-open`, not `data-state`; keep existing hidden/inert/retention and state owners.
+Setup AccordionContent has no overflow-hidden default. Protected015 and canonical
+shared layers are outside this correction. Runtime reproduction at05180b27 records
+Key size content overflow hidden, bottom545px while its absolute list reaches814px
+(`review-r1-control-inventory-runtime.log`). Programmatic scrollintoview can scroll
+that hidden ancestor and conceal the bug; the real regression must measure native
+pointer hits without that workaround.
+
+Shared validation scope gap: Select already routes id/aria-* to its actual trigger.
+Combobox only routes the approved non-namespaced id; all other GlobalAttributes,
+including aria-invalid and aria-describedby, stay on its wrapper. MatrixFieldEditor
+uses the actual Combobox branch for Matrix part definition. Caller-only composition
+cannot describe that input through the current contract. Minimal additional proposal:
+route ONLY existing non-namespaced aria-invalid and aria-describedby attributes to
+ComboboxInput, beside id, preserving defaults, root unrelated attrs, generated IDs,
+keyboard/filter/selection/list attrs and callbacks; no public prop, API or state added.
+The currently approved caller-only correction is insufficient for this branch;
+request the narrow shared routing lease while continuing independent owned work.
