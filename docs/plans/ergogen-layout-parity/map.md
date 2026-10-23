@@ -109,7 +109,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [17a: Grouped model and Core callers](issues/17a-grouped-model-and-core-callers.md) | 16 | Resolved: grouped records, `matrixIds`, explicit correspondences, five failing tests fixed, web callers migrated. |
 | [17b: Validation and ownership](issues/17b-validation-and-ownership.md) | 17a | Finite/default/bound checks, step policy, Layout ownership, no anchor-as-origin. |
 | [17c: Kernel production routing](issues/17c-kernel-production-routing.md) | 17a | Projection and parts through the kernel; oracle retired with coverage. |
-| [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Browser, archive and Core Open version gates before effects. |
+| [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Resolved: archive unpack gated before the asset table; Core Open, replace and browser list/load gates pinned by tests. |
 | [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md) | 17b, 17c, 17d | Minimum fixture regeneration, quick/full gates, Standards and Spec review. |
 | [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
 | [19: Anchor/Layout groups](issues/19-anchor-layout-groups.md) | 18 | Dependency evaluation, typed anchor edits and identity lifecycle. |

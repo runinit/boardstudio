@@ -1,6 +1,6 @@
 # 17d: Entry-path version gates
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
@@ -59,3 +59,21 @@ Source anchors: `core/src/migrate.rs`, `web/crates/host/src/host/storage.rs`. Us
   `document_integrity::malformed_json_text_is_refused_without_changing_accepted_state`;
   wasm `host::storage::lifetime_tests::foreign_format_identifier_is_unsupported_and_preserved_on_list_and_load`.
   No tests renamed or removed.
+
+## Answer
+
+Merged commits: `da63ee9a8`, `0b10aa66d`, `063b07900`, `20d34ca44`, `79c6167c0` on `fix/ergogen-entry-gates`, and merge commit `6b75c1141`.
+
+Delivered:
+
+- Archive unpack now runs the version gate before reading the asset table.
+- Core Open, replace and the browser list/load paths were already gated; tests now pin them.
+- Malformed JSON text and the exact unsupported-format text are covered.
+
+Evidence: Standards and Spec reviews passed; the Spec review confirmed `migrate_json` only admits or refuses and never converts. The worktree quick check ended "all steps passed: repo, lint, typecheck, test, layout-test-css, browser".
+
+Carried forward:
+
+- No test pins the IndexedDB version or archive metadata (no constant is exposed).
+- Raw JSON download and guarded per-project delete belong to ticket 25.
+- New tests for the integrator's single baseline update (per Progress): native `archive::tests::unpacking_refuses_every_version_before_reading_the_asset_table`, `archive::tests::unpacking_an_unrecognized_format_is_unsupported_without_conversion`, `archive::tests::unpacking_malformed_json_text_is_refused_as_invalid_project_json`, `document_integrity::malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change`, `document_integrity::malformed_json_text_is_refused_without_changing_accepted_state`; wasm `host::storage::lifetime_tests::foreign_format_identifier_is_unsupported_and_preserved_on_list_and_load`.
