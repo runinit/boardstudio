@@ -21,7 +21,8 @@ BoardStudio extended layout feature working.
 Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consolidated
 [spec](spec.md) and [dependent TDD build tickets](#build-tickets) now exist. This closes
 planning, not implementation. No version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
-is the implementation release gate. Build work starts with [15](issues/15-generate-parity-fixtures.md).
+is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
+is complete; the current build frontier is [16](issues/16-build-layout-kernel.md).
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -96,12 +97,12 @@ The first-build parity claim excludes aggregate anchors explicitly, not silently
 
 ## Build tickets
 
-All are `ready-for-agent` subject to their dependency headers. Use the coordinated,
+Unresolved tickets are `ready-for-agent` subject to their dependency headers. Use the coordinated,
 unshipped cutover lane in the spec; do not promote intermediate version-7 writers.
 
 | Ticket | Depends on | Outcome |
 | --- | --- | --- |
-| [15: Pinned parity fixtures](issues/15-generate-parity-fixtures.md) | 10 | Independent inputs/expected poses, provenance and tooling notices. |
+| [15: Pinned parity fixtures](issues/15-generate-parity-fixtures.md) | 10 | Resolved: 40 upstream cases, 4 worked cases, pinned tooling/provenance/notices. |
 | [16: Pure kernel](issues/16-build-layout-kernel.md) | 15 | One geometry module and golden comparison, staged before live cutover. |
 | [17: Model/format cutover](issues/17-cut-over-format-and-model.md) | 16 | Grouped records, Layout membership, all removed-field callers and strict gates. |
 | [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
