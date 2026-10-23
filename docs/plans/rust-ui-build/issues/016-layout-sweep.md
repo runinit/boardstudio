@@ -766,3 +766,37 @@ actual viewBox, and a drag after release preserves that viewBox. This is measure
 GREEN pan isolation/positive canvas behavior; the retained earlier RED measured
 only raw event leakage. The actual precise Mirror draft, 12 combinations,
 measurements and three separate Undo outcomes pass in the same execution.
+
+### Landed020 integration and remaining owned inspector styles
+
+Safely merged landed020 `de0dce979e8b06391ae9d80cfe41efae952e463c` at
+`5cf7d016b198d641fab8974b75024c48ca840438`. Inspected both automatic CSS merges;
+the canonical Parts crate, Case shared viewer/tests, Parts workspace, Label and
+searchbox role helper are byte-identical to020. Own Layout view/Matrix exclusions
+remain; no older shared contracts or other lane content overwrite the landing.
+Overlap reads are `020-overlap-before-merge.diff` and `owned-css-after-020-merge.diff`.
+Build7 packages this merge successfully, retaining the same --fast/provider limits.
+
+Actual remaining-owner RED on that production pin:
+`layout-remaining-field-label-styles-red.log` checks Matrix name/Origin X, Board
+name, Outline margin and real SW1 Component X across all12 combinations. Board
+name retains a legacy opaque fill/border/radius and 32px height. Outline retains
+legacy fill/border/radius/focus; Component additionally retains 12px input and
+label text. Narrow Outline/Component inputs are40px. Existing Matrix fields pass.
+An earlier invocation hit a test sequencing error after valid Board12 and
+Outline8 measurements: clicking the already-open compact Inspector toggle closed
+it. The test now reads its actual expanded state before toggling and waits for
+the actual Sheet, rather than retrying clicks; state-aware and final label REDs
+complete all owners. Earlier failure is retained, no product behavior assertion
+was removed.
+
+Inventory before routine owned correction: Board-name class occurs only in
+board_inspector; Outline-field/inspector classes only in owned Outline controls;
+Component-inspector class only in owned component/relations/selected-keys panels.
+Six exact m1.css selector corrections will exclude copied data-slots from Board
+input; Outline input/focus; Component input/focus; and only the label alternative
+of the Component label/definition compound selector. All declarations, native
+reference branches and the definition alternative remain. Existing InputGroup
+and InputGroupInput callers in BoardInspector, the two private Outline numeric
+fields and ComponentInspector will supply narrow44 height. No new wrapper, API,
+visibility, dependency, parsing, draft, callback, state or domain change.
