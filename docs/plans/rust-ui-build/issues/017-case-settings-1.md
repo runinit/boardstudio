@@ -12,9 +12,9 @@ The first half of the Case mechanical settings: dimension fields, construction c
 
 ## Acceptance criteria
 
-- [ ] The dimension, construction, profile and resolved-stack groups of the settings have zero raw controls and `Board*` uses, with precise numeric entry unchanged
-- [ ] Existing tests for these groups pass after the rewrite rule
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The dimension, construction, profile and resolved-stack groups of the settings have zero raw controls and `Board*` uses, with precise numeric entry unchanged
+- [x] Existing tests for these groups pass after the rewrite rule
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Claim and ownership
 
@@ -59,3 +59,25 @@ The first half of the Case mechanical settings: dimension fields, construction c
 - Scoped WASM all-target Clippy passed with `-D warnings` (`.evidence/017/case-wasm-clippy.log`). Fresh document links passed across 569 Markdown files (`docs-final.log`). Exact source comparison in `ownership-final.log` confirms all 15 excluded functions and the DimensionField owner/controller/parser/commit prefix unchanged, with zero raw/Board controls in all nine owned production component bodies. The earlier static inventory attempt had two wrong editor function names; its partial output remains `ownership.log`, and the corrected inventory passes.
 
 - Final stronger keyboard assertions passed (`.evidence/017/browser-final-v2.log`, `browser-final-v2/`): Home reaches the actual first option, ArrowDown the second, ArrowUp the first, End the last; closed Combobox options remain outside Tab order. The previous `browser-final.log` expectation incorrectly assumed Enter initially focuses an option: the pinned primitive initially focuses the listbox. The test now starts with Home and asserts exact option names, without changing the control or weakening the keyboard contract. Feature was freshly merged (already current at `c38dc6bf`) before final checks. Packaged page production sources remain exactly those built at `aca35f66`; later changes are test/documentation only. All four final page and fixture Theme captures were inspected; narrow profile rows wrap and precise digits remain visible.
+
+## Outcome
+
+Implementation and scoped acceptance are complete; status stays claimed while the required coordinator Standards+Spec closure and local landing are **HOLD**. Review only this ticket's six-file diff against latest feature `b9371dbdabf23f1758282b898313ae7d75bae0ae`. Combined tested pin is `5cde90773e4ec4cce3f301b0fa605ffafcf78433`; the subsequent closure edit changes only this ticket. The latest shared layer slice merged cleanly; its separate layer CSS and reviewed source are retained. The approved shared controls, interpreter vendor patch, manifests and lock stay canonical.
+
+Adopted production controls are Field/InputGroup native precise inputs; controlled Checkbox; Field/Select and the 12/13-choice Combobox composition; Button (mapped Outline/Ghost); retained Collapsible; and named Toggle Group. Field errors use FieldError/description ARIA, extraction failures Alert, passive guidance Callout. Vertex removal has visible text and unique names, so no new icon-only action needs a Tooltip. Existing numeric rules, immediate XY f64 callbacks, blur/Enter/Escape/pending/failure handling, domain callbacks, local geometry drafts and external selection/history owners remain intact. There is no NumberField wrapper, public prop, dependency or visibility change beyond the separately approved, already landed InputGroup prerequisite. All 15 excluded 018/019 functions and the DimensionField owner prefix compare exactly unchanged. Shared legacy CSS remains for 024; only exclusive styles and the approved mechanical data-slot coexistence selectors changed.
+
+Every build uses exclusive `CARGO_TARGET_DIR=/home/chris/.cache/boardstudio-target/017-case-settings-1-lineage`. WASM tests and Clippy use `CARGO_PROFILE_DEV_DEBUG=false`; browser/build commands use `BOARDSTUDIO_CHECK_JOBS=1 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules`. Cargo jobs/other flags remain project-owned. Long logs and captures are under this worktree's `.evidence/017/`.
+
+| Check / exact command after those environment prefixes | Result and receipt |
+| --- | --- |
+| `cargo test --locked -p boardstudio-web-case --features test-support` | **34/34**, fresh combined pin; `case-native-merged.log` |
+| `wasm-pack test --headless --chrome web/crates/case --locked --lib` | **83/83**, fresh combined pin; `case-wasm-merged.log` |
+| `python3 scripts/test-case-settings.py --evidence .evidence/017/browser-merged` | **PASS**, fresh combined pin; `browser-merged.log`, four Theme/Appearance and 1050/390px PNGs, exact computed observations |
+| `cargo clippy --locked -p boardstudio-web-case --target wasm32-unknown-unknown --all-targets -- -D warnings` | **PASS**, `case-wasm-clippy.log`; reused unchanged Case production from `aca35f66`, later shared layer dependency separately reviewed/compiled by fresh combined suite |
+| `python3 scripts/build-web.py --fast --skip-providers` | **PASS**, `page-build.log`; provider preparation/reused current CAD cache described above |
+| `python3 scripts/serve-web.py web/target/site 48117` and `python3 scripts/test-case-settings.py --page-url http://127.0.0.1:48117/boardstudio/ --evidence .evidence/017/page-v3` | **PASS**, `page-v3.log`, `page-v3/page-result.json`, four `page-*.png`; packaged Case/Runtime production at `aca35f66`, unchanged by later test/docs/shared-layer edits. This proves real durable precision and Undo/Redo, not CAD completion. Server/browser stopped. |
+| `rustfmt --edition 2024 --check` on the three owned Rust files; `python3 scripts/check-wasm-tests.py`; `python3 -m py_compile scripts/test-case-settings.py`; `python3 scripts/check-doc-links.py`; own `git diff --check` | **PASS**, formatting/browser registration/doc logs; 569-file doc check before latest layer doc, final refresh below |
+
+Actual bug RED/GREEN is retained separately: `red-dimension-description-native-blur.log` → `green-dimension-description-landed-prereq.log`; `styles-red-v2/` and `styles-red-v3/` → `styles-green/` and final `browser-merged/`. Compile, device emulation, CLI-coordinate and mistaken-test-contract failures are recorded as such above, never counted as product RED. Screenshots in all four combinations and narrow wrapped profile rows were visually inspected. No forced clicks, CSS/tag control locators, fixture-hoisted local drafts or ignored browser errors supplied acceptance.
+
+Limits: physical coarse-pointer behavior was not measured because agent-browser's device command did not set a coarse pointer; actual narrow 44px metrics pass and explicit coarse media classes are present. Screen-reader/human 026, first paint, global full/quick, CAD `worker.onerror`/generation and final integration remain **OPEN**. The packaged preview was still generating when captures were taken; no CAD success is claimed. Before review there are no owned builds/previews; the exclusive generated target occupies **14,120,251,392 allocated bytes** and is retained until approved landing/cleanup. Worktree, branch and evidence are preserved.
