@@ -996,3 +996,206 @@ before preventing default; positive canvas pan/release must stay GREEN. This is
 a shared keyboard precedence decision, with no API/dependency or domain edit,
 and belongs in the one full016 closure review if approved. Continue independent
 owned checks while that decision is pending; no assertion is waived.
+
+
+## Outcome: full016 closure candidate
+
+Owned implementation and affected verification are complete; **coordinator Standards
+and Spec approval and local landing are held**. Status stays claimed until that
+closure. Integration base is `de0dce979e8b06391ae9d80cfe41efae952e463c`
+(020), merged at `5cf7d016b198d641fab8974b75024c48ca840438`; the final merge
+check reports already up to date. Canonical CONTROL,017,020 and shared LAYER are
+inherited. No other lane's WIP was copied. The current production Rust/CSS pin is
+`e9f1a3093d270d5f0a8ccf2976c5768aa560347f` (the following commits change tests/documentation only); build13 packages
+that pin with the repository `--fast --skip-providers` workflow, retaining the
+previously generated providers. This is a checked debug page, not the shipping build.
+
+### Result and contracts for both review axes
+
+- Remaining owned Layout controls now use the mapped Button, Field/InputGroup,
+  Select/Combobox, Checkbox, Slider, Tabs, ToggleGroup, Collapsible/Accordion,
+  Tooltip, Item, Badge, Empty, Alert/Callout and FieldError compositions. The Add
+  and Mirror existing half views are named in-dock regions; they use the original
+  domain callbacks, accepted values, selection and pending-edit owners. Numeric
+  drafts, parsing and commit baselines stay local. No NumberField abstraction,
+  dependency, visibility widening or additional public props were introduced.
+- Approved secondary actions use Button Secondary under theme-contract §8; the
+  sole mapping change corrects that Button row. ToggleGroup Outline and all landed
+  tickets' variants remain unchanged. Owned legacy look exclusions are bounded to
+  their callers; declarations, native legacy alternatives, Case/design branches,
+  015 placement/sizing/SVG and023 guide rules remain. Only exclusive dead control
+  look rules were removed, including the two old Add accent rules. Shared cleanup
+  remains024. The final connected CSS diff was self-inspected.
+- Shared identity contract: the existing non-namespaced Combobox root `id` now
+  belongs only to its actual input; no new prop exists. Default generated input,
+  list, controls and active-descendant identities remain primitive-owned. Tests
+  cover explicit labels, multiple instances, unique IDs, default omission and
+  existing006 navigation/filter/controlled value/focus return. Final actual long
+  Mirror and inherited020 implicit Parts label integration also passes.
+- Shared keyboard contract: Select's closed-to-open Space keeps its existing
+  set-open, prevent-default and virtual stop, adding only raw propagation stop.
+  Enter and caller event composition remain unchanged. The global Layout window
+  listener now refuses an already default-prevented Space; helper API, typing
+  checks, admitted set/prevent order, keyup/release and listener/drop are unchanged.
+  `CanvasNavigationState` installs the same owned hook/listener; the actual canvas
+  handler sets its local Space state before preventing default and remains intact.
+  All015 raw/virtual guards are byte-identical to feature. No geometry/domain edit.
+- The approved Button props (`onkeydown`, `onpointerenter`, `onfocus`, `onblur`,
+  `aria_describedby`) originated in016's clean contract01c631e8 and are now inherited
+  from canonical CONTROL, including its stronger sorted spread/listener composition
+  and effective-ID fixes. Both native/link default omission and forwarding-once
+  tests pass. Connected016 consumers are relation Reference highlight/description,
+  action disabled descriptions, transform description and viewer keyboard fences.
+  Existing pointerleave cleanup and owner handlers are preserved. Actual Editor
+  Reference hover/leave, focus/blur, correct per-Item description and selection,
+  removal and unmount cleanup pass; it has no owner-disabled Reference branch.
+  Other action disabled reasons/outcomes and canonical Button disabled proof are
+  separate. Canonical Button, InputGroup, Checkbox, Label, canvas_layers, Parts,
+  Case shared viewer,017 source and `presentation.rs` match the landed feature.
+- Add's inherited020 chooser is exercised without a Parts source edit. Accepted
+  Mirror Cancel/Escape restores the existing Add opener only after the unchanged
+  owner/pending guard. Actual precise mirror, linked subsequent edits, Parts
+  keyboard Cancel/commit and separate Undo/Redo outcomes remain correct.
+- Setup guide016 covers existing Button/Input/Accordion adoption only. Its stage
+  availability/current-ready state, links, callbacks, drafts and focus remain.
+  **023 Stepper/current-ready composition remains open**, with the earlier exact
+  `ProjectSetupGuide`/`sync_stage_trigger`/guide and Matrix focus-test handoff.
+  Literal whole-crate raw scans still find protected015 primitive-composition
+  internals/its existing Snap wrapper and test fixtures; they were not reassigned
+  to016. Two Matrix slider captions remain visual native labels beside explicitly
+  named sliders. No claim of zero arbitrary HTML/domain `Board*` names is made.
+
+### Fresh RED/GREEN and final commands
+
+All long logs and captures below are under this worktree's `.evidence/016/`.
+
+1. Focused window listener test first fails at **consumed Space must not acquire
+   pan** on test commit `0d3c37e3`, unchanged production admission. Exact guard at
+   `e9f1a309` passes1/1 (8 filtered). Command: `CARGO_PROFILE_DEV_DEBUG=false
+   wasm-pack test --headless --chrome web/crates/ui-model --locked --lib --
+   layout_space_pan_uses_global_space_key_without_a_focus_precondition`.
+   Logs `canvas-consumed-space-{red,green}.log`. The mounted native event test
+   covers consumed/unconsumed admission, existing admitted state, prevented keyup
+   after workspace change, fresh nonLayout events, input/textarea/select typing,
+   and both removed listeners after drop. No production listener was added.
+2. Actual trusted repeat RED at `60d0b9cc` measures a real30×20px drag changing
+   viewBox (`select-held-repeat-actual-pan-red.log`); the earlier one-down/up proof
+   was insufficient for repeat acceptance. Build13 at `e9f1a309` and
+   `python3 scripts/test-layout-adoption.py --page-url http://127.0.0.1:4186/boardstudio/`
+   now pass (`layout-held-repeat-adoption-final.log`): initial Select Space never
+   reaches window, one consumed trusted repeat may bubble but cannot pan, one open,
+   no native click/selection change, exact release, positive blank-canvas pan and
+   release stopping the next drag. Same actual run passes Add/Mirror retained
+   precise draft/node/label identity and hidden/inert focus across12 combinations,
+   exact12.123456789 axis/24.246913578 linked geometry, measurements and three
+   separate Undo outcomes. Captures `layout-adoption-20261022-225445/`.
+3. `python3 scripts/test-layout-view-controls.py --page-url <same URL>` at exact
+   final script passes all3 actual copied view controls across12 combinations,
+   Footprints toggles/restores,3D→2D owner transition, copied pressed/focus/disabled
+   CSS,44px targets and native legacy reference. Log
+   `layout-all-view-controls-final-exact-script.log`; captures
+   `view-controls-20261022-225506/`. The former zero-padding probe was invalid;
+   copied px-2 plus Chromium's1px block padding is the proven contract.
+4. `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/test-layout-add-actions.py
+   --page-url <same URL>` passes both actual standalone Objects and Editor Add
+   owners across12 combinations each: Secondary default/hover/focus,40px desktop
+   and44px narrow, native disabled CSS/refusal probe, Enter/Space once, cancel
+   focus. Log `layout-both-add-entries-final.log`; captures
+   `add-entries-20261022-225545/`. Hover capability is emulated, not human/fine
+   pointer acceptance; neither Add owner exposes a disabled-state prop.
+5. Actual inline FieldError RED is `layout-inline-error-style-owned-red.log`;
+   two exact legacy selector guards at `60d0b9cc` pass all24 error combinations,
+   preserving validation text, Escape restoration and accepted geometry.
+   `python3 scripts/test-layout-point-controls.py --page-url <same URL>` with
+   final test pin `20962200` passes those errors,12 point-row alignment/selection
+   combinations,60 Secondary action style checks, plus actual Inspector Checkbox
+   Enter inert/Space once/native associated label once/unique ID and accepted
+   Undo/Redo. Log `layout-checkbox-and-inline-errors-final.log`; captures
+   `layout-point-controls-20261022-225704/`. Conditional remove-protected-gap style
+   is source-inspected, not reached in this actual script; mounted action tests
+   retain its behavior coverage.
+6. The packaged production branch of `scripts/test-dock-layout.py --page-url
+   <same URL>` passes at test pin `2923f13f`: all six Workspace dock routes,
+   nested Escape/focus, same actual unsubmitted constraint draft and DOM owners
+   across both tabs, Sheet hide/inert/reopen and979/980 both directions, seven
+   trusted Collapsible activations exactly once, plus positive canvas pan without
+   losing selection/draft. First final run retained the obsolete native
+   DisclosureTriangle locator failure (`layout-production-dock-final.log`). The
+   correction uses the adopted named Button and aria-expanded; native button
+   clicks no longer need the old summary toggle's preventDefault. Held key tests
+   reuse the documented CDP bridge because this agent-browser has no keydown/up
+   command. No assertions about local draft/identity or once-only toggling were
+   removed. GREEN `layout-production-dock-adopted-controls-final.log`; the invocation
+   imports the unchanged production runner and redirects only its screenshot ROOT
+   to `dock-final-adopted/.evidence/`, preserving existing011 receipts.
+7. Final all-target WASM clippy (warnings denied) includes web, layout, ui-shared
+   and ui-model at production `e9f1a309`: `CARGO_PROFILE_DEV_DEBUG=false cargo
+   clippy --locked -p boardstudio-web -p boardstudio-web-layout -p
+   boardstudio-web-ui-shared -p boardstudio-web-ui-model --target
+   wasm32-unknown-unknown --all-targets -- -D warnings`, log
+   `layout-clippy-precedence-final.log`. Cargo fmt, Python syntax and git diff
+   whitespace checks pass. Documentation links pass571 Markdown files and the
+   WASM plain-test-name guard passes0 baselined; exact final documentation check
+   is rerun after this outcome. A mistaken guard script filename exited before
+   running tests; corrected `scripts/check-wasm-tests.py` passes, both logs retained.
+
+### Sufficient evidence reused with explicit source limits
+
+- At `f648a044`, Layout browser156 plus separate guide1 pass (the two invocations
+  cover all157; no test ignored or assertion waived): `layout-browser-owned-final-8.log`
+  and `layout-guide-browser-final.log`. Commands are `CARGO_PROFILE_DEV_DEBUG=false
+  wasm-pack test --headless --chrome web/crates/layout --locked --lib -- --skip
+  setup_guide::`, then the same invocation with `-- setup_guide::`. Later production
+  changes are accepted Cancel focus, caller/CSS fixes and the bounded global guard;
+  those are freshly covered above and by final clippy, not claimed as another157 run.
+- At the same pin, all24 selected shared `ui::` browser tests pass,58 filtered:
+  `wasm-pack test --headless --chrome web/crates/ui-shared --locked --lib -- ui::`
+  with the same debug profile environment; `shared-ui-browser-final.log`. Includes
+  006 Select/Combo, retained popup/focus, identity/Label and canonical CONTROL
+  Button/Input/Checkbox contracts. Shared copy production is unchanged since that
+  run; the separate global window listener test and actual integration are fresh.
+- Actual13 matrices/26 linked containers long chooser run passes on production
+  `41e9abca`, test `8ff9f75f`: `python3 scripts/test-layout-chooser-integration.py
+  --page-url <same URL>`, `layout-chooser-linked-containers-green.log`, captures
+  `layout-chooser-integration-20261022-221737/`. Explicit Mirror and implicit020
+  Parts native label focus/ID uniqueness/filter/active option/controlled selection,
+  exact one-source mirror/Cancel and Parts keyboard preview Cancel/commit/Undo/Redo
+  pass. The script's final printed13-layout shorthand means13 source matrices;
+  its Parts long choice has26 actual linked containers. Earlier setup failures
+  with0 containers are retained and are not GREEN evidence.
+- Actual96 field variants at `f648a044` pass: `python3 scripts/test-layout-field-styles.py
+  --page-url <same URL>`, `layout-all-owned-field-styles-green.log`, captures
+  `layout-field-styles-20261022-220940/`. Native precise owner text, same node/local
+  pair drafts, labels, copied tokens/geometry/focus and40/44px targets are checked.
+- At `3d702ffd`, all41 selected shell browser tests pass with0 failed:
+  `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/run-wasm-tests.py --files
+  web/src/presentation/layout_relation_highlight_tests.rs
+  web/src/presentation/layout_component_inspector_tests.rs
+  web/src/presentation/layout_layers_tests.rs
+  web/src/presentation/layout_remainder_tests.rs --result-json
+  .evidence/016/layout-shell-browser-final.json`; log
+  `layout-shell-browser-final.log`. Original Departure, companion and constraint
+  actions, disabled reasons and Undo remain, alongside actual Reference lifecycle,
+  selected-tab return, findings and independent layer owners. Subsequent changes
+  are the two error CSS guards and bounded global listener admission only.
+- Supported native scheduler at `19d055b4` passes97 executed unit tests (80 Layout,
+  17 ui-shared; web native harness0), not the runner's2104 global baseline total:
+  `CARGO_PROFILE_DEV_DEBUG=false BOARDSTUDIO_CHECK_JOBS=1` with `check.run_plan`
+  around `cargo test --locked -p boardstudio-web-layout -p
+  boardstudio-web-ui-shared -p boardstudio-web`. Log `layout-native-final.log`.
+  One pre-existing opt-in archive test requires unsupplied
+  KEYCAPS_MIRROR_PROJECT_JSON; two pre-existing helper doctests are ignored. No
+  baseline, ignore annotation, native behavior or names changed. Later Rust change
+  is WASM-only listener admission; native evidence is reused, not rerun.
+
+Screenshots were inspected at actual narrow Mirror and point-row states. The
+Mirror, view, both Add, field and point capture sets cover1440/1100/390 and both
+Themes/Appearances. The long chooser captures illustrate its functional run only.
+These are repository automation receipts, not screen-reader/human acceptance.
+Global full/quick/CAD worker.onerror/first-paint/screen-reader/human026/final merge
+remain **OPEN**. The unused public LayoutFindingsFooterButton has its mounted
+proof only; actual Editor footer is the separate014 owner, not claimed as that
+function's actual adoption evidence. No remote/dev push or self landing occurred.
+The owned4186 preview stays available for required review; cleanup of that preview
+and exclusive generated target follows approved verified landing, preserving this
+worktree, branch and evidence.
