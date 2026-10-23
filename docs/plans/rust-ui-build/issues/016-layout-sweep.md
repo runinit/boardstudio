@@ -963,3 +963,36 @@ because the interactive-only snapshot omits noninteractive alert nodes
 owned FieldError's role without treating it as a clickable control. Keep that
 role/font/token assertion, and exclude copied data-slots from only these two
 owned legacy alert selectors. No message text, validation, callback or state edit.
+
+### Held-key repeat: bounded global listener decision needed
+
+The earlier held-key GREEN used one trusted keydown/up, with no injected repeat.
+It must not be read as repeat-key acceptance. Extending the actual test with a
+trusted `repeat:true` keydown on the open Group listbox now measures a real pan
+RED at packaged source `60d0b9cc`: `select-held-repeat-actual-pan-red.log`.
+Initial opening Space still has no raw window event. The repeat is consumed by
+the primitive (defaultPrevented:true), but its raw event reaches window; a real
+30×20px blank-canvas drag changes viewBox from
+`-47 -37.67213277284264 94 75.34426554568527` to
+`-50.578680203045685 -41.751269035533 94 78.73096446700508`.
+The test retains its camera, one-open, no-native-click, exact release and positive
+canvas-pan assertions; finally always releases the key and closes the browser.
+
+The approved Select-only patch remains exact. The existing open-list primitive
+handler consumes repeats and stops virtual propagation before the copied root;
+changing its selection or adding an overriding spread handler is outside that
+lease. The latest approval also explicitly excludes Canvas edits, so no global
+listener edit has been made.
+
+Minimal proposed additional sole-writer scope:
+`web/crates/ui-model/src/canvas_interaction.rs`, existing
+LayoutSpacePanWindowListener keydown admission only, plus its adjacent focused
+mounted test. Add `!event.default_prevented()` to the existing `is_layout() &&
+layout_space_pan_keydown(...)` condition. Preserve the pure helper signature,
+typing check, admitted-event set/prevention order, keyup/release, listener/drop
+ownership and all015 guards. An already-consumed repeat can still bubble raw,
+but must not arm pan. The actual canvas handler already admits its own Space
+before preventing default; positive canvas pan/release must stay GREEN. This is
+a shared keyboard precedence decision, with no API/dependency or domain edit,
+and belongs in the one full016 closure review if approved. Continue independent
+owned checks while that decision is pending; no assertion is waived.

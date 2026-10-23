@@ -34,13 +34,13 @@ def geometry():
     return evaluate("[...document.querySelectorAll('.m1-matrix-key')].map(e=>({matrix:e.dataset.matrixId,transform:e.getAttribute('transform'),width:e.getAttribute('width'),height:e.getAttribute('height')}))")
 
 
-def space_key(event_type):
+def space_key(event_type, repeat=False):
     # agent-browser press releases immediately; its documented CDP bridge can hold one trusted key.
     cdp = browser("get", "cdp-url")["cdpUrl"]
     page = browser("get", "url")["url"]
     script = """
         import {readFileSync} from 'node:fs';
-        const {url,page,type}=JSON.parse(readFileSync(0,'utf8'));
+        const {url,page,type,repeat}=JSON.parse(readFileSync(0,'utf8'));
         const ws=new WebSocket(url),pending=new Map();let id=0;
         const timeout=setTimeout(()=>{console.error('CDP key dispatch timed out');process.exit(1)},10000);
         ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result)}};
@@ -51,11 +51,11 @@ def space_key(event_type):
             const pages=targetInfos.filter(t=>t.type==='page'&&t.url===page);
             if(pages.length!==1)throw Error('Expected exactly one owned Layout page');
             const {sessionId}=await send('Target.attachToTarget',{targetId:pages[0].targetId,flatten:true});
-            await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32},sessionId);
+            await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32,autoRepeat:repeat},sessionId);
         } finally {clearTimeout(timeout);ws.close()}
     """
     subprocess.run(["node", "--input-type=module", "-e", script],
-                   input=json.dumps({"url": cdp, "page": page, "type": event_type}),
+                   input=json.dumps({"url": cdp, "page": page, "type": event_type, "repeat": repeat}),
                    text=True, check=True, timeout=15)
 
 
@@ -75,17 +75,20 @@ def held_space_floor():
             browser("mouse", "up")
 
     browser("focus", driver.by_role_name("button", "Group objects by"))
-    evaluate("window.heldSelect=document.activeElement;window.openTransitions=[];window.heldClicks=[];window.heldKeys=[];window.selectObserver=new MutationObserver(ms=>openTransitions.push(...ms.map(m=>m.oldValue)));selectObserver.observe(heldSelect,{attributes:true,attributeFilter:['aria-expanded'],attributeOldValue:true});heldSelect.addEventListener('click',e=>heldClicks.push(e.isTrusted));window.recordHeldKey=e=>{if(e.code==='Space')heldKeys.push({type:e.type,trusted:e.isTrusted,prevented:e.defaultPrevented})};window.addEventListener('keydown',recordHeldKey);window.addEventListener('keyup',recordHeldKey)")
+    evaluate("window.heldSelect=document.activeElement;window.openTransitions=[];window.heldClicks=[];window.heldKeys=[];window.selectObserver=new MutationObserver(ms=>openTransitions.push(...ms.map(m=>m.oldValue)));selectObserver.observe(heldSelect,{attributes:true,attributeFilter:['aria-expanded'],attributeOldValue:true});heldSelect.addEventListener('click',e=>heldClicks.push(e.isTrusted));window.recordHeldKey=e=>{if(e.code==='Space')heldKeys.push({type:e.type,trusted:e.isTrusted,repeat:e.repeat,prevented:e.defaultPrevented,role:e.target.getAttribute('role')})};window.addEventListener('keydown',recordHeldKey);window.addEventListener('keyup',recordHeldKey)")
     before = evaluate("layoutCanvas.getAttribute('viewBox')")
     space_key("keyDown")
     try:
         assert driver.by_role_name("listbox", "Group objects by")
+        check("!heldKeys.some(e=>e.type==='keydown')")
+        space_key("keyDown", repeat=True)
         drag()
-        check("heldSelect.textContent.trim()==='By layout' && heldClicks.length===0 && openTransitions.filter(v=>v==='false').length===1 && !heldKeys.some(e=>e.type==='keydown')")
+        print("Held repeat Space actual camera", before, evaluate("layoutCanvas.getAttribute('viewBox')"), evaluate("({keys:heldKeys,open:heldSelect.getAttribute('aria-expanded'),transitions:openTransitions})"), flush=True)
         assert evaluate("layoutCanvas.getAttribute('viewBox')") == before, "Select-held Space must not arm canvas pan"
+        check("heldSelect.textContent.trim()==='By layout' && heldClicks.length===0 && openTransitions.filter(v=>v==='false').length===1 && heldKeys.filter(e=>e.type==='keydown').every(e=>e.repeat && e.prevented && e.trusted)")
     finally:
         space_key("keyUp")
-    check("heldKeys.length===1 && heldKeys[0].type==='keyup' && heldKeys[0].trusted && heldClicks.length===0")
+    check("heldKeys.filter(e=>e.type==='keyup').length===1 && heldKeys.filter(e=>e.type==='keyup').every(e=>e.trusted) && heldClicks.length===0")
     browser("press", "Escape")
     browser("focus", driver.by_role_name("group", canvas_name))
     space_key("keyDown")
