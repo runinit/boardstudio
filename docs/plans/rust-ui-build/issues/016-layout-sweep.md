@@ -563,3 +563,24 @@ but the headless browser reports `(hover:hover)` and `(pointer:fine)` false. The
 canonical copy correctly conditions hover on that media feature. No production
 hover CSS is altered; the harness will explicitly establish real fine-pointer
 emulation before checking that state and retain this original result.
+
+
+At `16cedbff`, fresh packaged build 4 and both actual Add owners pass all 12
+combinations: Secondary default/hover/focus, native disabled refusal/CSS, desktop
+40px and narrow 44px targets, trusted Enter/Space exactly once, Escape and original
+opener identity/focus. `add-two-actual-owners-hover-space-green.log`, captures
+`.evidence/016/add-entries-20261022-211614/`. Hover capability uses the verified
+Chromium `--blink-settings=primaryHoverType=2` flag and asserts real `(hover:hover)`;
+this is hover emulation, not fine-pointer or human evidence. Build packaging's
+wasm-bindgen overlapped the subsequent standalone example's compilation; Cargo
+compilations did not overlap and both used exact `16cedbff` source. Future build
+pipelines remain sequential through packaging completion.
+
+Strengthened actual-owner operations to use trusted native Space for the Matrix
+chooser, Create matrix and Create linked half. Actual first RED at `16cedbff`:
+Matrix chooser gets zero native clicks (`layout-native-space-red.log`), the same
+window pan cause outside 015's intentional toolbar boundary. Move the internal Add
+Space guard to the existing owned Objects aside, protecting its native tree/Add/
+Matrix/Mirror descendants without preventing their default action, handling Escape,
+changing callbacks, or covering canvas/015/shared listener source. External header
+Add retains its own guard. No new prop, visibility, dependency or state owner.

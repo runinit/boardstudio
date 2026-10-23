@@ -385,6 +385,15 @@ pub fn Objects(
     let selection_count = model.selected_part_ids.len();
     rsx! {
                 aside { class: "m1-objects", "aria-label": "Objects",
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key() == Key::Character(" ".to_owned()) {
+                            // These dock controls keep native Space activation instead of starting canvas pan.
+                            event.stop_propagation();
+                            if let Some(raw) = event.data().try_as_web_event() {
+                                raw.stop_propagation();
+                            }
+                        }
+                    },
                     header {
                         h2 { "Objects" }
                     }
@@ -765,15 +774,6 @@ fn AddObjectEntry(
                             id: "m1-add-object-trigger",
                             aria_label: "Add object",
                             class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
-                            onkeydown: move |event: KeyboardEvent| {
-                                if event.key().to_string() == " " {
-                                    // Preserve native Add activation before the window pan shortcut.
-                                    event.stop_propagation();
-                                    if let Some(raw) = event.data().try_as_web_event() {
-                                        raw.stop_propagation();
-                                    }
-                                }
-                            },
                             aria_expanded: open_menu,
                             onclick: move |_| menu_open.set(!menu_open()),
 

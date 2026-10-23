@@ -19,6 +19,14 @@ def objects_sheet():
     browser("find", "role", "tab", "click", "--name", "Objects", "--exact")
 
 
+def activate_with_space(name):
+    browser("focus", driver.by_role_name("button", name))
+    evaluate("window.spaceOwner=document.activeElement;window.spaceClicks=[];spaceOwner.addEventListener('click',e=>spaceClicks.push(e.isTrusted),{once:true})")
+    browser("press", "Space")
+    print("Native Space", name, evaluate("({clicks:spaceClicks,connected:spaceOwner.isConnected})"), flush=True)
+    check("spaceClicks.length===1 && spaceClicks[0]")
+
+
 def geometry():
     # Drawing geometry is inspected structurally; interactive controls use role/name.
     return evaluate("[...document.querySelectorAll('.m1-matrix-key')].map(e=>({matrix:e.dataset.matrixId,transform:e.getAttribute('transform'),width:e.getAttribute('width'),height:e.getAttribute('height')}))")
@@ -37,11 +45,11 @@ def tests(url, captures):
     click("Add object")
     assert driver.by_role_name("region", "Add")
     check("!document.querySelector('[role=dialog][aria-label=Add]') && document.getElementById('m1-objects-panel').contains(document.querySelector('[role=region][aria-label=Add]'))")
-    click("Matrix… Rows, columns & key assemblies")
+    activate_with_space("Matrix… Rows, columns & key assemblies")
     for name in ["Rows", "Columns"]:
         browser("focus", driver.by_role_name("slider", name))
         browser("press", "Home")
-    click("Create matrix")
+    activate_with_space("Create matrix")
     browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===1")
     original = geometry()
     assert original[0]["transform"] == "translate(0 0) rotate(0)" and original[0]["width"] == original[0]["height"] == "18", original
@@ -72,7 +80,7 @@ def tests(url, captures):
     browser("set", "viewport", 1440, 900)
     browser("focus", driver.by_role_name("spinbutton", "Mirror axis X"))
     check("document.activeElement===axisDraft && axisDraft.value==='12.123456789'")
-    click("Create linked half")
+    activate_with_space("Create linked half")
     browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===2")
     paired = geometry()
     assert original[0] in paired, paired
