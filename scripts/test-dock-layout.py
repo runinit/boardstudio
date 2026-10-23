@@ -182,6 +182,9 @@ def production_tests(url):
 
 def production_local_draft_tests():
     """Use the real component-local constraint draft, without submitting it."""
+    session = primitives.SESSION
+    space_key = importlib.import_module("test-layout-adoption").space_key
+    primitives.SESSION = session
     for index in [1, 2]:
         click("Add object")
         click("Add battery connector jst ph 2")
@@ -195,36 +198,31 @@ def production_local_draft_tests():
         click("Inspector")
     browser("find", "role", "tab", "click", "--name", "Inspector", "--exact")
     browser("wait", "--fn", "!document.getElementById('header-mobile-commands') && document.querySelector('[role=tabpanel][aria-label=Inspector]')?.checkVisibility()")
-    evaluate("window.constraintDisclosure=document.querySelector('.m1-layout-component-constraint');window.disclosureChanges=[];new MutationObserver(records=>records.forEach(r=>disclosureChanges.push({oldOpen:r.oldValue,open:constraintDisclosure.open}))).observe(constraintDisclosure,{attributes:true,attributeOldValue:true,attributeFilter:['open']})")
+    browser("focus", primitives.by_role_name("button", "Layout constraint"))
+    evaluate("window.constraintDisclosure=document.activeElement;window.disclosureChanges=[];window.constraintObserver=new MutationObserver(records=>records.forEach(r=>disclosureChanges.push({oldOpen:r.oldValue,open:constraintDisclosure.getAttribute('aria-expanded')})));constraintObserver.observe(constraintDisclosure,{attributes:true,attributeOldValue:true,attributeFilter:['aria-expanded']})")
     evaluate("window.disclosureKeys=[];['keydown','keyup'].forEach(type=>window.addEventListener(type,event=>disclosureKeys.push({type,key:event.key,code:event.code,prevented:event.defaultPrevented,target:event.target.tagName})))")
     for activation, opened in [("click", True), ("click", False), ("Enter", True), ("Space", False), ("Space", True), ("Enter", False), ("click", True)]:
+        browser("focus", primitives.by_role_name("button", "Layout constraint"))
+        check("document.activeElement===constraintDisclosure")
         evaluate("disclosureChanges.length=0;disclosureKeys.length=0;window.disclosureClick=null;window.addEventListener('click',event=>{disclosureClick={trusted:event.isTrusted,prevented:event.defaultPrevented}},{once:true})")
         if activation == "click":
-            summary_text = browser("find", "role", "DisclosureTriangle", "text", "--name", "Layout constraint Optional", "--exact")["text"]
-            assert browser("snapshot")["snapshot"].count('DisclosureTriangle "Layout constraint Optional"') == 1
-            browser("focus", ".m1-layout-component-constraint > summary")
-            check(f"document.activeElement===constraintDisclosure.querySelector('summary') && document.activeElement.innerText==={primitives.json.dumps(summary_text)}")
-            point = evaluate("(() => {const summary=constraintDisclosure.querySelector('summary'),r=summary.getBoundingClientRect(),x=Math.round(r.x+r.width/2),y=Math.round(r.y+r.height/2);if(!summary.contains(document.elementFromPoint(x,y)))throw Error('Disclosure click point is covered');return {x,y}})()")
-            browser("mouse", "move", point["x"], point["y"])
-            browser("mouse", "down")
-            browser("mouse", "up")
-        else:
-            summary_text = browser("find", "role", "DisclosureTriangle", "text", "--name", "Layout constraint Optional", "--exact")["text"]
-            assert browser("snapshot")["snapshot"].count('DisclosureTriangle "Layout constraint Optional"') == 1
-            browser("focus", ".m1-layout-component-constraint > summary")
-            check(f"document.activeElement===constraintDisclosure.querySelector('summary') && document.activeElement.innerText==={primitives.json.dumps(summary_text)}")
-            if activation == "Space":
-                evaluate("window.summaryKeydown=null;window.addEventListener('keydown',event=>{summaryKeydown=event},{once:true,capture:true})")
-                browser("keydown", " ")
+            click("Layout constraint")
+        elif activation == "Space":
+            evaluate("window.summaryKeydown=null;window.addEventListener('keydown',event=>{summaryKeydown=event},{once:true,capture:true})")
+            space_key("keyDown")
+            try:
                 check("summaryKeydown.isTrusted && summaryKeydown.key===' ' && !summaryKeydown.defaultPrevented && disclosureChanges.length===0 && disclosureClick===null")
-                browser("keyup", " ")
-            else:
-                browser("press", activation)
+            finally:
+                space_key("keyUp")
+        else:
+            browser("press", activation)
+        browser("wait", "--fn", f"constraintDisclosure.getAttribute('aria-expanded')==={str(opened).lower()!r}")
         evaluate("new Promise(requestAnimationFrame).then(()=>true)")
-        observed = evaluate("({open:constraintDisclosure.open,changes:disclosureChanges,click:disclosureClick,keys:disclosureKeys})")
+        observed = evaluate("({open:constraintDisclosure.getAttribute('aria-expanded')==='true',changes:disclosureChanges,click:disclosureClick,keys:disclosureKeys})")
         print("disclosure", activation, observed, flush=True)
-        assert observed["open"] == opened and len(observed["changes"]) == 1 and observed["click"] == {"trusted": True, "prevented": True}, observed
-    print("PASS: real Layout constraint summary click/Enter/Space each toggles exactly once", flush=True)
+        assert observed["open"] == opened and len(observed["changes"]) == 1 and observed["click"] == {"trusted": True, "prevented": False}, observed
+    evaluate("constraintObserver.disconnect()")
+    print("PASS: real Layout constraint Collapsible button click/Enter/Space each toggles exactly once", flush=True)
     browser("wait", "--fn", "document.querySelector('[aria-label=\"Offset X (mm)\"]')?.checkVisibility()")
     browser("find", "role", "spinbutton", "fill", "--name", "Offset X (mm)", "--exact", "123.456")
     evaluate("window.constraintDraft=document.querySelector('[aria-label=\"Offset X (mm)\"]');window.objectsDock=document.getElementById('m1-objects-panel');window.inspectorDock=document.getElementById('m1-inspector-panel')")
@@ -274,13 +272,17 @@ def production_local_draft_tests():
     browser("wait", "--fn", "document.getElementById('workspace-panel-sheet').dataset.inline==='true'")
     canvas = primitives.by_role_name("group", "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls")
     browser("focus", canvas)
-    point = evaluate("(() => {window.panCanvas=document.querySelector('svg[role=group]');window.panBefore=panCanvas.getAttribute('viewBox');window.panSelection=document.querySelector('[role=treeitem][aria-selected=true]')?.textContent;const r=panCanvas.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()")
-    browser("keydown", " ")
-    browser("mouse", "move", point["x"], point["y"])
-    browser("mouse", "down")
-    browser("mouse", "move", point["x"] + 40, point["y"] + 24)
-    browser("mouse", "up")
-    browser("keyup", " ")
+    point = evaluate("(() => {window.panCanvas=document.activeElement;window.panBefore=panCanvas.getAttribute('viewBox');window.panSelection=document.querySelector('[role=treeitem][aria-selected=true]')?.textContent;const r=panCanvas.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()")
+    space_key("keyDown")
+    try:
+        browser("mouse", "move", point["x"], point["y"])
+        browser("mouse", "down")
+        try:
+            browser("mouse", "move", point["x"] + 40, point["y"] + 24)
+        finally:
+            browser("mouse", "up")
+    finally:
+        space_key("keyUp")
     browser("wait", "--fn", "panCanvas.getAttribute('viewBox')!==panBefore")
     check("document.querySelector('[role=treeitem][aria-selected=true]')?.textContent===panSelection")
     retained()
