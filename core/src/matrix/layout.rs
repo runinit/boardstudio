@@ -184,6 +184,21 @@ pub(crate) fn member_pairs(
         .collect()
 }
 
+/// Part correspondences for explicit member pairs.
+pub(crate) fn part_correspondences(
+    pairs: impl IntoIterator<Item = (String, String)>,
+) -> impl Iterator<Item = MirroredCorrespondence> {
+    pairs
+        .into_iter()
+        .map(|(source_id, mirror_id)| MirroredCorrespondence {
+            kind: MirroredItemKind::Part,
+            source_id,
+            mirror_id,
+            companion_mode: None,
+            companion_tweak: None,
+        })
+}
+
 /// A Local Part exception excuses its mirror member from pairing.
 fn is_excepted(exceptions: &[MirroredException], mirror_id: &str) -> bool {
     exceptions.iter().any(|exception| {
@@ -217,18 +232,11 @@ pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result
     });
     let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
     let exceptions = link.exceptions.clone();
-    link.correspondences.extend(
+    link.correspondences.extend(part_correspondences(
         member_pairs(&matrix, mirror_id, None)
             .into_iter()
-            .filter(|(_, mirror_id)| !is_excepted(&exceptions, mirror_id))
-            .map(|(source_id, mirror_id)| MirroredCorrespondence {
-                kind: MirroredItemKind::Part,
-                source_id,
-                mirror_id,
-                companion_mode: None,
-                companion_tweak: None,
-            }),
-    );
+            .filter(|(_, mirror_id)| !is_excepted(&exceptions, mirror_id)),
+    ));
     Ok(())
 }
 
@@ -290,13 +298,8 @@ pub(crate) fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result
                 {
                     continue;
                 }
-                link.correspondences.push(MirroredCorrespondence {
-                    kind: MirroredItemKind::Part,
-                    source_id,
-                    mirror_id,
-                    companion_mode: None,
-                    companion_tweak: None,
-                });
+                link.correspondences
+                    .extend(part_correspondences([(source_id, mirror_id)]));
             }
         }
         doc.layouts[index].mirror_link = Some(link);

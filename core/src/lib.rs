@@ -2128,17 +2128,12 @@ fn apply_with_ledger(
                 companion_mode: None,
                 companion_tweak: None,
             });
-            link.correspondences.extend(
-                layout::member_pairs(matrix, &target.id, Some(&target))
-                    .into_iter()
-                    .map(|(source_id, mirror_id)| MirroredCorrespondence {
-                        kind: MirroredItemKind::Part,
-                        source_id,
-                        mirror_id,
-                        companion_mode: None,
-                        companion_tweak: None,
-                    }),
-            );
+            link.correspondences
+                .extend(layout::part_correspondences(layout::member_pairs(
+                    matrix,
+                    &target.id,
+                    Some(&target),
+                )));
             doc.layouts.extend([left.clone(), follower]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);
