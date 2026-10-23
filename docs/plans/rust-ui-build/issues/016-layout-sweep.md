@@ -1232,3 +1232,179 @@ ComboboxInput, beside id, preserving defaults, root unrelated attrs, generated I
 keyboard/filter/selection/list attrs and callbacks; no public prop, API or state added.
 The currently approved caller-only correction is insufficient for this branch;
 request the narrow shared routing lease while continuing independent owned work.
+
+
+### Review r1 response and bounded shared extension
+
+All four unique review findings are corrected together in production `d62c302b`;
+subsequent commits extend tests only. Initial source05180b27 was not landed.
+Both initial review axes finished before preparing this correction. The approved
+Combobox extension is part of the same meaningful shared-contract review, with no
+new prop, state, dependency, visibility or domain change.
+
+1. **Popup clipping:** caller classes now allow overflow only while `data-open=true`
+   on six owned picker-bearing CollapsibleContent roots: Key size; MatrixInspector
+   Key assembly; Column transform; key-level Key assembly/attached components;
+   Component constraint; Companion placement. All original hidden/inert expressions,
+   keep_mounted, local drafts and open-state callbacks remain byte-for-byte. The
+   primitive publishes `data-open`, so no nonexistent data-state selector is used.
+   Inspected remaining owned disclosures: button/checkbox/numeric-only content has
+   no absolute picker; Setup AccordionContent has no copied overflow-hidden default.
+   No shared Collapsible or protected015/layer source was edited.
+2. **Legacy look:** deleted only the exclusive `.m1-layout-add-menu .m1-add-back`
+   look rule; its sole source caller is the owned Secondary Back button. Added a
+   copied-slot exclusion only to `.m1-key-size-error`, preserving its declaration
+   for any native legacy branch. Adjoining Add container, Key size layout and023
+   guide styles stay intact. Actual four Theme/Appearance default/hover/focus Back
+   and failed KeySizeControls FieldError token checks pass. Original colors happen
+   to match the old error token; Shadcn was the error-color RED.
+3. **Previous step:** the original Button is the canonical TooltipTrigger's custom
+   `as` child, forwarding its attributes to canonical Button. Existing variant,
+   class, accessible name, native activation and previous-stage callback are kept;
+   TooltipContent supplies the same name. Only this footer control changes;023
+   Stepper/readiness/stage ownership remains open and untouched. Inventory of the
+   other owned named SVG buttons found visible action text or existing Tooltip
+   composition. This does not claim all legacy title explanations were tooltips.
+4. **Rejected choice validation:** Mirror and Splay origin Select triggers receive
+   existing aria-invalid/describedby attrs and a stable per-field error-wrapper ID.
+   MatrixFieldEditor does the same for its Select and actual Combobox input branches;
+   its existing numeric/text input branches share the same error description, and
+   Field.invalid reflects that existing error. Error text, parsing, current-owner
+   admission, failure/accepted state and callbacks stay unchanged. IDs come from
+   the existing component scope, following NumericTransformField, with no ID signal
+   or new owner. Actual failed/accepted Mirror, Origin, Diode and Matrix definition
+   controls resolve exactly one visible error description and preserve native focus.
+
+Combobox routing is exactly the separately approved extension: only non-namespaced
+aria-invalid and aria-describedby move from root to actual ComboboxInput, alongside
+existing id routing. Unrelated/namespaced root attrs and default omission remain.
+Primitive input inspection found id/label, controls, expanded and active-descendant
+attributes plus its keyboard/input/focus handlers before its attributes spread;
+our restricted two-attribute vector cannot override those unrelated contracts.
+The focused shared test covers two instances, the no-validation default, both
+namespaced root attributes, unique resolved descriptions and dynamic clear/update
+without remount; existing006 identity/navigation/filter/controlled/focus tests pass.
+
+### Review r1 evidence integrity and fresh execution
+
+Production source `d62c302b` is packaged by `review-r1-production-build-14.log`
+through `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/build-web.py --fast
+--skip-providers --output /home/chris/.cache/boardstudio-target/016-layout-sweep-lineage/layout-adoption-site`.
+The previous provider/debug-build limits still apply. No source copies, SHA
+manifests, new target or unlanded lane work were used.
+
+- `review-r1-actual-corrected-red.log` at old packaged05180b27/e9f1a309 measures
+  all four Back default/hover/focus failures, Shadcn Key size error colors, missing
+  Previous-step Tooltip, and four rejected choice inputs with no aria-invalid or
+  descriptions (native focus was already correct). The dedicated corrected native
+  hit check `review-r1-picker-hit-actual-red.log` asserts a real null pointer hit at
+  option y662 beyond content bottom545.1875 with overflow hidden. Programmatic
+  scrollintoview is not used to conceal the clipped ancestor.
+- The first actual probe/run has setup failures and is retained: host transport
+  error made the app read-only; the correct rejected CoreReply envelope preserves
+  Ready and real control failure ownership. Initial option label Flip X was wrong
+  (actual label X axis), initial box result is direct rather than nested, and a
+  missing hit serializes as omitted/undefined until normalized to null. None of
+  those setup failures is claimed as product RED. Tooltip lookup uses direct
+  accessible role/name because the interactive-only snapshot omits noninteractive
+  nodes. No production edit was made to accommodate these setup corrections.
+- The actual failure test intercepts exactly one real Core `edit` worker request
+  per action and returns its existing typed error envelope with matching request
+  and epoch. The app's accepted projection, actual control-local draft, callbacks,
+  rejection message and subsequent accepted edit remain real; no fixture-hoisted
+  control or failure UI substitutes are used. Each browser closes in finally.
+- Shared native routing RED is `review-r1-combobox-validation-native-red.log`:
+  actual input aria-invalid is None, expected true. Earlier shared-test formatting
+  and moved-String compilation failures are retained separately and are not RED.
+- GREEN at production d62c302b / test4de09942:
+  `python3 scripts/test-layout-review-regressions.py --page-url
+  http://127.0.0.1:4186/boardstudio/`, `review-r1-actual-green-1.log`;
+  captures `review-r1-20261022-232155/`. Covers actual four Theme/Appearance Back
+  default/hover/focus, error token/message and accepted-edit clearing; Previous-step
+  hover/focus description and native Space/Enter stage callbacks; Key size native
+  outside-boundary hit/selection and retained node/value with closed hidden/inert
+  focus exclusion; four real rejected choices, unique error IDs and accepted clear.
+- Extended related pointer GREEN at test c83e395c:
+  same script `--only pickers`, `review-r1-related-pickers-green.log`, captures
+  `review-r1-20261022-232323/`. Native options outside the actual ancestor bounds
+  select and return focus: Key size2u at y662 vs bottom545.1875 (1440×900), Matrix
+  definition at y911 vs901.1875, Diode at957 vs901.1875, Column origin at1071
+  vs1055.1875 (related branches use1440×1400 to leave viewport space). The Component
+  constraint and Companion content class hunks are inspected and retain their
+  mounted functional coverage; no actual beyond-boundary pointer claim is made
+  for those two additional compositions.
+- Fresh Layout browser suite: `review-r1-layout-browser-final.log`,156 pass,
+  one guide filtered; separate `review-r1-guide-browser-final.log`,1 pass/156
+  filtered. These cover all157 with the previously documented two commands;
+  no ignore or existing assertions removed. Shared `ui::` runs pass25/58 filtered
+  (`review-r1-shared-ui-green.log` and final namespaced clear/update assertions in
+  `review-r1-shared-ui-final-namespaces.log`), including all006 and CONTROL tests.
+- `review-r1-clippy-final.log` passes all-target WASM clippy with warnings denied
+  for web/layout/ui-shared/ui-model at d62c302b. Rust fmt, Python syntax, git diff
+  whitespace and WASM plain-test guard pass. Final affected shell, combined actual
+  script and closure source checks are recorded below after completion.
+
+The correction does not requalify global full/quick/CAD worker.onerror/first-paint/
+screen-reader/human026/final merge, and does not finish023 guide composition.
+No parent review request, landing or generated-target cleanup has been performed
+for this correction yet; preview4186 remains available for the required review.
+
+
+### Review r1 completed correction candidate
+
+Production pin is `d62c302b115745d6c637a4ddf99670035f18f08b`.
+Final combined actual test source is
+`b33f9dbec46744a5b69fe2d7f0f1a8d2367d7637`; later edits are this outcome only.
+The local feature merge check still reports already up to date at020's
+`de0dce979e8b06391ae9d80cfe41efae952e463c`. All initial review findings above are
+addressed; the requested next step is one targeted Standards+Spec follow-up from
+reviewed05180b27, including the approved meaningful shared routing extension.
+Landing remains held for that substantive approval; Status remains claimed.
+
+- Final combined command is the same actual script with no --only selection:
+  `python3 scripts/test-layout-review-regressions.py --page-url
+  http://127.0.0.1:4186/boardstudio/`. GREEN all four finding groups and all four
+  actual beyond-boundary popup compositions, plus focus after both refusal and
+  acceptance, and visible previous-stage content after native activation:
+  `review-r1-actual-owned-lists-final.log`, captures `review-r1-20261022-233047/`.
+  These include all four Theme/Appearance Back/error screenshots, the Tooltip,
+  actual picker boundary images and all four native error-description images.
+- The preceding combined run `review-r1-actual-combined-final.log` exposed a test
+  ownership bug: its Diode candidate was a Gateron option in the preceding retained
+  Combobox popup, rather than a Diode option. The test now finds options by role/name
+  refs, reads their IDs, and verifies containment in the actual current picker's
+  aria-controls listbox before testing a pointer hit. No production retained-popup
+  behavior, assertions or floor were changed or waived; the original failure is kept.
+- Fresh affected shell run passes41/41,0 failures:
+  `review-r1-shell-browser-final.log` and `review-r1-shell-browser-final.json`, using
+  the same four-file run-wasm-tests.py command in the original closure. In particular,
+  Component constraint/Companion local draft, retained node/hidden focus, accepted
+  actions and Undo remain covered after the additional two overflow class hunks.
+- The fresh supported native scheduler passes97 executed tests (80 Layout,17
+  shared; web0), `review-r1-native-final.log`. The printed2104 is the global retention
+  baseline, not executed coverage. The same one opt-in archive test and two doctests
+  remain ignored as previously documented; no test-name baseline or ignore changed.
+- Final exact test-source all-target WASM clippy with -D warnings passes for the
+  same four packages, `review-r1-clippy-exact-final.log`. This includes the final
+  shared namespaced validation test additions; fresh shared25, Layout156+guide1,
+  shell41 and actual combined results are independent successful executions, not
+  an inferred combined count. Rust fmt, Python compilation, WASM test-name guard,
+  git diff whitespace and final documentation links pass.
+
+Self-inspection covered all ten changed paths against05180b27, the related owned
+popup/feedback/Tooltip/validation callers, the primitive input spread and native
+ARIA relationships. The only production changes are the eight bounded files above;
+canonical CONTROL/InputGroup/Checkbox/Label/layers, Parts, Case shared viewer,
+015 toolbar, align and transform toolbar files and `presentation.rs` still match feature.
+There are no new dependencies, public props, state owners, domain validation,
+parsing, geometry or callback edits. No source or target was discarded.
+
+Earlier full016 evidence remains reused only for unchanged scope:12 width/Theme/
+Appearance Add/Mirror precise owner/Undo measurements,96 field variants and
+separately counted action-style coverage, long020 Parts chooser/labels/placement, and the approved
+Select/global Space guard (including positive canvas pan/release). This correction
+adds fresh157 Layout,25 shared,41 shell,97 native and the actual four-finding proofs;
+it does not claim to rerun every prior12-combination script. Human/screen-reader,
+global full/quick/CAD worker.onerror/first-paint/final merge and023 composition stay
+OPEN. No review agent, watcher, landing or generated-target cleanup was started by
+this child. Owned4186 preview and exclusive target stay available pending approval.
