@@ -226,6 +226,29 @@ impl Default for CoreEngine {
 }
 
 impl CoreEngine {
+    /// Validate a typed Open candidate before retiring editor work, without changing Core.
+    pub fn validate_open(document: &ProjectDoc) -> Result<(), String> {
+        Self::prepare_open(document).map(|_| ())
+    }
+
+    fn prepare_open(document: &ProjectDoc) -> Result<(ProjectDoc, Vec<Finding>), String> {
+        if document.format != "boardstudio/v2" {
+            return Err("Unsupported document format".into());
+        }
+        migrate::require_current_version(document.format_version)?;
+        if document.revision == u64::MAX {
+            return Err("Document revision is exhausted".into());
+        }
+        if let Some(message) = validate::duplicate_top_level_identity(document) {
+            return Err(message);
+        }
+        let prepared = mirrored_half::prepare_open(document, &[])?;
+        if let Some(message) = validate::duplicate_top_level_identity(&prepared.0) {
+            return Err(message);
+        }
+        Ok(prepared)
+    }
+
     pub fn handle(&mut self, request: CoreRequest) -> CoreReply {
         match request {
             CoreRequest::ResolveModules {
@@ -263,26 +286,10 @@ impl CoreEngine {
                 Err(message) => self.error(id, &message),
             },
             CoreRequest::Open { id, document } => {
-                if document.format != "boardstudio/v2" {
-                    return self.error(id, "Unsupported document format");
-                }
-                if let Err(message) = migrate::require_current_version(document.format_version) {
-                    return self.error(id, &message);
-                }
-                if document.revision == u64::MAX {
-                    return self.error(id, "Document revision is exhausted");
-                }
-                if let Some(message) = validate::duplicate_top_level_identity(&document) {
-                    return self.error(id, &message);
-                }
-                let (document, repaired_findings) =
-                    match mirrored_half::prepare_open(&document, &[]) {
-                        Ok(prepared) => prepared,
-                        Err(message) => return self.error(id, &message),
-                    };
-                if let Some(message) = validate::duplicate_top_level_identity(&document) {
-                    return self.error(id, &message);
-                }
+                let (document, repaired_findings) = match Self::prepare_open(&document) {
+                    Ok(prepared) => prepared,
+                    Err(message) => return self.error(id, &message),
+                };
                 // A successful explicit Open starts a new document session. Failed
                 // opens (above) leave the previous session's reservations intact.
                 self.identity_ledger =

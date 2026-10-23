@@ -729,6 +729,12 @@ impl Session {
                         TerminalOutcome::Rejected("session is not awaiting recovery".into()),
                         &mut effects,
                     );
+                } else if let Err(reason) = CoreEngine::validate_open(&document) {
+                    self.settle(
+                        operation_id,
+                        TerminalOutcome::Rejected(reason),
+                        &mut effects,
+                    );
                 } else {
                     // The user chose the last known persisted document. Discard the
                     // failed retained candidate so it cannot block the explicit reopen.
@@ -1358,7 +1364,18 @@ impl Session {
         document: ProjectDoc,
         effects: &mut Vec<Effect>,
     ) {
-        self.invalidate_gesture(effects);
+        if let Err(reason) = CoreEngine::validate_open(&document) {
+            self.settle(operation_id, TerminalOutcome::Rejected(reason), effects);
+            return;
+        }
+        // Pointer-up already owns its commit, including one waiting for a preview reply.
+        let committing = self
+            .gesture
+            .as_ref()
+            .is_some_and(|gesture| gesture.commit_queued || gesture.final_positions.is_some());
+        if !committing {
+            self.invalidate_gesture(effects);
+        }
         self.cancel_job(effects);
         self.cancel_exports(effects);
         self.queue.push_back(Intent {
