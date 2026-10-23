@@ -4029,10 +4029,24 @@ fn linked_matrix_resize_retires_out_of_bounds_correspondences_and_reopens() {
         )))
         .1;
         let link = doc.layouts[1].mirror_link.as_ref().unwrap();
-        for column in 0..columns {
-            assert!(link.correspondences.iter().any(|record| record.source_id
-                == format!("matrix/left-matrix/r0c{column}")
-                && record.mirror_id == format!("matrix/right-matrix/r0c{column}")));
+        for row in 0..doc.matrices[0].rows {
+            for column in 0..columns {
+                assert!(
+                    link.correspondences.iter().any(|record| {
+                        record.source_id == format!("matrix/left-matrix/r{row}c{column}")
+                            && record.mirror_id == format!("matrix/right-matrix/r{row}c{column}")
+                    }),
+                    "missing r{row}c{column} after resizing to {columns} columns"
+                );
+            }
+        }
+        if columns == 2 {
+            assert!(
+                link.correspondences.iter().all(|record| {
+                    !record.source_id.ends_with("r0c2") && !record.mirror_id.ends_with("r0c2")
+                }),
+                "the retired r0c2 pair must stay gone: {link:?}"
+            );
         }
         let (_, reopened) = scene(CoreEngine::new().handle(CoreRequest::Open {
             id: "reopen-resized".into(),
@@ -4095,6 +4109,26 @@ fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() 
             .iter()
             .any(|cell| cell.column == 1 && cell.variant.as_deref() == Some("right-only"))
     );
+    let link = compacted.layouts[1].mirror_link.as_ref().unwrap();
+    let mut pairs: Vec<_> = link
+        .correspondences
+        .iter()
+        .filter(|record| record.kind == MirroredItemKind::Part)
+        .map(|record| (record.source_id.clone(), record.mirror_id.clone()))
+        .collect();
+    pairs.sort();
+    let mut expected: Vec<_> = (0..compacted.matrices[0].rows)
+        .flat_map(|row| {
+            (0..compacted.matrices[0].columns).map(move |column| {
+                (
+                    format!("matrix/left-matrix/r{row}c{column}"),
+                    format!("matrix/right-matrix/r{row}c{column}"),
+                )
+            })
+        })
+        .collect();
+    expected.sort();
+    assert_eq!(pairs, expected, "only the surviving pairs may remain");
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.parts, before.parts);
     assert_eq!(undone.matrices, before.matrices);
