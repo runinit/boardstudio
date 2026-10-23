@@ -200,15 +200,26 @@ fn remap_parts(doc: &mut ProjectDoc, changes: &PartChanges) -> Vec<String> {
         remap_ids(&mut layout.part_ids, changes);
         if let Some(link) = &mut layout.mirror_link {
             link.correspondences.retain_mut(|record| {
-                if record.kind != MirroredItemKind::Part { return true; }
-                let (Some(source), Some(mirror)) = (remapped(&record.source_id, changes), remapped(&record.mirror_id, changes)) else { return false; };
+                if record.kind != MirroredItemKind::Part {
+                    return true;
+                }
+                let (Some(source), Some(mirror)) = (
+                    remapped(&record.source_id, changes),
+                    remapped(&record.mirror_id, changes),
+                ) else {
+                    return false;
+                };
                 record.source_id = source;
                 record.mirror_id = mirror;
                 true
             });
             link.exceptions.retain_mut(|exception| {
-                if exception.kind != MirroredItemKind::Part { return true; }
-                let Some(id) = remapped(&exception.mirror_id, changes) else { return false; };
+                if exception.kind != MirroredItemKind::Part {
+                    return true;
+                }
+                let Some(id) = remapped(&exception.mirror_id, changes) else {
+                    return false;
+                };
                 exception.mirror_id = id;
                 true
             });
@@ -463,11 +474,15 @@ pub(crate) fn remove_axis(
         if row_axis {
             matrix.rows -= 1;
             remove_index(&mut matrix.row_layout, index);
-            if let Some(first) = matrix.row_layout.first_mut() { first.padding = None; }
+            if let Some(first) = matrix.row_layout.first_mut() {
+                first.padding = None;
+            }
         } else {
             matrix.columns -= 1;
             remove_index(&mut matrix.column_layout, index);
-            if let Some(first) = matrix.column_layout.first_mut() { first.spread = None; }
+            if let Some(first) = matrix.column_layout.first_mut() {
+                first.spread = None;
+            }
         }
         remap_ids(&mut matrix.part_ids, &changes);
     }

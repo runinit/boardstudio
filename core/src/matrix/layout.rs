@@ -72,40 +72,83 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
 }
 
 fn owns_member(doc: &ProjectDoc, layout: &Layout, id: &str) -> bool {
-    layout.part_ids.iter().any(|member| member == id) || layout.matrix_ids.iter().any(|matrix_id| {
-        let Ok(matrix) = matrix::evaluation::logical_matrix(matrix_id, doc) else { return false; };
-        let Some(slot) = id.strip_prefix(&format!("matrix/{matrix_id}/r")) else { return false; };
-        let (slot, assembly) = slot.split_once('/').map_or((slot, None), |(slot, assembly)| (slot, Some(assembly)));
-        let Some((row, column)) = slot.split_once('c') else { return false; };
-        let (Ok(row), Ok(column)) = (row.parse::<u32>(), column.parse::<u32>()) else { return false; };
-        row < matrix.rows && column < matrix.columns && assembly.is_none_or(|id| matrix.cells.iter().any(|cell| cell.row == row && cell.column == column && cell.assemblies.iter().any(|assembly| assembly.id == id)))
-    })
+    layout.part_ids.iter().any(|member| member == id)
+        || layout.matrix_ids.iter().any(|matrix_id| {
+            let Ok(matrix) = matrix::evaluation::logical_matrix(matrix_id, doc) else {
+                return false;
+            };
+            let Some(slot) = id.strip_prefix(&format!("matrix/{matrix_id}/r")) else {
+                return false;
+            };
+            let (slot, assembly) = slot
+                .split_once('/')
+                .map_or((slot, None), |(slot, assembly)| (slot, Some(assembly)));
+            let Some((row, column)) = slot.split_once('c') else {
+                return false;
+            };
+            let (Ok(row), Ok(column)) = (row.parse::<u32>(), column.parse::<u32>()) else {
+                return false;
+            };
+            row < matrix.rows
+                && column < matrix.columns
+                && assembly.is_none_or(|id| {
+                    matrix.cells.iter().any(|cell| {
+                        cell.row == row
+                            && cell.column == column
+                            && cell.assemblies.iter().any(|assembly| assembly.id == id)
+                    })
+                })
+        })
 }
 
-fn validate_link(doc: &ProjectDoc, source: &Layout, target: &Layout, link: &LayoutMirrorLink) -> Result<(), String> {
+fn validate_link(
+    doc: &ProjectDoc,
+    source: &Layout,
+    target: &Layout,
+    link: &LayoutMirrorLink,
+) -> Result<(), String> {
     let mut sources = Vec::new();
     let mut targets = Vec::new();
     for record in &link.correspondences {
         let source_key = (record.kind, record.source_id.as_str());
         let target_key = (record.kind, record.mirror_id.as_str());
         if sources.contains(&source_key) || targets.contains(&target_key) {
-            return Err("Layout correspondences must have unique source and mirror identities".into());
+            return Err(
+                "Layout correspondences must have unique source and mirror identities".into(),
+            );
         }
-        sources.push(source_key); targets.push(target_key);
+        sources.push(source_key);
+        targets.push(target_key);
         let owned = match record.kind {
-            MirroredItemKind::Matrix => source.matrix_ids.contains(&record.source_id) && target.matrix_ids.contains(&record.mirror_id),
-            MirroredItemKind::Part => owns_member(doc, source, &record.source_id) && owns_member(doc, target, &record.mirror_id),
+            MirroredItemKind::Matrix => {
+                source.matrix_ids.contains(&record.source_id)
+                    && target.matrix_ids.contains(&record.mirror_id)
+            }
+            MirroredItemKind::Part => {
+                owns_member(doc, source, &record.source_id)
+                    && owns_member(doc, target, &record.mirror_id)
+            }
             _ => false,
         };
-        if !owned { return Err("Layout correspondence has invalid ownership".into()); }
+        if !owned {
+            return Err("Layout correspondence has invalid ownership".into());
+        }
     }
-    if source.matrix_ids.iter().any(|id| !sources.contains(&(MirroredItemKind::Matrix, id.as_str()))) {
-        return Err("Linked Layout requires an explicit correspondence for every source matrix".into());
+    if source
+        .matrix_ids
+        .iter()
+        .any(|id| !sources.contains(&(MirroredItemKind::Matrix, id.as_str())))
+    {
+        return Err(
+            "Linked Layout requires an explicit correspondence for every source matrix".into(),
+        );
     }
     let mut overlays = Vec::new();
     for exception in &link.exceptions {
         let key = (exception.kind, exception.mirror_id.as_str());
-        if overlays.contains(&key) { return Err("Layout exceptions must have unique identities".into()); }
+        if overlays.contains(&key) {
+            return Err("Layout exceptions must have unique identities".into());
+        }
         overlays.push(key);
         let owned = match exception.kind {
             MirroredItemKind::Matrix => target.matrix_ids.contains(&exception.mirror_id),
@@ -120,20 +163,99 @@ fn validate_link(doc: &ProjectDoc, source: &Layout, target: &Layout, link: &Layo
 }
 
 pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
-    let Some(link) = &mut target.mirror_link else { return Ok(()); };
-    if !link.correspondences.is_empty() { return Ok(()); }
-    let source = doc.layouts.iter().find(|layout| layout.id == link.source_id).ok_or("Linked layout is missing")?;
+    let Some(link) = &mut target.mirror_link else {
+        return Ok(());
+    };
+    if !link.correspondences.is_empty() {
+        return Ok(());
+    }
+    let source = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == link.source_id)
+        .ok_or("Linked layout is missing")?;
     if source.matrix_ids.len() != 1 || target.matrix_ids.len() != 1 {
         return Err("Linking matrix groups requires explicit matrix correspondences".into());
     }
     let source_id = &source.matrix_ids[0];
     let mirror_id = &target.matrix_ids[0];
-    link.correspondences.push(MirroredCorrespondence { kind: MirroredItemKind::Matrix, source_id: source_id.clone(), mirror_id: mirror_id.clone(), companion_mode: None, companion_tweak: None });
+    link.correspondences.push(MirroredCorrespondence {
+        kind: MirroredItemKind::Matrix,
+        source_id: source_id.clone(),
+        mirror_id: mirror_id.clone(),
+        companion_mode: None,
+        companion_tweak: None,
+    });
     let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
     for row in 0..matrix.rows {
         for column in 0..matrix.columns {
-            link.correspondences.push(MirroredCorrespondence { kind: MirroredItemKind::Part, source_id: matrix::member_id(source_id, row, column), mirror_id: matrix::member_id(mirror_id, row, column), companion_mode: None, companion_tweak: None });
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Part,
+                source_id: matrix::member_id(source_id, row, column),
+                mirror_id: matrix::member_id(mirror_id, row, column),
+                companion_mode: None,
+                companion_tweak: None,
+            });
         }
+    }
+    Ok(())
+}
+
+/// Membership edits maintain explicit identities; admission never repairs them.
+pub(crate) fn update_link_members(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
+    for index in 0..doc.layouts.len() {
+        let mut target = doc.layouts[index].clone();
+        let Some(mut link) = target.mirror_link.take() else {
+            continue;
+        };
+        let pairs: Vec<_> = link
+            .correspondences
+            .iter()
+            .filter(|record| {
+                record.kind == MirroredItemKind::Matrix
+                    && (record.source_id == matrix_id || record.mirror_id == matrix_id)
+            })
+            .cloned()
+            .collect();
+        if pairs.is_empty() {
+            continue;
+        }
+        let source = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == link.source_id)
+            .ok_or("Linked layout is missing")?;
+        link.correspondences.retain(|record| {
+            record.kind != MirroredItemKind::Part
+                || (owns_member(doc, source, &record.source_id)
+                    && owns_member(doc, &target, &record.mirror_id))
+        });
+        link.exceptions.retain(|record| {
+            record.kind != MirroredItemKind::Part || owns_member(doc, &target, &record.mirror_id)
+        });
+        for pair in pairs {
+            let source_matrix = matrix::evaluation::logical_matrix(&pair.source_id, doc)?;
+            let mirror_matrix = matrix::evaluation::logical_matrix(&pair.mirror_id, doc)?;
+            for row in 0..source_matrix.rows.min(mirror_matrix.rows) {
+                for column in 0..source_matrix.columns.min(mirror_matrix.columns) {
+                    let source_id = matrix::member_id(&pair.source_id, row, column);
+                    let mirror_id = matrix::member_id(&pair.mirror_id, row, column);
+                    if !link.correspondences.iter().any(|record| {
+                        record.kind == MirroredItemKind::Part
+                            && (record.source_id == source_id || record.mirror_id == mirror_id)
+                    }) {
+                        link.correspondences.push(MirroredCorrespondence {
+                            kind: MirroredItemKind::Part,
+                            source_id,
+                            mirror_id,
+                            companion_mode: None,
+                            companion_tweak: None,
+                        });
+                    }
+                }
+            }
+        }
+        doc.layouts[index].mirror_link = Some(link);
     }
     Ok(())
 }

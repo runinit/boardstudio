@@ -2012,6 +2012,7 @@ fn apply_with_ledger(
                 }
                 changed.extend(matrix::set_matrix(doc, matrix)?);
                 changed.extend(layout::sync(doc, &matrix.id)?);
+                layout::update_link_members(doc, &matrix.id)?;
                 Ok(changed)
             },
         ),
@@ -2188,7 +2189,13 @@ fn apply_with_ledger(
         },
         EditOperation::SetLayout { layout: incoming } => {
             let mut incoming = incoming.clone();
-            if incoming.mirror_link.is_some() && doc.layouts.iter().find(|layout| layout.id == incoming.id).is_some_and(|layout| layout.mirror_link.is_none()) {
+            if incoming.mirror_link.is_some()
+                && doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == incoming.id)
+                    .is_some_and(|layout| layout.mirror_link.is_none())
+            {
                 layout::populate_new_link(doc, &mut incoming)?;
             }
             let current = doc

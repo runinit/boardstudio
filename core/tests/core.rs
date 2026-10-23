@@ -4014,6 +4014,35 @@ fn deleting_matrix_row_preserves_surviving_part_and_binding_identity() {
 }
 
 #[test]
+fn linked_matrix_resize_retires_out_of_bounds_correspondences_and_reopens() {
+    let (mut engine, mut doc) = linked_pair();
+    for columns in [2, 4] {
+        let mut matrix = doc.matrices[0].clone();
+        matrix.columns = columns;
+        doc = scene(engine.handle(edit(
+            doc.revision,
+            EditPhase::Commit,
+            EditOperation::SetMatrix {
+                matrix,
+                definitions: None,
+            },
+        )))
+        .1;
+        let link = doc.layouts[1].mirror_link.as_ref().unwrap();
+        for column in 0..columns {
+            assert!(link.correspondences.iter().any(|record| record.source_id
+                == format!("matrix/left-matrix/r0c{column}")
+                && record.mirror_id == format!("matrix/right-matrix/r0c{column}")));
+        }
+        let (_, reopened) = scene(CoreEngine::new().handle(CoreRequest::Open {
+            id: "reopen-resized".into(),
+            document: doc.clone(),
+        }));
+        assert_eq!(reopened.layouts, doc.layouts);
+    }
+}
+
+#[test]
 fn deleting_matrix_column_compacts_both_halves_and_preserves_local_assemblies() {
     let (mut engine, mut doc) = linked_pair();
     let mut right = doc.matrices[1].clone();
