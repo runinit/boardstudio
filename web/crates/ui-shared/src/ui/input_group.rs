@@ -299,11 +299,12 @@ mod forwarding_tests {
                 r#type: InputType::Number, aria_label: "Updating input", value: value(), class: "font-mono",
                 oninput: move |event: FormEvent| { value.set(event.value()); events.write().push("owner-input".into()); },
                 attributes: {
-                    let mut attributes = Vec::new();
-                    attributes.push(Attribute::new("class", "collision", None, false));
-                    attributes.push(Attribute::new("value", "999", None, true));
-                    attributes.push(Attribute::new("color", "rgb(1, 2, 3)", Some("style"), false));
-                    attributes.push(dioxus::events::oninput(move |_| events.write().push("collision-input".into())));
+                    let mut attributes = vec![
+                        Attribute::new("class", "collision", None, false),
+                        Attribute::new("value", "999", None, true),
+                        Attribute::new("color", "rgb(1, 2, 3)", Some("style"), false),
+                        dioxus::events::oninput(move |_| events.write().push("collision-input".into())),
+                    ];
                     if !removed() { attributes.push(Attribute::new("data-removed", "remove", None, false)); }
                     attributes.push(Attribute::new("data-retained", "kept", None, false));
                     if !removed() { attributes.push(dioxus::events::onfocus(move |_| events.write().push("focus".into()))); }
