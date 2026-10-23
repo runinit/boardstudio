@@ -1,6 +1,6 @@
 # 020 Parts library / Inspector continuation
 
-Status: initial Standards/Spec findings corrected; ready for one targeted two-axis review. Landing and cleanup held; no local integration landing.
+Status: resolved after both actual targeted r2 reviews approved with zero findings; coordinator authorized docs-only closure, local fast-forward landing and audited exclusive-target cleanup. Execution receipts are below.
 
 ## Binding, source and ownership
 
@@ -186,3 +186,18 @@ Inspected representative final library, selected-carousel and attachment capture
 Reuse and limits: Case85/85 including inline four-combination preservation, native Parts43, shared Label1, shared disabled Slider1 and providers remain the previously executed evidence above; they were not rerun for this Parts-only presentation correction. The full/quick, CAD worker.onerror, first-paint, screen-reader, human026 and final-merge gates remain **OPEN**. No physical touch, OS color dialog, full GPU/CAD or real Case-page inline journey acceptance is claimed. One targeted **Standards + Spec** coordinator round is required for this coherent response before landing. Hold landing and generated-target cleanup.
 
 Final correction process/target audit `review-process-target.log`: exclusive physical target `/home/chris/.cache/boardstudio-target/020-parts-library-inspector-lineage`, **18,683,359,232 allocated bytes** (`du -sB1`),18,629,091,679 apparent bytes (`du -sb`). No owned Cargo/wasm-pack/dx/chromedriver/Chrome process or named agent-browser session remains. Only owned static preview PID215706, this CWD, port42020 remains for review; no new preview server was added. Final repo/doc-link checks and WASM source guard passed (`review-repo-final.log`, `review-wasm-guard-final.log`), as did final fmt/Python syntax/diff checks. Preserve worktree/branch/evidence; stop this preview and safely clean only the exclusive generated target after reviewed landing/final checks as already authorized.
+
+## Approved resolved closure and local landing
+
+Both actual targeted reviews approved **`a0c57643d20ed05d27325a99939514f761a00d12`**, zero findings, resolving the initial full-review findings. Exact receipt nodes:
+
+- Standards: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui020-standards-review-r2`, APPROVE0, completed2026-10-23 01:49:20 UTC.
+- Spec: `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui020-spec-review-r2`, APPROVE0, completed2026-10-23 01:49:42 UTC.
+
+The actual terminal receipts were read from coordinator activity entries2688/2686. Both reviewers inspected the complete nine-path correction, actual owner fixture, supplied RED/GREEN records and representative captures, and confirmed unchanged callbacks, draft/selection/pending/commit owners, APIs and canonical CONTROL/LAYER/017 source. Neither reviewer independently built, tested or operated a browser. Standards explicitly notes separate initial r1 artifacts were not found locally and reviews their recorded findings/response; Spec reports reading the initial receipts. This distinction is preserved rather than claiming duplicate reviewer runtime acceptance.
+
+Coordinator authorization `rust-ui020-approved-local-landing-cleanup-r2` permits only a docs-only resolved closure, fresh relevant repo/doc/diff checks and approved source/test equality, then local FF of `feat/rust-ui-migration` from reverified `43fae25436776955ec1b3f363e61be30f3425661`. The approved source/tests are not rebuilt. Landing must preserve all checkout inventories and leave origin/dev unchanged. Execution and exact final refs/clean inventories are recorded outside the generated target in `.evidence/020/local-landing.log`; fresh closure checks are `.evidence/020/resolved-repo.log` and `resolved-equality.log`.
+
+After verified landing, the same authorization permits stopping only identity-verified preview PID215706/42020 and removing only physical generated target `/home/chris/.cache/boardstudio-target/020-parts-library-inspector-lineage`, following other-checkout/config/symlink, process/environment, open-FD/mapping and lsof audits plus an immediate recheck. Audit/deletion/allocated-and-apparent before/after bytes are retained in `.evidence/020/target-audit.log` and `target-cleanup.log`; source, branch, worktree, evidence, valuable ignored files, CAD caches and other targets are preserved. These execution receipts supersede the earlier review hold and historical process/byte snapshots above.
+
+Limits remain: full/quick, CAD worker.onerror, first-paint, screen-reader, human026, physical touch, native OS color dialog, full GPU/CAD and the overall final merge gates stay **OPEN**. Local feature landing closes only020; it is not global acceptance. The recorded36-case CSS pointer-media matrix still has `touchPoints:0` and does not establish physical-touch acceptance.
