@@ -294,3 +294,15 @@ Layout-only findings back-button and old count/empty styling (all remaining call
 are the two owned copied Back buttons and Badge/Empty). Structural panel/heading/row
 rules remain. The 023 guide chevron/stepper rules, shared legacy styles, 015 and Case
 selectors remain. These deletions are outside the canonical bounded layer hunks.
+
+
+At `42b5134e`, supported `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py browser
+--only layout` rebuilt the page/CSS successfully, then failed in the first mounted
+Matrix name test because its old label/tag locator no longer found the adopted field.
+Receipt `.evidence/016/layout-browser-owned-1.log` identifies that earliest real failure;
+41 later panic-hook failures and the batch timeout are cascading symptoms, not separate
+product findings or a pass. The role/name field helper correction now passes the actual
+same-owner local-name-draft test (1/1, 156 filtered),
+`.evidence/016/matrix-owner-draft-role-green.log`. The unchanged assertions still check
+actual mounted drafts through unrelated accepted revisions. Remaining Outline/native
+choice/checkbox locators are being migrated before another full Layout launch.

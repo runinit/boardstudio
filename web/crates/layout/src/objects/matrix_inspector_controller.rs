@@ -2985,31 +2985,20 @@ mod tests {
         }
 
         fn button_named(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
-            let buttons = root.query_selector_all("button").unwrap();
-            (0..buttons.length())
-                .filter_map(|index| buttons.item(index))
-                .filter_map(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
-                .find(|button| button.text_content().as_deref() == Some(name))
-                .unwrap_or_else(|| panic!("mounted Matrix Inspector has {name:?} button"))
+            boardstudio_web_ui_shared::test_role::by_role_name(root, "button", name)
+                .unwrap_or_else(|| panic!("mounted Matrix Inspector has Button {name:?}"))
         }
 
         fn matrix_input(root: &web_sys::Element, name: &str) -> web_sys::HtmlInputElement {
-            let labels = root.query_selector_all("label.m1-matrix-field").unwrap();
-            (0..labels.length())
-                .filter_map(|index| labels.item(index))
-                .filter_map(|label| label.dyn_into::<web_sys::Element>().ok())
-                .find(|label| {
-                    label
-                        .query_selector("span")
-                        .ok()
-                        .flatten()
-                        .and_then(|span| span.text_content())
-                        .as_deref()
-                        == Some(name)
-                })
-                .and_then(|label| label.query_selector("input").ok().flatten())
-                .and_then(|input| input.dyn_into::<web_sys::HtmlInputElement>().ok())
-                .unwrap_or_else(|| panic!("mounted Matrix Inspector has {name:?} input"))
+            let role = if matches!(name, "Matrix name" | "Layout name") {
+                "textbox"
+            } else {
+                "spinbutton"
+            };
+            boardstudio_web_ui_shared::test_role::by_role_name(root, role, name)
+                .unwrap_or_else(|| panic!("mounted Matrix Inspector has {role} {name:?}"))
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap()
         }
 
         fn type_matrix_input(input: &web_sys::HtmlInputElement, value: &str) {
@@ -3307,20 +3296,10 @@ mod tests {
             gloo_timers::future::TimeoutFuture::new(5).await;
 
             assert_eq!(rows.value(), "3", "failure does not replace a newer draft");
-            let rows_label = root.query_selector_all("label.m1-matrix-field").unwrap();
-            let rows_label = (0..rows_label.length())
-                .filter_map(|index| rows_label.item(index))
-                .filter_map(|label| label.dyn_into::<web_sys::Element>().ok())
-                .find(|label| {
-                    label
-                        .query_selector("input")
-                        .ok()
-                        .flatten()
-                        .and_then(|input| input.get_attribute("aria-label"))
-                        .as_deref()
-                        == Some("Rows")
-                })
-                .expect("the mounted Rows field label exists");
+            let rows_label = rows
+                .closest(".m1-matrix-field")
+                .unwrap()
+                .expect("the actual Rows field owner exists");
             assert!(
                 rows_label
                     .query_selector("[role='alert']")

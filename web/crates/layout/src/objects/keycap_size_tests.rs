@@ -530,11 +530,7 @@ async fn size_selector_and_rotate_checkbox_submit_through_the_same_owner() {
     let request = probe.accepted.borrow()[1].clone();
     assert_eq!(request.owner, first_owner);
     assert_eq!(request.units, Vec2 { x: 1.0, y: 2.0 });
-    assert!(
-        root.query_selector("input[type='range']")
-            .unwrap()
-            .is_none()
-    );
+    assert!(root.query_selector("[role=slider]").unwrap().is_none());
     root.remove();
 }
 
