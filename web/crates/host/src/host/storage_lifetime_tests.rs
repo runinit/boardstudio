@@ -942,10 +942,7 @@ async fn mixed_format_records_are_listed_without_conversion_and_raw_json_is_pres
             }
         }
         object_store
-            .put_with_key(
-                &js_sys::JSON::parse(&value.to_string()).unwrap(),
-                &id.clone().into(),
-            )
+            .put(&js_sys::JSON::parse(&value.to_string()).unwrap())
             .unwrap();
         originals.push((id, value, explanation));
     }
