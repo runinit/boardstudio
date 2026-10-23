@@ -66,6 +66,33 @@ def main():
         browser("mouse", "up")
         assert attr("checkbox", name, "aria-checked") == before, (name, "label activation")
 
+    def slider_geometry(name, width):
+        focus("slider", name)
+        metrics = evaluate("""(()=>{const thumb=document.activeElement,root=thumb.closest('[data-slot=slider]'),
+            track=root.querySelector('[data-slot=slider-track]'),t=thumb.getBoundingClientRect(),r=track.getBoundingClientRect();
+            const clips=[];
+            for(let e=thumb.parentElement;e;e=e.parentElement){
+                if(/hidden|clip|auto|scroll/.test(getComputedStyle(e).overflow)){
+                    const b=e.getBoundingClientRect();clips.push([b.left,b.top,b.right,b.bottom]);
+                }
+            }
+            return {value:+thumb.getAttribute('aria-valuenow'),min:+thumb.getAttribute('aria-valuemin'),max:+thumb.getAttribute('aria-valuemax'),
+                center:[t.x+t.width/2,t.y+t.height/2],track:[r.x,r.y,r.width,r.height],thumb:[t.left,t.top,t.right,t.bottom],clips,
+                row:root.getBoundingClientRect().height,disabled:thumb.disabled,ariaDisabled:thumb.getAttribute('aria-disabled'),
+                position:getComputedStyle(thumb).position,overflow:getComputedStyle(track).overflow,
+                scroll:thumb.closest('.m1-case-view').scrollTop};})()""")
+        expected = metrics["track"][0] + (metrics["value"]-metrics["min"])/(metrics["max"]-metrics["min"])*metrics["track"][2]
+        assert abs(metrics["center"][0]-expected) < 0.1, metrics
+        assert abs(metrics["center"][1]-(metrics["track"][1]+metrics["track"][3]/2)) < 0.1, metrics
+        assert metrics["position"] == "absolute" and metrics["overflow"] == "visible", metrics
+        assert metrics["row"] == (44 if width <= 960 else 40), metrics
+        assert not metrics["disabled"] and metrics["ariaDisabled"] == "false" and metrics["scroll"] == 0, metrics
+        # Focus ring is four pixels; require it inside every clipping ancestor, including the scrollable popup.
+        left, top, right, bottom = metrics["thumb"]
+        assert all(left-4 >= c[0]-0.1 and top-4 >= c[1]-0.1 and right+4 <= c[2]+0.1 and bottom+4 <= c[3]+0.1
+                   for c in metrics["clips"]), metrics
+        return metrics
+
     try:
         browser("set", "viewport", 1440, 960)
         browser("open", args.url)
@@ -180,6 +207,26 @@ def main():
                         if width <= 960:
                             assert icon["targetWidth"] >= 44 and icon["targetHeight"] >= 44, icon
                     action("button", "View controls")
+                    for mode, name, minimum, maximum, step, quarter in [
+                        ("exploded", "Explode amount", 0, 10, 0.1, 2.5),
+                        ("section", "Section position", -100, 100, 1, -50),
+                    ]:
+                        action("button", mode)
+                        focus("slider", name)
+                        for key, expected_value in [("Home", minimum), ("ArrowRight", minimum+step), ("End", maximum)]:
+                            browser("press", key)
+                            geometry = slider_geometry(name, width)
+                            assert abs(geometry["value"]-expected_value) < 1e-6, geometry
+                            print("Slider geometry:", width, theme, appearance, name, key, geometry, flush=True)
+                        point = geometry["track"]
+                        browser("mouse", "move", round(point[0]+point[2]/4), round(point[1]+point[3]/2))
+                        browser("mouse", "down")
+                        browser("mouse", "up")
+                        geometry = slider_geometry(name, width)
+                        assert abs(geometry["value"]-quarter) <= step, geometry
+                        retained("View controls", "slider", name)
+                        assert float(attr("slider", name, "aria-valuenow")) == geometry["value"]
+                        browser("press", "End")
                     for role, name in [("button", "Top view"), ("checkbox", "Show hidden lines")]:
                         focus(role, name)
                         check("""(()=>{const active=document.activeElement,root=active.closest('.m1-case-view'),

@@ -3000,7 +3000,7 @@ fn SharedViewer(
             }
             if transient().assembly == AssemblyView::Exploded {
                 Slider {
-                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "max-[960px]:min-h-11",
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2",
                     value: Some(f64::from(transient().explode_amount)),
                     on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
@@ -3022,7 +3022,7 @@ fn SharedViewer(
                     }
                 }
                 Slider {
-                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "max-[960px]:min-h-11",
+                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2",
                     value: Some(f64::from(transient().section_position)),
                     on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
                 }
