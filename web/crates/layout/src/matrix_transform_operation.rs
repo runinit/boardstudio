@@ -64,6 +64,7 @@ pub enum MatrixTransformFields {
         offset: Vec2,
         stagger: f64,
         splay_angle: f64,
+        rotation: f64,
         splay_origin: Vec2,
         custom_origin: bool,
         /// Core's verdict on `ColumnOffsetToStagger` for this column, from the accepted
@@ -83,6 +84,13 @@ pub enum MatrixTransformFields {
         offset: Vec2,
         rotation: f64,
     },
+}
+
+pub(crate) fn column_angle(splay: f64, rotation: f64, affect: &MatrixSplayAffect) -> f64 {
+    match affect {
+        MatrixSplayAffect::Column => rotation,
+        MatrixSplayAffect::Following => splay,
+    }
 }
 
 /// Produce the choices for one attached-component selector while preserving
@@ -1188,6 +1196,7 @@ mod tests {
             offset: Vec2 { x: 0.0, y: -9.525 },
             stagger: 0.0,
             splay_angle: 0.0,
+            rotation: 0.0,
             splay_origin: Vec2::default(),
             custom_origin: false,
             convert: Ok(()),
@@ -1259,6 +1268,7 @@ mod tests {
             offset: Vec2 { x: 0.0, y: 0.0 },
             stagger: 0.5,
             splay_angle: 4.0,
+            rotation: 0.0,
             splay_origin: Vec2 { x: 10.0, y: 20.0 },
             custom_origin: true,
             convert: Ok(()),
@@ -1668,6 +1678,7 @@ mod tests {
             offset: Vec2 { x: 0.0, y: 0.0 },
             stagger: 0.0,
             splay_angle: 8.0,
+            rotation: 0.0,
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: false,
             convert: Ok(()),
@@ -1821,6 +1832,7 @@ mod tests {
             offset: Vec2 { x: 1.0, y: 2.0 },
             stagger: 0.75,
             splay_angle: 8.0,
+            rotation: 0.0,
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: true,
             convert: Ok(()),

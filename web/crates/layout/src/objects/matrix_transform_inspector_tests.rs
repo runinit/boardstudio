@@ -1372,6 +1372,96 @@ fn column_context(column: u32) -> TreeContext {
     }
 }
 
+#[wasm_bindgen_test]
+async fn column_angle_scope_switches_display_and_discards_the_other_fields_draft() {
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0]
+        .column_layout
+        .resize_with(1, Default::default);
+    document.matrices[0].column_layout[0].splay = 7.0;
+    document.matrices[0].column_layout[0].rotation = 10.0;
+    let (probe, root) =
+        mount_selection_probe("column-angle-scope-test", document, column_context(0), &[]).await;
+    settle(&probe).await;
+    let input = root
+        .query_selector("input[aria-label='Splay']")
+        .unwrap()
+        .unwrap()
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(input.value(), "10", "This column displays Column rotation");
+    let before = probe.runtime.model().accepted.unwrap().document;
+    input.set_value("99");
+    let typed = DomEvent::new("input").unwrap();
+    typed.init_event_with_bubbles("input", true);
+    input.dispatch_event(&typed).unwrap();
+    settle(&probe).await;
+    let mut affect = probe.mount.borrow().as_ref().unwrap().splay_affect;
+    affect.set(boardstudio_core::model::MatrixSplayAffect::Following);
+    settle(&probe).await;
+    assert_eq!(
+        input.value(),
+        "7",
+        "switching fields resets the dirty draft"
+    );
+    assert_eq!(probe.runtime.model().accepted.unwrap().document, before);
+    affect.set(boardstudio_core::model::MatrixSplayAffect::Column);
+    settle(&probe).await;
+    assert_eq!(input.value(), "10");
+    set_numeric_field(&root, "Splay", "0");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(accepted.document.matrices[0].column_layout[0].rotation, 0.0);
+    assert_eq!(accepted.document.matrices[0].column_layout[0].splay, 7.0);
+    root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn column_angle_equality_uses_the_requested_field_in_the_accepted_snapshot() {
+    use super::super::matrix_transform_controller::transform_edit_resolver;
+    use boardstudio_application::Resolution;
+    use boardstudio_core::model::MatrixSplayAffect;
+    let (mut document, _) = two_key_fixture(false);
+    document.matrices[0]
+        .column_layout
+        .resize_with(1, Default::default);
+    document.matrices[0].column_layout[0].rotation = 10.0;
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, document).await;
+    let accepted = runtime.model().accepted.unwrap();
+    let resolve = |value, affect| {
+        transform_edit_resolver(
+            "matrix".into(),
+            "board".into(),
+            column_context(0),
+            MatrixTransformField::ColumnSplay,
+            MatrixTransformValue::Number(value),
+            affect,
+            vec![],
+        )
+        .resolve(&accepted)
+    };
+    assert!(
+        matches!(
+            resolve(10.0, MatrixSplayAffect::Column),
+            Resolution::Unchanged
+        ),
+        "requesting the current rotation is a no-op even when Splay differs"
+    );
+    assert!(
+        matches!(
+            resolve(0.0, MatrixSplayAffect::Column),
+            Resolution::Submit(_)
+        ),
+        "zero Splay must not retire a request to clear nonzero rotation"
+    );
+    assert!(matches!(
+        resolve(0.0, MatrixSplayAffect::Following),
+        Resolution::Unchanged
+    ));
+}
+
 fn set_numeric_field(root: &web_sys::Element, label: &str, value: &str) {
     let input = root
         .query_selector(&format!("input[aria-label='{label}']"))

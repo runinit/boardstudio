@@ -6,7 +6,7 @@ use super::matrix_transform_inspector::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
-    catalogue_retry_due, component_edit_admitted_by_catalogue,
+    catalogue_retry_due, column_angle, component_edit_admitted_by_catalogue,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -25,6 +25,7 @@ use wasm_bindgen_futures::spawn_local;
 #[derive(Clone)]
 struct TransformPendingKey {
     field: MatrixTransformField,
+    splay_affect: MatrixSplayAffect,
     owner: MatrixTransformInspectorOwner,
     request_id: u64,
     one_shot: bool,
@@ -67,7 +68,7 @@ pub fn transform_edit_resolver(
                     "The selected row, column or key no longer exists.".into(),
                 );
             };
-            if field_value(&fields, field).as_ref() == Some(&value) {
+            if field_value(&fields, field, &splay_affect).as_ref() == Some(&value) {
                 return Resolution::Unchanged;
             }
             let operation = match build_operation(
@@ -708,6 +709,7 @@ pub fn use_workspace_matrix_transform(
             }
             let key = TransformPendingKey {
                 field: request.field,
+                splay_affect: request.splay_affect.clone(),
                 owner: request.owner.clone(),
                 request_id: request.request_id,
                 one_shot: request.one_shot,
@@ -1064,6 +1066,7 @@ fn transform_fields(
                     .copied()
                     .unwrap_or(0.0),
                 splay_angle: basis.splay_angle,
+                rotation: basis.rotation,
                 splay_origin: basis.splay_origin,
                 custom_origin: basis.custom_origin,
                 convert: convert_offset_available(matrix, *column),
@@ -1154,6 +1157,7 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
 fn field_value(
     fields: &MatrixTransformFields,
     field: MatrixTransformField,
+    splay_affect: &MatrixSplayAffect,
 ) -> Option<MatrixTransformValue> {
     use MatrixTransformField as Field;
     use MatrixTransformValue as Value;
@@ -1196,9 +1200,18 @@ fn field_value(
         (MatrixTransformFields::Column { stagger, .. }, Field::ColumnStagger) => {
             Some(Value::Number(*stagger))
         }
-        (MatrixTransformFields::Column { splay_angle, .. }, Field::ColumnSplay) => {
-            Some(Value::Number(*splay_angle))
-        }
+        (
+            MatrixTransformFields::Column {
+                splay_angle,
+                rotation,
+                ..
+            },
+            Field::ColumnSplay,
+        ) => Some(Value::Number(column_angle(
+            *splay_angle,
+            *rotation,
+            splay_affect,
+        ))),
         (MatrixTransformFields::Column { custom_origin, .. }, Field::SplayOriginMode) => {
             Some(Value::OriginMode(*custom_origin))
         }
@@ -1297,7 +1310,7 @@ fn accepted_field_text(runtime: &Runtime, key: &TransformPendingKey) -> String {
         &key.owner.context,
         matrix,
     )
-    .and_then(|fields| field_value(&fields, key.field))
+    .and_then(|fields| field_value(&fields, key.field, &key.splay_affect))
     .and_then(|value| match value {
         MatrixTransformValue::Number(value) => Some(value.to_string()),
         _ => None,
