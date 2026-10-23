@@ -158,6 +158,43 @@ def pickers(url, captures):
     check("picker===pickerNode && picker.value==='2u' && !picker.closest('[hidden],[inert]')")
     print("PASS actual picker beyond disclosure boundary, native selection and retained closed hidden/inert owner", flush=True)
 
+    def related_picker(name, role):
+        browser("focus", driver.by_role_name(role, name))
+        evaluate("window.relatedPicker=document.activeElement;window.relatedContent=relatedPicker.closest('[data-slot=collapsible-content]')")
+        check("getComputedStyle(relatedContent).overflow==='visible' && relatedContent.dataset.open==='true'")
+        current = evaluate("relatedPicker.value || relatedPicker.textContent.trim()")
+        browser("press", "ArrowDown" if role == "combobox" else "Space")
+        refs = browser("snapshot", "-i")["refs"]
+        bottom = evaluate("relatedContent.getBoundingClientRect().bottom")
+        height = evaluate("innerHeight")
+        candidates = []
+        for ref, item in refs.items():
+            if item["role"] != "option" or item.get("disabled") or item["name"] == current:
+                continue
+            r = browser("get", "box", "@" + ref)
+            x, y = round(r["x"]+r["width"]/2), round(r["y"]+r["height"]/2)
+            if bottom < y < height:
+                candidates.append((item["name"], x, y))
+        assert candidates, (name, bottom, height, refs)
+        label, x, y = candidates[0]
+        hit = evaluate(f"document.elementFromPoint({x},{y})?.closest('[role=option]')?.textContent.trim()")
+        print("Related actual picker boundary", name, {"bottom": bottom, "optionY": y, "option": label, "hit": hit}, flush=True)
+        assert hit == label, (name, label, hit)
+        browser("screenshot", str(captures / (name.replace(" ", "-") + "-pointer-boundary.png")))
+        browser("mouse", "move", x, y)
+        browser("mouse", "down")
+        browser("mouse", "up")
+        browser("wait", "--fn", f"relatedPicker.getAttribute('aria-expanded')==='false' && (relatedPicker.value || relatedPicker.textContent.trim())==={json.dumps(label)}")
+        check("document.activeElement===relatedPicker")
+
+    browser("set", "viewport", 1440, 1400)
+    click("Key assembly switch mx")
+    related_picker("Matrix part definition", "combobox")
+    related_picker("Diode direction", "button")
+    click("Column 1 1 keys")
+    related_picker("Splay origin", "button")
+    print("PASS related Matrix definition/Diode/Column-origin native pointer options beyond their disclosure boundaries", flush=True)
+
 
 def validation(url, captures):
     prepare(url)
