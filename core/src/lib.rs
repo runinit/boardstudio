@@ -57,6 +57,15 @@ impl CoreEngine {
 
     // Worker transport keeps the Rust and TypeScript protocols identical.
     pub fn request(&mut self, json: &str) -> String {
+        let preflight = serde_json::from_str::<serde_json::Value>(json).map_err(|error| error.to_string()).and_then(|value| {
+            let candidate = if value["kind"] == "open" { Some(&value["document"]) }
+                else if value["kind"] == "edit" && value["command"]["operation"]["kind"] == "replace-document" { Some(&value["command"]["operation"]["document"]) }
+                else { None };
+            candidate.map_or(Ok(()), migrate::require_current_value)
+        });
+        if let Err(message) = preflight {
+            return serde_json::to_string(&CoreReply::Error { id: String::new(), message, revision: self.document.revision }).expect("reply serializes");
+        }
         let reply = match serde_json::from_str::<CoreRequest>(json) {
             Ok(request) => self.handle(request),
             Err(error) => CoreReply::Error {

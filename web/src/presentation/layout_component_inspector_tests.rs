@@ -2967,7 +2967,8 @@ mod matrix_relations_panel {
             Some(matrix_json(
                 2,
                 3,
-                json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 2.0 }] }),
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
+}),
             )),
         )
         .await;

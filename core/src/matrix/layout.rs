@@ -341,6 +341,10 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
 
 pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     validate(doc)?;
+    for matrix in &doc.matrices {
+        matrix::valid_projection_matrix(matrix)?;
+        matrix::evaluated(matrix, doc)?;
+    }
     let sources: Vec<_> = doc
         .layouts
         .iter()
@@ -1242,7 +1246,7 @@ mod case_hardware_tests {
         doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["case-closure/board/10/10"],"netIds":[],"thickness":1.6}])).unwrap();
         doc.parts = serde_json::from_value(serde_json::json!([{"id":"case-closure/board/10/10","definitionId":"hole","reference":"MH1","pose":{"at":{"x":10,"y":10},"rotation":0},"side":"front"}])).unwrap();
         doc.matrices = serde_json::from_value(serde_json::json!([{"id":"matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}])).unwrap();
-        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixId":"matrix","partIds":[]}])).unwrap();
+        doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixIds":["matrix"],"partIds":[]}])).unwrap();
         adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
         assert!(doc.layouts[0].part_ids.is_empty());
     }

@@ -63,8 +63,8 @@ fn open() -> CoreEngine {
     let request = serde_json::json!({"kind":"edit","id":"pair","command":{
     "baseRevision":0,"transactionId":"pair","phase":"commit","targetIds":[],
     "operation":{"kind":"create-mirrored-pair","matrix":source,
-        "left":{"id":"left-layout","name":"Left","boardId":"board","matrixId":"m","partIds":[]},
-        "right":{"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":0}}
+        "left":{"id":"left-layout","name":"Left","boardId":"board","matrixIds":["m"],"partIds":[]},
+        "right":{"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":0}}
     }}});
     let (_, mut paired) =
         scene(serde_json::from_str(&engine.request(&request.to_string())).unwrap());

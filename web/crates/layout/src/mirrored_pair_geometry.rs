@@ -160,12 +160,8 @@ mod tests {
             "partIds": [],
             "boardId": "board",
             "edgeGap": { "x": 1.0, "y": 1.0 },
-            "rowOffsets": [{ "x": 2.0, "y": 3.0 }, { "x": -1.0, "y": 4.0 }, { "x": 0.0, "y": -2.0 }],
-            "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": -0.5 }, { "x": 0.0, "y": 0.0 }],
-            "columnStaggers": [0.5, 1.25],
-            "columnSplays": [0.0, 12.0],
-            "columnOrigins": [null, { "x": 20.0, "y": 3.0 }],
-            "rotation": 8.0,
+            "rowLayout": [{"offset": {"x": 2.0, "y": 3.0}}, {"offset": {"x": -1.0, "y": 4.0}}, {"offset": {"x": 0.0, "y": -2.0}}], "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}, "stagger": 0.5, "splay": 0.0}, {"offset": {"x": 1.5, "y": -0.5}, "stagger": 1.25, "splay": 12.0, "splayOrigin": {"x": 20.0, "y": 3.0}}, {"offset": {"x": 0.0, "y": 0.0}}],
+"rotation": 8.0,
             "cells": [
                 { "row": 0, "column": 1, "enabled": true, "offset": { "x": 0.25, "y": 0.75 }, "rotation": 2.0, "assemblies": [] },
                 { "row": 1, "column": 3, "enabled": false, "assemblies": [] }

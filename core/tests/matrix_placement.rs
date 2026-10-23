@@ -502,8 +502,8 @@ fn mirrored_pair_request(base: u64, phase: &str) -> String {
             "operation": {"kind": "create-mirrored-pair",
                 "matrix": {"id": "left-matrix", "rows": 2, "columns": 3, "pitch": {"x": 19, "y": 19},
                     "origin": {"x": -20, "y": 5}, "mirror": "x", "definitionId": "switch", "boardId": "board", "partIds": []},
-                "left": {"id": "left-layout", "name": "Left half", "boardId": "board", "matrixId": "left-matrix", "partIds": []},
-                "right": {"id": "right-layout", "name": "Right half", "boardId": "board", "matrixId": "right-matrix", "partIds": [],
+                "left": {"id": "left-layout", "name": "Left half", "boardId": "board", "matrixIds": ["left-matrix"], "partIds": []},
+                "right": {"id": "right-layout", "name": "Right half", "boardId": "board", "matrixIds": ["right-matrix"], "partIds": [],
                     "mirrorLink": {"sourceId": "left-layout", "axisX": 10}}
             }
         }

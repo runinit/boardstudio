@@ -723,9 +723,9 @@ fn split_fixture(broken: bool) -> serde_json::Value {
         members.clone();
     document["layouts"] = serde_json::json!([
         { "id": "left-keys", "name": "Left keys", "boardId": "board",
-          "matrixId": "left-matrix", "partIds": ["a", "c"] },
+          "matrixIds": ["left-matrix"], "partIds": ["a", "c"] },
         { "id": "right-keys", "name": "Right keys", "boardId": "board",
-          "matrixId": "right-matrix", "partIds": ["mirror-a", "mirror-c"],
+          "matrixIds": ["right-matrix"], "partIds": ["mirror-a", "mirror-c"],
           "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0 } }
     ]);
     let matrix = |id: &str, origin: f64| {
@@ -757,7 +757,7 @@ fn merged_fixture() -> serde_json::Value {
     let mut document = split_fixture(false);
     document["layouts"] = serde_json::json!([
         { "id": "keys", "name": "Keys", "boardId": "board",
-          "matrixId": "keys-matrix",
+          "matrixIds": ["keys-matrix"],
           "partIds": ["a", "c", "mirror-a", "mirror-c"] }
     ]);
     document["matrices"] = serde_json::json!([{

@@ -1100,7 +1100,7 @@ fn transform_fields(
                     .document
                     .layouts
                     .iter()
-                    .any(|layout| layout.matrix_id == matrix.id && layout.mirror_link.is_some()),
+                    .any(|layout| layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.mirror_link.is_some()),
                 assemblies_local: cell.and_then(|cell| cell.assemblies_local).unwrap_or(false),
                 offset: cell
                     .and_then(|cell| cell.offset)
@@ -1135,7 +1135,7 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
     document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == board_id && layout.matrix_id == matrix_id)
+        .find(|layout| layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id))
         .is_some_and(|layout| {
             layout.mirror_link.is_some()
                 || document.layouts.iter().any(|other| {

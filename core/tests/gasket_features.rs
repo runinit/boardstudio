@@ -757,8 +757,8 @@ fn linked_split_supports_use_mirrored_tracks() {
         {"id":"left-marker","definitionId":"marker","reference":"L","pose":{"at":{"x":50,"y":35},"rotation":0},"side":"front"},
         {"id":"right-marker","definitionId":"marker","reference":"R","pose":{"at":{"x":250,"y":35},"rotation":0},"side":"front"}]);
     input["document"]["layouts"] = json!([
-        {"id":"left","name":"Left","boardId":"board","matrixId":"left","partIds":["left-marker"]},
-        {"id":"right","name":"Right","boardId":"board","matrixId":"right","partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
+        {"id":"left","name":"Left","boardId":"board","matrixIds":["left"],"partIds":["left-marker"]},
+        {"id":"right","name":"Right","boardId":"board","matrixIds":["right"],"partIds":["right-marker"],"mirrorLink":{"sourceId":"left","axisX":150}}]);
     for automatic in [false, true] {
         input["document"]["mechanical"]["gasketLayout"]["autoSize"] = json!(automatic);
         input["document"]["mechanical"]["internalGasket"]["autoCount"] = json!(automatic);

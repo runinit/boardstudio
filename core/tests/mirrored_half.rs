@@ -1051,7 +1051,7 @@ fn layouts_keycaps_and_electrical_configuration_follow_the_mapped_ids() {
             .unwrap()
             .clone()
     };
-    let expected = json!({"boardId": "right", "id": "right-synthetic-keys-layout", "matrixId": "right-synthetic-keys", "name": "Synthetic keys", "partIds": ["right/U1", "right/RST"]});
+    let expected = json!({"boardId": "right", "id": "right-synthetic-keys-layout", "matrixIds": ["right-synthetic-keys"], "name": "Synthetic keys", "partIds": ["right/U1", "right/RST"]});
     assert_eq!(layout("right-synthetic-keys-layout"), expected);
     assert_eq!(layout("left-synthetic-keys-layout"), seed["layouts"][0]);
     assert_eq!(document["layouts"].as_array().unwrap().len(), 2);

@@ -102,6 +102,36 @@ fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
 }
 
 #[test]
+fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically() {
+    let mut document = baseline();
+    document["constraints"] = json!([]);
+    document["layouts"] = json!([{
+        "id": "layout", "name": "Layout", "boardId": "board",
+        "matrixIds": ["matrix"], "partIds": []
+    }]);
+    let mut engine = CoreEngine::new();
+    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    for (field, value) in [
+        ("columnLayout", json!([{}, {}, {}])),
+        ("rowLayout", json!([{}, {}])),
+        ("columnLayout", json!([{"spread": 0.0}])),
+        ("rowLayout", json!([{"padding": -2.0}])),
+        ("anchor", json!({"matrixId": "missing", "row": 0, "column": 0})),
+        ("anchor", json!({"matrixId": "matrix", "row": 0, "column": 0})),
+    ] {
+        let mut invalid = document.clone();
+        invalid["matrices"][0][field] = value;
+        assert_error(&open(&mut engine, "invalid-layout", &invalid));
+        assert_eq!(snapshot(&mut engine), accepted);
+    }
+    let mut empty = document;
+    empty["layouts"][0]["matrixIds"] = json!([]);
+    assert_error(&open(&mut engine, "empty-layout", &empty));
+    assert_eq!(snapshot(&mut engine), accepted);
+}
+
+#[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     use boardstudio_core::migrate::CURRENT_VERSION;
 

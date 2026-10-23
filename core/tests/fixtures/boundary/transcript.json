@@ -147,7 +147,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 6,
+        "formatVersion": 7,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -169,23 +169,6 @@
                 "row": 1
               }
             ],
-            "columnOrigins": [
-              null,
-              {
-                "x": 4.0,
-                "y": -20.0
-              }
-            ],
-            "columnSplays": [
-              0.0,
-              15.0,
-              -8.0
-            ],
-            "columnStaggers": [
-              0.0,
-              2.0,
-              -1.0
-            ],
             "columns": 3,
             "definitionId": "switch",
             "id": "matrix",
@@ -205,7 +188,22 @@
               "x": 19.0,
               "y": 19.0
             },
-            "rows": 3
+            "rows": 3,
+            "columnLayout": [
+              {},
+              {
+                "stagger": 2.0,
+                "splay": 15.0,
+                "splayOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                }
+              },
+              {
+                "stagger": -1.0,
+                "splay": -8.0
+              }
+            ]
           }
         ],
         "name": "Boundary fixture",
@@ -1805,7 +1803,7 @@
           }
         ],
         "format": "boardstudio/v2",
-        "formatVersion": 6,
+        "formatVersion": 7,
         "id": "boundary-fixture",
         "materials": [],
         "matrices": [
@@ -1837,23 +1835,6 @@
                 "row": 0
               }
             ],
-            "columnOrigins": [
-              null,
-              {
-                "x": 4.0,
-                "y": -20.0
-              }
-            ],
-            "columnSplays": [
-              0.0,
-              15.0,
-              -8.0
-            ],
-            "columnStaggers": [
-              0.0,
-              2.0,
-              -1.0
-            ],
             "columns": 3,
             "definitionId": "switch",
             "edgeGap": {
@@ -1877,7 +1858,22 @@
               "x": 19.0,
               "y": 19.0
             },
-            "rows": 3
+            "rows": 3,
+            "columnLayout": [
+              {},
+              {
+                "stagger": 2.0,
+                "splay": 15.0,
+                "splayOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                }
+              },
+              {
+                "stagger": -1.0,
+                "splay": -8.0
+              }
+            ]
           }
         ],
         "name": "Boundary fixture",

@@ -61,8 +61,8 @@ fn document() -> ProjectDoc {
             "id": "matrix", "rows": 1, "columns": 2,
             "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
             "definitionId": "switch-definition", "partIds": [], "boardId": "board",
-            "diodeDirection": "row2col", "rowOffsets": [], "columnOffsets": [],
-            "columnStaggers": [], "columnSplays": [], "columnOrigins": [], "cells": []
+            "diodeDirection": "row2col", "rowLayout": [], "columnLayout": [],
+"cells": []
         }))
         .expect("the matrix parses"),
     );

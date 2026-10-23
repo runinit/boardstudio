@@ -1453,7 +1453,7 @@ fn project_current_for(
         .document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == scope.board_id && layout.matrix_id == matrix.id);
+        .find(|layout| layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix.id));
     let (name_target, name_label, name_value, name_baseline) = if let Some(layout) = layout {
         (
             MatrixNameTarget::Layout {
@@ -1742,7 +1742,7 @@ fn field_value(
             MatrixNameTarget::Layout { id } => document
                 .layouts
                 .iter()
-                .find(|layout| layout.id == *id && layout.matrix_id == matrix_id)
+                .find(|layout| layout.id == *id && layout.matrix_ids.iter().any(|id| id == &matrix_id))
                 .map(|layout| MatrixEditValue::Name(Some(layout.name.clone()))),
         },
         MatrixEditField::Rows => document
@@ -1829,7 +1829,7 @@ fn build_operation(
                 let mut layout = document
                     .layouts
                     .iter()
-                    .find(|layout| layout.id == *id && layout.matrix_id == matrix.id)
+                    .find(|layout| layout.id == *id && layout.matrix_ids.iter().any(|id| id == &matrix.id))
                     .cloned()
                     .ok_or_else(|| "The selected layout no longer owns this matrix.".to_owned())?;
                 layout.name = name.to_owned();
@@ -2872,7 +2872,7 @@ mod tests {
         let layout = document
             .layouts
             .iter()
-            .find(|layout| layout.matrix_id == matrix.id && layout.board_id == "main")
+            .find(|layout| layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == "main")
             .unwrap();
         let operation = build_operation(
             &document,
@@ -3381,7 +3381,7 @@ mod tests {
             assert!(
                 runtime.model().accepted.is_some_and(|snapshot| {
                     snapshot.document.layouts.iter().any(|layout| {
-                        layout.id == "layout-main" && layout.matrix_id == fixture::MATRIX_ID
+                        layout.id == "layout-main" && layout.matrix_ids.iter().any(|id| id == fixture::MATRIX_ID)
                     })
                 }),
                 "the real Runtime accepts the replacement Layout"

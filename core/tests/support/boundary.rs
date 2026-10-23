@@ -34,10 +34,8 @@ pub fn matrix() -> Value {
         "origin": { "x": 7, "y": -3 }, "pitch": { "x": 19, "y": 19 },
         "partIds": ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2", "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2"],
         "cells": (0..3).map(|column| json!({ "row": 1, "column": column, "enabled": false })).collect::<Vec<_>>(),
-        "columnStaggers": [0, 2, -1],
-        "columnOrigins": [null, { "x": 4, "y": -20 }],
-        "columnSplays": [0, 15, -8],
-    })
+        "columnLayout": [{"stagger": 0, "splay": 0}, {"stagger": 2, "splayOrigin": {"x": 4, "y": -20}, "splay": 15}, {"stagger": -1, "splay": -8}],
+})
 }
 
 /// The normalized bundled mounting-hole catalogue entry projection requires.

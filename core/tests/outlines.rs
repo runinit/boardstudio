@@ -487,7 +487,8 @@ fn matrices_follow_stagger_rotation_growth_and_shrink() {
         id: "open".into(),
         document: doc,
     }));
-    let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowOffsets":[{"x":0,"y":0},{"x":5,"y":0},{"x":10,"y":0}],"cells":[{"row":0,"column":0,"enabled":false}]});
+    let mut matrix = json!({"id":"keys","boardId":"board","rows":3,"columns":3,"pitch":{"x":19.05,"y":19.05},"origin":{"x":0,"y":0},"definitionId":"switch","partIds":[],"rotation":30,"rowLayout": [{"offset": {"x": 0, "y": 0}}, {"offset": {"x": 5, "y": 0}}, {"offset": {"x": 10, "y": 0}}],
+"cells":[{"row":0,"column":0,"enabled":false}]});
     let rotated = commit(&mut core, 0, json!({"kind":"set-matrix","matrix":matrix}));
     assert!(!contains(&rotated.contours, 0.0, 0.0));
     assert!(contains(
@@ -1004,8 +1005,8 @@ fn manual_connections_respect_linked_split_boundaries() {
             {"id":"right","boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":60,"y":0},"definitionId":"switch","partIds":["k1"]}
         ])).unwrap();
         doc.layouts=serde_json::from_value(json!([
-            {"id":"left-layout","name":"Left","boardId":"board","matrixId":"left","partIds":[]},
-            {"id":"right-layout","name":"Right","boardId":"board","matrixId":"right","partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
+            {"id":"left-layout","name":"Left","boardId":"board","matrixIds":["left"],"partIds":[]},
+            {"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
         ])).unwrap();
         if another_axis {
             for (id, x) in [("k2", 120.0), ("k3", 180.0)] {
@@ -1018,8 +1019,8 @@ fn manual_connections_respect_linked_split_boundaries() {
                 doc.matrices.push(serde_json::from_value(json!({"id":id,"boardId":"board","rows":1,"columns":1,"pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0},"definitionId":"switch","partIds":[id]})).unwrap());
             }
             doc.layouts.extend(serde_json::from_value::<Vec<Layout>>(json!([
-                {"id":"far-left-layout","name":"Far left","boardId":"board","matrixId":"k2","partIds":[]},
-                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixId":"k3","partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150}}
+                {"id":"far-left-layout","name":"Far left","boardId":"board","matrixIds":["k2"],"partIds":[]},
+                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixIds":["k3"],"partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150}}
             ])).unwrap());
         }
         if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {

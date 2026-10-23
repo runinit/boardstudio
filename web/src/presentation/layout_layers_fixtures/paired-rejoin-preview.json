@@ -538,16 +538,20 @@
       {
         "boardId": "left",
         "id": "left-synthetic-keys-layout",
-        "matrixId": "left-synthetic-keys",
         "name": "Synthetic keys",
-        "partIds": []
+        "partIds": [],
+        "matrixIds": [
+          "left-synthetic-keys"
+        ]
       },
       {
         "boardId": "right",
         "id": "right-synthetic-keys-layout",
-        "matrixId": "right-synthetic-keys",
         "name": "Synthetic keys",
-        "partIds": []
+        "partIds": [],
+        "matrixIds": [
+          "right-synthetic-keys"
+        ]
       }
     ],
     "materials": [],
@@ -1344,7 +1348,8 @@
       }
     ],
     "revision": 4,
-    "scripts": []
+    "scripts": [],
+    "formatVersion": 7
   },
   "netId": "right/omit-controller-net",
   "operation": {

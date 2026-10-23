@@ -173,7 +173,8 @@ fn a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints() {
 
 #[test]
 fn staggers_read_relative_to_the_previous_column_with_a_cumulative_value() {
-    let world = world(matrix(1, 3, json!({ "columnStaggers": [0.0, 2.0, -1.0] })));
+    let world = world(matrix(1, 3, json!({ "columnLayout": [{"stagger": 0.0}, {"stagger": 2.0}, {"stagger": -1.0}]
+})));
 
     let first = relations(&world, column(0)).unwrap();
     assert_eq!(
@@ -197,7 +198,8 @@ fn a_column_offset_is_one_departure_on_that_column_only() {
     let world = world(matrix(
         2,
         3,
-        json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 2.0 }] }),
+        json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
+}),
     ));
 
     let offset = relations(&world, column(1)).unwrap();
@@ -223,7 +225,8 @@ fn an_x_only_column_offset_can_reset_but_not_convert() {
     let world = world(matrix(
         2,
         3,
-        json!({ "columnOffsets": [{ "x": 0.0, "y": 0.0 }, { "x": 1.5, "y": 0.0 }] }),
+        json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 0.0}}]
+}),
     ));
     let offset = relations(&world, column(1)).unwrap();
     assert_eq!(offset.departures.len(), 1);
@@ -414,9 +417,9 @@ fn each_half_of_a_linked_pair_names_its_partner() {
         json!({ "kind": "create-mirrored-pair",
             "matrix": matrix(2, 3, json!({ "id": "left-matrix", "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
             "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
-                      "matrixId": "left-matrix", "partIds": [] },
+                      "matrixIds": ["left-matrix"], "partIds": [] },
             "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
-                       "matrixId": "right-matrix", "partIds": [],
+                       "matrixIds": ["right-matrix"], "partIds": [],
                        "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
     );
 

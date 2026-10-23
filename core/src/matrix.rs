@@ -291,6 +291,11 @@ pub(crate) enum ProjectionMode {
 }
 
 pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
+    let gap = matrix.edge_gap.unwrap_or(Vec2 { x: DEFAULT_EDGE_GAP_MM, y: DEFAULT_EDGE_GAP_MM });
+    if !gap.x.is_finite() || !gap.y.is_finite() || gap.x < 0.0 || gap.y < 0.0
+        || gap.x >= matrix.pitch.x || gap.y >= matrix.pitch.y {
+        return Err("Matrix edge gap must be nonnegative and smaller than pitch".into());
+    }
     kernel::evaluate(&evaluation::input(matrix), kernel::RawAnchorContext::World)
         .map(|_| ()).map_err(str::to_owned)
 }

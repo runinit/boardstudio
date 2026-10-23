@@ -900,8 +900,8 @@ mod tests {
             settings.bridge_width = 10.0;
         }
         doc.layouts = serde_json::from_value(serde_json::json!([
-            {"id":"left","name":"Left","boardId":"board","matrixId":"left-matrix","partIds":["key-0"]},
-            {"id":"right","name":"Right","boardId":"board","matrixId":"right-matrix","partIds":["key-1"],"mirrorLink":{"sourceId":"left","axisX":20.0}}
+            {"id":"left","name":"Left","boardId":"board","matrixIds":["left-matrix"],"partIds":["key-0"]},
+            {"id":"right","name":"Right","boardId":"board","matrixIds":["right-matrix"],"partIds":["key-1"],"mirrorLink":{"sourceId":"left","axisX":20.0}}
         ])).unwrap();
         let shapes = feature_geometry(&doc, &doc.outline[0]).unwrap().shapes;
         assert_eq!(

@@ -1,11 +1,9 @@
-//! Ordered migrations of persisted project documents.
-//!
-//! A document carries `formatVersion`; one without it is version 1. Migrations run
-//! at Core's load boundary (browser storage, archive import, bundled examples) so
-//! nothing past that boundary handles an older shape. Each step takes a document
-//! of version N to N+1 and is applied in order.
-use serde_json::{Map, Value};
+//! Strict document admission. Format 7 has no conversion from older schemas.
+use serde_json::Value;
+#[cfg(test)]
+use serde_json::Map;
 
+#[cfg(test)]
 use crate::generators;
 
 /// The version this build reads and writes.
@@ -31,9 +29,27 @@ pub(crate) fn require_current_version(version: u32) -> Result<(), String> {
     Ok(())
 }
 
-/// Upgrade a persisted document to [`CURRENT_VERSION`]. Returns the upgraded
-/// document and whether anything changed. Unknown fields are preserved.
-pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
+/// Admit a current document without modifying any saved data. The bool remains
+/// false: callers must never write a normalized version back during list/load.
+pub fn migrate_value(document: Value) -> Result<(Value, bool), String> {
+    require_current_value(&document)?;
+    Ok((document, false))
+}
+
+/// Inspect the version before schema-dependent deserialization or replacement effects.
+pub fn require_current_value(document: &Value) -> Result<(), String> {
+    let object = document.as_object().ok_or("Project data failed validation: document must be an object")?;
+    if object.get("format").and_then(Value::as_str) != Some("boardstudio/v2") {
+        return Err("Unsupported document format".into());
+    }
+    let value = object.get("formatVersion").ok_or_else(|| format!("This legacy project has no formatVersion. This build requires format {CURRENT_VERSION}. No conversion is available. Your saved data has not been changed."))?;
+    let version = value.as_u64().and_then(|n| u32::try_from(n).ok()).ok_or("Project data failed validation: invalid formatVersion")?;
+    require_current_version(version)
+}
+
+/// Historical migration algorithms are retained only to test old fixture provenance.
+#[cfg(test)]
+fn historical_migrate_value(mut document: Value) -> Result<(Value, bool), String> {
     let Some(object) = document.as_object_mut() else {
         return Err("Project document must be an object".into());
     };
@@ -45,13 +61,13 @@ pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
             .filter(|number| *number >= LEGACY_VERSION)
             .ok_or_else(|| "Project document has an invalid formatVersion".to_owned())?,
     };
-    if version > CURRENT_VERSION {
+    if version > 6 {
         return Err(format!(
             "Project document version {version} is newer than this app supports (version {CURRENT_VERSION})"
         ));
     }
-    let changed = version < CURRENT_VERSION;
-    while version < CURRENT_VERSION {
+    let changed = version < 6;
+    while version < 6 {
         match version {
             1 => version_1_to_2(object),
             2 => version_2_to_3(object),
@@ -62,7 +78,7 @@ pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
         }
         version += 1;
     }
-    object.insert("formatVersion".into(), Value::from(CURRENT_VERSION));
+    object.insert("formatVersion".into(), Value::from(6));
     Ok((document, changed))
 }
 
@@ -79,13 +95,19 @@ pub fn migrate_json(text: &str) -> Result<(String, bool), String> {
 }
 
 /// The prefix of an identifier that used to name the generator library.
+#[cfg(test)]
 const LEGACY_PREFIX: &str = "ergogen:";
+#[cfg(test)]
 const LEGACY_MODEL_PREFIX: &str = "ergogen:model:";
+#[cfg(test)]
 const LEGACY_LOGO_SOURCE: &str = "utility_ergogen_logo";
+#[cfg(test)]
 const LEGACY_LOGO_NAME: &str = "utility ergogen logo";
 /// The `source` of an asset embedded from the bundled model library.
+#[cfg(test)]
 const LEGACY_LIBRARY_SOURCE: &str = "bundled Ergogen library";
 
+#[cfg(test)]
 fn version_1_to_2(document: &mut Map<String, Value>) {
     state_back_sides(document);
     let mut value = Value::Object(std::mem::take(document));
@@ -102,6 +124,7 @@ fn version_1_to_2(document: &mut Map<String, Value>) {
 /// shared overlay and first-instance fallback; the old `constructionLinked` flag never
 /// affected that overlay and is retired. Geometry is preserved and no mechanical pair
 /// or feature correspondence is inferred.
+#[cfg(test)]
 fn version_2_to_3(document: &mut Map<String, Value>) {
     identify_mechanical_openings(document.get_mut("mechanical"));
     let Some(Value::Object(hardware)) = document.get_mut("hardware") else {
@@ -123,6 +146,7 @@ fn version_2_to_3(document: &mut Map<String, Value>) {
 
 /// Rewrite a mechanical configuration's `openings` from point arrays to identified
 /// openings and vertices. Geometry, order, Z and height are unchanged.
+#[cfg(test)]
 fn identify_mechanical_openings(configuration: Option<&mut Value>) {
     let Some(Value::Object(configuration)) = configuration else {
         return;
@@ -165,12 +189,14 @@ fn identify_mechanical_openings(configuration: Option<&mut Value>) {
 }
 
 /// The generator source after the logo rename, when it is a built-in generator.
+#[cfg(test)]
 fn built_in_source(source: &str) -> Option<String> {
     let source = source.replace(LEGACY_LOGO_SOURCE, "utility_logo");
     generators::is_generator(&source).then_some(source)
 }
 
 /// Definition id → built-in generator source and whether the definition saves a `side`.
+#[cfg(test)]
 fn generator_definitions(document: &Map<String, Value>) -> Vec<(String, String, bool)> {
     let Some(Value::Array(definitions)) = document.get("definitions") else {
         return Vec::new();
@@ -195,6 +221,7 @@ fn generator_definitions(document: &Map<String, Value>) -> Vec<(String, String, 
 /// Non-empty list text (for example `"[1,2,3]"`) stays text, as in the old 1 to 2 step. Names
 /// that no generator declares and values that cannot be converted are kept, so Core's
 /// validation reports them.
+#[cfg(test)]
 fn version_3_to_4(document: &mut Map<String, Value>) {
     convert_generator_values(document);
 }
@@ -202,13 +229,16 @@ fn version_3_to_4(document: &mut Map<String, Value>) {
 /// Version 5 adds optional fields to mechanical pairs (`constructionSource`, `halves`), and
 /// absence means what version 4 meant. Only the version changes, so an older build refuses a
 /// version 5 document instead of dropping the record (ADR-0004).
+#[cfg(test)]
 fn version_4_to_5(_document: &mut Map<String, Value>) {}
 
 /// Framed constraints are introduced in version 6. Existing records keep their literal data;
 /// this compatibility step only marks the format a reader that understands the new kind.
+#[cfg(test)]
 fn version_5_to_6(_document: &mut Map<String, Value>) {}
 
 /// On back-side parts, state the layer the old renderer derived from the part side.
+#[cfg(test)]
 fn state_back_sides(document: &mut Map<String, Value>) {
     let known = generator_definitions(document);
     if let Some(Value::Array(parts)) = document.get_mut("parts") {
@@ -227,6 +257,7 @@ fn state_back_sides(document: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(test)]
 fn state_back_side(instance: &mut Value, parameters_key: &str, known: &[(String, String, bool)]) {
     let Some(object) = instance.as_object_mut() else {
         return;
@@ -259,6 +290,7 @@ fn state_back_side(instance: &mut Value, parameters_key: &str, known: &[(String,
 
 /// Convert saved numeric strings to numbers and remove empty or whitespace-only number and list
 /// text, on definitions, parts and assembly members. Non-empty list text is not converted.
+#[cfg(test)]
 fn convert_generator_values(document: &mut Map<String, Value>) {
     let known = generator_definitions(document);
 
@@ -303,6 +335,7 @@ fn convert_generator_values(document: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(test)]
 fn convert_instance(instance: &mut Value, parameters_key: &str, known: &[(String, String, bool)]) {
     let Some(object) = instance.as_object_mut() else {
         return;
@@ -322,6 +355,7 @@ fn convert_instance(instance: &mut Value, parameters_key: &str, known: &[(String
     }
 }
 
+#[cfg(test)]
 fn convert_parameters(source: &str, parameters: &mut Map<String, Value>) {
     let Ok(schema) = generators::parameter_schema(source) else {
         return;
@@ -347,6 +381,7 @@ fn convert_parameters(source: &str, parameters: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(test)]
 fn parse_number(text: &str) -> Option<Value> {
     let number: f64 = text
         .parse()
@@ -359,6 +394,7 @@ fn parse_number(text: &str) -> Option<Value> {
     }
 }
 
+#[cfg(test)]
 fn rename_in_place(value: &mut Value) {
     match value {
         Value::String(text) => {
@@ -382,6 +418,7 @@ fn rename_in_place(value: &mut Value) {
     }
 }
 
+#[cfg(test)]
 fn renamed(text: &str) -> Option<String> {
     let mut result = if let Some(rest) = text.strip_prefix(LEGACY_MODEL_PREFIX) {
         format!("{}{rest}", generators::BUNDLED_MODEL_PREFIX)
@@ -405,6 +442,12 @@ fn renamed(text: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::historical_migrate_value as migrate_value;
+    const CURRENT_VERSION: u32 = 6;
+    fn migrate_json(text: &str) -> Result<(String, bool), String> {
+        let (value, changed) = migrate_value(serde_json::from_str(text).map_err(|e| e.to_string())?)?;
+        Ok((if changed { serde_json::to_string(&value).map_err(|e| e.to_string())? } else { text.to_owned() }, changed))
+    }
     use serde_json::json;
 
     fn version_1() -> Value {

@@ -5548,7 +5548,7 @@ fn replacement_retirement_fixture() -> ProjectDoc {
     document.layouts.push(
         serde_json::from_value(json!({
             "id":"source-layout","name":"Source","boardId":"source-board",
-            "matrixId":"source-matrix","partIds":[]
+            "matrixIds": ["source-matrix"],"partIds":[]
         }))
         .unwrap(),
     );

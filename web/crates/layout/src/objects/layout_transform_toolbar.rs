@@ -1807,13 +1807,9 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
         ) => {
             matrix_id == &drag.matrix.id
                 && target == column
-                && *world
-                    == drag
-                        .matrix
-                        .column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
-                        .get(*column as usize)
-                        .copied()
-                        .flatten()
+                && world.is_none()
+                && drag.matrix.column_layout.get(*column as usize)
+                    .is_none_or(|record| record.splay_origin == Vec2::default())
         }
         _ => false,
     }
@@ -3109,9 +3105,9 @@ mod nudge_tests {
                 "boardId": fixture::BOARD_ID, "partIds": []
             },
             "left": {"id": "left-layout", "name": "Left", "boardId": fixture::BOARD_ID,
-                     "matrixId": "left-matrix", "partIds": []},
+                     "matrixIds": ["left-matrix"], "partIds": []},
             "right": {"id": "right-layout", "name": "Right", "boardId": fixture::BOARD_ID,
-                      "matrixId": "right-matrix", "partIds": [],
+                      "matrixIds": ["right-matrix"], "partIds": [],
                       "mirrorLink": {"sourceId": "left-layout", "axisX": 10.0}}
         }))
         .expect("a mirrored pair operation");

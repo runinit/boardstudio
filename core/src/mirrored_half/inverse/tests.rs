@@ -129,11 +129,11 @@ fn native_layout_fixture() -> ProjectDoc {
         .push("left/GONE".into());
     document.layouts = vec![
         serde_json::from_value(json!({"id":"left-layout","name":"Source layout",
-            "boardId":"left","matrixId":"left-keys",
+            "boardId":"left","matrixIds": ["left-keys"],
             "partIds":["left/U1","left/GONE","left/HEADER"]}))
         .unwrap(),
         serde_json::from_value(json!({"id":"right-layout","name":"Mirror layout",
-            "boardId":"right","matrixId":"right-keys",
+            "boardId":"right","matrixIds": ["right-keys"],
             "partIds":["right/U1","right/HEADER","right/FREE"]}))
         .unwrap(),
     ];
@@ -1085,9 +1085,9 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
         (
             op(json!({"kind":"create-mirrored-pair",
                 "left":{"id":"left-layout","name":"Left","boardId":"left",
-                    "matrixId":"left-matrix","partIds":[]},
+                    "matrixIds": ["left-matrix"],"partIds":[]},
                 "right":{"id":"right-layout","name":"Right","boardId":"left",
-                    "matrixId":"right-matrix","partIds":[],
+                    "matrixIds": ["right-matrix"],"partIds":[],
                     "mirrorLink":{"sourceId":"left-layout","axisX":100.0}},
                 "matrix":{"id":"left-matrix","rows":0,"columns":0,
                     "pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},
@@ -1283,10 +1283,10 @@ fn source_local_and_legacy_only_layout_requests_keep_their_authored_targets() {
     add_empty_local_matrix(&mut legacy_document, "legacy-target-matrix");
     legacy_document.layouts = vec![
         serde_json::from_value(json!({"id":"legacy-source","name":"Legacy source",
-            "boardId":"right","matrixId":"legacy-source-matrix","partIds":[]}))
+            "boardId":"right","matrixIds": ["legacy-source-matrix"],"partIds":[]}))
         .unwrap(),
         serde_json::from_value(json!({"id":"legacy-mirror","name":"Legacy mirror",
-            "boardId":"right","matrixId":"legacy-target-matrix","partIds":[],
+            "boardId":"right","matrixIds": ["legacy-target-matrix"],"partIds":[],
             "mirrorLink":{"sourceId":"legacy-source","axisX":100.0}}))
         .unwrap(),
     ];
@@ -1352,7 +1352,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     add_empty_local_matrix(&mut new_overlap, "new-legacy-peer-matrix");
     new_overlap.layouts.push(
         serde_json::from_value(json!({"id":"new-legacy-peer","name":"New legacy peer",
-            "boardId":"right","matrixId":"new-legacy-peer-matrix","partIds":[]}))
+            "boardId":"right","matrixIds": ["new-legacy-peer-matrix"],"partIds":[]}))
         .unwrap(),
     );
     let mut new_legacy_link = new_overlap.layouts[2].clone();
@@ -1417,7 +1417,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     add_empty_local_matrix(&mut overlap, "right-local-matrix");
     overlap.layouts.push(
         serde_json::from_value(json!({"id":"legacy-peer","name":"Legacy peer",
-            "boardId":"right","matrixId":"right-local-matrix","partIds":[],
+            "boardId":"right","matrixIds": ["right-local-matrix"],"partIds":[],
             "mirrorLink":{"sourceId":"right-layout","axisX":100.0}}))
         .unwrap(),
     );
@@ -1459,7 +1459,7 @@ fn native_layout_refuses_unrepresentable_name_local_membership_and_legacy_overla
     direct_overlap.layouts.push(
         serde_json::from_value(json!({"id":"native-legacy-source",
             "name":"Native legacy source","boardId":"right",
-            "matrixId":"native-legacy-source-matrix","partIds":[]}))
+            "matrixIds": ["native-legacy-source-matrix"],"partIds":[]}))
         .unwrap(),
     );
     let native_mirror = direct_overlap
@@ -2720,8 +2720,8 @@ fn companion_matrix(document: &ProjectDoc, assembly_definition: &str, rotation: 
     translated_matrix(
         document,
         mirror_payload(json!({
-        "columnSplays": [0, 15],
-        "cells": [
+        "columnLayout": [{"splay": 0}, {"splay": 15}],
+"cells": [
             {"row": 0, "column": 0, "enabled": true, "rotation": 20, "assemblies": [
                 {"id": "diode", "definitionId": assembly_definition,
                  "offset": {"x": -8, "y": -3}, "rotation": rotation}]},
@@ -2956,9 +2956,9 @@ fn matrix_definitions_travel_with_the_translated_request_unchanged() {
 
 fn with_legacy_link(mut document: ProjectDoc) -> ProjectDoc {
     document.layouts = serde_json::from_value(json!([
-        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixId": "left-keys",
+        {"id": "legacy-a", "name": "A", "boardId": "left", "matrixIds": ["left-keys"],
          "partIds": [], "mirrorLink": {"sourceId": "legacy-b", "axisX": 0}},
-        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixId": "right-keys", "partIds": []}
+        {"id": "legacy-b", "name": "B", "boardId": "left", "matrixIds": ["right-keys"], "partIds": []}
     ]))
     .unwrap();
     document
@@ -3156,8 +3156,8 @@ fn source_half() -> ProjectDoc {
     ]);
     let matrices = json!([{"id": "left-keys", "name": "Keys", "rows": 2, "columns": 3,
             "pitch": {"x": 19, "y": 21}, "origin": {"x": 4, "y": 9}, "rotation": 12,
-            "columnSplays": [0, 6, -3], "columnStaggers": [0, 3, -2],
-            "definitionId": switch, "boardId": "left", "partIds": [], "cells": cells}]);
+            "columnLayout": [{"splay": 0, "stagger": 0}, {"splay": 6, "stagger": 3}, {"splay": -3, "stagger": -2}],
+"definitionId": switch, "boardId": "left", "partIds": [], "cells": cells}]);
     let hardware = json!({"topology": "split", "transport": "wired",
             "instances": [{"id": "left", "name": "Left", "boardId": "left", "half": "left",
                 "role": "central", "flipped": false, "controllerPartId": "left/U1",

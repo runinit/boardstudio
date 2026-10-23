@@ -1433,7 +1433,7 @@ fn layout_component_inspector_projection(
         layout.board_id == board.id
             && (layout.part_ids.contains(part_id)
                 || document.matrices.iter().any(|matrix| {
-                    matrix.id == layout.matrix_id && matrix.part_ids.contains(part_id)
+                    layout.matrix_ids.contains(&matrix.id) && matrix.part_ids.contains(part_id)
                 }))
     });
     let mut active_constraint = None;

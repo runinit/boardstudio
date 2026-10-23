@@ -678,7 +678,7 @@ fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Opti
     let layout = document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == scope.board_id && layout.matrix_id == matrix_id)?;
+        .find(|layout| layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id))?;
     let linked = if let Some(link) = &layout.mirror_link {
         document.layouts.iter().find(|candidate| {
             candidate.board_id == scope.board_id && candidate.id == link.source_id
@@ -692,7 +692,7 @@ fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Opti
                     .is_some_and(|link| link.source_id == layout.id)
         })
     }?;
-    Some(linked.matrix_id.clone())
+    layout.mirror_link.as_ref().or(linked.mirror_link.as_ref())?.partner_matrix(matrix_id).map(str::to_owned)
 }
 
 /// Resolve an align against the accepted document at execution time. Every part the

@@ -1953,10 +1953,8 @@ mod tests {
             "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 10.0, "y": 5.0 },
             "definitionId": "switch", "boardId": "board", "partIds": [],
             "rotation": 20.0, "mirror": "x",
-            "columnStaggers": [0.0, 3.0, -2.0, 1.0],
-            "columnSplays": [0.0, 8.0, 0.0, -6.0],
-            "columnOrigins": [null, { "x": 30.0, "y": 12.0 }, null, null]
-        }))
+            "columnLayout": [{"stagger": 0.0, "splay": 0.0}, {"stagger": 3.0, "splay": 8.0, "splayOrigin": {"x": 30.0, "y": 12.0}}, {"stagger": -2.0, "splay": 0.0}, {"stagger": 1.0, "splay": -6.0}]
+}))
         .unwrap();
         let CoreReply::Scene { scene, .. } = engine.handle(CoreRequest::Edit {
             id: "edit".into(),

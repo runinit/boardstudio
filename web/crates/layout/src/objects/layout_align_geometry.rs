@@ -361,8 +361,8 @@ mod tests {
         let matrix: Matrix = serde_json::from_value(serde_json::json!({
             "id":"m", "rows":2, "columns":3, "pitch":{"x":19,"y":19},
             "origin":{"x":0,"y":0}, "definitionId":"d", "partIds":[],
-            "mirror":"x", "rotation":90, "columnSplays":[0,10]
-        }))
+            "mirror":"x", "rotation":90, "columnLayout": [{"splay": 0}, {"splay": 10}]
+}))
         .unwrap();
         let actual = local_matrix_delta(&matrix, Vec2 { x: 2.0, y: 3.0 }, 1);
         assert!((actual.x - -3.3017196143704846).abs() < 1e-12);

@@ -1858,7 +1858,7 @@ pub fn selected_key_component_operation(
     let is_mirror_target = accepted
         .layouts
         .iter()
-        .any(|layout| layout.matrix_id == *matrix_id && layout.mirror_link.is_some());
+        .any(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id) && layout.mirror_link.is_some());
     if assemblies_changed && is_mirror_target {
         cell.assemblies_local = Some(true);
     }

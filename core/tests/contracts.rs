@@ -106,8 +106,8 @@ exceptions: vec![],
         mirrored_pair,
         json!({
             "kind": "create-mirrored-pair",
-            "left": {"id": "left", "name": "Left", "boardId": "board", "matrixId": "matrix", "partIds": []},
-            "right": {"id": "right", "name": "Right", "boardId": "board", "matrixId": "matrix-mirror", "partIds": [], "mirrorLink": {"sourceId": "left", "axisX": 0.0}},
+            "left": {"id": "left", "name": "Left", "boardId": "board", "matrixIds": ["matrix"], "partIds": []},
+            "right": {"id": "right", "name": "Right", "boardId": "board", "matrixIds": ["matrix-mirror"], "partIds": [], "mirrorLink": {"sourceId": "left", "axisX": 0.0}},
             "matrix": {"id": "matrix", "rows": 1, "columns": 1, "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": 0.0}, "definitionId": "switch", "partIds": []}
         })
     );
