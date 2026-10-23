@@ -218,15 +218,18 @@ def mirror(url, captures):
     original = flow.geometry()
     browser("focus", driver.by_role_name("button", "Mirror matrix"))
     evaluate("window.mirrorPicker=document.activeElement;window.mirrorContent=mirrorPicker.closest('[data-slot=collapsible-content]')")
-    browser("press", "Space")
+    check("mirrorContent.scrollTop===0")
+    click("Mirror matrix")
     refs = owned_options("mirrorPicker")
     targets = [ref for ref, item in refs.items() if item["name"] == "X axis"]
     assert len(targets) == 1, refs
     r = browser("get", "box", "@" + targets[0])
     x, y = round(r["x"]+r["width"]/2), round(r["y"]+r["height"]/2)
-    result = evaluate(f"(()=>{{const r=mirrorContent.getBoundingClientRect();return {{bottom:r.bottom,optionY:{y},viewport:innerHeight,overflow:getComputedStyle(mirrorContent).overflow,hit:document.elementFromPoint({x},{y})?.closest('[role=option]')?.textContent.trim()??null}}}})()")
+    result = evaluate(f"(()=>{{const r=mirrorContent.getBoundingClientRect();return {{bottom:r.bottom,optionY:{y},viewport:innerHeight,scroll:mirrorContent.scrollTop,overflow:getComputedStyle(mirrorContent).overflow,hit:document.elementFromPoint({x},{y})?.closest('[role=option]')?.textContent.trim()??null}}}})()")
     print("Actual Matrix Mirror boundary", result, flush=True)
     browser("screenshot", str(captures / "matrix-mirror-pointer-boundary.png"))
+    # A hidden overflow ancestor can scroll itself to reveal its focused popup, hiding the earlier fields.
+    assert result["scroll"] == 0, result
     assert result["bottom"] < y < result["viewport"] and result["hit"] == "X axis", result
     browser("mouse", "move", x, y)
     browser("mouse", "down")
