@@ -458,7 +458,7 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
                         "Reload saved version"
                     }
                 }
-                div { class: "absolute z-11 top-17 left-3 flex gap-1",
+                div { class: "m1-layout-view-group board-tool-pill",
                     ToggleGroup {
                         aria_label: "Design view",
                         horizontal: true,
@@ -608,54 +608,54 @@ mod workspace_state_tests {
         };
         let selection_present = selected_context().is_some();
         rsx! {
-            Button {
-                variant: ButtonVariant::Outline,
-                id: "layout-state-relations",
-                onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations),
-                "Relations"
-            }
-            Button { variant: ButtonVariant::Outline,
-id: "layout-state-select",
-onclick: move |_| {
-                        let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
-                        selected_context.set(Some(objects::ScopedTreeContext {
-                            scope: selection_owner.scope.clone(),
-                            context: context.clone(),
-                        }));
-                        state.set_selection_kind_from_context(&context);
-                    },
-                "Select matrix"
-             }
-            Button {
-                variant: ButtonVariant::Outline,
-                id: "layout-state-arm-pick",
-                onclick: move |_| pending_pick.set(Some(pick_owner.clone())),
-                "Arm origin pick"
-            }
-            Button {
-                variant: ButtonVariant::Outline,
-                id: "layout-state-enter-3d",
-                onclick: move |_| state.set_assembly_3d(true),
-                "Enter 3D"
-            }
-            Button {
-                variant: ButtonVariant::Outline,
-                id: "layout-state-tool",
-                onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)),
-                "Activate tool"
-            }
-            Button {
-                variant: ButtonVariant::Outline,
-                id: "layout-state-switch",
-                onclick: move |_| workspace.set("Keycaps"),
-                "Switch workspace"
-            }
-            output { id: "layout-state-tab", "{inspector_tab_label}" }
-            output { id: "layout-state-selection-kind", "{selection_kind_label}" }
-            output { id: "layout-state-selection-present", "{selection_present}" }
-            output { id: "layout-state-pending", "{pending_pick().is_some()}" }
-            output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
-        }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        id: "layout-state-relations",
+                        onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations),
+                        "Relations"
+                    }
+                    Button { variant: ButtonVariant::Outline,
+        id: "layout-state-select",
+        onclick: move |_| {
+                                let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
+                                selected_context.set(Some(objects::ScopedTreeContext {
+                                    scope: selection_owner.scope.clone(),
+                                    context: context.clone(),
+                                }));
+                                state.set_selection_kind_from_context(&context);
+                            },
+                        "Select matrix"
+                     }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        id: "layout-state-arm-pick",
+                        onclick: move |_| pending_pick.set(Some(pick_owner.clone())),
+                        "Arm origin pick"
+                    }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        id: "layout-state-enter-3d",
+                        onclick: move |_| state.set_assembly_3d(true),
+                        "Enter 3D"
+                    }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        id: "layout-state-tool",
+                        onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)),
+                        "Activate tool"
+                    }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        id: "layout-state-switch",
+                        onclick: move |_| workspace.set("Keycaps"),
+                        "Switch workspace"
+                    }
+                    output { id: "layout-state-tab", "{inspector_tab_label}" }
+                    output { id: "layout-state-selection-kind", "{selection_kind_label}" }
+                    output { id: "layout-state-selection-present", "{selection_present}" }
+                    output { id: "layout-state-pending", "{pending_pick().is_some()}" }
+                    output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
+                }
     }
 
     fn click(document: &web_sys::Document, id: &str) {
@@ -942,72 +942,72 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         }
     };
     rsx! {
-        PendingSplayOriginPickEscape {
-            pending: input.splay_origin_pick_pending,
-            on_cancel: input.on_cancel_splay_origin_pick,
-        }
-        super::layout_key_selection_actions::SelectedKeysActions {}
-        MatrixRelationshipEscape {
-            target: matrix_relationship_escape_target(),
-            component_owner,
-            on_escape: on_matrix_relationship_escape,
-        }
-        if input.findings_return_available {
-            div { class: "m1-layout-findings-return",
-                Button {
-                    variant: ButtonVariant::Outline,
-                    class: "m1-layout-findings-back",
-                    id: "m1-layout-findings-back-to-selection",
-                    button_type: "button",
-                    onclick: move |_| input.on_findings_return.call(()),
-
-                    "Back to selection"
-
-                }
+            PendingSplayOriginPickEscape {
+                pending: input.splay_origin_pick_pending,
+                on_cancel: input.on_cancel_splay_origin_pick,
             }
-        }
-        if input.outline_inspector.is_none() && input.component_inspector.is_none() {
-            if let Some(title) = input.context_title.as_ref() {
-                section {
-                    class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" },
-                    "aria-label": "Selected context",
-                    h2 { "{title}" }
-                    if let Some(detail) = input.context_detail.as_ref() {
-                        p { "{detail}" }
+            super::layout_key_selection_actions::SelectedKeysActions {}
+            MatrixRelationshipEscape {
+                target: matrix_relationship_escape_target(),
+                component_owner,
+                on_escape: on_matrix_relationship_escape,
+            }
+            if input.findings_return_available {
+                div { class: "m1-layout-findings-return",
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        class: "m1-layout-findings-back",
+                        id: "m1-layout-findings-back-to-selection",
+                        button_type: "button",
+                        onclick: move |_| input.on_findings_return.call(()),
+
+                        "Back to selection"
+
                     }
                 }
             }
-        }
-
-        if matrix_context_tabs {
-            Tabs { horizontal: true,
-value: Some(
-                    if (input.inspector_tab)() == LayoutInspectorTab::Properties {
-                        "properties".to_owned()
-                    } else {
-                        "relations".to_owned()
-                    },
-                ),
-on_value_change: move |value: String| input.inspector_tab.set(if value == "relations" { LayoutInspectorTab::Relations } else { LayoutInspectorTab::Properties }),
-                TabsList {
-                    aria_label: "Inspector details",
-                    class: "layout-inspector-tabs",
-                    TabsTrigger { index: 0usize, value: "properties", "Properties" }
-                    TabsTrigger { index: 1usize, value: "relations", "Relations" }
-                }
-                TabsContent { index: 0usize, value: "properties", {properties.clone()} }
-                TabsContent { index: 1usize, value: "relations",
-                    super::layout_matrix_relations::MatrixRelationsPanel {
-                        relations: input.matrix_relations.clone(),
-                        mount: input.matrix_transform_inspector.clone(),
-                        on_navigate: on_navigate_relation,
+            if input.outline_inspector.is_none() && input.component_inspector.is_none() {
+                if let Some(title) = input.context_title.as_ref() {
+                    section {
+                        class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" },
+                        "aria-label": "Selected context",
+                        h2 { "{title}" }
+                        if let Some(detail) = input.context_detail.as_ref() {
+                            p { "{detail}" }
+                        }
                     }
                 }
-             }
-        } else {
-            {properties}
+            }
+
+            if matrix_context_tabs {
+                Tabs { horizontal: true,
+    value: Some(
+                        if (input.inspector_tab)() == LayoutInspectorTab::Properties {
+                            "properties".to_owned()
+                        } else {
+                            "relations".to_owned()
+                        },
+                    ),
+    on_value_change: move |value: String| input.inspector_tab.set(if value == "relations" { LayoutInspectorTab::Relations } else { LayoutInspectorTab::Properties }),
+                    TabsList {
+                        aria_label: "Inspector details",
+                        class: "layout-inspector-tabs",
+                        TabsTrigger { index: 0usize, value: "properties", "Properties" }
+                        TabsTrigger { index: 1usize, value: "relations", "Relations" }
+                    }
+                    TabsContent { index: 0usize, value: "properties", {properties.clone()} }
+                    TabsContent { index: 1usize, value: "relations",
+                        super::layout_matrix_relations::MatrixRelationsPanel {
+                            relations: input.matrix_relations.clone(),
+                            mount: input.matrix_transform_inspector.clone(),
+                            on_navigate: on_navigate_relation,
+                        }
+                    }
+                 }
+            } else {
+                {properties}
+            }
         }
-    }
 }
 
 #[component]

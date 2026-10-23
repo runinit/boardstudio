@@ -1,7 +1,7 @@
 //! Browser coverage of the real form/guide mount boundary used by Editor.
 use super::*;
 use crate::presentation::setup_guide::{ProjectSetupGuide, SetupGuideStage};
-use wasm_bindgen::JsCast;
+use boardstudio_web_ui_shared::test_role::by_role_name;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -50,7 +50,7 @@ fn canvas_opener_composition() -> Element {
     let mut open = use_signal(|| false);
     let owner = owner();
     rsx! {
-        button { id: "matrix-canvas-opener", onclick: move |_| open.set(true), "Add key matrix" }
+        Button { id: "matrix-canvas-opener", onclick: move |_| open.set(true), "Add key matrix" }
         if open() {
             MatrixSetup {
                 projection: MatrixSetupProjection { owner, editable: true, can_cancel: true, status: None, error: None },
@@ -58,18 +58,6 @@ fn canvas_opener_composition() -> Element {
             }
         }
     }
-}
-
-fn element(selector: &str) -> web_sys::HtmlElement {
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(selector)
-        .unwrap()
-        .unwrap()
-        .dyn_into()
-        .unwrap()
 }
 
 fn focused() -> web_sys::Element {
@@ -97,21 +85,17 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
     );
     rendered().await;
     let initial_heading = focused().tag_name() == "H2";
-    let add_matrix = element("#matrix-focus-test-root .m1-setup-guide__add-matrix");
+    let add_matrix = by_role_name(&root, "button", "Set up key matrix").unwrap();
     add_matrix.focus().unwrap();
     add_matrix.click();
     rendered().await;
     let rows_focused = focused().get_attribute("aria-label").as_deref() == Some("Rows");
     let guide_stays_mounted = root.query_selector_all(".m1-setup-guide").unwrap().length() == 1;
-    let cancel = element("#matrix-focus-test-root .m1-matrix-setup footer button[type='button']");
+    let cancel = by_role_name(&root, "button", "Cancel").unwrap();
     cancel.focus().unwrap();
     cancel.click();
     rendered().await;
-    let returned_to_opener = focused().get_attribute("class").is_some_and(|class| {
-        class
-            .split_whitespace()
-            .any(|name| name == "m1-setup-guide__add-matrix")
-    });
+    let returned_to_opener = focused().is_same_node(Some(add_matrix.as_ref()));
     assert_eq!(
         (
             initial_heading,
@@ -145,11 +129,11 @@ async fn matrix_cancel_restores_the_canvas_opener_without_a_guide() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     rendered().await;
-    let opener = element("#matrix-focus-test-root #matrix-canvas-opener");
+    let opener = by_role_name(&root, "button", "Add key matrix").unwrap();
     opener.focus().unwrap();
     opener.click();
     rendered().await;
-    let cancel = element("#matrix-focus-test-root .m1-matrix-setup footer button[type='button']");
+    let cancel = by_role_name(&root, "button", "Cancel").unwrap();
     cancel.focus().unwrap();
     cancel.click();
     rendered().await;

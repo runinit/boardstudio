@@ -191,3 +191,22 @@ No GREEN claim is made for full Layout or the pending actual Mirror in-dock RED.
 The required Mirror behavioral RED must run with the correct `--lib -- <filter>`
 after the landed control prerequisite makes this crate buildable, before its dialog
 presentation is changed. No other lane's unlanded InputGroup/Parts/Label work is copied.
+
+
+Landed CONTROL `c38dc6bf4c52808663a7f5e78761bbfe99abb984` merged into this lane at
+`353e291d` without discarding WIP. The sole merge conflict was Button: retained the
+canonical landed file and all its composition/effective-ID/listener-update tests,
+byte-identical to feature; InputGroup and Checkbox likewise match feature. The
+vendored interpreter and lock path are canonical. Incoming vendor `.gitignore`
+contains a trailing blank line reported by diff-check; left unchanged as landed.
+No post-merge Cargo or wasm-pack has started. Explicit build-slot yield confirmed
+to coordinator after a `/proc` argv/environment/open-fd scan found no process owning
+`/home/chris/.cache/boardstudio-target/016-layout-sweep-lineage`; wait for explicit
+slot return while clean layer child verifies `7ac31403` on CONTROL.
+
+Full Layout source continuation uses canonical Button `attributes` composition for
+the Objects disclosure Tooltip, keeping the actual Button as the sole focus owner.
+The Layout view-mode root retains its original `m1-layout-view-group board-tool-pill`
+placement. The user-approved Layout-only legacy button CSS exclusions remain
+unmodified pending an actual computed-style RED; this is outside the shared layer
+slice. No full Layout runtime or compile GREEN is claimed yet.
