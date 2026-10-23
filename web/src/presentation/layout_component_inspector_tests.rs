@@ -2410,7 +2410,19 @@ async fn choose_inspector_option(root: &web_sys::Element, name: &str, option: &s
             && by_role_name(root, "option", option).is_some()
     })
     .await;
-    by_role_name(root, "option", option).unwrap().click();
+    let option = by_role_name(root, "option", option).unwrap();
+    // The primitive selects on a complete pointer gesture, not a synthetic click.
+    let pointer = web_sys::PointerEventInit::new();
+    pointer.set_bubbles(true);
+    pointer.set_button(0);
+    pointer.set_pointer_type("mouse");
+    for phase in ["pointerdown", "pointerup"] {
+        option
+            .dispatch_event(
+                &web_sys::PointerEvent::new_with_pointer_event_init_dict(phase, &pointer).unwrap(),
+            )
+            .unwrap();
+    }
     wait_until("the chosen option closes the popup", || {
         control.get_attribute("aria-expanded").as_deref() == Some("false")
     })

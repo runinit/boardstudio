@@ -347,3 +347,15 @@ the removed legacy tab class. Both actual TabsList owners now use
 `layout-inspector-tabs` to avoid legacy look overrides. A mounted actual Inspector
 regression in `layout_component_inspector_tests.rs` will prove selected-tab return
 focus before correcting this single selector; no new state/API/listener is needed.
+
+
+Second supported full Layout browser launch (`layout-browser-owned-2.log`) passed
+page/CSS build and the earlier Matrix tests. Its first real failure was the Objects
+grouping test: synthetic `HTMLElement.click()` on a copied Select option does not
+invoke its pointerdown/up selection contract. Focused unchanged test reproduces
+that exact failure (`grouping-actual-focused-red.log`). Source inspection confirms
+the primitive owns pointer selection, with no click listener. Corrected the four
+owned test option-selection sites (Objects grouping, key size, attached component,
+shell Inspector helper) to dispatch the complete primary pointer gesture on the
+role/name located actual option. No production behavior or existing domain assertions
+changed. Later panic-hook failures/timeouts in the full launch are cascades.

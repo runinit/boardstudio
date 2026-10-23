@@ -75,7 +75,19 @@ async fn tree_projection_skips_runtime_updates_and_tracks_disclosures_grouping_a
         by_role_name(&root, "option", "By part").is_some()
     })
     .await;
-    by_role_name(&root, "option", "By part").unwrap().click();
+    let option = by_role_name(&root, "option", "By part").unwrap();
+    // The primitive selects on a complete pointer gesture, not a synthetic click.
+    let pointer = web_sys::PointerEventInit::new();
+    pointer.set_bubbles(true);
+    pointer.set_button(0);
+    pointer.set_pointer_type("mouse");
+    for phase in ["pointerdown", "pointerup"] {
+        option
+            .dispatch_event(
+                &web_sys::PointerEvent::new_with_pointer_event_init_dict(phase, &pointer).unwrap(),
+            )
+            .unwrap();
+    }
     wait_until("grouping changes", || {
         root.text_content().unwrap().contains("Switches")
     })
