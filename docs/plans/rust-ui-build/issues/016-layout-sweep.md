@@ -732,3 +732,24 @@ navigation/selection/focus-return and retained-popup tests before acceptance.
 
 Full020 Parts chooser and Label landing remains the separate dependency for final
 Add integration; no unlanded source is copied. Global gates remain open.
+
+Coordinator approved the exact shared Select lease: only the existing
+closed-to-open Space handler additionally stops the raw event through existing
+WebEventExt. Implemented without changing Enter/default prevention, spread order,
+callbacks, classes, props, state, focus or selection. Connected caller inventory
+is `select-connected-callers-inventory.log`: Layout short choices, component and
+companion inspectors, 015 align/key-size choices, 017 SettingsSelect and the dock
+example use the same copy. No connected production caller supplies an onkeydown
+attribute; no internal handler is overwritten. Public API/visibility/dependencies
+are unchanged; this is a shared behavior contract for the one full016 final
+Standards+Spec review, not a separate micro-review.
+
+`CARGO_PROFILE_DEV_DEBUG=false wasm-pack test --headless --chrome
+web/crates/ui-shared --locked --lib -- ui::primitives_mount_tests::select_`
+passes all3 (`select-space-shared-contract-green.log`): existing006 navigation,
+controlled selection/focus return and retained-popup close floor plus a focused
+raw-event test. The latter confirms Space does not reach window, Enter still
+does once with default prevented, an unhandled key still bubbles once, caller
+click still fires once, and open/close callbacks are not duplicated. This is
+synthetic mounted shared-contract evidence; actual trusted/held-key evidence is
+still pending the production rebuild, and no visible pan RED is claimed.

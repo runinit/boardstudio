@@ -15,6 +15,7 @@
 //! - Field identity and ARIA go to the trigger; its label also names the listbox;
 //! - actual open-to-closed transitions restore trigger focus, including controlled closes;
 //! - Enter and Space open on keydown and prevent a second native click (ticket 006).
+//! - opening Space also stops the raw event before a host window pan listener (ticket 016).
 //!
 //! Set `text_value` on options when their visible label differs from their value; the primitive
 //! uses it for the selected label and typeahead without changing the caller's value.
@@ -22,6 +23,7 @@
 use dioxus::prelude::*;
 use dioxus_primitives::select::{self, SelectGroupLabelProps, SelectOptionProps, SelectProps};
 use dioxus_primitives::{dioxus_attributes::attributes, merge_attributes};
+use dioxus_web::WebEventExt;
 
 pub use dioxus_primitives::select::SelectGroup;
 
@@ -53,6 +55,11 @@ pub fn Select<T: Clone + PartialEq + 'static>(props: SelectProps<T>) -> Element 
                 set_open.call(true);
                 event.prevent_default();
                 event.stop_propagation();
+                if event.key() == Key::Character(" ".into())
+                    && let Some(raw) = event.data().try_as_web_event()
+                {
+                    raw.stop_propagation();
+                }
             }
         },
     });

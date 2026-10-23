@@ -328,6 +328,95 @@ async fn select_floor_label_navigation_selection_and_focus_return() {
     root.remove();
 }
 
+fn select_event_fixture() -> Element {
+    let mut events = use_signal(Vec::<String>::new);
+    rsx! {
+        div { onkeydown: move |event: dioxus::events::KeyboardEvent| events.write().push(format!("parent:{}", event.key())),
+            Select::<String> { aria_label: "Composed choice",
+                on_open_change: move |open| events.write().push(format!("open:{open}")),
+                attributes: vec![dioxus::events::onclick(move |_| events.write().push("caller:click".to_owned()))],
+                SelectOption::<String> { index: 0usize, value: "a", "Apple" }
+            }
+            output { role: "status", aria_label: "Select event trace", "{events():?}" }
+        }
+    }
+}
+
+#[wasm_bindgen_test]
+async fn select_opening_space_isolates_raw_event_without_changing_enter_or_caller_events() {
+    use std::{cell::RefCell, rc::Rc};
+    use wasm_bindgen::closure::Closure;
+
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(select_event_fixture),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("event fixture mounts", || {
+        by_role_name(&root, "button", "Composed choice").is_some()
+    })
+    .await;
+    let trigger = by_role_name(&root, "button", "Composed choice").unwrap();
+    let raw_events = Rc::new(RefCell::new(Vec::new()));
+    let observed = raw_events.clone();
+    let listener = Closure::wrap(Box::new(move |event: KeyboardEvent| {
+        observed
+            .borrow_mut()
+            .push((event.key(), event.default_prevented()));
+    }) as Box<dyn FnMut(_)>);
+    window
+        .add_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref())
+        .unwrap();
+    trigger.focus().unwrap();
+    key(&trigger, "q");
+    for opening_key in ["Enter", " "] {
+        key(&trigger, opening_key);
+        wait_until("one key opens the Select", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+        let list = by_role_name(&root, "listbox", "Composed choice").unwrap();
+        key(&list, "Escape");
+        wait_until("Escape restores the original trigger", || {
+            focused(&trigger) && trigger.get_attribute("aria-expanded").as_deref() == Some("false")
+        })
+        .await;
+    }
+    trigger.click();
+    wait_until("caller click and internal open are both retained", || {
+        by_role_name(&root, "status", "Select event trace")
+            .unwrap()
+            .text_content()
+            .is_some_and(|trace| trace.contains("caller:click"))
+    })
+    .await;
+    let trace = by_role_name(&root, "status", "Select event trace")
+        .unwrap()
+        .text_content()
+        .unwrap();
+    assert_eq!(trace.matches("parent:q").count(), 1);
+    assert!(!trace.contains("parent:Enter") && !trace.contains("parent: "));
+    assert_eq!(trace.matches("open:true").count(), 3);
+    assert_eq!(trace.matches("open:false").count(), 2);
+    assert_eq!(trace.matches("caller:click").count(), 1);
+    let raw = raw_events.borrow();
+    assert_eq!(
+        raw.iter()
+            .filter(|(key, _)| key == "Enter")
+            .collect::<Vec<_>>(),
+        vec![&("Enter".to_owned(), true)]
+    );
+    assert!(raw.contains(&("q".to_owned(), false)));
+    assert!(!raw.iter().any(|(key, _)| key == " "));
+    window
+        .remove_event_listener_with_callback("keydown", listener.as_ref().unchecked_ref())
+        .unwrap();
+    root.remove();
+}
+
 #[wasm_bindgen_test]
 async fn combobox_floor_filter_active_descendant_selection_and_escape() {
     let root = mount_picker().await;
