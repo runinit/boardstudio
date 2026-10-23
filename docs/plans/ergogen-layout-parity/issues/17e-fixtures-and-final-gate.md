@@ -424,3 +424,55 @@ Per the stop rule, full was **not run**; no full receipt/log exists. This is a
 scheduler scope failure, not a source/fixture failure. No source, fixture,
 baseline or configuration change was made. Final independent ticket reviews remain
 pending; no closure or shipping approval is implied.
+
+### Narrow quick-selector repair — 2026-10-23
+
+Parent-authorized tooling scope, starting at
+`7e64c131841114b6ee38d9f69875d9d37a9816c8` on
+`docs/ergogen-layout-comparison`; only the untouched preexisting untracked
+`web/crates/layout/prototype/` was present. Inspected all `Selection`,
+`page_files` and `full_rust` callers: the selector, quick planner/output and
+their tests. The runner accepts only `web/src/**/*.rs` for `--files`, but the
+selector supplied every `web/src/` and `web/tests/` path. The actual failed
+command at `quick.log:3406` includes the paired-rejoin JSON fixture.
+
+The parent's minimal shared-selector assertion was reproduced locally: it
+failed with that JSON path in `page_files`. This deterministic caller/contract
+mismatch already supplies the minimized reproduction, so no bisection,
+speculative hypotheses, instrumentation or expensive gate rerun was needed.
+The agreed regression seam is real `select` → `quick_plan`, checking both
+runner arguments and preservation of consuming-test coverage.
+
+Before changing the selector, added one regression test covering fixture-only,
+valid Rust + fixture in both orders, and the same three cases for
+`web/tests/page.rs`. `python3 -B scripts/test-check-quick.py` ran **16 tests,
+6 expected subtest failures**, each finding the unsupported path in `page_files`
+(`.evidence/ergogen-17e/scheduler-red.log`).
+
+The smallest fix keeps valid `web/src/*.rs` file filtering and reuses
+`full_rust` for other affected page paths, with a visible note naming the path
+and `not a web/src Rust file; every Rust check applies`. This selects every
+package and the existing full native/browser plan, including page `--all`,
+even when no valid Rust file was supplied. It does not silently drop fixture
+coverage or guess an owning module. Quick still excludes the packaged drag
+smoke; no runner, production source, fixture, baseline or configuration changed.
+
+Executed with `TMPDIR=/home/chris/.cache/tmp` (fast Python tests; fake/mocked
+build runners, no Cargo/WASM builds):
+
+- `python3 -B scripts/test-check-quick.py`: **16 passed**, including all six
+  regression cases and unchanged valid-Rust `--files` planning
+  (`scheduler-green.log`).
+- `python3 -B scripts/test-check.py`: **31 passed** (`scheduler-check.log`).
+- `python3 -B scripts/test-run-wasm-tests.py`: **41 passed**
+  (`scheduler-run-wasm.log`).
+- Original shared-selector assertion plus `full_rust` assertion: passed,
+  printing the fixture-specific fallback note (`scheduler-repro-green.log`).
+- Documentation links: **554 Markdown files passed** (`scheduler-doc-links.log`);
+  `git diff --check`: passed (`scheduler-diff-check.log`). Full diff read.
+
+All log names above are under `.evidence/ergogen-17e/`. Historical failed quick
+logs/receipts are preserved. Changed files are `scripts/check_quick.py`,
+`scripts/test-check-quick.py` and this Progress entry. Independent focused review
+and fresh all-caller quick/full gates remain pending; **17e and parent 17 remain
+claimed**. These planning/test receipts do not establish runtime acceptance.

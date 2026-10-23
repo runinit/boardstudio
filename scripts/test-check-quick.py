@@ -99,7 +99,31 @@ class QuickPlanTests(unittest.TestCase):
         plan = self.plan(["web/src/presentation/a.rs"])
         runner = [command for command in plan["browser"] if "run-wasm-tests.py" in " ".join(command)]
         self.assertEqual(len(runner), 1)
+        self.assertIn("--files", runner[0])
         self.assertIn("web/src/presentation/a.rs", runner[0])
+
+    def test_unfilterable_page_inputs_keep_full_consuming_test_coverage(self):
+        for path in ("web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json",
+                     "web/tests/page.rs"):
+            for files in ([path], ["web/src/presentation/a.rs", path],
+                          [path, "web/src/presentation/a.rs"]):
+                with self.subTest(files=files):
+                    selection = quick.select(files, PACKAGES)
+                    self.assertNotIn(path, selection.page_files)
+                    self.assertTrue(selection.full_rust)
+                    self.assertEqual(selection.packages, set(PACKAGES))
+                    self.assertTrue(any(path in note and "not a web/src Rust file" in note
+                                        and "every Rust check applies" in note for note in selection.notes))
+                    plan = dict(check.quick_plan(selection, PACKAGES))
+                    self.assertEqual(plan["test"], check.CARGO_TESTS)
+                    self.assertEqual(plan["browser"], [command for command in check.browser()
+                                                     if "run-drag-browser.py" not in " ".join(command)])
+                    runner = [command for command in plan["browser"]
+                              if "scripts/run-wasm-tests.py" in command]
+                    self.assertEqual(len(runner), 1)
+                    self.assertIn("--all", runner[0])
+                    self.assertNotIn("--files", runner[0])
+                    self.assertNotIn(path, runner[0])
 
     def test_a_shared_edit_runs_the_full_native_and_browser_commands(self):
         plan = self.plan(["Cargo.lock"])
