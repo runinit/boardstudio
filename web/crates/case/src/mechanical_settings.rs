@@ -1140,7 +1140,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
     let pending = mechanical_action_pending(&patch.field_id()) || !props.editable;
     let mut confirming_state = confirming;
     rsx! {
-        fieldset { class: "m1-mechanical-legacy-construction grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-muted", disabled: !props.editable,
+        fieldset { class: "m1-mechanical-legacy-construction grid gap-3 m-0 min-w-0 border-0 p-3 rounded-md bg-card", disabled: !props.editable,
             legend { "Shared construction" }
             if confirming() {
                 p { class: "m1-mechanical-help",
@@ -1149,7 +1149,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Confirm making construction local for {instance_id}",
                     disabled: pending,
                     onclick: {
@@ -1167,7 +1167,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Keep shared construction for {instance_id}",
                     onclick: move |_| confirming_state.set(false),
                     "Keep it shared"
@@ -1179,7 +1179,7 @@ fn MechanicalLegacyConstructionControl(props: MechanicalLegacyConstructionContro
                 Button {
                     variant: ButtonVariant::Ghost,
                     size: ButtonSize::Sm,
-                    class: "m1-mechanical-quiet",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Make construction local for {instance_id}",
                     disabled: pending,
                     onclick: move |_| confirming_state.set(true),
@@ -3502,7 +3502,7 @@ fn parse_stabilizer_kind(value: &str) -> Option<MechanicalStabilizerKind> {
 fn ConstructionControls(props: ConstructionControlsProps) -> Element {
     let values = &props.values;
     rsx! {
-        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Construction" }
             SettingsSelect {
                 label: "Plate method", disabled: !props.editable,
@@ -3600,7 +3600,7 @@ fn SettingsSelect(
     rsx! {
         Field { class: "gap-1.5", disabled,
             FieldLabel { html_for: id.clone(), "{label}" }
-            Select::<String> { id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
+            Select::<String> { class: "max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch", id, aria_label: aria_label.unwrap_or(label), value: Some(selected.into()), disabled, on_value_change: on_change, {children} }
         }
     }
 }
@@ -3626,7 +3626,7 @@ fn ProfileTargetField(
     let name = aria_label.unwrap_or_else(|| label.clone());
     rsx! { Field { class: "gap-1.5", disabled,
         FieldLabel { "{label}" }
-        Combobox::<String> { aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
+        Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch", aria_label: name.clone(), list_aria_label: name, placeholder, disabled, value: Some(selected.into()), on_value_change: on_change,
             for (index, target) in options.iter().enumerate() {
                 ComboboxOption::<String> { key: "{target.definition_id}", index, value: target.definition_id.clone(), text_value: target.name.clone(), "{target.name}" }
             }
@@ -3664,7 +3664,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                 p { "Plate underside to PCB top: {props.plate_to_pcb:.2} mm · current configured gap." }
             }
             for profile in props.profiles.iter() {
-                div { class: "grid gap-3 p-3 rounded-md bg-muted", role: "group", aria_label: "Fit profile {profile.name}", key: "{props.owner_key}:{profile.definition_id}",
+                div { class: "grid gap-3 p-3 rounded-md bg-card", role: "group", aria_label: "Fit profile {profile.name}", key: "{props.owner_key}:{profile.definition_id}",
                     strong { "{profile.name}" }
                     if let Some(source) = profile.source.as_deref() { p { "Profile source: {source}." } }
                     if profile.switch_family_selectable {
@@ -3702,7 +3702,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                     Button {
                         variant: ButtonVariant::Outline, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
-                        class: "m1-mechanical-quiet",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
                         onclick: {
                             let identity = props.identity.clone();
@@ -3873,6 +3873,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                     div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
                         Button {
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             variant: ButtonVariant::Outline, button_type: "button",
                             aria_label: "Read KiCad layers",
                             disabled: !props.editable || busy(),
@@ -3955,6 +3956,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                             }
                         }
                         Button {
+                            class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             variant: ButtonVariant::Outline, button_type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
@@ -4067,7 +4069,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Outline,
                     button_type: "button",
-                    class: "m1-mechanical-quiet",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add polygon to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4103,7 +4105,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                         Button {
                             variant: ButtonVariant::Outline,
                             button_type: "button",
-                            class: "m1-mechanical-quiet",
+                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}",
                             disabled: !props.editable,
                             onclick: {
@@ -4132,7 +4134,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                     ),
                                     "X"
                                 }
-                                InputGroup {
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                                     InputGroupInput {
                                         id: format!(
                                             "case-profile-{}-{polygon_index}-{point_index}-x",
@@ -4168,7 +4170,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                                     ),
                                     "Y"
                                 }
-                                InputGroup {
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                                     InputGroupInput {
                                         id: format!(
                                             "case-profile-{}-{polygon_index}-{point_index}-y",
@@ -4197,7 +4199,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} contour {polygon_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || polygon.len() <= 3,
                                 onclick: {
@@ -4215,7 +4217,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Outline,
                         button_type: "button",
-                        class: "m1-mechanical-quiet",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} contour {polygon_index + 1}",
                         onclick: {
@@ -4259,7 +4261,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                 Button {
                     variant: ButtonVariant::Outline,
                     button_type: "button",
-                    class: "m1-mechanical-quiet",
+                    class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add volume to {props.title}",
                     disabled: !props.editable,
                     onclick: {
@@ -4297,7 +4299,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                         Button {
                             variant: ButtonVariant::Outline,
                             button_type: "button",
-                            class: "m1-mechanical-quiet",
+                            class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove {props.title} volume {opening_index + 1}",
                             disabled: !props.editable,
                             onclick: {
@@ -4359,7 +4361,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                     ),
                                     "X"
                                 }
-                                InputGroup {
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                                     InputGroupInput {
                                         id: format!(
                                             "case-volume-{}-{opening_index}-{point_index}-x",
@@ -4395,7 +4397,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                                     ),
                                     "Y"
                                 }
-                                InputGroup {
+                                InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                                     InputGroupInput {
                                         id: format!(
                                             "case-volume-{}-{opening_index}-{point_index}-y",
@@ -4424,7 +4426,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                             Button {
                                 variant: ButtonVariant::Ghost,
                                 size: ButtonSize::Sm,
-                                class: "m1-mechanical-quiet",
+                                class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_label: "Remove {props.title} volume {opening_index + 1} vertex {point_index + 1}",
                                 disabled: !props.editable || opening.points.len() <= 3,
                                 onclick: {
@@ -4442,7 +4444,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     Button {
                         variant: ButtonVariant::Outline,
                         button_type: "button",
-                        class: "m1-mechanical-quiet",
+                        class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
                         aria_label: "Add vertex to {props.title} volume {opening_index + 1}",
                         onclick: {
@@ -4538,7 +4540,7 @@ fn DimensionControls(props: DimensionControlsProps) -> Element {
     ];
     let request_sequence = props.request_sequence;
     rsx! {
-        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", disabled: !props.editable,
+        fieldset { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", disabled: !props.editable,
             legend { "Dimensions and clearances · mm" }
             for (field, label, value) in fields {
                 DimensionField {
@@ -4814,7 +4816,7 @@ fn DimensionField(props: DimensionFieldProps) -> Element {
     rsx! {
         Field { invalid: error_text.is_some(), disabled: !props.editable, class: "gap-1.5",
             FieldLabel { html_for: id.clone(), "{props.label}" }
-            InputGroup {
+            InputGroup { class: "max-[760px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                 InputGroupInput {
                     id: id.clone(), class: "font-mono",
                     r#type: InputType::Number,
@@ -5059,7 +5061,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
         .iter()
         .position(|layer| layer.id == props.selected_layer);
     rsx! {
-        section { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-muted border-0", aria_label: "Resolved mechanical stack",
+        section { class: "grid gap-3 m-0 min-w-0 p-3 rounded-md bg-card border-0", aria_label: "Resolved mechanical stack",
             h3 { if is_previous { "Previous resolved stack · {props.layers.len()} layers" } else { "Resolved stack · {props.layers.len()} layers" } }
             if props.layers.is_empty() {
                 div { role: "status", Callout { "The stack appears after the current revision resolves." } }
@@ -5072,7 +5074,7 @@ fn ResolvedStack(props: ResolvedStackProps) -> Element {
                         move |indices: std::collections::HashSet<usize>| callback.call(indices.iter().next().and_then(|index| layers.get(*index)).map(|layer| layer.id.clone()).unwrap_or_default())
                     },
                     for (index, row) in props.layers.iter().enumerate() {
-                        ToggleItem { key: "{row.id}", index, class: "w-full h-auto flex-wrap justify-start py-2",
+                        ToggleItem { key: "{row.id}", index, class: "w-full h-auto flex-wrap justify-start py-2 max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: format!("{}, {:.2} mm, Z {:.2}{}", row.label, row.thickness, row.z, if row.is_previous { ", previous revision" } else { "" }),
                             strong { "{row.label}" }
                             span { "{row.thickness:.2} mm" }
