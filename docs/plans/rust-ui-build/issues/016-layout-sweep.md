@@ -703,3 +703,32 @@ Clippy2 found a collapsible conditional in the new raw-only Delete fence; fixed 
 `layout-owned-clippy-4.log` passes all-target WASM clippy with warnings denied for
 boardstudio-web, boardstudio-web-layout and boardstudio-web-ui-shared, including
 all connected test compilation. Prior failures remain; no lint/behavior is waived.
+
+### Shared Select Space isolation decision needed (2026-10-22)
+
+At production source `f99ea8802ecded90adc82246789c97950aa96b3a`, the actual
+`Group objects by` button opens its actual listbox with trusted Space, but that
+keydown also reaches window (`trusted: true`, `prevented: true`, target BUTTON).
+`select-space-window-diagnostic.log` records the event and open listbox. The
+persistent assertion in `scripts/test-layout-adoption.py` now reproduces the first
+behavioral RED in `select-space-actual-owner-red.log`; screenshot
+`layout-adoption-20261022-215207/failure.png`. Browser closes in finally.
+
+Source cause: copied shared `ui/select.rs` stops only Dioxus propagation in its
+existing closed-to-open Enter/Space handler, so the owned Objects ancestor's raw
+Space fence is bypassed. The unchanged window pan listener admits BUTTON Space
+without checking defaultPrevented. This proves raw-event leakage; held-key drag
+and visible pan movement have not been tested by this diagnostic.
+
+Minimal proposed additional lease: only shared Select's existing closed-to-open
+Space branch also stops raw KeyboardEvent propagation, using the existing
+WebEventExt pattern. Preserve Enter, prevent-default, open callback, focus return,
+controlled values, attributes/classes, state and all props. No API/dependency or
+listener ownership change. Do not supply caller onkeydown attributes: their
+spread would overwrite the internal handler. Shared Select has no existing016
+writer lease, so its production source remains untouched pending coordinator
+decision. Verify this actual-owner RED goes GREEN plus the existing006 Select
+navigation/selection/focus-return and retained-popup tests before acceptance.
+
+Full020 Parts chooser and Label landing remains the separate dependency for final
+Add integration; no unlanded source is copied. Global gates remain open.
