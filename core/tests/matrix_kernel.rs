@@ -1,13 +1,85 @@
+//! Core's staged carried-layout kernel publishes poses, frames and contributions.
+//! These tests pin the geometry to committed parity fixtures and worked examples.
+
 use boardstudio_core::layout_kernel::{
     ColumnLayout, Follow, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext,
     RowLayout, evaluate,
 };
 use boardstudio_core::model::{Pose2, Vec2};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+#[derive(Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct FixtureColumnLayout {
+    spread: Option<f64>,
+    stagger: f64,
+    splay: f64,
+    rotation: f64,
+    splay_origin: Vec2,
+    offset: Vec2,
+}
+
+impl From<FixtureColumnLayout> for ColumnLayout {
+    fn from(value: FixtureColumnLayout) -> Self {
+        Self {
+            spread: value.spread,
+            stagger: value.stagger,
+            splay: value.splay,
+            rotation: value.rotation,
+            splay_origin: value.splay_origin,
+            offset: value.offset,
+        }
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct FixtureKeyLayout {
+    row: usize,
+    column: usize,
+    shift: Vec2,
+    bend: f64,
+    offset: Vec2,
+    rotation: f64,
+}
+
+impl From<FixtureKeyLayout> for KeyLayout {
+    fn from(value: FixtureKeyLayout) -> Self {
+        Self {
+            row: value.row,
+            column: value.column,
+            shift: value.shift,
+            bend: value.bend,
+            offset: value.offset,
+            rotation: value.rotation,
+        }
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct FixtureRowLayout {
+    padding: Option<f64>,
+    shift: Vec2,
+    bend: f64,
+    offset: Vec2,
+}
+
+impl From<FixtureRowLayout> for RowLayout {
+    fn from(value: FixtureRowLayout) -> Self {
+        Self {
+            padding: value.padding,
+            shift: value.shift,
+            bend: value.bend,
+            offset: value.offset,
+        }
+    }
+}
+
 #[test]
-fn matrix_kernel_default_step_pose() {
+fn default_steps_place_keys_at_pitch() {
     let layout = evaluate(&LayoutInput::default(), RawAnchorContext::World).unwrap();
     let key = &layout.cells[3];
     assert_eq!((key.row, key.column), (1, 1));
@@ -37,13 +109,25 @@ fn fixture_layouts(case: &Value, matrices: &Value) -> BTreeMap<String, MatrixLay
             input.mirror = serde_json::from_value(v.clone()).unwrap();
         }
         if let Some(v) = matrix.get("columnLayout") {
-            input.column_layout = serde_json::from_value(v.clone()).unwrap();
+            input.column_layout = serde_json::from_value::<Vec<FixtureColumnLayout>>(v.clone())
+                .unwrap()
+                .into_iter()
+                .map(Into::into)
+                .collect();
         }
         if let Some(v) = matrix.get("rowLayout") {
-            input.row_layout = serde_json::from_value(v.clone()).unwrap();
+            input.row_layout = serde_json::from_value::<Vec<FixtureRowLayout>>(v.clone())
+                .unwrap()
+                .into_iter()
+                .map(Into::into)
+                .collect();
         }
         if let Some(v) = matrix.get("cells") {
-            input.cells = serde_json::from_value(v.clone()).unwrap();
+            input.cells = serde_json::from_value::<Vec<FixtureKeyLayout>>(v.clone())
+                .unwrap()
+                .into_iter()
+                .map(Into::into)
+                .collect();
         }
         let context = if let Some(anchor) = matrix.get("anchor") {
             let target = &layouts[anchor["matrixId"].as_str().unwrap()];
@@ -163,7 +247,7 @@ fn compare_fixture(
 }
 
 #[test]
-fn matrix_kernel_committed_fixtures() {
+fn committed_fixtures_match_carried_layout() {
     let fixtures: Value =
         serde_json::from_str(include_str!("fixtures/ergogen-layout-parity.json")).unwrap();
     assert_eq!(fixtures["fixtureVersion"], 1);
@@ -216,11 +300,10 @@ fn matrix_kernel_committed_fixtures() {
     assert_eq!(fixtures["cases"].as_array().unwrap().len(), 40);
     assert_eq!(fixtures["boardStudioOnly"].as_array().unwrap().len(), 4);
     assert_eq!(count, 381, "all fixture poses must be consumed");
-    println!("Compared {count} committed poses");
 }
 
 #[test]
-fn matrix_kernel_shift_then_bend_not_offset_after_bend() {
+fn shift_precedes_bend_while_offset_follows_it() {
     let mut input = LayoutInput {
         columns: 1,
         row_layout: vec![RowLayout {
@@ -250,7 +333,7 @@ fn near(actual: Vec2, x: f64, y: f64) {
 }
 
 #[test]
-fn matrix_kernel_exact_frames_and_transported_contributions() {
+fn frames_and_contributions_follow_carried_turns() {
     let input = LayoutInput {
         columns: 1,
         pitch: Vec2 { x: 10.0, y: 10.0 },
@@ -303,7 +386,7 @@ fn matrix_kernel_exact_frames_and_transported_contributions() {
 }
 
 #[test]
-fn matrix_kernel_validation_and_defaults() {
+fn validation_rejects_invalid_values_and_defaults_missing_steps() {
     let mut input = LayoutInput {
         column_layout: vec![ColumnLayout {
             spread: Some(0.0),
@@ -382,7 +465,7 @@ fn matrix_kernel_validation_and_defaults() {
 }
 
 #[test]
-fn matrix_kernel_follow_transported_slanted_basis_uses_actual_anchor() {
+fn follow_in_slanted_basis_uses_actual_anchor() {
     let input = LayoutInput {
         rows: 1,
         columns: 1,
@@ -418,7 +501,7 @@ fn matrix_kernel_follow_transported_slanted_basis_uses_actual_anchor() {
 }
 
 #[test]
-fn matrix_kernel_column_axes_are_exact_step_differences_and_mirror_frames() {
+fn column_axes_match_step_differences_and_mirrored_frames() {
     for mirror in [
         boardstudio_core::model::Mirror::None,
         boardstudio_core::model::Mirror::X,
@@ -492,7 +575,7 @@ fn matrix_kernel_column_axes_are_exact_step_differences_and_mirror_frames() {
 }
 
 #[test]
-fn matrix_kernel_logical_disabled_deleted_and_omitted_values_carry() {
+fn disabled_deleted_and_omitted_cells_still_carry() {
     for state in [
         serde_json::json!({"enabled": false}),
         serde_json::json!({"deleted": true}),
@@ -505,7 +588,11 @@ fn matrix_kernel_logical_disabled_deleted_and_omitted_values_carry() {
             .extend(state.as_object().unwrap().clone());
         let input = LayoutInput {
             columns: 1,
-            cells: vec![serde_json::from_value(key).unwrap()],
+            cells: vec![
+                serde_json::from_value::<FixtureKeyLayout>(key)
+                    .unwrap()
+                    .into(),
+            ],
             ..Default::default()
         };
         let layout = evaluate(&input, RawAnchorContext::World).unwrap();
@@ -520,7 +607,7 @@ fn matrix_kernel_logical_disabled_deleted_and_omitted_values_carry() {
 }
 
 #[test]
-fn matrix_kernel_refuses_nonfinite_anchor_and_evaluation_overflow() {
+fn nonfinite_anchors_and_evaluation_overflow_are_rejected() {
     let input = LayoutInput::default();
     let invalid_anchor = RawAnchorContext::Key {
         pose: Pose2 {
@@ -590,7 +677,7 @@ fn matrix_kernel_refuses_nonfinite_anchor_and_evaluation_overflow() {
 }
 
 #[test]
-fn matrix_kernel_refuses_overflow_in_published_frames_before_key_rotation() {
+fn published_frame_overflow_is_rejected_before_key_rotation() {
     let input = LayoutInput {
         rotation: f64::MAX,
         column_layout: vec![ColumnLayout {
@@ -617,7 +704,7 @@ fn matrix_kernel_refuses_overflow_in_published_frames_before_key_rotation() {
 }
 
 #[test]
-fn matrix_kernel_literal_column_bases_origins_and_prefix_exclude_own_rotation() {
+fn column_bases_origins_and_prefix_exclude_own_rotation() {
     let input = LayoutInput {
         rows: 1,
         columns: 3,

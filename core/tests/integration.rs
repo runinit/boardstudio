@@ -5,9 +5,6 @@
 //! `performance` and `matrix_performance` stay separate binaries: they time work
 //! and should not share the test thread pool with everything else.
 
-#[path = "matrix_kernel.rs"]
-mod matrix_kernel;
-
 #[path = "boundary_parity.rs"]
 mod boundary_parity;
 #[path = "case.rs"]
@@ -50,6 +47,8 @@ mod keymap_workflow;
 mod kicad_integration;
 #[path = "legacy_archive_migration.rs"]
 mod legacy_archive_migration;
+#[path = "matrix_kernel.rs"]
+mod matrix_kernel;
 #[path = "mechanical_identity_monotonic.rs"]
 mod mechanical_identity_monotonic;
 #[path = "mechanical_integration.rs"]

@@ -5,8 +5,8 @@
 //! Ownership/anchor graphs and materialization filtering belong to callers. Every logical
 //! cell is returned in column-major order, including disabled/deleted/Omitted contributors.
 
+use super::splay::rotate;
 use crate::model::{Mirror, Pose2, Vec2};
-use serde::Deserialize;
 
 /// Geometry values only, not a persisted document or an editable parallel matrix model.
 /// Short axis lists and missing cells supply defaults. The default is a 2×2 matrix.
@@ -31,7 +31,7 @@ impl Default for LayoutInput {
             origin: Vec2::default(),
             rotation: 0.0,
             mirror: Mirror::None,
-            edge_gap: 1.0,
+            edge_gap: super::DEFAULT_EDGE_GAP_MM,
             row_layout: vec![],
             rows: 2,
             columns: 2,
@@ -76,8 +76,7 @@ pub enum FollowBasis {
     Reflected { translation: Vec2, rotation: f64 },
 }
 
-#[derive(Clone, Copy, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Clone, Copy, Default)]
 pub struct ColumnLayout {
     pub spread: Option<f64>,
     pub stagger: f64,
@@ -87,8 +86,7 @@ pub struct ColumnLayout {
     pub offset: Vec2,
 }
 
-#[derive(Clone, Copy, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Clone, Copy, Default)]
 pub struct KeyLayout {
     pub row: usize,
     pub column: usize,
@@ -98,8 +96,7 @@ pub struct KeyLayout {
     pub rotation: f64,
 }
 
-#[derive(Clone, Copy, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Clone, Copy, Default)]
 pub struct RowLayout {
     pub padding: Option<f64>,
     pub shift: Vec2,
@@ -155,7 +152,6 @@ pub struct CellContributions {
 }
 
 pub struct ColumnFrame {
-    pub column: usize,
     /// Base after preceding Splays, before this column's own turns.
     pub base: Vec2,
     pub splay_origin: Vec2,
@@ -211,23 +207,41 @@ pub fn evaluate(
         let mut pose = Pose2 {
             at: add(
                 origin,
-                rotate(sub(carried_base, origin), col.splay + col.rotation),
+                rotate(
+                    sub(carried_base, origin),
+                    col.splay + col.rotation,
+                    Vec2::default(),
+                ),
             ),
             rotation: prefix.rotation + col.splay + col.rotation,
         };
-        let vector_world = |v| rotate(reflect(v, input.mirror), matrix_frame.rotation);
+        let vector_world = |v| {
+            rotate(
+                reflect(v, input.mirror),
+                matrix_frame.rotation,
+                Vec2::default(),
+            )
+        };
         let point_world = |v| transform(matrix_frame, reflect(v, input.mirror));
         columns.push(ColumnFrame {
-            column,
             base: point_world(carried_base),
             splay_origin: point_world(origin),
             relative_origin: col.splay_origin,
             custom_origin: col.splay_origin != Vec2::default(),
             frame: world_frame(pose, matrix_frame, input.mirror),
             // Moving the step translates both base and relative origin; own turns cancel.
-            spread_axis: (column > 0)
-                .then(|| vector_world(rotate(Vec2 { x: 1.0, y: 0.0 }, prefix.rotation))),
-            stagger_axis: vector_world(rotate(Vec2 { x: 0.0, y: 1.0 }, prefix.rotation)),
+            spread_axis: (column > 0).then(|| {
+                vector_world(rotate(
+                    Vec2 { x: 1.0, y: 0.0 },
+                    prefix.rotation,
+                    Vec2::default(),
+                ))
+            }),
+            stagger_axis: vector_world(rotate(
+                Vec2 { x: 0.0, y: 1.0 },
+                prefix.rotation,
+                Vec2::default(),
+            )),
             spread: (column > 0).then(|| step(col.spread, input.pitch.x)),
             stagger: col.stagger,
             cumulative_stagger: base.y,
@@ -235,7 +249,10 @@ pub fn evaluate(
             cumulative_splay: prefix.rotation + col.splay,
             rotation: col.rotation,
         });
-        prefix.at = add(origin, rotate(sub(prefix.at, origin), col.splay));
+        prefix.at = add(
+            origin,
+            rotate(sub(prefix.at, origin), col.splay, Vec2::default()),
+        );
         prefix.rotation += col.splay;
         finite_pose(prefix)?;
         finite_pose(pose)?;
@@ -261,8 +278,8 @@ pub fn evaluate(
                 );
             }
             let shift_frame = world_frame(pose, matrix_frame, input.mirror);
-            let row_shift_matrix = rotate(values.shift, pose.rotation);
-            let key_shift_matrix = rotate(key.shift, pose.rotation);
+            let row_shift_matrix = rotate(values.shift, pose.rotation, Vec2::default());
+            let key_shift_matrix = rotate(key.shift, pose.rotation, Vec2::default());
             cumulative_shift = add(cumulative_shift, add(row_shift_matrix, key_shift_matrix));
             cumulative_bend += values.bend + key.bend;
             pose.at = transform(pose, add(values.shift, key.shift));
@@ -352,12 +369,20 @@ fn world_frame(local: Pose2, matrix: Pose2, mirror: Mirror) -> ComposedFrame {
                 -local.rotation
             },
         axis_x: rotate(
-            reflect(rotate(Vec2 { x: 1.0, y: 0.0 }, local.rotation), mirror),
+            reflect(
+                rotate(Vec2 { x: 1.0, y: 0.0 }, local.rotation, Vec2::default()),
+                mirror,
+            ),
             matrix.rotation,
+            Vec2::default(),
         ),
         axis_y: rotate(
-            reflect(rotate(Vec2 { x: 0.0, y: 1.0 }, local.rotation), mirror),
+            reflect(
+                rotate(Vec2 { x: 0.0, y: 1.0 }, local.rotation, Vec2::default()),
+                mirror,
+            ),
             matrix.rotation,
+            Vec2::default(),
         ),
     }
 }
@@ -387,8 +412,10 @@ fn compose_matrix_frame(
                 rotation,
             } = basis
             {
-                candidate.at =
-                    reflect(rotate(sub(candidate.at, translation), -rotation), Mirror::X);
+                candidate.at = reflect(
+                    rotate(sub(candidate.at, translation), -rotation, Vec2::default()),
+                    Mirror::X,
+                );
                 candidate.rotation = rotation - candidate.rotation;
             }
             finite_pose(candidate)?;
@@ -407,7 +434,7 @@ fn compose_matrix_frame(
             } = basis
             {
                 candidate.at = add(
-                    rotate(reflect(candidate.at, Mirror::X), rotation),
+                    rotate(reflect(candidate.at, Mirror::X), rotation, Vec2::default()),
                     translation,
                 );
                 candidate.rotation = rotation - candidate.rotation;
@@ -425,10 +452,12 @@ fn finite(value: f64) -> Result<(), &'static str> {
         Err("layout values and evaluated results must be finite")
     }
 }
+
 fn finite_vec(value: Vec2) -> Result<(), &'static str> {
     finite(value.x)?;
     finite(value.y)
 }
+
 fn finite_pose(value: Pose2) -> Result<(), &'static str> {
     finite_vec(value.at)?;
     finite(value.rotation)
@@ -520,9 +549,11 @@ fn reflect(v: Vec2, mirror: Mirror) -> Vec2 {
         Mirror::Y => Vec2 { x: v.x, y: -v.y },
     }
 }
+
 fn transform(pose: Pose2, v: Vec2) -> Vec2 {
-    add(pose.at, rotate(v, pose.rotation))
+    add(pose.at, rotate(v, pose.rotation, Vec2::default()))
 }
+
 fn sub(a: Vec2, b: Vec2) -> Vec2 {
     Vec2 {
         x: a.x - b.x,
@@ -534,12 +565,5 @@ fn add(a: Vec2, b: Vec2) -> Vec2 {
     Vec2 {
         x: a.x + b.x,
         y: a.y + b.y,
-    }
-}
-fn rotate(v: Vec2, degrees: f64) -> Vec2 {
-    let (s, c) = degrees.to_radians().sin_cos();
-    Vec2 {
-        x: c * v.x - s * v.y,
-        y: s * v.x + c * v.y,
     }
 }
