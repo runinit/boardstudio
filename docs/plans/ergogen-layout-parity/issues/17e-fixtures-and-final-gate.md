@@ -1034,3 +1034,60 @@ evidence; the failed full receipt remains failed (36/55), and its later WASM/CAD
 stages remain unreached by that full run. This focused green does not accept the
 cutover. 17e and parent 17 remain **claimed**, with final independent Standards+Spec
 reviews and the resumed full gate outstanding. No map/closure or shipping approval.
+
+### Fresh post-reader-correction acceptance gates — 2026-10-23
+
+The parent reviewed the focused reader-only drag smoke correction: both readers now
+use grouped `columnLayout.offset` / `stagger`; original gestures, waits, tolerance,
+cancel and exact Undo assertions remain. No source, test, tooling, fixture or
+baseline edits were authorized or made in this gate round. The prior full failure
+and all earlier receipts remain preserved.
+
+Tested source pin: branch `docs/ergogen-layout-comparison`, HEAD
+`47aeb001dc29c9cf9d9f8ea26806f91e6a8addc9`; fixed coordinated base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. The complete base-to-HEAD tracked
+diff contains **117 paths**, including JSON, Core/web, tests, native baseline,
+docs, `scripts/check_quick.py`, `scripts/test-check-quick.py` and
+`scripts/test-drag-interactions.cjs`; all 117 were supplied to quick. No paths
+were omitted or deleted. `BOUNDARY_BLESS` was unset. Tracked state was clean
+before the gate; only the preexisting untracked `web/crates/layout/prototype/`
+remains. Supported builds regenerated their ordinary provider/site outputs; no
+hand-copied or forged outputs were used.
+
+Fresh quick command, with all 117 paths from the pinned base-to-HEAD diff:
+
+```sh
+mapfile -t changed_paths < <(git diff --name-only a58a2bf187bd6d08b652dc739cd7c391709ff5c8 47aeb001dc29c9cf9d9f8ea26806f91e6a8addc9)
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env -u BOUNDARY_BLESS TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 timeout 3600 python3 scripts/check.py quick --files "${changed_paths[@]}" --receipt .evidence/ergogen-17e/post-drag-quick-receipt.json > .evidence/ergogen-17e/post-drag-quick.log 2>&1
+```
+
+Quick passed. Final line: `check: all steps passed: repo, tooling, lint, typecheck,
+test, layout-test-css, browser`. Receipt accepted, **54/54** scheduled commands;
+native name guard **2,149/2,149** matched with none missing/new (2,149 passed,
+12 ignored). All **14 WASM launches** passed; CAD provider and CAD browser checks
+passed; the page suite passed **77/77**. This quick receipt is partial by design.
+
+Because quick passed, ran the unfiltered full pre-PR command:
+
+```sh
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env -u BOUNDARY_BLESS TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules timeout 3600 python3 scripts/check.py --receipt .evidence/ergogen-17e/post-drag-full-receipt.json > .evidence/ergogen-17e/post-drag-full.log 2>&1
+```
+
+Full passed. Final line: `check: all steps passed: repo, tooling, lint, build, test,
+browser`. Receipt complete, **55/55** scheduled commands, no failures or not-run
+commands. Native guard again matched **2,149/2,149**; all **14 WASM launches** and
+the packaged page suite **77/77** passed. Packaged-page trusted drag smoke passed
+**13/13** with receipt
+`web/target/test-results/drag-browser/20261023T215933Z-0eb5bebe2115/receipt.json`:
+Stagger handle and cancel, Ctrl Offset, exact document/scene Undo, collision PCB
+and qualified product fixtures all passed. CAD provider and browser checks passed.
+No scope was unreached.
+
+Gate receipts/logs: `.evidence/ergogen-17e/post-drag-quick-receipt.json`,
+`.evidence/ergogen-17e/post-drag-quick.log`,
+`.evidence/ergogen-17e/post-drag-full-receipt.json`,
+`.evidence/ergogen-17e/post-drag-full.log`. Receipt source identity is the tested
+HEAD above; the following docs-only progress commit does not change that pin.
+17e and parent 17 remain **claimed** pending their final independent
+Standards+Spec reviews. This checkpoint makes no closure, release or user-data
+writer approval.
