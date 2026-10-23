@@ -13,7 +13,9 @@ Make a rough, clickable prototype of how users edit:
 - row padding;
 - Shift and Bend, at row and key level;
 - independent offsets;
-- the relative splay origin.
+- the relative splay origin;
+- Column rotation, and how the Splay drag's "This column" choice looks
+  ([ticket 05](05-this-column-splay-representation.md#answer)).
 
 Cover the Inspector fields for Matrix, Row, Column and Key selections, and the toolbar tools and
 drags, including a Bend gesture. Cover keyboard nudges and how a carried value

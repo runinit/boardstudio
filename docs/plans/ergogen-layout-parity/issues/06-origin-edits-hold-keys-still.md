@@ -19,3 +19,7 @@ With the origin relative to the column base, decide:
 - which fields visibly change when the origin moves, and how that reads in the Inspector;
 - the modifier, and the Undo granularity;
 - the Origin tool's "Reset to column base" behaviour.
+
+The same origin also turns the column's **Column rotation**
+([ticket 05](05-this-column-splay-representation.md#answer)), so holding keys still must cover it
+too.

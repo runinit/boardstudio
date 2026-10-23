@@ -270,6 +270,10 @@ The point a column's splay turns about, measured from the column's base: its fir
 position after spread and stagger.
 _Avoid_: pivot (in user-facing text)
 
+**Column rotation**:
+A turn of one column about its splay origin. No later column inherits it.
+_Avoid_: splay (when only this column turns), bend
+
 **Row padding**:
 The step from one row of a matrix column to the next.
 _Avoid_: row offset, pitch (when a single row's step is meant)

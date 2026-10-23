@@ -110,6 +110,12 @@ BoardStudio extended layout feature working.
   - Storage is grouped as `columnLayout`/`rowLayout` records. One Core kernel feeds the scene
     (`shiftFrame`, `offsetFrame`, `spreadAxis`, `base`) and drag inverses.
   - Ergogen goldens compare within `1e-6`.
+- [05: Represent "This column" splay as its own intent](issues/05-this-column-splay-representation.md#answer):
+  - A stored, non-inherited **Column rotation** turns one column about its splay origin; there
+    is no counter-splay and no compensation.
+  - The Inspector shows Splay and Column rotation as two fields. The Splay drag's "This column"
+    choice selects which field it writes. Switching never changes values.
+  - Linked halves copy it unchanged.
 
 ## Not yet specified
 
