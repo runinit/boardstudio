@@ -30,6 +30,46 @@ def status(name):
     return evaluate(f"document.querySelector({json.dumps(selector)}).textContent")
 
 
+def profile_picker_pointer_test(url, evidence, kind, theme="original", appearance="light", width=1440):
+    """Lower custom-geometry choices must be reachable by a real pointer outside the disclosure box."""
+    browser("set", "viewport", width, 960 if width == 1440 else 844)
+    browser("open", url)
+    browser("wait", "--text", "Case construction")
+    evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
+    if kind == "select":
+        action("button", "Twelve profile targets")
+    action("button", "Switch fit profiles")
+    name = "Assign custom geometry profile to"
+    role = "button" if kind == "select" else "combobox"
+    action(role, name, "focus")
+    evaluate("window.profilePointerTrigger=document.activeElement;window.scrollTo(0,window.scrollY+document.activeElement.getBoundingClientRect().top-100)")
+    # ArrowDown focuses the first choice; native focus of the whole Select list can hide the clipping by scrolling its ancestor.
+    browser("press", "ArrowDown")
+    browser("wait", "--fn", "(()=>{const list=document.getElementById(profilePointerTrigger.getAttribute('aria-controls'));return list && getComputedStyle(list).opacity==='1'})()")
+    evaluate("window.profilePointerList=document.getElementById(profilePointerTrigger.getAttribute('aria-controls'));window.scrollTo(0,window.scrollY+profilePointerTrigger.getBoundingClientRect().top-100)")
+    list_box = browser("get", "box", driver.by_role_name("listbox", name))
+    lower = "Part 8"  # Lower half of either list, inside its 300px scroll viewport.
+    option_box = browser("get", "box", driver.by_role_name("option", lower))
+    x, y = round(option_box["x"]+option_box["width"]/2), round(option_box["y"]+option_box["height"]/2)
+    metrics = evaluate(f"""(()=>{{const content=profilePointerTrigger.closest('[data-slot=collapsible-content]'),hit=document.elementFromPoint({x},{y});
+        return {{contentBottom:content.getBoundingClientRect().bottom,overflow:getComputedStyle(content).overflow,listScrollTop:profilePointerList.scrollTop,
+            hitOption:hit?.closest('[role=option]')?.textContent.trim(),hit:hit?.outerHTML.slice(0,240),viewport:{{width:innerWidth,height:innerHeight}}}}}})()""")
+    metrics.update(kind=kind,theme=theme,appearance=appearance,option=lower,listBox=list_box,optionBox=option_box,point={"x":x,"y":y})
+    stem = f"pointer-{kind}-{theme}-{appearance}-{width}"
+    (evidence/f"{stem}.json").write_text(json.dumps(metrics,indent=2)+"\n")
+    browser("screenshot", str(evidence/f"{stem}.png"))
+    assert 0 <= x < metrics["viewport"]["width"] and 0 <= y < metrics["viewport"]["height"], metrics
+    assert list_box["y"] <= y < list_box["y"]+list_box["height"], metrics
+    assert metrics.get("hitOption") == lower, f"lower {kind} choice must receive the pointer hit: {metrics}"
+    before = int(status("Requests"))
+    browser("mouse", "move", x, y)
+    browser("mouse", "down")
+    browser("mouse", "up")
+    assert int(status("Requests")) == before+1, "lower choice must submit once through its actual owner callback"
+    assert "AssignImportedGeometryProfile" in status("Last request") and "part-8" in status("Last request")
+    print(f"PASS lower {kind} choice visible, hit-tested and pointer-selected: {theme}/{appearance}/{width}",flush=True)
+
+
 def styles(url, evidence):
     browser("set", "viewport", 1440, 960)
     browser("open", url)
@@ -347,6 +387,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, default=ROOT/".evidence/017/browser")
     parser.add_argument("--styles-only", action="store_true")
+    parser.add_argument("--profile-picker-pointer", choices=("select", "combobox"))
     parser.add_argument("--page-url")
     args = parser.parse_args()
     args.evidence = args.evidence.resolve()
@@ -376,9 +417,18 @@ def main():
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:
             url = f"http://127.0.0.1:{server.server_port}"
-            styles(url, args.evidence)
-            if not args.styles_only:
-                tests(url, args.evidence)
+            if args.profile_picker_pointer:
+                profile_picker_pointer_test(url,args.evidence,args.profile_picker_pointer)
+            else:
+                styles(url, args.evidence)
+                if not args.styles_only:
+                    tests(url, args.evidence)
+                    for theme in ("original", "shadcn"):
+                        for appearance in ("light", "dark"):
+                            for kind in ("select", "combobox"):
+                                profile_picker_pointer_test(url,args.evidence,kind,theme,appearance)
+                    for kind in ("select", "combobox"):
+                        profile_picker_pointer_test(url,args.evidence,kind,"shadcn","dark",390)
         except BaseException:
             capture_failure(args.evidence)
             raise
