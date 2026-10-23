@@ -59,6 +59,36 @@ def inline_error(name, submit):
     return result["font"] == "14px" and result["color"] == result["expected"]
 
 
+
+def checkbox_floor():
+    click("Board outline")
+    browser("focus", driver.by_role_name("checkbox", "Include in outline"))
+    evaluate("window.outlineCheckbox=document.activeElement;window.originalChecked=outlineCheckbox.getAttribute('aria-checked');window.checkboxClicks=[];outlineCheckbox.addEventListener('click',e=>checkboxClicks.push(e.isTrusted))")
+    check("outlineCheckbox.labels.length===1 && outlineCheckbox.labels[0].control===outlineCheckbox && document.querySelectorAll('[id=\"'+outlineCheckbox.id+'\"]').length===1")
+    browser("press", "Enter")
+    check("outlineCheckbox.getAttribute('aria-checked')===originalChecked && checkboxClicks.length===0")
+    browser("press", "Space")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')!==originalChecked")
+    check("checkboxClicks.length===1 && checkboxClicks[0]")
+    click("Undo")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')===originalChecked")
+    click("Redo")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')!==originalChecked")
+    click("Undo")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')===originalChecked")
+    # The native label has no role; click its associated text outside the checkbox.
+    point = evaluate("(()=>{const text=[...outlineCheckbox.labels[0].childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());if(!text)throw Error('Missing checkbox label text');const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()")
+    browser("mouse", "move", point["x"], point["y"])
+    browser("mouse", "down")
+    browser("mouse", "up")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')!==originalChecked")
+    check("checkboxClicks.length===2 && checkboxClicks.every(Boolean)")
+    click("Undo")
+    browser("wait", "--fn", "outlineCheckbox.getAttribute('aria-checked')===originalChecked")
+    print("Actual Checkbox: Enter inert, Space once, native label once, owner Undo/Redo restores checked state", flush=True)
+    click("Board outline")
+
+
 def tests(url, captures):
     flow.new_layout_project(url)
     flow.create_single_matrix(1)
@@ -71,6 +101,7 @@ def tests(url, captures):
     for owner in ["component", "outline", "points"]:
         browser("set", "viewport", 1440, 900)
         if owner == "outline":
+            checkbox_floor()
             click("Outline Generated")
             dismiss_notifications()
         elif owner == "points":
