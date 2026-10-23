@@ -1408,3 +1408,125 @@ it does not claim to rerun every prior12-combination script. Human/screen-reader
 global full/quick/CAD worker.onerror/first-paint/final merge and023 composition stay
 OPEN. No review agent, watcher, landing or generated-target cleanup was started by
 this child. Owned4186 preview and exclusive target stay available pending approval.
+
+### Review r2 connected Mirror popup correction
+
+Prior candidate `da5b41be01ff6203800bd4789c6ec5cfe0a157d0` received Spec r2
+APPROVE0 and Standards r2 Standards0. The latter review found one additional
+connected Spec P2: MatrixTransformInspector's final outer CollapsibleContent
+renders the Matrix/Row `{body}` value. The Matrix body ends with
+MirrorTransformField, so the earlier six-root picker inventory missed this
+indirect composition. This section supersedes that inventory's completeness
+claim; unchanged Standards r2 zero is carried, with one targeted Spec follow-up
+required. Landing and cleanup remain held.
+
+The only production correction is commit
+`2a08b7e285ee337364ea1ef4bd13a8149dcc5687`: add the existing
+`data-[open=true]:overflow-visible` caller class to that one content root.
+Its hidden/inert expressions, retained children, keep_mounted, open callback,
+Matrix/Row branch selection, owner drafts, domain callbacks and primitive APIs
+are unchanged. There are no shared primitive/routing, dependency, visibility,
+state, parsing or geometry changes.
+
+Source inventory was repeated once across the sixteen owned CollapsibleContent
+sites, following the MatrixTransformFields match bodies and the components they
+render rather than only looking for Select/Combobox text inside each root:
+
+- Seven picker-bearing roots: LayoutWorkspace KeySizeControls;
+  MatrixInspector Key assembly (Assembly preset/Switch family and MatrixFieldEditor
+  Select/Combobox variants); Column transform (Splay affects and
+  OriginModeTransformField); key-level Key assembly (KeyAssemblyField and
+  AttachedComponentsField); Component constraint; Companion placement; and this
+  Matrix/Row outer root (MirrorTransformField only in its Matrix branch).
+  All seven now have the same expanded-only overflow class.
+- Nine other roots have no nested absolute picker: Objects' Layouts, selected
+  Matrix actions and Geometry; MatrixInspector Keycap spacing and Matrix actions;
+  Column Splay/origin numeric fields; key transform numeric/checkbox fields;
+  Component Mirrored half actions and outline checkbox/numeric fields. The
+  Component layout assignment Select/Combobox is a sibling after Mirrored half,
+  not a descendant of its content. Row's outer body is numeric only but shares
+  the explicitly authorized Matrix/Row content site.
+- SetupGuide uses AccordionTrigger with its existing manually composed stage
+  panel, not AccordionContent; no copied Collapsible overflow-hidden ancestor
+  is introduced there. Its existing stage/readiness composition remains023.
+  Canonical shared layers and Parts disclosures remain outside this correction.
+  The source search receipt is `review-r2-picker-source-inventory.txt`.
+
+Runtime attribution is deliberately narrower than the source finding. The first
+probe (`review-r2-matrix-mirror-pointer-red.log`) failed its *test geometry
+precondition*: X axis was inside the ancestor bottom and was hittable. The
+ArrowDown probe (`review-r2-matrix-mirror-arrow-pointer-red.log`) behaved the same.
+Neither demonstrates a clipped pointer target. Follow-up native pointer/geometry
+diagnostics showed that focusing the real popup makes the overflow-hidden content
+scroll itself108px, moving earlier fields out of view to fit the entire list.
+Those diagnostics are retained as `review-r2-mirror-geometry-diagnostic.log` and
+`review-r2-mirror-native-pointer-diagnostic.log`; they did not change product code.
+
+The meaningful regression is `review-r2-matrix-mirror-native-overflow-red.log`,
+against unchanged packaged production `d62c302b115745d6c637a4ddf99670035f18f08b`.
+It opens the actual Mirror matrix control by native pointer after verifying
+scrollTop0, then fails expected scrollTop0 with actual108 (overflow hidden,
+content bottom1271.1875, X axis center1219 and hittable). This is actual unwanted
+internal scrolling, not a claimed null-hit/clipped-pointer RED. The test bytes
+were committed unchanged as `8005ec67cde3be608573d063c13df03aedc1becd` before the
+one-line product edit. The earlier test-only baseline is
+`ee9b0b85b604f0481ef02c70b068d98e6597ad1f`. No failure was discarded or relabeled
+as a successful run; opening mode changed to inspect native pointer behavior,
+without adding waits, retries, fixture geometry or replacement owner state.
+
+Fresh affected verification at production/test source
+`2a08b7e285ee337364ea1ef4bd13a8149dcc5687`:
+
+- Official incremental package build passes:
+  `CARGO_PROFILE_DEV_DEBUG=false python3 scripts/build-web.py --fast --skip-providers
+  --output /home/chris/.cache/boardstudio-target/016-layout-sweep-lineage/layout-adoption-site`,
+  `review-r2-production-build-15.log`. Existing providers were reused, not rebuilt.
+- `python3 scripts/test-layout-review-regressions.py --page-url
+  http://127.0.0.1:4186/boardstudio/ --only mirror` passes,
+  `review-r2-matrix-mirror-native-overflow-green.log`. Actual1440×1400 native
+  Mirror matrix pointer opening keeps internal scrollTop0 (overflow visible).
+  The real X axis option center1300 is below content bottom1244.1875 and hit-tests
+  to X axis, then native pointer down/up accepts the owned edit, closes the popup
+  and returns trigger focus. Collapse keeps both the actual trigger and Origin X
+  input nodes/value; hidden/inert removes visibility and blocks focus. Reopen
+  preserves them. Undo→None, Redo→X axis, Undo→None pass, with drawing geometry
+  equal to its pre-edit state. No fixture-hoisted owner/draft or geometry was used.
+  Screenshot, visually inspected:
+  `.evidence/016/review-r1-20261022-234452/matrix-mirror-pointer-boundary.png`.
+  The run's closed-popup/focus/Undo assertions are in the log; the screenshot
+  captures the actual open option before native selection.
+- Fresh affected Rust formatting, Python compilation, git diff whitespace and
+  documentation links pass (`review-r2-doc-links-final.log`). Final feature
+  merge check reports already up to date at
+  `de0dce979e8b06391ae9d80cfe41efae952e463c`; the protected CONTROL/InputGroup/
+  Checkbox/Label/layers, Parts,015 toolbar/align/transform/canvas controls and
+  presentation.rs remain identical to that feature pin. The final source diff
+  from r2's da5b41be is one production class line plus the focused actual test
+  and this response. No shared routing/API change was made for r2.
+
+Evidence reuse is explicit: the successful157 Layout,25 shared,41 shell,97
+executed native and four-package all-target WASM Clippy runs recorded in the r1
+completed correction above are reused from production d62c302b/test b33f9dbe
+(with shared namespace test source4c47f87c). They were not rerun for this one-line
+caller class. The fresh official build compiles the changed source, and the
+focused actual Mirror run verifies its affected popup/owner/closed lifecycle.
+The earlier actual beyond-boundary measurements for Key size, Matrix definition,
+Diode and Column origin remain reused at d62c302b/b33f9dbe. This makes five measured
+actual picker compositions including Mirror, not all seven source roots or all
+Select/Combobox variants. Component constraint and Companion placement retain
+source inspection and the earlier mounted functional coverage only. The native
+Mirror RED is the unwanted internal scroll described above; pointer clipping
+itself was source-derived and was not reproduced as a null hit on that old build.
+
+One targeted Spec follow-up is requested for this completed r2 response; unchanged
+Standards r2 zero carries. No review agent, watcher, landing or generated-target
+cleanup was started. Preview4186 and the exclusive016 target remain available for
+parent-owned review/landing. Global full/quick/CAD worker.onerror/first-paint/
+screen-reader/human026/final merge and023 guide composition remain OPEN.
+
+Final retained-resource scan: exclusive target physically allocates26,373,238,784
+bytes (`du -s -B1`, after build15). No active Cargo/wasm-pack/build-web or owned
+browser check remains. The only live exclusive-target process is the existing
+preview server PID269594 (parent shell269581), port4186. Other lanes'4197/4222/
+4219 previews were untouched. Target, preview, branch/worktree and evidence are
+retained while landing/cleanup are held; no generated-target deletion is claimed.
