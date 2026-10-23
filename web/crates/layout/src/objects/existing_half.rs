@@ -798,10 +798,10 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
         });
         rsx! {
 
-                                    Field { class: "",
+                                    Field { class: "min-w-0",
                                         FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                         if control_choices.len() > 12 {
-                                            Combobox::<String> {
+                                            Combobox::<String> { class: "max-[760px]:[&_[data-slot=combobox-input]]:min-h-control-touch",
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
                                                 list_aria_label: control_aria_label.clone(),
@@ -819,7 +819,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                                 }
                                             }
                                         } else {
-                                            Select::<String> {
+                                            Select::<String> { class: "min-w-0 w-full [&_[data-placeholder]]:min-w-0 [&_[data-placeholder]]:truncate max-[760px]:[&_[data-slot=select-trigger]]:min-h-control-touch",
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
                                                 value: Some(source_choice.into()),
@@ -847,8 +847,8 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 rsx! {
                                     Field {
                                         FieldLabel { html_for: control_input_id.clone(), "Mirror axis X (mm)" }
-                                        InputGroup {
-                                            InputGroupInput { aria_label: "Mirror axis X",
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Mirror axis X",
     r#type: InputType::Number,
     step: "any",
     required: true,

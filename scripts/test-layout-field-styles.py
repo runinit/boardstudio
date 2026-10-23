@@ -52,7 +52,7 @@ def check_fields(fields, owner, captures, in_inspector=True):
                         for(const sheet of document.styleSheets){
                             let rules;try{rules=sheet.cssRules}catch{continue}
                             for(const rule of rules){
-                                if(['.m1-matrix-field-input','.m1-board-inspector-name','.m1-outline-field','.m1-outline-inspector','.m1-layout-component-inspector'].some(prefix=>rule.selectorText?.startsWith(prefix))&&input.matches(rule.selectorText))
+                                if(['.m1-matrix-setup','.m1-mirrored-pair-setup','.m1-matrix-field-input','.m1-board-inspector-name','.m1-outline-field','.m1-outline-inspector','.m1-layout-component-inspector'].some(prefix=>rule.selectorText?.startsWith(prefix))&&input.matches(rule.selectorText))
                                     legacyMatches.push({selector:rule.selectorText,style:rule.style.cssText});
                             }
                         }

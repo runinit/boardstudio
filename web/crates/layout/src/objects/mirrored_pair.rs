@@ -228,8 +228,8 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 rsx! {
                                     Field {
                                         FieldLabel { html_for: control_input_id.clone(), "Left layout" }
-                                        InputGroup {
-                                            InputGroupInput { aria_label: "Left layout name",
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Left layout name",
     required: true,
     value: "{left_name_value}",
     disabled: !props.projection.editable,
@@ -248,8 +248,8 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 rsx! {
                                     Field {
                                         FieldLabel { html_for: control_input_id.clone(), "Right layout" }
-                                        InputGroup {
-                                            InputGroupInput { aria_label: "Right layout name",
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Right layout name",
     required: true,
     value: "{right_name_value}",
     disabled: !props.projection.editable,
@@ -267,8 +267,8 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 rsx! {
                                     Field {
                                         FieldLabel { html_for: control_input_id.clone(), "Rows per half" }
-                                        InputGroup {
-                                            InputGroupInput { aria_label: "Rows per half",
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Rows per half",
     r#type: InputType::Number,
     min: "1",
     max: "4096",
@@ -290,8 +290,8 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 rsx! {
                                     Field {
                                         FieldLabel { html_for: control_input_id.clone(), "Columns per half" }
-                                        InputGroup {
-                                            InputGroupInput { aria_label: "Columns per half",
+                                        InputGroup { class: "max-[760px]:h-control-touch",
+                                            InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Columns per half",
     r#type: InputType::Number,
     min: "1",
     max: "4096",
@@ -365,8 +365,8 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                             rsx! {
                                 Field {
                                     FieldLabel { html_for: control_input_id.clone(), "Gap between key edges (mm)" }
-                                    InputGroup {
-                                        InputGroupInput { aria_label: "Gap between key edges (mm)",
+                                    InputGroup { class: "max-[760px]:h-control-touch",
+                                        InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Gap between key edges (mm)",
     r#type: InputType::Number,
     min: "0",
     step: "any",
