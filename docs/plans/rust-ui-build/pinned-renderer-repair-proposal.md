@@ -119,5 +119,9 @@ passed; `.evidence/shared-control-prereq/vendor-bundle-compile.log`. Bun 1.4.4 a
 unrelated outputs (`hydrate.js`, `native.js`, `patch_console.js`) through export ordering, local
 renaming and destructuring. Inspection showed no dependency on the repaired core implementation;
 those three files retain their published baseline bytes. All other published files and the bundle
-build script are unchanged. Combined mounted/native checks and the single correction review are
-pending.
+build script are unchanged. Combined mounted/native checks, Clippy and dependency/feature audits
+passed at the final source pin `2410f5ebaa4d9c3925d1b9f488950651a4701409`. Both correction reviews
+approved with zero findings at `4fb3032f52048368f4be75cd9fbb14a5407b9822`; the coordinator then
+authorized local feature fast-forward. See [the prerequisite closure](shared-control-prerequisites.md#review-closure-local-landing-and-dependent-handoff)
+for exact check receipts, review nodes, dependent contracts, landing and exclusive-target cleanup.
+Global acceptance and migration ticket claims remain unchanged.

@@ -245,14 +245,35 @@ manifest was created. The vendor differs from its published baseline in exactly 
 hand-authored source files, generated core JS and existing input hash; the Node regression is
 unchanged between its RED and GREEN.
 
-The build phase is complete; the allocated slot is returned with the correction-review handoff.
-One completed-correction Standards/Spec review and approved local feature landing remain pending.
-Global acceptance and workspace ticket claims remain unchanged. Target cleanup still waits for
-approved landing and no active owner; evidence is preserved.
+## Review closure, local landing and dependent handoff
 
-Builds use the exclusive target
-`/home/chris/.cache/boardstudio-target/shared-control-prereq-t3-b5fe12f0`, outside `.evidence/`.
-The coordinator allocated the 017 slot to this slice while 017 continues independent source work;
-the build phase has ended with no active build process, so the slot is ready to return with the
-review handoff. Target cleanup waits for approved
-landing and confirmation that no active owner remains. Evidence is preserved.
+Both completed-correction reviews approved with zero findings at
+`4fb3032f52048368f4be75cd9fbb14a5407b9822`, explicitly covering the renderer repair and both P2
+corrections. The prior R1 approval covers the unchanged shared-contract scope. Coordinator-supplied
+R2 receipt nodes:
+
+- `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui-shared-prereq-standards-review-r2`
+- `node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3Arust-ui-shared-prereq-spec-review-r2`
+
+With explicit coordinator approval, the feature tip was freshly verified at
+`f11e6bd84456b94b2d7657f57a0d05b42184c4e7` and locally fast-forwarded to the reviewed `4fb3032f` pin.
+The worktree was clean, the diff check and fresh 569-file documentation-link check passed, and the
+Cargo manifests, lock and all web source remained identical to the final tested `2410f5eb` pin.
+This closure note is documentation only and follows the same local fast-forward route. No remote
+ref or dev branch was changed, and no migration workspace ancestry was imported.
+
+Dependents may use Button's explicit attributes vector and typed callbacks with the documented
+canonical-attribute and Tooltip-first event composition rules, InputGroupInput max/global forwarding,
+and the public CheckboxState reexport. The renderer remains Dioxus interpreter 0.7.10 through the
+root patch/exclude path, with the locked dependency and feature audit above. These prerequisites do
+not close 016, 017 or 020, or change global acceptance and workspace ticket claims.
+
+The build slot was returned after verification. Following verified landing, the exclusive physical
+target `/home/chris/.cache/boardstudio-target/shared-control-prereq-t3-b5fe12f0` was removed with
+explicit user authorization, reclaiming **7,274,426,368 allocated bytes** (7,248,131,776 logical bytes).
+The audit found no open references (`lsof` exit 1, empty output), no process using that target in
+`CARGO_TARGET_DIR`, and no matching symlink among 3,051 inspected links across 46 registered
+worktrees and cache-root links; recursive scanning excluded `.git`, `target` and `node_modules`
+directories after inspecting their own links. No scan errors occurred. The receipt is preserved
+outside the deleted target at `.evidence/shared-control-prereq/target-cleanup-audit.log`. Vendor
+source, worktree, branch, evidence, other ignored files and all other lane targets remain preserved.
