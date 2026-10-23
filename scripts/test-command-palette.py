@@ -221,27 +221,27 @@ def main():
     browser("wait", '[aria-label="Your keyboards"]')
     action("button", "Preview Untitled keyboard")
     browser("wait", "--text", "Delete keyboard")
+    action("button", "Delete keyboard", "focus")
+    check("window.libraryDeleteOpener = document.activeElement;")
     action("button", "Delete keyboard")
-    browser("wait", "dialog[open]")
+    browser("wait", "[role=alertdialog]")
     check("""
-        window.paletteDeleteConfirmation = document.querySelector('dialog[open]');
+        window.paletteDeleteConfirmation = document.querySelector('[role=alertdialog]');
         window.paletteDeleteOpener = document.activeElement;
+        window.paletteDeleteConfirmationOpen = () => paletteDeleteConfirmation.isConnected && paletteDeleteConfirmation.getAttribute('aria-modal') === 'true' && paletteDeleteConfirmation.closest('[data-state=open]') !== null;
         window.paletteDeleteProjectId = document.querySelector('[aria-label="Delete Untitled keyboard"]').getAttribute('data-project-id');
         if (!paletteDeleteProjectId) throw Error('Delete fixture must expose its saved project identity');
-        window.paletteDeleteEvents = [];
         window.paletteDeleteConfirmClicks = [];
-        for (const name of ['cancel', 'close']) paletteDeleteConfirmation.addEventListener(name, event => paletteDeleteEvents.push({type:event.type,trusted:event.isTrusted}));
-        paletteDeleteConfirmation.addEventListener('click', event => { if (event.target.closest('button')?.textContent.trim() === 'Delete keyboard') paletteDeleteConfirmClicks.push(event.isTrusted); }, true);
-        if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteOpener.textContent.trim() !== 'Cancel') throw Error('Delete must use its native modal confirmation and safe initial focus');
+        if (!paletteDeleteConfirmationOpen() || paletteDeleteOpener.textContent.trim() !== 'Cancel') throw Error('Delete must use its copied Alert Dialog and safe initial focus');
     """)
     browser("press", "Control+k")
     browser("wait", '[role=combobox][aria-label="Search commands and objects"]')
-    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal'),palette:document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]').outerHTML})")
-    browser("screenshot", str((args.evidence / "native-confirmation-palette.png").resolve()))
+    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,confirmationOpen:paletteDeleteConfirmationOpen(),palette:document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]').outerHTML})")
+    browser("screenshot", str((args.evidence / "alert-confirmation-palette.png").resolve()))
     opened()
     snapshot = browser("snapshot")
-    (args.evidence / "native-confirmation-palette-ax.txt").write_text(snapshot)
-    dialogs = re.findall(r'^\s*- dialog(?: "([^"]*)")?(?:\s|$)', snapshot, re.MULTILINE)
+    (args.evidence / "alert-confirmation-palette-ax.txt").write_text(snapshot)
+    dialogs = re.findall(r'^\s*- (?:dialog|alertdialog)(?: "([^"]*)")?(?:\s|$)', snapshot, re.MULTILINE)
     assert dialogs == ["Command palette"], ("Expected one exposed named palette dialog", dialogs)
     check("""
         const content = document.querySelector('#command-palette [data-slot=dialog-content]');
@@ -250,8 +250,8 @@ def main():
         document.querySelector('#command-palette').addEventListener('keydown', event => { if (event.key === 'Tab') paletteModalTabKeys.push(event); }, true);
     """)
     browser("press", "Shift+Tab")
-    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,nativeModal:paletteDeleteConfirmation.matches(':modal')})")
-    browser("screenshot", str((args.evidence / "native-confirmation-shift-tab.png").resolve()))
+    browser("eval", "JSON.stringify({focus:document.activeElement.outerHTML,confirmationOpen:paletteDeleteConfirmationOpen()})")
+    browser("screenshot", str((args.evidence / "alert-confirmation-shift-tab.png").resolve()))
     check("if (!document.querySelector('#command-palette[open]').contains(document.activeElement)) throw Error('Shift Tab escaped the native palette host');")
     check("if (document.activeElement.getAttribute('aria-label') !== 'Close command palette') throw Error('Shift Tab must wrap to the last palette control');")
     browser("press", "Tab")
@@ -260,40 +260,41 @@ def main():
     browser("press", "Shift+Tab")
     check("if (document.activeElement.getAttribute('role') !== 'combobox' || paletteModalTabKeys.length !== 4 || !paletteModalTabKeys.every(e=>e.isTrusted) || JSON.stringify(paletteModalTabKeys.map(e=>e.defaultPrevented)) !== '[true,true,false,false]') throw Error('Only trusted first/last Tab boundaries may be prevented, once per key');")
     action("combobox", "Search commands and objects", "fill", "no matching command")
-    check("if (!paletteDeleteConfirmation.matches(':modal')) throw Error('Palette changed the native confirmation owner');")
+    check("if (!paletteDeleteConfirmationOpen()) throw Error('Palette changed the Alert Dialog owner');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
-    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('Palette Escape must retain the SAME native confirmation without cancel/close events');")
+    check("if (document.querySelector('[role=alertdialog]') !== paletteDeleteConfirmation || !paletteDeleteConfirmationOpen()) throw Error('Palette Escape must retain the SAME Alert Dialog');")
     browser("press", "Meta+k")
     opened()
     action("combobox", "Search commands and objects")
     action("combobox", "Search commands and objects", "fill", "Workspace settings")
     browser("press", "ArrowDown")
-    check("if (document.getElementById(document.activeElement.getAttribute('aria-activedescendant'))?.getAttribute('aria-label') !== 'Workspace settings') throw Error('Search list navigation must remain usable above native confirmation');")
+    check("if (document.getElementById(document.activeElement.getAttribute('aria-activedescendant'))?.getAttribute('aria-label') !== 'Workspace settings') throw Error('Search list navigation must remain usable above Alert Dialog');")
     browser("press", "Escape")
     browser("press", "Control+k")
     opened()
     action("combobox", "Search commands and objects", "fill", "no matching command after rapid reopen")
-    check("if (!paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('Rapid palette reopen must retain the native confirmation');")
+    check("if (!paletteDeleteConfirmationOpen()) throw Error('Rapid palette reopen must retain the Alert Dialog');")
     browser("press", "Escape")
     browser("wait", "--fn", "!document.querySelector('[role=combobox][aria-label=\"Search commands and objects\"]') && document.activeElement === paletteDeleteOpener")
-    check("if (document.querySelector('dialog[open]') !== paletteDeleteConfirmation || !paletteDeleteConfirmation.matches(':modal') || paletteDeleteEvents.length !== 0) throw Error('CmdK palette Escape changed the native confirmation');")
+    check("if (document.querySelector('[role=alertdialog]') !== paletteDeleteConfirmation || !paletteDeleteConfirmationOpen()) throw Error('CmdK palette Escape changed the Alert Dialog');")
     action("button", "Cancel")
-    browser("wait", "--fn", "!document.querySelector('dialog[open]')")
-    browser("wait", "--fn", "paletteDeleteEvents.filter(e=>e.type==='close').length === 1")
+    browser("wait", "--fn", "!document.querySelector('[role=alertdialog]')")
+    check("if (document.activeElement !== libraryDeleteOpener) throw Error('Cancel must restore the actual Library opener');")
     action("button", "Delete keyboard")
-    browser("wait", "dialog[open]")
+    browser("wait", "[role=alertdialog]")
     browser("press", "Escape")
-    browser("wait", "--fn", "!document.querySelector('dialog[open]') && paletteDeleteEvents.filter(e=>e.type==='close').length === 2")
-    check("if (paletteDeleteEvents.filter(e=>e.type==='cancel' && e.trusted).length !== 1 || paletteDeleteConfirmClicks.length !== 0 || document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id') !== paletteDeleteProjectId) throw Error('Native Escape must cancel without deleting the fixture project');")
+    browser("wait", "--fn", "!document.querySelector('[role=alertdialog]')")
+    check("if (document.activeElement !== libraryDeleteOpener || paletteDeleteConfirmClicks.length !== 0 || document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id') !== paletteDeleteProjectId) throw Error('Trusted Escape must cancel without deleting the fixture project and restore its opener');")
     action("button", "Delete keyboard")
-    browser("wait", "dialog[open]")
-    confirmation = json.loads(browser("snapshot", "--json", "-i", "--selector", 'dialog[open][aria-labelledby="m1-project-delete-title"]'))["data"]
+    browser("wait", "[role=alertdialog]")
+    confirmation = json.loads(browser("snapshot", "--json", "-i", "--selector", '[role=alertdialog]'))["data"]
     confirms = re.findall(r'^\s*- button "Delete keyboard" \[[^\]\n]*\bref=(e\d+)', confirmation["snapshot"], re.MULTILINE)
-    assert len(confirms) == 1, ("Expected one native confirmation action", confirmation)
+    assert len(confirms) == 1, ("Expected one Alert Dialog action", confirmation)
     assert confirmation["refs"][confirms[0]]["role"] == "button" and confirmation["refs"][confirms[0]]["name"] == "Delete keyboard"
+    check("document.querySelector('[role=alertdialog]').addEventListener('click', event => { if (event.target.closest('button')?.textContent.trim() === 'Delete keyboard') paletteDeleteConfirmClicks.push(event.isTrusted); }, true);")
     browser("click", "@" + confirms[0])
-    browser("wait", "--fn", "!document.querySelector('dialog[open]') && ![...document.querySelectorAll('[data-project-id]')].some(e=>e.getAttribute('data-project-id') === paletteDeleteProjectId)")
+    browser("wait", "--fn", "!document.querySelector('[role=alertdialog]') && ![...document.querySelectorAll('[data-project-id]')].some(e=>e.getAttribute('data-project-id') === paletteDeleteProjectId)")
     check("if (JSON.stringify(paletteDeleteConfirmClicks) !== '[true]') throw Error('Only the one explicit trusted confirmation may delete the fixture');")
     check("if (!document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id') || document.querySelector('[aria-label=\"Delete Untitled keyboard\"]').getAttribute('data-project-id') === paletteDeleteProjectId) throw Error('Deleting the last project must retain its distinct durable replacement');")
     action("button", "Project")

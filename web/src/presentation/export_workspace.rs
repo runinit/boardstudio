@@ -7,8 +7,13 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::{GenerationStatus, ReadModel, SelectionMode};
 use boardstudio_core::model::OutlineExportFormat;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox,
+use boardstudio_web_ui_shared::ui::{
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    checkbox::{Checkbox, CheckboxState},
+    item::{Item, ItemContent, ItemDescription},
+    label::Label,
 };
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
@@ -23,6 +28,7 @@ pub(super) fn ExportWorkspace(
     inspector_settings: Signal<PanelSettings>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let _ = use_context::<Signal<u64>>()();
     let selection = use_context::<SelectionAdapter>();
     let model = runtime.model();
     let board_name = selected_board_name(&model);
@@ -119,9 +125,9 @@ pub(super) fn ExportWorkspace(
     rsx! {
         section { class: "m1-export-panel m1-export-workspace", "aria-label": "Export package",
             header { class: "m1-export-heading",
-                BoardButton {
-                    variant: BoardButtonVariant::Quiet,
-                    density: BoardButtonDensity::Compact,
+                Button {
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::Sm,
                     class: "m1-export-back",
                     onclick: move |_| workspace.set(back),
                     "Back to {back}"
@@ -133,17 +139,17 @@ pub(super) fn ExportWorkspace(
                 section { class: "m1-export-portable", "aria-label": "Portable project",
                     h2 { "Portable project" }
                     p { "Keep an editable copy of the whole project, including all boards." }
-                    label { class: "m1-export-option",
-                        BoardCheckbox {
+                    Label { class: "m1-export-option",
+                        Checkbox {
                             aria_label: "Embed used models",
-                            checked: runtime.embed_used_models(),
-                            onchange: move |event: FormEvent| runtime.set_embed_used_models(event.checked()),
+                            checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                            on_checked_change: move |state: CheckboxState| runtime.set_embed_used_models(state == CheckboxState::Checked),
                         }
                         span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                     }
-                    BoardButton {
+                    Button { variant: ButtonVariant::Secondary,
                         class: "m1-export-action",
-                        r#type: "button",
+                        button_type: "button",
                         disabled: model.accepted.is_none(),
                         onclick: move |_| archive.export_project_copy(),
                         "Download .boardstudio project"
@@ -167,8 +173,8 @@ pub(super) fn ExportWorkspace(
                 }
             }
             div { class: "m1-export-review-links",
-                BoardButton { onclick: review_wiring, "Review wiring" }
-                BoardButton { onclick: review_case, "Review case" }
+                Button { variant: ButtonVariant::Secondary, onclick: review_wiring, "Review wiring" }
+                Button { variant: ButtonVariant::Secondary, onclick: review_case, "Review case" }
             }
             RuntimeReportBanner {}
         }
@@ -219,25 +225,22 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
         return rsx! { ZmkFirmwareExportRow { ready: firmware.ready, on_export: firmware.on_export } };
     }
     rsx! {
-        div { class: "m1-export-row", "data-export-kind": "{row.label}",
-            span {
-                class: if row.ready { "m1-export-ready-dot is-ready" } else { "m1-export-ready-dot" },
-                "aria-hidden": "true",
-            }
-            span { class: "m1-export-row-copy",
+        div { "data-export-kind": "{row.label}",
+          Item { class: "m1-export-row",
+            ItemContent { class: "m1-export-row-copy",
                 strong { "{row.label}" }
-                span { class: if row.ready && row.available { "m1-handoff-state is-ready" } else { "m1-handoff-state" },
+                Badge { class: "m1-handoff-state", variant: if row.ready && row.available { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if !row.available { "Provider unavailable" } else { "{row.status}" }
                 }
-                small { "{row.detail}" }
-                if let Some(reason) = row.reason { small { class: "m1-export-reason", "{reason}" } }
+                ItemDescription { "{row.detail}" }
+                if let Some(reason) = row.reason { Callout { class: "m1-export-reason", variant: CalloutVariant::Warning, "{reason}" } }
                 if row.ready && !row.available {
-                    small { class: "m1-export-provider-gap", "This export provider is not connected in this build." }
+                    Callout { class: "m1-export-provider-gap", variant: CalloutVariant::Warning, "This export provider is not connected in this build." }
                 }
             }
-            BoardButton {
+            Button { variant: ButtonVariant::Secondary,
                 class: "m1-export-row-action",
-                r#type: "button",
+                button_type: "button",
                 aria_label: format!("Export {}", row.label),
                 disabled: !row.ready || !row.available,
                 onclick: move |_| {
@@ -247,6 +250,7 @@ fn ExportRowView(row: ExportRow, zmk_firmware: Option<ZmkFirmwareExportPanelInpu
                 },
                 "{row.action}"
             }
+          }
         }
     }
 }
@@ -532,7 +536,6 @@ mod tests {
     use boardstudio_application::{AcceptedSnapshot, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{ProjectDoc, Readiness, SceneDelta};
     use std::sync::Arc;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -718,12 +721,12 @@ mod tests {
             });
             browser_tick().await;
 
-            let button = root
-                .query_selector(".m1-export-row-action")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::HtmlElement>()
-                .unwrap();
+            let button = boardstudio_web_ui_shared::test_role::by_role_name(
+                &root,
+                "button",
+                "Export KiCad board",
+            )
+            .unwrap();
             assert_eq!(button.has_attribute("disabled"), disabled);
             assert_eq!(button.text_content().as_deref(), Some(label));
             assert_eq!(

@@ -6,8 +6,10 @@ pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest}
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::stepper::{
+    Stepper, StepperIndicator, StepperItem, StepperOrientation, StepperTitle,
+};
 use boardstudio_web_ui_shared::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
-use boardstudio_web_ui_shared::ui::stepper::{Stepper, StepperItem, StepperIndicator, StepperTitle, StepperOrientation};
 
 use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus::prelude::*;
@@ -393,7 +395,7 @@ pub fn ProjectSetupGuide(
                                 aria_current: (stage == item_stage).then_some("step"),
                                 "aria-description": if ready { "Ready" } else { "Not ready" },
                                 class: if stage == item_stage { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
-                                // Only the status presentation remounts; the Accordion and form draft owners stay mounted.
+                                // Readiness is independent of stage order; only this status presentation remounts.
                                 Stepper {
                                     key: "{stage == item_stage}-{ready}",
                                     total_steps: 2,
@@ -412,6 +414,7 @@ pub fn ProjectSetupGuide(
                                 id: "m1-setup-panel-{index}",
                                 class: if expanded() == Some(item_stage) { "m1-setup-guide__panel is-open" } else { "m1-setup-guide__panel" },
                                 aria_hidden: expanded() != Some(item_stage),
+                                inert: (expanded() != Some(item_stage)).then_some(""),
                                 section { class: "m1-setup-guide__content m1-setup-stage-form",
                                     if item_stage == SetupGuideStage::Project {
                                         {

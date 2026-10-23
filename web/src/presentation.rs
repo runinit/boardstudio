@@ -79,8 +79,11 @@ pub(crate) use boardstudio_web_layout::outline_snapping;
 pub(crate) use boardstudio_web_layout::part_placement;
 pub(crate) use boardstudio_web_library::library;
 pub(crate) use boardstudio_web_parts::parts;
-use boardstudio_web_ui_shared::controls::BoardButton;
 pub(crate) use boardstudio_web_ui_shared::panels;
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonVariant},
+    field::FieldError,
+};
 use part_placement::{LayoutPlacementCancellation, layout_view_mode_handler};
 mod parts_workspace;
 mod setup_workspace;
@@ -746,8 +749,9 @@ fn read_system_appearance() -> &'static str {
 
 #[component]
 fn LibraryLanding() -> Element {
+    use boardstudio_web_ui_shared::ui::card::Card;
     rsx! {
-        section { class: "m1-library-landing",
+        Card { class: "m1-library-landing",
             Library { project_menu: false }
         }
     }
@@ -756,6 +760,10 @@ fn LibraryLanding() -> Element {
 #[cfg(test)]
 #[component]
 fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInput>) -> Element {
+    use boardstudio_web_ui_shared::ui::{
+        checkbox::{Checkbox, CheckboxState},
+        label::Label,
+    };
     let runtime = use_context::<Rc<Runtime>>();
     let _ = use_context::<Signal<u64>>()();
     let model = runtime.model();
@@ -767,7 +775,7 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             h1 { "Export" }
             p { "Create files from the saved keyboard in the current board and instance scope." }
             div { class: "m1-export-actions",
-                BoardButton { disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
+                Button { variant: ButtonVariant::Secondary, disabled: model.accepted.is_none(), onclick: move |_| step.export_step(), "Export STEP" }
             }
             if let Some(firmware) = zmk_firmware {
                 h2 { "Design files" }
@@ -778,16 +786,15 @@ fn ExportPanel(#[props(default)] zmk_firmware: Option<ZmkFirmwareExportPanelInpu
             section { class: "m1-export-portable", "aria-label": "Portable project",
                 h2 { "Portable project" }
                 p { "Keep an editable copy of the whole project, including all boards." }
-                label { class: "m1-export-option",
-                    input {
-                        r#type: "checkbox",
+                Label { class: "m1-export-option",
+                    Checkbox {
                         aria_label: "Embed used models",
-                        checked: runtime.embed_used_models(),
-                        onchange: move |event: FormEvent| preference.set_embed_used_models(event.checked()),
+                        checked: if runtime.embed_used_models() { CheckboxState::Checked } else { CheckboxState::Unchecked },
+                        on_checked_change: move |state: CheckboxState| preference.set_embed_used_models(state == CheckboxState::Checked),
                     }
                     span { strong { "Embed used models" } small { "Include attached 3D model files used in this project." } }
                 }
-                BoardButton {
+                Button { variant: ButtonVariant::Secondary,
                     class: "m1-export-action",
                     disabled: model.accepted.is_none(),
                     onclick: move |_| archive.export_project_copy(),
@@ -8738,12 +8745,14 @@ fn Editor() -> Element {
                     if full_case_settings() && active_workspace == "Case" {
                         aside { class: "m1-setup-case-settings", aria_label: "Full case settings",
                             header {
-                                BoardButton {
+                                Button { variant: ButtonVariant::Secondary,
+                                    class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                                     aria_label: "Back to setup guide",
                                     onclick: move |_| full_case_settings.set(false),
                                     svg { width: "20", height: "20", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "1.8", "aria-hidden": "true",
                                         path { d: "M19 12H5m7-7-7 7 7 7" }
                                     }
+                                    "Back to guide"
                                 }
                                 h2 { "Case settings" }
                             }
@@ -8755,7 +8764,7 @@ fn Editor() -> Element {
                         }
                     } else {
                     if let Some(preferences) = guide.clone() {
-                        if let Some(message) = guide_name_failure() { p { role: "alert", "{message}" } }
+                        if let Some(message) = guide_name_failure() { FieldError { "{message}" } }
                         setup_guide::ProjectSetupGuide {
                             stage: preferences.current_stage,
                             stage_readiness: guide_stage_readiness,

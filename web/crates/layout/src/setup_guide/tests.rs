@@ -186,32 +186,78 @@ async fn guide_current_and_ready_steps_remain_freely_navigable_without_losing_th
     let document = web_sys::window().unwrap().document().unwrap();
     let root = document.create_element("div").unwrap();
     document.body().unwrap().append_child(&root).unwrap();
-    dioxus_web::launch::launch_virtual_dom(VirtualDom::new(freely_navigable_guide),
-        dioxus_web::Config::new().rootnode(root.clone().into()));
+    dioxus_web::launch::launch_virtual_dom(
+        VirtualDom::new(freely_navigable_guide),
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
     wait_until("the named current guide step is available", || {
         by_role_name(&root, "button", "Controller & wiring").is_some()
-    }).await;
+    })
+    .await;
     let current = by_role_name(&root, "button", "Controller & wiring").unwrap();
-    assert_eq!(current.get_attribute("aria-current").as_deref(), Some("step"));
-    for (title, ready) in [("Project & hardware", false), ("Layout & assemblies", true), ("Controller & wiring", false), ("Case (optional)", true)] {
+    assert_eq!(
+        current.get_attribute("aria-current").as_deref(),
+        Some("step")
+    );
+    for (title, ready) in [
+        ("Project & hardware", false),
+        ("Layout & assemblies", true),
+        ("Controller & wiring", false),
+        ("Case (optional)", true),
+    ] {
         let trigger = by_role_name(&root, "button", title).unwrap();
         assert!(!trigger.has_attribute("disabled"));
-        assert_eq!(trigger.get_attribute("aria-description").as_deref(), Some(if ready { "Ready" } else { "Not ready" }));
+        assert_eq!(
+            trigger.get_attribute("aria-description").as_deref(),
+            Some(if ready { "Ready" } else { "Not ready" })
+        );
     }
-    assert_eq!(root.query_selector_all("[data-slot=stepper][data-orientation=Vertical]").unwrap().length(), 4);
-    by_role_name(&root, "button", "Project & hardware").unwrap().click();
-    wait_until("the project step becomes current", || by_role_name(&root, "button", "Project & hardware").unwrap().get_attribute("aria-current").as_deref() == Some("step")).await;
-    let field: web_sys::HtmlInputElement = by_role_name(&root, "textbox", "Project name").unwrap().dyn_into().unwrap();
+    assert_eq!(
+        root.query_selector_all("[data-slot=stepper][data-orientation=Vertical]")
+            .unwrap()
+            .length(),
+        4
+    );
+    by_role_name(&root, "button", "Project & hardware")
+        .unwrap()
+        .click();
+    wait_until("the project step becomes current", || {
+        by_role_name(&root, "button", "Project & hardware")
+            .unwrap()
+            .get_attribute("aria-current")
+            .as_deref()
+            == Some("step")
+    })
+    .await;
+    let field: web_sys::HtmlInputElement = by_role_name(&root, "textbox", "Project name")
+        .unwrap()
+        .dyn_into()
+        .unwrap();
     field.set_value("Uncommitted guide draft");
     let event = web_sys::Event::new("input").unwrap();
     event.init_event_with_bubbles_and_cancelable("input", true, true);
     field.dispatch_event(&event).unwrap();
-    by_role_name(&root, "button", "Case (optional)").unwrap().click();
-    wait_until("a later ready stage is current", || by_role_name(&root, "button", "Case (optional)").unwrap().get_attribute("aria-current").as_deref() == Some("step")).await;
-    by_role_name(&root, "button", "Project & hardware").unwrap().click();
-    wait_until("returning retains the original field owner and draft", || {
-        let current = by_role_name(&root, "textbox", "Project name").unwrap();
-        current.is_same_node(Some(&field)) && field.value() == "Uncommitted guide draft"
-    }).await;
+    by_role_name(&root, "button", "Case (optional)")
+        .unwrap()
+        .click();
+    wait_until("a later ready stage is current", || {
+        by_role_name(&root, "button", "Case (optional)")
+            .unwrap()
+            .get_attribute("aria-current")
+            .as_deref()
+            == Some("step")
+    })
+    .await;
+    by_role_name(&root, "button", "Project & hardware")
+        .unwrap()
+        .click();
+    wait_until(
+        "returning retains the original field owner and draft",
+        || {
+            let current = by_role_name(&root, "textbox", "Project name").unwrap();
+            current.is_same_node(Some(&field)) && field.value() == "Uncommitted guide draft"
+        },
+    )
+    .await;
     root.remove();
 }

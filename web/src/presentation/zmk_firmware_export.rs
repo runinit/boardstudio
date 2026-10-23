@@ -4,7 +4,12 @@ use super::{
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{Scope, SessionEpoch, SnapshotToken};
-use boardstudio_web_ui_shared::controls::BoardButton;
+use boardstudio_web_ui_shared::ui::{
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    item::{Item, ItemContent, ItemDescription},
+};
 use dioxus::prelude::*;
 use std::rc::Rc;
 
@@ -182,29 +187,27 @@ pub(crate) fn ZmkFirmwareExportRow(ready: bool, on_export: EventHandler<()>) -> 
         on_select: on_export,
     }]);
     rsx! {
-        div { class: "m1-export-row", "data-export-kind": "ZMK firmware",
-            span {
-                class: if ready { "m1-export-ready-dot is-ready" } else { "m1-export-ready-dot" },
-                "aria-hidden": "true",
-            }
-            span { class: "m1-export-row-copy",
+        div { "data-export-kind": "ZMK firmware",
+          Item { class: "m1-export-row",
+            ItemContent { class: "m1-export-row-copy",
                 strong { "ZMK firmware" }
-                span { class: if ready { "m1-handoff-state is-ready" } else { "m1-handoff-state" },
+                Badge { class: "m1-handoff-state", variant: if ready { BadgeVariant::Success } else { BadgeVariant::Warning },
                     if ready { "Available" } else { "Needs controller wiring" }
                 }
-                small { "ZMK v0.3.0 configuration and editable starter keymap" }
+                ItemDescription { "ZMK v0.3.0 configuration and editable starter keymap" }
                 if !ready {
-                    small { class: "m1-export-reason", "Review the layout and resolve controller wiring in PCB." }
+                    Callout { class: "m1-export-reason", variant: CalloutVariant::Warning, "Review the layout and resolve controller wiring in PCB." }
                 }
             }
-            BoardButton {
+            Button { variant: ButtonVariant::Secondary,
                 class: "m1-export-row-action",
-                r#type: "button",
+                button_type: "button",
                 aria_label: "Export ZMK firmware",
                 disabled: !ready,
                 onclick: move |_| on_export.call(()),
                 "Export firmware"
             }
+          }
         }
     }
 }
@@ -350,7 +353,7 @@ mod tests {
             Some("ZMK firmware")
         );
         assert_eq!(
-            row.query_selector("small")
+            row.query_selector("[data-slot=item-description]")
                 .unwrap()
                 .unwrap()
                 .text_content()
@@ -358,16 +361,14 @@ mod tests {
             Some("ZMK v0.3.0 configuration and editable starter keymap")
         );
         assert!(
-            row.query_selector(".m1-export-ready-dot.is-ready")
+            row.query_selector("[data-slot=badge]")
                 .unwrap()
-                .is_some()
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("Available")
         );
-        let button = row
-            .query_selector("button[aria-label='Export ZMK firmware']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button = by_role_name(&row, "button", "Export ZMK firmware").unwrap();
         assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         button.click();
         let mut effects = None;
@@ -468,19 +469,12 @@ mod tests {
         wait_until(
             "the unavailable ZMK export control renders disabled",
             || {
-                root.query_selector("button[aria-label='Export ZMK firmware']")
-                    .ok()
-                    .flatten()
+                by_role_name(&root, "button", "Export ZMK firmware")
                     .is_some_and(|button| button.has_attribute("disabled"))
             },
         )
         .await;
-        let button = root
-            .query_selector("button[aria-label='Export ZMK firmware']")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button = by_role_name(&root, "button", "Export ZMK firmware").unwrap();
         assert!(button.has_attribute("disabled"));
         assert_eq!(button.text_content().as_deref(), Some("Export firmware"));
         assert!(

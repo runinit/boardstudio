@@ -28,6 +28,7 @@ use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::input::InputType;
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupAddon, InputGroupInput};
 use boardstudio_web_ui_shared::ui::label::Label;
+use boardstudio_web_ui_shared::ui::spinner::Spinner;
 use boardstudio_web_ui_shared::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -292,7 +293,7 @@ fn KeyboardCard(
     rsx! {
         Card { class: if selected { "m1-keyboard-card is-selected" } else if current { "m1-keyboard-card is-current" } else { "m1-keyboard-card" },
           div { "data-project-id": "{project_id}",
-            Button { variant: ButtonVariant::Secondary,
+            Button { variant: ButtonVariant::Ghost,
                 class: "m1-keyboard-tile",
                 button_type: "button",
                 aria_label: "{action_name}",
@@ -351,12 +352,14 @@ fn KeyboardCard(
                 }
             }
             if deletable {
-                Tooltip {
+                Tooltip { class: "library-card-delete",
                   TooltipTrigger { r#as: move |attributes: Vec<Attribute>| { let delete_document = delete_document.clone(); rsx! {
                     Button { attributes: { let mut attributes = attributes; attributes.push(Attribute::new("data-project-id", document.id.clone(), None, false)); attributes }, variant: ButtonVariant::Ghost, size: ButtonSize::Icon,
                     class: "m1-keyboard-delete",
                     button_type: "button",
                     aria_label: delete_label.clone(),
+                    aria_haspopup: "dialog", aria_controls: "library-project-delete",
+                    aria_expanded: pending_delete().as_ref().is_some_and(|project| project.id == document.id),
                     onclick: move |_| pending_delete.set(Some(delete_document.clone())),
                     svg { view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6" } }
                     }
@@ -412,6 +415,11 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
     let browser = try_use_context::<ProjectBrowserState>();
     let mut summary = use_signal(|| None::<web_sys::HtmlElement>);
+    let content_id = format!(
+        "library-demo-options-{}",
+        dioxus::core::current_scope_id().0
+    );
+    let trigger_content_id = content_id.clone();
     use_effect(use_reactive((&open,), move |(open,)| {
         if open()
             && let Some(summary) = summary()
@@ -434,9 +442,10 @@ fn DemoActionCard(mut open: Signal<bool>) -> Element {
             Collapsible { class: "m1-demo-picker", open: open(), on_open_change: move |next| open.set(next), keep_mounted: true,
                 CollapsibleTrigger { r#as: move |attributes: Vec<Attribute>| rsx! {
                     Button { attributes: { let mut attributes = attributes; attributes.push(dioxus::events::onmounted(move |event: MountedEvent| summary.set(event.data().downcast::<web_sys::Element>().and_then(|e| e.dyn_ref::<web_sys::HtmlElement>()).cloned()))); attributes }, variant: ButtonVariant::Default, class: "w-full",
+                        aria_expanded: open(), aria_controls: trigger_content_id.clone(),
                         "Open demo" }
                 } }
-                CollapsibleContent { class: "m1-demo-options", aria_label: "Demo keyboards",
+                CollapsibleContent { id: Some(content_id), class: "m1-demo-options", aria_label: "Demo keyboards", hidden: !open(), inert: (!open()).then_some(""),
                     for demo in DEMO_PROJECTS {
                         {
                             let document = demo.document();
@@ -525,6 +534,8 @@ pub fn Library(
         .map(|snapshot| snapshot.document.clone());
     let tool_request = try_use_context::<ProjectToolRequest>();
     let mut rename_tool_open = use_signal(|| false);
+    let rename_content_id = format!("library-rename-{}", dioxus::core::current_scope_id().0);
+    let rename_trigger_content_id = rename_content_id.clone();
     let mut rename_input = use_signal(|| None::<HtmlInputElement>);
     let mut demo_tool_open = use_signal(|| false);
     use_effect(move || {
@@ -788,7 +799,7 @@ pub fn Library(
                 div { class: "m1-workspace-preferences",
                     Button {
                         variant: ButtonVariant::Ghost,
-                        size: ButtonSize::Default,
+                        size: ButtonSize::Sm,
                         class: "m1-back-link",
                         onclick: move |_| {
                         menu_page.set(super::ProjectMenuPage::Project);
@@ -838,6 +849,8 @@ pub fn Library(
                         span { "Current project" }
                         InputGroup { InputGroupInput {
                             aria_label: "Project name",
+                            aria_invalid: name_failure().is_some(),
+                            aria_describedby: name_failure().is_some().then_some("library-project-name-error"),
 
                             value: "{project_name}",
                             oninput: move |event: FormEvent| { name_failure.set(None); name_dirty.set(true); project_name.set(event.value()); },
@@ -873,7 +886,7 @@ pub fn Library(
                                 }
                             })], } }
                         }
-                    if let Some(message) = name_failure() { FieldError { "{message}" } }
+                    if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
                     span { class: "m1-project-current-status", "Revision {current_revision} · {current_durability}" }
                     }
                 }
@@ -959,7 +972,7 @@ pub fn Library(
                 }
                 }
                 if status() == ListStatus::Loading {
-                    p { role: "status", "Loading saved keyboards…" }
+                    p { role: "status", class: "flex items-center gap-2", Spinner {} "Loading saved keyboards…" }
                 }
                 if recovery_required && runtime.has_pending_edits() {
                     Alert { variant: AlertVariant::Destructive, class: "m1-save-error",
@@ -978,7 +991,7 @@ pub fn Library(
                     Alert { variant: AlertVariant::Destructive, "Saved keyboards could not be loaded. "
                         Button {
                             variant: ButtonVariant::Ghost,
-                            size: ButtonSize::Default,
+                            size: ButtonSize::Sm,
                             class: "m1-library-text-action",
                             onclick: move |_| {
                             if let Some(generation) = retry_generations.get().checked_add(1) {
@@ -1000,7 +1013,8 @@ pub fn Library(
                                 selected_project.set(Some(document));
                                 spawn_local(async move {
                                     gloo_timers::future::TimeoutFuture::new(0).await;
-                                    if selected_project.peek().as_ref().is_none_or(|document| document.id != selected_id)
+                                    let Ok(selected) = selected_project.try_peek() else { return; };
+                                    if selected.as_ref().is_none_or(|document| document.id != selected_id)
                                         || browser.is_some_and(|browser| !(browser.0)()) { return; }
                                     if let Some(button) = web_sys::window().and_then(|window| window.document())
                                         .and_then(|document| document.get_element_by_id("m1-browser-open-keyboard"))
@@ -1031,7 +1045,10 @@ pub fn Library(
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
                         }, "Download raw saved data" }
-                        Button { variant: ButtonVariant::Destructive, class: "m1-project-unreadable-delete", button_type: "button", disabled: record.token.is_none(), onclick: move |_| {
+                        Button { variant: ButtonVariant::Destructive, class: "m1-project-unreadable-delete", button_type: "button", disabled: record.token.is_none(),
+                            aria_haspopup: "dialog", aria_controls: "library-unreadable-delete",
+                            aria_expanded: pending_unreadable().as_ref().is_some_and(|pending| pending.key == record.key),
+                            onclick: move |_| {
                             unreadable_delete_error.set(String::new());
                             pending_unreadable.set(Some(record.clone()));
                         }, "Delete unreadable keyboard…" }
@@ -1063,12 +1080,14 @@ pub fn Library(
                         h2 { "{project_display_name(&document)}" }
                         if current_project_id.as_deref() == Some(document.id.as_str()) {
                             Collapsible { class: "m1-library-selection-rename-disclosure", open: rename_tool_open(), on_open_change: move |open| rename_tool_open.set(open), keep_mounted: true,
-                                CollapsibleTrigger { r#as: move |attributes: Vec<Attribute>| rsx! { Button { attributes, variant: ButtonVariant::Secondary, "Rename project" } } }
-                                CollapsibleContent {
+                                CollapsibleTrigger { r#as: move |attributes: Vec<Attribute>| rsx! { Button { attributes, variant: ButtonVariant::Secondary, aria_expanded: rename_tool_open(), aria_controls: rename_trigger_content_id.clone(), "Rename project" } } }
+                                CollapsibleContent { id: Some(rename_content_id.clone()), hidden: !rename_tool_open(), inert: (!rename_tool_open()).then_some(""),
                                 Label { class: "m1-library-selection-rename",
                                     span { "Project name" }
                                     InputGroup { InputGroupInput {
                                         aria_label: "Project name",
+                            aria_invalid: name_failure().is_some(),
+                            aria_describedby: name_failure().is_some().then_some("library-project-name-error"),
 
 
                                         value: "{project_name}",
@@ -1100,7 +1119,7 @@ pub fn Library(
                                 }
                             }
                         }
-                        if let Some(message) = name_failure() { FieldError { "{message}" } }
+                        if let Some(message) = name_failure() { div { id: "library-project-name-error", FieldError { "{message}" } } }
                         p { class: "m1-library-selection-summary",
                             "{selected_summary}"
                         }
@@ -1116,7 +1135,10 @@ pub fn Library(
                             if current_project_id.as_deref() == Some(document.id.as_str()) {
                                 Button { variant: ButtonVariant::Secondary, onclick: { let runtime = runtime.clone(); move |_| runtime.export_project_copy() }, "Save project copy" }
                             }
-                            Button { variant: ButtonVariant::Destructive, onclick: {
+                            Button { variant: ButtonVariant::Destructive,
+                                aria_haspopup: "dialog", aria_controls: "library-project-delete",
+                                aria_expanded: pending_delete().as_ref().is_some_and(|project| project.id == document.id),
+                                onclick: {
                                 let document = document.clone(); move |_| pending_delete.set(Some(document.clone()))
                             }, "Delete keyboard" }
                         }
@@ -1155,7 +1177,7 @@ pub fn Library(
                     }
                 }
             }
-            AlertDialog {
+            AlertDialog { id: Some("library-project-delete".to_owned()),
                     open: pending_delete_open,
                     on_open_change: move |open: bool| {
                         if !open && !deleting_project() {
@@ -1228,7 +1250,7 @@ pub fn Library(
                         }
                     }
             }
-            AlertDialog {
+            AlertDialog { id: Some("library-unreadable-delete".to_owned()),
                 open: pending_unreadable().is_some(),
                 on_open_change: move |open: bool| {
                     if !open && !deleting_unreadable() {
@@ -1268,7 +1290,7 @@ pub fn Library(
                     }
                 }
             }
-            if pending_new().is_some() { p { role: "status", "Creating keyboard…" } }
+            if pending_new().is_some() { p { role: "status", class: "flex items-center gap-2", Spinner {} "Creating keyboard…" } }
             if !new_error().is_empty() { Alert { variant: AlertVariant::Destructive, "{new_error()}" } }
         }
     }
@@ -1291,9 +1313,9 @@ fn take_project_list_test_result() -> Option<ProjectListTestResult> {
 #[cfg(all(test, target_arch = "wasm32"))]
 mod mounted_tests {
     use super::*;
-    use boardstudio_web_ui_shared::test_role::{by_role_name, all_by_role_name};
     use boardstudio_application::{Completion, Effect, OperationId, SaveResult, Session};
     use boardstudio_core::CoreEngine;
+    use boardstudio_web_ui_shared::test_role::{all_by_role_name, by_role_name};
     use boardstudio_web_ui_shared::test_wait::{
         WAIT_BOUND_MS, wait_for_step, wait_until, wait_until_step,
     };
@@ -1496,7 +1518,11 @@ mod mounted_tests {
         })
         .await;
         assert!(
-            by_role_name(&root, "button", "Open demo").unwrap().get_attribute("aria-expanded").as_deref() == Some("false"),
+            by_role_name(&root, "button", "Open demo")
+                .unwrap()
+                .get_attribute("aria-expanded")
+                .as_deref()
+                == Some("false"),
             "consumed demo must not replay"
         );
         assert_eq!(
@@ -1519,9 +1545,14 @@ mod mounted_tests {
 
     /// The current dialog for deleting a keyboard is open (its DOM `open` attribute).
     fn delete_dialog_open(root: &web_sys::Element) -> bool {
-        root.query_selector("[role=alertdialog]").unwrap().is_some_and(|dialog| {
-            dialog.closest("[data-slot=alert-dialog][data-state=open]").unwrap().is_some()
-        })
+        root.query_selector("[role=alertdialog]")
+            .unwrap()
+            .is_some_and(|dialog| {
+                dialog
+                    .closest("[data-slot=alert-dialog][data-state=open]")
+                    .unwrap()
+                    .is_some()
+            })
     }
 
     /// The title of the only saved keyboard card, when the filtered listing shows one.
@@ -1600,10 +1631,16 @@ mod mounted_tests {
         .await;
         assert!(root.text_content().unwrap().contains("partial-list-future"));
         click(&root, "Delete unreadable keyboard…");
-        wait_until("unreadable deletion exposes an Alert Dialog", || by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").is_some()).await;
+        wait_until("unreadable deletion exposes an Alert Dialog", || {
+            by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").is_some()
+        })
+        .await;
         let dialog = by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").unwrap();
         click(&dialog, "Cancel");
-        wait_until("Cancel keeps the unreadable record", || !delete_dialog_open(&root)).await;
+        wait_until("Cancel keeps the unreadable record", || {
+            !delete_dialog_open(&root)
+        })
+        .await;
         drain_and_yield(&runtime).await;
         assert!(
             runtime
@@ -1614,7 +1651,10 @@ mod mounted_tests {
                 .is_some()
         );
         click(&root, "Delete unreadable keyboard…");
-        wait_until("unreadable deletion confirmation reopens", || by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").is_some()).await;
+        wait_until("unreadable deletion confirmation reopens", || {
+            by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").is_some()
+        })
+        .await;
         let dialog = by_role_name(&root, "alertdialog", "Delete unreadable keyboard?").unwrap();
         click(&dialog, "Delete unreadable keyboard");
         wait_until_step("confirmed unreadable record is deleted", async || {
@@ -1967,7 +2007,9 @@ mod mounted_tests {
     }
 
     fn click(root: &web_sys::Element, name: &str) {
-        by_role_name(root, "button", name).unwrap_or_else(|| panic!("missing button {name}")).click();
+        by_role_name(root, "button", name)
+            .unwrap_or_else(|| panic!("missing button {name}"))
+            .click();
     }
 
     fn remove_test_root(root_id: &str) {
@@ -2006,7 +2048,8 @@ mod mounted_tests {
         })
         .await;
 
-        let copy = by_role_name(&root, "button", "Save project copy…").expect("the Project menu exposes Save project copy");
+        let copy = by_role_name(&root, "button", "Save project copy…")
+            .expect("the Project menu exposes Save project copy");
         assert_eq!(copy.text_content().unwrap().trim(), "Save project copy…");
 
         copy.dyn_into::<web_sys::HtmlElement>().unwrap().click();
@@ -2103,7 +2146,10 @@ mod mounted_tests {
         let dialog = by_role_name(&root, "alertdialog", "Delete “Current board”?").unwrap();
         assert_eq!(dialog.get_attribute("aria-modal").as_deref(), Some("true"));
         click(&dialog, "Cancel");
-        wait_until("Cancel closes the delete dialog", || !delete_dialog_open(&root)).await;
+        wait_until("Cancel closes the delete dialog", || {
+            !delete_dialog_open(&root)
+        })
+        .await;
         // Cancel submits nothing: drain held work, then the store must still hold the record.
         crate::runtime::project_name_test_support::run_pending(&runtime).await;
         assert!(
@@ -2182,10 +2228,7 @@ mod mounted_tests {
         crate::runtime::project_name_test_support::install(&runtime, session, core);
         let root = mount_menu(runtime.clone(), "delete-current-sort-regression");
         wait_for_saved_cards(&root, 3).await;
-        click(
-            &root,
-            "Delete Current keyboard",
-        );
+        click(&root, "Delete Current keyboard");
         wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
         click(&root, "Delete keyboard");
 
@@ -2250,10 +2293,7 @@ mod mounted_tests {
         );
         let root = mount_menu(runtime.clone(), "delete-current-failure-regression");
         wait_for_saved_cards(&root, 2).await;
-        click(
-            &root,
-            "Delete Current keyboard",
-        );
+        click(&root, "Delete Current board");
         wait_until("the delete dialog opens", || delete_dialog_open(&root)).await;
         click(&root, "Delete keyboard");
 
@@ -2266,9 +2306,7 @@ mod mounted_tests {
             },
         )
         .await;
-        assert!(
-            delete_dialog_open(&root)
-        );
+        assert!(delete_dialog_open(&root));
         assert_eq!(
             runtime.model().accepted.unwrap().document.id,
             "delete-failure-current"
@@ -2394,18 +2432,40 @@ mod mounted_tests {
     }
 
     fn field() -> HtmlInputElement {
-        let root = web_sys::window().unwrap().document().unwrap().document_element().unwrap();
-        all_by_role_name(&root, "textbox", "Project name").pop().expect("mounted name field").dyn_into().unwrap()
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .document_element()
+            .unwrap();
+        all_by_role_name(&root, "textbox", "Project name")
+            .pop()
+            .expect("mounted name field")
+            .dyn_into()
+            .unwrap()
     }
 
     fn name_field_rendered() -> bool {
-        let root = web_sys::window().unwrap().document().unwrap().document_element().unwrap();
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .document_element()
+            .unwrap();
         !all_by_role_name(&root, "textbox", "Project name").is_empty()
     }
 
     fn search_field() -> HtmlInputElement {
-        let root = web_sys::window().unwrap().document().unwrap().document_element().unwrap();
-        by_role_name(&root, "searchbox", "Search saved keyboards").expect("mounted search").dyn_into().unwrap()
+        let root = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .document_element()
+            .unwrap();
+        by_role_name(&root, "searchbox", "Search saved keyboards")
+            .expect("mounted search")
+            .dyn_into()
+            .unwrap()
     }
 
     fn type_value(input: &HtmlInputElement, value: &str) {
