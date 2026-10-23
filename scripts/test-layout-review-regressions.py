@@ -142,7 +142,7 @@ def pickers(url, captures):
     target = driver.by_role_name("option", "2u")
     box = browser("get", "box", target)
     x, y = round(box["x"]+box["width"]/2), round(box["y"]+box["height"]/2)
-    result = evaluate(f"(()=>{{const c=pickerContent.getBoundingClientRect(),hit=document.elementFromPoint({x},{y});return {{bottom:c.bottom,optionY:{y},overflow:getComputedStyle(pickerContent).overflow,hit:hit?.closest('[role=option]')?.textContent.trim()}}}})()")
+    result = evaluate(f"(()=>{{const c=pickerContent.getBoundingClientRect(),hit=document.elementFromPoint({x},{y});return {{bottom:c.bottom,optionY:{y},overflow:getComputedStyle(pickerContent).overflow,hit:hit?.closest('[role=option]')?.textContent.trim()??null}}}})()")
     print("Actual picker boundary", result, flush=True)
     browser("screenshot", str(captures / "key-size-picker-boundary.png"))
     assert result["optionY"] > result["bottom"] and result["hit"] == "2u", result
