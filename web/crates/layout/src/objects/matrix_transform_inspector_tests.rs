@@ -1319,7 +1319,7 @@ fn column_context(column: u32) -> TreeContext {
 }
 
 fn set_numeric_field(root: &web_sys::Element, label: &str, value: &str) {
-    let input = by_role_name(&root, "spinbutton", label)
+    let input = by_role_name(root, "spinbutton", label)
         .unwrap_or_else(|| panic!("the {label} field is mounted"))
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1419,7 +1419,7 @@ fn button_named(root: &web_sys::Element, label: &str) -> Option<web_sys::HtmlEle
 }
 
 fn field_number(root: &web_sys::Element, label: &str) -> f64 {
-    by_role_name(&root, "spinbutton", label)
+    by_role_name(root, "spinbutton", label)
         .unwrap_or_else(|| panic!("the {label} field is mounted"))
         .dyn_into::<HtmlInputElement>()
         .unwrap()

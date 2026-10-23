@@ -427,6 +427,14 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
 pub(super) fn toolbar(input: ToolbarInput) -> Element {
     rsx! {
             div { class: "m1-layout-toolbar-region",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
                 div { class: "m1-canvas-toolbar",
                     if !input.assembly_3d {
                         objects::LayoutCommandPill {
@@ -970,6 +978,14 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             }
             if input.findings_return_available {
                 div { class: "m1-layout-findings-return",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
                     Button {
                         variant: ButtonVariant::Secondary,
                         class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
@@ -997,6 +1013,14 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
 
             if matrix_context_tabs {
                 Tabs { horizontal: true,
+                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                })],
     value: Some(
                         if (input.inspector_tab)() == LayoutInspectorTab::Properties {
                             "properties".to_owned()

@@ -10,6 +10,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
@@ -45,6 +46,14 @@ pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> 
             variant: ButtonVariant::Secondary,
             class: "m1-canvas-footer-findings",
             id: "m1-layout-findings-trigger",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
             button_type: "button",
             onclick: move |_| on_toggle.call(()),
 
@@ -92,6 +101,10 @@ pub fn LayoutFindingsInspector(
             class: "m1-layout-findings",
             aria_label: "Layout findings",
             onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                }
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     event.stop_propagation();

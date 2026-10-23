@@ -11,6 +11,7 @@ use boardstudio_web_ui_shared::ui::{
     toggle_group::{ToggleGroup, ToggleItem},
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::collections::HashSet;
 use wasm_bindgen::JsCast;
 
@@ -188,6 +189,14 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
 
     rsx! {
                 section { class: "m1-matrix-setup", aria_label: "New matrix",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
                     header { class: "m1-matrix-setup-heading",
                         h2 { "New matrix" }
                     }

@@ -21,6 +21,7 @@ use boardstudio_web_ui_shared::ui::{
 
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -231,6 +232,14 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
     rsx! {
             Collapsible {
                 class: "m1-layout-companion-placement",
+                attributes: vec![dioxus::events::onkeydown(move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                })],
                 keep_mounted: true,
                 open: Some(placement_section_open()),
                 on_open_change: move |next| placement_section_open.set(next),

@@ -334,6 +334,14 @@ pub fn ProjectSetupGuide(
     let mut expanded_for_trigger = expanded;
     rsx! {
             aside { class: "m1-setup-guide", "aria-label": "Project setup guide",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
                 header { class: "m1-setup-guide__header",
                     div {
                         h2 {

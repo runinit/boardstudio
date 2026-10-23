@@ -24,6 +24,7 @@ use boardstudio_web_ui_shared::ui::{
     },
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 
 use super::TreeContext;
 use super::matrix_transform_controller::MatrixTransformInspectorMount;
@@ -676,6 +677,14 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             key: "{owner_key}",
             class: "m1-matrix-inspector m1-matrix-transform-inspector",
             aria_label: "Matrix transform properties",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
             header { class: "m1-matrix-inspector-heading",
                 h2 { "{title}" }
                 span { "{projection.label}" }
@@ -737,7 +746,14 @@ pub fn SelectionDeleteControl(mount: MatrixTransformInspectorMount) -> Element {
         div {
             class: "m1-canvas-delete",
             onpointerdown: move |event| event.stop_propagation(),
-            onkeydown: move |event| event.stop_propagation(),
+            onkeydown: move |event: KeyboardEvent| {
+                event.stop_propagation();
+                if event.key().to_string() == " "
+                    && let Some(raw) = event.data().try_as_web_event()
+                {
+                    raw.stop_propagation();
+                }
+            },
             ResetTransformButton {
                 label,
                 owner: projection.owner.clone(),
@@ -1356,7 +1372,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
 
             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
             for (id, label) in props.choices.iter() {
-                control_choices.push((format!("{}", id), format!("{}", label), false));
+                control_choices.push((id.to_string(), label.to_string(), false));
             }
 
             let on_value_change = EventHandler::new(move |choice: Option<String>| {
@@ -1529,7 +1545,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
 
                                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                 for (id, label) in choices.iter() {
-                                    control_choices.push((format!("{}", id), format!("{}", label), false));
+                                    control_choices.push((id.to_string(), label.to_string(), false));
                                 }
 
                                 let on_value_change = EventHandler::new({

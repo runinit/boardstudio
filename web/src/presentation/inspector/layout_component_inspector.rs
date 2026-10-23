@@ -1191,6 +1191,14 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 section {
                     class: "m1-layout-component-inspector",
                     aria_label: "Component inspector",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
                     header { class: "m1-layout-component-inspector-heading",
                         h2 { "{projection.reference}" }
                         if projection.locked {
@@ -1297,7 +1305,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     control_choices.push(("".to_owned(), "Board / ungrouped".to_owned(), false));
                                     for layout in &projection.layouts {
                                         control_choices
-                                            .push((format!("{}", layout.id), format!("{}", layout.name), false));
+                                            .push((layout.id.to_string(), layout.name.to_string(), false));
                                     }
                                     let on_value_change = EventHandler::new({
                 let latest_capture = latest_capture;
@@ -1682,14 +1690,14 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                 if !board_parts.iter().any(|part| part.id == source_part_id()) {
                                                     control_choices
                                                         .push((
-                                                            format!("{}", source_part_id),
-                                                            format!("{}", constraint_source_reference),
+                                                            source_part_id.to_string(),
+                                                            constraint_source_reference.to_string(),
                                                             false,
                                                         ));
                                                 }
                                                 for part in board_parts.iter().filter(|part| part.id != owner.part_id) {
                                                     control_choices
-                                                        .push((format!("{}", part.id), format!("{}", part.reference), false));
+                                                        .push((part.id.to_string(), part.reference.to_string(), false));
                                                 }
                                                 let on_value_change = EventHandler::new({
                 let board_parts = board_parts.clone();

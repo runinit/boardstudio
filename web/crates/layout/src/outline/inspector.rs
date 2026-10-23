@@ -139,6 +139,10 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     let scope = projection.scope.clone();
                                     let board_id = projection.board_id.clone();
                                     move |event: KeyboardEvent| {
+                                        if event.key().to_string() == " " {
+                                            event.stop_propagation();
+                                            if let Some(raw) = event.data().try_as_web_event() { raw.stop_propagation(); }
+                                        }
                                         if event.data().key().to_string() != "Escape" {
                                             return;
                                         }
@@ -379,6 +383,14 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                         }
                     } else {
                         section { class: "m1-outline-inspector", "aria-label": "Board outline",
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() {
+                                    raw.stop_propagation();
+                                }
+                            }
+                        },
                             div { class: "m1-outline-inspector-heading",
                                 h2 { "Board outline" }
                                 span { class: "m1-outline-board-name", "{projection.board_name}" }
@@ -416,7 +428,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     control_choices.push(("".to_owned(), "Generated".to_owned(), false));
                                     for item in projection.versions.iter() {
                                         control_choices
-                                            .push((format!("{}", item.id), format!("{}", item.label()), false));
+                                            .push((item.id.to_string(), item.label().to_string(), false));
                                     }
                                     let on_value_change = EventHandler::new({
                 let action_context = action_context.clone();
@@ -1293,11 +1305,11 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                                                 .filter(|id| !projection.outline_parts.iter().any(|part| &part.id == *id))
                                                             {
                                                                 control_choices
-                                                                    .push((format!("{}", id), "Missing component".to_owned(), false));
+                                                                    .push((id.to_string(), "Missing component".to_owned(), false));
                                                             }
                                                             for part in projection.outline_parts.iter() {
                                                                 control_choices
-                                                                    .push((format!("{}", part.id), format!("{}", part.reference), false));
+                                                                    .push((part.id.to_string(), part.reference.to_string(), false));
                                                             }
                                                             let on_value_change = EventHandler::new({
                 let action_context = action_context.clone();

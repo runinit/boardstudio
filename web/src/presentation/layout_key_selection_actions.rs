@@ -9,6 +9,7 @@ use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
 type Cells = BTreeMap<String, Vec<(u32, u32)>>;
@@ -383,6 +384,14 @@ pub(super) fn SelectedKeysActions() -> Element {
         section {
             class: "m1-layout-component-inspector",
             aria_label: "Selected keys across matrices",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
             h3 { "{count} keys across {matrix_count} matrices" }
             div { class: "m1-layout-transform-actions",
                 Button {

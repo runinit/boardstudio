@@ -674,3 +674,32 @@ The current owned Rust formatting check reports real formatting differences
 (`owned-rustfmt-check.log`). These will be corrected with rustfmt on owned changed
 files only (skip_children), preserving the checkpointed code and checking the diff;
 no dx formatter, shared-file overwrite or history surgery.
+
+
+Native Space floor continuation: actual 2D receives zero trusted clicks at served
+`16cedbff` (`layout-view-native-space-red.log`), independently confirming the same
+window-pan interference as the actual Matrix choice. The persistent view test now
+requires one trusted Space click and retained pressed state in every combination.
+Connected inventory shows MatrixSetup is mounted on the canvas/guide, not inside
+Objects, so the Objects fence alone is insufficient. Added the same Space-only
+raw+virtual propagation stop to existing owned control containers: MatrixSetup,
+MirroredPairForm, MatrixInspector, MatrixTransformInspector, KeySizeControls,
+Outline's normal/point editors, guide, findings, component/companion/relations/
+selected-keys panels, Layout toolbar and Inspector tabs/return action. The canvas
+Delete container retains its original broad virtual stop and gains only raw Space
+isolation; viewer Retry actions and findings footer are guarded individually.
+Native default is never prevented, existing Escape/typing/arrow handlers remain,
+and canvas drawing roots, the global listener, 015 exact scoped guard, state and
+callbacks are unchanged. The two primitive roots use their existing attributes
+vectors: primitive Tabs/Collapsible roots have no internal key handler to overwrite;
+unsupported convenience-prop compile errors are retained in clippy3.
+
+Owned rustfmt completed at `293e2acb`; cargo fmt --all --check passed. Read the
+whitespace-ignored connected diff (`owned-rustfmt-connected-diff.log`); differences
+are wrapping, block formatting and optional trailing commas, no callback rewrites.
+Clippy1 found generated useless string formatting plus two redundant test borrows;
+corrected only owned expressions, preserving Display text and precise arithmetic.
+Clippy2 found a collapsible conditional in the new raw-only Delete fence; fixed it.
+`layout-owned-clippy-4.log` passes all-target WASM clippy with warnings denied for
+boardstudio-web, boardstudio-web-layout and boardstudio-web-ui-shared, including
+all connected test compilation. Prior failures remain; no lint/behavior is waived.

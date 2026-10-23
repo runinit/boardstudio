@@ -12,6 +12,7 @@ use boardstudio_web_ui_shared::ui::{
     item::Item,
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 
 #[derive(Props, Clone, PartialEq)]
 pub(super) struct MatrixRelationsPanelProps {
@@ -47,6 +48,14 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     rsx! {
         section {
             class: "m1-layout-component-inspector",
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key().to_string() == " " {
+                    event.stop_propagation();
+                    if let Some(raw) = event.data().try_as_web_event() {
+                        raw.stop_propagation();
+                    }
+                }
+            },
             aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
             section {

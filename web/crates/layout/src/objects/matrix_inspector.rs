@@ -21,6 +21,7 @@ use boardstudio_web_ui_shared::ui::{
 
 use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MatrixNameTarget {
@@ -390,6 +391,14 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     // create an identity boundary in Dioxus static templates.
     rsx! {
         section { class: "m1-matrix-inspector", aria_label: "Matrix inspector",
+        onkeydown: move |event: KeyboardEvent| {
+            if event.key().to_string() == " " {
+                event.stop_propagation();
+                if let Some(raw) = event.data().try_as_web_event() {
+                    raw.stop_propagation();
+                }
+            }
+        },
             header { class: "m1-matrix-inspector-heading",
                 h2 { "Matrix" }
                 span { "{projection.matrix_label}" }
@@ -555,8 +564,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             for preset in MatrixPreset::ALL {
                                 control_choices
                                     .push((
-                                        format!("{}", preset.as_str()),
-                                        format!("{}", preset.label()),
+                                        preset.as_str().to_string(),
+                                        preset.label().to_string(),
                                         false,
                                     ));
                             }
@@ -1141,7 +1150,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
 
                             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                             for (value, label) in choices {
-                                control_choices.push((format!("{}", value), format!("{}", label), false));
+                                control_choices.push((value.to_string(), label.to_string(), false));
                             }
 
                             let on_value_change = EventHandler::new(move |choice: Option<String>| {

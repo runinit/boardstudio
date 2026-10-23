@@ -16,6 +16,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 
 mod canvas_overlay;
 pub use canvas_overlay::MirroredPairCanvasOverlay;
@@ -203,6 +204,14 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                 section {
                     class: "m1-matrix-setup m1-mirrored-pair-setup",
                     aria_label: "New mirrored pair",
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key().to_string() == " " {
+                            event.stop_propagation();
+                            if let Some(raw) = event.data().try_as_web_event() {
+                                raw.stop_propagation();
+                            }
+                        }
+                    },
                     header { class: "m1-matrix-setup-heading",
                         h2 { "Mirrored pair" }
                     }

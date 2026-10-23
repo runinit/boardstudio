@@ -785,8 +785,8 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 for option in owner.options.iter() {
                                     control_choices
                                         .push((
-                                            format!("{}", option.matrix_id),
-                                            format!("{}", option.label),
+                                            option.matrix_id.to_string(),
+                                            option.label.to_string(),
                                             false,
                                         ));
                                 }

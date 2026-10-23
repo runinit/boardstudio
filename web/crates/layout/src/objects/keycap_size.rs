@@ -10,6 +10,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::cell::{Cell, RefCell};
 
 #[derive(Clone)]
@@ -179,6 +180,14 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
 
     rsx! {
         section { class: "m1-key-size", aria_label: "Key size",
+        onkeydown: move |event: KeyboardEvent| {
+            if event.key().to_string() == " " {
+                event.stop_propagation();
+                if let Some(raw) = event.data().try_as_web_event() {
+                    raw.stop_propagation();
+                }
+            }
+        },
             {
                 let units = draft();
                 let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
@@ -223,7 +232,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                 if mixed || draft().x.min(draft().y) != 1.0 {
                     control_choices
-                        .push(("custom".to_owned(), format!("{}", value_label), false));
+                        .push(("custom".to_owned(), value_label.to_string(), false));
                 }
                 for step in 4..=28 {
                     control_choices

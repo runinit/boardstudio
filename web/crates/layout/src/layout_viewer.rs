@@ -19,6 +19,7 @@ use boardstudio_web_ui_shared::ui::{
 };
 
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::Cell, rc::Rc};
 #[cfg(test)]
 use std::{future::Future, pin::Pin};
@@ -357,6 +358,14 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() {
+                                    raw.stop_propagation();
+                                }
+                            }
+                        },
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
 
                         "Retry keycaps"
@@ -417,6 +426,14 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                     Button {
                         variant: ButtonVariant::Secondary,
                         button_type: "button",
+                        onkeydown: move |event: KeyboardEvent| {
+                            if event.key().to_string() == " " {
+                                event.stop_propagation();
+                                if let Some(raw) = event.data().try_as_web_event() {
+                                    raw.stop_propagation();
+                                }
+                            }
+                        },
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
 
                         "Retry keycaps"
