@@ -52,6 +52,24 @@ all changed callers. Require native/contract and WASM compilation, not just serd
 
 ## Progress
 
+### Implementation checkpoints — 2026-10-23
+
+- [x] A — grouped-v7 records and `matrixIds` reach the real Core Open,
+  serialization and projection path. The retained
+  `grouped_v7_records_and_layout_membership_round_trip_through_core` tracer failed
+  with `missing field matrixId` (`06-tracer-red.log`) and passes in
+  `.evidence/ergogen-17/15-tracer-green.log`. Its authored numeric literals now use
+  floating-point JSON numbers so exact serialization comparisons test the schema,
+  not serde_json's integer/float representation distinction. Shift/Bend and anchor
+  records are persisted; document evaluation refuses unresolved anchor contexts.
+- [ ] B — complete every removed-field caller and fixture; Core library and the
+  integration test binary compile, but workspace/WASM callers are still in progress.
+- [ ] C — complete validation/default/growth/ownership acceptance.
+- [ ] D — complete browser/archive/direct-Open strict admission gates.
+- [ ] E — complete kernel production-state coverage and final changed-file gate.
+
+Checkpoint success is not ticket acceptance or approval to use user-data stores.
+
 The acceptance is a multi-session coordinated cutover. Planned green increments:
 
 1. Public Core Open/serialization/projection tracer: grouped records, kernel-backed

@@ -134,17 +134,8 @@ fn stagger(column: u32, value: f64) -> EditOperation {
 
 /// The spec's derived axis formula, computed independently of `location`.
 fn expected_axis(matrix: &Matrix, column: usize) -> Vec2 {
-    let splays = &matrix.column_splays;
+    let splays = &matrix.column_layout.iter().map(|record| record.splay).collect::<Vec<_>>();
     let mut theta: f64 = splays.iter().take(column).sum();
-    if matrix
-        .column_origins
-        .get(column)
-        .copied()
-        .flatten()
-        .is_some()
-    {
-        theta += splays.get(column).copied().unwrap_or(0.0);
-    }
     let (sin, cos) = theta.to_radians().sin_cos();
     // R(theta) applied to local (0, 1).
     let mut point = Vec2 { x: -sin, y: cos };
@@ -182,7 +173,7 @@ fn axis_case(label: &str, configure: impl FnOnce(&mut Matrix)) {
         );
         let before = at(&doc, &member("main", 0, column));
         let current = doc.matrices[0]
-            .column_staggers
+            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
             .get(column as usize)
             .copied()
             .unwrap_or(0.0);
@@ -204,13 +195,28 @@ fn stagger_axis_matches_location() {
     axis_case("mirror_x", |matrix| matrix.mirror = Some(Mirror::X));
     axis_case("mirror_y", |matrix| matrix.mirror = Some(Mirror::Y));
     axis_case("default splay origins", |matrix| {
-        matrix.column_splays = vec![10.0, -15.0, 5.0];
+        {
+                let values = vec![10.0, -15.0, 5.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
     });
     // A custom origin on column 1 is "on the column itself" for column 1, "on a
     // later column" for column 0 and "on an earlier column" for column 2.
     axis_case("custom origin on column 1", |matrix| {
-        matrix.column_splays = vec![10.0, -15.0, 5.0];
-        matrix.column_origins = vec![None, Some(Vec2 { x: 25.0, y: -12.0 }), None];
+        {
+                let values = vec![10.0, -15.0, 5.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+        {
+                let values = (vec![None, Some(Vec2 { x: 25.0, y: -12.0 }), None]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
     });
 }
 
@@ -218,7 +224,12 @@ fn stagger_axis_matches_location() {
 fn column_stagger_moves_this_and_following_columns() {
     let (mut engine, _, doc) = fixture(1, 3);
     let mut matrix = doc.matrices[0].clone();
-    matrix.column_staggers = vec![0.0, 2.0, -1.0];
+    {
+                let values = vec![0.0, 2.0, -1.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.stagger = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
     let (_, doc) = edit(
         &mut engine,
         &doc,
@@ -231,7 +242,7 @@ fn column_stagger_moves_this_and_following_columns() {
         .map(|column| at(&doc, &member("main", 0, column)))
         .collect();
     let (_, after) = edit(&mut engine, &doc, stagger(1, 5.0));
-    assert_eq!(after.matrices[0].column_staggers, vec![0.0, 5.0, -1.0]);
+    assert_eq!(after.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![0.0, 5.0, -1.0]);
     assert_eq!(at(&after, &member("main", 0, 0)), before[0]);
     assert!(close(
         delta(before[1], at(&after, &member("main", 0, 1))),
@@ -274,7 +285,7 @@ fn column_offset_moves_only_its_column() {
         }
     }
     assert_eq!(
-        after.matrices[0].column_offsets[1],
+        after.matrices[0].column_layout[1].offset,
         Vec2 { x: 4.0, y: -2.0 }
     );
 }
@@ -309,7 +320,7 @@ fn row_offset_moves_only_its_row() {
             }
         }
     }
-    assert_eq!(after.matrices[0].row_offsets[1], Vec2 { x: 3.0, y: 5.0 });
+    assert_eq!(after.matrices[0].row_layout[1].offset, Vec2 { x: 3.0, y: 5.0 });
 }
 
 fn companion_matrix() -> Matrix {
@@ -541,8 +552,8 @@ fn linked_halves_sync() {
                 change: MatrixPlacementChange::ColumnStagger { column: 0, value },
             },
         );
-        assert_eq!(after.matrices[0].column_staggers[0], value);
-        assert_eq!(after.matrices[1].column_staggers[0], value);
+        assert_eq!(after.matrices[0].column_layout[0].stagger, value);
+        assert_eq!(after.matrices[1].column_layout[0].stagger, value);
         assert_reflected_keys(&after);
     }
 }
@@ -611,7 +622,7 @@ fn preview_and_undo() {
     };
     assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
     let (committed, after) = edit(&mut engine, &doc, operation);
-    assert_eq!(after.matrices[0].column_staggers[0], 2.0);
+    assert_eq!(after.matrices[0].column_layout[0].stagger, 2.0);
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undone.matrices, doc.matrices);
@@ -739,37 +750,77 @@ fn convert_case(label: &str, column: u32, configure: impl FnOnce(&mut Matrix)) -
         convert(&before.matrices[0].id, column),
     );
     assert_same_poses(&before, &after, label);
-    assert_eq!(after.matrices[0].column_offsets[column as usize].y, 0.0);
+    assert_eq!(after.matrices[0].column_layout[column as usize].offset.y, 0.0);
     after.matrices[0].clone()
 }
 
 #[test]
 fn convert_preserves_poses_on_an_unsplayed_column() {
     let matrix = convert_case("middle", 1, |matrix| {
-        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 1.5, y: -9.525 }, Vec2::default()];
-        matrix.column_staggers = vec![0.0, 2.0, 1.0];
+        {
+                let values = vec![Vec2::default(), Vec2 { x: 1.5, y: -9.525 }, Vec2::default()];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
+        {
+                let values = vec![0.0, 2.0, 1.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.stagger = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
     });
-    assert_eq!(matrix.column_staggers, vec![0.0, 2.0 - 9.525, 1.0 + 9.525]);
-    assert_eq!(matrix.column_offsets[1].x, 1.5);
+    assert_eq!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![0.0, 2.0 - 9.525, 1.0 + 9.525]);
+    assert_eq!(matrix.column_layout[1].offset.x, 1.5);
 }
 
 #[test]
 fn convert_preserves_poses_on_the_last_column_and_a_custom_origin() {
     let matrix = convert_case("last", 2, |matrix| {
-        matrix.column_offsets = vec![Vec2::default(), Vec2::default(), Vec2 { x: 0.0, y: 4.0 }];
+        {
+                let values = vec![Vec2::default(), Vec2::default(), Vec2 { x: 0.0, y: 4.0 }];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     });
-    assert_eq!(matrix.column_staggers, vec![0.0, 0.0, 4.0]);
+    assert_eq!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![0.0, 0.0, 4.0]);
     convert_case("custom origin with splay", 1, |matrix| {
         matrix.rotation = Some(20.0);
         matrix.mirror = Some(Mirror::X);
-        matrix.column_splays = vec![10.0, -15.0, 5.0];
-        matrix.column_origins = vec![None, Some(Vec2 { x: 25.0, y: -12.0 }), None];
-        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.5, y: 3.0 }, Vec2::default()];
+        {
+                let values = vec![10.0, -15.0, 5.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+        {
+                let values = (vec![None, Some(Vec2 { x: 25.0, y: -12.0 }), None]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
+        {
+                let values = vec![Vec2::default(), Vec2 { x: 0.5, y: 3.0 }, Vec2::default()];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     });
     // Converting column 1: a splayed default-origin neighbour (column 2) must not move.
     convert_case("splay on a later column only", 1, |matrix| {
-        matrix.column_splays = vec![0.0, 0.0, 12.0];
-        matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.0, y: -2.0 }, Vec2::default()];
+        {
+                let values = vec![0.0, 0.0, 12.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+        {
+                let values = vec![Vec2::default(), Vec2 { x: 0.0, y: -2.0 }, Vec2::default()];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     });
 }
 
@@ -777,8 +828,18 @@ fn convert_preserves_poses_on_the_last_column_and_a_custom_origin() {
 fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
     let (mut engine, _, doc) = fixture(1, 3);
     let mut matrix = doc.matrices[0].clone();
-    matrix.column_splays = vec![0.0, 15.0, 0.0];
-    matrix.column_offsets = vec![Vec2::default(), Vec2 { x: 0.0, y: 3.0 }, Vec2::default()];
+    {
+                let values = vec![0.0, 15.0, 0.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+    {
+                let values = vec![Vec2::default(), Vec2 { x: 0.0, y: 3.0 }, Vec2::default()];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     let (_, before) = edit(
         &mut engine,
         &doc,
@@ -827,9 +888,9 @@ fn convert_applies_to_both_linked_halves() {
     assert_same_poses(&doc, &after, "linked");
     for id in ["left-matrix", "right-matrix"] {
         let matrix = after.matrices.iter().find(|item| item.id == id).unwrap();
-        assert_eq!(matrix.column_offsets[1].y, 0.0, "{id}");
-        assert_eq!(matrix.column_staggers[1], -9.525, "{id}");
-        assert_eq!(matrix.column_staggers[2], 9.525, "{id}");
+        assert_eq!(matrix.column_layout[1].offset.y, 0.0, "{id}");
+        assert_eq!(matrix.column_layout[1].stagger, -9.525, "{id}");
+        assert_eq!(matrix.column_layout[2].stagger, 9.525, "{id}");
     }
     assert_reflected_keys(&after);
 }
@@ -844,13 +905,29 @@ fn placement_survives_save_and_reopen_unnormalized() {
     let mut configured = companion_matrix();
     configured.rows = 2;
     configured.columns = 3;
-    configured.column_staggers = vec![0.0, 4.5, -2.0];
-    configured.column_offsets = vec![
+    {
+                let values = vec![0.0, 4.5, -2.0];
+                configured.column_layout.resize_with(values.len().max(configured.column_layout.len()), Default::default);
+                for record in &mut configured.column_layout { record.stagger = 0.0; }
+                for (record, value) in configured.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
+    {
+                let values = vec![
         Vec2::default(),
         Vec2 { x: 0.0, y: -9.525 },
         Vec2 { x: 1.5, y: 0.0 },
     ];
-    configured.row_offsets = vec![Vec2::default(), Vec2 { x: 2.0, y: 1.0 }];
+                configured.column_layout.resize_with(values.len().max(configured.column_layout.len()), Default::default);
+                for record in &mut configured.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in configured.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
+    {
+                let values = vec![Vec2::default(), Vec2 { x: 2.0, y: 1.0 }];
+                let count = values.len().max(configured.row_layout.len());
+                configured.row_layout.resize_with(count, Default::default);
+                for record in &mut configured.row_layout { record.offset = Vec2::default(); }
+                for (record, value) in configured.row_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     configured.cells[0].offset = Some(Vec2 { x: 0.75, y: -0.5 });
     configured.cells[0].rotation = Some(5.0);
     let (_, laid_out) = edit(
@@ -872,7 +949,7 @@ fn placement_survives_save_and_reopen_unnormalized() {
     assert_same_poses(&laid_out, &reopened, "reopened poses");
     assert_same_poses(&laid_out, &again, "settled poses");
     assert_eq!(
-        reopened.matrices[0].column_offsets[1],
+        reopened.matrices[0].column_layout[1].offset,
         Vec2 { x: 0.0, y: -9.525 },
         "the old-toolbar offset is kept, not converted"
     );

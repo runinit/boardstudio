@@ -3359,7 +3359,7 @@ mod tests {
                 id: "layout-main".into(),
                 name: "Canonical layout".into(),
                 board_id: fixture::BOARD_ID.into(),
-                matrix_id: fixture::MATRIX_ID.into(),
+                matrix_ids: vec![fixture::MATRIX_ID.into()],
                 part_ids: vec![],
                 mirror_link: None,
             });

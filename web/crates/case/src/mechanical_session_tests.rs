@@ -110,7 +110,7 @@ fn column_stagger(runtime: &Runtime) -> f64 {
         .expect("an accepted document")
         .document
         .matrices[0]
-        .column_staggers
+        .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
         .first()
         .copied()
         .unwrap_or(0.0)
@@ -240,7 +240,7 @@ fn matrix_then_mechanical_settles_in_order_and_undoes_one_step_each() {
             mounting_hole(),
             mechanical_saw.clone(),
             // The mechanical resolver only sees the matrix edit once it has landed.
-            Box::new(|document| document.matrices[0].column_staggers.first().copied() == Some(1.5)),
+            Box::new(|document| document.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().first().copied() == Some(1.5)),
         ),
     );
     assert!(
@@ -300,7 +300,7 @@ fn mechanical_then_matrix_settles_in_order_and_undoes_one_step_each() {
             },
             mounting_hole(),
             mechanical_saw.clone(),
-            Box::new(|document| document.matrices[0].column_staggers.is_empty()),
+            Box::new(|document| document.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().is_empty()),
         ),
     );
     let mut matrix_edits = PendingEdits::default();

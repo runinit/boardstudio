@@ -74,7 +74,7 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "source-layout".into(),
         name: "Left half".into(),
         board_id: "board".into(),
-        matrix_id: "matrix".into(),
+        matrix_ids: vec!["matrix".into()],
         part_ids: vec!["selected-part".into()],
         mirror_link: None,
     });
@@ -82,9 +82,11 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         id: "paired-layout".into(),
         name: "Right half".into(),
         board_id: "board".into(),
-        matrix_id: "paired-matrix".into(),
+        matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
         }),
@@ -1583,7 +1585,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-layout".into(),
                 name: "Component half".into(),
                 board_id: "board".into(),
-                matrix_id: "component-matrix".into(),
+                matrix_ids: vec!["component-matrix".into()],
                 part_ids: vec![],
                 mirror_link: None,
             });
@@ -1591,9 +1593,11 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 id: "component-mirror-layout".into(),
                 name: "Component mirror".into(),
                 board_id: "board".into(),
-                matrix_id: "component-paired-matrix".into(),
+                matrix_ids: vec!["component-paired-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
                 }),
@@ -2975,7 +2979,7 @@ mod matrix_relations_panel {
         probe.click("[data-relation-action='reset']");
         probe.land().await;
         assert_eq!(
-            probe.matrix().column_offsets[1],
+            probe.matrix().column_layout[1].offset,
             Vec2 { x: 0.0, y: 0.0 },
             "Reset lands through SetMatrixPlacement"
         );
@@ -2989,7 +2993,7 @@ mod matrix_relations_panel {
             operation_id: probe.runtime.operation(),
         });
         probe.land().await;
-        assert_eq!(probe.matrix().column_offsets[1], Vec2 { x: 1.5, y: 2.0 });
+        assert_eq!(probe.matrix().column_layout[1].offset, Vec2 { x: 1.5, y: 2.0 });
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "Undo restores the departure: {}",
@@ -2999,8 +3003,8 @@ mod matrix_relations_panel {
         probe.click("[data-relation-action='convert']");
         probe.land().await;
         let matrix = probe.matrix();
-        assert_eq!(matrix.column_staggers[1], 2.0);
-        assert_eq!(matrix.column_offsets[1], Vec2 { x: 1.5, y: 0.0 });
+        assert_eq!(matrix.column_layout[1].stagger, 2.0);
+        assert_eq!(matrix.column_layout[1].offset, Vec2 { x: 1.5, y: 0.0 });
         assert!(
             probe.text().contains("2 mm from Column 1, cumulative 2 mm"),
             "Structure shows the new stagger: {}",

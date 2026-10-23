@@ -461,7 +461,7 @@ pub fn LayoutTransformToolOverlay(
         PlacementValue::Stagger(_) => Vec2::default(),
     };
     let stagger_now = matrix
-        .column_staggers
+        .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
         .get(selected_column as usize)
         .copied()
         .unwrap_or(0.0);
@@ -1095,21 +1095,21 @@ fn placement_current(matrix: &Matrix, parameter: PlacementParameter) -> Placemen
     match parameter {
         PlacementParameter::Stagger { column } => PlacementValue::Stagger(
             matrix
-                .column_staggers
+                .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
                 .get(column as usize)
                 .copied()
                 .unwrap_or(0.0),
         ),
         PlacementParameter::ColumnOffset { column } => PlacementValue::Offset(
             matrix
-                .column_offsets
+                .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .get(column as usize)
                 .copied()
                 .unwrap_or_default(),
         ),
         PlacementParameter::RowOffset { row } => PlacementValue::Offset(
             matrix
-                .row_offsets
+                .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .get(row as usize)
                 .copied()
                 .unwrap_or_default(),
@@ -1366,7 +1366,7 @@ fn transform_drag_result(
             delta_degrees: angle
                 - drag
                     .matrix
-                    .column_splays
+                    .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
                     .get(*column as usize)
                     .copied()
                     .unwrap_or(0.0),
@@ -1424,7 +1424,7 @@ fn transform_drag_resolver(
                     column: *column,
                     change: MatrixSplayChange::Angle {
                         angle: matrix
-                            .column_splays
+                            .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
                             .get(*column as usize)
                             .copied()
                             .unwrap_or(0.0)
@@ -1739,7 +1739,7 @@ fn sample_transform(
                 delta = -delta;
             }
             let base = matrix
-                .column_splays
+                .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
                 .get(column as usize)
                 .copied()
                 .unwrap_or(0.0);
@@ -1792,7 +1792,7 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
                 && *angle
                     == drag
                         .matrix
-                        .column_splays
+                        .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
                         .get(*column as usize)
                         .copied()
                         .unwrap_or(0.0)
@@ -1810,7 +1810,7 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
                 && *world
                     == drag
                         .matrix
-                        .column_origins
+                        .column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
                         .get(*column as usize)
                         .copied()
                         .flatten()
@@ -2746,13 +2746,13 @@ mod nudge_tests {
         commit(&runtime, &drag, &last).await;
         let matrix = fixture::accepted_matrix(&runtime);
         assert_eq!(
-            matrix.column_offsets.first(),
+            matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().first(),
             Some(&Vec2 { x: 2.0, y: 1.0 })
         );
-        assert!(matrix.column_staggers.iter().all(|stagger| *stagger == 0.0));
+        assert!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().iter().all(|stagger| *stagger == 0.0));
         assert!(
             matrix
-                .row_offsets
+                .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .iter()
                 .all(|offset| *offset == Vec2::default())
         );
@@ -2770,7 +2770,7 @@ mod nudge_tests {
         support::run_pending(&runtime).await;
         commit(&runtime, &drag, &last).await;
         let matrix = fixture::accepted_matrix(&runtime);
-        assert_eq!(matrix.row_offsets.get(1), Some(&Vec2 { x: 1.0, y: 2.0 }));
+        assert_eq!(matrix.row_layout.iter().map(|record| record.offset).collect::<Vec<_>>().get(1), Some(&Vec2 { x: 1.0, y: 2.0 }));
 
         let mut nudge = nudge_with(
             &runtime,
@@ -2782,29 +2782,35 @@ mod nudge_tests {
         );
         settle_edit(&runtime, &mut nudge).await;
         let matrix = fixture::accepted_matrix(&runtime);
-        let offset = matrix.row_offsets[1];
+        let offset = matrix.row_layout[1].offset;
         assert!(
             (offset.x - 1.0).abs() < 1e-9 && (offset.y - 2.1).abs() < 1e-9,
             "ArrowUp raises the row by 0.1 mm: {offset:?}"
         );
         assert_eq!(
-            matrix.row_offsets.first().copied().unwrap_or_default(),
+            matrix.row_layout.iter().map(|record| record.offset).collect::<Vec<_>>().first().copied().unwrap_or_default(),
             Vec2::default()
         );
         assert!(
             matrix
-                .column_offsets
+                .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .iter()
                 .all(|offset| *offset == Vec2::default())
         );
-        assert!(matrix.column_staggers.iter().all(|stagger| *stagger == 0.0));
+        assert!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().iter().all(|stagger| *stagger == 0.0));
     }
 
     #[wasm_bindgen_test]
     async fn a_column_offset_on_a_splayed_rotated_matrix_follows_the_pointer_in_world_space() {
         let mut document = fixture::matrix_document();
         document.matrices[0].rotation = Some(30.0);
-        document.matrices[0].column_splays = vec![0.0, 20.0, 0.0];
+        {
+                let values = vec![0.0, 20.0, 0.0];
+                let count = values.len().max(document.matrices[0].column_layout.len());
+                document.matrices[0].column_layout.resize_with(count, Default::default);
+                for record in &mut document.matrices[0].column_layout { record.splay = 0.0; }
+                for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
         let runtime = support::new_runtime();
         support::open_document(&runtime, document).await;
         // The first edit syncs the fixture's unlaid poses; the drag is measured after it.
@@ -2844,8 +2850,8 @@ mod nudge_tests {
                 to.y - from.y
             );
         }
-        assert_eq!(after_matrix.column_staggers, before_matrix.column_staggers);
-        assert_eq!(after_matrix.row_offsets, before_matrix.row_offsets);
+        assert_eq!(after_matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), before_matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>());
+        assert_eq!(after_matrix.row_layout.iter().map(|record| record.offset).collect::<Vec<_>>(), before_matrix.row_layout.iter().map(|record| record.offset).collect::<Vec<_>>());
     }
 
     #[wasm_bindgen_test]
@@ -2924,13 +2930,13 @@ mod nudge_tests {
         settle_edit(&runtime, &mut second).await;
         let matrix = fixture::accepted_matrix(&runtime);
         assert!(
-            (matrix.column_staggers[0] - 0.3).abs() < 1e-9,
+            (matrix.column_layout[0].stagger - 0.3).abs() < 1e-9,
             "three steps of 0.1 compose to a stagger of 0.3, got {}",
-            matrix.column_staggers[0]
+            matrix.column_layout[0].stagger
         );
         assert!(
             matrix
-                .column_offsets
+                .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .iter()
                 .all(|offset| *offset == Vec2::default()),
             "the offsets are untouched"
@@ -2952,10 +2958,10 @@ mod nudge_tests {
         let mut drag = drag_edit(&runtime, fixture::MATRIX_ID, stagger_result(0, 2.0));
         settle_edit(&runtime, &mut drag).await;
         let matrix = fixture::accepted_matrix(&runtime);
-        assert_eq!(matrix.column_staggers[0], 3.0);
+        assert_eq!(matrix.column_layout[0].stagger, 3.0);
         assert!(
             matrix
-                .column_offsets
+                .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .iter()
                 .all(|offset| *offset == Vec2::default())
         );
@@ -2991,7 +2997,7 @@ mod nudge_tests {
         fixture::undo(&runtime).await;
         assert!(
             fixture::accepted_matrix(&runtime)
-                .column_staggers
+                .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
                 .iter()
                 .all(|stagger| *stagger == 0.0),
             "the cancelled drag left no Undo step behind"
@@ -3010,13 +3016,13 @@ mod nudge_tests {
         support::run_pending(&runtime).await;
         commit(&runtime, &drag, &last).await;
         let after = matrix_and_poses(&runtime);
-        assert_eq!(after.0.column_staggers.get(1), Some(&4.0));
+        assert_eq!(after.0.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().get(1), Some(&4.0));
         assert_eq!(revision(&runtime), revision_before + 1, "one accepted edit");
 
         fixture::undo(&runtime).await;
         assert_eq!(
-            matrix_and_poses(&runtime).0.column_staggers,
-            before.0.column_staggers
+            matrix_and_poses(&runtime).0.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(),
+            before.0.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
         );
         redo(&runtime).await;
         assert_eq!(matrix_and_poses(&runtime), after, "Redo restores the drag");
@@ -3040,8 +3046,8 @@ mod nudge_tests {
         settle_edit(&runtime, &mut drag).await;
         settle_edit(&runtime, &mut unrelated).await;
         let matrix = fixture::accepted_matrix(&runtime);
-        assert_eq!(matrix.column_staggers.get(1), Some(&2.0));
-        assert_eq!(matrix.column_offsets.get(2), Some(&Vec2 { x: 1.0, y: 0.0 }));
+        assert_eq!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().get(1), Some(&2.0));
+        assert_eq!(matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().get(2), Some(&Vec2 { x: 1.0, y: 0.0 }));
     }
 
     #[wasm_bindgen_test]
@@ -3067,7 +3073,7 @@ mod nudge_tests {
             "ArrowUp raises the column by 0.1 mm on screen, got {key_y}"
         );
         assert!(
-            fixture::accepted_matrix(&runtime).column_staggers[0] < 0.0,
+            fixture::accepted_matrix(&runtime).column_layout[0].stagger < 0.0,
             "the stagger value falls because the matrix is mirrored"
         );
         // The pair across the stagger axis is not consumed.
@@ -3129,9 +3135,9 @@ mod nudge_tests {
             matrix_named(&runtime, "left-matrix"),
             matrix_named(&runtime, "right-matrix"),
         );
-        assert_eq!(right.column_staggers.get(1), Some(&2.0));
-        assert_eq!(left.column_staggers, right.column_staggers);
-        assert_eq!(left.column_offsets, right.column_offsets);
+        assert_eq!(right.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().get(1), Some(&2.0));
+        assert_eq!(left.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), right.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>());
+        assert_eq!(left.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>(), right.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>());
     }
 }
 
@@ -3635,13 +3641,13 @@ mod tool_tests {
         );
         let matrix = fixture::accepted_matrix(&runtime);
         assert_eq!(
-            matrix.column_offsets.get(1),
+            matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().get(1),
             Some(&Vec2 {
                 x: 9.525,
                 y: 4.7625
             })
         );
-        assert!(matrix.column_staggers.iter().all(|stagger| *stagger == 0.0));
+        assert!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().iter().all(|stagger| *stagger == 0.0));
         gloo_timers::future::TimeoutFuture::new(60).await;
         assert_eq!(
             handle.get_attribute("data-quick-offset").as_deref(),
@@ -3659,9 +3665,9 @@ mod tool_tests {
             (Some("false"), Some("false"))
         );
         let matrix = fixture::accepted_matrix(&runtime);
-        assert!((matrix.column_staggers[1] - 9.525).abs() < 1e-9);
+        assert!((matrix.column_layout[1].stagger - 9.525).abs() < 1e-9);
         assert_eq!(
-            matrix.column_offsets.get(1),
+            matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().get(1),
             Some(&Vec2 {
                 x: 9.525,
                 y: 4.7625

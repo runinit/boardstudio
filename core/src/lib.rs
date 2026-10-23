@@ -1356,7 +1356,7 @@ mod preview_backup_tests {
             id: "layout:main".into(),
             name: "Main".into(),
             board_id: "board:main".into(),
-            matrix_id: "main".into(),
+            matrix_ids: vec!["main".into()],
             part_ids: vec!["layout-component".into()],
             mirror_link: None,
         });

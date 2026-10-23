@@ -61,10 +61,10 @@ fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
     document["formatVersion"] = json!(7);
     document["constraints"] = json!([]);
     document["matrices"][0]["columnLayout"] = json!([
-        {"rotation": 90}, {"spread": 30, "stagger": 4, "offset": {"x": 2, "y": 0}}
+        {"rotation": 90.0}, {"spread": 30.0, "stagger": 4.0, "offset": {"x": 2.0, "y": 0.0}}
     ]);
     document["matrices"][0]["rowLayout"] = json!([
-        {"shift": {"x": 3, "y": 0}, "bend": 90, "offset": {"x": 1, "y": 0}}
+        {"shift": {"x": 3.0, "y": 0.0}, "bend": 90.0, "offset": {"x": 1.0, "y": 0.0}}
     ]);
     document["layouts"] = json!([{
         "id": "layout", "name": "Layout", "boardId": "board",

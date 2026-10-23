@@ -604,7 +604,7 @@ fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
         _ => {}
     }
     let splay = -matrix
-        .column_splays
+        .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
         .iter()
         .take(column + 1)
         .sum::<f64>()
@@ -1282,6 +1282,8 @@ mod tests {
         document.layouts[right_index].board_id = left.board_id.clone();
         document.layouts[right_index].mirror_link =
             Some(boardstudio_core::model::LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
                 source_id: left.id.clone(),
                 axis_x: 0.0,
             });

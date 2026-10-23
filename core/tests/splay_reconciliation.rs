@@ -120,15 +120,15 @@ fn preview_and_commit_have_equal_matrix_projection_and_history_roundtrips() {
         snapshot
             .matrices
             .iter()
-            .all(|matrix| matrix.column_splays[1] == 0.0)
+            .all(|matrix| matrix.column_layout[1].splay == 0.0)
     );
     let (committed, doc) = scene(engine.handle(edit(0, EditPhase::Commit, change)));
     assert_eq!(preview.matrix_scenes, committed.matrix_scenes);
-    assert_eq!(doc.matrices[0].column_splays[1], 25.0);
+    assert_eq!(doc.matrices[0].column_layout[1].splay, 25.0);
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
-    assert_eq!(undone.matrices[0].column_splays[1], 0.0);
+    assert_eq!(undone.matrices[0].column_layout[1].splay, 0.0);
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(redone.matrices[0].column_splays[1], 25.0);
+    assert_eq!(redone.matrices[0].column_layout[1].splay, 25.0);
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         snapshot
             .matrices
             .iter()
-            .all(|matrix| matrix.column_splays[1] == 0.0)
+            .all(|matrix| matrix.column_layout[1].splay == 0.0)
     );
     let (committed, doc) = scene(engine.handle(edit(
         0,
@@ -162,12 +162,12 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         },
     )));
     assert_eq!(
-        doc.matrices[0].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        doc.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: -17.0, y: 4.0 }
     );
     assert_eq!(
-        doc.matrices[1].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        doc.matrices[1].column_layout[1].splay_origin,
+        Vec2 { x: -17.0, y: 4.0 }
     );
     let left = committed
         .matrix_scenes
@@ -192,14 +192,14 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         EditPhase::Commit,
         MatrixSplayChange::Origin { world: None },
     )));
-    assert_eq!(reset.matrices[0].column_origins[1], None);
+    assert_eq!(reset.matrices[0].column_layout[1].splay_origin, Vec2::default());
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
     assert_eq!(
-        undone.matrices[0].column_origins[1],
-        Some(Vec2 { x: 3.0, y: 4.0 })
+        undone.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: -17.0, y: 4.0 }
     );
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(redone.matrices[0].column_origins[1], None);
+    assert_eq!(redone.matrices[0].column_layout[1].splay_origin, Vec2::default());
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn editing_the_mirrored_half_updates_both_projections() {
         document
             .matrices
             .iter()
-            .all(|matrix| matrix.column_origins[1] == Some(Vec2 { x: 7.0, y: -13.0 }))
+            .all(|matrix| matrix.column_layout[1].splay_origin == Vec2 { x: -13.0, y: -13.0 })
     );
     let left = &committed.matrix_scenes[0];
     let right = &committed.matrix_scenes[1];
@@ -233,7 +233,7 @@ fn editing_the_mirrored_half_updates_both_projections() {
         undone
             .matrices
             .iter()
-            .all(|matrix| matrix.column_origins.is_empty())
+            .all(|matrix| matrix.column_layout.iter().all(|record| record.splay_origin == Vec2::default()))
     );
     let (redone, _) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     assert_eq!(redone.matrix_scenes, committed.matrix_scenes);

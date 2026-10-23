@@ -414,7 +414,7 @@ fn prepare_existing_half(
                 id,
                 name,
                 board_id: board_id.to_owned(),
-                matrix_id: source.id.clone(),
+                matrix_ids: vec![source.id.clone()],
                 part_ids: Vec::new(),
                 mirror_link: None,
             };
@@ -440,9 +440,11 @@ fn prepare_existing_half(
             id: target_layout_id.clone(),
             name: target_name,
             board_id: board_id.to_owned(),
-            matrix_id: target_matrix_id.clone(),
+            matrix_ids: vec![target_matrix_id.clone()],
             part_ids: Vec::new(),
             mirror_link: Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
                 source_id: source_layout.id,
                 axis_x,
             }),

@@ -931,19 +931,34 @@ mod projection_tests {
         m.pitch.x = f64::NAN;
         assert!(valid_projection_matrix(&m).is_err());
         m.pitch.x = 19.0;
-        m.column_origins = vec![None; m.columns as usize + 1];
+        {
+                let values = (vec![None; m.columns as usize + 1]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
+                for record in &mut m.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
         assert!(valid_projection_matrix(&m).is_err());
-        m.column_origins = vec![Some(Vec2 {
+        {
+                let values = (vec![Some(Vec2 {
             x: f64::NAN,
             y: 0.0,
-        })];
+        })]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
+                for record in &mut m.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
         assert!(valid_projection_matrix(&m).is_err());
     }
 
     #[test]
     fn column_basis_applies_splay_mirror_and_matrix_rotation() {
         let mut m = matrix();
-        m.column_splays = vec![0.0];
+        {
+                let values = vec![0.0];
+                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
+                for record in &mut m.column_layout { record.splay = 0.0; }
+                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
         m.rotation = Some(90.0);
         m.mirror = None;
         let scene = project_matrix(&m, &[], ProjectionMode::Draft).unwrap();

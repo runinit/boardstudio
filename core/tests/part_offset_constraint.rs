@@ -709,7 +709,7 @@ fn mirrored_pair_with_held_left_component(
         id: id.into(),
         name: id.into(),
         board_id: "board".into(),
-        matrix_id: matrix_id.into(),
+        matrix_ids: vec![matrix_id.into()],
         part_ids,
         mirror_link,
     };
@@ -723,6 +723,8 @@ fn mirrored_pair_with_held_left_component(
                 "right-matrix",
                 vec![],
                 Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                 }),

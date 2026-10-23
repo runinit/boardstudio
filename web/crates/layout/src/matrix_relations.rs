@@ -260,7 +260,7 @@ impl View<'_> {
 
     fn stagger(&self, column: u32) -> f64 {
         self.matrix
-            .column_staggers
+            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
             .get(column as usize)
             .copied()
             .unwrap_or(0.0)
@@ -272,7 +272,7 @@ impl View<'_> {
 
     fn splay(&self, column: u32) -> f64 {
         self.matrix
-            .column_splays
+            .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
             .get(column as usize)
             .copied()
             .unwrap_or(0.0)
@@ -280,14 +280,14 @@ impl View<'_> {
 
     fn custom_origin(&self, column: u32) -> bool {
         self.matrix
-            .column_origins
+            .column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
             .get(column as usize)
             .is_some_and(Option::is_some)
     }
 
     fn column_offset(&self, column: u32) -> Vec2 {
         self.matrix
-            .column_offsets
+            .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
             .get(column as usize)
             .copied()
             .unwrap_or(ZERO)
@@ -295,7 +295,7 @@ impl View<'_> {
 
     fn row_offset(&self, row: u32) -> Vec2 {
         self.matrix
-            .row_offsets
+            .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
             .get(row as usize)
             .copied()
             .unwrap_or(ZERO)

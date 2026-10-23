@@ -160,8 +160,18 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(21.0);
         before.columns = 4;
-        before.column_staggers = vec![0.0; 4];
-        before.column_splays = vec![12.0, 8.0, 0.0, 0.0];
+        {
+                let values = vec![0.0; 4];
+                before.column_layout.resize_with(values.len().max(before.column_layout.len()), Default::default);
+                for record in &mut before.column_layout { record.stagger = 0.0; }
+                for (record, value) in before.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
+        {
+                let values = vec![12.0, 8.0, 0.0, 0.0];
+                before.column_layout.resize_with(values.len().max(before.column_layout.len()), Default::default);
+                for record in &mut before.column_layout { record.splay = 0.0; }
+                for (record, value) in before.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
         let after = update(
             &before,
             1,
@@ -189,8 +199,8 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(0.0);
         before.origin = Vec2 { x: 0.0, y: 0.0 };
-        before.column_staggers.clear();
-        before.column_splays.clear();
+        before.column_layout.iter_mut().for_each(|record| record.stagger = 0.0);
+        before.column_layout.iter_mut().for_each(|record| record.splay = 0.0);
         let custom = update(
             &before,
             1,
@@ -226,7 +236,7 @@ mod tests {
         )
         .unwrap();
         let reset = update(&changed, 1, &MatrixSplayChange::Origin { world: None }).unwrap();
-        assert!(reset.column_origins[1].is_none());
+        assert!(reset.column_layout[1].splay_origin.is_none());
         assert!(
             update(
                 &before,

@@ -2340,13 +2340,28 @@ fn mirrored_pair_links_geometry_bidirectionally_and_keeps_hardware_local() {
         let mut matrix = doc.matrices[side].clone();
         matrix.rows = 3;
         matrix.pitch = Vec2 { x: 20.0, y: 18.0 };
-        matrix.column_staggers = vec![2.0, -3.0, 7.0];
-        matrix.column_splays = vec![5.0, 12.0, -8.0];
-        matrix.column_origins = vec![
+        {
+                let values = vec![2.0, -3.0, 7.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.stagger = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
+        {
+                let values = vec![5.0, 12.0, -8.0];
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay = 0.0; }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+        {
+                let values = (vec![
             Some(Vec2 { x: -9.0, y: 17.0 }),
             None,
             Some(Vec2 { x: 25.0, y: -12.0 }),
-        ];
+        ]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
+                for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
         matrix.rotation = Some(13.0);
         matrix
             .cells
@@ -2492,7 +2507,13 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
     )))
     .1;
     let mut right = doc.matrices[1].clone();
-    right.column_staggers = vec![7.0];
+    {
+                let values = vec![7.0];
+                let count = values.len().max(right.column_layout.len());
+                right.column_layout.resize_with(count, Default::default);
+                for record in &mut right.column_layout { record.stagger = 0.0; }
+                for (record, value) in right.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
     doc = scene(engine.handle(edit(
         doc.revision,
         EditPhase::Commit,
@@ -2605,6 +2626,8 @@ fn mirrored_pair_invalid_links_and_failed_previews_do_not_change_document() {
     );
     let mut cycle = doc.layouts[0].clone();
     cycle.mirror_link = Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
         source_id: "right-layout".into(),
         axis_x: 10.0,
     });
@@ -2656,8 +2679,18 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
         document: matrix_doc(),
     });
     let mut value = matrix(6, 7);
-    value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
-    value.column_offsets = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
+    {
+                let values = vec![Vec2 { x: 0.0, y: 0.0 }; 6];
+                value.row_layout.resize_with(values.len().max(value.row_layout.len()), Default::default);
+                for record in &mut value.row_layout { record.offset = Vec2::default(); }
+                for (record, value) in value.row_layout.iter_mut().zip(values) { record.offset = value; }
+            }
+    {
+                let values = vec![Vec2 { x: 0.0, y: 0.0 }; 7];
+                value.column_layout.resize_with(values.len().max(value.column_layout.len()), Default::default);
+                for record in &mut value.column_layout { record.offset = Vec2::default(); }
+                for (record, value) in value.column_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     value.cells = vec![MatrixCell {
         shift: None,
     bend: None,
@@ -2691,8 +2724,8 @@ fn matrix_shrink_discards_out_of_bounds_edits() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].row_offsets.len(), 5);
-    assert_eq!(shrunk.matrices[0].column_offsets.len(), 6);
+    assert_eq!(shrunk.matrices[0].row_layout.iter().map(|record| record.offset).collect::<Vec<_>>().len(), 5);
+    assert_eq!(shrunk.matrices[0].column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().len(), 6);
     assert!(shrunk.matrices[0].cells.is_empty());
     assert!(
         !shrunk
@@ -2710,11 +2743,16 @@ fn new_matrix_rejects_out_of_bounds_edits() {
         document: matrix_doc(),
     });
     let mut value = matrix(1, 1);
-    value.row_offsets = vec![Vec2::default(); 2];
+    {
+                let values = vec![Vec2::default(); 2];
+                value.row_layout.resize_with(values.len().max(value.row_layout.len()), Default::default);
+                for record in &mut value.row_layout { record.offset = Vec2::default(); }
+                for (record, value) in value.row_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     assert!(
         matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "Matrix offsets exceed dimensions")
     );
-    value.row_offsets.clear();
+    value.row_layout.iter_mut().for_each(|record| record.offset = Vec2::default());
     value.cells = vec![MatrixCell {
         shift: None,
     bend: None,
@@ -2743,7 +2781,12 @@ fn matrix_cells_preserve_survivors_and_companions() {
         document: matrix_doc(),
     });
     let mut value = matrix(2, 2);
-    value.row_offsets = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
+    {
+                let values = vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 3.0, y: 0.0 }];
+                value.row_layout.resize_with(values.len().max(value.row_layout.len()), Default::default);
+                for record in &mut value.row_layout { record.offset = Vec2::default(); }
+                for (record, value) in value.row_layout.iter_mut().zip(values) { record.offset = value; }
+            }
     value.cells = vec![
         MatrixCell {
             shift: None,
@@ -3367,8 +3410,18 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     });
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
-    value.column_staggers = vec![0.0, 5.0];
-    value.column_splays = vec![0.0, 90.0];
+    {
+                let values = vec![0.0, 5.0];
+                value.column_layout.resize_with(values.len().max(value.column_layout.len()), Default::default);
+                for record in &mut value.column_layout { record.stagger = 0.0; }
+                for (record, value) in value.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            }
+    {
+                let values = vec![0.0, 90.0];
+                value.column_layout.resize_with(values.len().max(value.column_layout.len()), Default::default);
+                for record in &mut value.column_layout { record.splay = 0.0; }
+                for (record, value) in value.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
@@ -3386,7 +3439,7 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
     assert!((key.pose.at.y - 5.0).abs() < 1e-9);
     assert_eq!(key.pose.rotation, 90.0);
     let reopened: ProjectDoc = serde_json::from_str(&serde_json::to_string(&doc).unwrap()).unwrap();
-    assert_eq!(reopened.matrices[0].column_splays, vec![0.0, 90.0]);
+    assert_eq!(reopened.matrices[0].column_layout.iter().map(|record| record.splay).collect::<Vec<_>>(), vec![0.0, 90.0]);
     let mut value = reopened.matrices[0].clone();
     value.columns = 4;
     value.mirror = Some(Mirror::Y);
@@ -3416,8 +3469,8 @@ fn matrix_cumulative_stagger_splay_survive_growth_and_serialization() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].column_staggers, vec![0.0]);
-    assert_eq!(shrunk.matrices[0].column_splays, vec![0.0]);
+    assert_eq!(shrunk.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![0.0]);
+    assert_eq!(shrunk.matrices[0].column_layout.iter().map(|record| record.splay).collect::<Vec<_>>(), vec![0.0]);
 }
 
 #[test]
@@ -3515,8 +3568,18 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     });
     let mut value = matrix(2, 3);
     value.pitch = Vec2 { x: 20.0, y: 20.0 };
-    value.column_splays = vec![0.0, 90.0];
-    value.column_origins = vec![None, Some(Vec2 { x: 0.0, y: -20.0 })];
+    {
+                let values = vec![0.0, 90.0];
+                value.column_layout.resize_with(values.len().max(value.column_layout.len()), Default::default);
+                for record in &mut value.column_layout { record.splay = 0.0; }
+                for (record, value) in value.column_layout.iter_mut().zip(values) { record.splay = value; }
+            }
+    {
+                let values = (vec![None, Some(Vec2 { x: -20.0, y: -20.0 })]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
+                value.column_layout.resize_with(values.len().max(value.column_layout.len()), Default::default);
+                for record in &mut value.column_layout { record.splay_origin = Vec2::default(); }
+                for (record, value) in value.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            }
     let (_, doc) = scene(engine.handle(edit(
         0,
         EditPhase::Commit,
@@ -3535,8 +3598,8 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
     assert_eq!(key.pose.rotation, 90.0);
     let reopened: ProjectDoc = serde_json::from_str(&serde_json::to_string(&doc).unwrap()).unwrap();
     assert_eq!(
-        reopened.matrices[0].column_origins[1],
-        Some(Vec2 { x: 0.0, y: -20.0 })
+        reopened.matrices[0].column_layout[1].splay_origin,
+        Vec2 { x: -20.0, y: -20.0 }
     );
     let mut value = reopened.matrices[0].clone();
     value.columns = 1;
@@ -3548,11 +3611,11 @@ fn matrix_custom_splay_origin_survives_export_and_resize() {
             definitions: None,
         },
     )));
-    assert_eq!(shrunk.matrices[0].column_origins, vec![None]);
+    assert_eq!(shrunk.matrices[0].column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>(), vec![Vec2::default()]);
     let (_, restored) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(
-        restored.matrices[0].column_origins,
-        reopened.matrices[0].column_origins
+        restored.matrices[0].column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>(),
+        reopened.matrices[0].column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
     );
 }
 

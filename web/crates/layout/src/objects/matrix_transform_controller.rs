@@ -1036,7 +1036,7 @@ fn transform_fields(
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,
             offset: matrix
-                .row_offsets
+                .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                 .get(*row as usize)
                 .copied()
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
@@ -1051,12 +1051,12 @@ fn transform_fields(
             MatrixTransformFields::Column {
                 column: *column,
                 offset: matrix
-                    .column_offsets
+                    .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
                     .get(*column as usize)
                     .copied()
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 stagger: matrix
-                    .column_staggers
+                    .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
                     .get(*column as usize)
                     .copied()
                     .unwrap_or(0.0),

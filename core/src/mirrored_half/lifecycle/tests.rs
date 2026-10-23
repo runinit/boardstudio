@@ -2175,7 +2175,7 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
             id: format!("{half}-layout"),
             name: "Controls".into(),
             board_id: format!("{half}-board"),
-            matrix_id: format!("{half}-matrix"),
+            matrix_ids: vec![format!("{half}-matrix")],
             part_ids: vec![format!("{half}-screen"), format!("{half}-encoder")],
             mirror_link: None,
         });
@@ -2696,7 +2696,7 @@ fn circuit_lifecycle_fixture() -> (ProjectDoc, MembershipContext) {
         id: "independent-layout".into(),
         name: "Independent".into(),
         board_id: "mirror-board".into(),
-        matrix_id: "mirror-matrix".into(),
+        matrix_ids: vec!["mirror-matrix".into()],
         part_ids: vec!["mirror-screen".into()],
         mirror_link: None,
     });

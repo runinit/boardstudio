@@ -130,7 +130,7 @@ fn observed(accepted: &AcceptedSnapshot) -> Observed {
         stagger: document
             .matrices
             .first()
-            .and_then(|matrix| matrix.column_staggers.first().copied())
+            .and_then(|matrix| matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().first().copied())
             .unwrap_or(0.0),
         mechanical: document
             .mechanical
@@ -159,7 +159,7 @@ fn operation(action: Action, accepted: &AcceptedSnapshot) -> EditOperation {
                 .document
                 .matrices
                 .first()
-                .and_then(|matrix| matrix.column_staggers.first().copied())
+                .and_then(|matrix| matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().first().copied())
                 .unwrap_or(0.0);
             EditOperation::SetMatrixPlacement {
                 matrix_id: "main".into(),

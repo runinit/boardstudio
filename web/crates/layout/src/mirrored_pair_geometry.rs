@@ -100,7 +100,7 @@ pub fn project_mirrored_pair(
         id: ids.left_layout_id.clone(),
         name: left_name.to_owned(),
         board_id: board_id.clone(),
-        matrix_id: matrix.id.clone(),
+        matrix_ids: vec![matrix.id.clone()],
         part_ids: Vec::new(),
         mirror_link: None,
     };
@@ -108,9 +108,11 @@ pub fn project_mirrored_pair(
         id: ids.right_layout_id.clone(),
         name: right_name.to_owned(),
         board_id,
-        matrix_id: ids.right_matrix_id.clone(),
+        matrix_ids: vec![ids.right_matrix_id.clone()],
         part_ids: Vec::new(),
         mirror_link: Some(LayoutMirrorLink {
+correspondences: vec![],
+exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
         }),

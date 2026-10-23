@@ -269,7 +269,7 @@ pub fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
         Some(Mirror::Y) => y *= -1.0,
     }
     let splay = -matrix
-        .column_splays
+        .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
         .iter()
         .take(column + 1)
         .sum::<f64>()

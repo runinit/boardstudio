@@ -792,11 +792,11 @@ fn make_edit(
                 .clone();
             let local = local_matrix_delta(&matrix, delta, *column as usize);
             let index = *column as usize;
-            while matrix.column_offsets.len() <= index {
-                matrix.column_offsets.push(Vec2::default());
+            while matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().len() <= index {
+                matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().push(Vec2::default());
             }
-            matrix.column_offsets[index].x += local.x;
-            matrix.column_offsets[index].y += local.y;
+            matrix.column_layout[index].offset.x += local.x;
+            matrix.column_layout[index].offset.y += local.y;
             let id = matrix.id.clone();
             Some((
                 EditOperation::SetMatrix {
