@@ -12,10 +12,10 @@ The project library and Export page, the project-delete confirmation as an Alert
 
 ## Acceptance criteria
 
-- [ ] The library, Export, firmware export and setup-guide rows of the inventory have zero raw controls and zero `Board*` uses
-- [ ] Deleting a project uses an Alert Dialog that starts on the safe action and returns focus; the setup guide's current and ready steps use Stepper and stay freely navigable
+- [x] The library, Export, firmware export and setup-guide rows of the inventory have zero raw controls and zero `Board*` uses
+- [x] Deleting a project uses an Alert Dialog that starts on the safe action and returns focus; the setup guide's current and ready steps use Stepper and stay freely navigable
 - [ ] Existing tests pass after the rewrite rule; Export blockers stay inline
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 
 ## Implementation journal
@@ -224,3 +224,148 @@ Tooltip at desktop and 390px. `browser-verified.log` records a harness stale Toa
 close ref; the unnecessary Toast-dismissal setup is removed. Pointer Export still
 requires an actual hit target and uses a trusted click; no product queue change,
 force activation, delay, retry or weakened assertion was added.
+
+
+## Outcome
+
+Author implementation is complete and ready for the coordinator's **one** combined
+Standards + Spec review. Status remains **claimed**: no ticket resolution,
+feature-branch fast-forward/landing, target cleanup, or final merge is authorized
+by this handoff. No review agent/thread/watcher was spawned in this child.
+
+### Candidate and ownership
+
+- Bound child branch: `feat/library-export-ticket023`, worktree
+  `/home/chris/.t3/worktrees/ts-boardstudio2/t3-b3957019`; fresh T3 status confirms
+  that binding. Local feature base remains
+  `c032d902ba3ae24c20ea588e5349fbe1e9559af5` and is an ancestor of the candidate.
+- Claim `2adfe82` precedes implementation; product/source completion is committed
+  in `098dea0dfeb1d52f77887be9727407ce50e3beb2`. The clean full-check source pin is
+  `744d70f77a5c316972373287332207d9724a4a37`. The final handoff commit adds this
+  Outcome and waits for the real theme-menu close transition before captures;
+  it changes no Rust, product CSS, dependencies or domain state from `744d70f7`.
+- Review command: `git diff c032d902ba3ae24c20ea588e5349fbe1e9559af5...HEAD`.
+  Parent dirty docs, origin/dev, other worktrees, canonical renderer, Runtime
+  queue/classification, shared primitive APIs, Parts, PCB and mechanical owners
+  are untouched. The only registration hunk adds this lane's browser script to
+  the existing explicit opt-in list in `scripts/test-check.py`.
+- Native hidden file inputs remain the shared mapping's platform import boundary.
+  The setup guide's injected PCB project/hardware controls retain their existing
+  022 owner; the 023 guide composes their existing callbacks without migrating
+  that foreign leaf. Owned production Library/Export/firmware/guide markup has
+  no `Board*` uses or visible raw controls. Test fixtures may use native buttons.
+- The exclusive generated target remains
+  `/home/chris/.cache/boardstudio-target/023-library-export-lineage`. Worktree,
+  branch, ignored settings, CAD caches and all `.evidence/023/` artifacts remain.
+
+### Executed final checks
+
+The user-required full default invocation was attempted once, as recorded above:
+`full-receipt.json`/`.md` and `full.log` preserve its fail-fast tooling result.
+It is **not** full acceptance. The own-script opt-in correction leaves exactly
+20 unchanged migration scripts unregistered (`tooling-registration-owned.log`);
+that global guard remains blocked rather than being weakened or repaired here.
+
+The remaining documented build/test gates then ran on clean `744d70f7`:
+
+`NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py lint build test browser --keep-going --receipt .evidence/023/full-tests-receipt.json`
+
+All **27/27** selected commands executed. The invocation exits **1**, with the
+following literal results in `full-tests.log` and its supported JSON/Markdown
+receipt:
+
+- Full native and WASM Clippy, rustfmt, and the checked provider/page build pass.
+- Complete native step passes: **2,110 passed, 0 failed, 12 existing ignored**,
+  40 binary runs; retention guard **2,104 matched, 0 missing, 6 new**. No baseline
+  or ignored-test configuration was changed. The scripted native CAD smoke passes.
+- Final mounted Library **19/19**, Layout **156/156** plus isolated guide **2/2**
+  pass, including both retained Matrix focus tests. Host 45, Runtime 50, UI Model
+  9, UI Shared 81 + 2, Keycaps 30, Keymap 35, Catalogue 12, Case 85 and Parts 71
+  all pass in their actual launches. Exact names/groups are in the receipt.
+- The page suite is complete: **82 passed, 6 failed, 88 expected**, no incomplete
+  results. All six owned Export/firmware tests pass in this full run, including
+  inline blockers, live readiness/provider guards, owner callbacks and failed
+  export/successful retry from the same row. `page-full-result.json` preserves
+  the runner's result artifact; no source snapshots/manifests were generated.
+- Provider smoke and CAD browser smoke pass (the latter reports 364 checks).
+  The trusted drag smoke, PCB launch and page suite fail as diagnosed below.
+  The browser gate is **not accepted**.
+
+Remaining tooling after the registration failure was executed independently in
+`tooling-remaining.log`. An auxiliary import-tooling test queued Cargo behind
+lint's target lock; its waiting Cargo process was terminated before compiling
+and that setup interruption is retained, not counted as product RED. Once the
+full runner released the target, the exact command
+`python3 -B scripts/test-import-kicad-parts.py` passes **1/1** serially in
+`tooling-import-serial.log`. All other remaining tooling commands pass; the
+unchanged registration guard remains the tooling blocker.
+
+Actual packaged role/name checks:
+
+`AGENT_BROWSER_ARGS='--blink-settings=primaryPointerType=2' python3 scripts/test-library-export.py http://127.0.0.1:4183/boardstudio/ --evidence .evidence/023/browser-settled`
+
+passes in `browser-settled.log` against the fresh checked package from the final
+full build. It exercises safe Cancel, exact card/sidebar focus return, trusted
+Tab/Escape/Confirm and identity, native Ctrl+K palette over Alert, free guide
+Home/End/Space stages, real full-case Back navigation, coarse 44px controls,
+narrow guide fit, native Checkbox Space, persistent Export blockers, a nonempty
+real `.boardstudio` download and outcome, hidden editor docks, Secondary fills,
+and both Themes/Appearances at 1440/390px. The menu's actual closing animation
+settles before capture; no assertions, native activation or owner callbacks are
+bypassed. Earlier product RED, setup/fixture failures and all PNGs remain.
+
+Representative captures under `browser-settled/`: `delete-confirmation.png`,
+`setup-guide.png`, `setup-guide-390.png`, `export-outcome.png`, all eight
+`export-{original,shadcn}-{light,dark}-{1440,390}.png`, and
+`library-shadcn-dark-{1440,390}.png`. Desktop/narrow captures were visually
+inspected; current 013 operation notifications remain visible where applicable.
+`browser-final-controls.log` is the earlier passing identical control workflow;
+its product inputs are unchanged. Earlier scoped native/mounted receipts above
+are retained as slice evidence, not substituted for the requested final suite.
+
+### Diagnosed unresolved gates
+
+- **Full tooling guard:** the 20 other migration scripts lack registrations at
+  the committed feature base too. Only 023's entry is added. No global opt-in
+  list repair or check weakening is included.
+- **Trusted drag smoke:** times out at `scripts/test-drag-interactions.cjs:87`
+  while waiting for `.m1-save-state[data-state=saved]`, before the first Part
+  drag begins. Current production Rust contains no `.m1-save-state`; the script
+  and Header implementation are unchanged from base. This is not a proven drag
+  regression. `full-drag-failure.log` preserves the original runner log from
+  `web/target/test-results/drag-browser/20261023T052655Z-573ddd164599/run.log`.
+  An earlier progress message inferred success before the receipt; this Outcome
+  and receipt correct it: drag **failed**, not passed.
+- **PCB mounted launch:** **33 passed, 16 failed**. First failure is
+  `pcb_scene::mounted_layer_tests::mounted_controls_toggle_only_their_accepted_pcb_scene_layers`,
+  `web/crates/pcb/src/pcb_scene.rs:587`: selector requires `.m1-layer-label`
+  inside the Hide F.Cu button, while existing LayerToggleButton renders that
+  label as an Item sibling. Both source and test are unchanged from base.
+  Fifteen later tests report the poisoned panic hook; independent root causes
+  for those follow-on failures are not established. No PCB or shared layer edit.
+- **Page suite:** first failure is
+  `presentation::layout_key_selection_actions::tests::editor_owned_selection_kinds_apply_only_eligible_companions_and_undo`:
+  missing `dioxus_primitives::toast::ToastCtx`. The fixture mounts selected-key
+  actions without a ToastProvider; its connected LayoutAlign uses `use_toast`.
+  These sources are unchanged. Five later failure records include panic-hook
+  poisoning and a keycaps finding wait timeout; they are not claimed as five
+  independently diagnosed defects. All six names remain in the full receipt.
+- **Existing packaged palette script:** `palette-corrected.log` passes the entire
+  deletion/native palette integration block, then fails its unchanged line-394
+  Add assertion: expected dialog named Add, actual region named Add. That same
+  region markup exists at base. No unrelated locator/product repair was made.
+
+No base-revision full execution was performed; unchanged-source diagnosis is
+source inspection, not a claimed baseline rerun. Required coordinator-owned
+Standards + Spec review is pending at the clean final handoff pin. Full quick,
+global CAD worker qualification, first paint, screen-reader, human 026 acceptance
+and final dev merge remain separate gates. Keep landing/resolve/cleanup on HOLD
+until substantive review and explicit coordinator approval.
+
+
+Final documentation check:
+`python3 scripts/check.py repo --receipt .evidence/023/final-repo-receipt.json`
+passes (5.6s); its non-strict old-CSS report is informational, not the separate
+024 strict gate. `git diff --check` passes. The lane's temporary 4183 static
+server is stopped after captures; generated packages, caches and evidence stay
+available for coordinator review. No build/test command remains running.

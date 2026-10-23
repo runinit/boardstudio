@@ -186,6 +186,7 @@ def main():
                 action('button', 'Settings')
                 action('menuitemradio', appearance.title())
                 browser('wait', '--fn', f'document.documentElement.dataset.theme === "{theme}" && document.documentElement.dataset.appearance === "{appearance}"')
+                browser('wait', '--fn', "!document.querySelector('[role=menu][data-state=open]') && ![...document.querySelectorAll('[data-slot=dropdown-menu-content]')].some(menu => menu.getAnimations({subtree:true}).some(a => a.playState === 'running'))")
                 for width in (1440, 390):
                     browser('set', 'viewport', str(width), '1000')
                     check('''
