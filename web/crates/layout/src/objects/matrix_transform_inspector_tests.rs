@@ -1089,16 +1089,10 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
     );
     let option = by_role_name(&root, "option", "Replacement LED").unwrap();
     // The primitive selects on a complete pointer gesture, not a synthetic click.
-    let pointer = web_sys::PointerEventInit::new();
-    pointer.set_bubbles(true);
-    pointer.set_button(0);
-    pointer.set_pointer_type("mouse");
     for phase in ["pointerdown", "pointerup"] {
-        option
-            .dispatch_event(
-                &web_sys::PointerEvent::new_with_pointer_event_init_dict(phase, &pointer).unwrap(),
-            )
-            .unwrap();
+        let pointer = web_sys::PointerEvent::new(phase).unwrap();
+        pointer.init_event_with_bubbles_and_cancelable(phase, true, true);
+        option.dispatch_event(&pointer).unwrap();
     }
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;

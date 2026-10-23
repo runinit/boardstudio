@@ -359,3 +359,12 @@ owned test option-selection sites (Objects grouping, key size, attached componen
 shell Inspector helper) to dispatch the complete primary pointer gesture on the
 role/name located actual option. No production behavior or existing domain assertions
 changed. Later panic-hook failures/timeouts in the full launch are cascades.
+
+
+Focused actual Objects grouping GREEN 1/1 (156 filtered),
+`.evidence/016/grouping-actual-pointer-compiled.log`; the original domain/cache/
+accepted-commit assertions remain. The first pointer test attempt did not compile
+because this crate does not enable PointerEventInit (`grouping-actual-pointer-green.log`);
+used the already-enabled PointerEvent/Event initialization API instead, without a
+manifest, feature or dependency change. The event's default primary button and
+complete bubbling down/up gesture exercise the existing primitive listener.
