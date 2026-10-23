@@ -244,8 +244,8 @@ impl CoreEngine {
                 if document.format != "boardstudio/v2" {
                     return self.error(id, "Unsupported document format");
                 }
-                if document.format_version != migrate::CURRENT_VERSION {
-                    return self.error(id, "Document must be migrated before it is opened");
+                if let Err(message) = migrate::require_current_version(document.format_version) {
+                    return self.error(id, &message);
                 }
                 if document.revision == u64::MAX {
                     return self.error(id, "Document revision is exhausted");
@@ -2182,9 +2182,7 @@ fn apply_with_ledger(
             if document.format != "boardstudio/v2" {
                 return Err("Unsupported document format".into());
             }
-            if document.format_version != migrate::CURRENT_VERSION {
-                return Err("Document must be migrated before it replaces the open one".into());
-            }
+            migrate::require_current_version(document.format_version)?;
             let accepted = doc.clone();
             let mut changed = changed_ids(doc, document);
             let mut prepared = document.as_ref().clone();

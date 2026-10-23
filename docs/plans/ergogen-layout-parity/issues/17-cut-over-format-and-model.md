@@ -1,6 +1,6 @@
 # 17: Cut over the persisted layout model and every removed-field caller
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [16](16-build-layout-kernel.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -49,3 +49,63 @@ Source anchors: `core/src/model.rs`, `migrate.rs`, `matrix.rs`, `matrix/layout.r
 `web/crates/host/src/host/storage.rs`, `web/crates/ui-model/src/tree.rs`.
 Use compiler-driven inventory, focused public tests and `check.py quick --files` for
 all changed callers. Require native/contract and WASM compilation, not just serde tests.
+
+## Progress
+
+The acceptance is a multi-session coordinated cutover. Planned green increments:
+
+1. Public Core Open/serialization/projection tracer: grouped records, kernel-backed
+   production selection, all removed-field callers, and the controlled v7 reader.
+   Remove fields and use compiler errors as the caller inventory; no compatibility
+   aliases or alternate production geometry engine.
+2. Extend frame/default/ownership and same-board correspondence coverage, including
+   sparse records, axis growth/removal, invisible logical contributors and unresolved
+   anchor refusal. Preserve existing identity/history/companion contracts.
+3. Close browser list/load and archive strict gates and deliberately rebuild the
+   minimum affected fixtures; verify native/contract and WASM compilation through
+   the changed-file quick scheduler.
+
+Each implementation increment requires observed behavioral RED/GREEN, a local
+commit and changed-file quick evidence. Status remains claimed for orchestrator
+review; no intermediate writer is approved for user-data stores.
+
+### 2026-10-23 — prerequisite checkpoint, not the model cutover
+
+- Temporarily removed the five Matrix axis vectors and `Layout.matrix_id` to
+  inventory callers. `cargo check -p boardstudio_core` reported 162 expected
+  compiler errors. Read the inventory at
+  `.evidence/ergogen-17/removed-fields-inventory.log`; it reaches `matrix.rs`,
+  `matrix/{deletion,layout,placement,splay}.rs`, `mirrored_half.rs`,
+  `mirrored_half/{inverse,inverse/layout,matrix_addition,reconcile}.rs`,
+  `geometry.rs`, `outline_cleanup.rs`, `mechanical/gasket.rs`, `model.rs` and
+  `lib.rs`. Restored only this temporary edit exactly. This is a first Core
+  inventory, not an exhaustive web/test caller inventory or behavioral TDD RED.
+- Chose a smaller prerequisite checkpoint before the planned grouped-v7 tracer:
+  direct Core Open and replacement now distinguish older/no-conversion,
+  newer/compatible-build and invalid-zero versions instead of instructing callers
+  to migrate. Reused one crate-private version admission function; its callers
+  retain their existing format-identifier gates and check before replacement effects.
+  No new public interface, glossary term, dependency or geometry engine.
+- Public JSON Core regression first failed on the old Open message, `Document
+  must be migrated before it is opened` (expected RED), then passed. It exercises
+  Open and committed replacement, older/newer/zero/malformed versions, accepted
+  state preservation and functioning Undo/Redo. Existing current-schema and legacy
+  direct-Open assertions now require the distinct refusal explanations.
+  Logs: `.evidence/ergogen-17/01-core-refusal-red.log` and
+  `.evidence/ergogen-17/02-core-refusal-green.log` (one passed test);
+  `.evidence/ergogen-17/03-document-integrity-green.log` is the focused module run.
+- The running format remains **6**. The existing browser/archive migration routes
+  are unchanged. This checkpoint does **not** satisfy the first grouped-v7 tracer,
+  activate grouped records or anchors, prove production invisible contributors,
+  implement Layout membership/correspondences, or deliver the v7 strict gate.
+  All three planned increments above remain open. The prerequisite's narrower
+  ordering is a session-scope judgment, not a relaxation of coordinated acceptance.
+- Verification for this checkpoint: focused document-integrity run **9 passed**,
+  zero failed; changed-file quick **1,960 native passed** (nine existing ignored)
+  and **587 WASM passed**, zero failed, including native/WASM lint and typecheck.
+  Receipt: `.evidence/ergogen-17/quick-receipt.json` and `.json.md`.
+  Log: `.evidence/ergogen-17/quick.log`, ending
+  `check: all steps passed: repo, lint, typecheck, test, layout-test-css, browser`.
+  This is changed-file verification, not full ticket acceptance, the page suite or
+  provider/product smoke. Fixtures and the untracked prototype were untouched;
+  no npm command, storage write, stash or push was performed.

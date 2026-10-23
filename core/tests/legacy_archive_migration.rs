@@ -136,7 +136,9 @@ fn an_unmigrated_document_is_refused_by_open() {
         id: "synthetic-legacy".into(),
         document,
     }) {
-        CoreReply::Error { message, .. } => assert!(message.contains("migrated"), "{message}"),
+        CoreReply::Error { message, .. } => {
+            assert!(message.contains("No conversion is available"), "{message}")
+        }
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

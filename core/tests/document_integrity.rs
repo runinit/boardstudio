@@ -56,6 +56,60 @@ fn assert_error(reply: &Value) {
 }
 
 #[test]
+fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
+    use boardstudio_core::migrate::CURRENT_VERSION;
+
+    for route in ["open", "replace"] {
+        let mut engine = CoreEngine::new();
+        assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
+        let committed = request(
+            &mut engine,
+            json!({"kind":"edit","id":"wiring","command":{
+                "baseRevision":0,"transactionId":"wiring","phase":"commit","targetIds":[],
+                "operation":{"kind":"set-wiring-mode","boardId":"board","mode":"direct"}
+            }}),
+        );
+        assert_eq!(committed["kind"], "scene", "{committed}");
+        let accepted = snapshot(&mut engine);
+        for (version, explanation) in [
+            (json!(CURRENT_VERSION - 1), "No conversion is available"),
+            (json!(CURRENT_VERSION + 1), "compatible newer build"),
+            (json!(0), "invalid formatVersion"),
+            (json!("7"), "invalid type"),
+        ] {
+            let mut candidate = baseline();
+            candidate["formatVersion"] = version;
+            let reply = if route == "open" {
+                open(&mut engine, "refused", &candidate)
+            } else {
+                request(
+                    &mut engine,
+                    json!({"kind":"edit","id":"refused","command":{
+                        "baseRevision":accepted["revision"],"transactionId":"refused",
+                        "phase":"commit","targetIds":[],
+                        "operation":{"kind":"replace-document","document":candidate}
+                    }}),
+                )
+            };
+            assert_error(&reply);
+            let message = reply["message"].as_str().unwrap();
+            assert!(message.contains(explanation), "{route}: {message}");
+            assert_eq!(snapshot(&mut engine), accepted, "{route} changed state");
+        }
+        assert_eq!(
+            request(&mut engine, json!({"kind":"undo","id":"undo"}))["kind"],
+            "scene",
+            "{route} cleared Undo"
+        );
+        let redone = request(&mut engine, json!({"kind":"redo","id":"redo"}));
+        assert_eq!(redone["kind"], "scene", "{route} cleared Redo");
+        let mut restored = redone["document"].clone();
+        restored["revision"] = accepted["revision"].clone();
+        assert_eq!(restored, accepted, "{route} changed history contents");
+    }
+}
+
+#[test]
 fn duplicate_identity_in_each_collection_is_rejected_on_open() {
     for collection in [
         "parts",

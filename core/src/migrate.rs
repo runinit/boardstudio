@@ -13,6 +13,24 @@ pub const CURRENT_VERSION: u32 = 6;
 /// The version of a document that does not state one.
 pub const LEGACY_VERSION: u32 = 1;
 
+/// Typed Core admission never migrates or modifies the candidate document.
+pub(crate) fn require_current_version(version: u32) -> Result<(), String> {
+    if version == 0 {
+        return Err("Project data failed validation: invalid formatVersion 0".into());
+    }
+    if version < CURRENT_VERSION {
+        return Err(format!(
+            "This project uses format {version}. This build requires format {CURRENT_VERSION}. No conversion is available. Your saved data has not been changed."
+        ));
+    }
+    if version > CURRENT_VERSION {
+        return Err(format!(
+            "This project requires format {version}. This build supports format {CURRENT_VERSION}. Open it with a compatible newer build."
+        ));
+    }
+    Ok(())
+}
+
 /// Upgrade a persisted document to [`CURRENT_VERSION`]. Returns the upgraded
 /// document and whether anything changed. Unknown fields are preserved.
 pub fn migrate_value(mut document: Value) -> Result<(Value, bool), String> {
