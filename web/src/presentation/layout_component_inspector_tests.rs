@@ -2507,7 +2507,7 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
                 definition_id: None,
                 variant: None,
                 offset: None,
-                rotation: None,
+                rotation: Some(30.0),
                 assemblies: vec![],
                 assemblies_local: None,
             }],
@@ -2541,6 +2541,23 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
         "the fixture's board order and key flags"
     );
     let root_id = probe.root_id;
+
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("fixture snapshot")
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == KEY)
+            .expect("the source key is accepted")
+            .pose
+            .rotation,
+        30.0,
+        "the accepted source key must retain its authored 30 degree heading before conversion"
+    );
 
     // First render: the saved part-offset constraint.
     assert_eq!(

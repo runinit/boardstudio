@@ -782,3 +782,100 @@ and `git diff --check` passed. `scripts/check-doc-links.py` passed for 554 Markd
 files under the same resource guard with `timeout 900`; log:
 `.evidence/ergogen-17e/inspector-fixture-doc-links.log`. No temporary diagnostic
 probes remain. Only the authorized test file and this Progress entry are changed.
+
+### Part-offset axes fixture diagnosis and correction — 2026-10-23
+
+Started at `b065ec0dea865bf9022164e218698c532fd4ec3b` on
+`docs/ergogen-layout-comparison`, with clean tracked state and only the untouched
+preexisting `web/crates/layout/prototype/`. Scope is this Progress entry and
+`web/src/presentation/layout_component_inspector_tests.rs`; prior explicit Matrix
+correspondences and Session/Core admission assertions are retained. 17e and parent
+17 remain **claimed**.
+
+**Runtime RED and cause.** A fresh exact launch of
+`mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the_reset`
+reproduced `converted X draft 1`: **0 passed, 1 failed, 76 filtered**, 0.20s.
+Temporary `[DEBUG-17e-axes]` probes showed immediately after real Session/Core Open:
+accepted source key heading **0 degrees**, authored cell rotation **None**, and
+accepted `PartOffset { offset: (1, -4), rotation: 5 }`. After the real board-axes
+edit, accepted revision **1** contained `Offset { offset: (1, -4), rotation: 5 }`;
+the form showed `("1", "board", "matrix/component-matrix/r0c0")`. Thus H1 is
+confirmed: Open refresh replaced the materialized-only 30-degree pose. H2 (edit
+not submitted/rejected) and H3 (accepted conversion with stale form) do not explain
+this runtime state. Evidence: `axes-fixture-runtime-red.{log,json}` under
+`.evidence/ergogen-17e/`.
+
+Removed all diagnostic probes, then added the permanent accepted source-heading
+assertion before conversion. A separate fresh exact launch failed at that new seam:
+**left 0.0, right 30.0; 0 passed, 1 failed, 76 filtered**, 0.17s
+(`axes-fixture-heading-red.{log,json}`). Only after observing that RED, corrected
+this constructor's `MatrixCell.rotation` from `None` to `Some(30.0)`.
+[Spec §3](../spec.md#3-one-core-geometry-module) defines the final key pose with
+`turn(keyRotation[r,c])`; ordinary `refresh_existing` materializes that kernel pose
+unless Local/override applies. No Local/override shortcut is used. The fixed base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8` already had saved pose 30 but cell None;
+that source comparison is not a historical runtime receipt. The fixture no longer
+relies on a materialized pose surviving the kernel cutover.
+
+This is PartOffset part-to-board axes conversion, not column offset-to-Stagger or
+the zero-Splay conversion rule. Its existing board-X assertion stays
+`2.866025403784439` (`cos(30°) * 1 - sin(30°) * -4`), with the same tolerance.
+The intended source heading is 30 degrees and the original part-axes Y is -4.
+Existing source/axes choices, selection switches, conversion, Undo, reset, and
+genuine key-versus-Component mode assertions are unchanged. No production,
+validation, baseline, allowlist, timeout, label, skip or blessing change occurred.
+
+All exact launches reuse `run_filter`, `runner_environment()` and
+`desktop_webdriver_config(...)` from `scripts/run-wasm-tests.py`, each in a fresh
+browser runtime. Every heavy launch takes outer
+`flock /home/chris/.cache/tmp/boardstudio-build.lock`, then
+`systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 900`
+(exact) or `timeout 3600` (file/page), with
+`TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2` and `BOUNDARY_BLESS` unset.
+Normal build jobs/flags and existing runner timeouts remain in force; no heavy
+builds overlap.
+
+**Focused and file GREEN.** Fresh exact conversion: **1 passed, 0 failed,
+76 filtered**, 0.23s, including the accepted 30-degree heading and unchanged
+conversion/Undo/reset assertions (`axes-fixture-conversion-green.{log,json}`).
+Separate fresh exact
+`mounted_matrix_key_stays_key_until_explicit_finding_opens_component_inspector`:
+**1 passed, 0 failed, 76 filtered**, 0.15s, proving the second explicit Matrix
+mapping and key/Component behavior without preceding panic fallout
+(`axes-fixture-matrix-key-green.{log,json}`).
+
+Supported file command:
+
+```sh
+python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs --result-json .evidence/ergogen-17e/axes-fixture-file.json
+```
+
+Result: **25 passed, 0 failed, 0 incomplete**, 52 filtered, including nested Matrix
+Relations. Receipt `axes-fixture-file.json`, scheduler log `axes-fixture-file.log`,
+raw runtime `axes-fixture-file.json.logs/filter-001.log`. The previous conversion
+panic and its 12 subsequent panic-hook failures do not recur in this fresh batch.
+
+**Page GREEN.** Executed the requested supported page command under the same guard:
+
+```sh
+python3 scripts/run-wasm-tests.py --all --depth 1 --isolate=presentation::case_workspace:: --result-json .evidence/ergogen-17e/axes-fixture-page.json
+```
+
+Result: **77 passed, 0 failed, 0 incomplete** across
+`model_decode_boundary_tests::`, `presentation::` and isolated
+`presentation::case_workspace::`; receipt is complete with no problems or known
+failure exclusions. Receipt `axes-fixture-page.json`, scheduler log
+`axes-fixture-page.log`, raw filter logs in `axes-fixture-page.json.logs/`, all
+under `.evidence/ergogen-17e/`. No new independent panic or panic-hook fallout
+occurred. This page receipt supersedes neither the failed historical quick receipts
+nor the outstanding full/product gates.
+
+Final verification: read the complete two-file diff; `rustfmt --edition 2024
+--check web/src/presentation/layout_component_inspector_tests.rs`,
+`scripts/check-doc-links.py` (554 Markdown files, same guard, `timeout 900`) and
+`git diff --check` passed. Logs: `axes-fixture-rustfmt.log`,
+`axes-fixture-doc-links.log`, `axes-fixture-diff-check.log`. No diagnostic probes
+remain. Only this Progress entry and the authorized fixture file changed; the
+unrelated prototype is untouched. No subagents, stash, push, amend, other worktrees
+or broad staging. All-116-caller quick, full and product drag gates were **not run**
+in this round. Stop for parent review; no ticket/map closure or full acceptance.
