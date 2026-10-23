@@ -1025,6 +1025,13 @@ mod projection_tests {
             }
             for (actual, expected) in scene.cells.iter().zip(expected) {
                 let at = format!("{case} r{}c{}", expected.row, expected.column);
+                if (actual.row, actual.column) != (expected.row, expected.column) {
+                    mismatches.push(format!(
+                        "{at} | row,column | {:?} | {:?}",
+                        (expected.row, expected.column),
+                        (actual.row, actual.column)
+                    ));
+                }
                 if actual.enabled != expected.enabled {
                     mismatches.push(format!(
                         "{at} | enabled | {} | {}",
