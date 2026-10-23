@@ -2129,7 +2129,7 @@ fn apply_with_ledger(
                 companion_tweak: None,
             });
             link.correspondences.extend(
-                layout::member_pairs(&matrix, &target.id, Some(&target))
+                layout::member_pairs(matrix, &target.id, Some(&target))
                     .into_iter()
                     .map(|(source_id, mirror_id)| MirroredCorrespondence {
                         kind: MirroredItemKind::Part,
