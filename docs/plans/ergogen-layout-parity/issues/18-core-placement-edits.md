@@ -1,6 +1,6 @@
 # 18: Implement named placement, inverse moves and exact origin compensation
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md), [17c](17c-kernel-production-routing.md) (parent: [17](17-cut-over-format-and-model.md))
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -42,3 +42,10 @@ Extend `core/src/matrix/{placement,splay,layout}.rs` and existing placement, com
 splay reconciliation and part-offset tests through public Core/Session routes. Run
 focused `boardstudio_core` tests, then quick checks. Private numeric tests supplement,
 never replace, prepared-route preview/commit/refusal/Undo evidence.
+
+## Progress
+
+### Parallel implementation claim — 2026-10-23
+
+Claimed for an isolated implementation lane. Acceptance, TDD, review and gates are
+unchanged; integration owns shared baselines, test aggregation, map and closure.

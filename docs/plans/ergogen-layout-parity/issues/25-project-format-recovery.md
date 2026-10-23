@@ -1,6 +1,6 @@
 # 25: Deliver safe incompatible-project recovery and project switching
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md), [17d](17d-entry-path-gates.md) (parent: [17](17-cut-over-format-and-model.md))
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -42,3 +42,10 @@ Session, library action/recovery controls and current mounted delete/list tests.
 Exercise invalid direct Open, storage races/failures and draft/pending-save ordering
 through public interfaces. Run affected native checks and browser `host runtime library`
 subsets plus page coverage as needed; partial subsets are not full acceptance.
+
+## Progress
+
+### Parallel implementation claim — 2026-10-23
+
+Claimed for an isolated implementation lane. Acceptance, TDD, review and gates are
+unchanged; integration owns shared baselines, test aggregation, map and closure.
