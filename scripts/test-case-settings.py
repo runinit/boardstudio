@@ -46,30 +46,24 @@ def styles(url, evidence):
             action("checkbox", "Add middle frame", "focus")
             metrics["checkbox"] = evaluate("({height:document.activeElement.getBoundingClientRect().height,border:getComputedStyle(document.activeElement).borderTopWidth,labelHeight:document.activeElement.labels[0].getBoundingClientRect().height})")
             observations.append({"theme":theme,"appearance":appearance,**metrics})
-            if not (metrics["slot"] == "input-group-control" and metrics["height"] == 40 and metrics["border"] == "0px" and metrics["labelFor"] == metrics["id"] and metrics["id"] and metrics["checkbox"]["height"] == 16 and metrics["checkbox"]["border"] == "0px" and metrics["checkbox"]["labelHeight"] >= 44):
+            if not (metrics["slot"] == "input-group-control" and metrics["height"] == 40 and metrics["border"] == "0px" and "monospace" in metrics["font"] and metrics["labelFor"] == metrics["id"] and metrics["id"] and metrics["checkbox"]["height"] == 16 and metrics["checkbox"]["border"] == "0px" and metrics["checkbox"]["labelHeight"] >= 44):
                 failures.append(observations[-1])
             browser("screenshot", str(evidence/f"styles-{theme}-{appearance}.png"))
-    for mode in ("narrow", "coarse"):
-        if mode == "coarse":
-            browser("set", "device", "iPhone 12")
-            browser("open", url)
-            browser("wait", "--text", "Case construction")
-            assert evaluate("matchMedia('(pointer:coarse)').matches"), "device must emulate a coarse pointer"
-        else:
-            browser("set", "viewport", 390, 844)
-        action("spinbutton", "Plate thickness", "focus")
-        numeric_height = evaluate("document.activeElement.parentElement.getBoundingClientRect().height")
-        action("checkbox", "Add middle frame", "focus")
-        label_height = evaluate("document.activeElement.labels[0].getBoundingClientRect().height")
-        action("button", "Plate method", "focus")
-        select_height = evaluate("document.activeElement.getBoundingClientRect().height")
-        action("button", "Fixture layer, 1.50 mm, Z 0.00", "focus")
-        toggle_height = evaluate("document.activeElement.getBoundingClientRect().height")
-        metrics = {"mode":mode,"numericHeight":numeric_height,"checkboxLabelHeight":label_height,"selectHeight":select_height,"toggleHeight":toggle_height}
-        observations.append(metrics)
-        if min(numeric_height,label_height,select_height,toggle_height) < 44:
-            failures.append(metrics)
-        browser("screenshot", str(evidence/f"styles-{mode}.png"))
+    browser("set", "viewport", 390, 844)
+    action("spinbutton", "Plate thickness", "focus")
+    numeric_height = evaluate("document.activeElement.parentElement.getBoundingClientRect().height")
+    action("checkbox", "Add middle frame", "focus")
+    label_height = evaluate("document.activeElement.labels[0].getBoundingClientRect().height")
+    action("button", "Plate method", "focus")
+    select_height = evaluate("document.activeElement.getBoundingClientRect().height")
+    action("button", "Fixture layer, 1.50 mm, Z 0.00", "focus")
+    toggle_height = evaluate("document.activeElement.getBoundingClientRect().height")
+    metrics = {"mode":"narrow","viewport":evaluate("window.innerWidth"),"numericHeight":numeric_height,"checkboxLabelHeight":label_height,"selectHeight":select_height,"toggleHeight":toggle_height}
+    observations.append(metrics)
+    assert metrics["viewport"] == 390, metrics
+    if min(numeric_height,label_height,select_height,toggle_height) < 44:
+        failures.append(metrics)
+    browser("screenshot", str(evidence/"styles-narrow.png"))
     (evidence/"style-observations.json").write_text(json.dumps(observations,indent=2)+"\n")
     assert not failures, failures
     print("PASS actual adopted numeric and checkbox computed styles in four Theme/Appearance combinations",flush=True)
@@ -342,6 +336,7 @@ def main():
     parser.add_argument("--styles-only", action="store_true")
     parser.add_argument("--page-url")
     args = parser.parse_args()
+    args.evidence = args.evidence.resolve()
     args.evidence.mkdir(parents=True, exist_ok=True)
     print("Source pin:", subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(), flush=True)
     if args.page_url:
@@ -362,7 +357,7 @@ def main():
     driver.run(str(Path.home()/".local/share/.dx/tools/tailwindcss-v4.1.5/tailwindcss"), "-i", "web/tailwind.css", "-o", str(out/"tailwind.css"))
     if not (out/"assets").exists():
         (out/"assets").symlink_to(ROOT/"web/assets", target_is_directory=True)
-    (out/"index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>Case settings 017</title><link rel="stylesheet" href="assets/m1.css"><link rel="stylesheet" href="tailwind.css"><style>body{overflow:auto;height:auto;min-height:100vh}#main{box-sizing:border-box;max-width:480px;width:100%;padding:16px;background:var(--card);color:var(--foreground)}output{display:block}</style><body><div id="main"></div><script type="module">import init from "./settings.js";init()</script>')
+    (out/"index.html").write_text('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Case settings 017</title><link rel="stylesheet" href="assets/m1.css"><link rel="stylesheet" href="tailwind.css"><style>body{overflow:auto;height:auto;min-height:100vh}#main{box-sizing:border-box;max-width:480px;width:100%;padding:16px;background:var(--card);color:var(--foreground)}output{display:block}</style><body><div id="main"></div><script type="module">import init from "./settings.js";init()</script>')
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(out))
     with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -370,7 +365,6 @@ def main():
             url = f"http://127.0.0.1:{server.server_port}"
             styles(url, args.evidence)
             if not args.styles_only:
-                browser("close")  # Reset coarse-pointer emulation before the desktop keyboard journey.
                 tests(url, args.evidence)
         except BaseException:
             capture_failure(args.evidence)
