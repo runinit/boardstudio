@@ -698,6 +698,7 @@ pub struct ExistingHalfProps {
 pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let owner = props.projection.owner.clone();
     let mut default_choice = use_signal(|| "all".to_owned());
+    let source_choice = use_memo(move || Some(default_choice()));
     let choice = default_choice();
     let default_axis = format!("{:.2}", owner.default_axis_x);
     let mut axis = use_signal(|| default_axis.clone());
@@ -758,14 +759,14 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                             cancel.call(owner_escape.clone());
                         }
                     },
-                    Card { class: "m1-matrix-setup m1-mirrored-pair-setup gap-4 p-4",
+                    Card { class: "layout-mirror-dock gap-4 p-4",
                         header { class: "m1-matrix-setup-heading",
                             h2 { "Mirror existing half" }
                         }
                         Callout { variant: CalloutVariant::Info,
                             "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
                         }
-                        form { onsubmit: submit,
+                        form { class: "grid gap-4", onsubmit: submit,
                             {
                                 let control_label = "Source layouts".to_owned();
                                 let control_aria_label = "Source layouts".to_owned();
@@ -774,7 +775,6 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                     dioxus::core::current_scope_id().0,
                                     control_aria_label.replace(' ', "-"),
                                 );
-                                let control_value = format!("{}", choice);
                                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                 control_choices
                                     .push((
@@ -805,7 +805,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
                                                 list_aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(source_choice.into()),
                                                 disabled: !props.projection.editable,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -822,7 +822,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                             Select::<String> {
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(source_choice.into()),
                                                 disabled: !props.projection.editable,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -864,7 +864,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 Alert { class: "m1-mirrored-pair-error",
         variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
                             }
-                            footer { class: "m1-mirrored-pair-actions",
+                            footer { class: "m1-mirrored-pair-actions flex flex-wrap justify-end gap-2",
                                 Button {
                                     variant: ButtonVariant::Secondary,
                                     class: "max-[760px]:min-h-control-touch",

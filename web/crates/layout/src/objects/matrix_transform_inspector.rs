@@ -137,6 +137,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
     let snapshot_token = projection.snapshot_token;
     let revision = projection.revision;
     let mut splay_affect = props.mount.splay_affect;
+    let affect_choice = use_memo(move || Some(if splay_affect() == MatrixSplayAffect::Column { "column" } else { "following" }.to_owned()));
     let (title, body) = match &projection.fields {
         MatrixTransformFields::Matrix {
             origin,
@@ -360,12 +361,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                         dioxus::core::current_scope_id().0,
                                         control_aria_label.replace(' ', "-"),
                                     );
-                                    let control_value = (if splay_affect() == MatrixSplayAffect::Column {
-                                        "column"
-                                    } else {
-                                        "following"
-                                    })
-                                        .to_string();
+
                                     let control_choices = [
                                         ("column".to_owned(), "This column".to_owned(), false),
                                         ("following".to_owned(), "This and following".to_owned(), false),
@@ -387,7 +383,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                             Select::<String> {
                                                 id: control_id,
                                                 aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                value: Some(affect_choice.into()),
                                                 disabled: !props.mount.editable,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -984,6 +980,7 @@ struct MirrorTransformFieldProps {
 
 #[component]
 fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
+    let mirror_choice = use_memo(use_reactive((&props.value,), |(value,)| Some(mirror_value(value).to_owned())));
     let mut submitted = use_signal(|| None::<u64>);
     let current_value = props.value;
     let observed_value = use_signal(|| current_value);
@@ -1022,7 +1019,7 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
                 dioxus::core::current_scope_id().0,
                 control_aria_label.replace(' ', "-"),
             );
-            let control_value = (mirror_value(value)).to_string();
+
             let error: Option<String> = message;
             let control_choices = [
                 ("none".to_owned(), "None".to_owned(), false),
@@ -1069,7 +1066,7 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
                     Select::<String> {
                         id: control_id,
                         aria_label: control_aria_label.clone(),
-                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                        value: Some(mirror_choice.into()),
                         disabled: !props.editable,
                         on_value_change,
                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1106,6 +1103,7 @@ struct OriginModeTransformFieldProps {
 
 #[component]
 fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
+    let origin_choice = use_memo(use_reactive((&props.custom,), |(custom,)| Some(if custom { "custom" } else { "base" }.to_owned())));
     let mut submitted = use_signal(|| None::<u64>);
     let current_custom = props.custom;
     let observed_custom = use_signal(|| current_custom);
@@ -1144,7 +1142,7 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
                 dioxus::core::current_scope_id().0,
                 control_aria_label.replace(' ', "-"),
             );
-            let control_value = (if custom { "custom" } else { "base" }).to_string();
+
             let error: Option<String> = error;
             let control_choices = [
                 ("base".to_owned(), "Column base".to_owned(), false),
@@ -1186,7 +1184,7 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
                     Select::<String> {
                         id: control_id,
                         aria_label: control_aria_label.clone(),
-                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                        value: Some(origin_choice.into()),
                         disabled: !props.editable,
                         on_value_change,
                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1312,6 +1310,7 @@ struct KeyAssemblyFieldProps {
 
 #[component]
 fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
+    let assembly_choice = use_memo(use_reactive((&props.value,), |(value,)| Some(value)));
     let mut submitted = use_signal(|| None::<u64>);
     let error = props
         .feedback
@@ -1341,7 +1340,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
                 dioxus::core::current_scope_id().0,
                 control_aria_label.replace(' ', "-"),
             );
-            let control_value = format!("{}", props.value);
+
             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
             for (id, label) in props.choices.iter() {
                 control_choices.push((format!("{}", id), format!("{}", label), false));
@@ -1379,7 +1378,7 @@ fn KeyAssemblyField(props: KeyAssemblyFieldProps) -> Element {
                         id: control_id,
                         aria_label: control_aria_label.clone(),
                         list_aria_label: control_aria_label.clone(),
-                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                        value: Some(assembly_choice.into()),
                         disabled,
                         on_value_change,
                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1421,6 +1420,9 @@ struct AttachedComponentsFieldProps {
 
 #[component]
 fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
+    let attachment_choices = use_memo(use_reactive((&props.value,), |(values,)| {
+        values.into_iter().map(|(assembly, definition)| (assembly, Some(definition))).collect::<std::collections::BTreeMap<_, _>>()
+    }));
     let mut submitted = use_signal(|| None::<u64>);
     let error = props
         .feedback
@@ -1508,7 +1510,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                                     dioxus::core::current_scope_id().0,
                                     control_aria_label.replace(' ', "-"),
                                 );
-                                let control_value = format!("{}", definition_id);
+
                                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                 for (id, label) in choices.iter() {
                                     control_choices.push((format!("{}", id), format!("{}", label), false));
@@ -1544,7 +1546,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                                             id: control_id,
                                             aria_label: control_aria_label.clone(),
                                             list_aria_label: control_aria_label.clone(),
-                                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                            value: Some(attachment_choices.map({ let id = assembly_id.clone(); move |values| values.get(&id).unwrap_or(&None) }).into()),
                                             disabled,
                                             on_value_change,
                                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

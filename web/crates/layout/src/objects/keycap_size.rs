@@ -345,7 +345,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
             }
         }
         if let Some(warning) = overlap_warning {
-            div { role: "status",  Callout { class: "m1-key-size-warning", variant: CalloutVariant::Warning,  "{warning}"  } }
+            div { role: "status", class: "m1-key-size-warning", Callout { variant: CalloutVariant::Warning, "{warning}" } }
         }
     }
 }

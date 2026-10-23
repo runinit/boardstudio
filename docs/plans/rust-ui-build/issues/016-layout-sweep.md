@@ -584,3 +584,39 @@ Space guard to the existing owned Objects aside, protecting its native tree/Add/
 Matrix/Mirror descendants without preventing their default action, handling Escape,
 changing callbacks, or covering canvas/015/shared listener source. External header
 Add retains its own guard. No new prop, visibility, dependency or state owner.
+
+
+## Self-inspection continuation: actual controlled choices and dock layout
+
+- Full Layout run 5 at `8c431873` reached 149/156. First real failure was Key size
+  after Redo (display 1u instead of 2u). Same focused unchanged assertion fails in
+  `key-size-redo-focused-red.log`; stable derived value from the existing draft
+  passes `key-size-redo-derived-green.log` at `515ca647`. No parsing, callback,
+  commit, pending-edit or draft owner changed, and no assertion/wait was weakened.
+- Full Layout run 6 at `515ca647` reaches 152/156; all key-size edit/Undo/Redo and
+  owner/timer tests pass. Next first failure is the old warning-class/role conjunction
+  after Callout adoption. Keep diagnostic class on the original status owner and
+  assert its actual copied child. Later guide failures still need isolation.
+- A second actual-owner RED, `grouping-controlled-trigger-red.log` at `99d8ea89`,
+  proves the local grouping and tree change while the actual Select trigger still
+  says By layout instead of By part. `grouping-controlled-trigger-derived-green.log`
+  passes the unchanged new assertion with the existing by_part signal-derived Memo.
+- Connected inventory: Group; Matrix preset/orientation and MatrixField's two
+  short/long branches; Mirror source and mirrored-pair preset; transform Splay affects,
+  Mirror, Origin, Key Assembly and keyed attachment choices; active outline/corners/
+  selected connection-point attachment; component Layout, Constraint type/source,
+  Offset axes, Mirror axis; companion Mode. All replace freshly allocated constant
+  ReadSignals with stable derived existing owner values. The attachment row maps
+  the original keyed assembly through a derived accepted-value map; removed keys
+  return None. No query/filter, selection, callback, state or public API is moved.
+  Existing 006/canonical controls remain untouched. All-target shell WASM check is
+  in `layout-adoption-check-8-derived-values.log` (source before dock-class fix).
+- Visual self-inspection falsified the earlier Mirror screenshot's layout: old
+  `.m1-matrix-setup` makes its Card absolute, 26px high, internally scrolled 290px
+  with a zero-height named region. `mirror-actual-flow-asserted-red.log` and PNG
+  reproduce it against served `16cedbff`. The preceding diagnostic serialization
+  failure is retained separately. The in-dock Card now uses only its owned new
+  class and copied spacing, with explicit form/footer layout; the canvas/guide
+  legacy classes/rules are untouched. Strengthened the actual-owner script to
+  assert static/in-flow visible overflow and full form/region heights in all12
+  combinations alongside the exact original local draft, geometry and Undo checks.

@@ -301,6 +301,8 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
     let accepted_owner = projection.owner.clone();
     let accepted_preset = projection.preset;
     let accepted_orientation = projection.orientation;
+    let preset_choice = use_memo(move || Some(preset_draft().as_str().to_owned()));
+    let orientation_choice = use_memo(move || Some(orientation_draft().as_str().to_owned()));
     let mut preset_draft_for_effect = preset_draft;
     let mut orientation_draft_for_effect = orientation_draft;
     use_effect(use_reactive(
@@ -548,7 +550,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = format!("{}", preset_draft().as_str());
+
                             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                             for preset in MatrixPreset::ALL {
                                 control_choices
@@ -573,7 +575,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                     Select::<String> {
                                         id: control_id,
                                         aria_label: control_aria_label,
-                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        value: Some(preset_choice.into()),
                                         disabled: !props.editable || props.busy,
                                         on_value_change,
                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -597,7 +599,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = format!("{}", orientation_draft().as_str());
+
                             let control_choices = [
                                 ("south".to_owned(), "South-facing LED".to_owned(), false),
                                 ("north".to_owned(), "North-facing LED".to_owned(), false),
@@ -619,7 +621,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                                     Select::<String> {
                                         id: control_id,
                                         aria_label: control_aria_label,
-                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        value: Some(orientation_choice.into()),
                                         disabled: !props.editable || props.busy,
                                         on_value_change,
                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1090,6 +1092,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         .map(|feedback| feedback.message.clone());
     let error_text = error.read().clone().or(feedback_error);
     let current_status = status();
+    let selected_choice = use_memo(move || Some(draft()));
     let input_value = draft();
     let current_baseline = props.baseline.clone();
     let input_type = if props.kind == MatrixFieldKind::Name {
@@ -1135,7 +1138,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = format!("{}", input_value);
+
                             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                             for (value, label) in choices {
                                 control_choices.push((format!("{}", value), format!("{}", label), false));
@@ -1161,7 +1164,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                                             id: control_id.clone(),
                                             aria_label: control_aria_label.clone(),
                                             list_aria_label: control_aria_label.clone(),
-                                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                            value: Some(selected_choice.into()),
                                             disabled: !props.editable,
                                             on_value_change,
                                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1178,7 +1181,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                                         Select::<String> {
                                             id: control_id.clone(),
                                             aria_label: control_aria_label.clone(),
-                                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                            value: Some(selected_choice.into()),
                                             disabled: !props.editable,
                                             on_value_change,
                                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

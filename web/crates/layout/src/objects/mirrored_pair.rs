@@ -136,6 +136,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let rows_value = rows();
     let columns_value = columns();
     let gap_value = gap();
+    let preset_choice = use_memo(move || Some(preset().as_str().to_owned()));
     let preset_value = preset();
     let dimensions = rows_value
         .trim()
@@ -304,7 +305,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = ((preset_value.as_str()).to_string()).to_string();
+
                             let control_choices = [
                                 ("mx-solder".to_owned(), "MX Solder".to_owned(), false),
                                 ("mx-hotswap".to_owned(), "MX Hotswap".to_owned(), false),
@@ -330,7 +331,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                                     Select::<String> {
                                         id: control_id,
                                         aria_label: control_aria_label,
-                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        value: Some(preset_choice.into()),
                                         disabled: !props.projection.editable,
                                         on_value_change,
                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

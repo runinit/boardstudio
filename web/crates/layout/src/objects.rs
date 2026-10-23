@@ -271,6 +271,7 @@ pub fn Objects(
             == Some("part")
     });
     let source = AcceptedSource(snapshot.clone());
+    let grouping_choice = use_memo(move || Some(if by_part() { "part" } else { "layout" }.to_owned()));
     let group_by_part = by_part();
     let items = use_memo(use_reactive(
         (&source, &board_id, &current_expanded, &group_by_part),
@@ -432,8 +433,7 @@ pub fn Objects(
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = ((if by_part() { "part" } else { "layout" }).to_string())
-                                .to_string();
+
                             let control_choices = [
                                 ("layout".to_owned(), "By layout".to_owned(), false),
                                 ("part".to_owned(), "By part".to_owned(), false),
@@ -458,7 +458,7 @@ pub fn Objects(
                                     Select::<String> {
                                         id: control_id,
                                         aria_label: control_aria_label,
-                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        value: Some(grouping_choice.into()),
                                         disabled: false,
                                         on_value_change,
                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

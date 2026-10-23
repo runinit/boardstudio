@@ -647,6 +647,15 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
         }) => angle.to_string(),
         _ => "90".to_owned(),
     });
+    let layout_choice = use_memo(use_reactive((&projection.layout_id,), |(layout,)| Some(layout.unwrap_or_default())));
+    let kind_choice = use_memo(move || Some(match constraint_kind() {
+        ConstraintKind::Offset => "offset",
+        ConstraintKind::Mirror => "mirror",
+        ConstraintKind::MirrorLine => "mirror-line",
+    }.to_owned()));
+    let source_choice = use_memo(move || Some(source_part_id()));
+    let axes_choice = use_memo(move || Some(offset_axes_value(offset_axes()).to_owned()));
+    let axis_choice = use_memo(move || Some(if mirror_axis() == MirrorAxis::Vertical { "vertical" } else { "horizontal" }.to_owned()));
     let mut error = props.error;
     let pending = props.pending_edits.peek().clone();
     let last_owner = use_hook(|| Rc::new(RefCell::new(None::<LayoutComponentInspectorOwnerKey>)));
@@ -1267,7 +1276,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                     dioxus::core::current_scope_id().0,
                                     control_aria_label.replace(' ', "-"),
                                 );
-                                let control_value = (projection.layout_id.as_deref().unwrap_or("")).to_string();
+
                                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                 control_choices.push(("".to_owned(), "Board / ungrouped".to_owned(), false));
                                 for layout in &projection.layouts {
@@ -1296,7 +1305,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
                                                 list_aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(layout_choice.into()),
                                                 disabled: (props.layout_pending)(),
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1313,7 +1322,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                             Select::<String> {
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(layout_choice.into()),
                                                 disabled: (props.layout_pending)(),
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1605,12 +1614,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                 dioxus::core::current_scope_id().0,
                                                 control_aria_label.replace(' ', "-"),
                                             );
-                                            let control_value = (match constraint_kind() {
-                                                ConstraintKind::Offset => "offset",
-                                                ConstraintKind::Mirror => "mirror",
-                                                ConstraintKind::MirrorLine => "mirror-line",
-                                            })
-                                                .to_string();
+
                                             let control_choices = [
                                                 ("offset".to_owned(), "Offset from part".to_owned(), false),
                                                 ("mirror".to_owned(), "Mirror placement across axis".to_owned(), false),
@@ -1633,7 +1637,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                     Select::<String> {
                                                         id: control_id,
                                                         aria_label: control_aria_label,
-                                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                        value: Some(kind_choice.into()),
                                                         disabled: false,
                                                         on_value_change,
                                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1657,7 +1661,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                 dioxus::core::current_scope_id().0,
                                                 control_aria_label.replace(' ', "-"),
                                             );
-                                            let control_value = format!("{}", source_part_id);
+
                                             let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                             if !board_parts.iter().any(|part| part.id == source_part_id()) {
                                                 control_choices
@@ -1692,7 +1696,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                         id: control_id,
                                                         aria_label: control_aria_label.clone(),
                                                         list_aria_label: control_aria_label.clone(),
-                                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                        value: Some(source_choice.into()),
                                                         disabled: false,
                                                         on_value_change,
                                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1717,7 +1721,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                     dioxus::core::current_scope_id().0,
                                                     control_aria_label.replace(' ', "-"),
                                                 );
-                                                let control_value = (offset_axes_value(offset_axes())).to_string();
+
                                                 let control_choices = [
                                                     (
                                                         (offset_axes_value(OffsetAxes::Board)).to_string(),
@@ -1743,7 +1747,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                         Select::<String> {
                                                             id: control_id,
                                                             aria_label: control_aria_label,
-                                                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                            value: Some(axes_choice.into()),
                                                             disabled: false,
                                                             on_value_change,
                                                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1828,12 +1832,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                     dioxus::core::current_scope_id().0,
                                                     control_aria_label.replace(' ', "-"),
                                                 );
-                                                let control_value = (if mirror_axis() == MirrorAxis::Vertical {
-                                                    "vertical"
-                                                } else {
-                                                    "horizontal"
-                                                })
-                                                    .to_string();
+
                                                 let control_choices = [
                                                     ("vertical".to_owned(), "Vertical".to_owned(), false),
                                                     ("horizontal".to_owned(), "Horizontal".to_owned(), false),
@@ -1855,7 +1854,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                         Select::<String> {
                                                             id: control_id,
                                                             aria_label: control_aria_label,
-                                                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                            value: Some(axis_choice.into()),
                                                             disabled: false,
                                                             on_value_change,
                                                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

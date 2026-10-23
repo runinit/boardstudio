@@ -214,6 +214,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
             });
         }
     };
+    let mode_choice = use_memo(move || Some(mode()));
     let summary = match selected_mode {
         Some(MirroredCompanionMode::LiteralMirror) if !props.projection.mixed_mode => {
             "Literal mirror"
@@ -250,7 +251,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                                 dioxus::core::current_scope_id().0,
                                 control_aria_label.replace(' ', "-"),
                             );
-                            let control_value = format!("{}", mode());
+
                             let control_choices = [
                                 ("".to_owned(), "Mixed values".to_owned(), false),
                                 ("literal-mirror".to_owned(), "Literal mirror".to_owned(), false),
@@ -274,7 +275,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                                     Select::<String> {
                                         id: control_id,
                                         aria_label: control_aria_label,
-                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        value: Some(mode_choice.into()),
                                         disabled,
                                         on_value_change,
                                         for (index, (value, label, disabled)) in control_choices.iter().enumerate() {

@@ -69,6 +69,15 @@ def tests(url, captures):
                     objects_sheet()
                 browser("focus", driver.by_role_name("spinbutton", "Mirror axis X"))
                 check("document.activeElement===axisDraft && axisDraft.value==='12.123456789'")
+                flow = evaluate("""(()=>{
+                    const region=axisDraft.closest('[role=region]'),card=axisDraft.closest('[data-slot=card]');
+                    const r=region.getBoundingClientRect(),c=card.getBoundingClientRect(),f=axisDraft.form.getBoundingClientRect();
+                    return {position:getComputedStyle(card).position,overflow:getComputedStyle(card).overflow,
+                        regionHeight:r.height,cardHeight:c.height,formHeight:f.height,scroll:card.scrollTop};
+                })()""")
+                print("Mirror dock flow", width, theme, appearance, flow, flush=True)
+                assert flow["position"] == "static" and flow["overflow"] == "visible", flow
+                assert flow["regionHeight"] >= flow["cardHeight"] >= flow["formHeight"] > 100 and flow["scroll"] == 0, flow
                 assert geometry() == original, "theme/width changes must preserve accepted geometry"
                 browser("screenshot", str(captures / f"mirror-{width}-{theme}-{appearance}.png"))
                 if width < 980:

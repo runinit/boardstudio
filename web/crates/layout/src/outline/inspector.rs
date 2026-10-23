@@ -89,6 +89,13 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
         CornerStyle::Fillet => "fillet",
         CornerStyle::Chamfer => "chamfer",
     };
+    let active_selection = use_memo(use_reactive((&active_value,), |(value,)| Some(value)));
+    let corner_selection = use_memo(use_reactive((&corner_value,), |(value,)| Some(value.to_owned())));
+    let point_attachment = use_memo(use_reactive((&projection.connections,), move |(connections,)| {
+        Some(connections.iter().find(|connection| Some(&connection.id) == selected_connection_id.read().as_ref())
+            .and_then(|connection| connection.points.get(selected_point().min(connection.points.len().saturating_sub(1))))
+            .and_then(|point| point.part_id.clone()).unwrap_or_default())
+    }));
     let size_label: &'static str = match projection.settings.corners {
         CornerStyle::Fillet => "Fillet radius",
         _ => "Chamfer size",
@@ -388,7 +395,7 @@ onclick: {
                                     dioxus::core::current_scope_id().0,
                                     control_aria_label.replace(' ', "-"),
                                 );
-                                let control_value = format!("{}", active_value);
+
                                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                 control_choices.push(("".to_owned(), "Generated".to_owned(), false));
                                 for item in projection.versions.iter() {
@@ -414,7 +421,7 @@ onclick: {
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
                                                 list_aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(active_selection.into()),
                                                 disabled: !one_shot_enabled,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -431,7 +438,7 @@ onclick: {
                                             Select::<String> {
                                                 id: control_id.clone(),
                                                 aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                value: Some(active_selection.into()),
                                                 disabled: !one_shot_enabled,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -560,7 +567,7 @@ onclick: {
                                         dioxus::core::current_scope_id().0,
                                         control_aria_label.replace(' ', "-"),
                                     );
-                                    let control_value = format!("{}", corner_value);
+
                                     let control_choices = [
                                         ("sharp".to_owned(), "Sharp".to_owned(), false),
                                         ("fillet".to_owned(), "Fillet".to_owned(), false),
@@ -587,7 +594,7 @@ onclick: {
                                             Select::<String> {
                                                 id: control_id,
                                                 aria_label: control_aria_label.clone(),
-                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                value: Some(corner_selection.into()),
                                                 disabled: !enabled,
                                                 on_value_change,
                                                 for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
@@ -1261,7 +1268,7 @@ onclick: {
                                                             dioxus::core::current_scope_id().0,
                                                             control_aria_label.replace(' ', "-"),
                                                         );
-                                                        let control_value = format!("{}", point.part_id.as_deref().unwrap_or_default());
+
                                                         let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                                                         control_choices.push(("".to_owned(), "Fixed on board".to_owned(), false));
                                                         if let Some(id) = point
@@ -1305,7 +1312,7 @@ onclick: {
                                                                     id: control_id,
                                                                     aria_label: control_aria_label.clone(),
                                                                     list_aria_label: control_aria_label.clone(),
-                                                                    value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                                                    value: Some(point_attachment.into()),
                                                                     disabled: !enabled,
                                                                     on_value_change,
                                                                     for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
