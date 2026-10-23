@@ -13,7 +13,8 @@ Make a rough, clickable prototype of how users edit:
 - row padding;
 - Shift and Bend, at row and key level;
 - independent offsets;
-- the relative splay origin;
+- the relative splay origin, its Reset button and the Ctrl swing
+  ([ticket 06](06-origin-edits-hold-keys-still.md#answer));
 - Column rotation, and how the Splay drag's "This column" choice looks
   ([ticket 05](05-this-column-splay-representation.md#answer)).
 

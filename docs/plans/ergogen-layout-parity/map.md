@@ -116,6 +116,15 @@ BoardStudio extended layout feature working.
   - The Inspector shows Splay and Column rotation as two fields. The Splay drag's "This column"
     choice selects which field it writes. Switching never changes values.
   - Linked halves copy it unchanged.
+- [06: Decide how origin edits hold keys still](issues/06-origin-edits-hold-keys-still.md#answer):
+  - Hold-still compensation goes into this column's Spread and Stagger. The next column's
+    Spread and Stagger change too only when Column rotation ≠ 0. Column 0 writes the matrix
+    Origin. It is exact under Bend.
+  - Ctrl at pointer-down (or Ctrl-click Pick) swings keys ergogen-style. Nudges and Inspector
+    fields always hold still.
+  - The Inspector shows the relative origin, and a status line names the changed fields. Each
+    edit is one Undo entry.
+  - A "Reset to column base" button holds keys still. The base is a snap target.
 
 ## Not yet specified
 
@@ -125,7 +134,10 @@ BoardStudio extended layout feature working.
 - **Mirrored halves.** The reconcile, inverse-edit and exception rules for each new field and
   for anchors, in `layout::reflected`, `mirrored_half/{inverse,reconcile}`. The kernel fixes the
   reflection rule: values are copied unchanged, and the mirror negates the local heading.
-  Graduates once the anchor ticket resolves.
+  A hold-still origin edit on column 0 writes the matrix Origin, and the follower half must
+  get the mirrored change so it also holds still
+  ([ticket 06](issues/06-origin-edits-hold-keys-still.md#answer)). Graduates once the anchor
+  ticket resolves.
 - **Format reset.** The user-facing message when an older document is refused, how stored
   browser projects and Undo history are cleared, and the archive import message.
 - **Starters.** Rebuilding the three starters and the demos under the new rules, for example
