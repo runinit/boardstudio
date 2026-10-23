@@ -1157,8 +1157,8 @@ fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() 
         document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,
             "partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
         document["parts"] = json!(parts);
-        // Open rewrites every matrix-owned part from its parametric pose except parts a
-        // linked layout marks Local, so Local is how a saved pose survives to be read.
+        // Open preserves Local parts and parts with layoutOverride == 1. Local is
+        // sufficient here; projection itself reads saved member poses regardless of Local.
         // The fixture matrix shares the mirror layout with a dummy mirror of `src`.
         let dummy = |id: &str, x: f64| {
             json!({"id":id,"definitionId":"switch","boardId":"board","rows":1,"columns":1,

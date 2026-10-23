@@ -933,6 +933,124 @@ mod projection_tests {
         assert!(scene.cells[4].pose.at.x.is_finite());
     }
 
+    /// The captured oracle predates grouped layout records, so the fixture keeps its
+    /// legacy per-axis arrays and this adapter rewrites them as column and row records.
+    fn grouped_from_legacy(mut matrix: serde_json::Value) -> Matrix {
+        use serde_json::{Map, Value, json};
+        let object = matrix.as_object_mut().unwrap();
+        let mut take = |key: &str| match object.remove(key) {
+            Some(Value::Array(items)) => items,
+            _ => vec![],
+        };
+        let (offsets, origins, splays, staggers) = (
+            take("columnOffsets"),
+            take("columnOrigins"),
+            take("columnSplays"),
+            take("columnStaggers"),
+        );
+        let row_offsets = take("rowOffsets");
+        let columns = [&offsets, &origins, &splays, &staggers]
+            .iter()
+            .map(|items| items.len())
+            .max()
+            .unwrap();
+        let record = |fields: Vec<(&str, Option<&Value>)>| {
+            let mut out = Map::new();
+            for (key, value) in fields {
+                if let Some(value) = value.filter(|value| !value.is_null()) {
+                    out.insert(key.into(), value.clone());
+                }
+            }
+            Value::Object(out)
+        };
+        let column_layout: Vec<_> = (0..columns)
+            .map(|i| {
+                record(vec![
+                    ("offset", offsets.get(i)),
+                    ("splayOrigin", origins.get(i)),
+                    ("splay", splays.get(i)),
+                    ("stagger", staggers.get(i)),
+                ])
+            })
+            .collect();
+        let row_layout: Vec<_> = row_offsets
+            .iter()
+            .map(|offset| record(vec![("offset", Some(offset))]))
+            .collect();
+        object.insert("columnLayout".into(), json!(column_layout));
+        object.insert("rowLayout".into(), json!(row_layout));
+        serde_json::from_value(matrix).unwrap()
+    }
+
+    /// The captured rows predate the shift and offset frames, so only the oracle's fields.
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ExpectedCell {
+        row: u32,
+        column: u32,
+        enabled: bool,
+        member_id: Option<String>,
+        pose: Pose2,
+    }
+
+    // Bypass Open intentionally: it refreshes ordinary parts before projection. This
+    // fixture pins saved-pose reads without Local exceptions or layoutOverride.
+    #[test]
+    fn ordinary_parts_match_saved_pose_and_member_id_fixtures_in_every_mirror_mode() {
+        let fixtures: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/matrix-projections.json"))
+                .unwrap();
+        let cases = fixtures["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 9);
+        let mut cell_count = 0;
+        let mut saved_modes = BTreeSet::new();
+        for fixture in cases {
+            let case = fixture["name"].as_str().unwrap();
+            let matrix = grouped_from_legacy(fixture["matrix"].clone());
+            let parts: Vec<Part> = serde_json::from_value(fixture["parts"].clone()).unwrap();
+            for part in &parts {
+                assert!(
+                    part.properties
+                        .as_ref()
+                        .is_none_or(|properties| !properties.contains_key(OVERRIDE))
+                );
+            }
+            if !parts.is_empty() {
+                assert!(saved_modes.insert(case));
+            }
+            let expected: Vec<ExpectedCell> =
+                serde_json::from_value(fixture["expected"].clone()).unwrap();
+            let scene = project_matrix(&matrix, &parts, ProjectionMode::Actual).unwrap();
+            assert_eq!(scene.cells.len(), expected.len(), "{case}: cell count");
+            cell_count += scene.cells.len();
+            for (actual, expected) in scene.cells.iter().zip(expected) {
+                let at = format!("{case} r{}c{}", expected.row, expected.column);
+                assert_eq!(
+                    (actual.row, actual.column),
+                    (expected.row, expected.column),
+                    "{at} row,column"
+                );
+                assert_eq!(actual.enabled, expected.enabled, "{at} enabled");
+                assert_eq!(actual.member_id, expected.member_id, "{at} memberId");
+                for (name, actual, expected) in [
+                    ("x", actual.pose.at.x, expected.pose.at.x),
+                    ("y", actual.pose.at.y, expected.pose.at.y),
+                    ("rotation", actual.pose.rotation, expected.pose.rotation),
+                ] {
+                    assert!(
+                        (actual - expected).abs() < 1e-9,
+                        "{at} pose {name}: expected {expected}, got {actual}"
+                    );
+                }
+            }
+        }
+        assert_eq!(cell_count, 81);
+        assert_eq!(
+            saved_modes,
+            BTreeSet::from(["none-saved-poses", "x-saved-poses", "y-saved-poses"])
+        );
+    }
+
     #[test]
     fn projection_enforces_geometry_validation_at_its_boundary() {
         let mut m = matrix();
