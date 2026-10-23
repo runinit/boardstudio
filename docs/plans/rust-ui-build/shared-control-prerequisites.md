@@ -173,6 +173,83 @@ history of listener identities in Button and InputGroupInput, with the same publ
 all targets and no new API/dependency. The alternative is a separately authorized pinned-renderer
 correction. Neither additional change has been made.
 
+## Approved renderer repair and combined correction
+
+The coordinator rejected control-local history/None-slot workarounds and approved the bounded
+repository-owned renderer repair in [the repair proposal](pinned-renderer-repair-proposal.md).
+The completed correction receives **one combined Standards/Spec review**, explicitly covering the
+renderer and both shared-contract P2 findings, before local feature landing.
+
+- Published vendor baseline and committed Node regression:
+  `9ee203f69eaf1ace39f5f5b5e1fa88133074251a`. All 31 published archive files were unchanged;
+  upstream license texts, provenance and the regression are additions. No global Cargo cache was
+  modified. The unchanged Node regression failed **1 passed, 4 failed** against published source;
+  `.evidence/shared-control-prereq/vendor-listener-red.log`.
+- Renderer repair: `d29dec86553a8cd532c4eb764c07a80e39ec0e2d`, tree
+  `964d4115c141c529ea690b968875d7bdf1f9222b`. The hand delta is limited to
+  `unified_bindings.rs` and `core.ts`; the existing bundler regenerated `core.js` and its input
+  hash. Three unrelated Bun formatting-only outputs retain published bytes. The same Node
+  regression now passes **5/5**; `.evidence/shared-control-prereq/vendor-listener-green.log`.
+- The locked, offline production WASM check passed;
+  `.evidence/shared-control-prereq/vendor-bundle-compile.log`.
+- Combined mounted WASM `ui::` checks passed **21/21**, 58 filtered out, on the corrected shared
+  source plus the renderer repair; `.evidence/shared-control-prereq/combined-wasm-ui-renderer-fixed.log`.
+  This includes all three dynamic-attribute regressions and all earlier shared-control checks.
+  The new id test covers eight fallback/owner/default/id-change phases on both native and link
+  branches, actual Tooltip focus descriptions and exactly one owner focus callback per phase.
+  Button and Input Group listener tests remove focus while retaining nonbubbling blur, verify
+  callback counts/order and unknown-attribute removal/collisions, and preserve caller value/input.
+- Native default `cargo test --locked --offline -p boardstudio-web-ui-shared --lib` passed **17/17**;
+  `.evidence/shared-control-prereq/native-default-renderer-fixed.log`. The native mutation guard
+  verifies exactly one focus-removal mutation per Button branch and no retained blur removal.
+
+Native test-support also passed **17/17**, and native Clippy with warnings denied passed;
+`.evidence/shared-control-prereq/native-test-support-renderer-fixed.log` and
+`native-clippy-renderer-fixed.log`. The first WASM Clippy run rejected consecutive initial `push`
+calls in the new Input Group fixture (`vec_init_then_push`); `2410f5eb` replaces them with the same
+entries in the same order in `vec![]`, without an allow or assertion change. The failure remains in
+`wasm-clippy-renderer-fixed.log` and is a lint failure, not a behavioral regression.
+
+Final shared implementation/test pin: `2410f5ebaa4d9c3925d1b9f488950651a4701409`, tree
+`ea6bdfde40cce0712a1849f6958d670476c30cc1`. Only documentation changes follow this source pin.
+
+Final checks, all executed using the exclusive prerequisite target and the unchanged repository
+browser environment:
+
+| Check | Result | Evidence under `.evidence/shared-control-prereq/` |
+| --- | --- | --- |
+| Unchanged published-source Node regression after repair | 5/5 pass | `vendor-listener-green.log` |
+| Shared `ui::` mounted WASM tests | 21/21 pass; 58 filtered | `combined-wasm-ui-final.log` |
+| Native UI shared lib, default | 17/17 pass | `native-default-final.log` |
+| Native UI shared lib, test-support | 17/17 pass | `native-test-support-final.log` |
+| Native Clippy, lib/tests/test-support, warnings denied | pass | `native-clippy-final.log` |
+| WASM Clippy, lib/tests, warnings denied | pass | `wasm-clippy-final.log` |
+| Workspace rustfmt | pass | `format-final.log` |
+| Authored documentation links | pass | `doc-links-final.log` |
+| WASM-only plain-test guard | pass | `wasm-test-guard-final.log` |
+| Native-name guard, reused native log, partial mode, no baseline rewrite | pass | `native-name-guard-final.log` |
+| Root lock and bounded vendor delta | pass | `final-static-source-audit.log` |
+| Locked/offline resolved dependency and compiled-feature audit | pass | `final-dependency-feature-audit.log` |
+
+Cargo test and Clippy commands used `--locked --offline`; both targets were checked sequentially.
+The authored-doc and WASM guards are source checks; they do not add runtime acceptance. The native
+guard covers the selected binary, not every test in the repository's aggregate baseline.
+
+The resolved interpreter is the excluded workspace-local vendor path at version 0.7.10, with only
+`dioxus-web` 0.7.10 as a reverse edge. Its resolved and all original-registry/vendored WASM compiled
+feature sets agree: `default`, `minimal_bindings`, `sledgehammer`, `webonly`. No binary-protocol or
+serialize feature was added. Root lock contents equal the feature-base lock except removal of the
+interpreter's registry source/checksum. `cargo metadata --locked --offline --format-version 1
+--filter-platform wasm32-unknown-unknown` supplies the standard metadata receipt; no custom source
+manifest was created. The vendor differs from its published baseline in exactly the two approved
+hand-authored source files, generated core JS and existing input hash; the Node regression is
+unchanged between its RED and GREEN.
+
+The build phase is complete; the allocated slot is returned with the correction-review handoff.
+One completed-correction Standards/Spec review and approved local feature landing remain pending.
+Global acceptance and workspace ticket claims remain unchanged. Target cleanup still waits for
+approved landing and no active owner; evidence is preserved.
+
 Builds use the exclusive target
 `/home/chris/.cache/boardstudio-target/shared-control-prereq-t3-b5fe12f0`, outside `.evidence/`.
 The coordinator allocated the 017 slot to this slice while 017 continues independent source work;
