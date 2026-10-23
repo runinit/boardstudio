@@ -22,8 +22,8 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 [spec](spec.md) and [dependent TDD build tickets](#build-tickets) now exist. This closes
 planning, not implementation. No version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
-is complete; [17a](issues/17a-grouped-model-and-core-callers.md#answer) is resolved; the unblocked build frontier is
-[17b](issues/17b-validation-and-ownership.md), [17c](issues/17c-kernel-production-routing.md) and [17d](issues/17d-entry-path-gates.md).
+is complete; [17a](issues/17a-grouped-model-and-core-callers.md#answer), [17b](issues/17b-validation-and-ownership.md#answer), [17c](issues/17c-kernel-production-routing.md#answer) and [17d](issues/17d-entry-path-gates.md#answer) are resolved; the unblocked build frontier is
+[17e](issues/17e-fixtures-and-final-gate.md).
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -108,7 +108,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [17: Model/format cutover](issues/17-cut-over-format-and-model.md) | 16 | Grouped records, Layout membership, all removed-field callers and strict gates. |
 | [17a: Grouped model and Core callers](issues/17a-grouped-model-and-core-callers.md) | 16 | Resolved: grouped records, `matrixIds`, explicit correspondences, five failing tests fixed, web callers migrated. |
 | [17b: Validation and ownership](issues/17b-validation-and-ownership.md) | 17a | Resolved: dimension bound runs before any row/column walk, grouped validation, step policy, Layout ownership, no anchor-as-origin. |
-| [17c: Kernel production routing](issues/17c-kernel-production-routing.md) | 17a | Projection and parts through the kernel; oracle retired with coverage. |
+| [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer) | 17a | Resolved: projection and parts use the kernel; ordinary saved-pose/member-id oracle coverage replaces the retired test. |
 | [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Resolved: archive unpack gated before the asset table; Core Open, replace and browser list/load gates pinned by tests. |
 | [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md) | 17b, 17c, 17d | Minimum fixture regeneration, quick/full gates, Standards and Spec review. |
 | [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
@@ -132,6 +132,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 ## Decisions so far
 
 <!-- one line per resolved ticket: linked title, then the gist -->
+- [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer): Draft/actual projection and parts route through the kernel; nine ordinary fixture cases retain saved-pose/member-id coverage, and the reviewed merged quick passes.
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md#answer): **Shift** and **Bend**
   are the carried move and turn (ergogen `shift` and `rotate`). Offsets and Key rotation keep their

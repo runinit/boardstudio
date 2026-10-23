@@ -1,6 +1,6 @@
 # 17e: Fixtures and final gate
 
-Status: blocked
+Status: ready-for-agent
 Type: build
 Blocked by: [17b](17b-validation-and-ownership.md), [17c](17c-kernel-production-routing.md), [17d](17d-entry-path-gates.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
