@@ -1026,6 +1026,8 @@ pub(crate) fn move_keys(
             .position(|cell| cell.row == row && cell.column == column)
             .unwrap_or_else(|| {
                 matrix.cells.push(MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row,
                     column,
@@ -1195,6 +1197,8 @@ pub(crate) fn reconcile_constraint_keys(
             .position(|cell| cell.row == row && cell.column == column)
             .unwrap_or_else(|| {
                 matrix.cells.push(MatrixCell {
+                    shift: None,
+                    bend: None,
                     deleted: false,
                     row,
                     column,

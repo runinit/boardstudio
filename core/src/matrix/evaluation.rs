@@ -3,7 +3,7 @@ use super::kernel::{self, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, Raw
 use crate::model::{Matrix, Pose2, ProjectDoc, Vec2};
 use std::collections::BTreeSet;
 
-pub(super) fn input(matrix: &Matrix) -> LayoutInput {
+pub(crate) fn input(matrix: &Matrix) -> LayoutInput {
     LayoutInput {
         column_layout: matrix.column_layout.clone(),
         row_layout: matrix.row_layout.clone(),

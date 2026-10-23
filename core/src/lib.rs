@@ -2067,8 +2067,9 @@ fn apply_with_ledger(
             let mut follower = right.clone();
             let link = follower.mirror_link.as_mut().ok_or("A new mirrored pair must be linked")?;
             link.correspondences.clear();
+            let target_id = &target.id;
             for (kind, source_id, mirror_id) in std::iter::once((MirroredItemKind::Matrix, matrix.id.clone(), target.id.clone()))
-                .chain((0..matrix.rows).flat_map(|row| (0..matrix.columns).map(move |column| (MirroredItemKind::Part, matrix::member_id(&matrix.id, row, column), matrix::member_id(&target.id, row, column)))))
+                .chain((0..matrix.rows).flat_map(|row| (0..matrix.columns).map(move |column| (MirroredItemKind::Part, matrix::member_id(&matrix.id, row, column), matrix::member_id(target_id, row, column)))))
             {
                 link.correspondences.push(MirroredCorrespondence { kind, source_id, mirror_id, companion_mode: None, companion_tweak: None });
             }
