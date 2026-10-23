@@ -3,7 +3,9 @@
 import argparse
 from datetime import datetime
 import importlib
+import json
 from pathlib import Path
+import subprocess
 
 
 driver = importlib.import_module("test-dock-primitives")
@@ -32,6 +34,74 @@ def geometry():
     return evaluate("[...document.querySelectorAll('.m1-matrix-key')].map(e=>({matrix:e.dataset.matrixId,transform:e.getAttribute('transform'),width:e.getAttribute('width'),height:e.getAttribute('height')}))")
 
 
+def space_key(event_type):
+    # agent-browser press releases immediately; its documented CDP bridge can hold one trusted key.
+    cdp = browser("get", "cdp-url")["cdpUrl"]
+    page = browser("get", "url")["url"]
+    script = """
+        import {readFileSync} from 'node:fs';
+        const {url,page,type}=JSON.parse(readFileSync(0,'utf8'));
+        const ws=new WebSocket(url),pending=new Map();let id=0;
+        const timeout=setTimeout(()=>{console.error('CDP key dispatch timed out');process.exit(1)},10000);
+        ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(m.error):p.resolve(m.result)}};
+        const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const next=++id;pending.set(next,{resolve,reject});ws.send(JSON.stringify({id:next,method,params,sessionId}))});
+        await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject});
+        try {
+            const {targetInfos}=await send('Target.getTargets');
+            const pages=targetInfos.filter(t=>t.type==='page'&&t.url===page);
+            if(pages.length!==1)throw Error('Expected exactly one owned Layout page');
+            const {sessionId}=await send('Target.attachToTarget',{targetId:pages[0].targetId,flatten:true});
+            await send('Input.dispatchKeyEvent',{type,key:' ',code:'Space',windowsVirtualKeyCode:32,nativeVirtualKeyCode:32},sessionId);
+        } finally {clearTimeout(timeout);ws.close()}
+    """
+    subprocess.run(["node", "--input-type=module", "-e", script],
+                   input=json.dumps({"url": cdp, "page": page, "type": event_type}),
+                   text=True, check=True, timeout=15)
+
+
+def held_space_floor():
+    canvas_name = "Keyboard layout; drag components, hold Shift for range selection, hold Space and drag to pan, or use position controls"
+    browser("focus", driver.by_role_name("group", canvas_name))
+    evaluate("window.layoutCanvas=document.activeElement")
+    point = evaluate("(()=>{const r=layoutCanvas.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height*.75)}})()")
+    check(f"document.elementFromPoint({point['x']},{point['y']}).closest('[role=group]')===layoutCanvas")
+
+    def drag():
+        browser("mouse", "move", point["x"], point["y"])
+        browser("mouse", "down")
+        try:
+            browser("mouse", "move", point["x"] + 30, point["y"] + 20)
+        finally:
+            browser("mouse", "up")
+
+    browser("focus", driver.by_role_name("button", "Group objects by"))
+    evaluate("window.heldSelect=document.activeElement;window.openTransitions=[];window.heldClicks=[];window.heldKeys=[];window.selectObserver=new MutationObserver(ms=>openTransitions.push(...ms.map(m=>m.oldValue)));selectObserver.observe(heldSelect,{attributes:true,attributeFilter:['aria-expanded'],attributeOldValue:true});heldSelect.addEventListener('click',e=>heldClicks.push(e.isTrusted));window.recordHeldKey=e=>{if(e.code==='Space')heldKeys.push({type:e.type,trusted:e.isTrusted,prevented:e.defaultPrevented})};window.addEventListener('keydown',recordHeldKey);window.addEventListener('keyup',recordHeldKey)")
+    before = evaluate("layoutCanvas.getAttribute('viewBox')")
+    space_key("keyDown")
+    try:
+        assert driver.by_role_name("listbox", "Group objects by")
+        drag()
+        check("heldSelect.textContent.trim()==='By layout' && heldClicks.length===0 && openTransitions.filter(v=>v==='false').length===1 && !heldKeys.some(e=>e.type==='keydown')")
+        assert evaluate("layoutCanvas.getAttribute('viewBox')") == before, "Select-held Space must not arm canvas pan"
+    finally:
+        space_key("keyUp")
+    check("heldKeys.length===1 && heldKeys[0].type==='keyup' && heldKeys[0].trusted && heldClicks.length===0")
+    browser("press", "Escape")
+    browser("focus", driver.by_role_name("group", canvas_name))
+    space_key("keyDown")
+    try:
+        drag()
+        assert evaluate("layoutCanvas.getAttribute('viewBox')") != before, "blank-canvas Space pan must still work"
+    finally:
+        space_key("keyUp")
+    after = evaluate("layoutCanvas.getAttribute('viewBox')")
+    drag()
+    assert evaluate("layoutCanvas.getAttribute('viewBox')") == after, "release must stop canvas pan"
+    print("Held Select Space: one open, no native click/window keydown/pan; canvas positive pan and release", evaluate("({keys:heldKeys,transitions:openTransitions,clicks:heldClicks})"), before, after, flush=True)
+    evaluate("selectObserver.disconnect();window.removeEventListener('keydown',recordHeldKey);window.removeEventListener('keyup',recordHeldKey)")
+    click("Fit board")
+
+
 def tests(url, captures):
     browser("set", "viewport", 1440, 900)
     browser("open", url)
@@ -51,6 +121,7 @@ def tests(url, captures):
     evaluate("window.removeEventListener('keydown',recordSelectSpace)")
     browser("press", "Escape")
     check("document.activeElement.getAttribute('aria-label')==='Group objects by'")
+    held_space_floor()
     click("Add object")
     assert driver.by_role_name("region", "Add")
     check("!document.querySelector('[role=dialog][aria-label=Add]') && document.getElementById('m1-objects-panel').contains(document.querySelector('[role=region][aria-label=Add]'))")

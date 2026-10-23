@@ -753,3 +753,16 @@ does once with default prevented, an unhandled key still bubbles once, caller
 click still fires once, and open/close callbacks are not duplicated. This is
 synthetic mounted shared-contract evidence; actual trusted/held-key evidence is
 still pending the production rebuild, and no visible pan RED is claimed.
+
+Production rebuild6 at `e0227abb` passes; same actual-owner regression and the full
+Add/Mirror operation script pass (`select-space-actual-held-green.log`, captures
+`layout-adoption-20261022-215700/`). Native Space's window trace is now empty.
+The documented agent-browser CDP bridge supplies one held trusted keydown/up
+(press otherwise releases immediately); controls/canvas still come from role/name.
+Holding opening Space while dragging blank canvas opens once, makes no native
+click, preserves the Group choice and camera viewBox, and delivers only the
+trusted release to window. Independent canvas-focused held Space then changes the
+actual viewBox, and a drag after release preserves that viewBox. This is measured
+GREEN pan isolation/positive canvas behavior; the retained earlier RED measured
+only raw event leakage. The actual precise Mirror draft, 12 combinations,
+measurements and three separate Undo outcomes pass in the same execution.
