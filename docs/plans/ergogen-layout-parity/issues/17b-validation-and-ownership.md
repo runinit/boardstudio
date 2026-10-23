@@ -1,6 +1,6 @@
 # 17b: Validation and Layout ownership
 
-Status: blocked
+Status: claimed
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
@@ -21,4 +21,8 @@ Source anchors: `core/src/validate.rs`, `model.rs`, `matrix.rs`. Use focused pub
 
 ## Progress
 
-- [ ] 
+- [x] Finite/default/list-bound, sparse defaults, growth/truncation, step policy: `grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically`, `zero_and_negative_steps_are_accepted_while_axis_zero_steps_are_refused`, `explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records`, `non_finite_evaluated_layouts_and_empty_ownership_are_refused`, `an_anchor_without_follow_follows_all_three_components`.
+- [x] Nonempty logical Layout ownership, unrelated data preserved: `non_finite_evaluated_layouts_and_empty_ownership_are_refused`, `edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically`, `omitted_matrix_membership_keeps_a_live_anchor_without_materialized_parts`.
+- [x] No unresolved anchor as world origin: `anchors_without_any_layout_are_refused_not_read_as_world_origin`, `anchors_must_resolve_to_an_in_range_key_in_the_same_layout`, `anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused`.
+- [x] Dimension bound (`MAX_MATRIX_PARTS` = 4096 rows x columns, `core/src/matrix.rs`) now runs before any row/column walk: `valid_dimensions` is called first by `matrix::layout::validate` (previously `cell_members` looped `rows x columns` from `primary_member` first, so `rows = u32::MAX` hung/grew without limit; red4 and a capped 120 s timeout were the RED). Proof: the `huge` (u32::MAX) and `just-over-part-limit` (4097) cases in `anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused`.
+- New tests in `core/tests/document_integrity.rs` (not added to any baseline JSON): `zero_and_negative_steps_are_accepted_while_axis_zero_steps_are_refused`, `anchors_must_resolve_to_an_in_range_key_in_the_same_layout`, `anchors_without_any_layout_are_refused_not_read_as_world_origin`, `non_finite_evaluated_layouts_and_empty_ownership_are_refused`, `edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically`, `an_anchor_without_follow_follows_all_three_components`, `anchor_keys_stay_free_of_constraints_and_self_anchors_are_refused`.

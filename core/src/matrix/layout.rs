@@ -5,6 +5,10 @@ const MIRRORED_COMPONENT_SOURCE: &str = "boardstudio.mirroredComponentSource";
 const MIRRORED_COMPONENT_SUBSTITUTE: &str = "boardstudio.mirroredComponentSubstitute";
 
 pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
+    // Bound every matrix before any walk over its rows and columns below.
+    for matrix in &doc.matrices {
+        matrix::valid_dimensions(matrix)?;
+    }
     if doc.layouts.is_empty() {
         return Ok(());
     }
