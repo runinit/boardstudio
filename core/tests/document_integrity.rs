@@ -476,6 +476,47 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
 }
 
 #[test]
+fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() {
+    for route in ["open", "replace"] {
+        let mut engine = CoreEngine::new();
+        assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
+        let accepted = snapshot(&mut engine);
+        let mut cases: Vec<(Value, &str)> = Vec::new();
+        let mut missing = baseline();
+        missing.as_object_mut().unwrap().remove("formatVersion");
+        cases.push((missing, "no formatVersion"));
+        for version in [json!(null), json!(7.5), json!(-1), json!(true), json!([7])] {
+            let mut candidate = baseline();
+            candidate["formatVersion"] = version;
+            cases.push((candidate, "invalid formatVersion"));
+        }
+        let mut foreign = baseline();
+        foreign["format"] = json!("boardstudio/v1");
+        foreign["formatVersion"] = json!(6);
+        cases.push((foreign, "Unsupported"));
+        cases.push((json!([]), "must be an object"));
+        for (candidate, explanation) in cases {
+            let reply = if route == "open" {
+                open(&mut engine, "refused", &candidate)
+            } else {
+                request(
+                    &mut engine,
+                    json!({"kind":"edit","id":"refused","command":{
+                        "baseRevision":accepted["revision"],"transactionId":"refused",
+                        "phase":"commit","targetIds":[],
+                        "operation":{"kind":"replace-document","document":candidate}
+                    }}),
+                )
+            };
+            assert_error(&reply);
+            let message = reply["message"].as_str().unwrap();
+            assert!(message.contains(explanation), "{route} {candidate}: {message}");
+            assert_eq!(snapshot(&mut engine), accepted, "{route} changed state");
+        }
+    }
+}
+
+#[test]
 fn duplicate_identity_in_each_collection_is_rejected_on_open() {
     for collection in [
         "parts",
