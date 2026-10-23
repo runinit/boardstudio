@@ -2,7 +2,6 @@
 """020: the packaged Parts owners, trusted role/name input, retained controls and theme captures."""
 import argparse
 import importlib
-import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -153,19 +152,28 @@ def main():
         browser("wait", "--fn", "!!document.getElementById(document.activeElement.getAttribute('aria-describedby'))")
         browser("press", "Escape")
         check("document.activeElement.getAttribute('aria-label')==='View controls'")
-        for width, height in [(1440, 960), (1100, 900), (390, 844)]:
-            browser("set", "viewport", width, height)
-            if width < 980 and has("button", "Close panels"):
-                action("button", "Close panels")
-            for theme in ["original", "shadcn"]:
-                for appearance in ["light", "dark"]:
-                    evaluate(f"document.documentElement.dataset.theme={json.dumps(theme)};document.documentElement.dataset.appearance={json.dumps(appearance)}")
-                    evaluate("document.fonts.ready.then(()=>true)")
+        for theme in ["original", "shadcn"]:
+            for appearance in ["light", "dark"]:
+                browser("set", "viewport", 1440, 960)
+                action("button", "Settings")
+                action("menuitemradio", "Original" if theme == "original" else "shadcn")
+                action("button", "Settings")
+                action("menuitemradio", appearance.title())
+                browser("wait", "--fn", f"document.documentElement.dataset.theme==='{theme}' && document.documentElement.dataset.appearance==='{appearance}'")
+                evaluate("document.fonts.ready.then(()=>true)")
+                for width, height in [(1440, 960), (1100, 900), (390, 844)]:
+                    browser("set", "viewport", width, height)
+                    if width < 980 and has("button", "Close panels"):
+                        action("button", "Close panels")
                     action("button", "View controls")
                     focus("checkbox", "Show hidden lines")
-                    metrics = evaluate("(()=>{const content=document.activeElement.closest('[data-slot=collapsible-content]');const toolbar=content.parentElement.parentElement;const selected=[...toolbar.querySelectorAll('[data-slot=toggle-group-item][aria-pressed=true]')];const probe=document.createElement('div');probe.style.backgroundColor='var(--background)';document.body.append(probe);const expected=getComputedStyle(probe).backgroundColor;probe.remove();return {legacy:toolbar.classList.contains('m1-case-view-toolbar'),bounds:[content.getBoundingClientRect().left,content.getBoundingClientRect().right],scroll:toolbar.scrollWidth,client:toolbar.clientWidth,expected,selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))}})()")
+                    metrics = evaluate("(()=>{const content=document.activeElement.closest('[data-slot=collapsible-content]');const toolbar=content.parentElement.parentElement;const selected=[...toolbar.querySelectorAll('[data-slot=toggle-group-item][aria-pressed=true]')];const probe=document.createElement('div');probe.style.backgroundColor='var(--background)';document.body.append(probe);const expected=getComputedStyle(probe).backgroundColor;probe.remove();return {legacy:toolbar.classList.contains('m1-case-view-toolbar'),position:getComputedStyle(toolbar).position,display:getComputedStyle(toolbar).display,wrap:getComputedStyle(toolbar).flexWrap,popupPosition:getComputedStyle(content).position,popupOwner:content.offsetParent===toolbar,nativeColor:{connected:partsColor.isConnected,type:partsColor.type,slot:partsColor.getAttribute('data-slot'),background:getComputedStyle(partsColor).backgroundColor},bounds:[content.getBoundingClientRect().left,content.getBoundingClientRect().right],scroll:toolbar.scrollWidth,client:toolbar.clientWidth,expected,selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))}})()")
                     assert not metrics["legacy"] and metrics["scroll"] <= metrics["client"], metrics
+                    assert (metrics["position"], metrics["display"], metrics["wrap"]) == ("relative", "flex", "wrap"), metrics
+                    assert metrics["popupPosition"] == "absolute" and metrics["popupOwner"], metrics
+                    assert metrics["nativeColor"]["connected"] and metrics["nativeColor"]["type"] == "color" and metrics["nativeColor"]["slot"] is None, metrics
                     assert 0 <= metrics["bounds"][0] < metrics["bounds"][1] <= width, metrics
+                    assert metrics["selected"], metrics
                     assert all(e["background"] == metrics["expected"] and e["border"] == "0px" and e["height"] >= 36 for e in metrics["selected"]), metrics
                     print("Computed preview styles:", width, theme, appearance, metrics, flush=True)
                     browser("screenshot", str((args.evidence / f"preview-{width}-{theme}-{appearance}.png").resolve()))
