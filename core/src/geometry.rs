@@ -151,24 +151,7 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 let Some(part) = doc.parts.iter().find(|part| &part.id == id) else {
                     continue;
                 };
-                let owner = doc.layouts.iter().find(|layout| {
-                    layout.part_ids.contains(id)
-                        || doc.matrices.iter().any(|matrix| {
-                            layout.matrix_ids.contains(&matrix.id) && matrix.part_ids.contains(id)
-                        })
-                });
-                let x = owner
-                    .and_then(|layout| {
-                        layout
-                            .matrix_ids
-                            .iter()
-                            .filter_map(|id| {
-                                crate::matrix::evaluation::logical_matrix(id, doc).ok()
-                            })
-                            .filter(|matrix| matrix.anchor.is_none())
-                            .min_by(|a, b| a.id.cmp(&b.id))
-                    })
-                    .map_or(part.pose.at.x, |matrix| matrix.origin.x);
+                let x = split_x(doc, part)?;
                 groups
                     .entry(axes.iter().map(|axis| x < *axis).collect())
                     .or_default()
@@ -1104,4 +1087,24 @@ mod tests {
     fn compare_200() {
         compare(200);
     }
+}
+
+/// The split coordinate of a part: the origin of the unanchored root of the matrix that owns
+/// it. A part outside any matrix has only its own pose.
+fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
+    let Some(owner) = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.part_ids.contains(&part.id))
+    else {
+        return Ok(part.pose.at.x);
+    };
+    let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
+    for _ in 0..=doc.matrices.len() {
+        let Some(anchor) = root.anchor.as_ref() else {
+            return Ok(root.origin.x);
+        };
+        root = crate::matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)?;
+    }
+    Err(format!("Matrix anchors of {} form a cycle", owner.id))
 }

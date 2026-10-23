@@ -1025,6 +1025,48 @@ fn grouped_anchored_matrices_keep_linked_outline_halves_separate() {
 }
 
 #[test]
+fn unrelated_roots_in_one_layout_classify_each_part_against_its_own_root() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, x) in [("s-a", 0.0), ("s-b", 100.0), ("m-a", 100.0), ("m-b", 0.0)] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},
+            "definitionId":"switch","partIds":[part_id]});
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["s-a","s-b"],"partIds":[]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["m-a","m-b"],"partIds":[],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"s-a","mirrorId":"m-a"},
+             {"kind":"matrix","sourceId":"s-b","mirrorId":"m-b"}]}}
+    ]))
+    .unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "two-roots".into(),
+        document: doc,
+    }));
+    assert!(
+        result.board_outline_scenes[0].bridges.is_empty(),
+        "no bridge may cross the split: {:?}",
+        result.board_outline_scenes[0].bridges
+    );
+    assert_eq!(result.contours.len(), 2);
+    assert!(!contains(&result.contours, 50.0, 0.0));
+}
+
+#[test]
 fn manual_connections_respect_linked_split_boundaries() {
     for (points, crosses_axis, another_axis) in [
         (json!([]), false, false),
