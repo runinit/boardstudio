@@ -56,6 +56,52 @@ fn assert_error(reply: &Value) {
 }
 
 #[test]
+fn grouped_v7_records_and_layout_membership_round_trip_through_core() {
+    let mut document = baseline();
+    document["formatVersion"] = json!(7);
+    document["constraints"] = json!([]);
+    document["matrices"][0]["columnLayout"] = json!([
+        {"rotation": 90}, {"spread": 30, "stagger": 4, "offset": {"x": 2, "y": 0}}
+    ]);
+    document["matrices"][0]["rowLayout"] = json!([
+        {"shift": {"x": 3, "y": 0}, "bend": 90, "offset": {"x": 1, "y": 0}}
+    ]);
+    document["layouts"] = json!([{
+        "id": "layout", "name": "Layout", "boardId": "board",
+        "matrixIds": ["matrix"], "partIds": []
+    }]);
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "grouped", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let saved = snapshot(&mut engine);
+    assert_eq!(saved["formatVersion"], 7);
+    assert_eq!(
+        saved["matrices"][0]["columnLayout"],
+        document["matrices"][0]["columnLayout"]
+    );
+    assert_eq!(
+        saved["matrices"][0]["rowLayout"],
+        document["matrices"][0]["rowLayout"]
+    );
+    assert_eq!(saved["layouts"][0]["matrixIds"], json!(["matrix"]));
+    let projected = &reply["scene"]["matrixScenes"][0]["cells"];
+    let near = |value: &Value, x: f64, y: f64| {
+        assert!((value["pose"]["at"]["x"].as_f64().unwrap() - x).abs() < 1e-9);
+        assert!((value["pose"]["at"]["y"].as_f64().unwrap() - y).abs() < 1e-9);
+    };
+    near(&projected[0], -1.0, 3.0);
+    near(&projected[1], 33.0, 7.0);
+    assert_eq!(
+        open(&mut CoreEngine::new(), "round-trip", &saved)["kind"],
+        "scene"
+    );
+    let mut old = document;
+    old["formatVersion"] = json!(6);
+    assert_error(&open(&mut engine, "old", &old));
+    assert_eq!(snapshot(&mut engine), saved);
+}
+
+#[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     use boardstudio_core::migrate::CURRENT_VERSION;
 
