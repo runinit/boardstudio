@@ -141,3 +141,4 @@ Cross-check: an independent Python implementation of ticket 04 formula 1 + mirro
 - [x] Step 3: resize test now checks every row, shows retired r0c2 stays gone after shrinking to 2, and the column-compaction test asserts the exact surviving `(source, mirror)` pair set.
 - [x] Step 4: one `layout::member_pairs` helper now backs `populate_new_link`, `sync_member_pairs` and the `CreateMirroredPair` correspondence build; `sync_member_pairs` takes the link in place instead of cloning the Layout; `update_link_members` renamed.
 - [x] Step 5: `cargo test -p boardstudio_core --lib --test integration` — 802 passed / 4 ignored and 738 passed, 0 failed.
+- [x] Step 6: `check.py test --update-native-baseline` — `all steps passed: test`, 2127 executed; baseline diff +2 added (the two new Core tests), 0 removed.

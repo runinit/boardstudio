@@ -1472,6 +1472,8 @@
   "core_engine::undo_redo_increments_revision",
   "core_engine::undo_retains_only_the_latest_hundred_commits",
   "core_engine::union_difference_make_one_hole",
+  "core_engine::unrelated_matrix_edit_keeps_a_local_exception_unassociated",
+  "core_engine::unrelated_matrix_edit_never_resurrects_a_tombstoned_member_correspondence",
   "core_engine::wire_roundtrip_matches_contract",
   "current_schema::a_pair_without_a_source_or_halves_stays_unpaired",
   "current_schema::current_model_list_round_trips",
