@@ -2369,7 +2369,7 @@ async fn mounted_locked_component_presents_xy_unavailable_and_suppresses_commit(
 }
 
 async fn choose_inspector_option(root: &web_sys::Element, name: &str, option: &str) {
-    let control = by_role_name(root, "combobox", name).expect("named choice control");
+    let control = by_role_name(root, "button", name).expect("named Select trigger");
     control.click();
     wait_until("the actual choice popup opens", || {
         control.get_attribute("aria-expanded").as_deref() == Some("true")
@@ -2391,7 +2391,7 @@ fn offset_form(root_id: &str) -> (String, String, String) {
         .value();
     (
         position_input(root_id, "Offset X (mm)").value(),
-        component_inspector_control(root_id, "combobox", "Offset axes")
+        component_inspector_control(root_id, "button", "Offset axes")
             .text_content()
             .unwrap_or_default(),
         source,
@@ -3457,7 +3457,7 @@ async fn companion_placement_shows_mixed_modes_and_tweaks() {
     let trigger = by_role_name(&root, "button", "Companion placement").unwrap();
     assert!(trigger.text_content().unwrap().contains("Mixed"));
     trigger.click();
-    let mode = by_role_name(&root, "combobox", "Mode").unwrap();
+    let mode = by_role_name(&root, "button", "Mode").unwrap();
     assert!(mode.text_content().unwrap().contains("Mixed values"));
     choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
     wait_until("mixed tweak fields mount", || {
@@ -3497,10 +3497,10 @@ async fn stabiliser_companion_placement_shows_a_disabled_mode_and_core_reason() 
     );
     use boardstudio_web_ui_shared::test_wait::wait_until;
     wait_until("the stabiliser placement reason mounts", || {
-        by_role_name(&root, "combobox", "Mode").is_some()
+        by_role_name(&root, "button", "Mode").is_some()
     })
     .await;
-    let mode = by_role_name(&root, "combobox", "Mode").expect("disabled mode control");
+    let mode = by_role_name(&root, "button", "Mode").expect("disabled mode control");
     assert!(mode.has_attribute("disabled"));
     assert!(
         root.text_content()

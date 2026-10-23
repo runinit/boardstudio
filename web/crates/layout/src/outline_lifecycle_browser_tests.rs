@@ -4,12 +4,60 @@ use boardstudio_core::model::{
     Board, BoardOutline, OutlineConnection, OutlineControlPoint, OutlineFeature, OutlineProvenance,
     OutlineSnapshot, OutlineVersion, Part, PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+async fn active_outline_option_labels(root: &web_sys::Element) -> Vec<String> {
+    let choice = by_role_name(root, "button", "Active outline").unwrap();
+    choice.focus().unwrap();
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key("ArrowDown");
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    choice
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+    wait_until("the actual Active outline list opens", || {
+        choice.get_attribute("aria-expanded").as_deref() == Some("true")
+            && by_role_name(root, "listbox", "Active outline").is_some()
+    })
+    .await;
+    let list = by_role_name(root, "listbox", "Active outline").unwrap();
+    let options = list.query_selector_all("[role=option]").unwrap();
+    let labels = (0..options.length())
+        .filter_map(|index| options.item(index))
+        .map(|option| option.text_content().unwrap_or_default().trim().to_owned())
+        .collect();
+    init.set_key("Escape");
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .active_element()
+        .unwrap()
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+    wait_until("the outline choices close and return focus", || {
+        choice.get_attribute("aria-expanded").as_deref() == Some("false")
+            && web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .active_element()
+                .as_ref()
+                .is_some_and(|active| active.is_same_node(Some(choice.as_ref())))
+    })
+    .await;
+    labels
+}
 
 #[derive(Clone)]
 struct DimensionProbe {
@@ -54,20 +102,14 @@ async fn coordinate_undo_restores_accepted_value_without_reviving_a_submitted_dr
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the coordinate inputs mount", || {
-        root.query_selector("input[aria-label='Point 1 X mm']")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "spinbutton", "Point 1 X mm").is_some()
     })
     .await;
-    let x = root
-        .query_selector("input[aria-label='Point 1 X mm']")
-        .unwrap()
+    let x = by_role_name(&root, "spinbutton", "Point 1 X mm")
         .unwrap()
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
-    let y = root
-        .query_selector("input[aria-label='Point 1 Y mm']")
-        .unwrap()
+    let y = by_role_name(&root, "spinbutton", "Point 1 Y mm")
         .unwrap()
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
@@ -451,22 +493,24 @@ async fn connected_mirrored_outline_gap_controls_edit_distinct_regions() {
                 .iter()
                 .all(|id| !other.protected_ids.contains(id))
         );
-        let controls = root
-            .query_selector_all("input[aria-label^='Keep gap']")
-            .unwrap();
-        assert_eq!(controls.length() as usize, gaps.len());
-        let input = controls
-            .item(selected as u32)
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
-        assert!(input.checked());
-        input.set_checked(false);
-        let event = web_sys::EventInit::new();
-        event.set_bubbles(true);
-        input
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-            .unwrap();
+        let controls = root.query_selector_all("[role=checkbox]").unwrap();
+        let gap_count = (0..controls.length())
+            .filter_map(|index| controls.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .filter(|control| {
+                control
+                    .get_attribute("aria-label")
+                    .is_some_and(|name| name.starts_with("Keep gap "))
+            })
+            .count();
+        assert_eq!(gap_count, gaps.len());
+        let checkbox =
+            by_role_name(&root, "checkbox", &format!("Keep gap {}", selected + 1)).unwrap();
+        assert_eq!(
+            checkbox.get_attribute("aria-checked").as_deref(),
+            Some("true")
+        );
+        checkbox.click();
         accept(&probe).await;
         wait_until("the gap edit lands through the production resolver", || {
             probe
@@ -703,26 +747,47 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
         Some(super::super::objects::TreeContext::Outline { .. })
     ));
 
-    let open = document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let open = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Edit perimeter points",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     open.click();
     wait_until("Edit perimeter points renders the point editor", || {
-        document
-            .query_selector("#outline-points-inspector-mount .m1-outline-point-editor button")
-            .unwrap()
-            .is_some()
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-points-inspector-mount")
+                .unwrap(),
+            "button",
+            "Done",
+        )
+        .is_some()
     })
     .await;
-    let done = document
-        .query_selector("#outline-points-inspector-mount .m1-outline-point-editor button")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let done = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Done",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     done.focus().unwrap();
     let init = web_sys::KeyboardEventInit::new();
     init.set_key("Escape");
@@ -765,10 +830,17 @@ async fn mounted_outline_perimeter_escape_returns_to_board_inspector() {
             .is_none(),
         "the nested Perimeter inspector is no longer mounted after returning to Board"
     );
-    let board_name = document
-        .query_selector("#outline-points-inspector-mount input[aria-label='Board name']")
-        .unwrap()
-        .expect("the returned Board Inspector exposes its name field");
+    let board_name = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "textbox",
+        "Board name",
+    )
+    .expect("the returned Board Inspector exposes its name field");
     assert_eq!(
         document
             .active_element()
@@ -801,13 +873,20 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         .expect("fixture retains the accepted fixed outline");
     let accepted_document_before = accepted_before.document.clone();
 
-    document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .expect("fixed outline exposes Edit perimeter points")
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
+    by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Edit perimeter points",
+    )
+    .expect("fixed outline exposes Edit perimeter points")
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap()
+    .click();
     wait_until("the canvas point handle mounts", || {
         document
             .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -878,10 +957,17 @@ async fn mounted_fixed_outline_canvas_point_escape_returns_to_board_without_edit
         "the focused point handle unmounts after returning to the outline inspector"
     );
     assert!(
-        document
-            .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-            .unwrap()
-            .is_some(),
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-points-inspector-mount")
+                .unwrap(),
+            "button",
+            "Edit perimeter points"
+        )
+        .is_some(),
         "the normal Board outline controls remain mounted after point editing closes"
     );
     assert_eq!(
@@ -918,25 +1004,36 @@ async fn mounted_fixed_outline_point_click_and_escape_preserve_fractional_geomet
     ];
     let (probe, root) = mounted_polygon_outline_inspector_with_points(true, points).await;
     wait_until("the fixed outline exposes Edit perimeter points", || {
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-            .unwrap()
-            .is_some()
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-points-inspector-mount")
+                .unwrap(),
+            "button",
+            "Edit perimeter points",
+        )
+        .is_some()
     })
     .await;
     let document = web_sys::window().unwrap().document().unwrap();
     let revision_before = accepted_revision(&probe);
 
-    document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .expect("fixed outline exposes Edit perimeter points")
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
+    by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Edit perimeter points",
+    )
+    .expect("fixed outline exposes Edit perimeter points")
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap()
+    .click();
     wait_until("the perimeter point handles mount", || {
         document
             .query_selector("#outline-point-canvas-test circle[aria-label='Outline point 2']")
@@ -1472,26 +1569,16 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
     }))
     .await;
     wait_until("the Active outline select mounts", || {
-        root.query_selector("select[aria-label='Active outline']")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Active outline").is_some()
     })
     .await;
-    let select = root
-        .query_selector("select[aria-label='Active outline']")
-        .unwrap()
-        .unwrap();
+    let select = by_role_name(&root, "button", "Active outline").unwrap();
     assert_eq!(
-        js_sys::Reflect::get(&select, &"value".into())
-            .unwrap()
-            .as_string()
-            .as_deref(),
-        Some("saved-outline"),
+        select.text_content().as_deref(),
+        Some("Edited outline · QA Outline"),
         "initially mounted saved fixed version must not display Generated"
     );
-    let size = root
-        .query_selector("input[aria-label='Chamfer size']")
-        .unwrap()
+    let size = by_role_name(&root, "spinbutton", "Chamfer size")
         .unwrap()
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap();
@@ -1503,24 +1590,32 @@ async fn mounted_reopened_fixed_outline_selects_its_saved_version() {
 async fn mounted_outline_inspector_generates_through_the_production_owner() {
     let (probe, root) = mounted_outline_inspector().await;
     wait_until("the Generate action mounts", || {
-        web_sys::window()
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-inspector-mount")
+                .unwrap(),
+            "button",
+            "Generate automatic outline",
+        )
+        .is_some()
+    })
+    .await;
+    let button = by_role_name(
+        &web_sys::window()
             .unwrap()
             .document()
             .unwrap()
-            .query_selector("#outline-inspector-mount button.m1-outline-action")
-            .unwrap()
-            .is_some()
-    })
-    .await;
-    let button = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector("#outline-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+            .get_element_by_id("outline-inspector-mount")
+            .unwrap(),
+        "button",
+        "Generate automatic outline",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     button.click();
     settle_dimension().await;
     accept(&probe).await;
@@ -1600,33 +1695,61 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
     wait_until(
         "the generated perimeter exposes its point editor action",
         || {
-            document
-                .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-                .unwrap()
-                .is_some()
+            by_role_name(
+                &web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .get_element_by_id("outline-points-inspector-mount")
+                    .unwrap(),
+                "button",
+                "Edit perimeter points",
+            )
+            .is_some()
         },
     )
     .await;
-    let open = document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let open = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Edit perimeter points",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     open.click();
     wait_until("Insert point renders in the point editor", || {
-        document
-            .query_selector("#outline-points-inspector-mount button.m1-outline-insert-point")
-            .unwrap()
-            .is_some()
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-points-inspector-mount")
+                .unwrap(),
+            "button",
+            "Insert after 1",
+        )
+        .is_some()
     })
     .await;
-    let insert = document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-insert-point")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let insert = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Insert after 1",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     insert.click();
     // The insert's effect is the accepted revision, which the accept drain below reads.
     settle_dimension().await;
@@ -1679,33 +1802,61 @@ async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_featur
     wait_until(
         "the fixed perimeter exposes its point editor action",
         || {
-            document
-                .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-                .unwrap()
-                .is_some()
+            by_role_name(
+                &web_sys::window()
+                    .unwrap()
+                    .document()
+                    .unwrap()
+                    .get_element_by_id("outline-points-inspector-mount")
+                    .unwrap(),
+                "button",
+                "Edit perimeter points",
+            )
+            .is_some()
         },
     )
     .await;
-    let open = document
-        .query_selector("#outline-points-inspector-mount button.m1-outline-action")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let open = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "button",
+        "Edit perimeter points",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlElement>()
+    .unwrap();
     open.click();
     wait_until("the point editor renders Point 1 X", || {
-        document
-            .query_selector("#outline-points-inspector-mount input[aria-label='Point 1 X mm']")
-            .unwrap()
-            .is_some()
+        by_role_name(
+            &web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .get_element_by_id("outline-points-inspector-mount")
+                .unwrap(),
+            "spinbutton",
+            "Point 1 X mm",
+        )
+        .is_some()
     })
     .await;
-    let input = document
-        .query_selector("#outline-points-inspector-mount input[aria-label='Point 1 X mm']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
+    let input = by_role_name(
+        &web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .get_element_by_id("outline-points-inspector-mount")
+            .unwrap(),
+        "spinbutton",
+        "Point 1 X mm",
+    )
+    .unwrap()
+    .dyn_into::<web_sys::HtmlInputElement>()
+    .unwrap();
     input.focus().unwrap();
     send_input(&input, "9.5");
     send_key(&input, "Escape");
@@ -1845,20 +1996,18 @@ mod ownership_presentation {
         (probe, root)
     }
 
-    fn option_labels(root: &web_sys::Element) -> Vec<String> {
-        let nodes = root
-            .query_selector_all("select[aria-label='Active outline'] option")
-            .unwrap();
-        (0..nodes.length())
-            .filter_map(|index| nodes.get(index))
-            .map(|node| node.text_content().unwrap_or_default())
-            .collect()
+    async fn option_labels(root: &web_sys::Element) -> Vec<String> {
+        active_outline_option_labels(root).await
     }
 
-    fn input(root: &web_sys::Element, selector: &str) -> web_sys::HtmlInputElement {
-        root.query_selector(selector)
-            .unwrap()
-            .unwrap_or_else(|| panic!("{selector} is mounted"))
+    fn input(root: &web_sys::Element, name: &str) -> web_sys::HtmlInputElement {
+        let role = if name == "Outline version name" {
+            "textbox"
+        } else {
+            "spinbutton"
+        };
+        by_role_name(root, role, name)
+            .unwrap_or_else(|| panic!("{role} {name} is mounted"))
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap()
     }
@@ -1871,18 +2020,8 @@ mod ownership_presentation {
             .unwrap_or(false)
     }
 
-    fn element(root: &web_sys::Element, selector: &str) -> web_sys::Element {
-        root.query_selector(selector)
-            .unwrap()
-            .unwrap_or_else(|| panic!("{selector} is mounted"))
-    }
-
-    fn button(root: &web_sys::Element, selector: &str) -> web_sys::HtmlElement {
-        root.query_selector(selector)
-            .unwrap()
-            .unwrap_or_else(|| panic!("{selector} is mounted"))
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+    fn button(root: &web_sys::Element, name: &str) -> web_sys::HtmlElement {
+        by_role_name(root, "button", name).unwrap_or_else(|| panic!("Button {name} is mounted"))
     }
 
     #[wasm_bindgen_test]
@@ -1907,7 +2046,7 @@ mod ownership_presentation {
         .await;
         settle_dimension().await;
 
-        let labels = option_labels(&root);
+        let labels = option_labels(&root).await;
         assert!(
             labels.iter().any(|label| label.contains("Generated")),
             "the permanent Generated outline stays a distinct choice: {labels:?}"
@@ -1926,11 +2065,15 @@ mod ownership_presentation {
         );
         // Settings stay editable while a linked refinement is selected.
         assert!(
-            !is_disabled(&element(&root, "select[aria-label='Outline corners']")),
+            !is_disabled(
+                &by_role_name(&root, "button", "Outline corners")
+                    .unwrap()
+                    .into()
+            ),
             "the linked refinement's settings remain editable"
         );
         assert!(
-            !input(&root, "input[aria-label='Outline version name']").disabled(),
+            !input(&root, "Outline version name").disabled(),
             "the linked refinement's own choices stay editable"
         );
         root.remove();
@@ -1968,19 +2111,25 @@ mod ownership_presentation {
 
         // The linked refinement shows and edits its own margin, bridge width and cleanup,
         // so a source change never forces a Freeze just to adjust them.
-        let margin = input(&root, "input[aria-label='Outline margin']");
+        let margin = input(&root, "Outline margin");
         assert_eq!(margin.value().parse::<f64>().unwrap(), 4.0);
         assert!(
             !margin.disabled(),
             "the linked refinement's margin is editable"
         );
-        for selector in [
-            "input[aria-label='Bridge width']",
-            "input[aria-label='Automatic gap cleanup']",
-            "input[aria-label='Maximum gap span']",
-        ] {
+        for selector in ["Bridge width", "Automatic gap cleanup", "Maximum gap span"] {
             assert!(
-                !input(&root, selector).disabled(),
+                !by_role_name(
+                    &root,
+                    if selector == "Automatic gap cleanup" {
+                        "checkbox"
+                    } else {
+                        "spinbutton"
+                    },
+                    selector
+                )
+                .unwrap()
+                .has_attribute("disabled"),
                 "{selector} is editable on a linked refinement"
             );
         }
@@ -1999,13 +2148,22 @@ mod ownership_presentation {
         .await;
         settle_dimension().await;
         for selector in [
-            "input[aria-label='Outline margin']",
-            "input[aria-label='Bridge width']",
-            "input[aria-label='Automatic gap cleanup']",
-            "input[aria-label='Maximum gap span']",
+            "Outline margin",
+            "Bridge width",
+            "Automatic gap cleanup",
+            "Maximum gap span",
         ] {
             assert!(
-                root.query_selector(selector).unwrap().is_none(),
+                by_role_name(
+                    &root,
+                    if selector == "Automatic gap cleanup" {
+                        "checkbox"
+                    } else {
+                        "spinbutton"
+                    },
+                    selector
+                )
+                .is_none(),
                 "{selector} is not offered on a fixed copy"
             );
         }
@@ -2026,7 +2184,7 @@ mod ownership_presentation {
         .await;
         settle_dimension().await;
         let revision_before = accepted_revision(&probe);
-        let freeze = button(&root, "button.m1-outline-freeze");
+        let freeze = button(&root, "Freeze into an edited copy");
         freeze.click();
         accept(&probe).await;
 
@@ -2068,7 +2226,7 @@ mod ownership_presentation {
             "Freeze is one accepted revision"
         );
         settle_dimension().await;
-        let labels = option_labels(&root);
+        let labels = option_labels(&root).await;
         assert!(
             labels
                 .iter()
@@ -2151,7 +2309,7 @@ mod ownership_presentation {
             "saving and editing stay available: {text}"
         );
         // The linked choice stays selectable and its settings stay editable.
-        let labels = option_labels(&root);
+        let labels = option_labels(&root).await;
         assert!(
             labels
                 .iter()
@@ -2159,7 +2317,7 @@ mod ownership_presentation {
             "a broken refinement remains an available choice: {labels:?}"
         );
         assert!(
-            !input(&root, "input[aria-label='Outline version name']").disabled(),
+            !input(&root, "Outline version name").disabled(),
             "editing stays possible while the refinement cannot resolve"
         );
         root.remove();
@@ -2171,21 +2329,12 @@ mod ownership_presentation {
 mod product_context {
     use super::*;
 
-    fn click_by_text(root: &web_sys::Element, selector: &str, text: &str) -> bool {
-        let nodes = root.query_selector_all(selector).unwrap();
-        for index in 0..nodes.length() {
-            let Some(node) = nodes.get(index) else {
-                continue;
-            };
-            let Some(element) = node.dyn_ref::<web_sys::HtmlElement>() else {
-                continue;
-            };
-            if node.text_content().as_deref().map(str::trim) == Some(text) {
-                element.click();
-                return true;
-            }
-        }
-        false
+    fn click_by_text(root: &web_sys::Element, text: &str) -> bool {
+        let Some(button) = by_role_name(root, "button", text) else {
+            return false;
+        };
+        button.click();
+        true
     }
 
     fn versions(runtime: &Rc<crate::runtime::Runtime>, board_id: &str) -> usize {
@@ -2207,14 +2356,8 @@ mod product_context {
             .and_then(|node| node.text_content())
     }
 
-    fn ownership_labels(root: &web_sys::Element) -> Vec<String> {
-        let nodes = root
-            .query_selector_all("select[aria-label='Active outline'] option")
-            .unwrap();
-        (0..nodes.length())
-            .filter_map(|index| nodes.get(index))
-            .map(|node| node.text_content().unwrap_or_default())
-            .collect()
+    async fn ownership_labels(root: &web_sys::Element) -> Vec<String> {
+        active_outline_option_labels(root).await
     }
 
     #[wasm_bindgen_test]
@@ -2222,11 +2365,7 @@ mod product_context {
         let (probe, root) = mounted_polygon_outline_inspector(false).await;
         settle_dimension().await;
         assert!(
-            click_by_text(
-                &root,
-                "#outline-points-inspector-mount .m1-outline-actions button",
-                "Refine outline"
-            ),
+            click_by_text(&root, "Refine outline"),
             "the Refine outline control is reachable in the generated context; body: {}",
             root.inner_html()
         );
@@ -2250,16 +2389,14 @@ mod product_context {
             Some(created.id.as_str()),
             "the created refinement is selected"
         );
-        let labels = ownership_labels(&root);
+        let labels = ownership_labels(&root).await;
         assert!(
             labels
                 .iter()
                 .any(|label| label.starts_with("Linked refinement")),
             "the refinement is presented as linked: {labels:?}"
         );
-        let name_input = root
-            .query_selector("input[aria-label='Outline version name']")
-            .unwrap()
+        let name_input = by_role_name(&root, "textbox", "Outline version name")
             .expect("the version name control is mounted for the selected refinement")
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
@@ -2296,11 +2433,7 @@ mod product_context {
         let (probe, root) = mounted_polygon_outline_inspector(false).await;
         settle_dimension().await;
         assert!(
-            click_by_text(
-                &root,
-                "#outline-points-inspector-mount .m1-outline-actions button",
-                "Copy outline"
-            ),
+            click_by_text(&root, "Copy outline"),
             "the Copy outline control is reachable"
         );
         accept(&probe).await;

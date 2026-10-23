@@ -69,7 +69,7 @@ async fn tree_projection_skips_runtime_updates_and_tracks_disclosures_grouping_a
         root.query_selector_all("[role=treeitem]").unwrap().length() > 1
     })
     .await;
-    let select = by_role_name(&root, "combobox", "Group objects by").unwrap();
+    let select = by_role_name(&root, "button", "Group objects by").unwrap();
     select.click();
     wait_until("the grouping choices open", || {
         by_role_name(&root, "option", "By part").is_some()

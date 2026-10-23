@@ -306,3 +306,14 @@ same-owner local-name-draft test (1/1, 156 filtered),
 `.evidence/016/matrix-owner-draft-role-green.log`. The unchanged assertions still check
 actual mounted drafts through unrelated accepted revisions. Remaining Outline/native
 choice/checkbox locators are being migrated before another full Layout launch.
+
+
+Outline tests now use named copied controls, actual popup option enumeration and
+native label/checkbox semantics. The first focused run used the wrong role for the
+short-list Select trigger; `.evidence/016/outline-active-choice-role-1.log` preserves
+that test failure. The existing 006 mounted floor confirms this primitive's trigger
+is a named button (Combobox's input has role combobox). Corrected Select roles in
+Outline, Objects grouping and shell Mode/Offset axes tests; no product role changed.
+The corrected focused command is still active at this checkpoint; it has not reached
+“Loading Wasm module”. Its live matching ChromeDriver155 returns status, while its
+session inventory request timed out after 3 seconds. No retry or GREEN claim is made.
