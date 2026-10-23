@@ -165,6 +165,140 @@ mod identity_tests {
         }
     }
 
+    fn validation_fixture() -> Element {
+        let mut phase = use_signal(|| 0u8);
+        rsx! {
+            for index in 0..2 {
+                {
+                    let id = format!("validation-combo-{index}");
+                    let description = format!("validation-description-{index}-{}", phase());
+                    rsx! {
+                        FieldLabel { html_for: id.clone(), "Validated choice {index}" }
+                        p { id: description.clone(), "Choice {index} failure {phase}" }
+                        Combobox::<String> {
+                            id,
+                            aria_label: "Validated choice {index}",
+                            list_aria_label: "Validated options {index}",
+                            attributes: vec![
+                                Attribute::new("aria-invalid", (phase() != 1).then_some("true"), None, false),
+                                Attribute::new("aria-describedby", (phase() != 1).then_some(description.clone()), None, false),
+                                Attribute::new("aria-invalid", "namespaced root", Some("urn:boardstudio:validation-test"), false),
+                                Attribute::new("data-owner", "validation root", None, false),
+                            ],
+                            ComboboxOption::<String> { index: 0usize, value: "value", text_value: "Value", "Value" }
+                        }
+                    }
+                }
+            }
+            Combobox::<String> { aria_label: "No validation", list_aria_label: "Default options",
+                ComboboxOption::<String> { index: 0usize, value: "value", text_value: "Value", "Value" }
+            }
+            crate::ui::button::Button { onclick: move |_| phase.set(1), "Clear validation" }
+            crate::ui::button::Button { onclick: move |_| phase.set(2), "Update validation" }
+        }
+    }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn validation_attributes_reach_inputs_preserve_namespaced_roots_and_update_without_remount()
+     {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(validation_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("actual validation Comboboxes mount", || {
+            by_role_name(&root, "combobox", "Validated choice 1").is_some()
+        })
+        .await;
+        let inputs: Vec<_> = (0..2)
+            .map(|index| {
+                by_role_name(&root, "combobox", &format!("Validated choice {index}")).unwrap()
+            })
+            .collect();
+        for (index, input) in inputs.iter().enumerate() {
+            assert_eq!(input.get_attribute("aria-invalid").as_deref(), Some("true"));
+            let description = input.get_attribute("aria-describedby").unwrap();
+            assert_eq!(description, format!("validation-description-{index}-0"));
+            assert_eq!(
+                document
+                    .query_selector_all(&format!("[id='{description}']"))
+                    .unwrap()
+                    .length(),
+                1
+            );
+            assert!(
+                document
+                    .get_element_by_id(&description)
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .contains("failure 0")
+            );
+            let owner = input.closest("[data-slot=combobox]").unwrap().unwrap();
+            assert_eq!(
+                owner.get_attribute("data-owner").as_deref(),
+                Some("validation root")
+            );
+            assert!(owner.get_attribute_ns(None, "aria-invalid").is_none());
+            assert!(owner.get_attribute_ns(None, "aria-describedby").is_none());
+            assert_eq!(
+                owner
+                    .get_attribute_ns(Some("urn:boardstudio:validation-test"), "aria-invalid")
+                    .as_deref(),
+                Some("namespaced root")
+            );
+        }
+        let default = by_role_name(&root, "combobox", "No validation").unwrap();
+        assert!(
+            !default.has_attribute("aria-invalid") && !default.has_attribute("aria-describedby")
+        );
+        by_role_name(&root, "button", "Clear validation")
+            .unwrap()
+            .click();
+        wait_until("validation attrs clear on the native inputs", || {
+            inputs.iter().all(|input| {
+                !input.has_attribute("aria-invalid") && !input.has_attribute("aria-describedby")
+            })
+        })
+        .await;
+        by_role_name(&root, "button", "Update validation")
+            .unwrap()
+            .click();
+        wait_until("native validation description updates", || {
+            inputs.iter().enumerate().all(|(index, input)| {
+                input.get_attribute("aria-invalid").as_deref() == Some("true")
+                    && input.get_attribute("aria-describedby").as_deref()
+                        == Some(format!("validation-description-{index}-2").as_str())
+            })
+        })
+        .await;
+        for (index, input) in inputs.iter().enumerate() {
+            assert_eq!(
+                *input,
+                by_role_name(&root, "combobox", &format!("Validated choice {index}")).unwrap()
+            );
+            let description = input.get_attribute("aria-describedby").unwrap();
+            assert_eq!(
+                document
+                    .query_selector_all(&format!("[id='{description}']"))
+                    .unwrap()
+                    .length(),
+                1
+            );
+            assert!(
+                document
+                    .get_element_by_id(&description)
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .contains("failure 2")
+            );
+        }
+        root.remove();
+    }
+
     #[wasm_bindgen_test::wasm_bindgen_test]
     async fn field_labels_focus_unique_combobox_inputs_and_preserve_primitive_relationships() {
         let document = web_sys::window().unwrap().document().unwrap();

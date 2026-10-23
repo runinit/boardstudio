@@ -23,9 +23,9 @@ def prepare(url):
 
 
 def fault_boundary():
-    # Fail one real Core worker request using its existing host-error reply envelope.
+    # Fail one real Core worker request using its existing rejected-reply envelope.
     # Actual control drafts, accepted projection, callbacks and failure attribution remain in the app.
-    evaluate("window.failedCoreRequests=[];window.failCore=null;window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(m,...args){if(m?.kind==='core'&&window.failCore){const error=window.failCore;window.failCore=null;failedCoreRequests.push({request:m.request_id,epoch:m.executor_epoch,frame:JSON.parse(m.frame).kind});queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{request_id:m.request_id,executor_epoch:m.executor_epoch,error}})));return;}return originalWorkerPost.call(this,m,...args)}")
+    evaluate("window.failedCoreRequests=[];window.failCore=null;window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(m,...args){if(m?.kind==='core'&&window.failCore){const error=window.failCore;window.failCore=null;failedCoreRequests.push({request:m.request_id,epoch:m.executor_epoch,frame:JSON.parse(m.frame).kind});queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{kind:'core',request_id:m.request_id,executor_epoch:m.executor_epoch,frame:JSON.stringify({kind:'error',id:m.request_id,message:error,revision:0})}})));return;}return originalWorkerPost.call(this,m,...args)}")
 
 
 def choose(name, role, label):
@@ -140,7 +140,7 @@ def pickers(url, captures):
     evaluate("window.picker=document.activeElement;window.pickerNode=picker;window.pickerContent=picker.closest('[data-slot=collapsible-content]')")
     browser("press", "ArrowDown")
     target = driver.by_role_name("option", "2u")
-    box = browser("get", "box", target)["box"]
+    box = browser("get", "box", target)
     x, y = round(box["x"]+box["width"]/2), round(box["y"]+box["height"]/2)
     result = evaluate(f"(()=>{{const c=pickerContent.getBoundingClientRect(),hit=document.elementFromPoint({x},{y});return {{bottom:c.bottom,optionY:{y},overflow:getComputedStyle(pickerContent).overflow,hit:hit?.closest('[role=option]')?.textContent.trim()}}}})()")
     print("Actual picker boundary", result, flush=True)
@@ -162,18 +162,44 @@ def pickers(url, captures):
 def validation(url, captures):
     prepare(url)
     fault_boundary()
-    browser("focus", driver.by_role_name("button", "Mirror matrix"))
-    evaluate("window.rejectedControl=document.activeElement;window.failCore='016 mirror choice failure'")
-    choose("Mirror matrix", "button", "Flip X")
-    browser("wait", "--fn", "!!document.querySelector('[data-slot=field-error]')")
-    result = evaluate("(()=>{const ids=(rejectedControl.getAttribute('aria-describedby')||'').split(/\\s+/).filter(Boolean);return {invalid:rejectedControl.getAttribute('aria-invalid'),descriptions:ids.map(id=>({id,count:document.querySelectorAll('[id=\\\"'+id+'\\\"]').length,text:document.getElementById(id)?.textContent})),focus:document.activeElement===rejectedControl}})()")
-    print("Actual failed Mirror choice ARIA", result, flush=True)
-    browser("screenshot", str(captures / "mirror-choice-error.png"))
-    assert result["invalid"] == "true" and result["focus"] and any(d["count"] == 1 and "016 mirror choice failure" in d["text"] for d in result["descriptions"]), result
-    choose("Mirror matrix", "button", "Flip X")
-    browser("wait", "--fn", "!document.querySelector('[data-slot=field-error]')")
-    check("rejectedControl.getAttribute('aria-invalid')!=='true' && !rejectedControl.hasAttribute('aria-describedby')")
-    print("PASS actual failed choice native ARIA and accepted-edit clearing", flush=True)
+    failures = []
+
+    def rejected_choice(name, role, label):
+        browser("focus", driver.by_role_name(role, name))
+        evaluate("window.rejectedControl=document.activeElement")
+        message = "016 " + name + " failure"
+        evaluate(f"window.failCore={json.dumps(message)}")
+        choose(name, role, label)
+        browser("wait", "--fn", "!!document.querySelector('[data-slot=field-error]')")
+        result = evaluate("(()=>{const ids=(rejectedControl.getAttribute('aria-describedby')||'').split(/\\s+/).filter(Boolean);return {invalid:rejectedControl.getAttribute('aria-invalid'),descriptions:ids.map(id=>({id,count:document.querySelectorAll('[id=\\\"'+id+'\\\"]').length,text:document.getElementById(id)?.textContent})),focus:document.activeElement===rejectedControl}})()")
+        print("Actual failed choice ARIA", name, result, flush=True)
+        browser("screenshot", str(captures / (name.replace(" ", "-") + "-error.png")))
+        if result["invalid"] != "true" or not result["focus"] or not any(d["count"] == 1 and message in (d["text"] or "") for d in result["descriptions"]):
+            failures.append((name, "failed native ARIA/focus relationship"))
+        points.dismiss_notifications()
+        choose(name, role, label)
+        browser("wait", "--fn", "!document.querySelector('[data-slot=field-error]')")
+        check("rejectedControl.getAttribute('aria-invalid')!=='true' && !rejectedControl.hasAttribute('aria-describedby')")
+        print("Accepted choice clears failure", name, flush=True)
+
+    rejected_choice("Mirror matrix", "button", "X axis")
+    click("Column 1 1 keys")
+    rejected_choice("Splay origin", "button", "Custom point")
+    click("Matrix 1 1 keys")
+    click("Key assembly switch mx")
+    rejected_choice("Diode direction", "button", "Columns to rows")
+    browser("focus", driver.by_role_name("combobox", "Matrix part definition"))
+    current = browser("get", "value", driver.by_role_name("combobox", "Matrix part definition"))["value"]
+    browser("fill", driver.by_role_name("combobox", "Matrix part definition"), "")
+    browser("press", "ArrowDown")
+    refs = browser("snapshot", "-i")["refs"]
+    alternatives = [item["name"] for item in refs.values() if item["role"] == "option" and item["name"] != current and not item.get("disabled")]
+    assert alternatives, refs
+    browser("press", "Escape")
+    rejected_choice("Matrix part definition", "combobox", alternatives[0])
+    check("failedCoreRequests.length===4 && failedCoreRequests.every(m=>m.frame==='edit')")
+    print("Choice validation failures", failures, flush=True)
+    assert not failures, failures
 
 
 def main():
