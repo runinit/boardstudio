@@ -1067,6 +1067,55 @@ fn unrelated_roots_in_one_layout_classify_each_part_against_its_own_root() {
 }
 
 #[test]
+fn a_part_outside_any_matrix_is_classified_by_its_own_pose() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, x) in [("s-a", 0.0), ("m-a", 100.0)] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},
+            "definitionId":"switch","partIds":[part_id]});
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    for (id, x) in [("loose-s", 0.0), ("loose-m", 100.0)] {
+        doc.parts.push(
+            serde_json::from_value(json!({"id":id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":x,"y":20},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(id.to_owned());
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["s-a"],"partIds":["loose-s"]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["m-a"],"partIds":["loose-m"],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"s-a","mirrorId":"m-a"}]}}
+    ]))
+    .unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "loose-part".into(),
+        document: doc,
+    }));
+    assert!(
+        result.board_outline_scenes[0].bridges.is_empty(),
+        "a loose part must stay on its own side of the split: {:?}",
+        result.board_outline_scenes[0].bridges
+    );
+    assert_eq!(result.contours.len(), 2);
+    assert!(!contains(&result.contours, 50.0, 10.0));
+}
+
+#[test]
 fn manual_connections_respect_linked_split_boundaries() {
     for (points, crosses_axis, another_axis) in [
         (json!([]), false, false),

@@ -2055,6 +2055,7 @@
   "outline_versions::first_point_edit_is_one_undo_step_and_preview_never_creates_a_saved_version",
   "outline_versions::fixed_copy_preserves_shape_when_components_move_and_generated_stays_available",
   "outline_versions::version_rename_delete_undo_and_roundtrip_preserve_independent_copies",
+  "outlines::a_part_outside_any_matrix_is_classified_by_its_own_pose",
   "outlines::attached_addition_moves_and_detaches_on_anchor_deletion",
   "outlines::automatic_envelope_reflects_asymmetric_back_side_footprints",
   "outlines::automatic_part_envelopes_exclude_nonphysical_utilities",
