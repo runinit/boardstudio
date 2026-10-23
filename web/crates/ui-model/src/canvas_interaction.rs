@@ -205,24 +205,68 @@ mod tests {
         init.set_code("Space");
         init.set_bubbles(true);
         init.set_cancelable(true);
-        let down = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
-            .expect("Space keydown");
+        let key_event = |kind| {
+            web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(kind, &init)
+                .expect("Space event")
+        };
+        let consumed = key_event("keydown");
+        consumed.prevent_default();
+        window.dispatch_event(&consumed).unwrap();
+        assert!(!space_down.get(), "consumed Space must not acquire pan");
+
+        let down = key_event("keydown");
         window.dispatch_event(&down).unwrap();
         assert!(space_down.get(), "window Space keydown enables pan");
         assert!(down.default_prevented(), "Space does not scroll the page");
-
-        let up = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keyup", &init)
-            .expect("Space keyup");
-        window.dispatch_event(&up).unwrap();
-        assert!(!space_down.get(), "window Space keyup releases pan");
+        window.dispatch_event(&consumed).unwrap();
+        assert!(
+            space_down.get(),
+            "consumed repeats do not cancel admitted pan"
+        );
 
         is_layout.set(false);
-        space_down.set(false);
-        window.dispatch_event(&down).unwrap();
+        let up = key_event("keyup");
+        up.prevent_default();
+        window.dispatch_event(&up).unwrap();
+        assert!(
+            !space_down.get(),
+            "keyup releases pan even after workspace changes"
+        );
+        let other_workspace = key_event("keydown");
+        window.dispatch_event(&other_workspace).unwrap();
         assert!(
             !space_down.get(),
             "other workspaces do not acquire Layout pan"
         );
+        assert!(!other_workspace.default_prevented());
+
+        is_layout.set(true);
+        let document = window.document().expect("document");
+        for tag in ["input", "textarea", "select"] {
+            let input = document.create_element(tag).expect("typing control");
+            document.body().unwrap().append_child(&input).unwrap();
+            let typing = key_event("keydown");
+            input.dispatch_event(&typing).unwrap();
+            input.remove();
+            assert!(
+                !space_down.get(),
+                "typing Space does not acquire pan: {tag}"
+            );
+            assert!(!typing.default_prevented());
+        }
         drop(listener);
+        let after_drop = key_event("keydown");
+        window.dispatch_event(&after_drop).unwrap();
+        assert!(
+            !space_down.get(),
+            "dropped keydown listener cannot acquire pan"
+        );
+        assert!(!after_drop.default_prevented());
+        space_down.set(true);
+        window.dispatch_event(&key_event("keyup")).unwrap();
+        assert!(
+            space_down.get(),
+            "dropped keyup listener cannot release pan"
+        );
     }
 }
