@@ -659,9 +659,9 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-inspector .m1-matrix-field { display: grid; margin: 0; }
 .m1-matrix-field:first-child { grid-column: 1 / -1; }
 .m1-matrix-field-input { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.m1-matrix-field-input input:not(.board-field-control) { display: block; flex: 1; width: 100%; min-width: 0; min-height: 36px; margin: 0; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-mono); }
+.m1-matrix-field-input input:not(.board-field-control):where(:not([data-slot])) { display: block; flex: 1; width: 100%; min-width: 0; min-height: 36px; margin: 0; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-mono); }
 .m1-matrix-field:first-child .m1-matrix-field-input input { font-family: var(--wb-body); }
-.m1-matrix-field-input input:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-matrix-field-input input:where(:not([data-slot])):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-matrix-field select:not(.board-field-control) { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
 .m1-matrix-field select:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
 .m1-matrix-transform-section { display: grid; gap: 10px; min-width: 0; padding-top: 10px; border-top: 1px solid var(--wb-rule); }

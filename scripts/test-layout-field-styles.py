@@ -52,6 +52,14 @@ def tests(url, captures):
                         const s=getComputedStyle(input),g=getComputedStyle(group),r=input.getBoundingClientRect();
                         const paint=document.createElement('span');paint.style.background='var(--field)';document.body.append(paint);
                         const expected=getComputedStyle(paint).backgroundColor;paint.remove();
+                        const legacyMatches=[];
+                        for(const sheet of document.styleSheets){
+                            let rules;try{rules=sheet.cssRules}catch{continue}
+                            for(const rule of rules){
+                                if(rule.selectorText?.startsWith('.m1-matrix-field-input')&&input.matches(rule.selectorText))
+                                    legacyMatches.push({selector:rule.selectorText,style:rule.style.cssText});
+                            }
+                        }
                         const name=input.getAttribute('aria-label'),same=!fieldNodes[name]||fieldNodes[name]===input;
                         fieldNodes[name]=input;
                         // Unadopted CSS reference only; no substitute owner, handlers or draft.
@@ -61,7 +69,7 @@ def tests(url, captures):
                         return {slot:input.getAttribute('data-slot'),background:s.backgroundColor,border:s.borderTopWidth,
                             radius:s.borderTopLeftRadius,outline:s.outlineStyle,font:s.fontSize,height:r.height,
                             groupBackground:g.backgroundColor,expectedBackground:expected,groupFocus:g.boxShadow.includes('3px'),
-                            sameNode:same,label:input.labels.length===1&&input.labels[0].control===input,reference};
+                            sameNode:same,label:input.labels.length===1&&input.labels[0].control===input,reference,legacyMatches};
                     })()""")
                     print(width, theme, appearance, name, result, flush=True)
                     checks = {"copied input": result["slot"] == "input-group-control",
@@ -71,7 +79,8 @@ def tests(url, captures):
                               "field background": result["groupBackground"] == result["expectedBackground"],
                               "font": result["font"] == "16px",
                               "target": result["height"] >= (44 if width < 760 else 40),
-                              "node and label": result["sameNode"] and result["label"]}
+                              "node and label": result["sameNode"] and result["label"],
+                              "unadopted reference": result["reference"]["border"] == "1px"}
                     failures.extend((width, theme, appearance, name, check_name) for check_name, passed in checks.items() if not passed)
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
                 if width < 980:

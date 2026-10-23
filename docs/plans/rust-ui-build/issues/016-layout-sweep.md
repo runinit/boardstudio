@@ -620,3 +620,57 @@ Add retains its own guard. No new prop, visibility, dependency or state owner.
   legacy classes/rules are untouched. Strengthened the actual-owner script to
   assert static/in-flow visible overflow and full form/region heights in all12
   combinations alongside the exact original local draft, geometry and Undo checks.
+
+
+At `c6f4075b`, full Layout browser tests pass: 156/156 with only the separately
+scheduled setup guide filtered; its separate invocation passes 1/1. Receipts
+`layout-browser-owned-7.log` and `layout-setup-guide-browser-green.log`. This includes
+all current owner/draft/Undo/precision, Outline messages, Matrix/Key size/rotated
+Checkbox and form-focus regressions. The earlier startup-stall hypothesis remains
+unproven: this successful full run ran with no separate agent-browser session.
+
+Actual field computed-style RED at served `16cedbff`, all12 combinations:
+`layout-actual-field-styles-red.log`. Real Matrix name has opaque panel fill, 1px
+border, 4px radius and legacy solid focus outline; both actual Matrix name and
+Origin X are 40px at 390px. Native references and actual node/label identity are
+recorded. The initial probe incorrectly expected Input's 14px desktop text from
+InputGroupInput: its actual canonical source is `text-base` at every width. Corrected
+the assertion to 16px (retained it); this invalidates only that initial font attribution.
+The border/fill/focus and narrow target REDs are independent and real.
+
+Connected owned CSS inventory before editing: `.m1-matrix-field-input` production
+exists only in MatrixFieldEditor; NumericTransformField uses the parent field class
+but not that legacy input wrapper. Add only copied-data-slot exclusions to the exact
+old input appearance/focus selectors, preserving every declaration and native
+reference. Both existing private MatrixFieldEditor and NumericTransformField callers
+will supply narrow 44px Group/Input height; desktop/default classes, properties,
+original callbacks, accepted baselines and local drafts remain unchanged. No shared
+primitive, 015 source, Case/Parts branch, 023 guide rule or broader selector changes.
+The first scripted CSS edit correctly aborted on its non-unique substring (the
+error selector contains the same suffix); no CSS or height edits entered f06acbb7.
+That commit's title overstates its content: it contains only the field probe and
+fixture context correction. The subsequent edit uses an asserted unique whole-line
+prefix and preserves history.
+
+First root shell browser invocation executes 41 tests, 34 pass; first failures of
+both actual-Editor fixture modules are the missing existing ToastCtx required by
+landed shell notifications (`layout-shell-owned-browser-1.log`). Its later hook
+panics are cascades. The fixtures now use the application's existing
+NotificationProvider around the actual Editor, matching `presentation.rs:264`;
+no control/owner substitutes, notifications behavior or assertions change.
+
+
+Root fixture correction at `f06acbb7` passes all7 formerly blocked actual-Editor
+tests: `layout-shell-context-green.log`, structured results and full per-filter
+logs at `layout-shell-context-green.json.logs/`. This includes actual reference
+hover/leave, focus/blur with a unique description resolving to its Item row,
+selection/removal cleanup, actual Relations unmount cleanup, independent layer
+visibility and paired-preview findings. Combined with the unchanged 34 passing
+root tests in run1, all41 selected tests have passed; no known failures are waived.
+Departure/constraint actions and companion placement include the original action,
+Undo and disabled-reason checks in the passing ComponentInspector module.
+
+The current owned Rust formatting check reports real formatting differences
+(`owned-rustfmt-check.log`). These will be corrected with rustfmt on owned changed
+files only (skip_children), preserving the checkpointed code and checking the diff;
+no dx formatter, shared-file overwrite or history surgery.

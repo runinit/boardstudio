@@ -903,8 +903,8 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
             rsx! {
                 Field { class: "m1-matrix-field", invalid: error_message.is_some(),
                     FieldLabel { html_for: input_id.clone(), "{props.label}" }
-                    InputGroup {
-                        InputGroupInput {
+                    InputGroup { class: "max-[760px]:h-control-touch",
+                        InputGroupInput { class: "max-[760px]:h-control-touch",
                             id: input_id,
                             r#type: InputType::Number,
                             step: "any",

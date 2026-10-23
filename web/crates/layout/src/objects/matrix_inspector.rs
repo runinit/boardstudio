@@ -1208,8 +1208,8 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                             rsx! {
                                 Field { invalid: error_text.is_some(),
                                     FieldLabel { html_for: control_input_id.clone(), "{props.label}" }
-                                    InputGroup {
-                                        InputGroupInput { r#type: if input_type == "number" { InputType::Number } else { InputType::Text },
+                                    InputGroup { class: "max-[760px]:h-control-touch",
+                                        InputGroupInput { class: "max-[760px]:h-control-touch", r#type: if input_type == "number" { InputType::Number } else { InputType::Text },
     step: step,
     min: min.map(str::to_owned),
     value: "{input_value}",
