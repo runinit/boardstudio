@@ -242,6 +242,7 @@
   "matrix::projection_tests::actual_projection_uses_saved_poses_and_parametric_empty_cells",
   "matrix::projection_tests::column_basis_applies_splay_mirror_and_matrix_rotation",
   "matrix::projection_tests::draft_is_geometry_only_and_contains_row_major_disabled_cells",
+  "matrix::projection_tests::following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen",
   "matrix::projection_tests::ordinary_parts_match_saved_pose_and_member_id_fixtures_in_every_mirror_mode",
   "matrix::projection_tests::projection_enforces_geometry_validation_at_its_boundary",
   "matrix::projection_tests::projection_rejects_invalid_draft_geometry",
