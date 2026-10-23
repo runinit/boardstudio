@@ -2,6 +2,9 @@
 status: accepted
 ---
 
+> Amended by [ADR-0034](0034-matrices-follow-ergogen-point-layout.md): saved projects are no
+> longer migrated, so "saved offsets keep their meaning" no longer applies.
+
 # Matrix gestures edit named placement parameters through Core
 
 The Inspector's **Stagger** set the relative column stagger. The toolbar's

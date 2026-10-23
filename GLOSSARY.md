@@ -255,9 +255,29 @@ coordinates. The first column steps from the matrix origin. The column and every
 later column inherit it.
 _Avoid_: column offset (when the inherited step is meant)
 
+**Column spread**:
+The horizontal step of a matrix column from the previous column. The column and every later
+column inherit it.
+_Avoid_: column offset (when the inherited step is meant)
+
 **Column offset**:
-An independent adjustment of one column only. Later columns do not inherit it.
-_Avoid_: stagger (when the independent adjustment is meant)
+An independent adjustment of one column only. Later columns do not inherit it, and it does not
+move the column's splay origin.
+_Avoid_: stagger, spread (when the independent adjustment is meant)
+
+**Splay origin**:
+The point a column's splay turns about, measured from the column's base: its first key's
+position after spread and stagger.
+_Avoid_: pivot (in user-facing text)
+
+**Row padding**:
+The step from one row of a matrix column to the next.
+_Avoid_: row offset, pitch (when a single row's step is meant)
+
+**Matrix anchor**:
+A key of another matrix that a matrix's frame follows, such as a thumb cluster following the
+main matrix.
+_Avoid_: parent, reference (unqualified)
 
 **Row offset**:
 An independent adjustment of one matrix row only.

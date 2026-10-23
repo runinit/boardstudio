@@ -39,6 +39,9 @@ The [architecture review of 2026-10-07](investigations/architecture-review-2026-
 proposes six module deepenings; the [module deepening](plans/module-deepening/map.md)
 effort plans all of them.
 
+The [ergogen layout parity](plans/ergogen-layout-parity/map.md) effort plans matrix layout
+parity with ergogen's point model while keeping BoardStudio's extended layout features.
+
 The [CAD deepening](plans/cad-deepening/map.md) effort plans the follow-ups from the
 2026-10-20 review of case generation and the Monstertruck CAD kernel.
 

@@ -38,6 +38,7 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0031](0031-preserve-pcb-handoff-protection-across-undo.md) | Preserve established PCB handoff pin-assignment protection across Undo/Redo; require explicit reviewed remapping. | PCB handoff protection, pin remapping and edit history |
 | [0032](0032-recreated-inputs-start-unassigned.md) | Recreated inputs do not inherit removed inputs' bindings, even when coordinates or IDs are reused. | key deletion/recreation, matrix shrink/regrow and binding cleanup |
 | [0033](0033-include-license-information-in-exported-packages.md) | Include `license.md` in exported packages so known licence and attribution information travels with their contents. | package export/import, attribution and source notices |
+| [0034](0034-matrices-follow-ergogen-point-layout.md) | Matrices follow ergogen's point-layout model with deliberate exceptions; saved projects are not migrated. | matrix layout parameters, ergogen parity, format version |
 
 ## Deprecated records
 
