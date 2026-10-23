@@ -24,12 +24,18 @@ def main():
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
+    def role_ref(role, name):
+        snapshot = json.loads(browser('snapshot', '--json', '-i'))['data']
+        refs = re.findall(r'^\s*- ' + re.escape(role) + ' "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)', snapshot['snapshot'], re.MULTILINE)
+        assert len(refs) == 1, (role, name, snapshot)
+        return '@' + refs[0]
+
+    def styles(role, name):
+        return json.loads(browser('get', 'styles', role_ref(role, name), '--json'))['data']['styles']
+
     def action(role, name, verb='click', value=None):
         if verb in ('focus', 'download'):
-            snapshot = json.loads(browser('snapshot', '--json', '-i'))['data']
-            refs = re.findall(r'^\s*- ' + re.escape(role) + ' "' + re.escape(name) + r'" \[[^\]\n]*\bref=(e\d+)', snapshot['snapshot'], re.MULTILINE)
-            assert len(refs) == 1, (role, name, snapshot)
-            browser(verb, '@' + refs[0], *([value] if value is not None else []))
+            browser(verb, role_ref(role, name), *([value] if value is not None else []))
             return
         command = ['find', 'role', role, verb]
         if value is not None:
@@ -152,7 +158,8 @@ def main():
         check("if (!document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id')) throw Error('Deleting the last project must retain its durable replacement');")
         action('button', 'Preview Untitled keyboard')
         action('button', 'Open keyboard')
-        browser('wait', '--fn', "(() => { const e = document.querySelector('[aria-label=Export]'), r = e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2)); })()")
+        action('button', 'Export', 'focus')
+        browser('wait', '--fn', "(() => { const e = document.activeElement, r = e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2)); })()")
         action('button', 'Export')
         browser('wait', '[aria-label="Export package"]')
         export_snapshot = browser('snapshot')
@@ -174,7 +181,9 @@ def main():
         assert (args.evidence / 'project-copy.boardstudio').stat().st_size > 0
         browser('wait', '--text', 'Project copy downloaded.')
         browser('screenshot', str((args.evidence / 'export-outcome.png').resolve()))
-        check("const root = document.querySelector('[aria-label=\"Export package\"]'), buttons = [...root.querySelectorAll('button')], download = buttons.find(e=>e.textContent.trim() === 'Download .boardstudio project'), review = buttons.find(e=>e.textContent.trim() === 'Review wiring'); if (getComputedStyle(download).backgroundColor !== getComputedStyle(review).backgroundColor) throw Error('Portable copy must retain the copied Secondary fill');")
+        download = styles('button', 'Download .boardstudio project')
+        review = styles('button', 'Review wiring')
+        assert download['background-color'] == review['background-color'], 'Portable copy must retain the copied Secondary fill'
         for theme in ('original', 'shadcn'):
             browser('set', 'viewport', '1440', '1000')
             browser('wait', '[aria-label="Settings"]')
@@ -192,9 +201,8 @@ def main():
                     check('''
                         const root = document.querySelector('[aria-label="Export package"]');
                         if (root.scrollWidth > root.clientWidth + 1) throw Error('Export must fit the viewport');
-                        const secondary = [...root.querySelectorAll('[data-slot=button]')].find(e => e.textContent.trim() === 'Review wiring');
-                        if (getComputedStyle(secondary).borderTopWidth !== '0px') throw Error('Secondary buttons must remain borderless');
                     ''')
+                    assert styles('button', 'Review wiring')['border-top-width'] == '0px', 'Secondary buttons must remain borderless'
                     browser('screenshot', str((args.evidence / f'export-{theme}-{appearance}-{width}.png').resolve()))
         browser('set', 'viewport', '1440', '1000')
         browser('press', 'Escape')

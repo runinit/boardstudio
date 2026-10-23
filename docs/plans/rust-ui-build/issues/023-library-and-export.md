@@ -369,3 +369,57 @@ passes (5.6s); its non-strict old-CSS report is informational, not the separate
 024 strict gate. `git diff --check` passes. The lane's temporary 4183 static
 server is stopped after captures; generated packages, caches and evidence stay
 available for coordinator review. No build/test command remains running.
+
+## Standards round 1 response: accessible style locators
+
+Coordinator-reported initial review at `54ac7050f8cedd3256d5d5f9cbd362465bb5e2db`:
+scoped Spec **APPROVE**, zero findings; Standards **one P3**, the shared-contract
+role/name breach in the two Export style assertions. This correction changes
+only the owned browser test and this ticket. Prior Spec approval carries for
+unchanged product code; one targeted coordinator-owned Standards re-review is
+requested for `git diff 54ac7050f8cedd3256d5d5f9cbd362465bb5e2db...HEAD`.
+
+**Finding response:** the existing exact role/name snapshot-ref extraction is
+reused through `role_ref`. Both style checks now resolve button **Download
+.boardstudio project** and button **Review wiring** from current accessible
+snapshots, then pass those exact refs to the supported `agent-browser get styles`
+API. Background-color equality and the exact `0px` top-border assertion remain.
+The root viewport/overflow, touch/geometry, token, focus, keyboard and operation
+assertions are retained; no activation fallback, retry or assertion weakening.
+
+The owned style-locator inspection also found Export's pointer hit-test selected
+its control with an ARIA-attribute CSS selector. It now focuses the exact
+role/name snapshot ref before measuring that resolved active element, matching
+the existing touch-target measurements; its center-point containment assertion
+and subsequent trusted role/name click remain. Other control geometry uses the
+same role/name focus refs (including the retained card opener). Structural
+panel/Card/page bounds and the noninteractive Tooltip use their existing context
+selectors. Remaining `textContent` uses assert focus text, inline blocker text or
+absence of a panic; none selects a control for a style measurement. Inventory:
+`.evidence/023/standards-r1-locator-inventory.log`.
+
+Fresh affected checks:
+
+- `AGENT_BROWSER_ARGS='--blink-settings=primaryPointerType=2' python3 scripts/test-library-export.py http://127.0.0.1:4183/boardstudio/ --evidence .evidence/023/standards-r1-browser`
+  **passes** (`standards-r1-browser.log`), including the actual ref-based computed
+  style reads, all eight Theme/Appearance/width captures and the unchanged
+  deletion/guide/Export workflows. Captures and the real project download are
+  under `.evidence/023/standards-r1-browser/`.
+- `PYTHONPYCACHEPREFIX=/tmp/boardstudio-023-standards-pycache python3 -m py_compile scripts/test-library-export.py`
+  and `python3 scripts/test-library-export.py --help` pass; output is retained in
+  `.evidence/023/standards-r1-python.log`.
+- `python3 scripts/check.py repo --receipt .evidence/023/standards-r1-repo-receipt.json`
+  and `git diff --check` both pass (repo 5.4s; no diff errors).
+
+The existing checked package and build/native/mounted receipts from clean
+`744d70f77a5c316972373287332207d9724a4a37` are reused: no product or build inputs
+changed since that pin. No build/native/mounted/full-suite rerun is claimed or
+needed for this locator-only correction. All earlier full-suite failures and the
+lack of a baseline-green run remain unresolved exactly as recorded above.
+No agents, reviews, watchers, landing, resolution or generated-target cleanup
+were performed; those holds remain in effect.
+
+The static 4183 test server was restarted for this workflow and remains available;
+worktree, generated target, caches and evidence are preserved for coordinator
+review. This is a test/docs-only response to P3, not a new product acceptance or
+baseline-green claim.
