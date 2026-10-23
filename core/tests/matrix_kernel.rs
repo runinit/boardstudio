@@ -892,7 +892,7 @@ fn column_bases_origins_and_prefix_exclude_own_rotation() {
     assert_eq!(layout.columns[2].cumulative_stagger, 5.0);
 }
 
-/// Core projects `matrix` through its public requests, returning the opened scene's
+/// Core projects `document` through its public requests, returning the opened scene's
 /// cells, the draft projection's cells and the persisted part ids.
 fn open_and_project(document: Value) -> (Value, Value, Vec<String>) {
     use boardstudio_core::CoreEngine;
@@ -924,51 +924,39 @@ fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
     let mut document = serde_json::to_value(ProjectDoc::empty("states", "States")).unwrap();
     document["definitions"] =
         json!([{"id":"key","name":"Key","kind":"switch","courtyard":[],"pads":[]}]);
-    let matrix = |id: &str, x: f64, cell: Value| {
-        let mut cells = vec![];
-        if !cell.is_null() {
-            cells.push(cell);
-        }
+    let matrix = |id: &str, x: f64, cell: &Value, part_ids: &[String]| {
+        let cells = if cell.is_null() {
+            vec![]
+        } else {
+            vec![cell.clone()]
+        };
         json!({"id":id,"definitionId":"key","boardId":"board","rows":3,"columns":1,
             "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},"cells":cells,
-            "partIds":(0..3).map(|c| format!("matrix/{id}/r{c}c0")).collect::<Vec<_>>()})
+            "partIds":part_ids})
     };
     let live = |cell: &Value, row: u64| {
         cell["row"] != row || (cell["enabled"] != false && cell["deleted"] != true)
     };
     let mut parts = vec![];
+    let (mut source_ids, mut mirror_ids) = (vec![], vec![]);
     let mut push = |id: String, x: f64| {
         let n = parts.len() + 1;
         parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{n}"),"pose":{"at":{"x":x,"y":-456.0},"rotation":17.0},"side":"front"}));
     };
     for column in 0..3u64 {
         if live(&source_cell, column) {
-            push(format!("matrix/src/r{column}c0"), 1000.0 + column as f64);
+            let id = format!("matrix/src/r{column}c0");
+            push(id.clone(), 1000.0 + column as f64);
+            source_ids.push(id);
         }
         if !(omit_mirror_first && column == 0) {
-            push(format!("matrix/mir/r{column}c0"), 2000.0 + column as f64);
+            let id = format!("matrix/mir/r{column}c0");
+            push(id.clone(), 2000.0 + column as f64);
+            mirror_ids.push(id);
         }
     }
-    let mut source = matrix("src", 0.0, source_cell.clone());
-    source["partIds"] = json!(
-        parts
-            .iter()
-            .filter_map(|p| p["id"]
-                .as_str()
-                .filter(|id| id.starts_with("matrix/src/"))
-                .map(|id| json!(id)))
-            .collect::<Vec<_>>()
-    );
-    let mut mirror = matrix("mir", 200.0, source_cell.clone());
-    mirror["partIds"] = json!(
-        parts
-            .iter()
-            .filter_map(|p| p["id"]
-                .as_str()
-                .filter(|id| id.starts_with("matrix/mir/"))
-                .map(|id| json!(id)))
-            .collect::<Vec<_>>()
-    );
+    let source = matrix("src", 0.0, &source_cell, &source_ids);
+    let mirror = matrix("mir", 200.0, &source_cell, &mirror_ids);
     let exceptions = if omit_mirror_first {
         json!([{"kind":"part","mirrorId":"matrix/mir/r0c0","state":"omitted"}])
     } else {
@@ -1017,10 +1005,14 @@ fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
     let carried = |scenes: &Value, matrix: &str, column| {
         scene_cell(scenes, matrix, column).unwrap()["pose"].clone()
     };
-    assert_ne!(
-        carried(&base_actual, "src", 1),
-        json!({"at":{"x":19.05,"y":0.0},"rotation":0.0})
+    // The pose carried after a (2, 0) shift and 90 degree bend, pinned exactly.
+    let pose = carried(&base_actual, "src", 1);
+    assert!(
+        (pose["at"]["x"].as_f64().unwrap() + 17.05).abs() < 1e-9,
+        "{pose}"
     );
+    assert!(pose["at"]["y"].as_f64().unwrap().abs() < 1e-9, "{pose}");
+    assert_eq!(pose["rotation"], 90.0);
 
     let mut disabled = carry.clone();
     disabled["enabled"] = json!(false);
@@ -1153,7 +1145,11 @@ fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() 
             saved_cases += 1;
             let poses: Vec<_> = parts.iter().map(|part| part["pose"].to_string()).collect();
             let distinct: std::collections::BTreeSet<_> = poses.iter().collect();
-            assert_eq!(distinct.len(), poses.len(), "{name}: poses must be distinct");
+            assert_eq!(
+                distinct.len(),
+                poses.len(),
+                "{name}: poses must be distinct"
+            );
         }
         let mut document = serde_json::to_value(ProjectDoc::empty("oracle", "Oracle")).unwrap();
         document["definitions"] =
@@ -1203,12 +1199,27 @@ fn saved_poses_and_member_ids_of_existing_parts_are_read_in_every_mirror_mode() 
             let expected_member = expected.get("memberId").cloned().unwrap_or(Value::Null);
             assert_eq!(actual["memberId"], expected_member, "{at} memberId");
             for (name, a, e) in [
-                ("x", &actual["pose"]["at"]["x"], &expected["pose"]["at"]["x"]),
-                ("y", &actual["pose"]["at"]["y"], &expected["pose"]["at"]["y"]),
-                ("rotation", &actual["pose"]["rotation"], &expected["pose"]["rotation"]),
+                (
+                    "x",
+                    &actual["pose"]["at"]["x"],
+                    &expected["pose"]["at"]["x"],
+                ),
+                (
+                    "y",
+                    &actual["pose"]["at"]["y"],
+                    &expected["pose"]["at"]["y"],
+                ),
+                (
+                    "rotation",
+                    &actual["pose"]["rotation"],
+                    &expected["pose"]["rotation"],
+                ),
             ] {
                 let (a, e) = (a.as_f64().unwrap(), e.as_f64().unwrap());
-                assert!((a - e).abs() < 1e-9, "{at} pose {name}: expected {e}, got {a}");
+                assert!(
+                    (a - e).abs() < 1e-9,
+                    "{at} pose {name}: expected {e}, got {a}"
+                );
             }
         }
     }
