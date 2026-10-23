@@ -1269,8 +1269,12 @@ pub fn ControllerSetupPicker(
                         let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
                         rsx! { Button {
                             key: "{id}", class: "m1-controller-card", variant: ButtonVariant::Ghost, aria_pressed: active,
-                            attributes: vec![Attribute::new("data-match", matching, None, false)],
-                            aria_hidden: (!matching).then_some("true"), disabled: !matching,
+                            attributes: {
+                                let mut attributes = vec![Attribute::new("data-match", matching, None, false)];
+                                if !matching { attributes.push(Attribute::new("aria-hidden", "true", None, false)); }
+                                attributes
+                            },
+                            disabled: !matching,
                             onclick: move |_| choose.call(id.clone()),
                             preview::ControllerFootprintThumbnail { definition: entry.definition.clone() }
                             strong { "{preferred_label(&entry.definition)}" }
