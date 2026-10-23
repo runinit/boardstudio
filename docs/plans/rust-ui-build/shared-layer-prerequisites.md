@@ -50,6 +50,49 @@ one build slot. It will run the actual dock fixture/matrix, shared all-target WA
 shared tests and the mounted shared UI regression floor sequentially. Formatting, Python syntax,
 documentation links and the bounded source/lock diff will also be checked. Existing CONTROL
 receipts remain valid for unchanged source and will be distinguished from fresh layer checks.
-No Cargo command has run for this continuation while the build slot is pending. New receipts go
-under `.evidence/shared-layer-prereq/`; fixture screenshots retain the harness's `.evidence/016/`
+The coordinator confirmed 016 yielded its completed command and granted this slice its slot.
+The clean build/test pin is `86cb74fa22a30a0a45b141e3f98573c0ccec8048`; the new target was absent
+and had no process environment references before the first build. New receipts go under
+`.evidence/shared-layer-prereq/`; fixture screenshots retain the harness's `.evidence/016/`
 location in this owned worktree. Cleanup waits for approved landing and an exclusive-owner audit.
+
+## Clean combined results and closure handoff
+
+All checks below executed at clean implementation/test pin
+`86cb74fa22a30a0a45b141e3f98573c0ccec8048` on the exclusive target; only this documentation changed
+afterward. The current product/CSS/example source still matches isolated `d0633057` byte-for-byte;
+the harness retains the documented target/session adjustment. CONTROL manifests, lock, controls and
+renderer are unchanged from `c38dc6bf`.
+
+| Fresh check | Result | Receipt under `.evidence/shared-layer-prereq/` |
+| --- | --- | --- |
+| Actual dock fixture, trusted input and 12 width/theme/appearance combinations | pass | `actual-dock-clean.log` |
+| Shared all-target WASM Clippy, locked/offline, warnings denied | pass | `wasm-clippy-clean.log` |
+| Mounted shared `ui::` WASM regression floor, locked | 21/21 pass; 58 filtered | `shared-ui-wasm-clean.log` |
+| Native shared lib, locked/offline | 17/17 pass; none filtered | `native-shared-clean.log` |
+| Workspace formatting | pass | `format-clean.log` |
+| Python syntax, isolated source match, unchanged CanvasLayers owner and CONTROL boundary | pass | `source-audit.log` |
+| WASM-only plain-test guard | pass | `wasm-test-guard.log` |
+| Documentation links and diff whitespace | pass | `doc-links-closure.log` |
+
+Fresh fixture captures are in this worktree's
+`.evidence/016/layer-captures-20261022-201119/`. The 390px Shadcn-dark and 1440px Original-light
+captures were visually inspected; the list remains in flow, controls fit the narrow fixture, and
+retained draft text and independent visibility states are visible. These are shared dock fixture
+captures, not full workspace acceptance screenshots. The fixture checks geometry and state across
+all 12 combinations and reports no browser JavaScript errors. This clean run supersedes any need
+to infer combined acceptance from the original dirty-lane GREEN receipts; original RED evidence
+remains explicitly attributed above and was not rerun or relabelled as a clean-pin failure.
+
+The build phase ended with no process environment or open-fd references to this exclusive target;
+`build-phase-ended.log`. The allocated slot is returned. The target is retained pending approved
+landing and ownership-audited cleanup; evidence and fixture captures are outside it. No additional
+Cargo is planned for this completed slice. One coordinator-owned Standards/Spec closure review is
+required across `c38dc6bf` to the completed continuation pin; no review has been started by this
+child, and local feature landing remains held.
+
+Full Parts/chooser and Layout workspace checks, global full/quick/CAD/browser-worker/first-paint,
+screen-reader/human and final integration gates remain outside this slice. The existing
+PartsPreviewLayers caller was inspected for unchanged callback/state ownership; its separate
+workspace suite was not run here. Native success covers the 17-test shared library, not all native
+repository tests. No workspace ticket status or acceptance claim has changed.
