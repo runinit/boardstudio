@@ -263,7 +263,7 @@ _Avoid_: column offset (when the inherited step is meant)
 **Column offset**:
 An independent adjustment of one column only. Later columns do not inherit it, and it does not
 move the column's splay origin.
-_Avoid_: stagger, spread (when the independent adjustment is meant)
+_Avoid_: stagger, spread, shift (when the independent adjustment is meant)
 
 **Splay origin**:
 The point a column's splay turns about, measured from the column's base: its first key's
@@ -281,10 +281,26 @@ _Avoid_: parent, reference (unqualified)
 
 **Row offset**:
 An independent adjustment of one matrix row only.
+_Avoid_: shift (when the independent adjustment is meant)
 
 **Key local offset**:
 An adjustment of one key within its matrix. The key's attached companions move
 with it.
+_Avoid_: shift (when the independent adjustment is meant)
+
+**Shift**:
+A move of one row (row shift) or one key (key shift) that carries to every later row of its
+column, along the key's heading.
+_Avoid_: offset (when the carried move is meant), nudge
+
+**Bend**:
+A turn of one row (row bend) or one key (key bend) that carries to every later row of its
+column. The later rows swing about it, so the column curves.
+_Avoid_: rotate, rotation (when the carried turn is meant), curve
+
+**Key rotation**:
+A turn of one key about its centre. No other key inherits it.
+_Avoid_: bend
 
 **Structural relationship**:
 Placement a selection inherits from its matrix (pitch, offsets, stagger, splay,

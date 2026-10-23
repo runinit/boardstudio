@@ -82,6 +82,10 @@ BoardStudio extended layout feature working.
 
 <!-- one line per resolved ticket: linked title, then the gist -->
 
+- [01: Name the carried parameters](issues/01-name-the-carried-parameters.md#answer): **Shift** and **Bend**
+  are the carried move and turn (ergogen `shift` and `rotate`). Offsets and Key rotation keep their
+  names. Hints say "later rows". Tools are named after parameters. Relations follows the stagger
+  pattern and says "origin", not "pivot". There are no ergogen names in the UI.
 - [02: Pin ergogen's anchor and mirror semantics](issues/02-ergogen-anchor-and-mirror-semantics.md#answer):
   - Anchors apply orient → shift → rotate, then `affect`.
   - Mirrored references negate relative x and rotation unless `resist` is set.
