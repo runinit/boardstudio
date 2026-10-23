@@ -158,6 +158,7 @@ fn safe_path(path: &str) -> bool {
             .all(|component| !matches!(component, "" | "." | ".."))
 }
 
+// The format check stays: PackProject calls this without a prior version gate.
 fn asset_references(json: &str) -> Result<Vec<(String, String)>, String> {
     let value: serde_json::Value =
         serde_json::from_str(json).map_err(|error| format!("Invalid project JSON: {error}"))?;
@@ -483,7 +484,14 @@ mod tests {
         .to_string();
         let packed = vec![pack(&[("project.json", json.as_bytes())], None).unwrap()];
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("Unsupported"), "{error}");
+        assert!(error.contains("Unsupported document format"), "{error}");
+    }
+
+    #[test]
+    fn unpacking_malformed_json_text_is_refused_as_invalid_project_json() {
+        let packed = vec![pack(&[("project.json", b"{not json")], None).unwrap()];
+        let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
+        assert!(error.contains("Invalid project JSON"), "{error}");
     }
 
     #[test]

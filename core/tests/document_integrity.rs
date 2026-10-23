@@ -520,6 +520,18 @@ fn malformed_missing_and_foreign_format_inputs_refuse_before_any_state_change() 
 }
 
 #[test]
+fn malformed_json_text_is_refused_without_changing_accepted_state() {
+    let mut engine = CoreEngine::new();
+    assert_eq!(open(&mut engine, "open", &baseline())["kind"], "scene");
+    let accepted = snapshot(&mut engine);
+    for text in ["{not json", "{\"kind\":\"open\",\"document\":{\"format\":"] {
+        let reply: Value = serde_json::from_str(&engine.request(text)).unwrap();
+        assert_error(&reply);
+        assert_eq!(snapshot(&mut engine), accepted, "{text} changed state");
+    }
+}
+
+#[test]
 fn duplicate_identity_in_each_collection_is_rejected_on_open() {
     for collection in [
         "parts",
