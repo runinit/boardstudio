@@ -115,7 +115,7 @@ def tooltip(url, captures):
     browser("press", "Tab")
     browser("press", "Shift+Tab")
     browser("wait", "--fn", "!!document.querySelector('[role=tooltip][data-state=open]')")
-    assert driver.by_role_name("tooltip", "Previous step")
+    assert browser("find", "role", "tooltip", "text", "--name", "Previous step", "--exact")["text"] == "Previous step"
     check("document.activeElement===previousStep && previousStep.getAttribute('aria-describedby').split(/\\s+/).some(id=>document.getElementById(id)?.textContent==='Previous step')")
     browser("press", "Escape")
     browser("press", "Tab")
