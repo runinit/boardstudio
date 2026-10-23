@@ -352,6 +352,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                     }
                                     for (index, point) in perimeter.canvas_points.iter().enumerate() {
                                         ToggleGroup {
+                                            class: "w-full! rounded-none! p-0!",
                                             aria_label: "Select outline point {index + 1}",
                                             pressed: Some(
                                                 if index == point_index {
@@ -362,6 +363,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                             ),
                                             on_pressed_change: move |_| selected_point.set(index),
                                             ToggleItem {
+                                                class: "grid! w-full! grid-cols-[54px_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-none! px-2 py-1.5 text-left text-xs! font-normal! tabular-nums max-[760px]:min-h-control-touch",
                                                 index: 0usize,
                                                 key: "outline-point-{index}",
                                                 aria_label: "Select outline point {index + 1}",
