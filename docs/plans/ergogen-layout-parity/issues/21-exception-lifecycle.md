@@ -5,6 +5,7 @@ Type: build
 Blocked by: [20](20-reflect-linked-layouts.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns the exception lifecycle (Local/Omitted resize, Rejoin, confirmed detach, source removal) and the Core behaviour of confirmed exception changes; linked group reflection is left to [20](20-reflect-linked-layouts.md) and the UI confirmation to [23](23-inspector-toolbar-and-handles.md).
 
 ## Outcome
 

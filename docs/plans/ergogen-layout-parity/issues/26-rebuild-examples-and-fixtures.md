@@ -5,6 +5,7 @@ Type: build
 Blocked by: [24](24-relations-and-highlights.md), [25](25-project-format-recovery.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns only the example/starter rebuilds from ticket 14 and the golden updates those rebuilds directly cause; cutover fixture regeneration and gates are left to [17e](17e-fixtures-and-final-gate.md) and the end-to-end checklist to [27](27-end-to-end-acceptance.md).
 
 ## Outcome
 
@@ -29,12 +30,14 @@ through Core rather than baking switch poses, then add Macro 12 as the next case
   Keep left/thumb poses; change only right-main row X by 0/−5/−10 mm as approved.
 - Core maintains reflected counterparts and actual anchor movement, including edits
   from either half, preview/cancel and one Undo/Redo. No second right-side factory math.
+  Ownership note: reflection is owned by [20](20-reflect-linked-layouts.md); verify it here only through the rebuilt examples.
 - Preserve board/material/outline intent and update member/outline references. Add no
   controllers, wiring, physical pair or readiness claim; fresh inputs stay unassigned.
 - Finish deliberate boundary/current-schema/outline/layout golden updates. Preserve
   companion, constraint, identity, changed-ID and persistence assertions; do not weaken
   them to bless new poses. Keep stress cases in focused tests and unrelated provider
   goldens unchanged unless a demonstrated dependency requires otherwise.
+  Ownership note: cutover fixture regeneration is owned by [17e](17e-fixtures-and-final-gate.md); this ticket owns only goldens its example rebuilds directly cause.
 - Keep fixture provenance/licences and the source builder as authority; no committed
   demo archive dump or runtime migration. Normal tests do not invoke Ergogen/Node.
 

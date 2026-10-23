@@ -122,6 +122,13 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md) | 24, 25 | Exact approved examples and affected schema/scene contract updates. |
 | [27: End-to-end acceptance](issues/27-end-to-end-acceptance.md) | 26 | Full production-path proof and release gate, not planning evidence. |
 
+## Ownership
+
+- Fixtures and final gate: [17e](issues/17e-fixtures-and-final-gate.md) owns fixture regeneration and the cutover gates; [26](issues/26-rebuild-examples-and-fixtures.md) owns only the example/starter rebuilds and the goldens they directly cause; [27](issues/27-end-to-end-acceptance.md) owns only the end-to-end checklist and release gate.
+- Same-board Local/Omitted/Rejoin: [20](issues/20-reflect-linked-layouts.md) owns linked group reflection; [21](issues/21-exception-lifecycle.md) owns the exception lifecycle.
+- Confirmed exception changes: [21](issues/21-exception-lifecycle.md) owns the Core behaviour; [23](issues/23-inspector-toolbar-and-handles.md) owns only the UI confirmation and its trusted-pointer tests.
+- Align through anchors: [19](issues/19-anchor-layout-groups.md) owns the Core edit; [22](issues/22-update-layout-consumers.md) owns only the consumer wiring that calls it.
+
 ## Decisions so far
 
 <!-- one line per resolved ticket: linked title, then the gist -->

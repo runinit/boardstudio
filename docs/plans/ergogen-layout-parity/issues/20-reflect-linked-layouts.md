@@ -5,6 +5,7 @@ Type: build
 Blocked by: [19](19-anchor-layout-groups.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns linked group reflection (actual/transported frames, both linking systems, inverse edits); the Local/Omitted resize, Rejoin, confirmed detach and source-removal lifecycle is left to [21](21-exception-lifecycle.md).
 
 ## Outcome
 
@@ -31,6 +32,7 @@ kernel and exact inverse; then add an anchored group counterpart case.
   inverse edits use that actual frame. Reflect compensation once, including column 0.
 - Complete same-board per-matrix/key Local/Omitted/Rejoin support consistently with
   native records; do not add per-column exceptions or allow double ownership.
+  Ownership note: the Local/Omitted/Rejoin lifecycle is owned by [21](21-exception-lifecycle.md).
 - Preserve native companion-mode/side/heading distinctions and existing linked Y,
   ambiguous-alias, simultaneous-target and constraint refusals.
 

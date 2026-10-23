@@ -5,6 +5,7 @@ Type: build
 Blocked by: [26](26-rebuild-examples-and-fixtures.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns only the end-to-end acceptance checklist and release gate; fixture regeneration and cutover gates are left to [17e](17e-fixtures-and-final-gate.md) and the example rebuilds to [26](26-rebuild-examples-and-fixtures.md).
 
 ## Outcome
 

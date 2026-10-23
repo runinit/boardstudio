@@ -5,6 +5,7 @@ Type: build
 Blocked by: [22](22-update-layout-consumers.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns only the UI confirmation for exception changes and its trusted-pointer tests; the Core behaviour is left to [21](21-exception-lifecycle.md).
 
 ## Outcome
 
@@ -29,6 +30,7 @@ synthetic PointerEvents which bypass the original bug.
   Core rules. Follow directions constrain matrix drag; disable Rotate appropriately.
 - Add/Pick/Follow/Detach controls and confirmed exception changes reach one atomic
   Core intent. Do not silently resize/Rejoin or commit a stale confirmation.
+  Ownership note: the Core behaviour of confirmed exception changes is owned by [21](21-exception-lifecycle.md); this ticket owns only the UI confirmation.
 - Passive Handles visibility is view-only. Keep the active tool's required origin;
   hover does not replace its SVG target and passive hints do not intercept input.
 - Amber effective-pose preview, pre-drag ghosts, pointer capture, release outside the

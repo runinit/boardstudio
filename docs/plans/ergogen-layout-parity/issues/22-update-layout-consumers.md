@@ -5,6 +5,7 @@ Type: build
 Blocked by: [21](21-exception-lifecycle.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns only the consumer wiring (Setup, Align, selection) that calls the Core anchor-align edit; the Core edit itself is left to [19](19-anchor-layout-groups.md).
 
 ## Outcome
 

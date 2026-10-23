@@ -5,6 +5,7 @@ Type: build
 Blocked by: [18](18-core-placement-edits.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
+Ownership: Owns the Core edit for aligning through anchors; the Setup, Align and selection consumer wiring that calls it is left to [22](22-update-layout-consumers.md).
 
 ## Outcome
 
