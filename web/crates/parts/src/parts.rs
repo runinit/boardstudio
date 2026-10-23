@@ -385,7 +385,7 @@ fn AddObjectChoice(
             Button {
                 key: "{definition_id}", variant: ButtonVariant::Ghost,
                 class: "w-full justify-start whitespace-normal text-left",
-                "aria-label": "Add {label}",
+                aria_label: "Add {label}",
                 onclick: move |_| on_place.call(
                     super::part_placement::ComponentPlacementAction::AddObject {
                         definition_id: linked_definition_id.clone(),
@@ -397,7 +397,7 @@ fn AddObjectChoice(
             if mirror_only_available {
                 Button { variant: ButtonVariant::Ghost,
                     class: "w-full justify-start whitespace-normal text-left",
-                    "aria-label": "Add {label} to this half only",
+                    aria_label: "Add {label} to this half only",
                     onclick: move |_| on_place.call(
                         super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
                             definition_id: mirror_definition_id.clone(),
@@ -1269,7 +1269,8 @@ pub fn ControllerSetupPicker(
                         let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
                         rsx! { Button {
                             key: "{id}", class: "m1-controller-card", variant: ButtonVariant::Ghost, aria_pressed: active,
-                            "data-match": matching, aria_hidden: (!matching).then_some("true"), disabled: !matching,
+                            attributes: vec![Attribute::new("data-match", matching, None, false)],
+                            aria_hidden: (!matching).then_some("true"), disabled: !matching,
                             onclick: move |_| choose.call(id.clone()),
                             preview::ControllerFootprintThumbnail { definition: entry.definition.clone() }
                             strong { "{preferred_label(&entry.definition)}" }

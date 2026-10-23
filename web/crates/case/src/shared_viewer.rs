@@ -2780,7 +2780,7 @@ fn SharedViewer(
                             }
                             toggle_display(next_display.clone());
                         },
-                        ToggleItem { index: 0, aria_label: format!("Toggle visibility for {label}"),
+                        ToggleItem { index: 0usize, aria_label: format!("Toggle visibility for {label}"),
                             if visible { "Visible" } else { "Hidden" }
                         }
                     }

@@ -570,7 +570,6 @@ mod mounted_settlement_tests {
     use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use std::cell::RefCell;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     struct Probe {
