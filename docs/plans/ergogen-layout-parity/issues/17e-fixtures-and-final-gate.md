@@ -706,3 +706,79 @@ All temporary probes were removed; the two instrumented source files returned to
 HEAD with no diff. No quick/full or product drag gate was run in this diagnosis.
 Failed receipts remain intact. 17e and parent 17 remain claimed; final acceptance,
 reviews and later feature work remain pending.
+
+### Positive Inspector fixture correction — 2026-10-23 (partial checkpoint)
+
+Started at authorized HEAD `8baee0c416f20aa6f56d196220b57395c0a0f993` on
+`docs/ergogen-layout-comparison`, with clean tracked files and only the preexisting
+untracked `web/crates/layout/prototype/`. Inspected every fixture constructor and
+caller in `web/src/presentation/layout_component_inspector_tests.rs`. Its only two
+`LayoutMirrorLink` constructors lacked the Matrix correspondence required by
+[spec §2](../spec.md#2-persisted-shape-and-validation) and [17b](17b-validation-and-ownership.md).
+Added typed `MirroredCorrespondence` records with `kind: Matrix`, no companion
+override/tweak, and these source/mirror identities:
+
+- Shared `fixture_document`: `matrix` → `paired-matrix`.
+- `mounted_matrix_key_stays_key_until_explicit_finding_opens_component_inspector`:
+  `component-matrix` → `component-paired-matrix`.
+
+Synthetic ReadModel fixtures retain their projection setup. `runtime_document`
+still supplies the two base matrices. `configure_mirrored_part_pair` still clears
+layouts/matrices and uses its physical Part pair without extra metadata.
+
+Added an accepted-snapshot assertion in `mounted_runtime_probe`, immediately after
+the real Session/Core Open effects settle via `run_pending().await`, before
+SelectParts or DOM mounting. Each probe starts with a fresh empty runtime, so no
+previously accepted snapshot can satisfy admission. No raw Core-only replacement,
+new production helper, diagnostic probe or runner option was introduced.
+
+**RED → focused GREEN.** Before changing either mapping, the exact existing
+`mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y` test
+failed at the new admission assertion: `the mounted Inspector fixture must be
+accepted by Session/Core Open before selection` (**0 passed, 1 failed, 76 filtered**).
+After both mappings, a fresh exact launch passed (**1 passed, 0 failed, 76 filtered**),
+including both coordinates and Undo removing only Y. Both launches reused
+`run_filter`, `runner_environment()` and `desktop_webdriver_config(...)` from
+`scripts/run-wasm-tests.py`, as in the diagnosis. Logs/results:
+`.evidence/ergogen-17e/inspector-fixture-red.{log,json}` and
+`.evidence/ergogen-17e/inspector-fixture-exact.{log,json}`. The initial rustfmt check
+identified only formatting of the new import/assertion; applied rustfmt before
+the file run.
+
+**STOP: new first independent failure; no semantic expansion.** Executed:
+
+```sh
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+unset BOUNDARY_BLESS
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs --result-json .evidence/ergogen-17e/inspector-fixture-file.json
+```
+
+File selection included all **25** Inspector and nested Matrix Relations scenarios:
+**12 passed, 13 failed, 0 incomplete**, 52 filtered. The queued X/Y regression
+passed again. First independent panic:
+`mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the_reset`,
+`layout_component_inspector_tests.rs:2575`, **`converted X draft 1`**. The unchanged
+assertion expects converted X approximately `2.866025403784439`; no cause or fix
+for this separate conversion failure is claimed. The runner reports **12 subsequent
+panic-hook cascade failures**, not 12 additional independent bugs. In particular,
+the matrix-key fixture's mounted scenario occurs after the first panic, so its
+mapping has no clean runtime success receipt in this batch. All terminal scenario
+names/outcomes are retained in `inspector-fixture-file.json`; raw output is
+`inspector-fixture-file.json.logs/filter-001.log`, with scheduler output in
+`inspector-fixture-file.log`, all under `.evidence/ergogen-17e/`.
+
+Exact runs used the same outer lock, 22 GiB/no-swap scope and environment, with
+`timeout 900`; file used `timeout 3600`. No heavy commands overlapped. Earlier
+failure logs remain intact. Page `--all --depth 1 --isolate=presentation::case_workspace::`
+was **not run**, because the file prerequisite failed; no page result is claimed.
+All 116-caller quick/full and product drag checks remain outside this round.
+
+This is a focused-GREEN, file-blocked fixture checkpoint for parent review, not
+17e/17 closure or full acceptance. No production code, validation, baselines,
+allowlists, timeouts, skips, UI labels, existing assertions or test names changed;
+no fixture blessing or later feature work. Parent 17 and 17e remain **claimed**.
+Verification: final diff read; `rustfmt --edition 2024 --check` on the test file
+and `git diff --check` passed. `scripts/check-doc-links.py` passed for 554 Markdown
+files under the same resource guard with `timeout 900`; log:
+`.evidence/ergogen-17e/inspector-fixture-doc-links.log`. No temporary diagnostic
+probes remain. Only the authorized test file and this Progress entry are changed.

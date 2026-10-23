@@ -6,8 +6,8 @@ use super::*;
 use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
-    MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
-    ProjectDoc, Readiness, SceneDelta, Side,
+    MatrixCell, MatrixScene, MatrixSceneCell, MirroredCorrespondence, MirroredItemKind,
+    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::cell::RefCell;
@@ -85,7 +85,13 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
-            correspondences: vec![],
+            correspondences: vec![MirroredCorrespondence {
+                companion_mode: None,
+                companion_tweak: None,
+                kind: MirroredItemKind::Matrix,
+                source_id: "matrix".into(),
+                mirror_id: "paired-matrix".into(),
+            }],
             exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
@@ -1237,6 +1243,9 @@ async fn mounted_runtime_probe(
         document,
     });
     crate::runtime::project_name_test_support::run_pending(&runtime).await;
+    runtime.model().accepted.expect(
+        "the mounted Inspector fixture must be accepted by Session/Core Open before selection",
+    );
     runtime.submit(boardstudio_application::Event::SelectParts {
         operation_id: runtime.operation(),
         part_ids: selected_parts.iter().map(|id| (*id).into()).collect(),
@@ -1602,7 +1611,13 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 matrix_ids: vec!["component-paired-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
-                    correspondences: vec![],
+                    correspondences: vec![MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: MirroredItemKind::Matrix,
+                        source_id: "component-matrix".into(),
+                        mirror_id: "component-paired-matrix".into(),
+                    }],
                     exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
