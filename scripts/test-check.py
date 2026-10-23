@@ -38,6 +38,7 @@ class CheckTests(unittest.TestCase):
                       for command in commands for argument in command if argument in scripts}
         delegated = {"scripts/test-drag-interactions.cjs": "scripts/run-drag-browser.py"}
         opt_in = {
+            "scripts/test-library-export.py": "ticket 023 role/name workflow against a checked server with a coarse pointer",
             "scripts/test-graphite-feedback.cjs": "interactive Graphite acceptance against a running dev server",
             "scripts/test-graphite-usability.cjs": "compatibility entry point for Graphite acceptance",
         }

@@ -201,3 +201,26 @@ identity and exactly one trusted Confirm. The later unchanged Add-object check
 fails at script line 394: it expects role dialog named Add, while the captured AX
 tree exposes the actual region named Add with its Add button expanded. No
 unrelated Add workflow or its test assertions were repaired/relaxed in this lane.
+
+
+### Final verification attempt
+
+The documented default full pre-PR command was invoked once on clean source
+`098dea0dfeb1d52f77887be9727407ce50e3beb2`:
+`NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py --receipt .evidence/023/full-receipt.json`.
+It stops in tooling's test-script registration guard, listing 20 unchanged
+migration browser scripts plus the new 023 script. The 023 script is now explicitly
+registered as opt-in using the existing guard's convention; the other 20 remain
+untouched. The full receipt truthfully marks lint/build/native/browser not run
+by that invocation. Required remaining test/check steps are executed separately
+below rather than claiming that fail-fast invocation executed them.
+
+`browser-final-controls.log` passes the complete actual packaged workflow with
+coarse pointer, including normal deletion/Ctrl+K keyboard floor, all free guide
+stages and Back navigation, guide draft/input targets and narrow panel, native
+Checkbox Space, inline Export blockers, real portable download, all eight Export
+Theme/Appearance/width captures, and the viewport-fitting focused Library delete
+Tooltip at desktop and 390px. `browser-verified.log` records a harness stale Toast
+close ref; the unnecessary Toast-dismissal setup is removed. Pointer Export still
+requires an actual hit target and uses a trusted click; no product queue change,
+force activation, delay, retry or weakened assertion was added.

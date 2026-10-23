@@ -152,10 +152,6 @@ def main():
         check("if (!document.querySelector('[aria-label=\"Delete Untitled keyboard\"]')?.getAttribute('data-project-id')) throw Error('Deleting the last project must retain its durable replacement');")
         action('button', 'Preview Untitled keyboard')
         action('button', 'Open keyboard')
-        # Dismiss the real saved-operation notifications through their controls before pointer navigation.
-        notice_snapshot = json.loads(browser('snapshot', '--json', '-i'))['data']
-        for ref in re.findall(r'^\s*- button "close" \[[^\]\n]*\bref=(e\d+)', notice_snapshot['snapshot'], re.MULTILINE):
-            browser('click', '@' + ref)
         browser('wait', '--fn', "(() => { const e = document.querySelector('[aria-label=Export]'), r = e.getBoundingClientRect(); return e.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2)); })()")
         action('button', 'Export')
         browser('wait', '[aria-label="Export package"]')
