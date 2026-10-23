@@ -424,8 +424,8 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
                     rsx! {
                         Field { class: "m1-board-inspector-name",
                             FieldLabel { html_for: control_input_id.clone(), "Board name" }
-                            InputGroup {
-                                InputGroupInput { aria_label: "Board name",
+                            InputGroup { class: "max-[760px]:h-control-touch",
+                                InputGroupInput { class: "max-[760px]:h-control-touch", aria_label: "Board name",
     value: "{name}",
     disabled: !projection.editable,
     oninput: move |event: FormEvent| draft.set(event.value()),

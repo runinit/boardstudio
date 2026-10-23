@@ -601,7 +601,7 @@ pub(super) fn OutlineDimension(
     rsx! {
             { let control_input_id = format!("layout-input-{}-2", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
                 span { "{label}" }
-                 } InputGroup { InputGroupInput { r#type: InputType::Number,
+                 } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
     step: "0.1",
     min: "{minimum}",
     value: "{draft}",
@@ -662,7 +662,7 @@ pub(super) fn OutlineCoordinate(
     rsx! {
             { let control_input_id = format!("layout-input-{}-1", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
                 span { "{label}" }
-                 } InputGroup { InputGroupInput { r#type: InputType::Number,
+                 } InputGroup { class: "max-[760px]:h-control-touch", InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
     step: "0.1",
     value: "{draft}",
     disabled: !editable,

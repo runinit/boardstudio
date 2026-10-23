@@ -1377,8 +1377,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     rsx! {
                                         Field {
                                             FieldLabel { html_for: control_input_id.clone(), "X (mm)" }
-                                            InputGroup {
-                                                InputGroupInput { r#type: InputType::Number,
+                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "0.1",
         value: "{x}",
         aria_label: "X mm",
@@ -1404,8 +1404,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                     rsx! {
                                         Field {
                                             FieldLabel { html_for: control_input_id.clone(), "Y (mm)" }
-                                            InputGroup {
-                                                InputGroupInput { r#type: InputType::Number,
+                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "0.1",
         value: "{y}",
         aria_label: "Y mm",
@@ -1523,8 +1523,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                         rsx! {
                                                             Field {
                                                                 FieldLabel { html_for: control_input_id.clone(), "Part edge margin" }
-                                                                InputGroup {
-                                                                    InputGroupInput { r#type: InputType::Number,
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         min: "0",
         value: "{margin}",
@@ -1797,8 +1797,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                         rsx! {
                                                             Field {
                                                                 FieldLabel { html_for: control_input_id.clone(), "Offset X (mm)" }
-                                                                InputGroup {
-                                                                    InputGroupInput { r#type: InputType::Number,
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Offset X (mm)",
         value: "{offset_x}",
@@ -1816,8 +1816,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                         rsx! {
                                                             Field {
                                                                 FieldLabel { html_for: control_input_id.clone(), "Offset Y (mm)" }
-                                                                InputGroup {
-                                                                    InputGroupInput { r#type: InputType::Number,
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Offset Y (mm)",
         value: "{offset_y}",
@@ -1836,8 +1836,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                     rsx! {
                                                         Field {
                                                             FieldLabel { html_for: control_input_id.clone(), "Rotation (degrees)" }
-                                                            InputGroup {
-                                                                InputGroupInput { r#type: InputType::Number,
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Rotation (degrees)",
         value: "{rotation}",
@@ -1902,8 +1902,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                     rsx! {
                                                         Field {
                                                             FieldLabel { html_for: control_input_id.clone(), "Axis coordinate (mm)" }
-                                                            InputGroup {
-                                                                InputGroupInput { r#type: InputType::Number,
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Axis coordinate (mm)",
         value: "{mirror_coordinate}",
@@ -1926,8 +1926,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                         rsx! {
                                                             Field {
                                                                 FieldLabel { html_for: control_input_id.clone(), "Line anchor X (mm)" }
-                                                                InputGroup {
-                                                                    InputGroupInput { r#type: InputType::Number,
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Mirror line anchor X (mm)",
         value: "{mirror_line_x}",
@@ -1945,8 +1945,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                         rsx! {
                                                             Field {
                                                                 FieldLabel { html_for: control_input_id.clone(), "Line anchor Y (mm)" }
-                                                                InputGroup {
-                                                                    InputGroupInput { r#type: InputType::Number,
+                                                                InputGroup { class: "max-[760px]:h-control-touch",
+                                                                    InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Mirror line anchor Y (mm)",
         value: "{mirror_line_y}",
@@ -1965,8 +1965,8 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                                     rsx! {
                                                         Field {
                                                             FieldLabel { html_for: control_input_id.clone(), "Line angle (degrees)" }
-                                                            InputGroup {
-                                                                InputGroupInput { r#type: InputType::Number,
+                                                            InputGroup { class: "max-[760px]:h-control-touch",
+                                                                InputGroupInput { class: "max-[760px]:h-control-touch", r#type: InputType::Number,
         step: "any",
         aria_label: "Mirror line angle (degrees)",
         value: "{mirror_line_angle}",
