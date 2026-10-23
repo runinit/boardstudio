@@ -100,7 +100,7 @@ def held_space_floor():
     after = evaluate("layoutCanvas.getAttribute('viewBox')")
     drag()
     assert evaluate("layoutCanvas.getAttribute('viewBox')") == after, "release must stop canvas pan"
-    print("Held Select Space: one open, no native click/window keydown/pan; canvas positive pan and release", evaluate("({keys:heldKeys,transitions:openTransitions,clicks:heldClicks})"), before, after, flush=True)
+    print("Held Select Space: one open, no native click or initial window keydown; consumed repeat cannot pan; canvas positive pan and release", evaluate("({keys:heldKeys,transitions:openTransitions,clicks:heldClicks})"), before, after, flush=True)
     evaluate("selectObserver.disconnect();window.removeEventListener('keydown',recordHeldKey);window.removeEventListener('keyup',recordHeldKey)")
     click("Fit board")
 

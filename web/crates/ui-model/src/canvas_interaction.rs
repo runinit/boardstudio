@@ -92,7 +92,10 @@ impl LayoutSpacePanWindowListener {
                 .is_some_and(|target| {
                     matches!(target.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
                 });
-            if is_layout() && layout_space_pan_keydown(&event.key(), &event.code(), typing_target) {
+            if !event.default_prevented()
+                && is_layout()
+                && layout_space_pan_keydown(&event.key(), &event.code(), typing_target)
+            {
                 keydown_space.set(true);
                 event.prevent_default();
             }
