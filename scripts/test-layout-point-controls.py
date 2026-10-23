@@ -44,6 +44,21 @@ def secondary(name):
     return result["slot"] == "button" and result["background"] == result["expectedBackground"] and result["color"] == result["expectedColor"] and result["border"] == "0px" and result["padding"] == "8px 16px" and result["outline"] == "none" and result["ring"]
 
 
+def inline_error(name, submit):
+    browser("focus", driver.by_role_name("spinbutton", name))
+    evaluate("window.invalidField=document.activeElement;window.acceptedFieldText=invalidField.value")
+    browser("fill", driver.by_role_name("spinbutton", name), "")
+    if submit:
+        browser("press", "Enter")
+    browser("wait", "--fn", "document.querySelectorAll('[data-slot=field-error]').length===1")
+    check("document.querySelector('[data-slot=field-error]').getAttribute('role')==='alert'")
+    result = evaluate("(()=>{const error=document.querySelector('[data-slot=field-error]'),s=getComputedStyle(error),paint=document.createElement('span');paint.style.color='var(--destructive)';document.body.append(paint);const result={font:s.fontSize,color:s.color,expected:getComputedStyle(paint).color,text:error.textContent};paint.remove();return result})()")
+    print("Actual inline error", name, result, flush=True)
+    browser("press", "Escape")
+    browser("wait", "--fn", "!document.querySelector('[data-slot=field-error]') && invalidField.value===acceptedFieldText")
+    return result["font"] == "14px" and result["color"] == result["expected"]
+
+
 def tests(url, captures):
     flow.new_layout_project(url)
     flow.create_single_matrix(1)
@@ -53,11 +68,12 @@ def tests(url, captures):
     click("SW1 switch mx · front")
     dismiss_notifications()
     failures = []
-    for owner in ["component", "points"]:
+    for owner in ["component", "outline", "points"]:
         browser("set", "viewport", 1440, 900)
-        if owner == "points":
+        if owner == "outline":
             click("Outline Generated")
             dismiss_notifications()
+        elif owner == "points":
             click("Edit perimeter points")
         for width in [1440, 1100, 390]:
             browser("set", "viewport", width, 900)
@@ -66,7 +82,12 @@ def tests(url, captures):
                     evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
                     if width < 980:
                         fields.inspector_sheet()
-                    actions = ["Edit electrical connections"]
+                    actions = ["Edit electrical connections"] if owner == "component" else ["Edit perimeter points"]
+                    if owner in ["component", "outline"]:
+                        if not inline_error("X mm" if owner == "component" else "Outline margin", owner == "component"):
+                            failures.append((width, theme, appearance, "copied inline error"))
+                        if width < 980:
+                            fields.inspector_sheet()
                     if owner == "points":
                         for index in [1, 2]:
                             browser("focus", driver.by_role_name("button", f"Select outline point {index}"))

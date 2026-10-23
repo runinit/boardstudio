@@ -940,3 +940,26 @@ Reference itself has no owner-disabled branch; no invented disabled state is
 claimed. Canonical Button disabled contracts and separate action disabled reasons
 are distinct evidence. Canonical CONTROL/Input/Checkbox/Label/layer/017/020 files
 and `presentation.rs` remain byte-identical to landed `de0dce97`.
+
+Final checks at `19d055b4` pass: all-target WASM clippy for web/layout/ui-shared
+with warnings denied (`layout-clippy-final.log`), workspace cargo fmt check,
+Python syntax, doc links (571 Markdown files) and WASM test-name guard. The
+scheduler's scoped native run (`layout-native-final.log`) executes **97** unit
+tests:80 Layout and17 ui-shared; web's native harness has0. All pass. Retention
+checks the80 existing Layout names and11 shared names; six shared native names
+are inherited canonical CONTROL/copy-rules/sidenav tests, not new016 tests.
+The runner's printed2104 is the global baseline total, not executed coverage.
+One pre-existing opt-in native archive test remains ignored because
+KEYCAPS_MIRROR_PROJECT_JSON is not supplied; two pre-existing pending-edit-helper
+doctest examples are ignored. No baseline or ignore annotation changed here.
+
+Owned inline errors had one further real look defect: the old Component/Outline
+`[role=alert]` rules override copied FieldError with12px and the legacy Original
+red even in Shadcn. The actual empty-draft/Enter/Escape test records all24
+combinations in `layout-inline-error-style-owned-red.log`, while accepted geometry
+and original text restore. The first probe stopped before style measurement
+because the interactive-only snapshot omits noninteractive alert nodes
+(`layout-inline-error-style-red.log`); the role assertion now checks the actual
+owned FieldError's role without treating it as a clickable control. Keep that
+role/font/token assertion, and exclude copied data-slots from only these two
+owned legacy alert selectors. No message text, validation, callback or state edit.
