@@ -1,6 +1,6 @@
 # 17e: Fixtures and final gate
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [17b](17b-validation-and-ownership.md), [17c](17c-kernel-production-routing.md), [17d](17d-entry-path-gates.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
@@ -24,4 +24,19 @@ Use `check.py quick --files` for all changed callers and the full check gate; re
 
 ## Progress
 
-- [ ] 
+### Implementation claim — 2026-10-23
+
+- Verified branch `docs/ergogen-layout-comparison` at pinned
+  `42abce93c3854f3f76de43f0a0b26cc6e71f3e81`; 17a–17d headers are resolved.
+  Only preexisting untracked `web/crates/layout/prototype/` is present; it is excluded.
+- Plan: fix the review base before grouped-field replacement using Git history and
+  17a's Answer; inventory the entire coordinated range, audit schema/scene/boundary
+  fixtures and reuse deliberate 17a rebuilds where sufficient. Change only fixtures
+  with a spec justification; leave examples/starters to 26 and release/E2E to 27.
+- Then run fresh all-caller changed-file quick followed, only if green, by the
+  supported full pre-PR scheduler. Every heavy command uses the shared flock,
+  22G memory/no-swap scope, 3600-second timeout, absolute TMPDIR and two test threads.
+  Keep native/WASM baselines unchanged; stop on first failure or uncertain drift.
+- Record exact inventory, commands, receipts and observed/unreached scopes here.
+  Leave this ticket and parent 17 claimed for independent Standards+Spec reviews;
+  no source fixes, later claims, shipping or user-data writer approval.
