@@ -95,6 +95,10 @@ async fn noninline_parts_viewer_keeps_transient_values_and_control_identity() {
     .await;
     let amount = control(&root, "slider", "Explode amount");
     key(&amount, "Home");
+    wait_until("explode reaches its minimum before the next key", || {
+        amount.get_attribute("aria-valuenow").as_deref() == Some("0")
+    })
+    .await;
     key(&amount, "ArrowRight");
     wait_until("fractional explode value reaches the f32 owner", || {
         amount
@@ -167,9 +171,14 @@ async fn noninline_parts_viewer_keeps_transient_values_and_control_identity() {
         Some("false")
     );
     opener.click();
+    wait_until("section controls actually close", || {
+        content.get_attribute("data-open").as_deref() == Some("false")
+    })
+    .await;
     opener.click();
     wait_until("the same section checkbox survives reopening", || {
-        control(&root, "checkbox", "Show section plane") == plane
+        content.get_attribute("data-open").as_deref() == Some("true")
+            && control(&root, "checkbox", "Show section plane") == plane
     })
     .await;
     assert_eq!(

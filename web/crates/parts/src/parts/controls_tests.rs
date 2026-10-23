@@ -49,15 +49,23 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
     .await;
     let select = by_role_name(&root, "button", "Module host connector").unwrap();
     assert!(!select.id().is_empty());
+    let select_label = document
+        .query_selector(&format!("label[for='{}']", select.id()))
+        .unwrap()
+        .unwrap();
     assert_eq!(
-        document
-            .query_selector(&format!("label[for='{}']", select.id()))
-            .unwrap()
-            .unwrap()
-            .text_content()
-            .as_deref(),
+        select_label.text_content().as_deref(),
         Some("Host connector")
     );
+    select_label
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until(
+        "the actual short-picker label activates its trigger",
+        || document.active_element() == Some(select.clone().unchecked_into()),
+    )
+    .await;
     select.click();
     wait_until("the Parts Select list is named", || {
         by_role_name(&root, "listbox", "Module host connector").is_some()
@@ -140,6 +148,17 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
     );
     combo.focus().unwrap();
     key(&combo, "ArrowDown");
+    wait_until(
+        "the actual Combobox identifies its filtered active option",
+        || {
+            input
+                .get_attribute("aria-activedescendant")
+                .and_then(|id| document.get_element_by_id(&id))
+                .and_then(|option| option.text_content())
+                .is_some_and(|text| text.contains("Connector 12"))
+        },
+    )
+    .await;
     key(&combo, "Enter");
     wait_until(
         "the selected connector reaches the caller unchanged",
