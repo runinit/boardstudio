@@ -243,3 +243,133 @@ web/src/presentation/layout_component_inspector_tests.rs
 web/src/presentation/layout_key_selection_actions/tests.rs
 web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json
 ```
+
+### Authorized boundary test-support correction — 2026-10-23
+
+Narrow continuation from `e0fbe74a1ad5e29b3c40f075caba5983477802e3`, with
+explicit authorization to edit only shared boundary support, its golden and this
+ticket. Branch/HEAD and clean tracked state were verified first; preexisting
+untracked `web/crates/layout/prototype/` remains untouched. Parent 17 and 17e stay
+**claimed**. This clears the identified lost-scenario blocker for independent
+review of test intent; it does not accept the cutover or resume expensive gates.
+
+**Feedback loop and real RED.** Read the audit checkpoint, parent 17, spec §6,
+README gate guidance, coding standards, relevant glossary terms and ADRs 0005,
+0010 and 0034. The diagnosing-bugs/TDD seam is the already-authorized shared
+`run` → `check_core` path, used by native and WASM transports before compaction
+and before blessing. Added literal outcome/revision guards before changing any
+request setup or golden. Separate minimization, repeated reproduction and a
+multi-hypothesis search were omitted: the prior deterministic request-dependency
+audit already isolates the failure, and retaining the chain is necessary to catch
+the downstream lost scenarios. Runtime evidence confirmed that diagnosis.
+
+The requested `--test boundary_parity` command failed at target selection:
+`error: no test target named boundary_parity in boardstudio_core package`.
+This is **not** RED. `core/Cargo.toml` has `autotests = false`; README documents
+`--test integration`. Used that existing target and the exact existing test name,
+without editing configuration or test names/baselines. Compiled with `--no-run`
+first, then the unblessed focused run failed at the new intended-outcome assertion:
+
+```text
+assertion left == right failed: convert-preview:
+{"id":"convert-preview","kind":"error","message":"Converting requires zero Splay, Column rotation and carried Bend","revision":43}
+left: String("error")
+right: "preview"
+FAILED. 0 passed; 1 failed; 756 filtered out
+```
+
+This preceded golden comparison, so it is a real lost-scenario RED, not an existing
+snapshot mismatch. Evidence: `.evidence/ergogen-17e/boundary-red.log` and
+`boundary-red-compile-supported.log`. The invalid target attempt is retained in
+`boundary-red-compile.log`.
+
+**Smallest shared correction.** Reuse already-zero-turn column 0 for the first
+Y-offset and its preview/commit conversion, instead of splayed column 1. Keep
+column 2's nonzero Splay and separate refusal. No new requests or IDs. Keep fixed
+base revisions 42/43/44/45, rather than deriving every request from current state;
+assert each prerequisite success and revision. Spec §6 requires zero Splay,
+Column rotation and carried Bend and a Y-only Stagger transfer with next-column
+compensation. The committed result asserts column 0 Stagger `0 → 3`, its independent
+Y-offset `3 → 0` (zero vector omitted by sparse serialization), and column 1 Stagger
+`2 → -1`. All existing assertions remain; `stale-draft` additionally pins the exact
+`Stale base revision` reason. New outcome assertions run in both shared transports.
+
+Two intermediate pre-blessing assertion failures were corrected before writing the
+golden: `boundary-bless.log` expected a serialized zero offset, but sparse output
+omits it; `boundary-bless-supported.log` rejected empty key poses, but the existing
+outline-prune deliberately removes all keys before this block. The speculative pose
+assertion was removed; this slice proves conversion outcomes and persisted transfer,
+not nonempty key-pose preservation. Neither attempt rewrote the fixture. These were
+assertion-authoring corrections, not competing production failures or accepted drift.
+
+Observed final outcomes (scene revisions for success; accepted revision for errors):
+
+| ID | Intended result now observed |
+|---|---|
+| `convert-offset-1` | `scene`, revision 43; column 0 Y-offset 3 setup |
+| `convert-preview` | `preview`, revision 43; zero-turn conversion allowed |
+| `convert-commit` | `scene`, revision 44; real Stagger transfer, cleared offset |
+| `convert-offset-2` | `scene`, revision 45; column 2 Y-offset 1 accepted |
+| `convert-refused` | `error`, revision 45; exactly `Converting requires zero Splay, Column rotation and carried Bend` |
+| `mirrored-half-new-board` | `error`, revision 45; exactly `Physical instance "board" is unavailable.` |
+| `mirrored-half-reuse-board` | `error`, revision 45; exactly `Physical instance "board" is unavailable.` |
+
+**Full semantic golden delta.** Compared every JSON section/entry against the prior
+pinned golden and inspected the affected entries against fixed pre-cutover base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`:
+
+- Counts/order/IDs remain **67 Core + 11 archive** entries, with the same four
+  auxiliary scenario blocks. Exactly **seven** Core entries change against HEAD;
+  all other Core entries, archive content and auxiliary blocks are identical.
+- `convert-offset-1`: only compact body digest changes, because the offset now
+  belongs to column 0. It still accepts revision 42 and publishes 43.
+- `convert-preview` and `convert-commit`: erroneous zero-turn refusal at accepted
+  revision 43 becomes the original intended `preview` / `scene` outcome. Successful
+  conversion advances the accepted document to 44; preview stays at 43. Their
+  body digests and scene/document key summaries now describe successful replies.
+- `convert-offset-2`: stale error at 43 becomes accepted `scene` at 45, consuming
+  revision 44 after the real conversion. Its digest includes the column 2 offset
+  and the new column 0/1 Stagger values; no request-revision constants changed.
+- `convert-refused`: stale at 43 becomes the deliberate exact conversion refusal
+  at 45. Relative to the pre-cutover base, the reason changes from the older
+  default-origin pivot restriction to spec §6's zero-turn restriction.
+- Both mirrored-half entries: stale at 43 becomes physical-instance refusal at 45.
+  Their entire compact JSON, including body digests, exactly matches pre-cutover
+  base. `stale-draft` remains identical across base/prior/new at revision 1.
+- The successful conversion reply digests differ from pre-cutover base because of
+  the grouped-v7/kernel cutover already audited above and this intentional column
+  selection/transfer. No unrelated new output delta was found or blessed.
+
+Complete entry-by-entry old/base/new comparison:
+`.evidence/ergogen-17e/boundary-semantic-delta.log`.
+
+**Supported focused commands and GREEN.** All Cargo commands took the shared lock,
+used absolute TMPDIR and `RUST_TEST_THREADS=2`, and ran with a 900-second timeout.
+Compile-only used the authorized 22G cap; focused executions used 6G, zero swap.
+No concurrency/debug flags, overlapping builds or baseline updates were introduced.
+
+```sh
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 900 cargo test -p boardstudio_core --test integration boundary_parity::native_transport_reproduces_the_golden_transcript --no-run
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 -- timeout 900 env BOUNDARY_BLESS=1 cargo test -p boardstudio_core --test integration boundary_parity::native_transport_reproduces_the_golden_transcript -- --exact --test-threads=2
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 -- timeout 900 cargo test -p boardstudio_core --test integration boundary_parity::native_transport_reproduces_the_golden_transcript -- --exact --test-threads=2
+```
+
+Final compile: `boundary-green-compile-final.log`, exit 0. Supported blessing:
+`boundary-bless-green.log`, **1 passed**, 756 filtered out, 1.63s. Unblessed replay
+(`BOUNDARY_BLESS` verified unset): `boundary-replay-green.log`, **1 passed**,
+756 filtered out, 1.63s. All logs are under `.evidence/ergogen-17e/`.
+
+Production source, native 2,149-name and WASM baselines remain untouched. No tests
+were deleted/skipped, tolerances weakened, new test names added, or production/API
+changes made. No subagents, stash, other worktrees, pushes, amends or broad staging.
+Examples/starters 26 and release/E2E 27 remain excluded. Quick/full, WASM runtime,
+browser gates and independent review remain **pending**; stop here before resuming
+the original complete all-caller gate plan. Shared assertions are active in the
+WASM path by source composition, not a fresh WASM execution receipt.
+
+Documentation links: `boundary-doc-links.log` reports
+`Documentation links check passed: 554 Markdown files.` (shared lock, 6G/no-swap
+scope, `timeout 900 python3 scripts/check-doc-links.py`). `git diff --check`
+passed with no output (`boundary-diff-check.log`). The full three-file diff was
+read before the narrow commit; no unrelated semantic fixture changes were accepted.

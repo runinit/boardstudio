@@ -838,8 +838,8 @@ pub fn core_requests() -> Vec<Value> {
     requests.push(json!({ "id": "mechanical-undo", "kind": "undo" }));
     requests.extend(outline_requests());
     // One-shot conversion crosses the seam last, so earlier requests keep their
-    // revisions. Column 1 pivots on a custom origin, so the conversion is exact;
-    // column 2 is splayed about its default origin, so Core refuses it.
+    // revisions. Column 0 has zero Splay, Column rotation and carried Bend, as
+    // spec §6 requires for conversion; column 2 stays splayed for the refusal.
     let placement = |id: &str, base: u64, phase: &str, change: Value| {
         json!({
             "id": id, "kind": "edit",
@@ -852,10 +852,10 @@ pub fn core_requests() -> Vec<Value> {
         "convert-offset-1",
         42,
         "commit",
-        json!({ "kind": "column-offset", "column": 1, "value": { "x": 0, "y": 3 } }),
+        json!({ "kind": "column-offset", "column": 0, "value": { "x": 0, "y": 3 } }),
     ));
-    requests.push(placement("convert-preview", 43, "preview", convert(1)));
-    requests.push(placement("convert-commit", 43, "commit", convert(1)));
+    requests.push(placement("convert-preview", 43, "preview", convert(0)));
+    requests.push(placement("convert-commit", 43, "commit", convert(0)));
     requests.push(placement(
         "convert-offset-2",
         44,
@@ -2321,6 +2321,7 @@ fn check_core(replies: &[Value]) {
         replies[5]["scene"]["matrixScenes"]
     );
     assert_eq!(replies[7]["kind"], "error");
+    assert_eq!(replies[7]["message"], "Stale base revision");
     assert_eq!(
         replies[13]["document"]["hardware"]["boards"][0]["keyBindings"]["matrix/matrix/r0c0"],
         "&kp A"
@@ -2348,6 +2349,41 @@ fn check_core(replies: &[Value]) {
         "mode": { "constrained": { "constraintId": "sensor-key", "sourcePartId": "matrix/matrix/r0c0" } },
         "partId": "matrix/matrix/r0c0/sensor"
     })));
+
+    // Guard scenario intent before compaction or blessing can hide a refusal cascade.
+    for (id, kind, revision) in [
+        ("convert-offset-1", "scene", 43),
+        ("convert-preview", "preview", 43),
+        ("convert-commit", "scene", 44),
+        ("convert-offset-2", "scene", 45),
+    ] {
+        let reply = &replies[position(replies, id)];
+        assert_eq!(reply["kind"], kind, "{id}: {reply}");
+        assert_eq!(reply["scene"]["revision"], revision, "{id}: {reply}");
+    }
+    let converted = &replies[position(replies, "convert-commit")]["document"]["matrices"][0];
+    assert_eq!(converted["columnLayout"][0]["stagger"], 3.0);
+    assert!(converted["columnLayout"][0].get("offset").is_none());
+    assert_eq!(converted["columnLayout"][1]["stagger"], -1.0);
+    for (id, message) in [
+        (
+            "convert-refused",
+            "Converting requires zero Splay, Column rotation and carried Bend",
+        ),
+        (
+            "mirrored-half-new-board",
+            "Physical instance \"board\" is unavailable.",
+        ),
+        (
+            "mirrored-half-reuse-board",
+            "Physical instance \"board\" is unavailable.",
+        ),
+    ] {
+        let reply = &replies[position(replies, id)];
+        assert_eq!(reply["kind"], "error", "{id}: {reply}");
+        assert_eq!(reply["message"], message, "{id}: {reply}");
+        assert_eq!(reply["revision"], 45, "{id}: {reply}");
+    }
 
     // The mechanical edit reports its configuration owner, the added closure
     // mounts and the generated clearance it projects, then a no-op keeps the

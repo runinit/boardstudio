@@ -6659,7 +6659,7 @@
       ]
     },
     {
-      "bodyDigest": "9125:794ce1183b406e82",
+      "bodyDigest": "9124:072ef9e3db209616",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -6700,46 +6700,125 @@
       ]
     },
     {
-      "bodyDigest": "130:f45fd6432c58f775",
+      "bodyDigest": "1948:f00182de87c1084c",
       "id": "convert-preview",
-      "kind": "error",
-      "message": "Converting requires zero Splay, Column rotation and carried Bend",
-      "revision": 43
+      "kind": "preview",
+      "sceneKeys": [
+        "boardContours",
+        "boardOutlineScenes",
+        "boardReadiness",
+        "changedIds",
+        "contours",
+        "findings",
+        "matrixScenes",
+        "readiness",
+        "revision",
+        "transactionId",
+        "transforms"
+      ]
     },
     {
-      "bodyDigest": "129:5c57182b2f4c6e42",
+      "bodyDigest": "9106:c2507b44b5789053",
+      "documentKeys": [
+        "assets",
+        "boardOutlines",
+        "boards",
+        "caseBodies",
+        "constraints",
+        "definitions",
+        "format",
+        "formatVersion",
+        "hardware",
+        "id",
+        "keycaps",
+        "materials",
+        "matrices",
+        "mechanical",
+        "name",
+        "nets",
+        "outline",
+        "parameters",
+        "parts",
+        "revision",
+        "scripts"
+      ],
       "id": "convert-commit",
-      "kind": "error",
-      "message": "Converting requires zero Splay, Column rotation and carried Bend",
-      "revision": 43
+      "kind": "scene",
+      "sceneKeys": [
+        "boardContours",
+        "boardOutlineScenes",
+        "boardReadiness",
+        "changedIds",
+        "contours",
+        "findings",
+        "matrixScenes",
+        "readiness",
+        "revision",
+        "transactionId",
+        "transforms"
+      ]
     },
     {
-      "bodyDigest": "86:0f00218f86a17022",
+      "bodyDigest": "9137:19c1ab5a82947062",
+      "documentKeys": [
+        "assets",
+        "boardOutlines",
+        "boards",
+        "caseBodies",
+        "constraints",
+        "definitions",
+        "format",
+        "formatVersion",
+        "hardware",
+        "id",
+        "keycaps",
+        "materials",
+        "matrices",
+        "mechanical",
+        "name",
+        "nets",
+        "outline",
+        "parameters",
+        "parts",
+        "revision",
+        "scripts"
+      ],
       "id": "convert-offset-2",
-      "kind": "error",
-      "message": "Stale base revision",
-      "revision": 43
+      "kind": "scene",
+      "sceneKeys": [
+        "boardContours",
+        "boardOutlineScenes",
+        "boardReadiness",
+        "changedIds",
+        "contours",
+        "findings",
+        "matrixScenes",
+        "readiness",
+        "revision",
+        "transactionId",
+        "transforms"
+      ]
     },
     {
-      "bodyDigest": "85:2da66af18302ca84",
+      "bodyDigest": "130:217cae6ee0e395a3",
       "id": "convert-refused",
       "kind": "error",
-      "message": "Stale base revision",
-      "revision": 43
+      "message": "Converting requires zero Splay, Column rotation and carried Bend",
+      "revision": 45
     },
     {
-      "bodyDigest": "93:ac388e68fcae9e0c",
+      "bodyDigest": "117:6c1af8c1fc87aa85",
       "id": "mirrored-half-new-board",
       "kind": "error",
-      "message": "Stale base revision",
-      "revision": 43
+      "message": "Physical instance \"board\" is unavailable.",
+      "revision": 45
     },
     {
-      "bodyDigest": "95:93da2bfb4295bd6a",
+      "bodyDigest": "119:134f07aff727995f",
       "id": "mirrored-half-reuse-board",
       "kind": "error",
-      "message": "Stale base revision",
-      "revision": 43
+      "message": "Physical instance \"board\" is unavailable.",
+      "revision": 45
     }
   ],
   "electricalMirrorReplacement": {
