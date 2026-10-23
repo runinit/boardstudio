@@ -345,7 +345,9 @@ pub(crate) fn remove_cells(
                 cell.assemblies.clear();
             } else {
                 matrix.cells.push(MatrixCell {
-                    deleted: true,
+                    shift: None,
+    bend: None,
+    deleted: true,
                     row,
                     column,
                     enabled: false,
@@ -445,13 +447,10 @@ pub(crate) fn remove_axis(
         });
         if row_axis {
             matrix.rows -= 1;
-            remove_index(&mut matrix.row_offsets, index);
+            remove_index(&mut matrix.row_layout, index);
         } else {
             matrix.columns -= 1;
-            remove_index(&mut matrix.column_offsets, index);
-            remove_index(&mut matrix.column_staggers, index);
-            remove_index(&mut matrix.column_splays, index);
-            remove_index(&mut matrix.column_origins, index);
+            remove_index(&mut matrix.column_layout, index);
         }
         remap_ids(&mut matrix.part_ids, &changes);
     }
@@ -518,7 +517,9 @@ pub(crate) fn edit_selected_cells(
                     cell.enabled = enabled;
                 } else {
                     matrix.cells.push(MatrixCell {
-                        deleted: false,
+                        shift: None,
+    bend: None,
+    deleted: false,
                         row,
                         column,
                         enabled,

@@ -34,7 +34,9 @@ fn edit(
 
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column,
         enabled: true,
@@ -693,7 +695,9 @@ fn mirrored_pair_with_held_left_component(
         column_splays: vec![0.0],
         column_origins: vec![],
         cells: vec![MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 0,
             enabled: true,

@@ -131,7 +131,7 @@ pub(super) fn bridge_metadata(
                 part_ids.iter().any(|id| {
                     matrix.part_ids.contains(id)
                         || doc.layouts.iter().any(|layout| {
-                            layout.matrix_id == matrix.id && layout.part_ids.contains(id)
+                            layout.matrix_ids.contains(&matrix.id) && layout.part_ids.contains(id)
                         })
                 })
             })

@@ -118,7 +118,9 @@ pub(in crate::mirrored_half) fn fixture_matrix(id: &str, board_id: &str) -> Matr
         column_origins: vec![],
         cells: (0..2)
             .map(|column| MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: 0,
                 column,
                 enabled: true,

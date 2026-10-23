@@ -1,5 +1,5 @@
-use super::{location, valid_projection_matrix};
-use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, Vec2};
+use super::{evaluated, valid_projection_matrix};
+use crate::model::{Matrix, MatrixSplayAffect, MatrixSplayChange, ProjectDoc, Vec2};
 
 pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     let angle = degrees.to_radians();
@@ -12,159 +12,89 @@ pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     }
 }
 
-fn local_origin(matrix: &Matrix, column: u32) -> Vec2 {
-    matrix
-        .column_origins
-        .get(column as usize)
-        .copied()
-        .flatten()
-        .unwrap_or(Vec2 {
-            x: column as f64 * matrix.pitch.x,
-            y: matrix
-                .column_staggers
-                .iter()
-                .take(column as usize + 1)
-                .sum(),
-        })
+pub(crate) fn origin_world(matrix: &Matrix, column: u32, doc: &ProjectDoc) -> Result<Vec2, String> {
+    evaluated(matrix, doc)?.columns.get(column as usize).map(|c| c.splay_origin).ok_or_else(|| "Matrix column is out of bounds".into())
 }
 
-pub(super) fn origin_world(matrix: &Matrix, column: u32) -> Vec2 {
-    let mut point = local_origin(matrix, column);
-    for index in (0..column as usize).rev() {
-        point = rotate(
-            point,
-            matrix.column_splays.get(index).copied().unwrap_or(0.0),
-            local_origin(matrix, index as u32),
-        );
-    }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-        point.x = -point.x;
-    }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-        point.y = -point.y;
-    }
-    point = rotate(
-        point,
-        matrix.rotation.unwrap_or(0.0),
-        Vec2 { x: 0.0, y: 0.0 },
-    );
-    Vec2 {
-        x: point.x + matrix.origin.x,
-        y: point.y + matrix.origin.y,
-    }
-}
-
-fn inverse_vector(matrix: &Matrix, column: u32, world: Vec2) -> Vec2 {
-    let mut point = rotate(
-        world,
-        -matrix.rotation.unwrap_or(0.0),
-        Vec2 { x: 0.0, y: 0.0 },
-    );
-    if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-        point.x = -point.x;
-    }
-    if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-        point.y = -point.y;
-    }
-    rotate(
-        point,
-        -matrix
-            .column_splays
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>(),
-        Vec2 { x: 0.0, y: 0.0 },
-    )
-}
-
-fn preserve_columns(
-    before: &Matrix,
-    mut after: Matrix,
-    columns: impl Iterator<Item = u32>,
-) -> Matrix {
-    after
-        .column_offsets
-        .resize(after.columns as usize, Vec2 { x: 0.0, y: 0.0 });
-    for column in columns {
-        let previous = location(before, 0, column, None);
-        let next = location(&after, 0, column, None);
-        let delta = inverse_vector(
-            &after,
-            column,
-            Vec2 {
-                x: previous.x - next.x,
-                y: previous.y - next.y,
-            },
-        );
-        after.column_offsets[column as usize].x += delta.x;
-        after.column_offsets[column as usize].y += delta.y;
-    }
-    after
-}
-
-pub(crate) fn update(
-    matrix: &Matrix,
-    column: u32,
-    change: &MatrixSplayChange,
-) -> Result<Matrix, String> {
-    valid_projection_matrix(matrix)?;
-    if column >= matrix.columns {
-        return Err("Matrix splay column is out of bounds".into());
-    }
+fn compensate(matrix: &Matrix, column: u32, point: Vec2, doc: &ProjectDoc) -> Result<Matrix, String> {
     let mut after = matrix.clone();
+    after.column_layout.resize_with((column as usize + 2).min(matrix.columns as usize).max(after.column_layout.len()), Default::default);
+    let index = column as usize;
+    let values = after.column_layout[index];
+    let delta = Vec2 { x: point.x - values.splay_origin.x, y: point.y - values.splay_origin.y };
+    after.column_layout[index].splay_origin = point;
+    let rotated = rotate(delta, values.splay + values.rotation, Vec2::default());
+    let correction = Vec2 { x: rotated.x - delta.x, y: rotated.y - delta.y };
+    if column > 0 {
+        after.column_layout[index].spread = Some(values.spread.unwrap_or(matrix.pitch.x) + correction.x);
+        after.column_layout[index].stagger += correction.y;
+    } else {
+        let frame = evaluated(matrix, doc)?.frame;
+        let reflect = |v: Vec2| match matrix.mirror {
+            Some(crate::model::Mirror::X) => Vec2 { x: -v.x, y: v.y },
+            Some(crate::model::Mirror::Y) => Vec2 { x: v.x, y: -v.y },
+            _ => v,
+        };
+        let world = rotate(reflect(correction), frame.rotation, Vec2::default());
+        let mut x = after.clone(); x.origin.x += 1.0;
+        let mut y = after.clone(); y.origin.y += 1.0;
+        let base = evaluated(&after, doc)?.frame.origin;
+        let px = evaluated(&x, doc)?.frame.origin;
+        let py = evaluated(&y, doc)?.frame.origin;
+        let change = solve(Vec2 { x: px.x-base.x, y: px.y-base.y }, Vec2 { x: py.x-base.x, y: py.y-base.y }, world)
+            .ok_or("Hold-still compensation requires enabling the missing Follow component or explicit Detach")?;
+        after.origin.x += change.x;
+        after.origin.y += change.y;
+    }
+    if column + 1 < matrix.columns && values.rotation != 0.0 {
+        let rotated = rotate(delta, values.rotation, Vec2::default());
+        let next = &mut after.column_layout[index+1];
+        next.spread = Some(next.spread.unwrap_or(matrix.pitch.x) + delta.x-rotated.x);
+        next.stagger += delta.y-rotated.y;
+    }
+    Ok(after)
+}
+
+fn solve(x: Vec2, y: Vec2, delta: Vec2) -> Option<Vec2> {
+    let determinant = x.x*y.y - x.y*y.x;
+    if determinant.abs() < 1e-12 {
+        if delta.x.abs() < 1e-9 && delta.y.abs() < 1e-9 { return Some(Vec2::default()); }
+        return None;
+    }
+    Some(Vec2 { x: (delta.x*y.y-delta.y*y.x)/determinant, y: (x.x*delta.y-x.y*delta.x)/determinant })
+}
+
+pub(crate) fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange, doc: &ProjectDoc) -> Result<Matrix, String> {
+    valid_projection_matrix(matrix)?;
+    if column >= matrix.columns { return Err("Matrix splay column is out of bounds".into()); }
+    let mut after = matrix.clone();
+    after.column_layout.resize_with((column as usize+1).max(after.column_layout.len()), Default::default);
     match change {
-        MatrixSplayChange::Origin { world } => {
-            let point = world.map(|world| {
-                let mut point = Vec2 {
-                    x: world.x - matrix.origin.x,
-                    y: world.y - matrix.origin.y,
-                };
-                point = rotate(
-                    point,
-                    -matrix.rotation.unwrap_or(0.0),
-                    Vec2 { x: 0.0, y: 0.0 },
-                );
-                if matches!(matrix.mirror, Some(crate::model::Mirror::X)) {
-                    point.x = -point.x;
-                }
-                if matches!(matrix.mirror, Some(crate::model::Mirror::Y)) {
-                    point.y = -point.y;
-                }
-                for index in 0..column as usize {
-                    point = rotate(
-                        point,
-                        -matrix.column_splays.get(index).copied().unwrap_or(0.0),
-                        local_origin(matrix, index as u32),
-                    );
-                }
-                point
-            });
-            if world.is_some_and(|v| !v.x.is_finite() || !v.y.is_finite()) {
-                return Err("Matrix splay origin is non-finite".into());
-            }
-            after.column_origins.resize(after.columns as usize, None);
-            after.column_origins[column as usize] = point;
-            let result = preserve_columns(matrix, after, column..matrix.columns);
-            valid_projection_matrix(&result)?;
-            Ok(result)
-        }
         MatrixSplayChange::Angle { angle, affect } => {
-            if !angle.is_finite() {
-                return Err("Matrix splay angle is non-finite".into());
+            if !angle.is_finite() { return Err("Matrix splay angle is non-finite".into()); }
+            let values = &mut after.column_layout[column as usize];
+            match affect {
+                MatrixSplayAffect::Following => values.splay = *angle,
+                MatrixSplayAffect::Column => values.rotation = *angle,
             }
-            after.column_splays.resize(after.columns as usize, 0.0);
-            let delta = *angle - after.column_splays[column as usize];
-            after.column_splays[column as usize] = *angle;
-            if matches!(affect, MatrixSplayAffect::Following) || column + 1 == matrix.columns {
-                valid_projection_matrix(&after)?;
-                return Ok(after);
-            }
-            after.column_splays[column as usize + 1] -= delta;
-            let result = preserve_columns(matrix, after, (column + 1)..matrix.columns);
-            valid_projection_matrix(&result)?;
-            Ok(result)
+        }
+        MatrixSplayChange::Origin { world } => {
+            let point = if let Some(target) = world {
+                if !target.x.is_finite() || !target.y.is_finite() { return Err("Matrix splay origin is non-finite".into()); }
+                let base = compensate(matrix, column, Vec2::default(), doc)?;
+                let x = compensate(matrix, column, Vec2 { x: 1.0, y: 0.0 }, doc)?;
+                let y = compensate(matrix, column, Vec2 { x: 0.0, y: 1.0 }, doc)?;
+                let origin = origin_world(&base, column, doc)?;
+                let px = origin_world(&x, column, doc)?;
+                let py = origin_world(&y, column, doc)?;
+                solve(Vec2 { x: px.x-origin.x, y: px.y-origin.y }, Vec2 { x: py.x-origin.x, y: py.y-origin.y }, Vec2 { x: target.x-origin.x, y: target.y-origin.y })
+                    .ok_or("Requested splay origin cannot be represented with these turns and Follow permissions")?
+            } else { Vec2::default() };
+            after = compensate(matrix, column, point, doc)?;
         }
     }
+    evaluated(&after, doc)?;
+    Ok(after)
 }
 
 #[cfg(test)]

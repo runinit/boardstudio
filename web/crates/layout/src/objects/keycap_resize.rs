@@ -578,7 +578,9 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
         cell.offset = Some(offset);
     } else {
         matrix.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row,
             column,
             enabled: true,

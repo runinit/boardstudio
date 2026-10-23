@@ -19,6 +19,7 @@
 
 pub(crate) mod deletion;
 pub mod kernel;
+pub(crate) mod evaluation;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,
     Part, Pin, Pose2, ProjectDoc, Side, Vec2,
@@ -130,7 +131,9 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                     .position(|cell| cell.row == row && cell.column == column)
                     .unwrap_or_else(|| {
                         matrix.cells.push(MatrixCell {
-                            deleted: false,
+                            shift: None,
+    bend: None,
+    deleted: false,
                             row,
                             column,
                             enabled: true,
@@ -218,14 +221,7 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
     if matrix.cells.len() > (matrix.rows * matrix.columns) as usize {
         return Err("Matrix cells exceed dimensions".into());
     }
-    if matrix.row_offsets.len() > matrix.rows as usize
-        || matrix.column_offsets.len() > matrix.columns as usize
-        || matrix.column_staggers.len() > matrix.columns as usize
-        || matrix.column_splays.len() > matrix.columns as usize
-        || matrix.column_origins.len() > matrix.columns as usize
-    {
-        return Err("Matrix offsets exceed dimensions".into());
-    }
+    valid_projection_matrix(matrix)?;
     let gap = matrix.edge_gap.unwrap_or(Vec2 {
         x: DEFAULT_EDGE_GAP_MM,
         y: DEFAULT_EDGE_GAP_MM,
@@ -240,23 +236,6 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
         return Err("Matrix edge gap must be nonnegative and smaller than pitch".into());
     }
     let finite = |point: &Vec2| point.x.is_finite() && point.y.is_finite();
-    if matrix
-        .row_offsets
-        .iter()
-        .chain(&matrix.column_offsets)
-        .chain(matrix.column_origins.iter().flatten())
-        .any(|point| !finite(point))
-    {
-        return Err("Matrix offsets must be finite".into());
-    }
-    if matrix
-        .column_staggers
-        .iter()
-        .chain(&matrix.column_splays)
-        .any(|value| !value.is_finite())
-    {
-        return Err("Matrix stagger and splay must be finite".into());
-    }
     let mut cells = BTreeSet::new();
     for cell in &matrix.cells {
         if cell.row >= matrix.rows
@@ -301,135 +280,8 @@ pub(crate) fn valid_matrix(matrix: &Matrix, doc: &ProjectDoc) -> Result<(), Stri
     Ok(())
 }
 
-fn location(matrix: &Matrix, row: u32, column: u32, cell: Option<&MatrixCell>) -> Vec2 {
-    let row_offset = matrix
-        .row_offsets
-        .get(row as usize)
-        .copied()
-        .unwrap_or_default();
-    let column_offset = matrix
-        .column_offsets
-        .get(column as usize)
-        .copied()
-        .unwrap_or_default();
-    let cell_offset = cell.and_then(|cell| cell.offset).unwrap_or_default();
-    let mut x = column as f64 * matrix.pitch.x + row_offset.x + column_offset.x + cell_offset.x;
-    let mut y = row as f64 * matrix.pitch.y + row_offset.y + column_offset.y + cell_offset.y;
-    y += matrix
-        .column_staggers
-        .iter()
-        .take(column as usize + 1)
-        .sum::<f64>();
-    // Earlier splays transform the pivots of every later column.
-    for index in (0..(column as usize + 1).min(matrix.column_splays.len())).rev() {
-        let angle = matrix
-            .column_splays
-            .get(index)
-            .copied()
-            .unwrap_or(0.0)
-            .to_radians();
-        if angle == 0.0 {
-            continue;
-        }
-        let pivot = matrix
-            .column_origins
-            .get(index)
-            .copied()
-            .flatten()
-            .unwrap_or(Vec2 {
-                x: index as f64 * matrix.pitch.x,
-                y: matrix.column_staggers.iter().take(index + 1).sum::<f64>(),
-            });
-        let pivot_x = pivot.x;
-        let pivot_y = pivot.y;
-        let (sin, cos) = angle.sin_cos();
-        let dx = x - pivot_x;
-        let dy = y - pivot_y;
-        x = pivot_x + dx * cos - dy * sin;
-        y = pivot_y + dx * sin + dy * cos;
-    }
-    match matrix.mirror.unwrap_or(Mirror::None) {
-        Mirror::X => x = -x,
-        Mirror::Y => y = -y,
-        Mirror::None => {}
-    }
-    let angle = matrix.rotation.unwrap_or(0.0).to_radians();
-    let (sin, cos) = angle.sin_cos();
-    Vec2 {
-        x: matrix.origin.x + x * cos - y * sin,
-        y: matrix.origin.y + x * sin + y * cos,
-    }
-}
-
-pub(crate) fn column_rotation(matrix: &Matrix, column: u32) -> f64 {
-    let angle = matrix
-        .column_splays
-        .iter()
-        .take(column as usize + 1)
-        .sum::<f64>();
-    if matches!(matrix.mirror, Some(Mirror::X | Mirror::Y)) {
-        -angle
-    } else {
-        angle
-    }
-}
-
-fn column_basis(matrix: &Matrix, column: u32) -> MatrixColumnBasis {
-    let angle = matrix
-        .column_splays
-        .iter()
-        .take(column as usize + 1)
-        .sum::<f64>()
-        .to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let reflect = |v: Vec2| match matrix.mirror {
-        Some(Mirror::X) => Vec2 { x: -v.x, y: v.y },
-        Some(Mirror::Y) => Vec2 { x: v.x, y: -v.y },
-        None | Some(Mirror::None) => v,
-    };
-    let rotate = |v: Vec2| {
-        let matrix_angle = matrix.rotation.unwrap_or(0.0).to_radians();
-        let (matrix_sin, matrix_cos) = matrix_angle.sin_cos();
-        Vec2 {
-            x: v.x * matrix_cos - v.y * matrix_sin,
-            y: v.x * matrix_sin + v.y * matrix_cos,
-        }
-    };
-    let axis_x = rotate(reflect(Vec2 { x: cos, y: sin }));
-    let axis_y = rotate(reflect(Vec2 { x: -sin, y: cos }));
-    // The stagger axis is exact by differencing `location`: raising this column's
-    // stagger by one moves its keys by exactly this vector. A default splay pivot
-    // moves with the stagger and does not rotate the displacement; a custom pivot
-    // is fixed, so this column's own splay does rotate it.
-    let stagger_axis = {
-        let mut raised = matrix.clone();
-        if raised.column_staggers.len() <= column as usize {
-            raised.column_staggers.resize(column as usize + 1, 0.0);
-        }
-        raised.column_staggers[column as usize] += 1.0;
-        let here = location(matrix, 0, column, None);
-        let there = location(&raised, 0, column, None);
-        Vec2 {
-            x: there.x - here.x,
-            y: there.y - here.y,
-        }
-    };
-    MatrixColumnBasis {
-        column,
-        splay_origin: splay::origin_world(matrix, column),
-        splay_angle: matrix
-            .column_splays
-            .get(column as usize)
-            .copied()
-            .unwrap_or(0.0),
-        custom_origin: matrix
-            .column_origins
-            .get(column as usize)
-            .is_some_and(Option::is_some),
-        axis_x,
-        axis_y,
-        stagger_axis,
-    }
+pub(crate) fn evaluated(matrix: &Matrix, doc: &ProjectDoc) -> Result<kernel::MatrixLayout, String> {
+    evaluation::evaluate(matrix, doc)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -439,80 +291,23 @@ pub(crate) enum ProjectionMode {
 }
 
 pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
-    if matrix.id.is_empty() || matrix.rows == 0 || matrix.columns == 0 {
-        return Err("Matrix dimensions are invalid".into());
-    }
-    if matrix
-        .rows
-        .checked_mul(matrix.columns)
-        .is_none_or(|n| n > MAX_MATRIX_PARTS)
-    {
-        return Err("Matrix dimensions exceed the part limit".into());
-    }
-    if matrix.cells.len() > (matrix.rows * matrix.columns) as usize {
-        return Err("Matrix cells exceed dimensions".into());
-    }
-    if matrix.row_offsets.len() > matrix.rows as usize
-        || matrix.column_offsets.len() > matrix.columns as usize
-        || matrix.column_staggers.len() > matrix.columns as usize
-        || matrix.column_splays.len() > matrix.columns as usize
-        || matrix.column_origins.len() > matrix.columns as usize
-    {
-        return Err("Matrix offsets exceed dimensions".into());
-    }
-    if !matrix.pitch.x.is_finite()
-        || !matrix.pitch.y.is_finite()
-        || matrix.pitch.x <= 0.0
-        || matrix.pitch.y <= 0.0
-        || !matrix.origin.x.is_finite()
-        || !matrix.origin.y.is_finite()
-        || matrix.rotation.is_some_and(|value| !value.is_finite())
-        || matrix
-            .row_offsets
-            .iter()
-            .chain(&matrix.column_offsets)
-            .chain(matrix.column_origins.iter().flatten())
-            .any(|v| !v.x.is_finite() || !v.y.is_finite())
-        || matrix
-            .column_staggers
-            .iter()
-            .chain(&matrix.column_splays)
-            .any(|v| !v.is_finite())
-        || matrix.cells.iter().any(|cell| {
-            cell.row >= matrix.rows
-                || cell.column >= matrix.columns
-                || cell
-                    .offset
-                    .is_some_and(|v| !v.x.is_finite() || !v.y.is_finite())
-                || cell.rotation.is_some_and(|value| !value.is_finite())
-        })
-    {
-        return Err("Matrix contains non-finite geometry".into());
-    }
-    let mut coordinates = BTreeSet::new();
-    if matrix
-        .cells
-        .iter()
-        .any(|cell| !coordinates.insert((cell.row, cell.column)))
-    {
-        return Err("Matrix cell coordinate is invalid or duplicated".into());
-    }
-    Ok(())
+    kernel::evaluate(&evaluation::input(matrix), kernel::RawAnchorContext::World)
+        .map(|_| ()).map_err(str::to_owned)
 }
 
 pub(crate) fn project_matrix(
     matrix: &Matrix,
-    parts: &[Part],
+    doc: &ProjectDoc,
     mode: ProjectionMode,
 ) -> Result<MatrixScene, String> {
-    valid_projection_matrix(matrix)?;
+    let evaluated = evaluated(matrix, doc)?;
     let members = if mode == ProjectionMode::Actual {
         cell_members(matrix)
     } else {
         BTreeMap::new()
     };
     let by_id: BTreeMap<_, _> = if mode == ProjectionMode::Actual {
-        parts.iter().map(|part| (part.id.as_str(), part)).collect()
+        doc.parts.iter().map(|part| (part.id.as_str(), part)).collect()
     } else {
         BTreeMap::new()
     };
@@ -534,12 +329,7 @@ pub(crate) fn project_matrix(
             } else {
                 None
             };
-            let mut pose = Pose2 {
-                at: location(matrix, row, column, cell),
-                rotation: matrix.rotation.unwrap_or(0.0)
-                    + column_rotation(matrix, column)
-                    + cell.and_then(|item| item.rotation).unwrap_or(0.0),
-            };
+            let mut pose = evaluation::cell_pose(&evaluated, row, column)?;
             if mode == ProjectionMode::Actual
                 && let Some(id) = member_id.as_deref().and_then(|id| by_id.get(id))
             {
@@ -564,9 +354,15 @@ pub(crate) fn project_matrix(
     Ok(MatrixScene {
         matrix_id: matrix.id.clone(),
         cells: projected,
-        columns: (0..matrix.columns)
-            .map(|column| column_basis(matrix, column))
-            .collect(),
+        columns: evaluated.columns.iter().enumerate().map(|(column, frame)| MatrixColumnBasis {
+            column: column as u32,
+            splay_origin: frame.splay_origin,
+            splay_angle: frame.splay,
+            custom_origin: frame.custom_origin,
+            axis_x: frame.frame.axis_x,
+            axis_y: frame.frame.axis_y,
+            stagger_axis: frame.stagger_axis,
+        }).collect(),
         companions: vec![],
     })
 }
@@ -722,25 +518,16 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
     let mut resized = incoming.clone();
     if let Some(before) = &previous {
         if resized.rows < before.rows {
-            if resized.row_offsets.len() <= before.rows as usize {
-                resized.row_offsets.truncate(resized.rows as usize);
+            if resized.row_layout.len() <= before.rows as usize {
+                resized.row_layout.truncate(resized.rows as usize);
             }
             resized
                 .cells
                 .retain(|cell| cell.row < resized.rows || cell.row >= before.rows);
         }
         if resized.columns < before.columns {
-            if resized.column_staggers.len() <= before.columns as usize {
-                resized.column_staggers.truncate(resized.columns as usize);
-            }
-            if resized.column_splays.len() <= before.columns as usize {
-                resized.column_splays.truncate(resized.columns as usize);
-            }
-            if resized.column_origins.len() <= before.columns as usize {
-                resized.column_origins.truncate(resized.columns as usize);
-            }
-            if resized.column_offsets.len() <= before.columns as usize {
-                resized.column_offsets.truncate(resized.columns as usize);
+            if resized.column_layout.len() <= before.columns as usize {
+                resized.column_layout.truncate(resized.columns as usize);
             }
             resized
                 .cells
@@ -801,6 +588,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
         .map(|part| part.reference.clone())
         .collect();
     let mut next_reference: BTreeMap<&str, usize> = BTreeMap::new();
+    let evaluated = evaluated(incoming, doc)?;
     for row in 0..incoming.rows {
         for column in 0..incoming.columns {
             let cell = cells.get(&(row, column)).copied();
@@ -808,12 +596,7 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                 continue;
             }
             let id = member_id(&incoming.id, row, column);
-            let pose = Pose2 {
-                at: location(incoming, row, column, cell),
-                rotation: incoming.rotation.unwrap_or(0.0)
-                    + column_rotation(incoming, column)
-                    + cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
-            };
+            let pose = evaluation::cell_pose(&evaluated, row, column)?;
             let mut members = vec![(
                 id,
                 incoming.definition_id.clone(),
@@ -1029,7 +812,9 @@ mod projection_tests {
             column_splays: vec![0.0, 15.0],
             column_origins: vec![],
             cells: vec![MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: 1,
                 column: 1,
                 enabled: false,

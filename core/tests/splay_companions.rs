@@ -38,7 +38,9 @@ fn matrix() -> Matrix {
         side: None,
     };
     let cell = |column: u32| MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: 0,
         column,
         enabled: true,

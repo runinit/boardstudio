@@ -1802,7 +1802,9 @@ pub fn selected_key_component_operation(
     let can_drive_matrix = matches!(definition.kind, PartKind::Switch)
         || super::parts::matrix_input_available(definition);
     let mut cell = current.clone().unwrap_or(MatrixCell {
-        deleted: false,
+        shift: None,
+    bend: None,
+    deleted: false,
         row: *row,
         column: *column,
         enabled: true,
@@ -3646,7 +3648,9 @@ mod tests {
             column_splays: vec![],
             column_origins: vec![],
             cells: vec![MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: 1,
                 column: 2,
                 enabled: false,

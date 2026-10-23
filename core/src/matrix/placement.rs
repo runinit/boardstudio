@@ -32,16 +32,16 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
                 return Err("Matrix placement value is not finite".into());
             }
             if after
-                .column_staggers
+                .column_layout
                 .get(*column as usize)
-                .copied()
+                .map(|record| record.stagger)
                 .unwrap_or(0.0)
                 == *value
             {
                 return Ok(matrix.clone());
             }
-            grow(&mut after.column_staggers, *column as usize);
-            after.column_staggers[*column as usize] = *value;
+            grow(&mut after.column_layout, *column as usize);
+            after.column_layout[*column as usize].stagger = *value;
         }
         MatrixPlacementChange::ColumnOffset { column, value } => {
             if *column >= matrix.columns {
@@ -51,16 +51,16 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
                 return Err("Matrix placement value is not finite".into());
             }
             if after
-                .column_offsets
+                .column_layout
                 .get(*column as usize)
-                .copied()
+                .map(|record| record.offset)
                 .unwrap_or_default()
                 == *value
             {
                 return Ok(matrix.clone());
             }
-            grow(&mut after.column_offsets, *column as usize);
-            after.column_offsets[*column as usize] = *value;
+            grow(&mut after.column_layout, *column as usize);
+            after.column_layout[*column as usize].offset = *value;
         }
         MatrixPlacementChange::RowOffset { row, value } => {
             if *row >= matrix.rows {
@@ -70,16 +70,16 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
                 return Err("Matrix placement value is not finite".into());
             }
             if after
-                .row_offsets
+                .row_layout
                 .get(*row as usize)
-                .copied()
+                .map(|record| record.offset)
                 .unwrap_or_default()
                 == *value
             {
                 return Ok(matrix.clone());
             }
-            grow(&mut after.row_offsets, *row as usize);
-            after.row_offsets[*row as usize] = *value;
+            grow(&mut after.row_layout, *row as usize);
+            after.row_layout[*row as usize].offset = *value;
         }
         MatrixPlacementChange::ColumnOffsetToStagger { column } => {
             if *column >= matrix.columns {
@@ -87,21 +87,21 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
             }
             let index = *column as usize;
             let amount = after
-                .column_offsets
+                .column_layout
                 .get(index)
-                .map_or(0.0, |offset| offset.y);
+                .map_or(0.0, |record| record.offset.y);
             // Nothing to convert is a valid no-op, whatever the splay.
             if amount == 0.0 {
                 return Ok(matrix.clone());
             }
             convert_offset_available(matrix, *column)?;
-            grow(&mut after.column_staggers, index);
-            after.column_staggers[index] += amount;
+            grow(&mut after.column_layout, index);
+            after.column_layout[index].stagger += amount;
             if *column + 1 < matrix.columns {
-                grow(&mut after.column_staggers, index + 1);
-                after.column_staggers[index + 1] -= amount;
+                grow(&mut after.column_layout, index + 1);
+                after.column_layout[index + 1].stagger -= amount;
             }
-            after.column_offsets[index].y = 0.0;
+            after.column_layout[index].offset.y = 0.0;
         }
     }
     Ok(after)

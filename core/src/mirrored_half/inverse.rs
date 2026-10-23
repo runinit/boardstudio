@@ -38,7 +38,6 @@ mod outline;
 
 pub(in crate::mirrored_half) use constraints::PreparedConstraintEdit;
 
-use crate::matrix::column_rotation;
 use crate::matrix::splay::rotate as rotate_about;
 use crate::mechanical::pair;
 use crate::model::{
@@ -1094,18 +1093,8 @@ fn translate_layout_id(
             "Layout {requested_id:?} does not belong to target board {target_board_id:?}"
         ));
     }
-    let mut matrices = links
-        .document
-        .matrices
-        .iter()
-        .filter(|matrix| matrix.id == target.matrix_id);
-    let matrix = matrices.next();
-    if matrix.is_none_or(|matrix| matrix.board_id.as_deref() != Some(target_board_id))
-        || matrices.next().is_some()
-    {
-        return Err(format!(
-            "Layout {requested_id:?} has inconsistent matrix ownership"
-        ));
+    if target.matrix_ids.is_empty() || target.matrix_ids.iter().any(|id| !links.document.matrices.iter().any(|matrix| &matrix.id == id && matrix.board_id.as_deref() == Some(target_board_id))) {
+        return Err(format!("Layout {requested_id:?} has inconsistent matrix ownership"));
     }
     let mut matches = pair
         .halves
@@ -1133,10 +1122,10 @@ fn translate_layout_id(
             let source = unique_layout(links, &correspondence.source_id)?;
             let matrix_links = pair.halves.correspondences.iter().filter(|item| {
                 item.kind == MirroredItemKind::Matrix
-                    && item.source_id == source.matrix_id
-                    && item.mirror_id == target.matrix_id
+                    && source.matrix_ids.contains(&item.source_id)
+                    && target.matrix_ids.contains(&item.mirror_id)
             });
-            if source.board_id != pair.halves.source_board_id || matrix_links.count() != 1 {
+            if source.board_id != pair.halves.source_board_id || matrix_links.count() != source.matrix_ids.len() {
                 return Err(format!(
                     "Layout {requested_id:?} has inconsistent source ownership"
                 ));
@@ -1166,10 +1155,7 @@ fn invert_matrix(
     }
     // Companion placement depends on each companion's stored mode, so it is recomputed from
     // the payload rather than taken from the literal reflection.
-    let frame = Matrix {
-        cells: Vec::new(),
-        ..source.clone()
-    };
+    let layout = crate::matrix::kernel::evaluate(&crate::matrix::evaluation::input(&source), crate::matrix::kernel::RawAnchorContext::World).map_err(str::to_owned)?;
     for cell in &mut source.cells {
         if cell.assemblies_local == Some(true) {
             continue;
@@ -1181,9 +1167,7 @@ fn invert_matrix(
         else {
             continue;
         };
-        let heading = frame.rotation.unwrap_or(0.0)
-            + column_rotation(&frame, cell.column)
-            + cell.rotation.unwrap_or(0.0);
+        let heading = crate::matrix::evaluation::cell_pose(&layout, cell.row, cell.column)?.rotation;
         let mirror_key_id = format!("matrix/{}/r{}c{}", payload.id, cell.row, cell.column);
         let mut assemblies = Vec::with_capacity(payload_cell.assemblies.len());
         for assembly in &payload_cell.assemblies {

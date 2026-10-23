@@ -1112,7 +1112,9 @@ mod tests {
             column_splays: vec![0.0, 4.0, 8.0],
             column_origins: Vec::new(),
             cells: vec![MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: 1,
                 column: 2,
                 enabled: true,

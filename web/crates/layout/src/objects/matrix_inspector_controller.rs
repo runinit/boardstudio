@@ -1955,7 +1955,9 @@ fn resize_matrix(matrix: &Matrix, rows: u32, columns: u32) -> Result<Matrix, Str
                 continue;
             }
             replacement.cells.push(MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row,
                 column,
                 enabled: true,
@@ -2775,7 +2777,9 @@ mod tests {
             .cells
             .retain(|cell| !(cell.row == 1 && cell.column == 1));
         matrix.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 2,
             column: 5,
             enabled: true,

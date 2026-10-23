@@ -3651,7 +3651,9 @@ fn mirrored_resize_keeps_each_halves_local_preset_companions() {
             matrix.cells = (0..matrix.rows)
                 .flat_map(|row| {
                     (0..matrix.columns).map(move |column| MatrixCell {
-                        deleted: false,
+                        shift: None,
+    bend: None,
+    deleted: false,
                         row,
                         column,
                         enabled: true,

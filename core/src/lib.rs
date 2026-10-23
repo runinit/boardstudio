@@ -342,7 +342,7 @@ impl CoreEngine {
                     }
                     match matrix::project_matrix(
                         &matrix,
-                        &self.document.parts,
+                        &self.document,
                         matrix::ProjectionMode::Draft,
                     ) {
                         Ok(scene) => scenes.push(scene),
@@ -1123,7 +1123,7 @@ impl CoreEngine {
                     if matrix::valid_matrix(matrix, doc).is_err() {
                         return None;
                     }
-                    matrix::project_matrix(matrix, &doc.parts, matrix::ProjectionMode::Actual)
+                    matrix::project_matrix(matrix, doc, matrix::ProjectionMode::Actual)
                         .map(|mut scene| {
                             scene.companions = matrix::scene_companions(matrix, doc);
                             scene
@@ -1334,7 +1334,9 @@ mod preview_backup_tests {
             column_splays: vec![],
             column_origins: vec![],
             cells: vec![MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: 0,
                 column: 0,
                 enabled: true,
@@ -1564,17 +1566,8 @@ fn add_part_placement(
                 part.id
             ));
         }
-        let mut matrices = document
-            .matrices
-            .iter()
-            .filter(|matrix| matrix.id == layout.matrix_id);
-        let matrix = matrices.next();
-        if matrix.is_none_or(|matrix| matrix.board_id.as_deref() != Some(layout.board_id.as_str()))
-            || matrices.next().is_some()
-        {
-            return Err(format!(
-                "Layout {layout_id:?} has inconsistent matrix ownership"
-            ));
+        if layout.matrix_ids.is_empty() || layout.matrix_ids.iter().any(|id| !document.matrices.iter().any(|matrix| &matrix.id == id && matrix.board_id.as_ref() == Some(&layout.board_id))) {
+            return Err(format!("Layout {layout_id:?} has inconsistent matrix ownership"));
         }
     }
 
@@ -1981,7 +1974,7 @@ fn apply_with_ledger(
                 .iter()
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
-            let matrix = matrix::splay::update(current, *column, change)?;
+            let matrix = matrix::splay::update(current, *column, change, doc)?;
             // A splay reports every member it touched, not only those that moved.
             matrix::placement::carrying_authored_companions(
                 doc,
@@ -2029,8 +2022,9 @@ fn apply_with_ledger(
             if left.mirror_link.is_some()
                 || link.source_id != left.id
                 || left.id == right.id
-                || matrix.id != left.matrix_id
-                || left.matrix_id == right.matrix_id
+                || left.matrix_ids != [matrix.id.clone()]
+                || right.matrix_ids.len() != 1
+                || left.matrix_ids == right.matrix_ids
                 || matrix.board_id.as_ref() != Some(&left.board_id)
                 || left.board_id != right.board_id
                 || !left.part_ids.is_empty()
@@ -2043,7 +2037,7 @@ fn apply_with_ledger(
                 || doc
                     .matrices
                     .iter()
-                    .any(|item| item.id == left.matrix_id || item.id == right.matrix_id)
+                    .any(|item| left.matrix_ids.contains(&item.id) || right.matrix_ids.contains(&item.id))
             {
                 return Err(
                     "Mirrored pair requires two new layouts and distinct matrices on one board"
@@ -2059,7 +2053,7 @@ fn apply_with_ledger(
                 },
             )?;
             let mut target = matrix.as_ref().clone();
-            target.id = right.matrix_id.clone();
+            target.id = right.matrix_ids[0].clone();
             target.name = Some(right.name.clone());
             for cell in &mut target.cells {
                 for assembly in &mut cell.assemblies {
@@ -2070,7 +2064,15 @@ fn apply_with_ledger(
             let target =
                 layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
             changed.extend(matrix::set_matrix(doc, &target)?);
-            doc.layouts.extend([left.clone(), right.clone()]);
+            let mut follower = right.clone();
+            let link = follower.mirror_link.as_mut().ok_or("A new mirrored pair must be linked")?;
+            link.correspondences.clear();
+            for (kind, source_id, mirror_id) in std::iter::once((MirroredItemKind::Matrix, matrix.id.clone(), target.id.clone()))
+                .chain((0..matrix.rows).flat_map(|row| (0..matrix.columns).map(move |column| (MirroredItemKind::Part, matrix::member_id(&matrix.id, row, column), matrix::member_id(&target.id, row, column)))))
+            {
+                link.correspondences.push(MirroredCorrespondence { kind, source_id, mirror_id, companion_mode: None, companion_tweak: None });
+            }
+            doc.layouts.extend([left.clone(), follower]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);
             Ok(changed)
@@ -2119,7 +2121,7 @@ fn apply_with_ledger(
                 .iter_mut()
                 .find(|layout| layout.id == incoming.id)
                 .ok_or("Layout does not exist")?;
-            if current.board_id != incoming.board_id || current.matrix_id != incoming.matrix_id {
+            if current.board_id != incoming.board_id || current.matrix_ids != incoming.matrix_ids {
                 return Err("Layout ownership cannot be reassigned".into());
             }
             let was_linked_target = current.mirror_link.is_some() && incoming.mirror_link.is_none();
@@ -2142,7 +2144,7 @@ fn apply_with_ledger(
             }
             layout::resolve(doc)?;
             Ok([
-                vec![incoming.id.clone(), incoming.matrix_id.clone()],
+                [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
                 detached,
             ]
             .concat())

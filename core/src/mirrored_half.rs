@@ -1725,10 +1725,7 @@ fn new_board(
 
     // Layouts: independent copies of the source's layouts on the new board.
     for layout in &layouts {
-        let matrix_id = matrix_map
-            .get(&layout.matrix_id)
-            .ok_or("A layout's matrix is not on its board")?
-            .clone();
+        let matrix_ids = layout.matrix_ids.iter().map(|id| matrix_map.get(id).cloned().ok_or("A layout's matrix is not on its board")).collect::<Result<Vec<_>, _>>()?;
         let part_ids = layout
             .part_ids
             .iter()
@@ -1744,7 +1741,7 @@ fn new_board(
             id: layout_map[&layout.id].clone(),
             name: layout.name.clone(),
             board_id: to.clone(),
-            matrix_id,
+            matrix_ids,
             part_ids,
             mirror_link: None,
         });

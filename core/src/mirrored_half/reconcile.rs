@@ -660,7 +660,9 @@ fn build_fixed_membership_view(
             for column in 0..matrix.columns {
                 if coordinates.insert((row, column)) {
                     normalized.cells.push(crate::model::MatrixCell {
-                        deleted: false,
+                        shift: None,
+    bend: None,
+    deleted: false,
                         row,
                         column,
                         enabled: true,
@@ -1356,132 +1358,11 @@ fn build_fixed_membership_view(
             }
         }
     }
-    let finite_matrix = |matrix: &Matrix| {
-        point_is_finite(matrix.origin)
-            && point_is_finite(matrix.pitch)
-            && matrix.rotation.is_none_or(f64::is_finite)
-            && matrix
-                .row_offsets
-                .iter()
-                .chain(&matrix.column_offsets)
-                .chain(matrix.column_origins.iter().flatten())
-                .all(|point| point_is_finite(*point))
-            && matrix
-                .column_staggers
-                .iter()
-                .chain(&matrix.column_splays)
-                .all(|angle| angle.is_finite())
-            && matrix.cells.iter().all(|cell| {
-                cell.offset.is_none_or(point_is_finite) && cell.rotation.is_none_or(f64::is_finite)
-            })
-    };
-    if !finite_matrix(&source) || !finite_matrix(&mirror) || !finite_matrix(&adjusted_projected) {
-        return Err("The reconciliation matrix geometry contains non-finite values".into());
+    for matrix in [&source, &mirror, &adjusted_projected] {
+        crate::matrix::valid_projection_matrix(matrix)?;
     }
-
-    let mirror_axis = adjusted_projected
-        .mirror
-        .unwrap_or(crate::model::Mirror::None);
-    let matrix_rotation = adjusted_projected.rotation.unwrap_or(0.0);
-    let mut projected_key_poses = std::collections::BTreeMap::new();
-    for cell in &adjusted_projected.cells {
-        let row = cell.row as usize;
-        let column = cell.column as usize;
-        let row_offset = adjusted_projected
-            .row_offsets
-            .get(row)
-            .copied()
-            .unwrap_or_default();
-        let column_offset = adjusted_projected
-            .column_offsets
-            .get(column)
-            .copied()
-            .unwrap_or_default();
-        let cell_offset = cell.offset.unwrap_or_default();
-        let stagger = adjusted_projected
-            .column_staggers
-            .iter()
-            .take(column + 1)
-            .sum::<f64>();
-        let mut local = Vec2 {
-            x: column as f64 * adjusted_projected.pitch.x
-                + row_offset.x
-                + column_offset.x
-                + cell_offset.x,
-            y: row as f64 * adjusted_projected.pitch.y
-                + row_offset.y
-                + column_offset.y
-                + cell_offset.y
-                + stagger,
-        };
-        if !point_is_finite(local) {
-            return Err("The projected matrix produced non-finite cell geometry".into());
-        }
-        let mut splay_sum = 0.0;
-        for index in (0..=column).rev() {
-            let angle = adjusted_projected
-                .column_splays
-                .get(index)
-                .copied()
-                .unwrap_or(0.0);
-            splay_sum += angle;
-            let pivot = adjusted_projected
-                .column_origins
-                .get(index)
-                .copied()
-                .flatten()
-                .unwrap_or(Vec2 {
-                    x: index as f64 * adjusted_projected.pitch.x,
-                    y: adjusted_projected
-                        .column_staggers
-                        .iter()
-                        .take(index + 1)
-                        .sum(),
-                });
-            if !point_is_finite(pivot) || !splay_sum.is_finite() {
-                return Err("The projected matrix produced non-finite splay geometry".into());
-            }
-            let (sin, cos) = angle.to_radians().sin_cos();
-            let dx = local.x - pivot.x;
-            let dy = local.y - pivot.y;
-            local = Vec2 {
-                x: pivot.x + dx * cos - dy * sin,
-                y: pivot.y + dx * sin + dy * cos,
-            };
-            if !point_is_finite(local) {
-                return Err("The projected matrix produced non-finite splay geometry".into());
-            }
-        }
-        match mirror_axis {
-            crate::model::Mirror::X => local.x = -local.x,
-            crate::model::Mirror::Y => local.y = -local.y,
-            crate::model::Mirror::None => {}
-        }
-        let (sin, cos) = matrix_rotation.to_radians().sin_cos();
-        let world = Vec2 {
-            x: projected.origin.x + local.x * cos - local.y * sin,
-            y: projected.origin.y + local.x * sin + local.y * cos,
-        };
-        let signed_splay = if matches!(
-            mirror_axis,
-            crate::model::Mirror::X | crate::model::Mirror::Y
-        ) {
-            -splay_sum
-        } else {
-            splay_sum
-        };
-        let rotation = matrix_rotation + signed_splay + cell.rotation.unwrap_or(0.0);
-        if !point_is_finite(world) || !rotation.is_finite() {
-            return Err("The projected matrix produced non-finite part geometry".into());
-        }
-        projected_key_poses.insert(
-            (cell.row, cell.column),
-            Pose2 {
-                at: world,
-                rotation,
-            },
-        );
-    }
+    let evaluated = crate::matrix::evaluated(&adjusted_projected, document)?;
+    let projected_key_poses: BTreeMap<_, _> = evaluated.cells.iter().map(|cell| ((cell.row as u32, cell.column as u32), cell.pose)).collect();
     for ((row, column), assembly_id) in retained_companion_slots {
         let key_pose = projected_key_poses
             .get(&(row, column))
@@ -1534,7 +1415,6 @@ fn build_fixed_membership_view(
         }
     }
 
-    let (global_sin, global_cos) = (-matrix_rotation.to_radians()).sin_cos();
     let mut retained_cells = Vec::with_capacity(retained_slots.len());
     for ((row, column), id) in retained_slots {
         let retained = document
@@ -1542,80 +1422,14 @@ fn build_fixed_membership_view(
             .iter()
             .find(|part| part.id == id)
             .ok_or_else(|| format!("The mirrored part {id:?} is unavailable"))?;
-        let mut local = Vec2 {
-            x: global_cos * (retained.pose.at.x - projected.origin.x)
-                - global_sin * (retained.pose.at.y - projected.origin.y),
-            y: global_sin * (retained.pose.at.x - projected.origin.x)
-                + global_cos * (retained.pose.at.y - projected.origin.y),
-        };
-        match mirror_axis {
-            crate::model::Mirror::X => local.x = -local.x,
-            crate::model::Mirror::Y => local.y = -local.y,
-            crate::model::Mirror::None => {}
-        }
-        for index in 0..=column as usize {
-            let angle = -projected
-                .column_splays
-                .get(index)
-                .copied()
-                .unwrap_or(0.0)
-                .to_radians();
-            let pivot = projected
-                .column_origins
-                .get(index)
-                .copied()
-                .flatten()
-                .unwrap_or(Vec2 {
-                    x: index as f64 * projected.pitch.x,
-                    y: projected.column_staggers.iter().take(index + 1).sum(),
-                });
-            let (sin, cos) = angle.sin_cos();
-            let dx = local.x - pivot.x;
-            let dy = local.y - pivot.y;
-            local = Vec2 {
-                x: pivot.x + dx * cos - dy * sin,
-                y: pivot.y + dx * sin + dy * cos,
-            };
-            if !point_is_finite(local) {
-                return Err("The retained cell inverse produced non-finite geometry".into());
-            }
-        }
-        let row_offset = adjusted_projected
-            .row_offsets
-            .get(row as usize)
-            .copied()
-            .unwrap_or_default();
-        let column_offset = adjusted_projected
-            .column_offsets
-            .get(column as usize)
-            .copied()
-            .unwrap_or_default();
-        let stagger = adjusted_projected
-            .column_staggers
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>();
-        let cell_offset = Vec2 {
-            x: local.x - column as f64 * projected.pitch.x - row_offset.x - column_offset.x,
-            y: local.y - row as f64 * projected.pitch.y - row_offset.y - column_offset.y - stagger,
-        };
-        let splay_sum = adjusted_projected
-            .column_splays
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>();
-        let signed_splay = if matches!(
-            mirror_axis,
-            crate::model::Mirror::X | crate::model::Mirror::Y
-        ) {
-            -splay_sum
-        } else {
-            splay_sum
-        };
-        let cell_rotation = retained.pose.rotation - matrix_rotation - signed_splay;
-        if !point_is_finite(cell_offset) || !cell_rotation.is_finite() {
-            return Err("The retained cell inverse produced non-finite geometry".into());
-        }
+        let geometry = evaluated.cells.iter().find(|cell| cell.row == row as usize && cell.column == column as usize).ok_or("Retained key frame is missing")?;
+        let delta = crate::matrix::evaluation::inverse_offset(&geometry.offset_frame, Vec2 { x: retained.pose.at.x-geometry.pose.at.x, y: retained.pose.at.y-geometry.pose.at.y });
+        let old_cell = adjusted_projected.cells.iter().find(|cell| cell.row == row && cell.column == column).ok_or("Retained key is missing")?;
+        let old = old_cell.offset.unwrap_or_default();
+        let cell_offset = Vec2 { x: old.x+delta.x, y: old.y+delta.y };
+        let sign = if matches!(adjusted_projected.mirror, Some(crate::model::Mirror::X | crate::model::Mirror::Y)) { -1.0 } else { 1.0 };
+        let cell_rotation = old_cell.rotation.unwrap_or_default() + sign*(retained.pose.rotation-geometry.pose.rotation);
+        if !point_is_finite(cell_offset) || !cell_rotation.is_finite() { return Err("The retained cell inverse produced non-finite geometry".into()); }
         let mut cell = adjusted_projected
             .cells
             .iter()
@@ -3718,8 +3532,8 @@ fn reconcile(
             .as_ref()
             .map(|matrix| {
                 (
-                    source.matrix_id == matrix.source_matrix_id,
-                    mirror.matrix_id == matrix.mirror_matrix_id,
+                    source.matrix_ids.contains(&matrix.source_matrix_id),
+                    mirror.matrix_ids.contains(&matrix.mirror_matrix_id),
                 )
             })
             .unwrap_or((false, false));
@@ -4784,12 +4598,8 @@ fn prepare_membership_transition_kernel(
                 .iter()
                 .find(|layout| layout.id == link.source_id)
                 .ok_or_else(|| "A legacy mirrored layout has no source layout".to_owned())?;
-            if [
-                linked_layout.matrix_id.as_str(),
-                source_layout.matrix_id.as_str(),
-            ]
-            .into_iter()
-            .any(|id| id == matrix_pair.source_id.as_str() || id == matrix_pair.mirror_id.as_str())
+            if linked_layout.matrix_ids.iter().chain(&source_layout.matrix_ids)
+            .any(|id| id == &matrix_pair.source_id || id == &matrix_pair.mirror_id)
             {
                 return Err("A matrix cannot use native and legacy mirror links together".into());
             }
@@ -4986,55 +4796,10 @@ fn prepare_membership_transition_kernel(
         Ok(())
     }
 
-    fn cell_offset_delta(matrix: &Matrix, column: u32, world: Vec2) -> Result<Vec2, String> {
-        let mut local_x = Vec2 { x: 1.0, y: 0.0 };
-        let mut local_y = Vec2 { x: 0.0, y: 1.0 };
-        let splay = matrix
-            .column_splays
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>()
-            .to_radians();
-        let rotate = |point: Vec2, angle: f64| {
-            let (sin, cos) = angle.sin_cos();
-            Vec2 {
-                x: point.x * cos - point.y * sin,
-                y: point.x * sin + point.y * cos,
-            }
-        };
-        local_x = rotate(local_x, splay);
-        local_y = rotate(local_y, splay);
-        let reflect = |point: Vec2| match matrix.mirror.unwrap_or(crate::model::Mirror::None) {
-            crate::model::Mirror::X => Vec2 {
-                x: -point.x,
-                y: point.y,
-            },
-            crate::model::Mirror::Y => Vec2 {
-                x: point.x,
-                y: -point.y,
-            },
-            crate::model::Mirror::None => point,
-        };
-        local_x = rotate(
-            reflect(local_x),
-            matrix.rotation.unwrap_or(0.0).to_radians(),
-        );
-        local_y = rotate(
-            reflect(local_y),
-            matrix.rotation.unwrap_or(0.0).to_radians(),
-        );
-        let determinant = local_x.x * local_y.y - local_y.x * local_x.y;
-        if !determinant.is_finite() || determinant.abs() < f64::EPSILON {
-            return Err("A Local matrix cell has an unsupported offset basis".into());
-        }
-        let delta = Vec2 {
-            x: (world.x * local_y.y - local_y.x * world.y) / determinant,
-            y: (local_x.x * world.y - world.x * local_x.y) / determinant,
-        };
-        if !delta.x.is_finite() || !delta.y.is_finite() {
-            return Err("A Local matrix cell offset would be non-finite".into());
-        }
-        Ok(delta)
+    fn cell_offset_delta(matrix: &Matrix, row: u32, column: u32, world: Vec2, doc: &ProjectDoc) -> Result<Vec2, String> {
+        let evaluated = crate::matrix::evaluated(matrix, doc)?;
+        let cell = evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Local key frame is missing")?;
+        Ok(crate::matrix::evaluation::inverse_offset(&cell.offset_frame, world))
     }
 
     fn emit_validated_transition(
@@ -6696,7 +6461,7 @@ fn prepare_membership_transition_kernel(
                 x: before_part.pose.at.x - candidate_part.pose.at.x,
                 y: before_part.pose.at.y - candidate_part.pose.at.y,
             };
-            let offset_delta = cell_offset_delta(&projected, *column, world_delta)?;
+            let offset_delta = cell_offset_delta(&projected, *row, *column, world_delta, &candidate)?;
             let cell = projected
                 .cells
                 .iter_mut()

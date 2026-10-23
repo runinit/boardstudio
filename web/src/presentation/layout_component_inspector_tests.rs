@@ -308,7 +308,9 @@ fn companion_placement_projection_normalizes_layout_selections() {
         column_splays: vec![],
         column_origins: vec![],
         cells: vec![MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 0,
             enabled: true,

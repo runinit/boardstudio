@@ -1572,14 +1572,12 @@ pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), Stri
     if column >= matrix.columns {
         return Err("Matrix placement column is out of bounds".into());
     }
-    let index = column as usize;
-    let splay = matrix.column_splays.get(index).copied().unwrap_or(0.0);
-    let custom = matrix
-        .column_origins
-        .get(index)
-        .is_some_and(Option::is_some);
-    if splay != 0.0 && !custom {
-        return Err("Converting would move this column: its splay pivots with the stagger.".into());
+    let values = matrix.column_layout.get(column as usize).copied().unwrap_or_default();
+    if values.splay != 0.0 || values.rotation != 0.0
+        || matrix.row_layout.iter().any(|r| r.bend != 0.0)
+        || matrix.cells.iter().any(|c| c.column == column && c.bend.unwrap_or_default() != 0.0)
+    {
+        return Err("Converting requires zero Splay, Column rotation and carried Bend".into());
     }
     Ok(())
 }

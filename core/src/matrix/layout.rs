@@ -21,13 +21,15 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             .iter()
             .find(|board| board.id == layout.board_id)
             .ok_or("Layout board is missing")?;
-        let matrix = doc
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == layout.matrix_id)
-            .ok_or("Layout matrix is missing")?;
-        if !matrices.insert(&matrix.id) || matrix.board_id.as_ref() != Some(&board.id) {
-            return Err("Each layout must own a distinct matrix on its board".into());
+        if layout.matrix_ids.is_empty() {
+            return Err("Layout matrix membership must be nonempty".into());
+        }
+        for id in &layout.matrix_ids {
+            let matrix = doc.matrices.iter().find(|matrix| &matrix.id == id)
+                .ok_or("Layout matrix is missing")?;
+            if !matrices.insert(&matrix.id) || matrix.board_id.as_ref() != Some(&board.id) {
+                return Err("Each layout must own distinct matrices on its board".into());
+            }
         }
         for id in &layout.part_ids {
             if !parts.insert(id)
@@ -71,24 +73,14 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
 
 /// The relationship is stored once, but geometry can be edited from either half.
 pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
-    let owner = doc
-        .layouts
-        .iter()
-        .find(|layout| layout.matrix_id == matrix_id)?;
-    if let Some(link) = &owner.mirror_link {
-        let source = doc
-            .layouts
-            .iter()
-            .find(|layout| layout.id == link.source_id)?;
-        return Some((source.matrix_id.clone(), link.axis_x));
-    }
-    let other = doc.layouts.iter().find(|layout| {
-        layout
-            .mirror_link
-            .as_ref()
-            .is_some_and(|link| link.source_id == owner.id)
-    })?;
-    Some((other.matrix_id.clone(), other.mirror_link.as_ref()?.axis_x))
+    doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).find_map(|link| {
+        link.correspondences.iter().find_map(|record| {
+            if record.kind != MirroredItemKind::Matrix { return None; }
+            if record.source_id == matrix_id { Some((record.mirror_id.clone(), link.axis_x)) }
+            else if record.mirror_id == matrix_id { Some((record.source_id.clone(), link.axis_x)) }
+            else { None }
+        })
+    })
 }
 
 /// The pair map of a vertical mirror line at `axis_x`: the reflection `x' = 2 * axis_x - x`.
@@ -151,11 +143,14 @@ pub(crate) fn reflected(
         Mirror::X
     });
     result.diode_direction = source.diode_direction;
-    result.row_offsets = source.row_offsets.clone();
-    result.column_offsets = source.column_offsets.clone();
-    result.column_staggers = source.column_staggers.clone();
-    result.column_splays = source.column_splays.clone();
-    result.column_origins = source.column_origins.clone();
+    result.row_layout = source.row_layout.clone();
+    result.column_layout = source.column_layout.clone();
+    result.anchor = source.anchor.clone();
+    if let Some(anchor) = &mut result.anchor {
+        anchor.matrix_id = target.anchor.as_ref().ok_or("Linked counterpart anchor is missing")?.matrix_id.clone();
+        result.origin = Vec2 { x: -source.origin.x, y: source.origin.y };
+        result.rotation = source.rotation.map(|r| -r);
+    }
     let source_cells: BTreeMap<_, _> = source
         .cells
         .iter()
@@ -192,7 +187,9 @@ pub(crate) fn reflected(
                 };
             }
             MatrixCell {
-                deleted: false,
+                shift: None,
+    bend: None,
+    deleted: false,
                 row: source_cell.row,
                 column: source_cell.column,
                 enabled: true,
@@ -213,9 +210,9 @@ pub(crate) fn reflected(
         cell.offset = source_cell.and_then(|cell| cell.offset);
         // Cell turns and companion offsets are relative to the matrix frame and to the part, which
         // already carry the pair rotation, so only their handedness flips here.
-        cell.rotation = source_cell
-            .and_then(|cell| cell.rotation)
-            .map(|angle| -angle);
+        cell.rotation = source_cell.and_then(|cell| cell.rotation);
+        cell.shift = source_cell.and_then(|cell| cell.shift);
+        cell.bend = source_cell.and_then(|cell| cell.bend);
         // A sync keeps the other half's local companions; a new half copies them, since it has none.
         if cell.assemblies_local != Some(true)
             && (local_companions
@@ -260,7 +257,7 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     let source_is_target = doc
         .layouts
         .iter()
-        .find(|layout| layout.matrix_id == matrix_id)
+        .find(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
         .is_some_and(|layout| layout.mirror_link.is_some());
     let sizes: BTreeMap<_, _> = matrix::cell_members(source)
         .into_iter()
@@ -352,10 +349,10 @@ pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
             doc.layouts
                 .iter()
                 .find(|source| source.id == link.source_id)
-                .map(|source| source.matrix_id.clone())
+                .map(|source| source.matrix_ids.clone())
         })
         .collect();
-    for source in sources {
+    for source in sources.into_iter().flatten() {
         sync(doc, &source)?;
     }
     sync_components(doc)?;
@@ -653,22 +650,12 @@ fn adopt_unassigned_components(
         .find(|layout| layout.id == source_layout_id)
         .ok_or("Linked component source layout is missing")?;
     let board_id = source_layout.board_id.clone();
-    let matrix_id = source_layout.matrix_id.clone();
-    let source_matrix = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == matrix_id)
-        .ok_or("Linked component source matrix is missing")?;
-    let key_positions: Vec<_> = matrix::cell_members(source_matrix)
-        .values()
-        .filter_map(|id| doc.parts.iter().find(|part| &part.id == id))
-        .map(|part| part.pose.at.x)
-        .collect();
-    let source_center = if key_positions.is_empty() {
-        source_matrix.origin.x
-    } else {
-        key_positions.iter().sum::<f64>() / key_positions.len() as f64
-    };
+    let key_positions: Vec<_> = doc.matrices.iter()
+        .filter(|matrix| source_layout.matrix_ids.contains(&matrix.id))
+        .flat_map(matrix::cell_members).filter_map(|(_, id)| doc.parts.iter().find(|part| part.id == id))
+        .map(|part| part.pose.at.x).collect();
+    if key_positions.is_empty() { return Ok(()); }
+    let source_center = key_positions.iter().sum::<f64>() / key_positions.len() as f64;
     if (source_center - axis_x).abs() <= f64::EPSILON {
         return Ok(());
     }
@@ -792,11 +779,11 @@ fn clear_component_link(part: &mut Part) {
 }
 
 pub(crate) fn unlink_components(doc: &mut ProjectDoc, layout_id: &str) -> Vec<String> {
-    let Some((part_ids, matrix_id)) = doc
+    let Some((part_ids, matrix_ids)) = doc
         .layouts
         .iter()
         .find(|layout| layout.id == layout_id)
-        .map(|layout| (layout.part_ids.clone(), layout.matrix_id.clone()))
+        .map(|layout| (layout.part_ids.clone(), layout.matrix_ids.clone()))
     else {
         return Vec::new();
     };
@@ -807,17 +794,13 @@ pub(crate) fn unlink_components(doc: &mut ProjectDoc, layout_id: &str) -> Vec<St
             changed.push(id);
         }
     }
-    if let Some(matrix) = doc
-        .matrices
-        .iter_mut()
-        .find(|matrix| matrix.id == matrix_id)
-    {
+    for matrix in doc.matrices.iter_mut().filter(|matrix| matrix_ids.contains(&matrix.id)) {
         for cell in &mut matrix.cells {
             if cell.assemblies_local == Some(true) {
                 cell.assemblies_local = None;
             }
         }
-        changed.push(matrix_id);
+        changed.push(matrix.id.clone());
     }
     changed
 }
@@ -868,7 +851,7 @@ pub(crate) fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
     let removed: BTreeSet<_> = doc
         .layouts
         .iter()
-        .filter(|layout| layout.matrix_id == matrix_id)
+        .filter(|layout| layout.matrix_ids == [matrix_id])
         .map(|layout| layout.id.clone())
         .collect();
     let detached_parts: Vec<_> = doc
@@ -884,6 +867,7 @@ pub(crate) fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
         .flat_map(|layout| layout.part_ids.iter().cloned())
         .collect();
     doc.layouts.retain(|layout| !removed.contains(&layout.id));
+    for layout in &mut doc.layouts { layout.matrix_ids.retain(|id| id != matrix_id); }
     for layout in &mut doc.layouts {
         if layout
             .mirror_link
@@ -1028,12 +1012,14 @@ pub(crate) fn move_keys(
             }
         }
         // Older absolute key moves are absorbed into the cell's parametric offset.
-        let generated = matrix::location(source, row, column, cell);
+        let evaluated = matrix::evaluated(source, doc)?;
+        let generated = matrix::evaluation::cell_pose(&evaluated, row, column)?.at;
         let delta = Vec2 {
             x: position.at.x - generated.x,
             y: position.at.y - generated.y,
         };
-        let local = local_displacement(source, column, delta);
+        let frame = &evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Key frame is missing")?.offset_frame;
+        let local = matrix::evaluation::inverse_offset(frame, delta);
         let index = matrix
             .cells
             .iter()
@@ -1086,30 +1072,6 @@ pub(crate) fn move_keys(
         changed.extend(sync(doc, &matrix.id)?);
     }
     Ok((changed, handled))
-}
-
-fn local_displacement(matrix: &Matrix, column: u32, delta: Vec2) -> Vec2 {
-    let rotate = |point: Vec2, angle: f64| {
-        let (sin, cos) = angle.to_radians().sin_cos();
-        Vec2 {
-            x: point.x * cos - point.y * sin,
-            y: point.x * sin + point.y * cos,
-        }
-    };
-    let mut local = rotate(delta, -matrix.rotation.unwrap_or(0.0));
-    match matrix.mirror.unwrap_or(Mirror::None) {
-        Mirror::X => local.x = -local.x,
-        Mirror::Y => local.y = -local.y,
-        Mirror::None => {}
-    }
-    rotate(
-        local,
-        -matrix
-            .column_splays
-            .iter()
-            .take(column as usize + 1)
-            .sum::<f64>(),
-    )
 }
 
 pub(crate) struct AssemblyPlacement {
@@ -1221,15 +1183,9 @@ pub(crate) fn reconcile_constraint_keys(
             .cells
             .iter()
             .find(|cell| cell.row == row && cell.column == column);
-        let generated = matrix::location(source, row, column, cell);
-        let local = local_displacement(
-            source,
-            column,
-            Vec2 {
-                x: next.at.x - generated.x,
-                y: next.at.y - generated.y,
-            },
-        );
+        let evaluated = matrix::evaluated(source, doc)?;
+        let geometry = evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Key frame is missing")?;
+        let local = matrix::evaluation::inverse_offset(&geometry.offset_frame, Vec2 { x: next.at.x - geometry.pose.at.x, y: next.at.y - geometry.pose.at.y });
         let matrix = matrices
             .entry(source.id.clone())
             .or_insert_with(|| source.clone());
@@ -1258,15 +1214,8 @@ pub(crate) fn reconcile_constraint_keys(
             x: offset.x + local.x,
             y: offset.y + local.y,
         });
-        cell.rotation = Some(
-            next.rotation
-                - source.rotation.unwrap_or(0.0)
-                - source
-                    .column_splays
-                    .iter()
-                    .take(column as usize + 1)
-                    .sum::<f64>(),
-        );
+        let sign = if matches!(source.mirror, Some(Mirror::X | Mirror::Y)) { -1.0 } else { 1.0 };
+        cell.rotation = Some(cell.rotation.unwrap_or_default() + sign * (next.rotation - geometry.pose.rotation));
     }
     let mut changed = Vec::new();
     for matrix in matrices.values() {

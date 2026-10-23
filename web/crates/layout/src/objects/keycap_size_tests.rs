@@ -304,7 +304,9 @@ fn accepted_projection_uses_session_add_toggle_selection_across_hit_contexts() {
     document.matrices[0]
         .cells
         .push(boardstudio_core::model::MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 2,
             enabled: true,

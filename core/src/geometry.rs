@@ -154,14 +154,14 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 let owner = doc.layouts.iter().find(|layout| {
                     layout.part_ids.contains(id)
                         || doc.matrices.iter().any(|matrix| {
-                            matrix.id == layout.matrix_id && matrix.part_ids.contains(id)
+                            layout.matrix_ids.contains(&matrix.id) && matrix.part_ids.contains(id)
                         })
                 });
                 let x = owner
                     .and_then(|layout| {
                         doc.matrices
                             .iter()
-                            .find(|matrix| matrix.id == layout.matrix_id)
+                            .filter(|matrix| layout.matrix_ids.contains(&matrix.id)).min_by(|a, b| a.id.cmp(&b.id))
                     })
                     .map_or(part.pose.at.x, |matrix| matrix.origin.x);
                 groups

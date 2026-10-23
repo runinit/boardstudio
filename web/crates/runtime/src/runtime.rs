@@ -7712,7 +7712,9 @@ pub mod firmware_export_test_support {
             cells: (0..2)
                 .flat_map(|r| {
                     (0..2).map(move |c| MatrixCell {
-                        deleted: false,
+                        shift: None,
+    bend: None,
+    deleted: false,
                         row: r,
                         column: c,
                         enabled: true,

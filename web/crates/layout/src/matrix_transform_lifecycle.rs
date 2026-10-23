@@ -410,7 +410,9 @@ mod selection_retention_tests {
 
         let mut disabled = before.accepted.as_ref().unwrap().document.matrices[0].clone();
         disabled.cells.push(MatrixCell {
-            deleted: false,
+            shift: None,
+    bend: None,
+    deleted: false,
             row: 0,
             column: 0,
             enabled: false,
