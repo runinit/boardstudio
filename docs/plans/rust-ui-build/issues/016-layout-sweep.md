@@ -876,3 +876,36 @@ the test incorrectly expected a long one. Use the actual Mirror-all operation to
 create the source/mirror containers before testing the real implicit long Parts
 Label/Combobox, and undo that separate accepted operation at the end. No fixture
 state injection, Parts edit or product change is justified by this missing picker.
+
+Correct actual setup at test source `8ff9f75f`, production `41e9abca`, passes
+`layout-chooser-linked-containers-green.log`. Thirteen real matrices and the
+real Mirror-all command create26 source/mirror ProjectLayout containers; the
+inherited020 implicit long Parts Label now natively focuses its input with no
+`for`, while the owned long Source FieldLabel uses its unique explicit ID.
+Trusted label clicks, filtering, actual active option, controlled values/focus,
+Mirror pointer/Escape Cancel focus, one-source precise commit/Undo, Parts Space
+activation, keyboard move/Cancel and exact commit/Undo/Redo all pass. The final
+separate Undo also removes the Mirror-all operation and restores the13 original
+matrices and parts exactly. Capture directory:
+`layout-chooser-integration-20261022-221737/`. No fixture state was injected.
+
+Final connected-control inspection found a row-layout defect, not a pressed-state
+defect: point1→point2 native Space correctly changes both controlled aria-pressed
+states, but the copied point row is flex and its X/Y values no longer align with
+the existing grid headings (`point-controls-actual-state-layout-red.log`/PNG).
+The first diagnostic did not execute that check because a saved Toast covered
+Edit perimeter points (`point-controls-actual-first.log`); the actual workflow
+now dismisses the observed native notification close buttons by role/name first.
+No forced click, CSS control locator, retry or product notification edit.
+
+Persistent actual12-combination RED (`layout-point-secondary-actual-red.log`)
+also verifies the existing owned Electrical/Done/Insert/Remove Secondary controls
+retain old link or bordered-panel appearance. Preserve point groups' already
+correct state and callbacks; give their existing root/item caller classes the
+same column grid as the heading. Bound the owned point-action/Done legacy look
+selector away from copied buttons and split Electrical/remove-gap layout from
+their old look. These classes occur only in the owned inspector files. The three
+old direct-child point-button selector branches have no current production
+matches after the ToggleGroup adoption; remove only those exclusive branches,
+retaining the heading's declarations and every other container/layout rule.
+No shared primitive, new wrapper, API, visibility, dependency or owner change.
