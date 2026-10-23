@@ -138,6 +138,12 @@ BoardStudio extended layout feature working.
     anchor. Removing the anchor key detaches the matrix and keeps its pose.
   - Halves anchor to the partner key. Anchoring to a constraint-driven key is refused.
   - A Key selection offers "Add anchored matrix". Objects lists a Layout's matrices flat.
+- [08: Adapt consumers that assume uniform pitch](issues/08-uniform-pitch-consumers.md#answer):
+  - Pitch is the default step, the key and keycap size (minus edge gap) and the snap unit, never
+    a key position. Keycap fit, previews, draft and resize need only kernel poses.
+  - Align on a Column becomes a Core "move this column" edit that writes Spread and Stagger, the
+    same function as ticket 06.
+  - Convert to stagger is offered only when the column's keys are unturned.
 
 ## Not yet specified
 

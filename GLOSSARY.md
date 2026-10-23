@@ -280,6 +280,11 @@ _Avoid_: pivot (in user-facing text)
 A turn of one column about its splay origin. No later column inherits it.
 _Avoid_: splay (when only this column turns), bend
 
+**Matrix pitch**:
+A matrix's key unit. Key and keycap size are the pitch minus the edge gap. Columns and rows with
+no spread or padding of their own step by one pitch, and snapping steps in fractions of it.
+_Avoid_: spacing (when the step between particular keys is meant)
+
 **Row padding**:
 The step from one row of a matrix column to the next.
 _Avoid_: row offset, pitch (when a single row's step is meant)
