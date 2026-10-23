@@ -73,18 +73,17 @@ def tests(url, evidence):
     browser("set", "viewport", 1440, 960)
     browser("open", url)
     browser("wait", "--text", "Case construction")
-    for name, first, last in (("Plate method", "PCB FR-4", "Cut sheet"), ("Mount style", "Tray", "Gasket mount"), ("Bottom construction", "Tray shell", "Flat sheet")):
+    for name, first, second, last in (("Plate method", "PCB FR-4", "3D printed", "Cut sheet"), ("Mount style", "Tray", "Rigid mount", "Gasket mount"), ("Bottom construction", "Tray shell", "Flat sheet", "Flat sheet")):
         action("button", name, "focus")
         assert evaluate("document.activeElement.dataset.slot === 'select-trigger'")
         browser("press", "Enter")
         lists = [item for item in browser("snapshot")["refs"].values() if item["role"] == "listbox" and item["name"] == name]
         assert len(lists) == 1, (name, lists)
-        initial = evaluate("document.activeElement.textContent")
-        browser("press", "ArrowDown")
-        assert evaluate("document.activeElement.textContent") != initial, "ArrowDown must move to another option"
-        browser("press", "ArrowUp")
-        assert evaluate("document.activeElement.textContent") == initial, "ArrowUp must return to the initial option"
         browser("press", "Home")
+        assert evaluate("document.activeElement.textContent").strip() == first
+        browser("press", "ArrowDown")
+        assert evaluate("document.activeElement.textContent").strip() == second
+        browser("press", "ArrowUp")
         assert evaluate("document.activeElement.textContent").strip() == first
         browser("press", "End")
         assert evaluate("document.activeElement.textContent").strip() == last
