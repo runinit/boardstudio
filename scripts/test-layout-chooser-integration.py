@@ -94,6 +94,13 @@ def tests(url, captures):
     click("Undo")
     browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===13")
     assert flow.geometry() == original and parts() == original_parts
+    unpaired, unpaired_parts = original, original_parts
+    # Matrix creation alone has no ProjectLayout containers; linking all creates the actual long Parts choice.
+    click("Add object")
+    click("Mirror existing half… Create a linked half from an existing layout")
+    flow.activate_with_space("Create linked half")
+    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===26")
+    original, original_parts = flow.geometry(), parts()
     click("Add object")
     native_label("Part placement layout", implicit=True)
     choose_long("Part placement layout", "Board / ungrouped")
@@ -125,6 +132,9 @@ def tests(url, captures):
     click("Undo")
     browser("wait", "--fn", f"document.querySelectorAll('[data-part-id]').length==={len(original_parts)}")
     assert parts() == original_parts and flow.geometry() == original
+    click("Undo")
+    browser("wait", "--fn", "document.querySelectorAll('.m1-matrix-key').length===13")
+    assert parts() == unpaired_parts and flow.geometry() == unpaired
     browser("screenshot", str(captures / "placement-undo.png"))
     print("PASS actual13-layout explicit/implicit long Combobox labels, filter/active option/controlled value/focus, Mirror Cancel/precise one-source commit/Undo, Parts keyboard Cancel/commit and exact Undo/Redo", captures, flush=True)
 

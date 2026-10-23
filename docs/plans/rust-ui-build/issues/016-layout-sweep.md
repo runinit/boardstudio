@@ -866,3 +866,13 @@ Objects `focus_add_object` helper only inside the unchanged successful Cancel
 owner/pending admission guard, after clearing that view. Stale/busy owners still
 do nothing, and cancellation does not mutate the accepted document. Both pointer
 Cancel and Escape will be checked against the actual editor before acceptance.
+
+After the focus correction, `layout-chooser-actual-floor-green.log` is **not an
+overall GREEN**: it passes both actual Cancel paths with Add focus, the explicit
+long Source label/filter/value/focus and exact one-source Mirror commit/Undo,
+then stops at a test precondition gap. Thirteen matrices alone create no
+ProjectLayout containers, so Parts correctly has no placement-layout picker;
+the test incorrectly expected a long one. Use the actual Mirror-all operation to
+create the source/mirror containers before testing the real implicit long Parts
+Label/Combobox, and undo that separate accepted operation at the end. No fixture
+state injection, Parts edit or product change is justified by this missing picker.
