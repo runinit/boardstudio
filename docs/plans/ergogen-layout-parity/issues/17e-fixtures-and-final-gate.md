@@ -476,3 +476,57 @@ logs/receipts are preserved. Changed files are `scripts/check_quick.py`,
 `scripts/test-check-quick.py` and this Progress entry. Independent focused review
 and fresh all-caller quick/full gates remain pending; **17e and parent 17 remain
 claimed**. These planning/test receipts do not establish runtime acceptance.
+
+### Selector review and fresh acceptance attempt — 2026-10-23
+
+The parent completed the focused independent selector diff review: the planner
+contract matches the runner, all `page_files`/`full_rust` consumers were checked,
+and the parent's independent rerun of all **88 selector, scheduler and runner
+tests passed**. This is the focused selector review only; the final Standards+Spec
+reviews for 17e and parent 17 remain pending.
+
+Before gates, verified branch `docs/ergogen-layout-comparison`, tested source
+HEAD `84cc5a1a158c30552c6fd571279df31170b830a8`, clean tracked status, and only
+the untouched preexisting untracked `web/crates/layout/prototype/`. With fixed
+base `a58a2bf187bd6d08b652dc739cd7c391709ff5c8`, the prior 114-path inventory
+plus `scripts/check_quick.py` and `scripts/test-check-quick.py` exactly matches
+the **116/116 existing paths** passed to quick; no paths were deleted or
+excluded, including JSON, docs, tests, Core and web. `BOUNDARY_BLESS` was unset;
+no baseline-update or skip flags were supplied. The historical `quick.log` and
+receipt from the 114-path invocation remain untouched.
+
+Fresh quick command, under the shared lock, 22 GiB/no-swap scope and 3600-second
+timeout with the required environment:
+
+```sh
+base=a58a2bf187bd6d08b652dc739cd7c391709ff5c8
+mapfile -d '' -t paths < <(git diff --name-only -z "$base" 84cc5a1a158c30552c6fd571279df31170b830a8)
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+unset BOUNDARY_BLESS
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/check.py quick --files "${paths[@]}" --receipt .evidence/ergogen-17e/selector-fixed-quick-receipt.json > .evidence/ergogen-17e/selector-fixed-quick.log 2>&1
+```
+
+The selector fallback appeared in the log for
+`web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json`.
+Repo (6 commands), tooling (22), lint (3), page typecheck, native tests (2
+commands) and `layout-test-css` passed. The native guard reports all **2,149
+baselined names executed**; receipt counts are 2,149 passed, 12 ignored, zero
+failed/incomplete, with all baseline names matched. WASM-target Clippy, the web
+page `cargo check`, and the layout CSS page build passed. `check-wasm-tests.py`
+passed its guard. However, `cad/scripts/test-cad-provider.py` failed immediately
+because the CAD WEB package is missing (`RuntimeError: CAD WEB package is
+missing; run python3 cad/scripts/build-cad-wasm.py --no-opt`). The quick final
+line is **`check: step 'browser' failed`**. Of 54 receipt commands, 37 ran and
+17 were not run. The page-suite `scripts/run-wasm-tests.py --all` invocation,
+per-crate WASM browser launches, CAD browser suite and provider/product browser
+smoke were not reached; the printed fallback is selector planning evidence, not
+page runtime coverage.
+
+Quick receipt: `.evidence/ergogen-17e/selector-fixed-quick-receipt.json`; log:
+`.evidence/ergogen-17e/selector-fixed-quick.log`. **Full was not run** because
+quick failed; there is no full receipt/log or full-gate result. No source,
+fixture, tooling or baseline correction was made. The source tested remains
+`84cc5a1a158c30552c6fd571279df31170b830a8`; this progress update is a separate
+documentation-only commit. 17e and parent 17 remain claimed pending the
+unreached acceptance stages and final Standards+Spec reviews; no shipping or
+user-data writer approval is implied.
