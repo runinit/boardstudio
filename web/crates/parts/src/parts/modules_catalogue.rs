@@ -540,7 +540,7 @@ pub fn ModuleInspector(
         if project_owned { small { "Project snapshot" } }
         if let Some(placement_id) = placement_id {
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-parts-place-assembly",
+                class: "m1-parts-place-assembly max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_open_placement.call(placement_id.clone()),
                 "Edit selected mounted placement"
             }
@@ -556,7 +556,7 @@ pub fn ModuleInspector(
         }
         if !definition.gates.is_empty() {
             Collapsible { keep_mounted: true,
-                CollapsibleTrigger { "Review {gate_count} remaining {gate_noun}" }
+                CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Review {gate_count} remaining {gate_noun}" }
                 CollapsibleContent { class: "data-[open=false]:hidden", ul {
                     for gate in &definition.gates {
                         li { "{gate.message}" }

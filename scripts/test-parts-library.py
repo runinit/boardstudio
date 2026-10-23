@@ -341,9 +341,10 @@ def main():
                     focus("searchbox", "Search footprints")
                     check("document.activeElement.getAttribute('data-slot')==='input-group-control' && document.activeElement.getBoundingClientRect().width>0")
                     check("document.documentElement.scrollWidth<=document.documentElement.clientWidth")
-                    assembly_icon = evaluate("""(()=>{const button=document.querySelector('[aria-label="New assembly"]'),svg=button.querySelector('svg'),r=svg.getBoundingClientRect(),s=getComputedStyle(svg);
-                        return {disabled:button.disabled,width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:parseFloat(s.strokeWidth)}})()""")
+                    assembly_icon = evaluate("""(()=>{const button=document.querySelector('[aria-label="New assembly"]'),svg=button.querySelector('svg'),r=svg.getBoundingClientRect(),b=button.getBoundingClientRect(),s=getComputedStyle(svg);
+                        return {disabled:button.disabled,targetWidth:b.width,targetHeight:b.height,width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:parseFloat(s.strokeWidth)}})()""")
                     assert assembly_icon["width"] == 16 and assembly_icon["height"] == 16, assembly_icon
+                    assert assembly_icon["targetWidth"] == assembly_icon["targetHeight"] == (44 if width <= 960 else 36), assembly_icon
                     print("Actual New assembly owner availability and glyph:", width, theme, appearance, assembly_icon, flush=True)
                     assert assembly_icon["fill"] == "none" and assembly_icon["stroke"] != "none" and assembly_icon["strokeWidth"] == 1.5, assembly_icon
                     browser("screenshot", str((args.evidence / f"parts-{width}-{theme}-{appearance}.png").resolve()))

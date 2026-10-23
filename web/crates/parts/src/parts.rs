@@ -86,19 +86,21 @@ fn PartsChoiceField(
             if options.len() > 12 {
                 Label { class: "flex-col items-stretch gap-3", "{label}"
                 Combobox::<String> {
+                    class: "max-[960px]:[&_[data-slot=combobox-input]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=combobox-input]]:min-h-control-touch",
                     aria_label: aria_label.clone(), list_aria_label: aria_label,
                     value: Some(current.into()), disabled, on_value_change: choose,
                     for (index, (value, text)) in options.into_iter().enumerate() {
-                        ComboboxOption::<String> { index, value, text_value: text.clone(), "{text}" }
+                        ComboboxOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value, text_value: text.clone(), "{text}" }
                     }
                 } }
             } else {
                 FieldLabel { html_for: id.clone(), "{label}" }
                 Select::<String> {
+                    class: "max-[960px]:[&_[data-slot=select-trigger]]:min-h-control-touch [@media(pointer:coarse)]:[&_[data-slot=select-trigger]]:min-h-control-touch",
                     id, aria_label, value: Some(current.into()), disabled,
                     on_value_change: choose,
                     for (index, (value, text)) in options.into_iter().enumerate() {
-                        SelectOption::<String> { index, value, text_value: text.clone(), "{text}" }
+                        SelectOption::<String> { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", index, value, text_value: text.clone(), "{text}" }
                     }
                 }
             }
@@ -113,7 +115,7 @@ fn PartsCatalogueCategory(label: String, reveal: bool, children: Element) -> Ele
     rsx! {
         Collapsible { class: "py-1", aria_label: label.clone(), keep_mounted: true,
             open: Some(open()), on_open_change: move |next| open.set(next),
-            CollapsibleTrigger { "{label}" }
+            CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
             CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { {children} } }
         }
     }
@@ -386,7 +388,7 @@ fn AddObjectChoice(
         div { role: "group", "aria-label": "Add {label}", class: "w-full",
             Button {
                 key: "{definition_id}", variant: ButtonVariant::Ghost,
-                class: "w-full justify-start whitespace-normal text-left",
+                class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 aria_label: "Add {label}",
                 onclick: move |_| on_place.call(
                     super::part_placement::ComponentPlacementAction::AddObject {
@@ -398,7 +400,7 @@ fn AddObjectChoice(
             }
             if mirror_only_available {
                 Button { variant: ButtonVariant::Ghost,
-                    class: "w-full justify-start whitespace-normal text-left",
+                    class: "w-full justify-start whitespace-normal text-left max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add {label} to this half only",
                     onclick: move |_| on_place.call(
                         super::part_placement::ComponentPlacementAction::AddMirrorOnlyObject {
@@ -447,7 +449,7 @@ pub fn AddObjectComponentChooser(
             rsx! {
                 for (label, items) in groups {
                     Collapsible { key: "{label}", class: "py-1", default_open: label == "Components", keep_mounted: true,
-                        CollapsibleTrigger { "{label}" }
+                        CollapsibleTrigger { class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "{label}" }
                         CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { class: "gap-px",
                             for entry in items {
                                 { let definition_id = entry.definition.id.clone();
@@ -507,7 +509,7 @@ pub fn AddObjectComponentChooser(
             }
             Field {
                 Label { html_for: format!("parts-add-search-{}", dioxus::core::current_scope_id().0), "Parts" }
-                InputGroup { InputGroupInput {
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                     id: format!("parts-add-search-{}", dioxus::core::current_scope_id().0),
                     r#type: InputType::Search, aria_label: "Search parts", placeholder: "Find a part…", value: query(),
                     oninput: move |event: FormEvent| {
@@ -518,7 +520,7 @@ pub fn AddObjectComponentChooser(
             }
             {content}
             Button { variant: ButtonVariant::Secondary,
-                class: "m1-add-browse",
+                class: "m1-add-browse max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 onclick: move |_| on_browse.call(()),
                 "Browse all parts"
             }
@@ -1019,7 +1021,7 @@ pub fn PartsLibraryPanel(
         rsx! {
             Field {
                 Label { html_for: format!("parts-library-search-{}", dioxus::core::current_scope_id().0), "Search parts" }
-                InputGroup { InputGroupInput {
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch",
                     id: format!("parts-library-search-{}", dioxus::core::current_scope_id().0),
                     r#type: InputType::Search, aria_label: "Search footprints", placeholder: "Name or category", value: query(),
                     oninput: move |event: FormEvent| {
@@ -1031,7 +1033,7 @@ pub fn PartsLibraryPanel(
             }
             Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
                 div { class: "flex items-center justify-between gap-2",
-                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2", "Key assemblies" small { "{visible_assemblies.len()}" } }
+                    CollapsibleTrigger { aria_label: "Key assemblies", class: "flex-1 justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Key assemblies" small { "{visible_assemblies.len()}" } }
                     AssemblyCreateButton {}
                 }
                 CollapsibleContent { class: "data-[open=false]:hidden",
@@ -1056,7 +1058,7 @@ pub fn PartsLibraryPanel(
                           let scope = scope.clone();
                           rsx! { Item { size: ItemSize::Xs, class: "p-0",
                             Button { key: "{preset.name}", variant: ButtonVariant::Ghost,
-                                class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground",
+                                class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                 aria_pressed: is_selected,
                                 onclick: move |_| {
                                     assembly_selection.set(Some(preset_id));
@@ -1079,7 +1081,7 @@ pub fn PartsLibraryPanel(
                 div { role: "status", Callout { "No component definitions are available." } }
             } else if !groups.is_empty() {
                 Collapsible { class: "mt-3 min-h-0 flex-none", default_open: true, keep_mounted: true,
-                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2", "Components" small { "{result_count}" } }
+                    CollapsibleTrigger { aria_label: "Components", class: "w-full justify-start py-2 max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch", "Components" small { "{result_count}" } }
                     CollapsibleContent { class: "data-[open=false]:hidden", div { role: "group", "aria-label": "Footprint library",
                         for (group, items) in groups {
                             PartsCatalogueCategory { key: "{group.label}", label: group.label,
@@ -1092,7 +1094,7 @@ pub fn PartsLibraryPanel(
                                         Item { size: ItemSize::Xs, class: "p-0",
                                         Button {
                                             key: "{entry.definition.id}", variant: ButtonVariant::Ghost,
-                                            class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground",
+                                            class: "w-full justify-start whitespace-normal text-left aria-pressed:bg-selected aria-pressed:text-selected-foreground max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                                             aria_pressed: is_selected,
                                             onclick: move |_| {
                                                 assembly_selection.set(None);
@@ -1239,7 +1241,7 @@ pub fn ControllerSetupPicker(
         section { class: "m1-controller-picker", aria_label: "Controller selection", aria_roledescription: "carousel",
             Field {
                 Label { html_for: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), "Search controllers" }
-                InputGroup { InputGroupInput { id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), r#type: InputType::Search, aria_label: "Search controllers", placeholder: "Find a controller…", value: search(), oninput: move |event: FormEvent| search.set(event.value()) } }
+                InputGroup { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", InputGroupInput { class: "max-[960px]:h-control-touch [@media(pointer:coarse)]:h-control-touch", id: format!("parts-controller-search-{}", dioxus::core::current_scope_id().0), r#type: InputType::Search, aria_label: "Search controllers", placeholder: "Find a controller…", value: search(), oninput: move |event: FormEvent| search.set(event.value()) } }
             }
             div { class: "m1-controller-carousel-navigation",
                 span { role: "status", aria_live: "polite", if matches.is_empty() { "0 controllers" } else { "{position + 1} of {matches.len()}" } }
@@ -1291,6 +1293,7 @@ pub fn ControllerSetupPicker(
                 {
                     let id = entry.definition.id.clone();
                     rsx! { Button {
+                        class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: busy || !enabled, onclick: move |_| { choose.call(id.clone()); on_place.call(id.clone()); },
                         if busy { "Preparing controller…" } else { "Place controller" }
                     } }
@@ -1447,7 +1450,7 @@ pub fn PartsInspectorPanel(
             SelectedDefinition { entry: entry.clone() }
             if let Some(preset) = active_assembly {
                 Button {
-                    class: "m1-parts-place-assembly w-full",
+                    class: "m1-parts-place-assembly w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     disabled: placement_busy,
                     onclick: move |_| on_place_assembly.call(super::objects::MatrixPlacementSource::Preset(preset)),
                     "Place key assembly"
@@ -1505,7 +1508,7 @@ pub fn PartsInspectorPanel(
                 }
                 if let Some(definition_id) = controller_id {
                     Button {
-                        class: "m1-parts-place-controller w-full",
+                        class: "m1-parts-place-controller w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: placement_busy,
                         onclick: move |_| on_place_controller.call(definition_id.clone()),
                         if placement_busy { "Preparing controller…" } else { "Place component" }
@@ -1532,7 +1535,7 @@ fn PartsInspectorPlacementAction(
     let can_apply_to_key = matrix_input_available(&entry.definition);
     rsx! {
         Button {
-            class: "m1-parts-place-component w-full",
+            class: "m1-parts-place-component w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
             disabled: busy || (apply_to_key && !can_apply_to_key),
             onclick: move |_| on_place.call(
                 super::part_placement::ComponentPlacementAction::PartsInspector {

@@ -77,7 +77,7 @@ def main():
             evaluate("document.fonts.ready.then(()=>true)")
             metrics = evaluate("""(()=>{const r=connectionLabel.getBoundingClientRect(),c=connectionControl.getBoundingClientRect();return {label:[r.x,r.y,r.width,r.height],checkbox:[c.width,c.height],checked:connectionControl.getAttribute('aria-checked'),disabled:connectionControl.disabled}})()""")
             capture("attachment-target", metrics)
-            assert metrics["label"][3] >= (44 if args.width <= 960 or args.coarse else 16), metrics
+            assert metrics["label"][3] == (44 if args.width <= 960 or args.coarse else 16), metrics
             assert metrics["checkbox"] == [16, 16] and not metrics["disabled"] and metrics["checked"] == "true", metrics
             touch_targets(".m1-module-attach")
             browser("press", "Enter")
@@ -108,6 +108,8 @@ def main():
             browser("wait", "--fn", "document.querySelector('[aria-label=\"Assign host connection\"]')?.disabled")
             evaluate("window.disabledConnection=document.querySelector('[aria-label=\"Assign host connection\"]');window.disabledBefore=disabledConnection.getAttribute('aria-checked')")
             disabled = box("disabledConnection")
+            disabled_label = box("disabledConnection.closest('label')")
+            assert disabled_label["height"] >= (44 if args.width <= 960 or args.coarse else 16), disabled_label
             check("disabledConnection.closest('label').control===disabledConnection")
             point = evaluate("(()=>{const r=disabledConnection.closest('label').getBoundingClientRect();return {x:r.right-4,y:r.y+r.height/2}})()")
             browser("mouse", "move", round(point["x"]), round(point["y"]))
@@ -169,9 +171,23 @@ def main():
                 focus("button", "New assembly")
                 metrics = box("document.activeElement")
                 capture("assembly-target", metrics)
-                assert metrics["width"] >= (44 if args.width <= 960 or args.coarse else 36) and metrics["height"] >= (44 if args.width <= 960 or args.coarse else 36), metrics
+                assert metrics["width"] == metrics["height"] == (44 if args.width <= 960 or args.coarse else 36), metrics
                 assert not metrics["disabled"], metrics
                 touch_targets(".m1-parts-library")
+                modes = evaluate("[...document.querySelectorAll('[aria-label=\"2D footprint\"],[aria-label=\"3D model\"]')].map(e=>{const r=e.getBoundingClientRect();return {width:r.width,height:r.height}})")
+                assert len(modes) == 2, modes
+                if args.width <= 960 or args.coarse:
+                    assert all(item["width"] >= 44 and item["height"] >= 44 for item in modes), modes
+                focus("button", "Switch orientation")
+                browser("press", "Enter")
+                options = evaluate("[...document.querySelectorAll('[role=option]')].filter(e=>e.checkVisibility()).map(e=>{const r=e.getBoundingClientRect();return {name:e.textContent,width:r.width,height:r.height}})")
+                assert len(options) == 2, options
+                if args.width <= 960 or args.coarse:
+                    assert all(item["width"] >= 44 and item["height"] >= 44 for item in options), options
+                browser("press", "End")
+                browser("press", "Enter")
+                check("document.activeElement.getAttribute('aria-label')==='Switch orientation' && document.activeElement.textContent.includes('North-facing')")
+                focus("button", "New assembly")
                 evaluate("window.newAssembly=document.activeElement;window.assemblySection=document.querySelector('[aria-label=\"Key assemblies\"]')?.getAttribute('aria-expanded')")
                 action("button", "New assembly")
                 browser("wait", "--fn", "[...document.querySelectorAll('button')].some(e=>e.textContent.trim()==='Close editor')")
