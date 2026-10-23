@@ -85,6 +85,18 @@ pub(crate) fn companion_id(key_id: &str, assembly_id: &str) -> String {
     format!("{key_id}/{assembly_id}")
 }
 
+fn companion_pose(key: Pose2, assembly: &crate::model::MatrixAssembly) -> Pose2 {
+    let (sin, cos) = key.rotation.to_radians().sin_cos();
+    // Preserve materialization's arithmetic order: regrouping changes persisted pose bits.
+    Pose2 {
+        at: Vec2 {
+            x: key.at.x + assembly.offset.x * cos - assembly.offset.y * sin,
+            y: key.at.y + assembly.offset.x * sin + assembly.offset.y * cos,
+        },
+        rotation: key.rotation + assembly.rotation.unwrap_or(0.0),
+    }
+}
+
 fn cell_members(matrix: &Matrix) -> BTreeMap<(u32, u32), String> {
     let cells: BTreeMap<_, _> = matrix
         .cells
@@ -663,19 +675,10 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                     .clone();
                 for assembly in &cell.assemblies {
                     let id = companion_id(&members[0].0, &assembly.id);
-                    let rotation = pose.rotation.to_radians();
-                    let (sin, cos) = rotation.sin_cos();
-                    let at = Vec2 {
-                        x: pose.at.x + assembly.offset.x * cos - assembly.offset.y * sin,
-                        y: pose.at.y + assembly.offset.x * sin + assembly.offset.y * cos,
-                    };
                     members.push((
                         id,
                         assembly.definition_id.clone(),
-                        Pose2 {
-                            at,
-                            rotation: pose.rotation + assembly.rotation.unwrap_or(0.0),
-                        },
+                        companion_pose(pose, assembly),
                         assembly.side.clone().unwrap_or(Side::Front),
                         None,
                     ));
@@ -912,6 +915,86 @@ mod projection_tests {
             properties: None,
             generator_parameters: None,
         }
+    }
+
+    #[test]
+    fn following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen() {
+        let mut doc = ProjectDoc::empty("exact-companion", "Exact companion");
+        doc.definitions = serde_json::from_value(json!([
+            {"id":"switch","name":"Switch","kind":"switch","courtyard":[],"pads":[]},
+            {"id":"diode","name":"Diode","kind":"passive","courtyard":[],"pads":[]}
+        ]))
+        .unwrap();
+        let matrix = serde_json::from_value(json!({
+            "id":"m","rows":1,"columns":1,"pitch":{"x":19,"y":19},
+            "origin":{"x":1,"y":-1},"definitionId":"switch","partIds":[],
+            "cells":[{"row":0,"column":0,"enabled":true,"rotation":90,
+                "assemblies":[{"id":"diode","definitionId":"diode",
+                    "offset":{"x":1,"y":1},"rotation":17}]}]
+        }))
+        .unwrap();
+        set_matrix(&mut doc, &matrix).unwrap();
+        let companion = |doc: &ProjectDoc| {
+            doc.parts
+                .iter()
+                .find(|part| part.id == "matrix/m/r0c0/diode")
+                .unwrap()
+                .pose
+        };
+        let key = doc
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/m/r0c0")
+            .unwrap();
+        assert_eq!(
+            key.pose,
+            Pose2 {
+                at: Vec2 { x: 1.0, y: -1.0 },
+                rotation: 90.0
+            }
+        );
+        let (sin, cos) = 90_f64.to_radians().sin_cos();
+        // Pin the original materialization grouping: persisted addition is not associative.
+        let expected = Pose2 {
+            at: Vec2 {
+                x: (1.0 + cos) - sin,
+                y: (-1.0 + sin) + cos,
+            },
+            rotation: 90.0 + 17.0,
+        };
+        assert_ne!(
+            expected.at,
+            Vec2 {
+                x: 1.0 + (cos - sin),
+                y: -1.0 + (sin + cos)
+            }
+        );
+        let materialized = companion(&doc);
+        assert_eq!(materialized, expected, "original materialization order");
+        assert_eq!(
+            layout::companion_mode(&doc, "matrix/m/r0c0/diode"),
+            crate::model::MatrixCompanionMode::Follows
+        );
+        layout::refresh_existing(&mut doc).unwrap();
+        assert_eq!(
+            companion(&doc),
+            materialized,
+            "refresh must preserve persisted pose exactly"
+        );
+        let saved = serde_json::to_string(&doc).unwrap();
+        let mut engine = crate::CoreEngine::new();
+        let reply = engine.handle(crate::model::CoreRequest::Open {
+            id: "reopen".into(),
+            document: serde_json::from_str(&saved).unwrap(),
+        });
+        let crate::model::CoreReply::Scene { document, .. } = reply else {
+            panic!("expected reopened scene: {reply:?}");
+        };
+        assert_eq!(
+            companion(&document),
+            materialized,
+            "Open must preserve persisted pose exactly"
+        );
     }
 
     #[test]
