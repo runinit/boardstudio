@@ -144,6 +144,14 @@ BoardStudio extended layout feature working.
   - Align on a Column becomes a Core "move this column" edit that writes Spread and Stagger, the
     same function as ticket 06.
   - Convert to stagger is offered only when the column's keys are unturned.
+- [09: Prototype the Inspector and toolbar](issues/09-inspector-and-toolbar-prototype.md#answer):
+  - Accepted variant D: A's parameter-specific toolbar and grouped Inspector, C's canvas
+    handles and collapsible **How it is placed** chain.
+  - Handles have a view-only visibility toggle. Spread and Stagger have separate horizontal
+    and vertical handles; Alt keeps disabling snapping.
+  - Affected-key previews, changed-field status and one Undo entry make carried edits visible.
+  - Primary source is archived on local branch `prototype/ergogen-parity-inspector`; the
+    prototype is not production implementation. Relations remains ticket 12.
 
 ## Not yet specified
 
