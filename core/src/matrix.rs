@@ -940,16 +940,6 @@ mod projection_tests {
         assert!(scene.cells[4].pose.at.x.is_finite());
     }
 
-    #[test]
-    fn projection_enforces_geometry_validation_at_its_boundary() {
-        let mut m = matrix();
-        m.cells.push(m.cells[0].clone());
-        assert!(project_matrix(&m, &[], ProjectionMode::Draft).is_err());
-        m.cells.clear();
-        m.pitch.x = f64::NAN;
-        assert!(project_matrix(&m, &[], ProjectionMode::Actual).is_err());
-    }
-
     /// The captured oracle predates grouped layout records, so the fixture keeps its
     /// legacy per-axis arrays and this adapter rewrites them as column and row records.
     fn grouped_from_legacy(mut matrix: serde_json::Value) -> Matrix {
@@ -1010,63 +1000,72 @@ mod projection_tests {
         pose: Pose2,
     }
 
+    // Bypass Open intentionally: it refreshes ordinary parts before projection. This
+    // fixture pins saved-pose reads without Local exceptions or layoutOverride.
     #[test]
-    fn projections_match_captured_typescript_behavior() {
+    fn ordinary_parts_match_saved_pose_and_member_id_fixtures_in_every_mirror_mode() {
         let fixtures: serde_json::Value =
             serde_json::from_str(include_str!("../tests/fixtures/matrix-projections.json"))
                 .unwrap();
-        let mut mismatches = Vec::new();
-        for fixture in fixtures["cases"].as_array().unwrap() {
+        let cases = fixtures["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 9);
+        let mut cell_count = 0;
+        let mut saved_modes = BTreeSet::new();
+        for fixture in cases {
+            let case = fixture["name"].as_str().unwrap();
             let matrix = grouped_from_legacy(fixture["matrix"].clone());
             let parts: Vec<Part> = serde_json::from_value(fixture["parts"].clone()).unwrap();
+            for part in &parts {
+                assert!(
+                    part.properties
+                        .as_ref()
+                        .is_none_or(|properties| !properties.contains_key(OVERRIDE))
+                );
+            }
+            if !parts.is_empty() {
+                assert!(saved_modes.insert(case));
+            }
             let expected: Vec<ExpectedCell> =
                 serde_json::from_value(fixture["expected"].clone()).unwrap();
             let scene = project_matrix(&matrix, &parts, ProjectionMode::Actual).unwrap();
-            let case = fixture["name"].as_str().unwrap_or("?");
-            if scene.cells.len() != expected.len() {
-                mismatches.push(format!(
-                    "{case} | cells.len | {} | {}",
-                    expected.len(),
-                    scene.cells.len()
-                ));
-            }
+            assert_eq!(scene.cells.len(), expected.len(), "{case}: cell count");
+            cell_count += scene.cells.len();
             for (actual, expected) in scene.cells.iter().zip(expected) {
                 let at = format!("{case} r{}c{}", expected.row, expected.column);
-                if (actual.row, actual.column) != (expected.row, expected.column) {
-                    mismatches.push(format!(
-                        "{at} | row,column | {:?} | {:?}",
-                        (expected.row, expected.column),
-                        (actual.row, actual.column)
-                    ));
-                }
-                if actual.enabled != expected.enabled {
-                    mismatches.push(format!(
-                        "{at} | enabled | {} | {}",
-                        expected.enabled, actual.enabled
-                    ));
-                }
-                if actual.member_id != expected.member_id {
-                    mismatches.push(format!(
-                        "{at} | memberId | {:?} | {:?}",
-                        expected.member_id, actual.member_id
-                    ));
-                }
-                for (name, a, e) in [
+                assert_eq!(
+                    (actual.row, actual.column),
+                    (expected.row, expected.column),
+                    "{at} row,column"
+                );
+                assert_eq!(actual.enabled, expected.enabled, "{at} enabled");
+                assert_eq!(actual.member_id, expected.member_id, "{at} memberId");
+                for (name, actual, expected) in [
                     ("x", actual.pose.at.x, expected.pose.at.x),
                     ("y", actual.pose.at.y, expected.pose.at.y),
                     ("rotation", actual.pose.rotation, expected.pose.rotation),
                 ] {
-                    if (a - e).abs() >= 1e-9 {
-                        mismatches.push(format!("{at} | {name} | {e} | {a}"));
-                    }
+                    assert!(
+                        (actual - expected).abs() < 1e-9,
+                        "{at} pose {name}: expected {expected}, got {actual}"
+                    );
                 }
             }
         }
-        assert!(
-            mismatches.is_empty(),
-            "oracle mismatches:\n{}",
-            mismatches.join("\n")
+        assert_eq!(cell_count, 81);
+        assert_eq!(
+            saved_modes,
+            BTreeSet::from(["none-saved-poses", "x-saved-poses", "y-saved-poses"])
         );
+    }
+
+    #[test]
+    fn projection_enforces_geometry_validation_at_its_boundary() {
+        let mut m = matrix();
+        m.cells.push(m.cells[0].clone());
+        assert!(project_matrix(&m, &[], ProjectionMode::Draft).is_err());
+        m.cells.clear();
+        m.pitch.x = f64::NAN;
+        assert!(project_matrix(&m, &[], ProjectionMode::Actual).is_err());
     }
 
     #[test]
