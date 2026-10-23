@@ -4155,6 +4155,84 @@ fn deleting_matrix_cells_propagates_tombstones_and_survives_reopen() {
 }
 
 #[test]
+fn unrelated_matrix_edit_never_resurrects_a_tombstoned_member_correspondence() {
+    let (mut engine, doc) = linked_pair();
+    let (_, deleted) = scene(engine.handle(edit(
+        doc.revision,
+        EditPhase::Commit,
+        EditOperation::RemoveMatrixCells {
+            matrix_id: "left-matrix".into(),
+            cells: vec![(0, 1)],
+        },
+    )));
+    let retired = |link: &LayoutMirrorLink| {
+        link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        })
+    };
+    let link = deleted.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(!retired(link), "delete must retire the pair: {link:?}");
+    let mut left = deleted.matrices[0].clone();
+    left.edge_gap = Some(Vec2 { x: 6.0, y: 6.0 });
+    let (_, edited) = scene(engine.handle(edit(
+        deleted.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: left,
+            definitions: None,
+        },
+    )));
+    let link = edited.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !retired(link),
+        "an unrelated edit must not resurrect the tombstoned pair: {link:?}"
+    );
+}
+
+#[test]
+fn unrelated_matrix_edit_keeps_a_local_exception_unassociated() {
+    let (mut engine, mut doc) = linked_pair();
+    let link = doc.layouts[1].mirror_link.as_mut().unwrap();
+    link.correspondences.retain(|record| {
+        !(record.kind == MirroredItemKind::Part
+            && record.mirror_id == "matrix/right-matrix/r0c1")
+    });
+    link.exceptions.push(MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        mirror_id: "matrix/right-matrix/r0c1".into(),
+        state: MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+    let (_, opened) = scene(engine.handle(CoreRequest::Open {
+        id: "open-unassociated".into(),
+        document: doc,
+    }));
+    let mut left = opened.matrices[0].clone();
+    left.edge_gap = Some(Vec2 { x: 6.0, y: 6.0 });
+    let (_, edited) = scene(engine.handle(edit(
+        opened.revision,
+        EditPhase::Commit,
+        EditOperation::SetMatrix {
+            matrix: left,
+            definitions: None,
+        },
+    )));
+    let link = edited.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        }),
+        "pairing must not infer a source for a local exception: {link:?}"
+    );
+}
+
+#[test]
 fn deleting_last_matrix_row_removes_matrix_and_key_metadata_and_is_undoable() {
     let mut engine = CoreEngine::new();
     engine.handle(CoreRequest::Open {

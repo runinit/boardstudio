@@ -236,23 +236,31 @@ pub(crate) fn update_link_members(doc: &mut ProjectDoc, matrix_id: &str) -> Resu
         for pair in pairs {
             let source_matrix = matrix::evaluation::logical_matrix(&pair.source_id, doc)?;
             let mirror_matrix = matrix::evaluation::logical_matrix(&pair.mirror_id, doc)?;
-            for row in 0..source_matrix.rows.min(mirror_matrix.rows) {
-                for column in 0..source_matrix.columns.min(mirror_matrix.columns) {
-                    let source_id = matrix::member_id(&pair.source_id, row, column);
-                    let mirror_id = matrix::member_id(&pair.mirror_id, row, column);
-                    if !link.correspondences.iter().any(|record| {
+            let source_members = matrix::cell_members(&source_matrix);
+            let mirror_members = matrix::cell_members(&mirror_matrix);
+            for (slot, source_id) in source_members {
+                let Some(mirror_id) = mirror_members.get(&slot) else {
+                    continue;
+                };
+                let excepted = link.exceptions.iter().any(|exception| {
+                    exception.kind == MirroredItemKind::Part
+                        && (exception.mirror_id == *mirror_id || exception.mirror_id == source_id)
+                });
+                if excepted
+                    || link.correspondences.iter().any(|record| {
                         record.kind == MirroredItemKind::Part
-                            && (record.source_id == source_id || record.mirror_id == mirror_id)
-                    }) {
-                        link.correspondences.push(MirroredCorrespondence {
-                            kind: MirroredItemKind::Part,
-                            source_id,
-                            mirror_id,
-                            companion_mode: None,
-                            companion_tweak: None,
-                        });
-                    }
+                            && (record.source_id == source_id || record.mirror_id == *mirror_id)
+                    })
+                {
+                    continue;
                 }
+                link.correspondences.push(MirroredCorrespondence {
+                    kind: MirroredItemKind::Part,
+                    source_id,
+                    mirror_id: mirror_id.clone(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                });
             }
         }
         doc.layouts[index].mirror_link = Some(link);

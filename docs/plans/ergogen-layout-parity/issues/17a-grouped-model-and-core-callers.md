@@ -133,3 +133,8 @@ Cross-check: an independent Python implementation of ticket 04 formula 1 + mirro
 | y-custom-origins | r2c2 | memberId | "matrix/fixture/r2c2" | null | member id only for existing parts (8b367d8c7; ticket 17) |
 | y-custom-origins | r2c2 | x | 55.139108021531484 | 54.49541851726578 | splay origin relative to column base, carried through earlier splays (ticket 04 formula 1, decision 11) |
 | y-custom-origins | r2c2 | y | -26.92751477911868 | -27.583064687035808 | splay origin relative to column base, carried through earlier splays (ticket 04 formula 1, decision 11) |
+
+### Fix round — 2026-10-23
+
+- [x] Step 1: `check.py quick` real state — fails in the `browser` step (`outline::browser_tests::connected_mirrored_outline_gap_controls_edit_distinct_regions`, `host::storage::lifetime_tests::mixed_format_records_are_listed_without_conversion_and_raw_json_is_preserved`); see `.evidence/ergogen-17a/ds-quick1.log`.
+- [x] Step 2: RED/GREEN — `unrelated_matrix_edit_never_resurrects_a_tombstoned_member_correspondence` failed on the re-created pair; pairing now walks `cell_members` (deleted slots excluded) and skips slots with a Part exception. `unrelated_matrix_edit_keeps_a_local_exception_unassociated` covers the exception case and fails without that guard.
