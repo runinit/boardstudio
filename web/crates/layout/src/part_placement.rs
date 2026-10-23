@@ -3759,7 +3759,13 @@ mod tests {
                 matrix_ids: vec!["matrix-target".into()],
                 part_ids: Vec::new(),
                 mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
-                    correspondences: vec![],
+                    correspondences: vec![boardstudio_core::model::MirroredCorrespondence {
+                        companion_mode: None,
+                        companion_tweak: None,
+                        kind: boardstudio_core::model::MirroredItemKind::Matrix,
+                        source_id: "matrix-source".into(),
+                        mirror_id: "matrix-target".into(),
+                    }],
                     exceptions: vec![],
                     source_id: "layout-source".into(),
                     axis_x: 0.0,
@@ -3776,7 +3782,7 @@ mod tests {
             ..
         } = opened
         else {
-            panic!("the linked source fixture opens in Core");
+            panic!("the linked source fixture opens in Core: {opened:?}");
         };
         let accepted = *opened_document;
         let target_before = accepted
