@@ -449,6 +449,7 @@ fn finite_frame(value: &ComposedFrame) -> Result<(), &'static str> {
 }
 
 fn validate(input: &LayoutInput, anchor: RawAnchorContext) -> Result<(), &'static str> {
+    // Kept apart from `matrix::valid_dimensions`: this checks the already-parsed `usize` input.
     if input.rows == 0
         || input.columns == 0
         || input
