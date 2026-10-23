@@ -20,10 +20,11 @@ BoardStudio extended layout feature working.
 
 Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consolidated
 [spec](spec.md) and [dependent TDD build tickets](#build-tickets) now exist. This closes
-planning, not implementation. No version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
+planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
-is complete; [17a](issues/17a-grouped-model-and-core-callers.md#answer), [17b](issues/17b-validation-and-ownership.md#answer), [17c](issues/17c-kernel-production-routing.md#answer) and [17d](issues/17d-entry-path-gates.md#answer) are resolved; the unblocked build frontier is
-[17e](issues/17e-fixtures-and-final-gate.md).
+is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
+and all five subtickets are resolved. The unblocked build frontier is
+[18](issues/18-core-placement-edits.md) and [25](issues/25-project-format-recovery.md).
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -105,12 +106,12 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | --- | --- | --- |
 | [15: Pinned parity fixtures](issues/15-generate-parity-fixtures.md) | 10 | Resolved: 40 upstream cases, 4 worked cases, pinned tooling/provenance/notices. |
 | [16: Pure kernel](issues/16-build-layout-kernel.md) | 15 | Resolved: staged kernel, 381 fixture poses, no live activation. |
-| [17: Model/format cutover](issues/17-cut-over-format-and-model.md) | 16 | Grouped records, Layout membership, all removed-field callers and strict gates. |
+| [17: Model/format cutover](issues/17-cut-over-format-and-model.md#answer) | 16 | Resolved: grouped records, Layout membership, removed-field callers and strict gates; unshipped lane only. |
 | [17a: Grouped model and Core callers](issues/17a-grouped-model-and-core-callers.md) | 16 | Resolved: grouped records, `matrixIds`, explicit correspondences, five failing tests fixed, web callers migrated. |
 | [17b: Validation and ownership](issues/17b-validation-and-ownership.md) | 17a | Resolved: dimension bound runs before any row/column walk, grouped validation, step policy, Layout ownership, no anchor-as-origin. |
 | [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer) | 17a | Resolved: projection and parts use the kernel; ordinary saved-pose/member-id oracle coverage replaces the retired test. |
 | [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Resolved: archive unpack gated before the asset table; Core Open, replace and browser list/load gates pinned by tests. |
-| [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md) | 17b, 17c, 17d | Minimum fixture regeneration, quick/full gates, Standards and Spec review. |
+| [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer) | 17b, 17c, 17d | Resolved: minimum fixture repairs, quick/full gates and independent Standards/Spec re-reviews passed. |
 | [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
 | [19: Anchor/Layout groups](issues/19-anchor-layout-groups.md) | 18 | Dependency evaluation, typed anchor edits and identity lifecycle. |
 | [20: Linked group reflection](issues/20-reflect-linked-layouts.md) | 19 | Both linking systems, actual/transported frames and inverse edits. |
@@ -132,6 +133,8 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 ## Decisions so far
 
 <!-- one line per resolved ticket: linked title, then the gist -->
+- [17: Model/format cutover](issues/17-cut-over-format-and-model.md#answer): The coordinated unshipped cutover and all five subtickets are accepted; 18 and 25 form the next independent lanes. Release remains gated by 27.
+- [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer): All 119 paths passed fresh quick/full gates, native 2,150, page 77/77 and packaged drag/collision 13/13; both final review findings were fixed and independent Standards/Spec re-reviews passed.
 - [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer): Draft/actual projection and parts route through the kernel; nine ordinary fixture cases retain saved-pose/member-id coverage, and the reviewed merged quick passes.
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md#answer): **Shift** and **Bend**

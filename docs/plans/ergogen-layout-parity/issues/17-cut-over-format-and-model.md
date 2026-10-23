@@ -1,6 +1,6 @@
 # 17: Cut over the persisted layout model and every removed-field caller
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [16](16-build-layout-kernel.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -160,3 +160,38 @@ review; no intermediate writer is approved for user-data stores.
   This is changed-file verification, not full ticket acceptance, the page suite or
   provider/product smoke. Fixtures and the untracked prototype were untouched;
   no npm command, storage write, stash or push was performed.
+
+## Answer
+
+Resolved on 2026-10-23 in the coordinated, unshipped integration lane. All five
+subtickets are resolved: [17a](17a-grouped-model-and-core-callers.md#answer),
+[17b](17b-validation-and-ownership.md#answer),
+[17c](17c-kernel-production-routing.md#answer),
+[17d](17d-entry-path-gates.md#answer) and
+[17e](17e-fixtures-and-final-gate.md#answer). Earlier Progress subsections are
+historical checkpoints, superseded for acceptance by this Answer.
+
+The grouped v7 records, plural Layout membership and explicit correspondences reach
+the removed-field Core/web callers. Draft/actual projection and materialized parts
+use the kernel; validation bounds run before dimension walks, unresolved anchors
+are refused, and browser/archive/direct Core entry paths enforce controlled format
+admission without migration. Replacement oracle and invisible-contributor coverage
+are active; minimum affected fixtures retain their intended scenarios. Existing
+identity, companion, scan/keymap, storage and history contracts remain covered.
+The final companion arithmetic and scoped Column rotation findings were corrected
+with failing-first regressions rather than weakening those contracts.
+
+[17e's final gate](17e-fixtures-and-final-gate.md#answer) records all 119 paths since
+fixed base `a58a2bf187bd6d08b652dc739cd7c391709ff5c8`, tested source
+`47ce298020ef72903bab4032d5ee5980b7779215`, quick **54/54**, full **55/55**, native
+**2,150 matched**, 14 WASM launches, page **77/77**, CAD checks and packaged
+drag/collision **13/13**. Independent final Standards and Spec re-reviews at
+`f67cd2b48217c1206d1c187cdfc13644da365cd2` both passed with no remaining findings.
+Subsequent closure changes are documentation only; the untracked prototype is
+untouched.
+
+This closes the model/caller cutover, not the remaining feature/recovery/example
+work or release gate. [18](18-core-placement-edits.md) and
+[25](25-project-format-recovery.md) are now unblocked and may run in separate lanes;
+neither is claimed here. Tickets 18–27 must finish before this lane ships. No release
+or user-data writer approval is granted.

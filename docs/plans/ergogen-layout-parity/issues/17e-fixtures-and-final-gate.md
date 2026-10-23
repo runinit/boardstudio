@@ -1,6 +1,6 @@
 # 17e: Fixtures and final gate
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [17b](17b-validation-and-ownership.md), [17c](17c-kernel-production-routing.md), [17d](17d-entry-path-gates.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
@@ -1118,8 +1118,8 @@ The parent reviewed the native baseline candidate updater's exact one addition a
 zero removals, then committed
 `matrix::projection_tests::following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen`
 at `47ce298020ef72903bab4032d5ee5980b7779215`. The WASM baseline was left
-unchanged because its plain `#[test]` name is existing debt, not a supported
-baseline entry; its debt guard passed.
+unchanged because it ratchets wasm-only plain `#[test]` debt, not runtime test
+names. The five new `#[wasm_bindgen_test]` regressions add no such debt; its guard passed.
 
 Fresh gate pin: branch `docs/ergogen-layout-comparison`, source HEAD
 `47ce298020ef72903bab4032d5ee5980b7779215`, fixed base
@@ -1167,10 +1167,46 @@ browser`. Receipt `.evidence/ergogen-17e/review-fix-full-receipt.json` is comple
 and accepted: 55/55 commands, native guard 2,150/2,150 matched (2,150 passed,
 12 ignored), all 14 WASM launches, all five named regressions, and page tests
 77/77 passed. Packaged build, CAD provider/browser checks and trusted drag/collision
-smoke all ran; drag smoke passed 13/13, including exact Undo, column rotation,
-qualified collision and product checks. No scheduled scope was unreached.
+smoke all ran; drag smoke passed 13/13, including exact Undo, Stagger/Offset drags,
+qualified collision and product checks. Column rotation is covered by the five
+WASM regressions above. No scheduled scope was unreached.
 
 These are fresh whole-gate receipts for this source pin, not final ticket reviews.
 17e and parent 17 remain **claimed** pending independent Standards+Spec rereviews;
 no closure, release or user-data writer approval is recorded. Older success and
 failure receipts above remain historical and unchanged.
+
+## Answer
+
+Resolved on 2026-10-23 after fresh gates and independent final re-reviews of the
+full coordinated cutover. Earlier Progress checkpoints retain their historical
+blocked/pending state; this Answer records final acceptance.
+
+- Minimum fixture repairs preserve the intended boundary success/refusal scenarios,
+  explicit Matrix correspondence admission and authored source-key rotation. Drag
+  smoke reads the grouped persisted fields without weakening its gesture, durable
+  save, cancellation or exact Undo assertions. Examples/starters remain owned by 26.
+- Both final-review P2 findings are resolved: materialization and refresh share the
+  original companion arithmetic order with exact refresh/reopen coverage; Column
+  rotation and Splay use scope-correct reads throughout existing controls, with five
+  failing-first WASM regressions. The native baseline contains 2,150 names; the WASM
+  debt baseline is unchanged.
+- Tested source: `47ce298020ef72903bab4032d5ee5980b7779215`, compared with fixed base
+  `a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. Quick covered all 119 paths and passed
+  **54/54** commands; the full pre-PR check passed **55/55**. Both matched all
+  **2,150** native names, with zero missing/new and 12 existing ignored. All 14 WASM
+  launches passed, including layout **157+1**; the separate page suite passed
+  **77/77**. CAD checks and the
+  packaged trusted drag/collision smoke **13/13** passed. Evidence is in
+  `.evidence/ergogen-17e/review-fix-{quick,full}-receipt.json` and the matching logs.
+- Independent Codex Sol medium/fast re-reviews at
+  `f67cd2b48217c1206d1c187cdfc13644da365cd2` returned **Standards: PASS** and
+  **Spec: PASS**, with no remaining blocking or should-fix findings. Review rounds:
+  `ergogen-17-final-standards-r2-sol` and `ergogen-17-final-spec-r2-sol`.
+  Reviewers inspected source, fixtures and receipts without running builds/tests.
+  Changes after the gate source are progress/closure documentation only.
+
+The preexisting untracked prototype remains untouched. Before/after test-count
+comparison is unknown because no base run was supplied. This closes the final gate
+for parent 17's unshipped cutover, not tickets 18–27, release gate 27 or permission
+to promote a user-data writer.
