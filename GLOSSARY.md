@@ -329,9 +329,9 @@ A turn of one key about its centre. No other key inherits it.
 _Avoid_: bend
 
 **Structural relationship**:
-Placement a selection inherits from its matrix (pitch, offsets, stagger, splay,
-matrix frame) and from key assemblies. It is read from the accepted document;
-there is no separate relationship record.
+Placement a selection inherits from matrix steps, carried transforms, independent
+adjustments, its matrix frame and anchors, and key assemblies. It is read from the
+accepted document; there is no separate relationship record.
 
 **Explicit constraint**:
 A separately authored placement relationship from a source part to a target part.

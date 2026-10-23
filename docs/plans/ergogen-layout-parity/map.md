@@ -66,7 +66,9 @@ BoardStudio extended layout feature working.
 ├── 08 Adapt consumers that assume uniform pitch (grilling) ───────────────────────────────────┤
 ├── 09 Prototype the Inspector and toolbar (prototype, also after 01) ──────────────────────────┤
 ├── 11 Decide mirrored-half rules (grilling, also after 05, 06, 07) ────────────────────────────┤
-└── 12 Decide how Relations explains chains and anchors (grilling, also after 01, 05, 07) ──────┴── 10 Slice the build
+├── 12 Decide how Relations explains chains and anchors (grilling, also after 01, 05, 07) ──────┤
+├── 13 Decide format reset and recovery (grilling, also after 07, 11) ──────────────────────────┤
+└── 14 Decide starters and demos (grilling, also after 07, 08, 09, 11, 12) ─────────────────────┴── 10 Slice the build
 ```
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md)
@@ -81,6 +83,8 @@ BoardStudio extended layout feature working.
 - [10: Slice the build into tickets](issues/10-slice-the-build.md)
 - [11: Decide mirrored-half rules for the new layout fields and anchors](issues/11-mirrored-halves-rules.md)
 - [12: Decide how Relations explains carried chains and anchors](issues/12-relations-and-highlight.md)
+- [13: Decide the format reset and recovery behaviour](issues/13-format-reset-and-recovery.md)
+- [14: Decide how starters and demos are rebuilt](issues/14-starters-and-demos.md)
 
 ## Decisions so far
 
@@ -163,13 +167,18 @@ BoardStudio extended layout feature working.
     Asymmetric keep-pose detach/removal needs confirmation of any additional Local exception.
   - Rejoin preserves child exceptions and validates anchors atomically. Real prepared-route
     lifecycle acceptance is required; no runtime support is claimed by the decision.
+- [12: Decide how Relations explains chains and anchors](issues/12-relations-and-highlight.md#answer):
+  - One **How it is placed** chain, **Independent adjustments** and **Authored constraints**.
+    Core supplies accurate cumulative contributions; Relations supplies presentation, not
+    duplicate layout maths. Mixed values say **Varies**.
+  - Distinguish matrix carry from direct anchor dependencies and Local/Omitted effects.
+    Invisible contributors remain explained without restoring geometry or hidden layers.
+  - Violet dashed references highlight named contributors/receivers; amber edit previews show
+    actual movement. Navigation opens the appropriate context/tool without editing values;
+    Reset/Convert remain explicit actions with accessible blocked reasons.
 
 ## Not yet specified
 
-- **Format reset.** The user-facing message when an older document is refused, how stored
-  browser projects and Undo history are cleared, and the archive import message.
-- **Starters.** Rebuilding the three starters and the demos under the new rules, for example
-  whether the split starter's thumb keys become an anchored thumb matrix.
 - **Aggregate anchors.** Ergogen's `aggregate` anchors (average or intersection of keys), if
   parity work shows they are needed.
 
