@@ -4,9 +4,16 @@ use boardstudio_core::{
 };
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
+};
 
-use dioxus::prelude::*;
 use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
+use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
@@ -335,18 +342,21 @@ pub fn ProjectSetupGuide(
                 header { class: "m1-setup-guide__header",
                     div {
                         h2 {
-                            id: "m1-setup-guide-heading", tabindex: "-1",
-                            onmounted: move |event| async move { let _ = event.set_focus(true).await; },
+                            id: "m1-setup-guide-heading",
+                            tabindex: "-1",
+                            onmounted: move |event| async move {
+                                let _ = event.set_focus(true).await;
+                            },
                             "Setup guide"
                         }
                     }
                     Button {
-    variant: ButtonVariant::Secondary,
-    class: "m1-setup-guide__dismiss",
-    button_type: "button",
-    onclick: move |_| on_dismiss.call(()),
-     "Hide guide"
-    }
+                        variant: ButtonVariant::Outline,
+                        class: "m1-setup-guide__dismiss",
+                        button_type: "button",
+                        onclick: move |_| on_dismiss.call(()),
+                        "Hide guide"
+                    }
                 }
                 Accordion { class: "m1-setup-stage-accordion", allow_multiple_open: false,
                     for (index, item_stage, title, ready) in [
@@ -354,7 +364,8 @@ pub fn ProjectSetupGuide(
                         (1usize, SetupGuideStage::Layout, "Layout & assemblies", stage_readiness[1]),
                         (2usize, SetupGuideStage::Wiring, "Controller & wiring", stage_readiness[2]),
                         (3usize, SetupGuideStage::Case, "Case (optional)", stage_readiness[3]),
-                    ] {
+                    ]
+                    {
                         AccordionItem {
                             index,
                             default_open: stage == item_stage,
@@ -374,9 +385,17 @@ pub fn ProjectSetupGuide(
                             AccordionTrigger {
                                 aria_controls: "m1-setup-panel-{index}",
                                 class: if stage == item_stage { "m1-setup-guide__step is-current" } else { "m1-setup-guide__step" },
-                                span { class: "m1-setup-guide__step-marker", aria_label: ready.then_some("Ready"), if ready { "✓" } else { "{index + 1}" } }
+                                span {
+                                    class: "m1-setup-guide__step-marker",
+                                    aria_label: ready.then_some("Ready"),
+                                    if ready {
+                                        "✓"
+                                    } else {
+                                        "{index + 1}"
+                                    }
+                                }
                                 strong { "{title}" }
-                                span { class: "m1-setup-guide__chevron", aria_hidden: "true", "⌄" }
+
                             }
                             div {
                                 id: "m1-setup-panel-{index}",
@@ -384,51 +403,75 @@ pub fn ProjectSetupGuide(
                                 aria_hidden: expanded() != Some(item_stage),
                                 section { class: "m1-setup-guide__content m1-setup-stage-form",
                                     if item_stage == SetupGuideStage::Project {
-                                        label { "Project name"
-                                            input {
-                                                aria_label: "Project name", value: "{project_name}",
-                                                oninput: move |event| on_name_change.call(event.value()),
-                                                onblur: move |_| on_name_commit.call(()),
-                                                onkeydown: move |event| {
-                                                    if event.key() == Key::Enter
-                                                        && let Some(input) = event.data().try_as_web_event()
-                                                            .and_then(|event| event.target())
-                                                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
-                                                    { let _ = input.blur(); }
-                                                },
+                                        {
+                                            let control_input_id = format!(
+                                                "layout-input-{}-1",
+                                                dioxus::core::current_scope_id().0,
+                                            );
+                                            rsx! {
+                                                Field {
+                                                    FieldLabel { html_for: control_input_id.clone(), "Project name" }
+                                                    InputGroup {
+                                                        InputGroupInput { aria_label: "Project name",
+    value: "{project_name}",
+    oninput: move |event: FormEvent| on_name_change.call(event.value()),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::events::onblur(move |_| on_name_commit.call(())),dioxus::events::onkeydown(move |event| {
+                                                        if event.key() == Key::Enter
+                                                            && let Some(input) = event.data().try_as_web_event()
+                                                                .and_then(|event| event.target())
+                                                                .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                                        { let _ = input.blur(); }
+                                                    })], }
+                                                    }
+                                                }
                                             }
                                         }
-                                        if let Some(controls) = project_controls.clone() { {controls} }
+                                        if let Some(controls) = project_controls.clone() {
+                                            {controls}
+                                        }
                                     } else if item_stage == SetupGuideStage::Layout {
-                                        if let Some(matrix_setup) = matrix_setup.clone() { {matrix_setup} }
-                                        else if let Some(on_open) = on_open_matrix_setup {
+                                        if let Some(matrix_setup) = matrix_setup.clone() {
+                                            {matrix_setup}
+                                        } else if let Some(on_open) = on_open_matrix_setup {
                                             Button {
-    variant: ButtonVariant::Default,
-    class: "m1-setup-guide__primary m1-setup-guide__add-matrix",
-    onclick: move |_| on_open.call(()),
-     if has_matrix { "Add Thumb cluster" } else { "Set up key matrix" }
-    }
+                                                variant: ButtonVariant::Default,
+                                                class: "m1-setup-guide__primary m1-setup-guide__add-matrix",
+                                                onclick: move |_| on_open.call(()),
+                                                if has_matrix {
+                                                    "Add Thumb cluster"
+                                                } else {
+                                                    "Set up key matrix"
+                                                }
+                                            }
                                         }
                                     } else if item_stage == SetupGuideStage::Wiring {
-                                        p { "Choose a controller. BoardStudio resolves pins and wiring from its footprint." }
-                                        if let Some(controller_picker) = controller_picker.clone() { {controller_picker} }
-                                        else if let Some(on_choose) = on_choose_controller {
+                                        p {
+                                            "Choose a controller. BoardStudio resolves pins and wiring from its footprint."
+                                        }
+                                        if let Some(controller_picker) = controller_picker.clone() {
+                                            {controller_picker}
+                                        } else if let Some(on_choose) = on_choose_controller {
                                             Button {
-    variant: ButtonVariant::Secondary,
-    class: "m1-setup-guide__secondary",
-    onclick: move |_| on_choose.call(()),
-     "Choose controller"
-    }
+                                                variant: ButtonVariant::Outline,
+                                                class: "m1-setup-guide__secondary",
+                                                onclick: move |_| on_choose.call(()),
+                                                "Choose controller"
+                                            }
                                         }
                                     } else if item_stage == SetupGuideStage::Case {
-                                        p { "Optional. Set the basics here, then refine your case in the full editor." }
-                                        if let Some(case_basics) = case_basics.clone() { {case_basics} }
+                                        p {
+                                            "Optional. Set the basics here, then refine your case in the full editor."
+                                        }
+                                        if let Some(case_basics) = case_basics.clone() {
+                                            {case_basics}
+                                        }
                                         Button {
-    variant: ButtonVariant::Secondary,
-    class: "m1-setup-guide__secondary",
-    onclick: move |_| on_open_workspace.call("Case"),
-     "Open full case settings"
-    }
+                                            variant: ButtonVariant::Outline,
+                                            class: "m1-setup-guide__secondary",
+                                            onclick: move |_| on_open_workspace.call("Case"),
+                                            "Open full case settings"
+                                        }
                                     } else {
                                         p { "Review the selected board and its available outputs." }
                                     }
@@ -440,29 +483,33 @@ pub fn ProjectSetupGuide(
                 footer { class: "m1-setup-guide__footer",
                     if let Some(previous) = previous_stage {
                         Button {
-    variant: ButtonVariant::Secondary,
-    class: "m1-setup-guide__back",
-    aria_label: "Previous step",
-    onclick: move |_| on_stage_change.call(previous),
+                            variant: ButtonVariant::Outline,
+                            class: "m1-setup-guide__back",
+                            aria_label: "Previous step",
+                            onclick: move |_| on_stage_change.call(previous),
 
-                            svg { view_box: "0 0 24 24", "aria-hidden": "true", path { d: "M19 12H5m7 7-7-7 7-7" } }
+                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                path { d: "M19 12H5m7 7-7-7 7-7" }
+                            }
 
-    }
-                    } else { span {} }
+                        }
+                    } else {
+                        span {}
+                    }
                     if let Some(next) = next_stage {
                         Button {
-    variant: ButtonVariant::Default,
-    class: "m1-setup-guide__primary",
-    onclick: move |_| on_stage_change.call(next),
-     "{footer}"
-    }
+                            variant: ButtonVariant::Default,
+                            class: "m1-setup-guide__primary",
+                            onclick: move |_| on_stage_change.call(next),
+                            "{footer}"
+                        }
                     } else {
                         Button {
-    variant: ButtonVariant::Default,
-    class: "m1-setup-guide__primary",
-    onclick: move |_| on_finish.call(()),
-     "{footer}"
-    }
+                            variant: ButtonVariant::Default,
+                            class: "m1-setup-guide__primary",
+                            onclick: move |_| on_finish.call(()),
+                            "{footer}"
+                        }
                     }
                 }
             }
@@ -633,19 +680,51 @@ mod tests;
 #[component]
 pub fn SetupHardwarePreview(split: bool, wired: bool) -> Element {
     rsx! {
-        section { class: "m1-setup-hardware-preview m1-setup-preview", aria_label: "Assembly preview",
+        section {
+            class: "m1-setup-hardware-preview m1-setup-preview",
+            aria_label: "Assembly preview",
             h2 { "Assembly preview" }
-            p { if split { "Split keyboard" } else { "One keyboard" }
-                if split { if wired { " · Wired connection" } else { " · Wireless connection" } }
-            }
-            svg { view_box: "0 0 600 340", role: "img", "aria-label": "Schematic physical board arrangement",
-                rect { x: if split { "40" } else { "110" }, y: "70", width: if split { "220" } else { "380" }, height: "180", rx: "12" }
+            p {
                 if split {
-                    rect { x: "340", y: "70", width: "220", height: "180", rx: "12" }
-                    if wired { path { class: "m1-setup-connection", d: "M260 200H340" } }
+                    "Split keyboard"
+                } else {
+                    "One keyboard"
+                }
+                if split {
+                    if wired {
+                        " · Wired connection"
+                    } else {
+                        " · Wireless connection"
+                    }
+                }
+            }
+            svg {
+                view_box: "0 0 600 340",
+                role: "img",
+                "aria-label": "Schematic physical board arrangement",
+                rect {
+                    x: if split { "40" } else { "110" },
+                    y: "70",
+                    width: if split { "220" } else { "380" },
+                    height: "180",
+                    rx: "12",
+                }
+                if split {
+                    rect {
+                        x: "340",
+                        y: "70",
+                        width: "220",
+                        height: "180",
+                        rx: "12",
+                    }
+                    if wired {
+                        path { class: "m1-setup-connection", d: "M260 200H340" }
+                    }
                     text { x: "150", y: "290", "Left assembly" }
                     text { x: "450", y: "290", "Right assembly" }
-                } else { text { x: "300", y: "290", "Keyboard assembly" } }
+                } else {
+                    text { x: "300", y: "290", "Keyboard assembly" }
+                }
             }
             p { "Schematic arrangement. Add keys in Layout to create board geometry." }
         }

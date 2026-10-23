@@ -320,26 +320,34 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
             "Preparing canonical board preview…".to_owned()
         };
         return rsx! {
-                    div {
-                        p { role: "status", class: "m1-layout-viewer-status", "{message}" }
-                        if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
-                            p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
-                        } else if keycaps_preview_pending() {
-                            p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
-                        }
-                        if let Some(error) = keycaps_preview_error() {
-                            p { role: "alert", class: "m1-layout-viewer-status", "Keycap preview failed: {error}" }
-                            Button {
-        variant: ButtonVariant::Secondary,
-        button_type: "button",
-        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
-
-                                "Retry keycaps"
-
-        }
-                        }
+            div {
+                p { role: "status", class: "m1-layout-viewer-status", "{message}" }
+                if let Some(blocker) = props
+                    .keycaps_fit
+                    .as_ref()
+                    .and_then(|fit| fit.preview_blocker_message())
+                {
+                    p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+                } else if keycaps_preview_pending() {
+                    p { role: "status", class: "m1-layout-viewer-status",
+                        "Generating keycap CAD…"
                     }
-                };
+                }
+                if let Some(error) = keycaps_preview_error() {
+                    p { role: "alert", class: "m1-layout-viewer-status",
+                        "Keycap preview failed: {error}"
+                    }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        button_type: "button",
+                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+
+                        "Retry keycaps"
+
+                    }
+                }
+            }
+        };
     };
 
     let focus_request = props.focused_finding.as_ref().and_then(|focused| {
@@ -374,44 +382,48 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     });
 
     rsx! {
-            div { class: "m1-layout-canonical-viewer",
-                if let Some(blocker) = props.keycaps_fit.as_ref().and_then(|fit| fit.preview_blocker_message()) {
-                    p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
-                } else if keycaps_preview_pending() {
-                    p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
-                }
-                if let Some(error) = keycaps_preview_error() {
-                    div { role: "alert", class: "m1-layout-viewer-status",
-                        p { "Keycap preview failed: {error}" }
-                        Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
+        div { class: "m1-layout-canonical-viewer",
+            if let Some(blocker) = props
+                .keycaps_fit
+                .as_ref()
+                .and_then(|fit| fit.preview_blocker_message())
+            {
+                p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+            } else if keycaps_preview_pending() {
+                p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+            }
+            if let Some(error) = keycaps_preview_error() {
+                div { role: "alert", class: "m1-layout-viewer-status",
+                    p { "Keycap preview failed: {error}" }
+                    Button {
+                        variant: ButtonVariant::Outline,
+                        button_type: "button",
+                        onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
 
-                            "Retry keycaps"
+                        "Retry keycaps"
 
-    }
                     }
                 }
-                CaseSharedViewer {
-                    scene: None,
-                    preview: None,
-                    layout_preview: Some(preview),
-                    keycaps_preview: keycaps_preview(),
-                    parts_preview: None,
-                    model_rows,
-                    selected_layer: "pcb".to_owned(),
-                    selected_reference: None,
-                    display: display(),
-                    resolved_theme: theme,
-                    on_signal,
-                    on_display_change,
-                    mechanical_settings: None,
-                    inline_case_controls: false,
-                    focus_request,
-                }
+            }
+            CaseSharedViewer {
+                scene: None,
+                preview: None,
+                layout_preview: Some(preview),
+                keycaps_preview: keycaps_preview(),
+                parts_preview: None,
+                model_rows,
+                selected_layer: "pcb".to_owned(),
+                selected_reference: None,
+                display: display(),
+                resolved_theme: theme,
+                on_signal,
+                on_display_change,
+                mechanical_settings: None,
+                inline_case_controls: false,
+                focus_request,
             }
         }
+    }
 }
 
 fn finding_focus_target_ids(
@@ -519,16 +531,16 @@ mod mounted_keycaps_preview_tests {
         let fit = fit_signal();
         let newer_fit = probe.newer_fit.clone();
         rsx! {
-                    Button {
-        variant: ButtonVariant::Secondary,
-        id: "keycaps-preview-advance-owner",
-        onclick: move |_| fit_signal.set(Some(newer_fit.clone())),
+            Button {
+                variant: ButtonVariant::Outline,
+                id: "keycaps-preview-advance-owner",
+                onclick: move |_| fit_signal.set(Some(newer_fit.clone())),
 
-                        "Advance board and revision"
+                "Advance board and revision"
 
+            }
+            LayoutCanonicalViewer { keycaps_fit: fit }
         }
-                    LayoutCanonicalViewer { keycaps_fit: fit }
-                }
     }
 
     fn preview_provider(requests: Rc<RefCell<VecDeque<PendingPreview>>>) -> KeycapsPreviewProvider {

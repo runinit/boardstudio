@@ -146,8 +146,8 @@ pub fn ComboboxOption<T: Clone + PartialEq + 'static>(props: ComboboxOptionProps
 #[cfg(all(test, target_arch = "wasm32"))]
 mod identity_tests {
     use super::*;
-    use wasm_bindgen::JsCast;
     use crate::{test_role::by_role_name, test_wait::wait_until, ui::field::FieldLabel};
+    use wasm_bindgen::JsCast;
 
     fn fixture() -> Element {
         rsx! {
@@ -157,7 +157,9 @@ mod identity_tests {
                     ComboboxOption::<String> { index: 0usize, value: "part", text_value: "Part", "Part" }
                 }
             }
-            Combobox::<String> { aria_label: "Default identity", list_aria_label: "Default choices",
+            Combobox::<String> {
+                aria_label: "Default identity",
+                list_aria_label: "Default choices",
                 ComboboxOption::<String> { index: 0usize, value: "default", text_value: "Default", "Default" }
             }
         }
@@ -168,34 +170,123 @@ mod identity_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
-        dioxus_web::launch::launch_virtual_dom(VirtualDom::new(fixture), dioxus_web::Config::new().rootnode(root.clone().into()));
-        wait_until("actual labeled Comboboxes mount", || by_role_name(&root, "combobox", "Second part").is_some()).await;
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("actual labeled Comboboxes mount", || {
+            by_role_name(&root, "combobox", "Second part").is_some()
+        })
+        .await;
         let mut ids = std::collections::BTreeSet::new();
-        for (expected_id, label) in [(Some("combo-first"), "First part"), (Some("combo-second"), "Second part"), (None, "Default identity")] {
+        for (expected_id, label) in [
+            (Some("combo-first"), "First part"),
+            (Some("combo-second"), "Second part"),
+            (None, "Default identity"),
+        ] {
             let input = by_role_name(&root, "combobox", label).unwrap();
             let id = input.id();
             if let Some(expected_id) = expected_id {
                 // Labels have no accessible role; follow their native `for` association.
-                root.query_selector(&format!("[for='{expected_id}']")).unwrap().unwrap().dyn_into::<web_sys::HtmlElement>().unwrap().click();
-                assert_eq!(document.active_element().unwrap(), input.clone().into(), "FieldLabel must focus its actual combobox input");
+                root.query_selector(&format!("[for='{expected_id}']"))
+                    .unwrap()
+                    .unwrap()
+                    .dyn_into::<web_sys::HtmlElement>()
+                    .unwrap()
+                    .click();
+                assert_eq!(
+                    document.active_element().unwrap(),
+                    input.clone().into(),
+                    "FieldLabel must focus its actual combobox input"
+                );
                 assert_eq!(id, expected_id);
+                wait_until("native label click opens its input popup", || {
+                    input.get_attribute("aria-expanded").as_deref() == Some("true")
+                })
+                .await;
+                let init = web_sys::KeyboardEventInit::new();
+                init.set_key("Escape");
+                init.set_bubbles(true);
+                input
+                    .dispatch_event(
+                        &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict(
+                            "keydown", &init,
+                        )
+                        .unwrap(),
+                    )
+                    .unwrap();
+                wait_until(
+                    "label-opened popup closes before keyboard navigation",
+                    || input.get_attribute("aria-expanded").as_deref() == Some("false"),
+                )
+                .await;
             }
             assert!(!id.is_empty());
             assert!(ids.insert(id.clone()));
-            assert_eq!(document.query_selector_all(&format!("[id='{id}']")).unwrap().length(), 1);
+            assert_eq!(
+                document
+                    .query_selector_all(&format!("[id='{id}']"))
+                    .unwrap()
+                    .length(),
+                1
+            );
             input.focus().unwrap();
-            let init = web_sys::KeyboardEventInit::new(); init.set_key("ArrowDown"); init.set_bubbles(true);
-            input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
-            wait_until("named list opens", || input.get_attribute("aria-expanded").as_deref() == Some("true")).await;
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key("ArrowDown");
+            init.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+            wait_until("named list opens with an active option", || {
+                input.get_attribute("aria-expanded").as_deref() == Some("true")
+                    && input
+                        .get_attribute("aria-activedescendant")
+                        .and_then(|id| document.get_element_by_id(&id))
+                        .is_some()
+            })
+            .await;
             let list_id = input.get_attribute("aria-controls").unwrap();
-            assert_eq!(document.get_element_by_id(&list_id).unwrap().get_attribute("role").as_deref(), Some("listbox"));
+            assert_eq!(
+                document
+                    .get_element_by_id(&list_id)
+                    .unwrap()
+                    .get_attribute("role")
+                    .as_deref(),
+                Some("listbox")
+            );
             let active = input.get_attribute("aria-activedescendant").unwrap();
-            assert_eq!(document.get_element_by_id(&active).unwrap().get_attribute("role").as_deref(), Some("option"));
-            let init = web_sys::KeyboardEventInit::new(); init.set_key("Escape"); init.set_bubbles(true);
-            input.dispatch_event(&web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap()).unwrap();
-            wait_until("Combobox closes on Escape", || input.get_attribute("aria-expanded").as_deref() == Some("false")).await;
+            assert_eq!(
+                document
+                    .get_element_by_id(&active)
+                    .unwrap()
+                    .get_attribute("role")
+                    .as_deref(),
+                Some("option")
+            );
+            let init = web_sys::KeyboardEventInit::new();
+            init.set_key("Escape");
+            init.set_bubbles(true);
+            input
+                .dispatch_event(
+                    &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                        .unwrap(),
+                )
+                .unwrap();
+            wait_until("Combobox closes on Escape", || {
+                input.get_attribute("aria-expanded").as_deref() == Some("false")
+            })
+            .await;
             assert_eq!(document.active_element().unwrap(), input.clone().into());
-            assert!(!input.closest("[data-slot=combobox]").unwrap().unwrap().has_attribute("id"));
+            assert!(
+                !input
+                    .closest("[data-slot=combobox]")
+                    .unwrap()
+                    .unwrap()
+                    .has_attribute("id")
+            );
         }
         root.remove();
     }

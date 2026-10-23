@@ -4,6 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{EditResolver, Event, ReadModel, Resolution, Scope, SelectionMode};
 use boardstudio_core::model::EditOperation;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
@@ -379,35 +380,39 @@ pub(super) fn SelectedKeysActions() -> Element {
             }
         });
     rsx! {
-            section { class: "m1-layout-component-inspector", aria_label: "Selected keys across matrices",
-                h3 { "{count} keys across {matrix_count} matrices" }
-                div { class: "m1-layout-transform-actions",
-                    Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    aria_label: "Enable selected keys",
-    onclick: move |_| on_action.call(Action::Enable),
-     "Enable"
-    }
-                    Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    aria_label: "Disable selected keys",
-    onclick: move |_| on_action.call(Action::Disable),
-     "Disable"
-    }
-                    Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    aria_label: "Delete selected keys",
-    disabled: delete_pending(),
-    onclick: move |_| on_action.call(Action::Delete),
-     "Delete keys"
-    }
+        section {
+            class: "m1-layout-component-inspector",
+            aria_label: "Selected keys across matrices",
+            h3 { "{count} keys across {matrix_count} matrices" }
+            div { class: "m1-layout-transform-actions",
+                Button {
+                    variant: ButtonVariant::Outline,
+                    button_type: "button",
+                    aria_label: "Enable selected keys",
+                    onclick: move |_| on_action.call(Action::Enable),
+                    "Enable"
                 }
-                if let Some(message) = enabled_failure().or_else(&*failure) { p { role: "alert", "{message}" } }
+                Button {
+                    variant: ButtonVariant::Outline,
+                    button_type: "button",
+                    aria_label: "Disable selected keys",
+                    onclick: move |_| on_action.call(Action::Disable),
+                    "Disable"
+                }
+                Button {
+                    variant: ButtonVariant::Outline,
+                    button_type: "button",
+                    aria_label: "Delete selected keys",
+                    disabled: delete_pending(),
+                    onclick: move |_| on_action.call(Action::Delete),
+                    "Delete keys"
+                }
+            }
+            if let Some(message) = enabled_failure().or_else(&*failure) {
+                Alert { variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }
         }
+    }
 }
 
 #[cfg(test)]

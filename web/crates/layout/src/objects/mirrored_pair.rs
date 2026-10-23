@@ -3,11 +3,19 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
+};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
 };
 
 use dioxus::prelude::*;
@@ -194,111 +202,203 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     let on_cancel = props.on_cancel;
 
     rsx! {
-            section { class: "m1-matrix-setup m1-mirrored-pair-setup", aria_label: "New mirrored pair",
-                header { class: "m1-matrix-setup-heading", h2 { "Mirrored pair" } }
-                p { class: "m1-mirrored-pair-intro", "Linked key assemblies, diode settings and components. Substitute a component on either half when needed." }
-                form { onsubmit: submit,
-                    div { class: "m1-mirrored-pair-fields",
-                        label { "Left layout"
-                            input { aria_label: "Left layout name", required: true, onmounted: move |event| async move { let _ = event.set_focus(true).await; }, value: "{left_name_value}", disabled: !props.projection.editable, oninput: move |event| left_name.set(event.value()) }
-                        }
-                        label { "Right layout"
-                            input { aria_label: "Right layout name", required: true, value: "{right_name_value}", disabled: !props.projection.editable, oninput: move |event| right_name.set(event.value()) }
-                        }
-                        label { "Rows per half"
-                            input { aria_label: "Rows per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{rows_value}", disabled: !props.projection.editable, oninput: move |event| rows.set(event.value()) }
-                        }
-                        label { "Columns per half"
-                            input { aria_label: "Columns per half", r#type: "number", min: "1", max: "4096", step: "1", required: true, value: "{columns_value}", disabled: !props.projection.editable, oninput: move |event| columns.set(event.value()) }
-                        }
+                section {
+                    class: "m1-matrix-setup m1-mirrored-pair-setup",
+                    aria_label: "New mirrored pair",
+                    header { class: "m1-matrix-setup-heading",
+                        h2 { "Mirrored pair" }
                     }
-                    {
-    let control_label = "Key assembly".to_owned();
-    let control_aria_label = "Key assembly".to_owned();
-    let control_id = format!(
-        "layout-choice-{}-{}",
-        dioxus::core::current_scope_id().0,
-        control_aria_label.replace(' ', "-")
-    );
-    let control_value = ((preset_value.as_str()).to_string()).to_string();
-    let control_choices = [
-        ("mx-solder".to_owned(), "MX Solder".to_owned(), false),
-        ("mx-hotswap".to_owned(), "MX Hotswap".to_owned(), false),
-        ("choc-solder".to_owned(), "Choc V1 Solder".to_owned(), false),
-        (
-            "choc-hotswap".to_owned(),
-            "Choc V1 Hotswap".to_owned(),
-            false,
-        ),
-        ("mx-rgb".to_owned(), "MX RGB".to_owned(), false),
-        ("choc-rgb".to_owned(), "Choc V1 RGB".to_owned(), false),
-        (
-            "mx-hotswap-rgb".to_owned(),
-            "MX Hotswap RGB".to_owned(),
-            false,
-        ),
-        (
-            "choc-hotswap-rgb".to_owned(),
-            "Choc V1 Hotswap RGB".to_owned(),
-            false,
-        ),
-    ];
-    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        if let Some(next) = parse_preset(&choice) {
-            preset.set(next);
-        }
-    });
-    rsx! {
+                    p { class: "m1-mirrored-pair-intro",
+                        "Linked key assemblies, diode settings and components. Substitute a component on either half when needed."
+                    }
+                    form { onsubmit: submit,
+                        div { class: "m1-mirrored-pair-fields",
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-5",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Left layout" }
+                                        InputGroup {
+                                            InputGroupInput { aria_label: "Left layout name",
+    required: true,
+    value: "{left_name_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| left_name.set(event.value()),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::events::onmounted(move |event| async move { let _ = event.set_focus(true).await; })], }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-4",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Right layout" }
+                                        InputGroup {
+                                            InputGroupInput { aria_label: "Right layout name",
+    required: true,
+    value: "{right_name_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| right_name.set(event.value()),
+    id: control_input_id.clone(), }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-3",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Rows per half" }
+                                        InputGroup {
+                                            InputGroupInput { aria_label: "Rows per half",
+    r#type: InputType::Number,
+    min: "1",
+    max: "4096",
+    step: "1",
+    required: true,
+    value: "{rows_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| rows.set(event.value()),
+    id: control_input_id.clone(), }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-2",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Columns per half" }
+                                        InputGroup {
+                                            InputGroupInput { aria_label: "Columns per half",
+    r#type: InputType::Number,
+    min: "1",
+    max: "4096",
+    step: "1",
+    required: true,
+    value: "{columns_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| columns.set(event.value()),
+    id: control_input_id.clone(), }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        {
+                            let control_label = "Key assembly".to_owned();
+                            let control_aria_label = "Key assembly".to_owned();
+                            let control_id = format!(
+                                "layout-choice-{}-{}",
+                                dioxus::core::current_scope_id().0,
+                                control_aria_label.replace(' ', "-"),
+                            );
+                            let control_value = ((preset_value.as_str()).to_string()).to_string();
+                            let control_choices = [
+                                ("mx-solder".to_owned(), "MX Solder".to_owned(), false),
+                                ("mx-hotswap".to_owned(), "MX Hotswap".to_owned(), false),
+                                ("choc-solder".to_owned(), "Choc V1 Solder".to_owned(), false),
+                                ("choc-hotswap".to_owned(), "Choc V1 Hotswap".to_owned(), false),
+                                ("mx-rgb".to_owned(), "MX RGB".to_owned(), false),
+                                ("choc-rgb".to_owned(), "Choc V1 RGB".to_owned(), false),
+                                ("mx-hotswap-rgb".to_owned(), "MX Hotswap RGB".to_owned(), false),
+                                ("choc-hotswap-rgb".to_owned(), "Choc V1 Hotswap RGB".to_owned(), false),
+                            ];
+                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
+            let Some(choice) = choice else {
+                return;
+            };
+            if let Some(next) = parse_preset(&choice) {
+                preset.set(next);
+            }
+        });
+        rsx! {
 
-        Field { class: "",
-            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-            Select::<String> {
-                id: control_id,
-                aria_label: control_aria_label,
-                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
-                disabled: !props.projection.editable,
-                on_value_change,
-                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                    SelectOption::<String> {
-                        index,
-                        value: value.clone(),
-                        text_value: label.clone(),
-                        disabled: *disabled,
-                        "{label}"
+                                Field { class: "",
+                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                    Select::<String> {
+                                        id: control_id,
+                                        aria_label: control_aria_label,
+                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        disabled: !props.projection.editable,
+                                        on_value_change,
+                                        for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                            SelectOption::<String> {
+                                                index,
+                                                value: value.clone(),
+                                                text_value: label.clone(),
+                                                disabled: *disabled,
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                        {
+                            let control_input_id = format!(
+                                "layout-input-{}-1",
+                                dioxus::core::current_scope_id().0,
+                            );
+                            rsx! {
+                                Field {
+                                    FieldLabel { html_for: control_input_id.clone(), "Gap between key edges (mm)" }
+                                    InputGroup {
+                                        InputGroupInput { aria_label: "Gap between key edges (mm)",
+    r#type: InputType::Number,
+    min: "0",
+    step: "any",
+    required: true,
+    value: "{gap_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| gap.set(event.value()),
+    id: control_input_id.clone(), }
+                                    }
+                                }
+                            }
+                        }
+                        p { class: "m1-mirrored-pair-policy",
+                            "Edit either half to update both. Unlink in the inspector for independent geometry."
+                        }
+                        if let Some(error) = error {
+                            Alert { class: "m1-mirrored-pair-error",
+        variant: AlertVariant::Destructive,AlertDescription {  "{error}"  } }
+                        }
+                        if let Some(status) = status {
+                            div { role: "status",  Callout { class: "m1-mirrored-pair-status", variant: CalloutVariant::Info,  "{status}"  } }
+                        }
+                        footer { class: "m1-mirrored-pair-actions",
+                            Button {
+                                variant: ButtonVariant::Outline,
+                                button_type: "button",
+                                onclick: move |_| on_cancel.call(owner.clone()),
+                                "Cancel"
+                            }
+                            Button {
+                                variant: ButtonVariant::Outline,
+                                button_type: "submit",
+                                disabled: !can_preview,
+                                "Preview placement"
+                            }
+                        }
                     }
                 }
             }
-        }
-
-
-    }
-}
-                    label { "Gap between key edges (mm)"
-                        input { aria_label: "Gap between key edges (mm)", r#type: "number", min: "0", step: "any", required: true, value: "{gap_value}", disabled: !props.projection.editable, oninput: move |event| gap.set(event.value()) }
-                    }
-                    p { class: "m1-mirrored-pair-policy", "Edit either half to update both. Unlink in the inspector for independent geometry." }
-                    if let Some(error) = error { p { role: "alert", class: "m1-mirrored-pair-error", "{error}" } }
-                    if let Some(status) = status { p { role: "status", class: "m1-mirrored-pair-status", "{status}" } }
-                    footer { class: "m1-mirrored-pair-actions",
-                        Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| on_cancel.call(owner.clone()),
-     "Cancel"
-    }
-                        Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "submit",
-    disabled: !can_preview,
-     "Preview placement"
-    }
-                    }
-                }
-            }
-        }
 }
 
 fn parse_preset(value: &str) -> Option<MatrixSetupPreset> {

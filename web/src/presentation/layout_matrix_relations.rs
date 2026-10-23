@@ -6,7 +6,11 @@ use boardstudio_web_layout::matrix_relations::{
     ConstraintItem, ConstraintKind, Departure, DepartureAction, MatrixRelations, PartReference,
     RelationItem,
 };
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
+use boardstudio_web_ui_shared::ui::{
+    button::{Button, ButtonVariant},
+    item::Item,
+};
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
@@ -30,16 +34,24 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     });
     let Some(relations) = props.relations.as_ref() else {
         return rsx! {
-            section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
+            section {
+                class: "m1-layout-component-inspector",
+                aria_labelledby: "m1-relations-heading",
                 h2 { id: "m1-relations-heading", "Relationships" }
-                p { class: "m1-layout-component-relation-summary", "This selection is no longer available." }
+                p { class: "m1-layout-component-relation-summary",
+                    "This selection is no longer available."
+                }
             }
         };
     };
     rsx! {
-        section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
+        section {
+            class: "m1-layout-component-inspector",
+            aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
-            section { class: "m1-relations-structure", aria_labelledby: "m1-relations-structure-heading",
+            section {
+                class: "m1-relations-structure",
+                aria_labelledby: "m1-relations-structure-heading",
                 h3 { id: "m1-relations-structure-heading", "Structure" }
                 ul {
                     for item in relations.structure.iter() {
@@ -48,21 +60,32 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
                 }
             }
             if !relations.departures.is_empty() {
-                section { class: "m1-relations-departures", aria_labelledby: "m1-relations-departures-heading",
+                section {
+                    class: "m1-relations-departures",
+                    aria_labelledby: "m1-relations-departures-heading",
                     h3 { id: "m1-relations-departures-heading", "Local adjustments" }
                     ul {
                         for departure in relations.departures.iter() {
-                            DepartureRow { departure: departure.clone(), mount: props.mount.clone(), on_navigate }
+                            DepartureRow {
+                                departure: departure.clone(),
+                                mount: props.mount.clone(),
+                                on_navigate,
+                            }
                         }
                     }
                 }
             }
             if !relations.constraints.is_empty() {
-                section { class: "m1-relations-constraints", aria_labelledby: "m1-relations-constraints-heading",
+                section {
+                    class: "m1-relations-constraints",
+                    aria_labelledby: "m1-relations-constraints-heading",
                     h3 { id: "m1-relations-constraints-heading", "Authored constraints" }
                     ul {
                         for constraint in relations.constraints.iter() {
-                            ConstraintRow { constraint: constraint.clone(), on_navigate }
+                            ConstraintRow {
+                                constraint: constraint.clone(),
+                                on_navigate,
+                            }
                         }
                     }
                 }
@@ -75,17 +98,19 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
 fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeContext>) -> Element {
     rsx! {
         li { class: "m1-relations-row", "data-relation-label": "{item.label}",
-            span { class: "m1-layout-component-matrix-note", "{item.label}" }
-            " "
-            if let Some(target) = item.target.clone() {
-                RelationReference {
-                    text: item.value.clone(),
-                    parts: item.highlight.clone(),
-                    what: format!("{} {}", item.label, item.value),
-                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+            Item { class: "p-0",
+                span { class: "m1-layout-component-matrix-note", "{item.label}" }
+                " "
+                if let Some(target) = item.target.clone() {
+                    RelationReference {
+                        text: item.value.clone(),
+                        parts: item.highlight.clone(),
+                        what: format!("{} {}", item.label, item.value),
+                        on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+                    }
+                } else {
+                    span { "{item.value}" }
                 }
-            } else {
-                span { "{item.value}" }
             }
         }
     }
@@ -98,21 +123,29 @@ fn DepartureRow(
     on_navigate: EventHandler<objects::TreeContext>,
 ) -> Element {
     rsx! {
-        li { class: "m1-relations-row", "data-relation-departure": "{departure.parameter}",
-            span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
-            " "
-            if let Some(target) = departure.target.clone() {
-                RelationReference {
-                    text: departure.value.clone(),
-                    parts: departure.highlight.clone(),
-                    what: format!("{} {}", departure.parameter, departure.value),
-                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+        li {
+            class: "m1-relations-row",
+            "data-relation-departure": "{departure.parameter}",
+            Item { class: "p-0",
+                span { class: "m1-layout-component-matrix-note", "{departure.parameter}" }
+                " "
+                if let Some(target) = departure.target.clone() {
+                    RelationReference {
+                        text: departure.value.clone(),
+                        parts: departure.highlight.clone(),
+                        what: format!("{} {}", departure.parameter, departure.value),
+                        on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+                    }
+                } else {
+                    span { "{departure.value}" }
                 }
-            } else {
-                span { "{departure.value}" }
-            }
-            for action in departure.actions.iter().copied() {
-                DepartureActionButton { action, parameter: departure.parameter.clone(), mount: mount.clone() }
+                for action in departure.actions.iter().copied() {
+                    DepartureActionButton {
+                        action,
+                        parameter: departure.parameter.clone(),
+                        mount: mount.clone(),
+                    }
+                }
             }
         }
     }
@@ -133,32 +166,41 @@ fn DepartureActionButton(
         DepartureAction::Convert => "convert",
     };
     let label = control.label;
-    let reason_id = format!("m1-relations-reason-{kind}-{}", parameter.replace(' ', "-"));
+    let reason_id = format!(
+        "m1-relations-reason-{kind}-{}",
+        dioxus::core::current_scope_id().0
+    );
     let described_by = control.reason.is_some().then(|| reason_id.clone());
     let error = mount.departure_feedback(action, submitted());
     rsx! {
-            Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    class: "m1-inspector-secondary",
-    disabled: control.disabled,
-    data-relation-action: "{kind}",
-    aria_label: "{label}: {parameter}",
-    aria_describedby: described_by,
-    onclick: move |_| {
-                    if let Some(id) = mount.run_departure(action) {
-                        submitted.set(Some(id));
-                    }
-                },
+            div { "data-relation-action": "{kind}",
+                Button {
+                    variant: ButtonVariant::Outline,
+                    button_type: "button",
+                    class: "m1-inspector-secondary",
+                    disabled: control.disabled,
+                    aria_label: "{label}: {parameter}",
+                    aria_describedby: described_by,
+                    onclick: move |_| {
+                        if let Some(id) = mount.run_departure(action) {
+                            submitted.set(Some(id));
+                        }
+                    },
 
-                "{label}"
+                    "{label}"
 
-    }
+                }
+            }
             if let Some(reason) = control.reason.as_deref() {
-                small { id: "{reason_id}", class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" }
+                small {
+                    id: "{reason_id}",
+                    class: "m1-empty-note m1-matrix-transform-unavailable",
+                    "{reason}"
+                }
             }
             if let Some(message) = error.as_deref() {
-                small { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+                Alert { class: "m1-matrix-transform-error",
+    variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
             }
         }
 }
@@ -175,14 +217,26 @@ fn ConstraintRow(
         ConstraintKind::MirrorLine => "Mirror line",
     };
     rsx! {
-        li { class: "m1-relations-row", "data-relation-constraint": "{constraint.id}",
-            span { class: "m1-layout-component-matrix-note", "{kind}" }
-            " "
-            ReferenceButton { reference: constraint.source.clone(), role: "source", on_navigate }
-            " drives "
-            ReferenceButton { reference: constraint.target.clone(), role: "target", on_navigate }
-            if constraint.takes_precedence {
-                small { class: "m1-empty-note", " Takes priority over the attachment to its key." }
+        li {
+            class: "m1-relations-row",
+            "data-relation-constraint": "{constraint.id}",
+            Item { class: "p-0",
+                span { class: "m1-layout-component-matrix-note", "{kind}" }
+                " "
+                ReferenceButton {
+                    reference: constraint.source.clone(),
+                    role: "source",
+                    on_navigate,
+                }
+                " drives "
+                ReferenceButton {
+                    reference: constraint.target.clone(),
+                    role: "target",
+                    on_navigate,
+                }
+                if constraint.takes_precedence {
+                    small { class: "m1-empty-note", " Takes priority over the attachment to its key." }
+                }
             }
         }
     }
@@ -259,28 +313,28 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
         move || highlight.release(&latest.borrow())
     });
     rsx! {
+        div { "data-relation-role": role, "data-part-id": part_id,
             Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    class: "m1-inspector-secondary m1-relations-reference",
-    data-relation-role: role,
-    data-part-id: part_id,
-    aria_describedby: described_by,
-    onpointerenter: move |_| highlight.show(&enter),
-    onpointerleave: move |_| highlight.release(&leave),
-    onfocus: move |_| highlight.show(&focus),
-    onblur: move |_| highlight.release(&blur),
-    onclick: move |_| on_select.call(()),
+                variant: ButtonVariant::Outline,
+                button_type: "button",
+                class: "m1-inspector-secondary m1-relations-reference",
+                aria_describedby: described_by,
+                onpointerenter: move |_| highlight.show(&enter),
+                onpointerleave: move |_| highlight.release(&leave),
+                onfocus: move |_| highlight.show(&focus),
+                onblur: move |_| highlight.release(&blur),
+                onclick: move |_| on_select.call(()),
 
                 "{text}"
 
-    }
-            if !parts.is_empty() {
-                span { id: "{description_id}", class: "m1-visually-hidden",
-                    "Highlights the Layout canvas parts for {what}."
-                }
             }
         }
+        if !parts.is_empty() {
+            span { id: "{description_id}", class: "m1-visually-hidden",
+                "Highlights the Layout canvas parts for {what}."
+            }
+        }
+    }
 }
 
 #[component]
@@ -306,9 +360,16 @@ pub(super) fn RelationMatrixKey(
     rsx! {
         rect {
             class: if selected { "m1-matrix-key is-selected" } else if highlighted { "m1-matrix-key is-relation-highlight" } else { "m1-matrix-key" },
-            x: "{x}", y: "{y}", width: "{width}", height: "{height}", rx: "0.9",
-            transform: "{transform}", "data-matrix-id": "{matrix_id}", "data-row": "{row}", "data-column": "{column}",
-            onpointerdown: move |event| on_pointer_down.call(event)
+            x: "{x}",
+            y: "{y}",
+            width: "{width}",
+            height: "{height}",
+            rx: "0.9",
+            transform: "{transform}",
+            "data-matrix-id": "{matrix_id}",
+            "data-row": "{row}",
+            "data-column": "{column}",
+            onpointerdown: move |event| on_pointer_down.call(event),
         }
     }
 }
@@ -322,7 +383,7 @@ pub(super) fn RelationPartOutline(part_id: String, selected: bool, points: Strin
     rsx! {
         polygon {
             points: "{points}",
-            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" }
+            class: if selected { "m1-part selected" } else if highlighted { "m1-part is-relation-highlight" } else { "m1-part" },
         }
     }
 }

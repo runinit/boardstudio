@@ -9,7 +9,7 @@ use boardstudio_core::model::{
     Board, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
     Side, Vec2,
 };
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use dioxus_web::WebEventExt;
 use std::{
     cell::{Cell, RefCell},
@@ -465,9 +465,13 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         "a same-matrix multi-key selection keeps its current key as the Inspector context"
     );
     let document = web_sys::window().unwrap().document().unwrap();
-    let local_x = document
-        .query_selector("#matrix-transform-multiselect-mounted-test input[aria-label='Local X']")
-        .unwrap();
+    let local_x = by_role_name(
+        &document
+            .get_element_by_id("matrix-transform-multiselect-mounted-test")
+            .unwrap(),
+        "spinbutton",
+        "Local X",
+    );
     assert!(
         local_x.is_some(),
         "the mounted key-local Inspector remains visible"
@@ -482,28 +486,25 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
         "the Inspector follows the most recently toggled key"
     );
     assert!(
-        document
-            .query_selector(
-                "#matrix-transform-multiselect-mounted-test select[aria-label='Key Assembly']"
-            )
-            .unwrap()
-            .is_some(),
+        by_role_name(
+            &document
+                .get_element_by_id("matrix-transform-multiselect-mounted-test")
+                .unwrap(),
+            "combobox",
+            "Key Assembly"
+        )
+        .is_some(),
         "the mounted key properties retain Key Assembly controls"
     );
-    let enabled = document
-        .query_selector(
-            "#matrix-transform-multiselect-mounted-test input[aria-label='Key enabled']",
-        )
-        .unwrap()
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    enabled.set_checked(false);
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    enabled
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
+    let enabled = by_role_name(
+        &document
+            .get_element_by_id("matrix-transform-multiselect-mounted-test")
+            .unwrap(),
+        "checkbox",
+        "Key enabled",
+    )
+    .unwrap();
+    enabled.click();
     settle(&probe).await;
     support::run_pending(&probe.runtime).await;
     wait_until("the selected keys accept their disabled state", || {
@@ -532,16 +533,8 @@ async fn additive_canvas_selection_keeps_key_properties_for_same_matrix_keys() {
     let next = version.peek().saturating_add(1);
     version.set(next);
     settle(&probe).await;
-    let enabled = root
-        .query_selector("input[aria-label='Key enabled']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    enabled.set_checked(true);
-    enabled
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
+    let enabled = by_role_name(&root, "checkbox", "Key enabled").unwrap();
+    enabled.click();
     support::run_pending(&probe.runtime).await;
     wait_until("the same selection accepts its enabled state", || {
         probe
@@ -659,12 +652,14 @@ async fn additive_mixed_component_selection_keeps_first_part_group_context() {
     );
     let document = web_sys::window().unwrap().document().unwrap();
     assert!(
-        document
-            .query_selector(
-                "#matrix-transform-multiselect-mounted-test input[aria-label='Local X']"
-            )
-            .unwrap()
-            .is_none(),
+        by_role_name(
+            &document
+                .get_element_by_id("matrix-transform-multiselect-mounted-test")
+                .unwrap(),
+            "spinbutton",
+            "Local X"
+        )
+        .is_none(),
         "mixed selection does not show a key-local Inspector"
     );
     root.remove();
@@ -751,12 +746,16 @@ async fn toggle_removal_keeps_the_inspector_and_commands_aimed_at_remaining_keys
         "removing B must keep the remaining A key Inspector mounted"
     );
     let document = web_sys::window().unwrap().document().unwrap();
-    let local_x = document
-        .query_selector("#matrix-transform-multiselect-mounted-test input[aria-label='Local X']")
-        .unwrap()
-        .expect("remaining selected key keeps its local transform field")
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
+    let local_x = by_role_name(
+        &document
+            .get_element_by_id("matrix-transform-multiselect-mounted-test")
+            .unwrap(),
+        "spinbutton",
+        "Local X",
+    )
+    .expect("remaining selected key keeps its local transform field")
+    .dyn_into::<web_sys::HtmlInputElement>()
+    .unwrap();
     local_x.set_value("5");
     let input = web_sys::EventInit::new();
     input.set_bubbles(true);
@@ -823,16 +822,8 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
     settle(&probe).await;
     let retained = probe.mount.borrow().as_ref().unwrap().clone();
     let projection = retained.projection.as_ref().unwrap();
-    let button = root.query_selector_all("button").unwrap();
-    let button = (0..button.length())
-        .filter_map(|index| button.item(index))
-        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
-        .expect("the reset action is mounted")
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
-    let input = root
-        .query_selector("input[aria-label='Local X']")
-        .unwrap()
+    let button = by_role_name(&root, "button", "Reset local transform").unwrap();
+    let input = by_role_name(&root, "spinbutton", "Local X")
         .expect("the key offset field is mounted")
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -916,13 +907,7 @@ async fn pending_reset_disables_its_button_and_rejects_a_retained_duplicate() {
         Some(Vec2 { x: 5.0, y: 0.0 }),
         "a retained duplicate reset must not undo the queued field edit"
     );
-    let live_buttons = root.query_selector_all("button").unwrap();
-    let live_button = (0..live_buttons.length())
-        .filter_map(|index| live_buttons.item(index))
-        .find(|node| node.text_content().as_deref() == Some("Reset local transform"))
-        .expect("the live reset action remains mounted")
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let live_button = by_role_name(&root, "button", "Reset local transform").unwrap();
     assert!(
         !live_button.has_attribute("disabled"),
         "the live reset button is available after settlement; captured connected: {}, lifecycle: {:?}",
@@ -945,9 +930,7 @@ async fn failed_numeric_edit_keeps_a_newer_typed_draft() {
     .await;
     settle(&probe).await;
 
-    let input = root
-        .query_selector("input[aria-label='Local X']")
-        .unwrap()
+    let input = by_role_name(&root, "spinbutton", "Local X")
         .expect("the key offset field is mounted")
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1003,9 +986,7 @@ async fn failed_numeric_edit_keeps_its_inline_error_after_restoring_the_draft() 
     .await;
     settle(&probe).await;
 
-    let input = root
-        .query_selector("input[aria-label='Local X']")
-        .unwrap()
+    let input = by_role_name(&root, "spinbutton", "Local X")
         .expect("the key offset field is mounted")
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1077,49 +1058,38 @@ async fn mounted_attached_component_choices_are_current_item_scoped_and_emit_the
         &["key-part"],
     )
     .await;
-    let document = web_sys::window().unwrap().document().unwrap();
     settle(&probe).await;
 
-    let selector = document
-        .query_selector(&format!(
-            "#{} select[aria-label='Replace led']",
-            probe.root_id
-        ))
-        .unwrap()
-        .expect("the mounted Inspector renders the attached LED selector");
-    assert!(
-        selector
-            .query_selector("option[value='assembly-current/definition/led']")
-            .unwrap()
-            .is_some(),
-        "the selector must retain this attached item's current snapshot"
-    );
-    assert!(
-        selector
-            .query_selector("option[value='replacement-definition']")
-            .unwrap()
-            .is_some(),
-        "the choice list must include the actual replacement definition"
-    );
-    assert!(
-        selector
-            .query_selector("option[value='assembly-other/definition/led']")
-            .unwrap()
-            .is_none(),
-        "the choice list must exclude an unrelated assembly snapshot"
-    );
-
-    js_sys::Reflect::set(
-        selector.as_ref(),
-        &"value".into(),
-        &"replacement-definition".into(),
-    )
-    .unwrap();
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
+    let selector =
+        by_role_name(&root, "combobox", "Replace led").expect("actual attached LED chooser");
+    selector.focus().unwrap();
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key("ArrowDown");
+    init.set_bubbles(true);
     selector
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
         .unwrap();
+    wait_until("the attached component options open", || {
+        by_role_name(&root, "option", "Current LED snapshot").is_some()
+    })
+    .await;
+    assert!(
+        by_role_name(&root, "option", "Current LED snapshot").is_some(),
+        "retain the attached item's current snapshot"
+    );
+    assert!(
+        by_role_name(&root, "option", "Replacement LED").is_some(),
+        "include the actual replacement definition"
+    );
+    assert!(
+        by_role_name(&root, "option", "Unrelated LED snapshot").is_none(),
+        "exclude an unrelated assembly snapshot"
+    );
+    by_role_name(&root, "option", "Replacement LED")
+        .unwrap()
+        .click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     assert!(
@@ -1144,13 +1114,7 @@ async fn deleting_selected_keys_removes_cells_and_assemblies_and_undo_restores_t
     )
     .await;
     settle(&probe).await;
-    let delete = root.query_selector_all("button").unwrap();
-    let delete = (0..delete.length())
-        .filter_map(|index| delete.item(index))
-        .find(|node| node.text_content().as_deref() == Some("Delete selected keys"))
-        .expect("key properties provide actual deletion distinct from the enabled toggle")
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let delete = by_role_name(&root, "button", "Delete selected keys").unwrap();
     delete.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
@@ -1209,9 +1173,7 @@ async fn queued_key_edit_retires_after_column_deletion_instead_of_editing_reinde
     entered
         .await
         .expect("deletion reaches Core while old key remains accepted");
-    let input = root
-        .query_selector("input[aria-label='Local X']")
-        .unwrap()
+    let input = by_role_name(&root, "spinbutton", "Local X")
         .unwrap()
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1280,22 +1242,12 @@ async fn mixed_enabled_selection_displays_unchecked_and_enables_every_selected_c
     let next = version.peek().saturating_add(1);
     version.set(next);
     settle(&probe).await;
-    let enabled = root
-        .query_selector("input[aria-label='Key enabled']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
+    let enabled = by_role_name(&root, "checkbox", "Key enabled").unwrap();
     assert!(
-        !enabled.checked(),
+        enabled.get_attribute("aria-checked").as_deref() == Some("false"),
         "mixed selection does not imply every key is enabled"
     );
-    enabled.set_checked(true);
-    let event = web_sys::EventInit::new();
-    event.set_bubbles(true);
-    enabled
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-        .unwrap();
+    enabled.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     assert!(
@@ -1332,13 +1284,7 @@ async fn row_and_column_delete_controls_submit_structural_removal() {
             mount_selection_probe("matrix-transform-axis-delete-test", document, context, &[])
                 .await;
         settle(&probe).await;
-        let buttons = root.query_selector_all("button").unwrap();
-        let button = (0..buttons.length())
-            .filter_map(|index| buttons.item(index))
-            .find(|node| node.text_content().as_deref() == Some(label))
-            .expect("axis deletion control")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap();
+        let button = by_role_name(&root, "button", label).unwrap();
         button.click();
         button.click();
         support::run_pending(&probe.runtime).await;
@@ -1369,9 +1315,7 @@ fn column_context(column: u32) -> TreeContext {
 }
 
 fn set_numeric_field(root: &web_sys::Element, label: &str, value: &str) {
-    let input = root
-        .query_selector(&format!("input[aria-label='{label}']"))
-        .unwrap()
+    let input = by_role_name(&root, "spinbutton", label)
         .unwrap_or_else(|| panic!("the {label} field is mounted"))
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1467,16 +1411,11 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
 }
 
 fn button_named(root: &web_sys::Element, label: &str) -> Option<web_sys::HtmlElement> {
-    let buttons = root.query_selector_all("button").unwrap();
-    (0..buttons.length())
-        .filter_map(|index| buttons.item(index))
-        .find(|node| node.text_content().as_deref() == Some(label))
-        .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+    by_role_name(root, "button", label)
 }
 
 fn field_number(root: &web_sys::Element, label: &str) -> f64 {
-    root.query_selector(&format!("input[aria-label='{label}']"))
-        .unwrap()
+    by_role_name(&root, "spinbutton", label)
         .unwrap_or_else(|| panic!("the {label} field is mounted"))
         .dyn_into::<HtmlInputElement>()
         .unwrap()
@@ -1602,28 +1541,16 @@ async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
     .await;
     settle(&probe).await;
     let accepted = probe.runtime.model().accepted.unwrap().document.revision;
-    let position = root
-        .query_selector("details[aria-label='Position and rotation']")
-        .unwrap()
+    let position = by_role_name(&root, "button", "Position and rotation")
         .expect("position section is a mounted disclosure");
-    let splay = root
-        .query_selector("details[aria-label='Splay and origin']")
-        .unwrap()
+    let splay = by_role_name(&root, "button", "Splay and origin")
         .expect("splay section is a mounted disclosure");
     assert!(
-        !splay.has_attribute("open"),
+        splay.get_attribute("aria-expanded").as_deref() == Some("false"),
         "specialist origin controls start collapsed"
     );
-    splay
-        .query_selector("summary")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    let input = root
-        .query_selector("input[aria-label='Stagger']")
-        .unwrap()
+    splay.click();
+    let input = by_role_name(&root, "spinbutton", "Stagger")
         .unwrap()
         .dyn_into::<HtmlInputElement>()
         .unwrap();
@@ -1632,16 +1559,14 @@ async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
     event.init_event_with_bubbles("input", true);
     input.dispatch_event(&event).unwrap();
     settle(&probe).await;
-    position
-        .query_selector("summary")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
-    assert!(!position.has_attribute("open"));
+    position.click();
+    wait_until("position section collapses", || {
+        position.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
+    assert!(position.get_attribute("aria-expanded").as_deref() == Some("false"));
     assert!(
-        splay.has_attribute("open"),
+        splay.get_attribute("aria-expanded").as_deref() == Some("true"),
         "sections can be collapsed independently"
     );
     let mut version = probe.version.borrow().expect("Editor version signal");
@@ -1649,25 +1574,18 @@ async fn collapsing_column_sections_preserves_drafts_nodes_and_edit_owner() {
     version.set(next);
     settle(&probe).await;
     assert!(
-        !position.has_attribute("open"),
+        position.get_attribute("aria-expanded").as_deref() == Some("false"),
         "unrelated renders retain collapsed state"
     );
     assert!(
         input.is_same_node(
-            root.query_selector("input[aria-label='Stagger']")
-                .unwrap()
+            by_role_name(&root, "spinbutton", "Stagger")
                 .as_ref()
                 .map(|node| node.as_ref())
         ),
         "collapse never remounts field ownership"
     );
-    position
-        .query_selector("summary")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
+    position.click();
     settle(&probe).await;
     assert_eq!(input.value(), "");
     assert_eq!(
@@ -1698,9 +1616,7 @@ async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
         .query_selector("#canvas-geometry-test")
         .unwrap()
         .unwrap();
-    let draft = inspector
-        .query_selector("input[aria-label='Stagger']")
-        .unwrap()
+    let draft = by_role_name(&inspector, "spinbutton", "Stagger")
         .unwrap()
         .dyn_into::<HtmlInputElement>()
         .unwrap();

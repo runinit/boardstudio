@@ -5,7 +5,7 @@ use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, Session};
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{EditCommand, EditPhase, ProjectDoc};
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use serde_json::json;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,34 +47,18 @@ impl Probe {
             .revision
     }
 
-    fn element(&self, selector: &str) -> web_sys::Element {
-        query(self.root_id, selector).unwrap_or_else(|| panic!("no element for {selector}"))
-    }
-
     /// Open the matrix Relations tab for the current selection.
     async fn open_relations(&self) {
-        click(
-            self.root_id,
-            ".m1-layout-component-tabs button:nth-child(2)",
-        );
+        control(self.root_id, "tab", "Relations").unwrap().click();
         wait_until(
             "the Relations tab lists the Inherited by references",
-            || {
-                query(
-                    self.root_id,
-                    "li[data-relation-label='Inherited by'] button",
-                )
-                .is_some()
-            },
+            || control(self.root_id, "button", "Column 4").is_some(),
         )
         .await;
     }
 
-    /// The first reference button under the "Inherited by" structure rows.
     fn inherited_by_reference(&self) -> web_sys::HtmlElement {
-        self.element("li[data-relation-label='Inherited by'] button")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
+        control(self.root_id, "button", "Column 4").unwrap()
     }
 
     /// Land an edit, then re-render the host the way the page does after an accepted revision.
@@ -145,13 +129,14 @@ fn removed_column(column: u32) -> serde_json::Value {
     json!({ "cells": cells })
 }
 
-fn query(root_id: &str, selector: &str) -> Option<web_sys::Element> {
-    web_sys::window()
+fn control(root_id: &str, role: &str, name: &str) -> Option<web_sys::HtmlElement> {
+    let root = web_sys::window()
         .unwrap()
         .document()
         .unwrap()
-        .query_selector(&format!("#{root_id} {selector}"))
-        .unwrap()
+        .get_element_by_id(root_id)
+        .unwrap();
+    by_role_name(&root, role, name)
 }
 
 fn count(root_id: &str, selector: &str) -> u32 {
@@ -182,14 +167,6 @@ fn highlighted_columns(root_id: &str) -> Vec<String> {
                 .unwrap_or_default()
         })
         .collect()
-}
-
-fn click(root_id: &str, selector: &str) {
-    query(root_id, selector)
-        .unwrap_or_else(|| panic!("no element for {selector}"))
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
 }
 
 fn dispatch(element: &web_sys::Element, kind: &str) {
@@ -285,7 +262,7 @@ async fn mount_column_relations(root_id: &'static str) -> Probe {
         column: 2,
     });
     wait_until("the Relations tab button renders", || {
-        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+        control(root_id, "tab", "Relations").is_some()
     })
     .await;
     probe.open_relations().await;
@@ -335,6 +312,29 @@ async fn keyboard_focus_highlights_and_blur_clears() {
     let root_id = "relation-highlight-focus";
     let probe = mount_column_relations(root_id).await;
     let reference = probe.inherited_by_reference();
+    let document = web_sys::window().unwrap().document().unwrap();
+    let description_id = reference.get_attribute("aria-describedby").unwrap();
+    let description = document.get_element_by_id(&description_id).unwrap();
+    assert!(
+        description
+            .text_content()
+            .unwrap()
+            .contains("Inherited by Column 4")
+    );
+    assert!(
+        reference
+            .closest("[data-slot=item]")
+            .unwrap()
+            .unwrap()
+            .contains(Some(description.as_ref()))
+    );
+    assert_eq!(
+        document
+            .query_selector_all(&format!("[id='{description_id}']"))
+            .unwrap()
+            .length(),
+        1
+    );
     reference.focus().unwrap();
     wait_until("keyboard focus highlights Column 4's keys", || {
         highlighted_columns(root_id) == vec!["3".to_owned(); ROWS as usize]
@@ -416,4 +416,30 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys are not highlighted"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
+}
+
+#[wasm_bindgen_test]
+async fn unmounting_the_actual_relations_reference_releases_its_highlight() {
+    let root_id = "relation-highlight-unmount";
+    let probe = mount_column_relations(root_id).await;
+    let reference = probe.inherited_by_reference();
+    let revision = probe.revision();
+    reference.focus().unwrap();
+    wait_until(
+        "actual Relations reference highlights its canvas keys",
+        || count(root_id, ".m1-matrix-key.is-relation-highlight") == ROWS,
+    )
+    .await;
+    control(root_id, "tab", "Properties").unwrap().click();
+    wait_until(
+        "Properties unmounts the reference and releases its highlight",
+        || !reference.is_connected() && count(root_id, ".m1-matrix-key.is-relation-highlight") == 0,
+    )
+    .await;
+    assert_eq!(count(root_id, ".m1-matrix-key.is-selected"), ROWS);
+    assert_eq!(
+        probe.revision(),
+        revision,
+        "visual cleanup creates no Undo entry"
+    );
 }

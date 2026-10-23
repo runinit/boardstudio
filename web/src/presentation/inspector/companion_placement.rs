@@ -1,15 +1,25 @@
-use boardstudio_web_ui_shared::ui::collapsible::{Collapsible,CollapsibleTrigger,CollapsibleContent};
-use boardstudio_web_ui_shared::ui::label::Label;
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
 use boardstudio_core::model::{
     CompanionPlacementTarget, MirroredCompanionMode, MirroredCompanionTweak,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::collapsible::{
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+};
+use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
+};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
 };
 
 use dioxus::prelude::*;
@@ -58,7 +68,7 @@ pub struct CompanionPlacementInspectorProps {
 
 #[component]
 pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) -> Element {
-let mut placement_section_open = use_signal(|| false);
+    let mut placement_section_open = use_signal(|| false);
 
     use super::super::layout_component_edits::InspectorField;
     let mut mode = use_signal(|| {
@@ -220,95 +230,182 @@ let mut placement_section_open = use_signal(|| false);
     };
 
     rsx! {
-            Collapsible { class: "m1-layout-companion-placement", keep_mounted: true, open: Some(placement_section_open()), on_open_change: move |next| placement_section_open.set(next), CollapsibleTrigger { aria_label: "Companion placement",  span { "Companion placement" } small { "{summary}" }  } CollapsibleContent { hidden: !placement_section_open(), inert: (!placement_section_open()).then_some(""),
+            Collapsible {
+                class: "m1-layout-companion-placement",
+                keep_mounted: true,
+                open: Some(placement_section_open()),
+                on_open_change: move |next| placement_section_open.set(next),
+                CollapsibleTrigger { aria_label: "Companion placement",
+                    span { "Companion placement" }
+                    small { "{summary}" }
+                }
+                CollapsibleContent {
+                    hidden: !placement_section_open(),
+                    inert: (!placement_section_open()).then_some(""),
 
-                div { class: "m1-layout-component-fields",
-                    {
-    let control_label = "Mode".to_owned();
-    let control_aria_label = "Mode".to_owned();
-    let control_id = format!(
-        "layout-choice-{}-{}",
-        dioxus::core::current_scope_id().0,
-        control_aria_label.replace(' ', "-")
-    );
-    let control_value = format!("{}", mode());
-    let control_choices = [
-        ("".to_owned(), "Mixed values".to_owned(), false),
-        (
-            "literal-mirror".to_owned(),
-            "Literal mirror".to_owned(),
-            false,
-        ),
-        (
-            "duplicate-position".to_owned(),
-            "Duplicate position".to_owned(),
-            false,
-        ),
-        (
-            "literal-mirror-with-tweak".to_owned(),
-            "Mirror with tweak".to_owned(),
-            false,
-        ),
-    ];
-    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        mode.set(choice)
-    });
-    rsx! {
+                    div { class: "m1-layout-component-fields",
+                        {
+                            let control_label = "Mode".to_owned();
+                            let control_aria_label = "Mode".to_owned();
+                            let control_id = format!(
+                                "layout-choice-{}-{}",
+                                dioxus::core::current_scope_id().0,
+                                control_aria_label.replace(' ', "-"),
+                            );
+                            let control_value = format!("{}", mode());
+                            let control_choices = [
+                                ("".to_owned(), "Mixed values".to_owned(), false),
+                                ("literal-mirror".to_owned(), "Literal mirror".to_owned(), false),
+                                ("duplicate-position".to_owned(), "Duplicate position".to_owned(), false),
+                                (
+                                    "literal-mirror-with-tweak".to_owned(),
+                                    "Mirror with tweak".to_owned(),
+                                    false,
+                                ),
+                            ];
+                            let on_value_change = EventHandler::new(move |choice: Option<String>| {
+            let Some(choice) = choice else {
+                return;
+            };
+            mode.set(choice)
+        });
+        rsx! {
 
-        Field { class: "",
-            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-            Select::<String> {
-                id: control_id,
-                aria_label: control_aria_label,
-                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
-                disabled,
-                on_value_change,
-                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                    SelectOption::<String> {
-                        index,
-                        value: value.clone(),
-                        text_value: label.clone(),
-                        disabled: *disabled,
-                        "{label}"
+                                Field { class: "",
+                                    FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                    Select::<String> {
+                                        id: control_id,
+                                        aria_label: control_aria_label,
+                                        value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                                        disabled,
+                                        on_value_change,
+                                        for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                            SelectOption::<String> {
+                                                index,
+                                                value: value.clone(),
+                                                text_value: label.clone(),
+                                                disabled: *disabled,
+                                                "{label}"
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                        if let Some(reason) = disabled_reason {
+                            div { role: "status",  Callout {  variant: CalloutVariant::Info,  "{reason}"  } }
+                        } else {
+                            if wants_tweak {
+                                {
+                                    let control_input_id = format!(
+                                        "layout-input-{}-3",
+                                        dioxus::core::current_scope_id().0,
+                                    );
+                                    rsx! {
+                                        Field {
+                                            FieldLabel { html_for: control_input_id.clone(), "X tweak (mm)" }
+                                            InputGroup {
+                                                InputGroupInput { r#type: InputType::Number,
+    step: "any",
+    placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" },
+    value: "{x()}",
+    disabled: disabled,
+    oninput: move |event: FormEvent| x.set(event.value()),
+    id: control_input_id.clone(), }
+                                            }
+                                        }
+                                    }
+                                }
+                                {
+                                    let control_input_id = format!(
+                                        "layout-input-{}-2",
+                                        dioxus::core::current_scope_id().0,
+                                    );
+                                    rsx! {
+                                        Field {
+                                            FieldLabel { html_for: control_input_id.clone(), "Y tweak (mm)" }
+                                            InputGroup {
+                                                InputGroupInput { r#type: InputType::Number,
+    step: "any",
+    placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" },
+    value: "{y()}",
+    disabled: disabled,
+    oninput: move |event: FormEvent| y.set(event.value()),
+    id: control_input_id.clone(), }
+                                            }
+                                        }
+                                    }
+                                }
+                                {
+                                    let control_input_id = format!(
+                                        "layout-input-{}-1",
+                                        dioxus::core::current_scope_id().0,
+                                    );
+                                    rsx! {
+                                        Field {
+                                            FieldLabel { html_for: control_input_id.clone(), "Rotation tweak (degrees)" }
+                                            InputGroup {
+                                                InputGroupInput { r#type: InputType::Number,
+    step: "any",
+    placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" },
+    value: "{rotation()}",
+    disabled: disabled,
+    oninput: move |event: FormEvent| rotation.set(event.value()),
+    id: control_input_id.clone(), }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let check_id = format!(
+                                    "layout-check-{}-{}",
+                                    dioxus::core::current_scope_id().0,
+                                    ("Also set the pair default").replace(' ', "-"),
+                                );
+                                rsx! {
+                                    Label {
+                                        html_for: check_id.clone(),
+                                        class: "m1-layout-companion-placement-default",
+                                        Checkbox {
+                                            id: check_id.clone(),
+                                            checked: Some(
+                                                if pair_default() {
+                                                    dioxus_primitives::checkbox::CheckboxState::Checked
+                                                } else {
+                                                    dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                },
+                                            ),
+                                            disabled,
+                                            on_checked_change: move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                pair_default.set(bool::from(checked))
+                                            },
+                                            aria_label: "Also set the pair default",
+                                        }
+                                        "Also set the pair default"
+                                    }
+                                }
+                            }
+                            if pair_tweak_refusal {
+                                div { role: "status",  Callout {  variant: CalloutVariant::Info,  "Pair defaults cannot carry a position tweak."  } }
+                            }
+                        }
+                        if let Some(message) = error_messages.as_ref() {
+                            Alert { variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                        }
+                        if disabled_reason.is_none() {
+                            Button {
+                                variant: ButtonVariant::Outline,
+                                button_type: "button",
+                                disabled: !can_apply,
+                                onclick: apply,
+                                "Apply placement"
+                            }
+                        }
                     }
                 }
             }
-        }
-
-
-    }
-}
-                    if let Some(reason) = disabled_reason {
-                        p { role: "status", "{reason}" }
-                    } else {
-                        if wants_tweak {
-                            label { "X tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{x()}", disabled, oninput: move |event| x.set(event.value()) } }
-                            label { "Y tweak (mm)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{y()}", disabled, oninput: move |event| y.set(event.value()) } }
-                            label { "Rotation tweak (degrees)" input { r#type: "number", step: "any", placeholder: if props.projection.mixed_tweak { "Mixed values" } else { "0" }, value: "{rotation()}", disabled, oninput: move |event| rotation.set(event.value()) } }
-                        }
-                        label { class: "m1-layout-companion-placement-default",
-                            input { r#type: "checkbox", checked: pair_default(), disabled, onchange: move |event| pair_default.set(event.checked()) }
-                            "Also set the pair default"
-                        }
-                        if pair_tweak_refusal {
-                            p { role: "status", "Pair defaults cannot carry a position tweak." }
-                        }
-                    }
-                    if let Some(message) = error_messages.as_ref() { p { role: "alert", "{message}" } }
-                    if disabled_reason.is_none() {
-                        Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    disabled: !can_apply,
-    onclick: apply,
-     "Apply placement"
-    }
-                    }
-                }
-             } }
         }
 }
 

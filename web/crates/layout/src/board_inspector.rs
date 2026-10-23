@@ -6,6 +6,14 @@ use boardstudio_application::{
     AcceptedSnapshot, EditResolver, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::EditOperation;
+use boardstudio_web_ui_shared::ui::field::FieldError;
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
+};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},
@@ -409,30 +417,42 @@ pub fn BoardInspector(mount: BoardInspectorMount) -> Element {
         _ => {}
     };
     rsx! {
-        section { class: "m1-board-inspector", aria_label: "Board Inspector",
-            p { class: "m1-board-inspector-guidance", "Select a key, component, or matrix to edit it." }
-            label { class: "m1-board-inspector-name",
-                "Board name"
-                input {
-                    aria_label: "Board name",
-                    value: "{name}",
-                    disabled: !projection.editable,
-                    oninput: move |event| draft.set(event.value()),
-                    onblur: submit_blur,
-                    onkeydown: submit_key,
+            section { class: "m1-board-inspector", aria_label: "Board Inspector",
+                p { class: "m1-board-inspector-guidance",
+                    "Select a key, component, or matrix to edit it."
+                }
+                {
+                    let control_input_id = format!(
+                        "layout-input-{}-1",
+                        dioxus::core::current_scope_id().0,
+                    );
+                    rsx! {
+                        Field { class: "m1-board-inspector-name",
+                            FieldLabel { html_for: control_input_id.clone(), "Board name" }
+                            InputGroup {
+                                InputGroupInput { aria_label: "Board name",
+    value: "{name}",
+    disabled: !projection.editable,
+    oninput: move |event: FormEvent| draft.set(event.value()),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::events::onblur(submit_blur),dioxus::events::onkeydown(submit_key)], }
+                            }
+                        }
+                    }
+                }
+                if let Some(message) = failure() {
+                    FieldError { "{message}" }
+                }
+                div { class: "m1-board-inspector-measure",
+                    span { "Outline" }
+                    strong { "{projection.outline_status}" }
+                }
+                div { class: "m1-board-inspector-measure",
+                    span { "Placed parts" }
+                    strong { "{projection.placed_parts}" }
                 }
             }
-            if let Some(message) = failure() { p { role: "alert", "{message}" } }
-            div { class: "m1-board-inspector-measure",
-                span { "Outline" }
-                strong { "{projection.outline_status}" }
-            }
-            div { class: "m1-board-inspector-measure",
-                span { "Placed parts" }
-                strong { "{projection.placed_parts}" }
-            }
         }
-    }
 }
 
 fn commit_draft(
@@ -482,7 +502,11 @@ mod queued_board_name_tests {
             }
         });
         let mount = use_board_inspector(runtime, selected, workspace, generation);
-        rsx! { if mount.projection.is_some() { BoardInspector { mount } } }
+        rsx! {
+            if mount.projection.is_some() {
+                BoardInspector { mount }
+            }
+        }
     }
 
     #[wasm_bindgen_test]
@@ -539,12 +563,11 @@ mod queued_board_name_tests {
             }
         }
         assert!(reached_core, "the first layout edit did not reach Core");
-        let input = root
-            .query_selector("input")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let input =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
         input.set_value("Renamed");
         let event = web_sys::EventInit::new();
         event.set_bubbles(true);
@@ -618,12 +641,11 @@ mod queued_board_name_tests {
         );
         gloo_timers::future::TimeoutFuture::new(5).await;
         support::fail_next_persist(&runtime, "injected durable write failure");
-        let input = root
-            .query_selector("input")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let input =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
         input.set_value(" New ");
         let event = web_sys::EventInit::new();
         event.set_bubbles(true);
@@ -673,12 +695,11 @@ mod queued_board_name_tests {
         );
         gloo_timers::future::TimeoutFuture::new(5).await;
         let (entered, release) = support::gate_next_core_reply(&runtime);
-        let input = root
-            .query_selector("input")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap();
+        let input =
+            boardstudio_web_ui_shared::test_role::by_role_name(&root, "textbox", "Board name")
+                .unwrap()
+                .dyn_into::<web_sys::HtmlInputElement>()
+                .unwrap();
         let event = web_sys::EventInit::new();
         event.set_bubbles(true);
         let enter = web_sys::KeyboardEventInit::new();

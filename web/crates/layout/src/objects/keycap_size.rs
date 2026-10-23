@@ -1,8 +1,9 @@
 //! Layout Inspector controls for accepted keycap size.
-use boardstudio_web_ui_shared::ui::label::Label;
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
 use super::keycap_resize::ResizeAxis;
 use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
@@ -170,47 +171,69 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     let timer_generation = keyboard_generation.clone();
 
     rsx! {
-            section { class: "m1-key-size", aria_label: "Key size",
-                { let units = draft();
-                  let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
-                  let width = units.x * scale;
-                  let height = units.y * scale;
-                  rsx! { figure { class: "m1-key-size-preview",
-                    svg { view_box: "0 0 200 120", role: "img", "aria-label": "Keycap size {value_label}",
-                        rect { x: "{100.0 - width / 2.0}", y: "{60.0 - height / 2.0}", width: "{width}", height: "{height}", rx: "5" }
-                        rect { class: "m1-key-size-preview-top", x: "{104.0 - width / 2.0}", y: "{64.0 - height / 2.0}", width: "{(width - 8.0).max(1.0)}", height: "{(height - 8.0).max(1.0)}", rx: "3" }
+        section { class: "m1-key-size", aria_label: "Key size",
+            {
+                let units = draft();
+                let scale = 80.0 / units.y.max(units.x / 2.0).max(1.0);
+                let width = units.x * scale;
+                let height = units.y * scale;
+                rsx! {
+                    figure { class: "m1-key-size-preview",
+                        svg {
+                            view_box: "0 0 200 120",
+                            role: "img",
+                            "aria-label": "Keycap size {value_label}",
+                            rect {
+                                x: "{100.0 - width / 2.0}",
+                                y: "{60.0 - height / 2.0}",
+                                width: "{width}",
+                                height: "{height}",
+                                rx: "5",
+                            }
+                            rect {
+                                class: "m1-key-size-preview-top",
+                                x: "{104.0 - width / 2.0}",
+                                y: "{64.0 - height / 2.0}",
+                                width: "{(width - 8.0).max(1.0)}",
+                                height: "{(height - 8.0).max(1.0)}",
+                                rx: "3",
+                            }
+                        }
+                        figcaption {
+                            output { "{value_label}" }
+                        }
                     }
-                    figcaption { output { "{value_label}" } }
-                  } }
                 }
-                {
-    let control_label = "Size".to_owned();
-    let control_aria_label = "Key size".to_owned();
-    let control_id = format!(
-        "layout-choice-{}-{}",
-        dioxus::core::current_scope_id().0,
-        control_aria_label.replace(' ', "-")
-    );
-    let control_value = ((if mixed || draft().x.min(draft().y) != 1.0 {
-        "custom".to_owned()
-    } else {
-        draft().x.max(draft().y).to_string()
-    })
-    .to_string())
-    .to_string();
-    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-    if mixed || draft().x.min(draft().y) != 1.0 {
-        control_choices.push(("custom".to_owned(), format!("{}", value_label), false));
-    }
-    for step in 4..=28 {
-        control_choices.push((
-            (f64::from(step) / 4.0).to_string(),
-            format!("{}u", f64::from(step) / 4.0),
-            false,
-        ));
-    }
-
-    let on_value_change = EventHandler::new({
+            }
+            {
+                let control_label = "Size".to_owned();
+                let control_aria_label = "Key size".to_owned();
+                let control_id = format!(
+                    "layout-choice-{}-{}",
+                    dioxus::core::current_scope_id().0,
+                    control_aria_label.replace(' ', "-"),
+                );
+                let control_value = ((if mixed || draft().x.min(draft().y) != 1.0 {
+                    "custom".to_owned()
+                } else {
+                    draft().x.max(draft().y).to_string()
+                })
+                    .to_string())
+                    .to_string();
+                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                if mixed || draft().x.min(draft().y) != 1.0 {
+                    control_choices
+                        .push(("custom".to_owned(), format!("{}", value_label), false));
+                }
+                for step in 4..=28 {
+                    control_choices
+                        .push((
+                            (f64::from(step) / 4.0).to_string(),
+                            format!("{}u", f64::from(step) / 4.0),
+                            false,
+                        ));
+                }
+                let on_value_change = EventHandler::new({
         let owner = event_owner.clone();
         let generation = timer_generation.clone();
         move |choice: Option<String>| {
@@ -240,55 +263,91 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     });
     rsx! {
 
-        Field { class: "board-field",
-            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-            Combobox::<String> {
-                id: control_id,
-                aria_label: control_aria_label.clone(),
-                list_aria_label: control_aria_label.clone(),
-                value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
-                disabled: !props.mount.editable,
-                on_value_change,
-                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                    ComboboxOption::<String> {
-                        index,
-                        value: value.clone(),
-                        text_value: label.clone(),
-                        disabled: *disabled,
-                        "{label}"
+                    Field {
+                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                        Combobox::<String> {
+                            id: control_id,
+                            aria_label: control_aria_label.clone(),
+                            list_aria_label: control_aria_label.clone(),
+                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                            disabled: !props.mount.editable,
+                            on_value_change,
+                            for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                ComboboxOption::<String> {
+                                    index,
+                                    value: value.clone(),
+                                    text_value: label.clone(),
+                                    disabled: *disabled,
+                                    "{label}"
+                                }
+                            }
+                        }
                     }
                 }
             }
+            {
+                let check_id = format!(
+                    "layout-check-{}-{}",
+                    dioxus::core::current_scope_id().0,
+                    ("Rotate keycap").replace(' ', "-"),
+                );
+                rsx! {
+                    Label { html_for: check_id.clone(), class: "m1-key-size-rotate",
+                        Checkbox {
+                            id: check_id.clone(),
+                            aria_label: "Rotate keycap",
+                            disabled: !props.mount.editable,
+                            checked: Some(
+                                if !mixed && draft().y > draft().x {
+                                    dioxus_primitives::checkbox::CheckboxState::Checked
+                                } else {
+                                    dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                },
+                            ),
+                            on_checked_change: {
+                                let owner = event_owner.clone();
+                                let generation = timer_generation.clone();
+                                move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                    generation.set(generation.get().wrapping_add(1));
+                                    let current = draft();
+                                    let long = current.x.max(current.y);
+                                    let short = current.x.min(current.y);
+                                    let next = if bool::from(checked) {
+                                        boardstudio_core::model::Vec2 {
+                                            x: short,
+                                            y: long,
+                                        }
+                                    } else {
+                                        boardstudio_core::model::Vec2 {
+                                            x: long,
+                                            y: short,
+                                        }
+                                    };
+                                    draft_dirty.set(true);
+                                    draft.set(next);
+                                    submit
+                                        .call(ResizeIntent {
+                                            owner: owner.clone(),
+                                            snapshot_token,
+                                            revision,
+                                            units: next,
+                                            axis: None,
+                                        });
+                                }
+                            },
+                        }
+                        "Rotate 90°"
+                    }
+                }
+            }
+            if let Some(error) = error {
+                FieldError { class: "m1-key-size-error", "{error}"  }
+            }
         }
-
-
+        if let Some(warning) = overlap_warning {
+            div { role: "status",  Callout { class: "m1-key-size-warning", variant: CalloutVariant::Warning,  "{warning}"  } }
+        }
     }
-}
-                { let check_id = format!("layout-check-{}-{}", dioxus::core::current_scope_id().0, ("Rotate keycap").replace(' ', "-")); rsx! { Label { html_for: check_id.clone(), class: "m1-key-size-rotate",
-                    Checkbox { id: check_id.clone(), aria_label: "Rotate keycap",
-disabled: !props.mount.editable,
-checked: Some(if !mixed && draft().y > draft().x { dioxus_primitives::checkbox::CheckboxState::Checked } else { dioxus_primitives::checkbox::CheckboxState::Unchecked }),
-on_checked_change: {
-                            let owner = event_owner.clone();
-                            let generation = timer_generation.clone();
-                            move |checked: dioxus_primitives::checkbox::CheckboxState| {
-                                generation.set(generation.get().wrapping_add(1));
-                                let current = draft();
-                                let long = current.x.max(current.y); let short = current.x.min(current.y);
-                                let next = if bool::from(checked) { boardstudio_core::model::Vec2 { x: short, y: long } } else { boardstudio_core::model::Vec2 { x: long, y: short } };
-                                draft_dirty.set(true); draft.set(next);
-                                submit.call(ResizeIntent { owner: owner.clone(), snapshot_token, revision, units: next, axis: None });
-                            }
-                        },
-                      }
-                    "Rotate 90°"
-                 } } }
-                if let Some(error) = error { p { role: "alert", class: "m1-key-size-error", "{error}" } }
-            }
-            if let Some(warning) = overlap_warning {
-                p { class: "m1-key-size-warning", role: "status", "{warning}" }
-            }
-        }
 }
 
 fn quarter(value: f64) -> f64 {

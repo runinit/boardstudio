@@ -8,6 +8,7 @@ use boardstudio_application::{
 use boardstudio_core::CoreEngine;
 use boardstudio_core::model::Vec2;
 use boardstudio_core::model::{Part, Pose2, Side};
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -49,7 +50,11 @@ fn host() -> Element {
         on_bind_draft: use_callback(|_| {}),
         on_resize,
     };
-    rsx! { div { id: "key-size-regression-root", KeySizeControls { mount } } }
+    rsx! {
+        div { id: "key-size-regression-root",
+            KeySizeControls { mount }
+        }
+    }
 }
 
 fn owner(context: TreeContext, selected_ids: &[&str], generation: u64) -> KeySizeOwner {
@@ -163,10 +168,7 @@ async fn size_selection_is_submitted_once_for_its_owner_before_selection_changes
         None,
     );
     rendered(20).await;
-    let size = element(&root, "select[aria-label='Key size']")
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    change_size(&size, "2");
+    change_size(&root, "2").await;
     rendered(20).await;
     assert_eq!(probe.accepted.borrow().len(), 1);
     assert_eq!(probe.accepted.borrow()[0].owner, first_owner);
@@ -518,18 +520,11 @@ async fn size_selector_and_rotate_checkbox_submit_through_the_same_owner() {
     );
     let (probe, root) = mounted(projection(first_owner.clone(), &["a"], &[18.0]), None);
     rendered(20).await;
-    let size = element(&root, "select[aria-label='Key size']")
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    change_size(&size, "2");
+    change_size(&root, "2").await;
     rendered(20).await;
-    let rotate = element(&root, "input[aria-label='Rotate keycap']")
-        .dyn_into::<HtmlInputElement>()
-        .unwrap();
-    rotate.set_checked(true);
-    let event = Event::new("change").unwrap();
-    event.init_event_with_bubbles("change", true);
-    rotate.dispatch_event(&event).unwrap();
+    by_role_name(&root, "checkbox", "Rotate keycap")
+        .unwrap()
+        .click();
     rendered(20).await;
     assert_eq!(probe.accepted.borrow().len(), 2);
     let request = probe.accepted.borrow()[1].clone();
@@ -968,14 +963,32 @@ fn runtime_host() -> Element {
         workspace,
         generation,
     );
-    rsx! { KeySizeControls { mount } }
+    rsx! {
+        KeySizeControls { mount }
+    }
 }
 
-fn change_size(input: &web_sys::HtmlSelectElement, value: &str) {
-    input.set_value(value);
-    let event = Event::new("change").unwrap();
-    event.init_event_with_bubbles("change", true);
-    input.dispatch_event(&event).unwrap();
+async fn change_size(root: &web_sys::Element, value: &str) {
+    let input = by_role_name(root, "combobox", "Key size").unwrap();
+    input.focus().unwrap();
+    let init = web_sys::KeyboardEventInit::new();
+    init.set_key("ArrowDown");
+    init.set_bubbles(true);
+    input
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
+        )
+        .unwrap();
+    let name = format!("{value}u");
+    wait_until("key-size option opens", || {
+        by_role_name(root, "option", &name).is_some()
+    })
+    .await;
+    by_role_name(root, "option", &name).unwrap().click();
+    wait_until("key-size choice closes", || {
+        input.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
 }
 
 #[wasm_bindgen_test]
@@ -1012,10 +1025,7 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     rendered(30).await;
-    let size = element(&root, "select[aria-label='Key size']")
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    change_size(&size, "2");
+    change_size(&root, "2").await;
     for _ in 0..50 {
         support::run_pending(&probe.runtime).await;
         rendered(10).await;
@@ -1028,11 +1038,12 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
     rendered(30).await;
     assert_eq!(key_width(&probe.runtime), original);
     assert_eq!(
-        element(&root, "select[aria-label='Key size']")
-            .dyn_into::<web_sys::HtmlSelectElement>()
+        by_role_name(&root, "combobox", "Key size")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
             .unwrap()
             .value(),
-        "1"
+        "1u"
     );
     probe.runtime.submit(SessionEvent::Redo {
         operation_id: probe.runtime.operation(),
@@ -1040,19 +1051,15 @@ async fn size_selector_tracks_accepted_undo_redo_and_failed_edit_feedback() {
     support::run_pending(&probe.runtime).await;
     rendered(30).await;
     assert_eq!(
-        element(&root, "select[aria-label='Key size']")
-            .dyn_into::<web_sys::HtmlSelectElement>()
+        by_role_name(&root, "combobox", "Key size")
+            .unwrap()
+            .dyn_into::<HtmlInputElement>()
             .unwrap()
             .value(),
-        "2"
+        "2u"
     );
     support::fail_next_core_reply(&probe.runtime, "injected key-size failure");
-    change_size(
-        &element(&root, "select[aria-label='Key size']")
-            .dyn_into::<web_sys::HtmlSelectElement>()
-            .unwrap(),
-        "3",
-    );
+    change_size(&root, "3").await;
     for _ in 0..50 {
         support::run_pending(&probe.runtime).await;
         rendered(10).await;

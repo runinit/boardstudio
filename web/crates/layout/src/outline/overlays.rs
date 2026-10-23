@@ -1,4 +1,11 @@
 //! Canvas overlays for editing and previewing outlines.
+use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
+};
 
 use super::hook::{OutlineActionContext, OutlineDrawTool, OutlineInspectorProjection};
 use super::planner::{OutlinePointTarget, PerimeterAnchor};
@@ -592,47 +599,41 @@ pub(super) fn OutlineDimension(
         && parsed.is_ok_and(|parsed| parsed.is_finite() && parsed >= minimum);
     let error = !valid;
     rsx! {
-        label { class: "m1-outline-field",
-            span { "{label}" }
-            span { class: "m1-outline-number",
-                input {
-                    r#type: "number",
-                    step: "0.1",
-                    min: "{minimum}",
-                    value: "{draft}",
-                    disabled: !editable,
-                    aria_label: label,
-                    aria_invalid: error,
-                    oninput: move |event: FormEvent| field.set((value, event.value())),
-                    onblur: move |_| {
-                        if field().0 != value {
-                            field.set((value, value.to_string()));
-                        } else if let Ok(next) = field().1.trim().parse::<f64>()
-                            && next.is_finite() && next >= minimum && next != value
-                        { on_commit.call(next); }
-                    },
-                    onkeydown: move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                        "Enter" => {
-                            event.prevent_default();
-                            if let Some(input) = event.data().try_as_web_event()
-                                .and_then(|event| event.target())
-                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                            { let _ = input.blur(); }
-                        }
-                        "Escape" => {
-                            event.prevent_default();
-                            let has_draft = field().1 != value.to_string();
-                            field.set((value, value.to_string()));
-                            if has_draft { event.stop_propagation(); }
-                        }
-                        _ => {}
-                    }
-                }
-                small { "mm" }
-            }
-            if error { small { role: "alert", "Enter a finite value greater than or equal to {minimum} mm." } }
+            { let control_input_id = format!("layout-input-{}-2", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
+                span { "{label}" }
+                 } InputGroup { InputGroupInput { r#type: InputType::Number,
+    step: "0.1",
+    min: "{minimum}",
+    value: "{draft}",
+    disabled: !editable,
+    aria_label: label,
+    oninput: move |event: FormEvent| field.set((value, event.value())),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::core::Attribute::new("aria-invalid", error, None, false),dioxus::events::onblur(move |_| {
+                            if field().0 != value {
+                                field.set((value, value.to_string()));
+                            } else if let Ok(next) = field().1.trim().parse::<f64>()
+                                && next.is_finite() && next >= minimum && next != value
+                            { on_commit.call(next); }
+                        }),dioxus::events::onkeydown(move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                            "Enter" => {
+                                event.prevent_default();
+                                if let Some(input) = event.data().try_as_web_event()
+                                    .and_then(|event| event.target())
+                                    .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                { let _ = input.blur(); }
+                            }
+                            "Escape" => {
+                                event.prevent_default();
+                                let has_draft = field().1 != value.to_string();
+                                field.set((value, value.to_string()));
+                                if has_draft { event.stop_propagation(); }
+                            }
+                            _ => {}
+                        })], } InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "mm" } } }
+                if error { boardstudio_web_ui_shared::ui::field::FieldError { "Enter a finite value greater than or equal to {minimum} mm." } }
+             } } }
         }
-    }
 }
 
 #[component]
@@ -659,43 +660,37 @@ pub(super) fn OutlineCoordinate(
             .parse::<f64>()
             .is_ok_and(|parsed| parsed.is_finite());
     rsx! {
-        label { class: "m1-outline-field",
-            span { "{label}" }
-            span { class: "m1-outline-number",
-                input {
-                    r#type: "number",
-                    step: "0.1",
-                    value: "{draft}",
-                    disabled: !editable,
-                    aria_label: "{label}",
-                    aria_invalid: !valid,
-                    oninput: move |event: FormEvent| field.set((value, event.value())),
-                    onblur: move |_| {
-                        if field().0 != value {
-                            field.set((value, value.to_string()));
-                        } else if let Ok(next) = field().1.trim().parse::<f64>()
-                            && next.is_finite() && next != value
-                        { on_commit.call(next); }
-                    },
-                    onkeydown: move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
-                        "Enter" => {
-                            event.prevent_default();
-                            if let Some(input) = event.data().try_as_web_event()
-                                .and_then(|event| event.target())
-                                .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
-                            { let _ = input.blur(); }
-                        }
-                        "Escape" => {
-                            event.prevent_default();
-                            let has_draft = field().1 != value.to_string();
-                            field.set((value, value.to_string()));
-                            if has_draft { event.stop_propagation(); }
-                        }
-                        _ => {}
-                    }
-                }
-                span { "mm" }
-            }
+            { let control_input_id = format!("layout-input-{}-1", dioxus::core::current_scope_id().0); rsx! { Field { class: "m1-outline-field", FieldLabel { html_for: control_input_id.clone(),
+                span { "{label}" }
+                 } InputGroup { InputGroupInput { r#type: InputType::Number,
+    step: "0.1",
+    value: "{draft}",
+    disabled: !editable,
+    aria_label: "{label}",
+    oninput: move |event: FormEvent| field.set((value, event.value())),
+    id: control_input_id.clone(),
+    attributes: vec![dioxus::core::Attribute::new("aria-invalid", !valid, None, false),dioxus::events::onblur(move |_| {
+                            if field().0 != value {
+                                field.set((value, value.to_string()));
+                            } else if let Ok(next) = field().1.trim().parse::<f64>()
+                                && next.is_finite() && next != value
+                            { on_commit.call(next); }
+                        }),dioxus::events::onkeydown(move |event: KeyboardEvent| match event.data().key().to_string().as_str() {
+                            "Enter" => {
+                                event.prevent_default();
+                                if let Some(input) = event.data().try_as_web_event()
+                                    .and_then(|event| event.target())
+                                    .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                { let _ = input.blur(); }
+                            }
+                            "Escape" => {
+                                event.prevent_default();
+                                let has_draft = field().1 != value.to_string();
+                                field.set((value, value.to_string()));
+                                if has_draft { event.stop_propagation(); }
+                            }
+                            _ => {}
+                        })], } InputGroupAddon { align: InputGroupAddonAlign::InlineEnd, InputGroupText { "mm" } } }
+             } } }
         }
-    }
 }

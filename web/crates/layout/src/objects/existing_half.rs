@@ -9,11 +9,18 @@ use boardstudio_core::model::{
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::controls::BoardDialog;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
+};
+use boardstudio_web_ui_shared::ui::{
+    input::InputType,
+    input_group::{
+        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
+    },
 };
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -741,121 +748,139 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     let error = props.projection.error.clone();
 
     rsx! {
-            BoardDialog {
-                open: true, modal: false, aria_label: "Mirror existing half",
-                dismissible: props.projection.can_cancel,
-                on_close: move |_| cancel.call(owner_escape.clone()),
-                section { class: "m1-matrix-setup m1-mirrored-pair-setup",
-                    header { class: "m1-matrix-setup-heading", h2 { "Mirror existing half" } }
-                    p { class: "m1-mirrored-pair-intro", "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware." }
-                    form { onsubmit: submit,
-                        {
-    let control_label = "Source layouts".to_owned();
-    let control_aria_label = "Source layouts".to_owned();
-    let control_id = format!(
-        "layout-choice-{}-{}",
-        dioxus::core::current_scope_id().0,
-        control_aria_label.replace(' ', "-")
-    );
-    let control_value = format!("{}", choice);
-    let mut control_choices: Vec<(String, String, bool)> = Vec::new();
-    control_choices.push((
-        "all".to_owned(),
-        "All unpaired layouts on this board".to_owned(),
-        false,
-    ));
-    for option in owner.options.iter() {
-        control_choices.push((
-            format!("{}", option.matrix_id),
-            format!("{}", option.label),
-            false,
-        ));
-    }
-
-    let on_value_change = EventHandler::new(move |choice: Option<String>| {
-        let Some(choice) = choice else {
-            return;
-        };
-        default_choice.set(choice)
-    });
-    rsx! {
-
-        Field { class: "",
-            FieldLabel { html_for: control_id.clone(), "{control_label}" }
-            if control_choices.len() > 12 {
-                Combobox::<String> {
-                    id: control_id.clone(),
-                    aria_label: control_aria_label.clone(),
-                    list_aria_label: control_aria_label.clone(),
-                    value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
-                    disabled: !props.projection.editable,
-                    on_value_change,
-                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                        ComboboxOption::<String> {
-                            index,
-                            value: value.clone(),
-                            text_value: label.clone(),
-                            disabled: *disabled,
-                            "{label}"
+                BoardDialog {
+                    open: true,
+                    modal: false,
+                    aria_label: "Mirror existing half",
+                    dismissible: props.projection.can_cancel,
+                    on_close: move |_| cancel.call(owner_escape.clone()),
+                    section { class: "m1-matrix-setup m1-mirrored-pair-setup",
+                        header { class: "m1-matrix-setup-heading",
+                            h2 { "Mirror existing half" }
                         }
-                    }
-                }
-            } else {
-                Select::<String> {
-                    id: control_id.clone(),
-                    aria_label: control_aria_label.clone(),
-                    value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
-                    disabled: !props.projection.editable,
-                    on_value_change,
-                    for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
-                        SelectOption::<String> {
-                            index,
-                            value: value.clone(),
-                            text_value: label.clone(),
-                            disabled: *disabled,
-                            "{label}"
+                        p { class: "m1-mirrored-pair-intro",
+                            "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
                         }
-                    }
-                }
-            }
-        }
+                        form { onsubmit: submit,
+                            {
+                                let control_label = "Source layouts".to_owned();
+                                let control_aria_label = "Source layouts".to_owned();
+                                let control_id = format!(
+                                    "layout-choice-{}-{}",
+                                    dioxus::core::current_scope_id().0,
+                                    control_aria_label.replace(' ', "-"),
+                                );
+                                let control_value = format!("{}", choice);
+                                let mut control_choices: Vec<(String, String, bool)> = Vec::new();
+                                control_choices
+                                    .push((
+                                        "all".to_owned(),
+                                        "All unpaired layouts on this board".to_owned(),
+                                        false,
+                                    ));
+                                for option in owner.options.iter() {
+                                    control_choices
+                                        .push((
+                                            format!("{}", option.matrix_id),
+                                            format!("{}", option.label),
+                                            false,
+                                        ));
+                                }
+                                let on_value_change = EventHandler::new(move |choice: Option<String>| {
+            let Some(choice) = choice else {
+                return;
+            };
+            default_choice.set(choice)
+        });
+        rsx! {
 
-
-    }
-}
-                        label { "Mirror axis X (mm)"
-                            input {
-                                aria_label: "Mirror axis X",
-                                r#type: "number",
-                                step: "any",
-                                required: true,
-                                value: "{axis_value}",
-                                disabled: !props.projection.editable,
-                                oninput: move |event| axis.set(event.value()),
+                                    Field { class: "",
+                                        FieldLabel { html_for: control_id.clone(), "{control_label}" }
+                                        if control_choices.len() > 12 {
+                                            Combobox::<String> {
+                                                id: control_id.clone(),
+                                                aria_label: control_aria_label.clone(),
+                                                list_aria_label: control_aria_label.clone(),
+                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                disabled: !props.projection.editable,
+                                                on_value_change,
+                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                    ComboboxOption::<String> {
+                                                        index,
+                                                        value: value.clone(),
+                                                        text_value: label.clone(),
+                                                        disabled: *disabled,
+                                                        "{label}"
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            Select::<String> {
+                                                id: control_id.clone(),
+                                                aria_label: control_aria_label.clone(),
+                                                value: Some(dioxus::core::SuperInto::super_into(Some(control_value.clone()))),
+                                                disabled: !props.projection.editable,
+                                                on_value_change,
+                                                for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
+                                                    SelectOption::<String> {
+                                                        index,
+                                                        value: value.clone(),
+                                                        text_value: label.clone(),
+                                                        disabled: *disabled,
+                                                        "{label}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            {
+                                let control_input_id = format!(
+                                    "layout-input-{}-1",
+                                    dioxus::core::current_scope_id().0,
+                                );
+                                rsx! {
+                                    Field {
+                                        FieldLabel { html_for: control_input_id.clone(), "Mirror axis X (mm)" }
+                                        InputGroup {
+                                            InputGroupInput { aria_label: "Mirror axis X",
+    r#type: InputType::Number,
+    step: "any",
+    required: true,
+    value: "{axis_value}",
+    disabled: !props.projection.editable,
+    oninput: move |event: FormEvent| axis.set(event.value()),
+    id: control_input_id.clone(), }
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(message) = error {
+                                Alert { class: "m1-mirrored-pair-error",
+        variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                            }
+                            footer { class: "m1-mirrored-pair-actions",
+                                Button {
+                                    variant: ButtonVariant::Outline,
+                                    class: "wb-secondary",
+                                    button_type: "button",
+                                    disabled: !props.projection.can_cancel,
+                                    onclick: move |_| cancel.call(owner.clone()),
+                                    "Cancel"
+                                }
+                                Button {
+                                    variant: ButtonVariant::Default,
+                                    class: "wb-primary",
+                                    button_type: "submit",
+                                    disabled: !can_create,
+                                    "Create linked half"
+                                }
                             }
                         }
-                        if let Some(message) = error { p { class: "m1-mirrored-pair-error", role: "alert", "{message}" } }
-                        footer { class: "m1-mirrored-pair-actions",
-                            Button {
-    variant: ButtonVariant::Secondary,
-    class: "wb-secondary",
-    button_type: "button",
-    disabled: !props.projection.can_cancel,
-    onclick: move |_| cancel.call(owner.clone()),
-     "Cancel"
-    }
-                            Button {
-    variant: ButtonVariant::Default,
-    class: "wb-primary",
-    button_type: "submit",
-    disabled: !can_create,
-     "Create linked half"
-    }
-                        }
                     }
                 }
             }
-        }
 }
 
 #[cfg(test)]
@@ -886,8 +911,14 @@ mod adoption_tests {
         let mut submitted = use_signal(|| None::<f64>);
         rsx! {
             ExistingHalfSetup {
-                projection: ExistingHalfProjection { owner, editable: true, can_cancel: true, error: None },
-                on_cancel: |_| {}, on_create: move |request: ExistingHalfCreateRequest| submitted.set(Some(request.axis_x)),
+                projection: ExistingHalfProjection {
+                    owner,
+                    editable: true,
+                    can_cancel: true,
+                    error: None,
+                },
+                on_cancel: |_| {},
+                on_create: move |request: ExistingHalfCreateRequest| submitted.set(Some(request.axis_x)),
             }
             output { aria_label: "Submitted axis", "{submitted:?}" }
         }

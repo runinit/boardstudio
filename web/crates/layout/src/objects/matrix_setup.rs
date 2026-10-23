@@ -2,10 +2,15 @@
 use crate::matrix_setup_operation::MatrixSetupPreset;
 pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
+use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 
+use boardstudio_web_ui_shared::ui::{
+    slider::Slider,
+    toggle_group::{ToggleGroup, ToggleItem},
+};
 use dioxus::prelude::*;
-use boardstudio_web_ui_shared::ui::{slider::Slider, toggle_group::{ToggleGroup, ToggleItem}};
 use std::collections::HashSet;
 use wasm_bindgen::JsCast;
 
@@ -188,7 +193,10 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                 }
                 form { onsubmit: on_submit,
                     div { class: "m1-matrix-dimension",
-                        label { "Rows" strong { "{rows_value}" } }
+                        label {
+                            "Rows"
+                            strong { "{rows_value}" }
+                        }
                         div {
                             id: "m1-matrix-rows-focus",
                             onmounted: move |_| async move {
@@ -201,34 +209,50 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                                 }
                                 if let Some(target) = web_sys::window()
                                     .and_then(|window| window.document())
-                                    .and_then(|document| document.query_selector("#m1-matrix-rows-focus [role='slider'][aria-label='Rows']").ok().flatten())
+                                    .and_then(|document| {
+                                        document
+                                            .query_selector(
+                                                "#m1-matrix-rows-focus [role='slider'][aria-label='Rows']",
+                                            )
+                                            .ok()
+                                            .flatten()
+                                    })
                                     .and_then(|target| target.dyn_into::<web_sys::HtmlElement>().ok())
                                 {
                                     let _ = target.focus();
                                 }
                             },
-                        Slider {
-                            label: "Rows", value: row_slider, min: 1.0, max: 12.0, step: 1.0,
-                            disabled: !props.projection.editable,
-                            on_value_change: move |value: f64| {
+                            Slider { label: "Rows",
+value: row_slider,
+min: 1.0,
+max: 12.0,
+step: 1.0,
+disabled: !props.projection.editable,
+on_value_change: move |value: f64| {
                                 let value = value.round().clamp(1.0, 12.0);
                                 row_slider.set(Some(value)); rows.set(format!("{value:.0}"));
                             },
 
-                        }
+                             }
                         }
                     }
                     div { class: "m1-matrix-dimension",
-                        label { "Columns" strong { "{columns_value}" } }
-                        Slider {
-                            label: "Columns", value: column_slider, min: 1.0, max: 18.0, step: 1.0,
-                            disabled: !props.projection.editable,
-                            on_value_change: move |value: f64| {
+                        label {
+                            "Columns"
+                            strong { "{columns_value}" }
+                        }
+                        Slider { label: "Columns",
+value: column_slider,
+min: 1.0,
+max: 18.0,
+step: 1.0,
+disabled: !props.projection.editable,
+on_value_change: move |value: f64| {
                                 let value = value.round().clamp(1.0, 18.0);
                                 column_slider.set(Some(value)); columns.set(format!("{value:.0}"));
                             },
 
-                        }
+                         }
                     }
                     div { class: "m1-matrix-assembly-picker",
                         h3 { "Key assembly" }
@@ -238,31 +262,62 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                             allow_multiple_pressed: false,
                             disabled: !props.projection.editable,
                             on_pressed_change: move |pressed: HashSet<usize>| {
-                                if !pressed.is_empty() { family.set(Some(pressed)); }
+                                if !pressed.is_empty() {
+                                    family.set(Some(pressed));
+                                }
                             },
                             for (index, label) in ["MX", "Choc"].iter().enumerate() {
                                 ToggleItem { index, class: "m1-matrix-assembly-choice",
-                                    svg { view_box: "0 0 32 32", "aria-hidden": "true",
-                                        rect { x: "4", y: if index == 0 { "5" } else { "12" }, width: "24", height: if index == 0 { "16" } else { "9" }, rx: "3" }
+                                    svg {
+                                        view_box: "0 0 32 32",
+                                        "aria-hidden": "true",
+                                        rect {
+                                            x: "4",
+                                            y: if index == 0 { "5" } else { "12" },
+                                            width: "24",
+                                            height: if index == 0 { "16" } else { "9" },
+                                            rx: "3",
+                                        }
                                         path { d: "M8 25h16M12 21v4m8-4v4" }
                                     }
-                                    span { strong { "{label}" } small { if index == 0 { "Full height" } else { "Low profile" } } }
+                                    span {
+                                        strong { "{label}" }
+                                        small {
+                                            if index == 0 {
+                                                "Full height"
+                                            } else {
+                                                "Low profile"
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                         h3 { "Mounting" }
                         ToggleGroup {
-                            aria_label: "Switch mounting", pressed: mounting, allow_multiple_pressed: false,
+                            aria_label: "Switch mounting",
+                            pressed: mounting,
+                            allow_multiple_pressed: false,
                             disabled: !props.projection.editable,
-                            on_pressed_change: move |choice: HashSet<usize>| if !choice.is_empty() { mounting.set(Some(choice)); },
+                            on_pressed_change: move |choice: HashSet<usize>| {
+                                if !choice.is_empty() {
+                                    mounting.set(Some(choice));
+                                }
+                            },
                             ToggleItem { index: 0usize, "Solder" }
                             ToggleItem { index: 1usize, "Hotswap" }
                         }
                         h3 { "Lighting" }
                         ToggleGroup {
-                            aria_label: "Key lighting", pressed: lighting, allow_multiple_pressed: false,
+                            aria_label: "Key lighting",
+                            pressed: lighting,
+                            allow_multiple_pressed: false,
                             disabled: !props.projection.editable,
-                            on_pressed_change: move |choice: HashSet<usize>| if !choice.is_empty() { lighting.set(Some(choice)); },
+                            on_pressed_change: move |choice: HashSet<usize>| {
+                                if !choice.is_empty() {
+                                    lighting.set(Some(choice));
+                                }
+                            },
                             ToggleItem { index: 0usize, "None" }
                             ToggleItem { index: 1usize, "Per-key RGB" }
                         }
@@ -278,36 +333,41 @@ pub fn MatrixSetup(props: MatrixSetupProps) -> Element {
                                         key: "{index}",
                                         x: "{(index % preview_columns) * 10}",
                                         y: "{(index / preview_columns) * 10}",
-                                        width: "8", height: "8", rx: "1",
+                                        width: "8",
+                                        height: "8",
+                                        rx: "1",
                                     }
                                 }
                             }
-                            figcaption { "{preview_rows * preview_columns} keys · {preview_rows} × {preview_columns}" }
+                            figcaption {
+                                "{preview_rows * preview_columns} keys · {preview_rows} × {preview_columns}"
+                            }
                         }
                     }
                     if let Some(message) = feedback_error {
-                        p { class: "m1-matrix-setup-error", role: "alert", "{message}" }
+                        Alert { class: "m1-matrix-setup-error",
+    variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
                     }
                     if let Some(message) = feedback_status {
-                        p { class: "m1-matrix-setup-status", role: "status", "{message}" }
+                        div { role: "status",  Callout { class: "m1-matrix-setup-status", variant: CalloutVariant::Info,  "{message}"  } }
                     }
                     footer {
                         if props.projection.can_cancel {
                             Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "button",
-    onclick: move |_| on_cancel(owner.clone()),
-     "Cancel"
-    }
+                                variant: ButtonVariant::Outline,
+                                button_type: "button",
+                                onclick: move |_| on_cancel(owner.clone()),
+                                "Cancel"
+                            }
                         }
                         Button {
-    variant: ButtonVariant::Secondary,
-    button_type: "submit",
-    disabled: !props.projection.editable,
+                            variant: ButtonVariant::Outline,
+                            button_type: "submit",
+                            disabled: !props.projection.editable,
 
                             "Create matrix"
 
-    }
+                        }
                     }
                 }
             }
