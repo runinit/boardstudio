@@ -674,7 +674,7 @@ fn linked_selection(
 
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
     let layout = document.layouts.iter().find(|layout| {
-        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
     })?;
     let linked = if let Some(link) = &layout.mirror_link {
         document.layouts.iter().find(|candidate| {

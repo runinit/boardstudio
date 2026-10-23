@@ -333,7 +333,7 @@ pub fn Objects(
             .layouts
             .iter()
             .find(|layout| {
-                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+                layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
             })
             .map(|layout| layout.id.clone())
     });

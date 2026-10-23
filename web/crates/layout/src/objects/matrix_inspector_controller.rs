@@ -1741,7 +1741,7 @@ fn field_value(
                 .layouts
                 .iter()
                 .find(|layout| {
-                    layout.id == *id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+                    layout.id == *id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
                 })
                 .map(|layout| MatrixEditValue::Name(Some(layout.name.clone()))),
         },
@@ -2892,7 +2892,7 @@ mod tests {
             panic!("layout name changes should use SetLayout");
         };
         assert_eq!(renamed.id, layout.id);
-        assert_eq!(renamed.matrix_id, matrix.id);
+        assert_eq!(renamed.matrix_ids, [matrix.id.clone()]);
         assert_eq!(renamed.name, "Renamed layout");
         assert_eq!(matrix.name.as_deref(), Some("Authored matrix name"));
     }

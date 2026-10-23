@@ -1512,10 +1512,8 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
     let (mut document, _) = two_key_fixture(false);
     {
         let values = vec![Vec2 { x: 0.0, y: -9.525 }];
-        document.matrices[0].column_layout.resize_with(
-            values.len().max(document.matrices[0].column_layout.len()),
-            Default::default,
-        );
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
         for record in &mut document.matrices[0].column_layout {
             record.offset = Vec2::default();
         }
@@ -1591,10 +1589,8 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     let (mut document, _) = two_key_fixture(false);
     {
         let values = vec![Vec2 { x: 0.0, y: -9.525 }];
-        document.matrices[0].column_layout.resize_with(
-            values.len().max(document.matrices[0].column_layout.len()),
-            Default::default,
-        );
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
         for record in &mut document.matrices[0].column_layout {
             record.offset = Vec2::default();
         }
@@ -1604,10 +1600,8 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     }
     {
         let values = vec![10.0];
-        document.matrices[0].column_layout.resize_with(
-            values.len().max(document.matrices[0].column_layout.len()),
-            Default::default,
-        );
+        let column_layout = &mut document.matrices[0].column_layout;
+        column_layout.resize_with(values.len().max(column_layout.len()), Default::default);
         for record in &mut document.matrices[0].column_layout {
             record.splay = 0.0;
         }

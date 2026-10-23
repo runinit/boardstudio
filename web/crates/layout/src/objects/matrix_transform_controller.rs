@@ -1138,7 +1138,7 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
         .layouts
         .iter()
         .find(|layout| {
-            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| *id == matrix_id)
         })
         .is_some_and(|layout| {
             layout.mirror_link.is_some()
