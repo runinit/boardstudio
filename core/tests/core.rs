@@ -4800,3 +4800,38 @@ fn undo_retains_only_the_latest_hundred_commits() {
         CoreReply::Error { .. }
     ));
 }
+
+#[test]
+fn adding_a_link_never_recreates_a_pair_excused_by_a_local_exception() {
+    let (mut engine, mut doc) = linked_pair();
+    let mut link = doc.layouts[1].mirror_link.take().unwrap();
+    let (_, opened) = scene(engine.handle(CoreRequest::Open {
+        id: "open-unlinked".into(),
+        document: doc.clone(),
+    }));
+    link.correspondences.clear();
+    link.exceptions.push(MirroredException {
+        companion_mode: None,
+        companion_tweak: None,
+        kind: MirroredItemKind::Part,
+        mirror_id: "matrix/right-matrix/r0c1".into(),
+        state: MirroredExceptionState::Local,
+        removed_copper: None,
+    });
+    let mut layout = opened.layouts[1].clone();
+    layout.mirror_link = Some(link);
+    let (_, linked) = scene(engine.handle(edit(
+        opened.revision,
+        EditPhase::Commit,
+        EditOperation::SetLayout { layout },
+    )));
+    let link = linked.layouts[1].mirror_link.as_ref().unwrap();
+    assert!(
+        !link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Part
+                && (record.source_id.ends_with("left-matrix/r0c1")
+                    || record.mirror_id.ends_with("right-matrix/r0c1"))
+        }),
+        "adding a link must not recreate an excused pair: {link:?}"
+    );
+}

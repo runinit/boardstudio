@@ -184,6 +184,13 @@ pub(crate) fn member_pairs(
         .collect()
 }
 
+/// A Local Part exception excuses its mirror member from pairing.
+fn is_excepted(exceptions: &[MirroredException], mirror_id: &str) -> bool {
+    exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
+    })
+}
+
 pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
     let Some(link) = &mut target.mirror_link else {
         return Ok(());
@@ -209,16 +216,19 @@ pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result
         companion_tweak: None,
     });
     let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
-    link.correspondences
-        .extend(member_pairs(&matrix, mirror_id, None).into_iter().map(
-            |(source_id, mirror_id)| MirroredCorrespondence {
+    let exceptions = link.exceptions.clone();
+    link.correspondences.extend(
+        member_pairs(&matrix, mirror_id, None)
+            .into_iter()
+            .filter(|(_, mirror_id)| !is_excepted(&exceptions, mirror_id))
+            .map(|(source_id, mirror_id)| MirroredCorrespondence {
                 kind: MirroredItemKind::Part,
                 source_id,
                 mirror_id,
                 companion_mode: None,
                 companion_tweak: None,
-            },
-        ));
+            }),
+    );
     Ok(())
 }
 
@@ -272,11 +282,7 @@ pub(crate) fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result
         });
         for slots in pairs_of_slots {
             for (source_id, mirror_id) in slots {
-                let excepted = link.exceptions.iter().any(|exception| {
-                    exception.kind == MirroredItemKind::Part
-                        && (exception.mirror_id == mirror_id || exception.mirror_id == source_id)
-                });
-                if excepted
+                if is_excepted(&link.exceptions, &mirror_id)
                     || link.correspondences.iter().any(|record| {
                         record.kind == MirroredItemKind::Part
                             && (record.source_id == source_id || record.mirror_id == mirror_id)
