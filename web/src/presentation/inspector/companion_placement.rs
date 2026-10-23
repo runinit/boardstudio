@@ -394,7 +394,7 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                         }
                         if disabled_reason.is_none() {
                             Button {
-                                variant: ButtonVariant::Outline,
+                                variant: ButtonVariant::Secondary,
                                 button_type: "button",
                                 disabled: !can_apply,
                                 onclick: apply,

@@ -1224,7 +1224,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                     div { class: "m1-layout-component-fields",
                                         p { "This part's state on the mirrored half." }
                                         Button {
-                                            variant: ButtonVariant::Outline,
+                                            variant: ButtonVariant::Secondary,
                                             id: "component-inspector-mirrored-half-local",
                                             button_type: "button",
                                             disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Local,
@@ -1234,7 +1234,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
 
                                         }
                                         Button {
-                                            variant: ButtonVariant::Outline,
+                                            variant: ButtonVariant::Secondary,
                                             id: "component-inspector-mirrored-half-omit",
                                             button_type: "button",
                                             disabled: (props.mirrored_half_pending)()
@@ -1245,7 +1245,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
 
                                         }
                                         Button {
-                                            variant: ButtonVariant::Outline,
+                                            variant: ButtonVariant::Secondary,
                                             id: "component-inspector-mirrored-half-rejoin",
                                             button_type: "button",
                                             disabled: (props.mirrored_half_pending)() || mirrored_half.state == HalfExceptionState::Linked,
@@ -1964,7 +1964,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                         }
                                         div { class: "m1-layout-component-constraint-actions",
                                             Button {
-                                                variant: ButtonVariant::Outline,
+                                                variant: ButtonVariant::Secondary,
                                                 button_type: "button",
                                                 disabled: (props.constraint_pending)(),
                                                 onclick: save_constraint,
@@ -1976,7 +1976,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                             }
                                             if active_constraint.is_some() {
                                                 Button {
-                                                    variant: ButtonVariant::Outline,
+                                                    variant: ButtonVariant::Secondary,
                                                     button_type: "button",
                                                     disabled: (props.remove_pending)(),
                                                     onclick: remove_constraint,
@@ -1997,7 +1997,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                         {
                             FieldError {  "{message}"  }
                         }
-                        Button { variant: ButtonVariant::Outline,
+                        Button { variant: ButtonVariant::Secondary,
 class: "m1-layout-component-electrical",
 button_type: "button",
 onclick: {
@@ -2013,7 +2013,7 @@ onclick: {
                             "{projection.relationship_summary}"
                         }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             button_type: "button",
                             onclick: move |_| tab.set(LayoutInspectorTab::Properties),
                             "Go to Properties"

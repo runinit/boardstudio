@@ -866,7 +866,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                             }
                             footer { class: "m1-mirrored-pair-actions",
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     class: "max-[760px]:min-h-control-touch",
                                     button_type: "button",
                                     disabled: !props.projection.can_cancel,

@@ -381,13 +381,13 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
                         }
                         footer { class: "m1-mirrored-pair-actions",
                             Button {
-                                variant: ButtonVariant::Outline,
+                                variant: ButtonVariant::Secondary,
                                 button_type: "button",
                                 onclick: move |_| on_cancel.call(owner.clone()),
                                 "Cancel"
                             }
                             Button {
-                                variant: ButtonVariant::Outline,
+                                variant: ButtonVariant::Secondary,
                                 button_type: "submit",
                                 disabled: !can_preview,
                                 "Preview placement"

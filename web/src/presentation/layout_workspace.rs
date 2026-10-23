@@ -393,7 +393,7 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
     rsx! {
         div { class: "m1-layout-add-object",
             Button {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Secondary,
                 button_type: "button",
                 id: "m1-add-object-trigger",
                 aria_label: "Add object",
@@ -441,20 +441,20 @@ pub(super) fn toolbar(input: ToolbarInput) -> Element {
     variant: AlertVariant::Destructive,AlertDescription {  "Save failed: {reason}"  } }
                     if !input.save_conflict {
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             onclick: move |_| input.on_retry_save.call(()),
                             "Retry save"
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         onclick: move |_| input.on_download_pending.call(()),
                         "Download my pending edits"
                     }
                 }
                 if input.recovery_required {
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         onclick: move |_| input.on_recover_saved.call(()),
                         "Reload saved version"
                     }
@@ -610,12 +610,12 @@ mod workspace_state_tests {
         let selection_present = selected_context().is_some();
         rsx! {
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         id: "layout-state-relations",
                         onclick: move |_| inspector_tab.set(LayoutInspectorTab::Relations),
                         "Relations"
                     }
-                    Button { variant: ButtonVariant::Outline,
+                    Button { variant: ButtonVariant::Secondary,
         id: "layout-state-select",
         onclick: move |_| {
                                 let context = objects::TreeContext::Matrix { matrix_id: "matrix".into() };
@@ -628,25 +628,25 @@ mod workspace_state_tests {
                         "Select matrix"
                      }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         id: "layout-state-arm-pick",
                         onclick: move |_| pending_pick.set(Some(pick_owner.clone())),
                         "Arm origin pick"
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         id: "layout-state-enter-3d",
                         onclick: move |_| state.set_assembly_3d(true),
                         "Enter 3D"
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         id: "layout-state-tool",
                         onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)),
                         "Activate tool"
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         id: "layout-state-switch",
                         onclick: move |_| workspace.set("Keycaps"),
                         "Switch workspace"
@@ -960,7 +960,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
             if input.findings_return_available {
                 div { class: "m1-layout-findings-return",
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
                         id: "m1-layout-findings-back-to-selection",
                         button_type: "button",
@@ -1235,7 +1235,7 @@ mod origin_pick_escape_regression_tests {
                 on_cancel: EventHandler::new(move |()| pending.set(false)),
             }
             Button {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Secondary,
                 id: "arm-origin-pick",
                 onclick: move |_| pending.set(true),
 

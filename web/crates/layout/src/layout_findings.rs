@@ -42,7 +42,7 @@ pub struct InspectorMount {
 pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> Element {
     rsx! {
         Button {
-            variant: ButtonVariant::Outline,
+            variant: ButtonVariant::Secondary,
             class: "m1-canvas-footer-findings",
             id: "m1-layout-findings-trigger",
             button_type: "button",
@@ -182,7 +182,7 @@ fn LayoutFinding(
                 )
                 {
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         class: "wb-finding-action",
                         button_type: "button",
                         onclick: move |_| on_navigate.call(request.clone()),

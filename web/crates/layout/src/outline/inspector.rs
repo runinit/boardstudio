@@ -180,7 +180,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                             div { class: "m1-outline-inspector-heading",
                                 h2 { "Perimeter" }
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     button_type: "button",
                                     disabled: !enabled,
                                     onclick: move |_| perimeter_open.set(false),
@@ -268,7 +268,7 @@ pub fn OutlineVersionInspector(projection: OutlineInspectorProjection) -> Elemen
                                 }
                             }
                             div { class: "m1-outline-point-actions",
-                                Button { variant: ButtonVariant::Outline,
+                                Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-insert-point",
 button_type: "button",
 disabled: !enabled,
@@ -291,7 +291,7 @@ onclick: {
                                     "Insert after"
 
                                  }
-                                Button { variant: ButtonVariant::Outline,
+                                Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-remove-point",
 button_type: "button",
 disabled: !enabled || point_count <= 3,
@@ -535,7 +535,7 @@ onclick: {
                                 }
                             }
                             if !projection.has_generated && projection.active_version_id.is_none() {
-                                Button { variant: ButtonVariant::Outline,
+                                Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-action",
 disabled: !one_shot_enabled,
 onclick: {
@@ -648,7 +648,7 @@ onclick: {
                                         }
                                         for (index, gap) in projection.gaps.iter().enumerate() {
                                             div { class: "m1-outline-gap-row",
-                                                Button { variant: ButtonVariant::Outline,
+                                                Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-gap-focus",
 button_type: "button",
 aria_label: "Show gap {index + 1}",
@@ -786,7 +786,7 @@ onclick: {
                                     }
                                     if projection.active_version_id.is_none() {
                                         for (index, gap) in projection.repair.keep_gaps.iter().enumerate() {
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-remove-gap",
 aria_label: "Remove protected gap {index + 1}",
 disabled: !one_shot_enabled,
@@ -805,7 +805,7 @@ onclick: {
                             }
                         }
                         if projection.perimeter.as_ref().is_some_and(|perimeter| perimeter.points.len() >= 3) {
-                            Button { variant: ButtonVariant::Outline,
+                            Button { variant: ButtonVariant::Secondary,
 class: "m1-outline-action",
 button_type: "button",
 disabled: !enabled,
@@ -865,7 +865,7 @@ onclick: move |_| {
                                                         ToggleItem { index: 0usize, disabled: !enabled, "{feature_name} {index + 1}" }
                                                     }
                                                     if matches!(feature, OutlineFeature::Polygon { .. }) {
-                                                        Button { variant: ButtonVariant::Outline,
+                                                        Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !enabled,
 onclick: {
@@ -882,7 +882,7 @@ onclick: {
                                                          }
                                                     }
                                                     if let Some(version_id) = active_version.as_ref().filter(|_| index > 0) {
-                                                        Button { variant: ButtonVariant::Outline,
+                                                        Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 class: "m1-outline-remove-feature",
 disabled: !one_shot_enabled,
@@ -1124,7 +1124,7 @@ onclick: {
                                                 }
                                             }
                                             if let Some(before) = projection.connection_feature.as_ref() {
-                                                Button { variant: ButtonVariant::Outline,
+                                                Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 class: "m1-outline-remove-feature",
 disabled: !one_shot_enabled,
@@ -1318,7 +1318,7 @@ onclick: {
                                                         }
                                                     }
                                                     div { class: "m1-outline-point-actions",
-                                                        Button { variant: ButtonVariant::Outline,
+                                                        Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled || index + 1 == connection.points.len(),
 aria_label: "Insert after connection point {index + 1}",
@@ -1349,7 +1349,7 @@ onclick: {
                                                             "Insert after"
 
                                                          }
-                                                        Button { variant: ButtonVariant::Outline,
+                                                        Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled || connection.points.len() <= 2,
 aria_label: "Remove connection point {index + 1}",
@@ -1418,7 +1418,7 @@ onclick: {
                                  } }
                                 p { "{drawing_points.read().len()} points" }
                                 div { class: "m1-outline-actions",
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: drawing_points.read().is_empty(),
 onclick: move |_| { let mut points = drawing_points.read().clone(); points.pop(); drawing_points.set(points); },
@@ -1426,12 +1426,12 @@ onclick: move |_| { let mut points = drawing_points.read().clone(); points.pop()
                                         "Undo point"
 
                                      }
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 onclick: move |_| { drawing_operation.set(None); drawing_points.set(Vec::new()); },
                                         "Cancel drawing"
                                      }
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled
                                             || drawing_points.read().len()
@@ -1472,7 +1472,7 @@ onclick: {
                                 }
                             } else {
                                 div { class: "m1-outline-actions",
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled,
 onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Add))); },
@@ -1480,7 +1480,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                                         "Draw addition"
 
                                      }
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled,
 onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); drawing_operation.set(Some(OutlineDrawTool::Polygon(Operation::Subtract))); },
@@ -1488,7 +1488,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                                         "Draw cutout"
 
                                      }
-                                    Button { variant: ButtonVariant::Outline,
+                                    Button { variant: ButtonVariant::Secondary,
 button_type: "button",
 disabled: !one_shot_enabled || projection.active_version_id.is_some()
                                             || !projection.has_generated,
@@ -1502,7 +1502,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                         }
                         div { class: "m1-outline-actions",
                             Button {
-                                variant: ButtonVariant::Outline,
+                                variant: ButtonVariant::Secondary,
                                 button_type: "button",
                                 disabled: !projection.enabled || projection.one_shot_pending,
                                 onclick: move |_| copy_handler.call(copy.clone()),
@@ -1510,7 +1510,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                             }
                             if let Some(freeze) = freeze.clone() {
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     button_type: "button",
                                     class: "m1-outline-freeze",
                                     disabled: !projection.enabled || projection.one_shot_pending,
@@ -1522,7 +1522,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                             }
                             if let Some(refine) = refine.clone() {
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     button_type: "button",
                                     class: "m1-outline-refine",
                                     disabled: !projection.enabled || projection.one_shot_pending,
@@ -1534,7 +1534,7 @@ onclick: move |_| { perimeter_open.set(false); drawing_points.set(Vec::new()); d
                             }
                             if let Some(delete) = delete {
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     button_type: "button",
                                     disabled: !projection.enabled || projection.one_shot_pending,
                                     onclick: move |_| delete_handler.call(delete.clone()),

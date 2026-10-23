@@ -175,7 +175,7 @@ fn DepartureActionButton(
     rsx! {
             div { "data-relation-action": "{kind}",
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     class: "m1-inspector-secondary",
                     disabled: control.disabled,
@@ -315,7 +315,7 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
     rsx! {
         div { "data-relation-role": role, "data-part-id": part_id,
             Button {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Secondary,
                 button_type: "button",
                 class: "m1-inspector-secondary m1-relations-reference",
                 aria_describedby: described_by,

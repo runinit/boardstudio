@@ -386,21 +386,21 @@ pub(super) fn SelectedKeysActions() -> Element {
             h3 { "{count} keys across {matrix_count} matrices" }
             div { class: "m1-layout-transform-actions",
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     aria_label: "Enable selected keys",
                     onclick: move |_| on_action.call(Action::Enable),
                     "Enable"
                 }
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     aria_label: "Disable selected keys",
                     onclick: move |_| on_action.call(Action::Disable),
                     "Disable"
                 }
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     aria_label: "Delete selected keys",
                     disabled: delete_pending(),

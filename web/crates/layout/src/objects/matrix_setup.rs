@@ -354,14 +354,14 @@ on_value_change: move |value: f64| {
                     footer {
                         if props.projection.can_cancel {
                             Button {
-                                variant: ButtonVariant::Outline,
+                                variant: ButtonVariant::Secondary,
                                 button_type: "button",
                                 onclick: move |_| on_cancel(owner.clone()),
                                 "Cancel"
                             }
                         }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             button_type: "submit",
                             disabled: !props.projection.editable,
 

@@ -14,7 +14,7 @@ Reading the table. **Look** is the rust-ui component whose markup and classes we
 
 | Existing (uses) | Look | Behaviour | Notes |
 | --- | --- | --- | --- |
-| `BoardButton` (189) and raw `button` (163) | `Button` | native | Primary→`Default`, Secondary→`Outline`, Quiet→`Ghost`, Danger→`Destructive`. Sizes: our Comfortable 40px = rust-ui `Lg`, Compact 36px = `Default`, so sizes map by pixels, not by name (decided); touch targets stay 44px. Icon-only → `Icon` / `IconSm`. |
+| `BoardButton` (189) and raw `button` (163) | `Button` | native | Primary→`Default`, Secondary→`Secondary` (the later [cards-style decision](theme-contract.md#8-cards-style-decided-from-prototype-013) governs), Quiet→`Ghost`, Danger→`Destructive`. Sizes: our Comfortable 40px = rust-ui `Lg`, Compact 36px = `Default`, so sizes map by pixels, not by name (decided); touch targets stay 44px. Icon-only → `Icon` / `IconSm`. |
 | `BoardToolbar`, `BoardToolbarButton` (3, 3) | `Toolbar` | primitives Toolbar | roving arrow keys kept |
 | `BoardToggle` (2) and `aria-pressed` buttons (17) | `Toggle Group` (`Outline` variant) | primitives Toggle / Toggle Group | rust-ui has no single Toggle, so a lone toggle is a one-item group |
 | `BoardPopover` (2) and Layout command menus | `Dropdown Menu` for action lists, `Popover` for free-form content | primitives | the primitive's Dropdown Menu has `listbox` roles, loses focus on close and has no typeahead, so the Foundation lane fixes it first ([accessibility floor](accessibility-floor.md)); until then these menus keep the `Popover` approach |

@@ -317,3 +317,20 @@ Outline, Objects grouping and shell Mode/Offset axes tests; no product role chan
 The corrected focused command is still active at this checkpoint; it has not reached
 “Loading Wasm module”. Its live matching ChromeDriver155 returns status, while its
 session inventory request timed out after 3 seconds. No retry or GREEN claim is made.
+
+
+The corrected Outline run at source `68f03fbf` compiled, but never entered WASM:
+its browser remained at “Loading scripts...” with two Dioxus module resource
+requests ending after about 300 seconds with zero transferred bytes. Targeted CDP
+inspection confirmed the real page and hidden output; the runner HTTP server later
+served the same resource with HTTP 200. This is a pre-test harness failure, not
+product RED or GREEN. The owned hung process is being terminated after this receipt;
+a fresh supported runner launch is justified by those failed module requests, with
+no source assertion changes or retry masking. Raw initial log is
+`.evidence/016/outline-active-choice-role-corrected.log`.
+
+The approved later theme-contract §8 decision now changes only the 78 owned016
+secondary Button variants from Outline to Secondary, preserving sizes and callbacks.
+ToggleGroup Outline, canonical Button and landed tickets are unchanged. The sole
+mapping edit corrects the Button row with a §8 link; NumberField is untouched.
+Actual Theme checks and final closure remain required.

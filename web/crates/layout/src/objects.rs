@@ -584,7 +584,7 @@ pub fn Objects(
                                                     span { class: "m1-tree-spacer", "aria-hidden": "true" }
 
                                                 }
-                                                Button { variant: ButtonVariant::Outline,
+                                                Button { variant: ButtonVariant::Secondary,
     id: "{tree_item_id}",
     class: if selected { "m1-component selected" } else { "m1-component" },
     onclick: move |_| {
@@ -759,7 +759,7 @@ fn AddObjectEntry(
                 div { class: if show_trigger { "m1-layout-add-object" } else { "m1-layout-add-object is-menu-only" },
                     if show_trigger {
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             button_type: "button",
                             id: "m1-add-object-trigger",
                             aria_label: "Add object",
@@ -791,7 +791,7 @@ fn AddObjectEntry(
                                 }
                             },
 
-                            Button { variant: ButtonVariant::Outline,
+                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     class: "m1-add-back",
     onclick: move |_| { menu_open.set(false); focus_add_object(); },
@@ -818,7 +818,7 @@ fn AddObjectEntry(
 
                                     if existing_half.visible {
                                         Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !existing_half_open.0,
     onclick: move |_| {
@@ -835,7 +835,7 @@ fn AddObjectEntry(
                                     }
                                     if let Some((can_open, on_open)) = mirrored_open {
                                         Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !can_open,
     onclick: move |_| {
@@ -852,7 +852,7 @@ fn AddObjectEntry(
                                     }
                                     if let Some((can_open, on_open)) = matrix_open {
                                         Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: !can_open,
     onclick: move |_| {
@@ -895,7 +895,7 @@ fn AddObjectEntry(
                                                 inert: (!matrix_actions_open()).then_some(""),
 
                                                 Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Outline,
+                                                    Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: add_row_pending,
     onclick: move |_| {
@@ -917,7 +917,7 @@ fn AddObjectEntry(
                                                      }
                                                 }
                                                 Item { class: "p-0",
-                                                    Button { variant: ButtonVariant::Outline,
+                                                    Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     disabled: add_column_pending,
     onclick: move |_| {
@@ -967,7 +967,7 @@ fn AddObjectEntry(
                                         inert: (!geometry_open()).then_some(""),
 
                                         Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     onclick: {
                                             let scope = scope.clone();
@@ -990,7 +990,7 @@ fn AddObjectEntry(
                                              }
                                         }
                                         Item { class: "p-0",
-                                            Button { variant: ButtonVariant::Outline,
+                                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     onclick: move |_| {
                                             menu_open.set(false);

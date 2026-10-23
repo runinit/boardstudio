@@ -517,7 +517,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     }
                     if let Some(request) = unlink_request.clone() {
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             disabled: !props.editable || props.busy,
                             onclick: move |_| props.on_unlink.call(request.clone()),
 
@@ -636,7 +636,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                             }
                         }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             disabled: !props.editable || props.busy,
                             onclick: move |_| apply_preset(),
 
@@ -644,7 +644,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
 
                         }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             disabled: props.busy,
                             onclick: move |_| props.on_duplicate.call(duplicate_base.clone()),
 
@@ -793,7 +793,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     hidden: !actions_open(),
                     inert: (!actions_open()).then_some(""),
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         class: "m1-matrix-edit-status",
                         disabled: !props.editable || props.busy,
                         onclick: move |_| props.on_delete.call(delete_request.clone()),

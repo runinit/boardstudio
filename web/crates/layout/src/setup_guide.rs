@@ -346,7 +346,7 @@ pub fn ProjectSetupGuide(
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         class: "m1-setup-guide__dismiss",
                         button_type: "button",
                         onclick: move |_| on_dismiss.call(()),
@@ -448,7 +448,7 @@ pub fn ProjectSetupGuide(
                                             {controller_picker}
                                         } else if let Some(on_choose) = on_choose_controller {
                                             Button {
-                                                variant: ButtonVariant::Outline,
+                                                variant: ButtonVariant::Secondary,
                                                 class: "m1-setup-guide__secondary",
                                                 onclick: move |_| on_choose.call(()),
                                                 "Choose controller"
@@ -462,7 +462,7 @@ pub fn ProjectSetupGuide(
                                             {case_basics}
                                         }
                                         Button {
-                                            variant: ButtonVariant::Outline,
+                                            variant: ButtonVariant::Secondary,
                                             class: "m1-setup-guide__secondary",
                                             onclick: move |_| on_open_workspace.call("Case"),
                                             "Open full case settings"
@@ -478,7 +478,7 @@ pub fn ProjectSetupGuide(
                 footer { class: "m1-setup-guide__footer",
                     if let Some(previous) = previous_stage {
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             class: "m1-setup-guide__back",
                             aria_label: "Previous step",
                             onclick: move |_| on_stage_change.call(previous),

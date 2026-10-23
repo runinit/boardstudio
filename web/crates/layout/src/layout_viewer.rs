@@ -355,7 +355,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                         AlertDescription { "Keycap preview failed: {error}" }
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         button_type: "button",
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
 
@@ -415,7 +415,7 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
                     AlertDescription { "Keycap preview failed: {error}" }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         button_type: "button",
                         onclick: move |_| keycaps_retry_generation.set(keycaps_retry_generation().saturating_add(1)),
 
@@ -551,7 +551,7 @@ mod mounted_keycaps_preview_tests {
         let newer_fit = probe.newer_fit.clone();
         rsx! {
             Button {
-                variant: ButtonVariant::Outline,
+                variant: ButtonVariant::Secondary,
                 id: "keycaps-preview-advance-owner",
                 onclick: move |_| fit_signal.set(Some(newer_fit.clone())),
 

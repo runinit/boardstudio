@@ -495,7 +495,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                     }
                                 }
                                 Button {
-                                    variant: ButtonVariant::Outline,
+                                    variant: ButtonVariant::Secondary,
                                     button_type: "button",
                                     class: "m1-secondary",
                                     disabled: !props.mount.editable,
@@ -1560,7 +1560,7 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                                     }
                                 }
                             }
-                            Button { variant: ButtonVariant::Outline,
+                            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     class: "m1-inspector-secondary",
     disabled: remove_disabled,
@@ -1640,7 +1640,7 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
     let on_edit = props.on_edit;
     let affect = props.splay_affect;
     rsx! {
-            Button { variant: ButtonVariant::Outline,
+            Button { variant: ButtonVariant::Secondary,
     button_type: "button",
     class: "m1-inspector-secondary",
     disabled: disabled,
