@@ -180,7 +180,7 @@ pub fn InputGroupInput(
     );
     // Explicit props, including omitted options, own their native attributes and input listener.
     // RSX requires the spread last; namespaced style properties and other events/ARIA pass through.
-    let attributes = attributes
+    let mut attributes = attributes
         .into_iter()
         .filter(|attribute| {
             attribute.namespace.is_some()
@@ -205,6 +205,8 @@ pub fn InputGroupInput(
                 )
         })
         .collect::<Vec<_>>();
+    // Dioxus diffs each completed spread as a name-sorted list.
+    attributes.sort_by_key(|attribute| attribute.name);
     rsx! {
         input {
             "data-slot": "input-group-control",
@@ -286,6 +288,125 @@ mod forwarding_tests {
     use crate::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen::JsCast;
     use wasm_bindgen_test::wasm_bindgen_test;
+
+    fn listener_update_fixture() -> Element {
+        use crate::ui::button::Button;
+        let mut removed = use_signal(|| false);
+        let mut events = use_signal(Vec::<String>::new);
+        let mut value = use_signal(|| "1.2345678901234567".to_owned());
+        rsx! {
+            InputGroupInput {
+                r#type: InputType::Number, aria_label: "Updating input", value: value(), class: "font-mono",
+                oninput: move |event: FormEvent| { value.set(event.value()); events.write().push("owner-input".into()); },
+                attributes: {
+                    let mut attributes = vec![
+                        Attribute::new("class", "collision", None, false),
+                        Attribute::new("value", "999", None, true),
+                        Attribute::new("color", "rgb(1, 2, 3)", Some("style"), false),
+                        dioxus::events::oninput(move |_| events.write().push("collision-input".into())),
+                    ];
+                    if !removed() { attributes.push(Attribute::new("data-removed", "remove", None, false)); }
+                    attributes.push(Attribute::new("data-retained", "kept", None, false));
+                    if !removed() { attributes.push(dioxus::events::onfocus(move |_| events.write().push("focus".into()))); }
+                    attributes.push(dioxus::events::onblur(move |_| events.write().push("blur".into())));
+                    attributes
+                },
+            }
+            Button { onclick: move |_| removed.set(true), "Remove input focus" }
+            Button { onclick: move |_| events.write().push("flush".into()), "Flush input updates" }
+            output { role: "status", aria_label: "Input phase", "{removed}" }
+            output { role: "status", aria_label: "Input update events", "{events:?}" }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn input_updating_attributes_remove_focus_but_keep_nonbubbling_blur_and_owner_value() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(listener_update_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        wait_until("updating input mounts", || {
+            by_role_name(&root, "spinbutton", "Updating input").is_some()
+        })
+        .await;
+        let input: web_sys::HtmlInputElement = by_role_name(&root, "spinbutton", "Updating input")
+            .unwrap()
+            .dyn_into()
+            .unwrap();
+        assert!(input.has_attribute("data-removed"));
+        for phase in 0..2 {
+            if phase == 1 {
+                by_role_name(&root, "button", "Remove input focus")
+                    .unwrap()
+                    .click();
+                wait_until("input focus removal renders", || {
+                    by_role_name(&root, "status", "Input phase")
+                        .unwrap()
+                        .text_content()
+                        .as_deref()
+                        == Some("true")
+                })
+                .await;
+            }
+            input.focus().unwrap();
+            input.blur().unwrap();
+            by_role_name(&root, "button", "Flush input updates")
+                .unwrap()
+                .click();
+            wait_until("input event render barrier", || {
+                by_role_name(&root, "status", "Input update events")
+                    .unwrap()
+                    .text_content()
+                    .unwrap()
+                    .matches("flush")
+                    .count()
+                    == phase + 1
+            })
+            .await;
+        }
+        let log = by_role_name(&root, "status", "Input update events")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        assert_eq!(log.matches("focus").count(), 1, "{log}");
+        assert_eq!(log.matches("blur").count(), 2, "{log}");
+        assert_eq!(input.value(), "1.2345678901234567");
+        assert_eq!(
+            input.get_attribute("data-retained").as_deref(),
+            Some("kept")
+        );
+        assert!(!input.has_attribute("data-removed"));
+        assert!(!input.get_attribute("class").unwrap().contains("collision"));
+        assert_eq!(
+            input.style().get_property_value("color").unwrap(),
+            "rgb(1, 2, 3)"
+        );
+        input.set_value("1.8765432109876543");
+        let event = web_sys::EventInit::new();
+        event.set_bubbles(true);
+        input
+            .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &event).unwrap())
+            .unwrap();
+        wait_until("retained owner input listener runs", || {
+            by_role_name(&root, "status", "Input update events")
+                .unwrap()
+                .text_content()
+                .unwrap()
+                .contains("owner-input")
+        })
+        .await;
+        let log = by_role_name(&root, "status", "Input update events")
+            .unwrap()
+            .text_content()
+            .unwrap();
+        assert_eq!(log.matches("owner-input").count(), 1, "{log}");
+        assert!(!log.contains("collision-input"));
+        assert_eq!(input.value(), "1.8765432109876543");
+        root.remove();
+    }
 
     fn fixture() -> Element {
         let mut value = use_signal(|| "1.2345678901234567".to_owned());
