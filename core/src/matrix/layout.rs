@@ -656,22 +656,7 @@ pub(crate) fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, Stri
                         for assembly in &cell.assemblies {
                             let id = matrix::companion_id(&id, &assembly.id);
                             if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
-                                let at = matrix::splay::rotate(
-                                    assembly.offset,
-                                    geometry.pose.rotation,
-                                    Vec2::default(),
-                                );
-                                poses.insert(
-                                    id,
-                                    Pose2 {
-                                        at: Vec2 {
-                                            x: geometry.pose.at.x + at.x,
-                                            y: geometry.pose.at.y + at.y,
-                                        },
-                                        rotation: geometry.pose.rotation
-                                            + assembly.rotation.unwrap_or_default(),
-                                    },
-                                );
+                                poses.insert(id, matrix::companion_pose(geometry.pose, assembly));
                             }
                         }
                     }
