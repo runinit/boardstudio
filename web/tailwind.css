@@ -1377,7 +1377,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-toolbar-region > .m1-canvas-toolbar { padding: 0; border: 0; background: transparent; box-shadow: none; }
 .m1-workspace-content .m1-layout-command-pill,
 .m1-workspace-content .m1-design-canvas-toolbar,
-.m1-workspace-content .m1-case-view-toolbar,
+.m1-workspace-content .m1-case-view-toolbar { padding: 6px 10px; border: 1px solid var(--wb-command-rule); border-radius: var(--wb-command-radius); background: var(--wb-command-surface); box-shadow: none; }
 .m1-workspace-content .m1-case-view-toolbar { border: 0; }
 .m1-workspace-content .m1-layout-command-pill { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--wb-space-1); }
 .m1-workspace-content .m1-layout-command-pill :is(button,.board-popover-trigger),
