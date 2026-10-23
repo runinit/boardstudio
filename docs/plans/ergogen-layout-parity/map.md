@@ -64,7 +64,9 @@ BoardStudio extended layout feature working.
 ├── 05 Represent "This column" splay as its own intent (grilling) ─────────────────────────────┤
 ├── 06 Decide how origin edits hold keys still (grilling) ─────────────────────────────────────┤
 ├── 08 Adapt consumers that assume uniform pitch (grilling) ───────────────────────────────────┤
-└── 09 Prototype the Inspector and toolbar (prototype, also after 01) ──────────────────────────┴── 10 Slice the build
+├── 09 Prototype the Inspector and toolbar (prototype, also after 01) ──────────────────────────┤
+├── 11 Decide mirrored-half rules (grilling, also after 05, 06, 07) ────────────────────────────┤
+└── 12 Decide how Relations explains chains and anchors (grilling, also after 01, 05, 07) ──────┴── 10 Slice the build
 ```
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md)
@@ -77,6 +79,8 @@ BoardStudio extended layout feature working.
 - [08: Adapt consumers that assume uniform pitch](issues/08-uniform-pitch-consumers.md)
 - [09: Prototype the Inspector and toolbar for the new parameters](issues/09-inspector-and-toolbar-prototype.md)
 - [10: Slice the build into tickets](issues/10-slice-the-build.md)
+- [11: Decide mirrored-half rules for the new layout fields and anchors](issues/11-mirrored-halves-rules.md)
+- [12: Decide how Relations explains carried chains and anchors](issues/12-relations-and-highlight.md)
 
 ## Decisions so far
 
@@ -125,19 +129,18 @@ BoardStudio extended layout feature working.
   - The Inspector shows the relative origin, and a status line names the changed fields. Each
     edit is one Undo entry.
   - A "Reset to column base" button holds keys still. The base is a snap target.
+- [07: Define matrix anchors and several matrices per layout](issues/07-matrix-anchors.md#answer):
+  - A Layout lists one or more matrices, and anchors stay inside one Layout.
+  - `Matrix.anchor` is `{ matrixId, row, column, follow }`. Origin and Rotation are the shift
+    and rotation in the anchor key's final pose. `follow` is ergogen `affect`. There is no
+    `orient` and no `resist`.
+  - Matrices are evaluated in dependency order, and cycles are refused. Compaction remaps the
+    anchor. Removing the anchor key detaches the matrix and keeps its pose.
+  - Halves anchor to the partner key. Anchoring to a constraint-driven key is refused.
+  - A Key selection offers "Add anchored matrix". Objects lists a Layout's matrices flat.
 
 ## Not yet specified
 
-- **Relations and canvas highlight.** How Relations explains carried chains (which rows and
-  keys inherit a carried shift or rotation) and dependencies on anchors between matrices.
-  Waits on the parameter names, the kernel and the anchor rules.
-- **Mirrored halves.** The reconcile, inverse-edit and exception rules for each new field and
-  for anchors, in `layout::reflected`, `mirrored_half/{inverse,reconcile}`. The kernel fixes the
-  reflection rule: values are copied unchanged, and the mirror negates the local heading.
-  A hold-still origin edit on column 0 writes the matrix Origin, and the follower half must
-  get the mirrored change so it also holds still
-  ([ticket 06](issues/06-origin-edits-hold-keys-still.md#answer)). Graduates once the anchor
-  ticket resolves.
 - **Format reset.** The user-facing message when an older document is refused, how stored
   browser projects and Undo history are cleared, and the archive import message.
 - **Starters.** Rebuilding the three starters and the demos under the new rules, for example

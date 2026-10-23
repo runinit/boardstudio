@@ -16,7 +16,9 @@ Make a rough, clickable prototype of how users edit:
 - the relative splay origin, its Reset button and the Ctrl swing
   ([ticket 06](06-origin-edits-hold-keys-still.md#answer));
 - Column rotation, and how the Splay drag's "This column" choice looks
-  ([ticket 05](05-this-column-splay-representation.md#answer)).
+  ([ticket 05](05-this-column-splay-representation.md#answer));
+- the matrix Anchor section, its canvas Pick, Follow X/Y/rotation, Detach, and Add anchored
+  matrix ([ticket 07](07-matrix-anchors.md#answer)).
 
 Cover the Inspector fields for Matrix, Row, Column and Key selections, and the toolbar tools and
 drags, including a Bend gesture. Cover keyboard nudges and how a carried value

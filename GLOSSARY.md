@@ -249,6 +249,12 @@ sharing and may be a local feature or an omission on that half.
 
 ### Matrix layout
 
+**Layout**:
+A group of one or more matrices on one board, together with the independent components placed
+among them. Matrix anchors stay inside one layout, and linked halves on one board mirror whole
+layouts.
+_Avoid_: zone, matrix (when the whole group is meant)
+
 **Column stagger**:
 The vertical step of a matrix column from the previous column, in matrix
 coordinates. The first column steps from the matrix origin. The column and every
@@ -279,8 +285,9 @@ The step from one row of a matrix column to the next.
 _Avoid_: row offset, pitch (when a single row's step is meant)
 
 **Matrix anchor**:
-A key of another matrix that a matrix's frame follows, such as a thumb cluster following the
-main matrix.
+A key of another matrix in the same layout whose final pose a matrix's frame follows, such as
+a thumb cluster following the main matrix. The matrix may follow the key's X, Y and rotation,
+or only some of them.
 _Avoid_: parent, reference (unqualified)
 
 **Row offset**:
