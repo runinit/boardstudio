@@ -152,6 +152,17 @@ BoardStudio extended layout feature working.
   - Affected-key previews, changed-field status and one Undo entry make carried edits visible.
   - Primary source is archived on local branch `prototype/ergogen-parity-inspector`; the
     prototype is not production implementation. Relations remains ticket 12.
+- [11: Decide mirrored-half rules](issues/11-mirrored-halves-rules.md#answer):
+  - Both linking systems share per-matrix/key Local, Omitted and Rejoin behaviour. New local
+    layout values copy unchanged; frames and anchor identities reflect through the pair map.
+  - Partial Follow uses transported source-world axes; dependants follow actual Local anchor
+    keys. Omitted anchors retain logical poses.
+  - Local keys keep world poses; Local matrices keep independent dimensions/layout. Make Local
+    detaches a matrix and keeps its pose. Source removal retains a complete Local matrix.
+  - Unrepresentable hold-still/Align refuses explicitly; Follow constrains matrix drags.
+    Asymmetric keep-pose detach/removal needs confirmation of any additional Local exception.
+  - Rejoin preserves child exceptions and validates anchors atomically. Real prepared-route
+    lifecycle acceptance is required; no runtime support is claimed by the decision.
 
 ## Not yet specified
 

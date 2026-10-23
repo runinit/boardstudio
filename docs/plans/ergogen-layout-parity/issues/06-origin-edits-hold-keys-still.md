@@ -79,3 +79,12 @@ each key's carried frame and stop being rigid once rows have Bend.
    means the base. A **Reset to column base** button appears when the origin ≠ 0 and holds keys
    still. The column base becomes an origin snap target, so a Ctrl-drag onto it resets
    ergogen-style, with the keys swinging back.
+
+### Follow qualification (2026-10-23)
+
+[Ticket 11](11-mirrored-halves-rules.md#answer) settles the linked-frame rule and one
+representability limit: if column-0 compensation requires translation in a direction
+discarded by Follow, refuse the hold-still edit and explain which Follow component to
+enable, or offer explicit Detach. Never silently enable Follow, detach or scatter
+compensation across keys. Ctrl swing remains available. Otherwise the single Core edit
+must keep the promised poses on both halves, using their actual anchor frames.

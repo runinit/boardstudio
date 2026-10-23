@@ -75,3 +75,12 @@ Findings:
    - The old "splay pivots with the stagger" reason goes away, because the splay origin now
      always moves with the column base.
    - `convert_offset_available` stays the single source for Core and the Inspector.
+
+### Follow qualification (2026-10-23)
+
+[Ticket 11](11-mirrored-halves-rules.md#answer) qualifies the Align inverse: refuse an
+exact Align when its required translation cannot be represented by the current Follow
+subset, naming the component to enable or offering explicit Detach. Do not silently
+project an exact Align onto fewer directions or change Follow. Ordinary matrix placement
+drags, unlike exact Align, are constrained to the allowed directions; on a linked partner
+these are the transported source-frame directions.

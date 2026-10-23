@@ -101,3 +101,21 @@ Facts the decisions rest on:
      context.
    - In Objects, a Layout's matrices are listed flat in evaluation order. An anchored matrix
      shows the detail "Follows Main · row 4, column 2".
+
+### Linked-half qualifications (2026-10-23)
+
+[Ticket 11](11-mirrored-halves-rules.md#answer) completes these rules:
+
+- Partial Follow on a linked partner uses the reflected source-world origin and axes,
+  not independent partner-world zeroing. Dependants follow actual Local anchor keys;
+  Omitted matrices as well as keys retain logical anchor poses.
+- Making an anchored matrix Local detaches it and keeps its world pose. Linked Detach
+  normally clears both anchors; if keeping both poses requires another Local exception,
+  show it and obtain confirmation before committing. The same confirmation applies to
+  actual anchor removal; cancellation leaves the whole edit unchanged.
+- Refuse creation/restoration of a missing counterpart anchor without silently changing
+  a Local parent or retargeting. Rejoin preserves explicit child exceptions and validates
+  the resulting graph atomically.
+- Follow constrains matrix placement drags; Follow Rotation off disables the matrix
+  Rotate gesture. Exact operations that cannot preserve their promises are refused as
+  described in ticket 11. These qualifications apply to the original creation/edit rules.

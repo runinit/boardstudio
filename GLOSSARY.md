@@ -304,6 +304,16 @@ An adjustment of one key within its matrix. The key's attached companions move
 with it.
 _Avoid_: shift (when the independent adjustment is meant)
 
+**Local key**:
+A counterpart of a linked key with an explicit exception giving it an independent world
+pose. Shared matrix layout changes do not move it, and neighbouring keys remain linked.
+_Avoid_: key local offset (when the linked-half exception is meant)
+
+**Local matrix**:
+A counterpart of a linked matrix with its own independently editable layout and dimensions.
+Making it Local keeps its pose and removes its inherited anchor; it may be explicitly
+anchored again.
+
 **Shift**:
 A move of one row (row shift) or one key (key shift) that carries to every later row of its
 column, along the key's heading.
