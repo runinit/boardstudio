@@ -83,7 +83,7 @@ fn host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { Editor {} }
+    rsx! { super::notifications::NotificationProvider { Editor {} } }
 }
 
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};

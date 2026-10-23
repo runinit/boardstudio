@@ -211,7 +211,7 @@ fn host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { Editor {} }
+    rsx! { super::notifications::NotificationProvider { Editor {} } }
 }
 
 /// Create the matrix through the Session and Core, then mount the real Layout editor.
