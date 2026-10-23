@@ -1,6 +1,6 @@
 # 16: Build the pure carried-layout kernel and fixture comparison
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [15](15-generate-parity-fixtures.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -73,3 +73,9 @@ in the existing Core integration harness (`autotests = false`) when applicable.
   graph/lifecycle ownership and replacing production geometry remain later tickets;
   staging success does not claim that support. Fixtures and the untracked prototype
   were not modified; no Node/npm tooling was run.
+
+## Answer
+
+Implemented as the staged pure kernel `core/src/matrix/kernel.rs`, not activated. Commits: `c121fb255` (kernel and 11 focused tests, with 381 fixture poses over 40 upstream and 4 BoardStudio-only cases at tolerances `1e-6` and `1e-9`); `8226b00d3` (single-test command documented); `be9714b85` (Standards fixes: shared rotate helper, fixture parsing moved test-side, test naming). Spec review passed on `c121fb255`; Standards re-review on `be9714b85` was clean. The quick check on `be9714b85` passed all steps (repo, lint, typecheck, test, layout-test-css, browser).
+
+Carried forward: the geometry adaptation discards enabled, deleted, and omitted flags, so it proves supplied logical values carry but not production state selection. Tickets 17 and 22 must cover production selection. The no-live-activation boundary is shown by the diff, not by a regression test.
