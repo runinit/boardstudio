@@ -211,6 +211,47 @@ def pickers(url, captures):
     print("PASS related Matrix definition/Diode/Column-origin native pointer options beyond their disclosure boundaries", flush=True)
 
 
+
+def mirror(url, captures):
+    prepare(url)
+    browser("set", "viewport", 1440, 1400)
+    original = flow.geometry()
+    browser("focus", driver.by_role_name("button", "Mirror matrix"))
+    evaluate("window.mirrorPicker=document.activeElement;window.mirrorContent=mirrorPicker.closest('[data-slot=collapsible-content]')")
+    browser("press", "Space")
+    refs = owned_options("mirrorPicker")
+    targets = [ref for ref, item in refs.items() if item["name"] == "X axis"]
+    assert len(targets) == 1, refs
+    r = browser("get", "box", "@" + targets[0])
+    x, y = round(r["x"]+r["width"]/2), round(r["y"]+r["height"]/2)
+    result = evaluate(f"(()=>{{const r=mirrorContent.getBoundingClientRect();return {{bottom:r.bottom,optionY:{y},viewport:innerHeight,overflow:getComputedStyle(mirrorContent).overflow,hit:document.elementFromPoint({x},{y})?.closest('[role=option]')?.textContent.trim()??null}}}})()")
+    print("Actual Matrix Mirror boundary", result, flush=True)
+    browser("screenshot", str(captures / "matrix-mirror-pointer-boundary.png"))
+    assert result["bottom"] < y < result["viewport"] and result["hit"] == "X axis", result
+    browser("mouse", "move", x, y)
+    browser("mouse", "down")
+    browser("mouse", "up")
+    browser("wait", "--fn", "mirrorPicker.getAttribute('aria-expanded')==='false' && mirrorPicker.textContent.trim()==='X axis'")
+    check("document.activeElement===mirrorPicker")
+    browser("focus", driver.by_role_name("spinbutton", "Origin X"))
+    evaluate("window.mirrorOrigin=document.activeElement;window.mirrorOriginValue=mirrorOrigin.value")
+    click("Position & orientation")
+    check("mirrorPicker.isConnected && mirrorPicker.closest('[hidden][inert]') && !mirrorPicker.checkVisibility() && mirrorOrigin.isConnected")
+    evaluate("mirrorPicker.focus()")
+    check("document.activeElement!==mirrorPicker")
+    click("Position & orientation")
+    browser("focus", driver.by_role_name("button", "Mirror matrix"))
+    check("document.activeElement===mirrorPicker && mirrorPicker.textContent.trim()==='X axis' && mirrorOrigin.value===mirrorOriginValue && !mirrorPicker.closest('[hidden],[inert]')")
+    click("Undo")
+    browser("wait", "--fn", "mirrorPicker.textContent.trim()==='None'")
+    click("Redo")
+    browser("wait", "--fn", "mirrorPicker.textContent.trim()==='X axis'")
+    click("Undo")
+    browser("wait", "--fn", "mirrorPicker.textContent.trim()==='None'")
+    assert flow.geometry() == original
+    print("PASS Matrix Mirror native pointer beyond content boundary, native focus, hidden/inert retained nodes and Undo/Redo", flush=True)
+
+
 def validation(url, captures):
     prepare(url)
     fault_boundary()
@@ -258,14 +299,14 @@ def validation(url, captures):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--page-url", required=True)
-    parser.add_argument("--only", choices=["styles", "tooltip", "pickers", "validation"])
+    parser.add_argument("--only", choices=["styles", "tooltip", "pickers", "validation", "mirror"])
     args = parser.parse_args()
     os.environ["AGENT_BROWSER_ARGS"] = "\n".join(filter(None,[os.environ.get("AGENT_BROWSER_ARGS"),"--blink-settings=primaryHoverType=2"]))
     captures = ROOT / ".evidence/016" / datetime.now().strftime("review-r1-%Y%m%d-%H%M%S")
     captures.mkdir(parents=True)
     failures = []
     try:
-        for name in [args.only] if args.only else ["styles", "tooltip", "pickers", "validation"]:
+        for name in [args.only] if args.only else ["styles", "tooltip", "pickers", "validation", "mirror"]:
             try:
                 globals()[name](args.page_url, captures)
             except Exception:
