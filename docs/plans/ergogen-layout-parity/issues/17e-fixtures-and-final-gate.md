@@ -879,3 +879,63 @@ remain. Only this Progress entry and the authorized fixture file changed; the
 unrelated prototype is untouched. No subagents, stash, push, amend, other worktrees
 or broad staging. All-116-caller quick, full and product drag gates were **not run**
 in this round. Stop for parent review; no ticket/map closure or full acceptance.
+
+### Fresh acceptance gates after Inspector fixture corrections — 2026-10-23
+
+The parent reviewed both exact Inspector fixture corrections (explicit Matrix
+admission metadata and the intended heading in `MatrixCell`) and the runtime
+diagnosis. These changes are test-fixture metadata only; the saved-part pose
+conversion values, tolerance, Undo and reset expectations remain unchanged. The
+latest correction retains its accepted-heading assertion. No production or
+assertion changes were made during this gate round.
+
+Verified source pin: branch `docs/ergogen-layout-comparison`, tested source HEAD
+`b35e44c5efdbd60b6c01e400a15a543bac5d0ec5`; fixed coordinated base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. The Git diff from that base to the
+tested HEAD contains all **116** paths enumerated above, including JSON, Core/web,
+tests, native baseline, docs and the two quick-scheduler files. Every path was
+passed to the fresh quick command. `BOUNDARY_BLESS` was unset. Tracked state was
+clean before the gates; preexisting untracked `web/crates/layout/prototype/` remains
+untouched.
+
+Fresh quick command (all 116 paths supplied from the pinned base-to-HEAD diff):
+
+```sh
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 timeout 3600 python3 scripts/check.py quick --files $(git diff --name-only a58a2bf187bd6d08b652dc739cd7c391709ff5c8..b35e44c5efdbd60b6c01e400a15a543bac5d0ec5) --receipt .evidence/ergogen-17e/final-quick-receipt.json > .evidence/ergogen-17e/final-quick.log 2>&1
+```
+
+Quick passed: `check: all steps passed: repo, tooling, lint, typecheck, test,
+layout-test-css, browser`. Receipt accepted, 54/54 scheduled commands. The native
+baseline matched all 2,149/2,149 names with no missing or new names; workspace tests
+were 2,052 passed/9 ignored and footprints 97 passed/3 ignored. Quick's page suite
+ran 77/77 successfully. This is scoped quick evidence, not full acceptance.
+
+The first full preflight stopped before running checks because `playwright-core`
+was not on `NODE_PATH`. The pinned package existed at
+`/home/chris/.cache/boardstudio-web-tools/node/node_modules`; the supported full
+command was rerun with that required path:
+
+```sh
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules timeout 3600 python3 scripts/check.py --receipt .evidence/ergogen-17e/final-full-receipt.json > .evidence/ergogen-17e/final-full.log 2>&1
+```
+
+Full stopped at its first actual failure. Final line: `check: step 'browser' failed`.
+Receipt: 36/55 commands ran; repo, tooling, lint, build and test passed. Native
+baseline again matched 2,149/2,149 names; workspace tests were 2,052 passed and
+footprints 97 passed. Packaged-page drag smoke passed part drag and column body
+drag with exact Undo, then failed at the stagger handle:
+`AssertionError [ERR_ASSERTION]: Stagger handle: changed stagger` in
+`scripts/test-drag-interactions.cjs:254` (`actual: 0`, `expected: 0`). No repair or
+narrow rerun was made. Full therefore did not reach its WASM crate compile/runtime
+checks, CAD provider or CAD browser checks, or its full 77-test page suite. Quick's
+page run does not cover those full gates.
+
+Receipts/logs: `.evidence/ergogen-17e/final-quick-receipt.json`,
+`.evidence/ergogen-17e/final-quick.log`,
+`.evidence/ergogen-17e/final-full-receipt.json`,
+`.evidence/ergogen-17e/final-full.log`. Final documentation checks also passed:
+`.evidence/ergogen-17e/final-progress-doc-links.log` reports 554 Markdown files;
+`.evidence/ergogen-17e/final-progress-diff-check.log` is empty with exit 0. Earlier
+failure logs and receipts remain intact. Acceptance remains incomplete. 17e and
+parent 17 remain **claimed** pending the full gate and final independent
+Standards+Spec reviews; this records no closure, shipping or user-data approval.
