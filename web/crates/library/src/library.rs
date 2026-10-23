@@ -2050,6 +2050,41 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
+    async fn project_delete_alert_starts_on_cancel_and_keeps_the_named_project() {
+        use boardstudio_web_ui_shared::test_role::by_role_name;
+        let runtime = crate::runtime::project_name_test_support::new_runtime();
+        let document = ProjectDoc::empty("alert-safe-project", "Safe project");
+        let (session, core) = accepted(document.clone());
+        runtime.store.save_document(&document, &Default::default()).await.unwrap();
+        crate::runtime::project_name_test_support::install(&runtime, session, core);
+        let root = mount_library(runtime.clone(), "alert-safe-root", false);
+        wait_for_saved_cards(&root, 1).await;
+        let opener = by_role_name(&root, "button", "Delete Safe project").unwrap();
+        opener.focus().unwrap();
+        opener.click();
+        wait_until("the named Alert Dialog opens", || {
+            by_role_name(&root, "alertdialog", "Delete “Safe project”?").is_some()
+        }).await;
+        let dialog = by_role_name(&root, "alertdialog", "Delete “Safe project”?").unwrap();
+        assert_eq!(dialog.get_attribute("aria-modal").as_deref(), Some("true"));
+        let cancel = by_role_name(&dialog, "button", "Cancel").unwrap();
+        wait_until("Cancel is the initial safe action", || {
+            web_sys::window().unwrap().document().unwrap().active_element()
+                .is_some_and(|active| active.is_same_node(Some(&cancel)))
+        }).await;
+        cancel.click();
+        wait_until("Cancel restores the actual opener", || {
+            !delete_dialog_open(&root) && web_sys::window().unwrap().document().unwrap().active_element()
+                .is_some_and(|active| active.is_same_node(Some(&opener)))
+        }).await;
+        assert!(runtime.store.load_document(document.id.clone()).await.unwrap().is_some());
+        assert_eq!(runtime.model().accepted.unwrap().document.id, document.id);
+        runtime.store.delete_project(document.id).await.unwrap();
+        runtime.unsubscribe();
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     async fn current_project_delete_cancel_and_confirm_use_the_observed_replacement_path() {
         remove_test_root("delete-current-mounted-regression");
         remove_test_root("delete-current-failure-regression");
