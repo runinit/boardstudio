@@ -352,6 +352,11 @@ _Avoid_: attach constraint (an attached companion is one that follows its key)
 
 ### Editing
 
+**Format reset**:
+A project-format change that refuses older project data instead of converting it.
+It does not delete existing saved projects; starting fresh creates a separate project.
+_Avoid_: factory reset (when the format compatibility change is meant)
+
 **Editor session**:
 One opening of a project for editing. Reopening the same project starts a new
 editor session even when its saved contents have not changed.

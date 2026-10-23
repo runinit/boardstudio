@@ -176,6 +176,15 @@ BoardStudio extended layout feature working.
   - Violet dashed references highlight named contributors/receivers; amber edit previews show
     actual movement. Navigation opens the appropriate context/tool without editing values;
     Reset/Convert remain explicit actions with accessible blocked reasons.
+- [13: Decide format reset and recovery](issues/13-format-reset-and-recovery.md#answer):
+  - Planned document version **7**, keeping `boardstudio/v2`, IndexedDB version 1 and archive
+    metadata. Refuse older/unversioned input without migration at every entry path.
+  - Preserve incompatible projects/assets, with JSON-only raw download, fresh New project
+    and guarded confirmed per-project Delete. No global wipe or legacy converter/exporter.
+  - Distinguish older/newer/invalid input. Validate before switching; protect drafts, pending
+    edits/saves and current history on refusal/cancellation. Publish only after persistence;
+    successful replacement starts a fresh editor session/history under existing recovery rules.
+  - This is the planned contract, not a running-format bump or permission to erase data.
 
 ## Not yet specified
 

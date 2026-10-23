@@ -38,3 +38,15 @@ On 2026-10-22 the user decided:
 - **Migrate saved projects, keeping exact geometry.** This is safe, but the hidden
   compensation values (pose-preserving offsets and counter-splays) would carry into the new
   model, and nothing needed preserving.
+
+## Amendment: reset means refusal, not data deletion (2026-10-23)
+
+The user accepted [the format/reset recovery policy](../plans/ergogen-layout-parity/issues/13-format-reset-and-recovery.md#answer):
+the planned numeric document version is **7**, with the separate `boardstudio/v2`
+identifier unchanged. Refuse older/unversioned data on every entry path rather than
+migrating or stamping it. Keep incompatible saved projects/assets unchanged until
+explicit guarded deletion, with JSON-only raw download and a fresh New project action.
+No legacy editor, converter, archive exporter or global browser-data wipe is introduced.
+Failed validation preserves current work; successful replacement follows the existing
+save/publication, session-history and recovery rules. This is a future implementation
+requirement; the decision itself neither resets storage nor bumps the running format.
