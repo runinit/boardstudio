@@ -1,6 +1,6 @@
 # 17a: Grouped model and Core callers
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
@@ -153,3 +153,37 @@ Cross-check: an independent Python implementation of ticket 04 formula 1 + mirro
 - `aec9237fb` ("record native baseline after oracle regeneration") also holds unrelated baseline catch-up: 10 test renames tracing to `570bb2672` and `be9714b85`, plus `matrix_kernel` and `document_integrity` additions. Nothing was weakened.
 - `3172d6513`'s message names only the mirror heading and member ids; it also changed 18 custom-origin x/y expectations, documented in the oracle regeneration table above.
 - Step 6 count corrected above (`8e2454fe4`: 2 tests; `aec9237fb`: 29 added, 8 removed).
+
+## Answer
+
+Commit range: `b159d3d5f..HEAD` (the closing commit of this ticket, after `ec6bb7d16`).
+
+### Delivered
+
+- Grouped records and `Layout.matrixIds`, with explicit correspondences owned by the mirror link.
+- The five previously failing tests are fixed.
+- Web callers are migrated to the grouped model.
+- The oracle is ported to grouped records; mirror-heading and member-id expectations are regenerated and spec-clause'd.
+- Tombstones and Local exceptions are respected when pairing.
+- Split classification uses the owning matrix.
+- Browser fixtures are corrected.
+
+### Evidence
+
+- Standards and Spec reviews of the full range, and of the delta `b475b063a..064deb416`, both passed with no blockers.
+- Final quick check last line: `all steps passed: repo, tooling, lint, typecheck, test, layout-test-css, browser`.
+- Closure commit `ec6bb7d16` adds `a_part_outside_any_matrix_is_classified_by_its_own_pose`; it fails when `split_x` returns the lowest-id matrix root for loose parts.
+
+### Notes from the delta reviews
+
+1. `populate_new_link` filtering excepted pairs (`39f19ec43`) is a new bug fix, not a refactor.
+2. `sync_member_pairs` no longer skips a pair on `exception.mirror_id == source_id`; that match was unreachable because exceptions are keyed on the mirror member.
+3. A part directly in a layout's `part_ids` outside any matrix is classified by its own `pose.at.x` in `split_x` (`core/src/geometry.rs`); the old lowest-id-root rule had no spec basis. Pinned by the test above.
+4. `CreateMirroredPair` (`core/src/lib.rs`) does not filter by exceptions; that is fine because the link is built fresh.
+
+### Carried forward
+
+- Bullet 2's exception half: exceptions are only pruned and respected, never created or reconciled on resize. Belongs to ticket 21 (exception lifecycle).
+- The TypeScript oracle is still active as the ported test; its retirement belongs to 17c.
+- `assert_close` in `core/src/mirrored_half/inverse/tests.rs` compares JSON key order and fails under `cargo test --workspace` without `--exclude boardstudio-footprints` (`preserve_order` feature unification).
+- Quick checks need `TMPDIR=/home/chris/.cache/tmp` in this sandbox.

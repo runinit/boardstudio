@@ -22,7 +22,8 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 [spec](spec.md) and [dependent TDD build tickets](#build-tickets) now exist. This closes
 planning, not implementation. No version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
-is complete; the current build frontier is [17a](issues/17a-grouped-model-and-core-callers.md).
+is complete; [17a](issues/17a-grouped-model-and-core-callers.md#answer) is resolved; the unblocked build frontier is
+[17b](issues/17b-validation-and-ownership.md), [17c](issues/17c-kernel-production-routing.md) and [17d](issues/17d-entry-path-gates.md).
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -105,7 +106,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [15: Pinned parity fixtures](issues/15-generate-parity-fixtures.md) | 10 | Resolved: 40 upstream cases, 4 worked cases, pinned tooling/provenance/notices. |
 | [16: Pure kernel](issues/16-build-layout-kernel.md) | 15 | Resolved: staged kernel, 381 fixture poses, no live activation. |
 | [17: Model/format cutover](issues/17-cut-over-format-and-model.md) | 16 | Grouped records, Layout membership, all removed-field callers and strict gates. |
-| [17a: Grouped model and Core callers](issues/17a-grouped-model-and-core-callers.md) | 16 | Grouped records, `matrixIds`, correspondence owner, removed-field callers, five failing tests. |
+| [17a: Grouped model and Core callers](issues/17a-grouped-model-and-core-callers.md) | 16 | Resolved: grouped records, `matrixIds`, explicit correspondences, five failing tests fixed, web callers migrated. |
 | [17b: Validation and ownership](issues/17b-validation-and-ownership.md) | 17a | Finite/default/bound checks, step policy, Layout ownership, no anchor-as-origin. |
 | [17c: Kernel production routing](issues/17c-kernel-production-routing.md) | 17a | Projection and parts through the kernel; oracle retired with coverage. |
 | [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Browser, archive and Core Open version gates before effects. |
