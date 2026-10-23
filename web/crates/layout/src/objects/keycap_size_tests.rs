@@ -12,7 +12,7 @@ use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Event, HtmlInputElement};
+use web_sys::HtmlInputElement;
 
 wasm_bindgen_test_configure!(run_in_browser);
 

@@ -108,8 +108,7 @@ async fn matrix_cancel_restores_guide_focus_and_new_form_focuses_rows() {
         focused().tag_name()
     );
     // A guide-stage render must preserve the user's focused stage button.
-    let stage =
-        element("#matrix-focus-test-root .m1-setup-stage-accordion > div:nth-child(4) > button");
+    let stage = by_role_name(&root, "button", "4 Case (optional)").unwrap();
     stage.focus().unwrap();
     stage.click();
     rendered().await;
