@@ -62,26 +62,26 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
         .unwrap()
         .click();
     wait_until(
-        "the actual short-picker label activates its trigger",
-        || document.active_element() == Some(select.clone().unchecked_into()),
+        "the actual short-picker label opens its Select and focuses its selected option",
+        || {
+            select.get_attribute("aria-expanded").as_deref() == Some("true")
+                && document.active_element()
+                    == by_role_name(&root, "option", "Connector 0").map(|e| e.unchecked_into())
+        },
     )
     .await;
-    select.click();
-    wait_until("the Parts Select list is named", || {
-        by_role_name(&root, "listbox", "Module host connector").is_some()
-    })
-    .await;
+    assert!(by_role_name(&root, "listbox", "Module host connector").is_some());
     let option = by_role_name(&root, "option", "Connector 0").unwrap();
-    option.focus().unwrap();
     key(&option, "End");
     wait_until("End reaches the last connector", || {
         document.active_element()
             == by_role_name(&root, "option", "Connector 11").map(|e| e.unchecked_into())
     })
     .await;
-    by_role_name(&root, "option", "Connector 11")
-        .unwrap()
-        .click();
+    key(
+        &by_role_name(&root, "option", "Connector 11").unwrap(),
+        "Enter",
+    );
     wait_until("the Parts Select returns focus after selection", || {
         document.active_element() == Some(select.clone().unchecked_into())
     })
