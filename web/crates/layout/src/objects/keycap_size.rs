@@ -166,6 +166,14 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
     } else {
         format!("{}u × {}u", draft().x, draft().y)
     };
+    let selected_size = use_memo(use_reactive((&mixed,), move |(mixed,)| {
+        let units = draft();
+        Some(if mixed || units.x.min(units.y) != 1.0 {
+            "custom".to_owned()
+        } else {
+            units.x.max(units.y).to_string()
+        })
+    }));
     let event_owner = projection.owner.clone();
     let timer_generation = keyboard_generation.clone();
 
@@ -212,13 +220,6 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                     dioxus::core::current_scope_id().0,
                     control_aria_label.replace(' ', "-"),
                 );
-                let control_value = ((if mixed || draft().x.min(draft().y) != 1.0 {
-                    "custom".to_owned()
-                } else {
-                    draft().x.max(draft().y).to_string()
-                })
-                    .to_string())
-                    .to_string();
                 let mut control_choices: Vec<(String, String, bool)> = Vec::new();
                 if mixed || draft().x.min(draft().y) != 1.0 {
                     control_choices
@@ -268,7 +269,7 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                             id: control_id,
                             aria_label: control_aria_label.clone(),
                             list_aria_label: control_aria_label.clone(),
-                            value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
+                            value: Some(selected_size.into()),
                             disabled: !props.mount.editable,
                             on_value_change,
                             for (index, (value, label, disabled)) in control_choices.iter().enumerate() {
