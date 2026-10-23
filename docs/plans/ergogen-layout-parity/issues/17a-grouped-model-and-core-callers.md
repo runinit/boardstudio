@@ -1,6 +1,6 @@
 # 17a: Grouped model and Core callers
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: none
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
