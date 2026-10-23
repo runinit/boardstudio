@@ -1,6 +1,6 @@
 # 16: Build the pure carried-layout kernel and fixture comparison
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [15](15-generate-parity-fixtures.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -41,3 +41,35 @@ success is not prepared-route support. Existing seams to replace later are
 `cargo test -p boardstudio_core <new-kernel-test-filter>` after adding the named test,
 then repository quick checks for the changed files. Register new integration coverage
 in the existing Core integration harness (`autotests = false`) when applicable.
+
+## Comments
+
+### 2026-10-23 — staged kernel implementation
+
+- Added `matrix::kernel`, exposed as `boardstudio_core::layout_kernel`, with one pure
+  `evaluate` interface. Raw anchor-key context and evaluated world frames are distinct
+  types; fixture/document adaptation and anchor lookup remain private to the integration
+  test. Grouped geometry records do not activate a persisted schema or production route.
+- Published column base means the base carried through preceding Splays, **before**
+  this column's own Splay/Column rotation. The separate starting frame includes both
+  turns. Spread/Stagger axes use the exact incoming-prefix translation and are checked
+  against finite step differences under nonzero origins, Bend, rotation and X/Y mirror.
+- RED/GREEN evidence covers the missing default seam, Shift-before-Bend versus
+  offset-after-Bend, committed fixture poses, frame/contribution publication, axis-zero
+  validation and overflow in published frames despite finite final key poses.
+- Focused integration coverage passes 11 tests, including all 40 upstream and four
+  BoardStudio-only cases: 381 numeric poses plus three absent-output/logical-pose
+  checks. The Rust fixture consumer asserts version 1, the full pinned source commit
+  and exact tolerances, using `1e-6` upstream and `1e-9` for worked/divergent poses.
+  Evidence: `.evidence/ergogen-16/13-final-kernel-green.log` and numbered RED/GREEN logs.
+- Changed-file `scripts/check.py quick` passed repository checks, native/WASM Clippy,
+  typecheck, native tests, layout CSS and affected WASM browser suites: 1,959 native
+  tests passed (nine existing ignored), 587 WASM tests passed, zero failures. Receipt:
+  `.evidence/ergogen-16/quick-receipt.json` and `.json.md`; full log:
+  `.evidence/ergogen-16/quick-final.log`. The earlier quick attempt timed out during
+  Clippy and is not counted as passing. This is changed-file verification, not the
+  full release/build, page-suite or product-smoke gate.
+- Ticket stays claimed for review. Live schema/format activation, prepared-edit routing,
+  graph/lifecycle ownership and replacing production geometry remain later tickets;
+  staging success does not claim that support. Fixtures and the untracked prototype
+  were not modified; no Node/npm tooling was run.

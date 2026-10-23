@@ -1,0 +1,651 @@
+use boardstudio_core::layout_kernel::{
+    ColumnLayout, Follow, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext,
+    RowLayout, evaluate,
+};
+use boardstudio_core::model::{Pose2, Vec2};
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+#[test]
+fn matrix_kernel_default_step_pose() {
+    let layout = evaluate(&LayoutInput::default(), RawAnchorContext::World).unwrap();
+    let key = &layout.cells[3];
+    assert_eq!((key.row, key.column), (1, 1));
+    assert_eq!(
+        (key.pose.at.x, key.pose.at.y, key.pose.rotation),
+        (19.05, 19.05, 0.0)
+    );
+}
+
+// Fixture/document adaptation stays here; the kernel has no document IDs or anchor graph.
+fn fixture_layouts(case: &Value, matrices: &Value) -> BTreeMap<String, MatrixLayout> {
+    let mut layouts: BTreeMap<String, MatrixLayout> = BTreeMap::new();
+    for matrix in matrices.as_array().unwrap() {
+        let mut input = LayoutInput {
+            rows: matrix["rows"].as_u64().unwrap() as usize,
+            columns: matrix["columns"].as_u64().unwrap() as usize,
+            ..Default::default()
+        };
+        if let Some(v) = matrix.get("pitch") {
+            input.pitch = serde_json::from_value(v.clone()).unwrap();
+        }
+        if let Some(v) = matrix.get("origin") {
+            input.origin = serde_json::from_value(v.clone()).unwrap();
+        }
+        input.rotation = matrix["rotation"].as_f64().unwrap_or(0.0);
+        if let Some(v) = matrix.get("mirror") {
+            input.mirror = serde_json::from_value(v.clone()).unwrap();
+        }
+        if let Some(v) = matrix.get("columnLayout") {
+            input.column_layout = serde_json::from_value(v.clone()).unwrap();
+        }
+        if let Some(v) = matrix.get("rowLayout") {
+            input.row_layout = serde_json::from_value(v.clone()).unwrap();
+        }
+        if let Some(v) = matrix.get("cells") {
+            input.cells = serde_json::from_value(v.clone()).unwrap();
+        }
+        let context = if let Some(anchor) = matrix.get("anchor") {
+            let target = &layouts[anchor["matrixId"].as_str().unwrap()];
+            let pose = target
+                .cells
+                .iter()
+                .find(|c| {
+                    c.row == anchor["row"].as_u64().unwrap() as usize
+                        && c.column == anchor["column"].as_u64().unwrap() as usize
+                })
+                .unwrap()
+                .pose;
+            let follow = if let Some(v) = anchor.get("follow") {
+                let has = |s| v.as_array().unwrap().iter().any(|v| v == s);
+                Follow {
+                    x: has("x"),
+                    y: has("y"),
+                    rotation: has("rotation"),
+                }
+            } else {
+                Follow::default()
+            };
+            let basis = case
+                .get("links")
+                .and_then(Value::as_array)
+                .and_then(|links| links.iter().find(|link| link["mirror"] == matrix["id"]))
+                .map(|link| FollowBasis::Reflected {
+                    translation: Vec2 {
+                        x: 2.0 * link["axisX"].as_f64().unwrap(),
+                        y: 0.0,
+                    },
+                    rotation: 0.0,
+                })
+                .unwrap_or_default();
+            RawAnchorContext::Key {
+                pose,
+                follow,
+                basis,
+            }
+        } else {
+            RawAnchorContext::World
+        };
+        layouts.insert(
+            matrix["id"].as_str().unwrap().to_owned(),
+            evaluate(&input, context).unwrap(),
+        );
+    }
+    layouts
+}
+
+fn compare_fixture(
+    case: &Value,
+    matrices: &Value,
+    expected: &Value,
+    tolerance: f64,
+    local_tolerance: f64,
+) -> usize {
+    let layouts = fixture_layouts(case, matrices);
+    for expected in expected.as_array().unwrap() {
+        let layout = &layouts[expected["matrix"].as_str().unwrap()];
+        let cell = layout
+            .cells
+            .iter()
+            .find(|c| {
+                c.row == expected["row"].as_u64().unwrap() as usize
+                    && c.column == expected["column"].as_u64().unwrap() as usize
+            })
+            .unwrap();
+        if expected["absent"] == true {
+            let matrix = matrices
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|m| m["id"] == expected["matrix"])
+                .unwrap();
+            let stored = matrix["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["row"] == expected["row"] && c["column"] == expected["column"])
+                .unwrap();
+            assert!(stored["enabled"] == false || stored["deleted"] == true);
+            assert!(cell.pose.at.x.is_finite() && cell.pose.at.y.is_finite());
+            continue;
+        }
+        let difference = case
+            .get("differences")
+            .and_then(Value::as_array)
+            .and_then(|values| {
+                values.iter().find(|v| {
+                    v["matrix"] == expected["matrix"]
+                        && v["row"] == expected["row"]
+                        && v["column"] == expected["column"]
+                })
+            });
+        let (expected, tolerance) = difference
+            .map(|v| (&v["pose"], local_tolerance))
+            .unwrap_or((&expected["pose"], tolerance));
+        for (field, actual) in [
+            ("x", cell.pose.at.x),
+            ("y", cell.pose.at.y),
+            ("rotation", cell.pose.rotation),
+        ] {
+            assert!(
+                (actual - expected[field].as_f64().unwrap()).abs() <= tolerance,
+                "{} {field}: actual {actual}, expected {expected}",
+                case["id"]
+            );
+        }
+    }
+    expected
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["absent"] != true)
+        .count()
+}
+
+#[test]
+fn matrix_kernel_committed_fixtures() {
+    let fixtures: Value =
+        serde_json::from_str(include_str!("fixtures/ergogen-layout-parity.json")).unwrap();
+    assert_eq!(fixtures["fixtureVersion"], 1);
+    assert_eq!(
+        fixtures["source"]["commit"],
+        "8286e18f18ac064aa6d2ebca9c449bf2f6ba4d37"
+    );
+    assert_eq!(
+        fixtures["tolerances"],
+        serde_json::json!({"upstream": 1e-6, "boardStudioOnly": 1e-9})
+    );
+    let upstream = fixtures["tolerances"]["upstream"].as_f64().unwrap();
+    let local = fixtures["tolerances"]["boardStudioOnly"].as_f64().unwrap();
+    let mut count = 0;
+    for case in fixtures["cases"].as_array().unwrap() {
+        count += compare_fixture(
+            case,
+            &case["boardStudioMatrices"],
+            &case["expected"],
+            upstream,
+            local,
+        );
+    }
+    for case in fixtures["boardStudioOnly"].as_array().unwrap() {
+        if case.get("boardStudioMatrices").is_some() {
+            count += compare_fixture(
+                case,
+                &case["boardStudioMatrices"],
+                &case["expected"],
+                local,
+                local,
+            );
+        } else {
+            count += compare_fixture(
+                case,
+                &case["beforeMatrices"],
+                &case["expectedBefore"],
+                local,
+                local,
+            );
+            count += compare_fixture(
+                case,
+                &case["afterMatrices"],
+                &case["expectedAfter"],
+                local,
+                local,
+            );
+        }
+    }
+    assert_eq!(fixtures["cases"].as_array().unwrap().len(), 40);
+    assert_eq!(fixtures["boardStudioOnly"].as_array().unwrap().len(), 4);
+    assert_eq!(count, 381, "all fixture poses must be consumed");
+    println!("Compared {count} committed poses");
+}
+
+#[test]
+fn matrix_kernel_shift_then_bend_not_offset_after_bend() {
+    let mut input = LayoutInput {
+        columns: 1,
+        row_layout: vec![RowLayout {
+            shift: Vec2 { x: 2.0, y: 0.0 },
+            bend: 90.0,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let shifted = evaluate(&input, RawAnchorContext::World).unwrap();
+    assert_eq!(shifted.cells[0].pose.at, Vec2 { x: 2.0, y: 0.0 });
+    assert!((shifted.cells[1].pose.at.x + 17.05).abs() < 1e-9);
+    input.row_layout[0].shift = Vec2::default();
+    input.row_layout[0].offset = Vec2 { x: 2.0, y: 0.0 };
+    let offset = evaluate(&input, RawAnchorContext::World).unwrap();
+    assert!(offset.cells[0].pose.at.x.abs() < 1e-9);
+    assert!((offset.cells[0].pose.at.y - 2.0).abs() < 1e-9);
+    assert!((offset.cells[1].pose.at.x + 19.05).abs() < 1e-9);
+    assert_eq!(offset.cells[1].pose.rotation, 90.0);
+}
+
+fn near(actual: Vec2, x: f64, y: f64) {
+    assert!(
+        (actual.x - x).abs() < 1e-9 && (actual.y - y).abs() < 1e-9,
+        "{actual:?} != ({x},{y})"
+    );
+}
+
+#[test]
+fn matrix_kernel_exact_frames_and_transported_contributions() {
+    let input = LayoutInput {
+        columns: 1,
+        pitch: Vec2 { x: 10.0, y: 10.0 },
+        column_layout: vec![ColumnLayout {
+            splay: 90.0,
+            rotation: 90.0,
+            offset: Vec2 { x: 3.0, y: 4.0 },
+            ..Default::default()
+        }],
+        row_layout: vec![
+            RowLayout {
+                shift: Vec2 { x: 2.0, y: 0.0 },
+                bend: 90.0,
+                ..Default::default()
+            },
+            RowLayout {
+                shift: Vec2 { x: 3.0, y: 0.0 },
+                offset: Vec2 { x: 1.0, y: 2.0 },
+                ..Default::default()
+            },
+        ],
+        cells: vec![KeyLayout {
+            row: 1,
+            column: 0,
+            shift: Vec2 { x: 1.0, y: 0.0 },
+            bend: -90.0,
+            offset: Vec2 { x: 5.0, y: 6.0 },
+            rotation: 37.0,
+        }],
+        ..Default::default()
+    };
+    let layout = evaluate(&input, RawAnchorContext::World).unwrap();
+    let cell = &layout.cells[1];
+    near(cell.shift_frame.origin, 8.0, 0.0);
+    near(cell.shift_frame.axis_x, 0.0, -1.0);
+    near(cell.shift_frame.axis_y, 1.0, 0.0);
+    near(cell.offset_frame.origin, 8.0, -4.0);
+    near(cell.offset_frame.axis_x, -1.0, 0.0);
+    near(cell.offset_frame.axis_y, 0.0, -1.0);
+    near(cell.pose.at, -1.0, -16.0);
+    assert_eq!(cell.pose.rotation, 217.0);
+    near(cell.contributions.cumulative_shift, -2.0, -4.0);
+    near(cell.contributions.row_shift_matrix, 0.0, -3.0);
+    near(cell.contributions.key_shift_matrix, 0.0, -1.0);
+    assert_eq!(cell.contributions.cumulative_bend, 0.0);
+    assert_eq!(cell.contributions.key_rotation, 37.0);
+    assert_eq!(layout.columns[0].rotation, 90.0);
+    assert_eq!(layout.columns[0].cumulative_splay, 90.0);
+    assert!(layout.columns[0].spread_axis.is_none());
+}
+
+#[test]
+fn matrix_kernel_validation_and_defaults() {
+    let mut input = LayoutInput {
+        column_layout: vec![ColumnLayout {
+            spread: Some(0.0),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    assert!(
+        evaluate(&input, RawAnchorContext::World).is_err(),
+        "no Spread at column zero"
+    );
+    input.column_layout.clear();
+    input.row_layout = vec![RowLayout {
+        padding: Some(-1.0),
+        ..Default::default()
+    }];
+    assert!(
+        evaluate(&input, RawAnchorContext::World).is_err(),
+        "no Padding at row zero"
+    );
+    input.row_layout = vec![RowLayout::default(); 3];
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    input.row_layout.clear();
+    input.column_layout = vec![ColumnLayout::default(); 3];
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    input.column_layout.clear();
+    input.pitch.x = input.edge_gap;
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    input.pitch.x = 19.05;
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        input.cells = vec![KeyLayout {
+            shift: Vec2 { x: bad, y: 0.0 },
+            ..Default::default()
+        }];
+        assert!(evaluate(&input, RawAnchorContext::World).is_err());
+        input.cells.clear();
+        input.rotation = bad;
+        assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    }
+    input.rotation = 0.0;
+    input.cells = vec![KeyLayout {
+        row: 2,
+        ..Default::default()
+    }];
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    input.cells = vec![KeyLayout::default(); 2];
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+    input.cells.clear();
+    input.column_layout = vec![
+        ColumnLayout::default(),
+        ColumnLayout {
+            spread: Some(0.0),
+            ..Default::default()
+        },
+    ];
+    input.row_layout = vec![
+        RowLayout::default(),
+        RowLayout {
+            padding: Some(-3.0),
+            ..Default::default()
+        },
+    ];
+    let layout = evaluate(&input, RawAnchorContext::World).unwrap();
+    near(layout.cells[3].pose.at, 0.0, -3.0);
+    assert_eq!(
+        layout.columns[1].spread.unwrap().source,
+        boardstudio_core::layout_kernel::StepSource::Explicit
+    );
+    let defaults = evaluate(&LayoutInput::default(), RawAnchorContext::World).unwrap();
+    assert_eq!(defaults.columns[1].spread.unwrap().value, 19.05);
+    assert_eq!(
+        defaults.columns[1].spread.unwrap().source,
+        boardstudio_core::layout_kernel::StepSource::Pitch
+    );
+    assert!(defaults.cells[0].contributions.padding.is_none());
+}
+
+#[test]
+fn matrix_kernel_follow_transported_slanted_basis_uses_actual_anchor() {
+    let input = LayoutInput {
+        rows: 1,
+        columns: 1,
+        origin: Vec2 { x: 2.0, y: 4.0 },
+        rotation: 15.0,
+        ..Default::default()
+    };
+    let layout = evaluate(
+        &input,
+        RawAnchorContext::Key {
+            // An actual Local anchor, not its inherited substitute.
+            pose: Pose2 {
+                at: Vec2 { x: 40.0, y: 50.0 },
+                rotation: -30.0,
+            },
+            follow: Follow {
+                x: false,
+                y: true,
+                rotation: false,
+            },
+            basis: FollowBasis::Reflected {
+                translation: Vec2 { x: 100.0, y: 20.0 },
+                rotation: 90.0,
+            },
+        },
+    )
+    .unwrap();
+    // Candidate (43.73205080756888,52.46410161513776,-15) is filtered in source axes.
+    near(layout.cells[0].pose.at, 43.73205080756888, 20.0);
+    assert_eq!(layout.cells[0].pose.rotation, 90.0);
+    near(layout.frame.axis_x, 0.0, 1.0);
+    near(layout.frame.axis_y, -1.0, 0.0);
+}
+
+#[test]
+fn matrix_kernel_column_axes_are_exact_step_differences_and_mirror_frames() {
+    for mirror in [
+        boardstudio_core::model::Mirror::None,
+        boardstudio_core::model::Mirror::X,
+        boardstudio_core::model::Mirror::Y,
+    ] {
+        let mut input = LayoutInput {
+            rows: 2,
+            columns: 3,
+            origin: Vec2 { x: 20.0, y: -3.0 },
+            rotation: 17.0,
+            mirror,
+            column_layout: vec![
+                ColumnLayout {
+                    splay: 23.0,
+                    ..Default::default()
+                },
+                ColumnLayout {
+                    stagger: 4.0,
+                    splay: -31.0,
+                    rotation: 12.0,
+                    splay_origin: Vec2 { x: 2.0, y: -5.0 },
+                    ..Default::default()
+                },
+            ],
+            row_layout: vec![RowLayout {
+                bend: 38.0,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let base = evaluate(&input, RawAnchorContext::World).unwrap();
+        assert!(base.columns[1].custom_origin);
+        near(base.columns[1].relative_origin, 2.0, -5.0);
+        input.column_layout[1].spread = Some(input.pitch.x + 1.0);
+        let spread = evaluate(&input, RawAnchorContext::World).unwrap();
+        let axis = base.columns[1].spread_axis.unwrap();
+        for row in 0..2 {
+            let a = base.cells[2 + row].pose.at;
+            let b = spread.cells[2 + row].pose.at;
+            near(axis, b.x - a.x, b.y - a.y);
+        }
+        input.column_layout[1].spread = None;
+        input.column_layout[1].stagger += 1.0;
+        let stagger = evaluate(&input, RawAnchorContext::World).unwrap();
+        let axis = base.columns[1].stagger_axis;
+        near(
+            axis,
+            stagger.cells[3].pose.at.x - base.cells[3].pose.at.x,
+            stagger.cells[3].pose.at.y - base.cells[3].pose.at.y,
+        );
+        // Independent offset differencing verifies both published mirror-aware axes.
+        input.column_layout[1].stagger -= 1.0;
+        for (offset, axis) in [
+            (Vec2 { x: 1.0, y: 0.0 }, base.cells[3].offset_frame.axis_x),
+            (Vec2 { x: 0.0, y: 1.0 }, base.cells[3].offset_frame.axis_y),
+        ] {
+            input.cells = vec![KeyLayout {
+                row: 1,
+                column: 1,
+                offset,
+                ..Default::default()
+            }];
+            let moved = evaluate(&input, RawAnchorContext::World).unwrap();
+            near(
+                axis,
+                moved.cells[3].pose.at.x - base.cells[3].pose.at.x,
+                moved.cells[3].pose.at.y - base.cells[3].pose.at.y,
+            );
+        }
+    }
+}
+
+#[test]
+fn matrix_kernel_logical_disabled_deleted_and_omitted_values_carry() {
+    for state in [
+        serde_json::json!({"enabled": false}),
+        serde_json::json!({"deleted": true}),
+        serde_json::json!({"omitted": true}),
+    ] {
+        let mut key =
+            serde_json::json!({"row": 0, "column": 0, "shift": {"x": 2, "y": 0}, "bend": 90});
+        key.as_object_mut()
+            .unwrap()
+            .extend(state.as_object().unwrap().clone());
+        let input = LayoutInput {
+            columns: 1,
+            cells: vec![serde_json::from_value(key).unwrap()],
+            ..Default::default()
+        };
+        let layout = evaluate(&input, RawAnchorContext::World).unwrap();
+        assert_eq!(
+            layout.cells.len(),
+            2,
+            "logical keys are never filtered in the kernel"
+        );
+        near(layout.cells[1].pose.at, -17.05, 0.0);
+        assert_eq!(layout.cells[1].contributions.cumulative_bend, 90.0);
+    }
+}
+
+#[test]
+fn matrix_kernel_refuses_nonfinite_anchor_and_evaluation_overflow() {
+    let input = LayoutInput::default();
+    let invalid_anchor = RawAnchorContext::Key {
+        pose: Pose2 {
+            at: Vec2::default(),
+            rotation: f64::NAN,
+        },
+        follow: Follow {
+            x: false,
+            y: false,
+            rotation: false,
+        },
+        basis: FollowBasis::World,
+    };
+    assert!(
+        evaluate(&input, invalid_anchor).is_err(),
+        "Follow cannot mask invalid input"
+    );
+    let invalid_basis = RawAnchorContext::Key {
+        pose: Pose2 {
+            at: Vec2::default(),
+            rotation: 0.0,
+        },
+        follow: Follow::default(),
+        basis: FollowBasis::Reflected {
+            translation: Vec2::default(),
+            rotation: f64::INFINITY,
+        },
+    };
+    assert!(evaluate(&input, invalid_basis).is_err());
+    let input = LayoutInput {
+        origin: Vec2 {
+            x: f64::MAX,
+            y: 0.0,
+        },
+        ..Default::default()
+    };
+    let anchor = RawAnchorContext::Key {
+        pose: Pose2 {
+            at: Vec2 {
+                x: f64::MAX,
+                y: 0.0,
+            },
+            rotation: 0.0,
+        },
+        follow: Follow {
+            x: false,
+            y: false,
+            rotation: false,
+        },
+        basis: FollowBasis::World,
+    };
+    assert!(
+        evaluate(&input, anchor).is_err(),
+        "candidate overflow is refused before Follow"
+    );
+    let input = LayoutInput {
+        row_layout: vec![
+            RowLayout {
+                bend: f64::MAX,
+                ..Default::default()
+            };
+            2
+        ],
+        ..Default::default()
+    };
+    assert!(evaluate(&input, RawAnchorContext::World).is_err());
+}
+
+#[test]
+fn matrix_kernel_refuses_overflow_in_published_frames_before_key_rotation() {
+    let input = LayoutInput {
+        rotation: f64::MAX,
+        column_layout: vec![ColumnLayout {
+            rotation: f64::MAX,
+            ..Default::default()
+        }],
+        cells: vec![
+            KeyLayout {
+                rotation: -f64::MAX,
+                ..Default::default()
+            },
+            KeyLayout {
+                row: 1,
+                rotation: -f64::MAX,
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    assert!(
+        evaluate(&input, RawAnchorContext::World).is_err(),
+        "finite final keys must not hide overflowed frames"
+    );
+}
+
+#[test]
+fn matrix_kernel_literal_column_bases_origins_and_prefix_exclude_own_rotation() {
+    let input = LayoutInput {
+        rows: 1,
+        columns: 3,
+        pitch: Vec2 { x: 10.0, y: 10.0 },
+        column_layout: vec![
+            ColumnLayout {
+                stagger: 2.0,
+                splay: 90.0,
+                splay_origin: Vec2 { x: 1.0, y: 0.0 },
+                ..Default::default()
+            },
+            ColumnLayout {
+                stagger: 3.0,
+                splay: 90.0,
+                rotation: 90.0,
+                splay_origin: Vec2 { x: 2.0, y: -3.0 },
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    let layout = evaluate(&input, RawAnchorContext::World).unwrap();
+    near(layout.columns[1].base, -2.0, 11.0);
+    near(layout.columns[1].splay_origin, 1.0, 13.0);
+    near(layout.columns[1].frame.origin, 4.0, 15.0);
+    near(layout.cells[1].pose.at, 4.0, 15.0);
+    assert_eq!(layout.cells[1].pose.rotation, 270.0);
+    near(layout.cells[2].pose.at, -7.0, 10.0);
+    assert_eq!(layout.cells[2].pose.rotation, 180.0);
+    assert_eq!(layout.columns[2].cumulative_stagger, 5.0);
+}

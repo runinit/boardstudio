@@ -5,6 +5,9 @@
 //! `performance` and `matrix_performance` stay separate binaries: they time work
 //! and should not share the test thread pool with everything else.
 
+#[path = "matrix_kernel.rs"]
+mod matrix_kernel;
+
 #[path = "boundary_parity.rs"]
 mod boundary_parity;
 #[path = "case.rs"]

@@ -18,6 +18,7 @@
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
 pub(crate) mod deletion;
+pub mod kernel;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, Mirror, OutlineFeature,
     Part, Pin, Pose2, ProjectDoc, Side, Vec2,

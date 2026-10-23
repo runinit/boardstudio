@@ -29,6 +29,7 @@ mod script;
 mod validate;
 
 use geometry::{OutlineCache, outlines};
+pub use matrix::kernel as layout_kernel;
 use matrix::layout;
 pub use matrix::layout::is_matrix_key;
 use model::*;
