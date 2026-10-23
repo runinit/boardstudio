@@ -511,3 +511,43 @@ CAD-worker qualification, first paint, screen-reader, human 026 and final merge
 remain open/failed as previously recorded. Scoped ticket resolution/local landing
 and generated-target cleanup do not certify or waive them. No new review,
 agent, watcher, remote operation or dev merge is authorized or performed here.
+
+### Local landing and generated-target cleanup result
+
+The authorized scoped closure commit
+`42c328cdbd26c3c320ffb41c545b63bdc6579cab` was locally fast-forwarded from the
+verified feature tip `c032d902ba3ae24c20ea588e5349fbe1e9559af5` using exactly
+`git push . HEAD:refs/heads/feat/rust-ui-migration`. The feature was not checked
+out elsewhere, ancestry and clean child inventory were checked, and `dev`
+remained `b237903705244a266b07a64e5f23b8a3b5219c03`. Final documentation-only
+receipt updates use the same guarded local fast-forward; all operations and the
+final pin are in `.evidence/023/closure-landing-receipt.json`.
+
+Cleanup completed only after that landing. The fresh audit covered **47 registered
+worktrees / 52 checkout candidates**, found exactly this child's target symlink,
+checked **44,575** target ownership entries, no nested mounts and no active
+consumer. Immediate process/environment/open-fd/lsof and checkout-binding/path/
+inode checks ran before fd-anchored `shutil.rmtree` of the exact physical target.
+The inherited crash-reporter lookup paths and protected host-service visibility
+limits remain explicitly recorded; no such process was stopped.
+
+`closure-target-cleanup-receipt.json` records:
+
+- Allocated bytes: **29,096,194,048 → 0**.
+- Apparent bytes: **29,011,279,287 → 0**.
+- After measurement: physical target absent. The child's original target symlink
+  is preserved and intentionally dangling.
+- Preserved identities: evidence root, ignored settings, CAD caches/pkg and the
+  packaged `web/target`; worktree, source, child branch and other targets remain.
+- Only the verified owned 4183 preview was stopped; its pidfd receipt is retained.
+
+The final docs-only `check.py repo` (including doc-link checks), `git diff
+--check`, approved source/tests equality and final inventory/ref checks are
+recorded in `closure-final-repo-receipt.json` / `.md`, `closure-final-repo.log`,
+`closure-final-diff.log`, `closure-source-equality.log` and the landing receipt.
+Parent/main checkout HEAD/status inventories are compared outside the target in
+`closure-parent-inventory-before.json` and `closure-parent-inventory-after.json`.
+No source build, native/mounted/full-suite rerun, remote push or dev merge was
+performed. All listed full tooling/drag/PCB/page/palette failures and global
+quick/full/CAD-worker/first-paint/screen-reader/human026/final-merge gates remain
+**OPEN/FAILED**; scoped resolution is not global acceptance.
