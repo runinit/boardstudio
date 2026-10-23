@@ -37,7 +37,7 @@ offsets; then add an anchored/Follow refusal case with unchanged document/histor
 ## Checks
 
 Current sources include `web/crates/catalogue/src/matrix_setup_operation.rs`,
-`web/crates/layout/src/objects/layout_align_controller.rs`, `part_placement.rs`,
+`web/crates/layout/src/objects/layout_align_controller.rs`, `web/crates/layout/src/part_placement.rs`,
 UI-model tree/selection and keycaps/pair geometry consumers. Run focused native
 consumer/Core contracts and `check.py quick --files <changed-paths>`, plus affected
 browser subsets (`layout keycaps parts catalogue ui-model` as applicable). Report

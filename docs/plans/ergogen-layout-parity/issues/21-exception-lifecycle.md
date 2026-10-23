@@ -40,6 +40,6 @@ the Omitted-partner case; do not bypass production preparation in the test.
 
 Primary source: `core/src/mirrored_half/lifecycle.rs`, reconciliation membership kernel
 and same-board layout lifecycle. Regressions must enter Core/Session production
-preparation; cite the helper/production discrepancy from decision 11 but do not treat
+preparation; cite the helper/production discrepancy from [decision 11](11-mirrored-halves-rules.md#answer) but do not treat
 those helper tests as proof. Run focused lifecycle/mirror tests, then quick/native
 checks with name retention. No private adapter may become a second authority.

@@ -2,7 +2,7 @@
 
 Status: ready-for-agent
 Type: build
-Blocked by: [17](17-cut-over-format-and-model.md)
+Blocked by: [17a](17a-grouped-model-and-core-callers.md), [17d](17d-entry-path-gates.md) (parent: [17](17-cut-over-format-and-model.md))
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
 Map: [map.md](../map.md)
 
@@ -37,7 +37,7 @@ survives. Pass through actual BrowserStore/Runtime paths, then add incompatible 
 
 ## Checks
 
-Sources: Core gate/archive, Host `storage.rs`/`storage_lifetime_tests.rs`, Runtime and
+Sources: Core gate/archive, Host `web/crates/host/src/host/storage.rs`/`storage_lifetime_tests.rs` (same directory), Runtime and
 Session, library action/recovery controls and current mounted delete/list tests.
 Exercise invalid direct Open, storage races/failures and draft/pending-save ordering
 through public interfaces. Run affected native checks and browser `host runtime library`

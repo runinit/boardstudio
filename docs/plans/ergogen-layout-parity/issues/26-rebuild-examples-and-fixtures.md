@@ -24,7 +24,7 @@ through Core rather than baking switch poses, then add Macro 12 as the next case
   19.05 mm pitch, 1.05 mm gap and 18×18 caps. New project remains blank. Saved user
   copies remain untouched; new members use proper matrix-coordinate identities.
 - Studio/Macro origins and dimensions preserve 60/12 poses and zero headings exactly.
-- Split has two same-board linked Layouts, four matrices and 42 keys. Use decision 14's
+- Split has two same-board linked Layouts, four matrices and 42 keys. Use [decision 14](14-starters-and-demos.md#answer)'s
   left Main/Thumb mirror flags, row shifts, column staggers and relative anchor origin.
   Keep left/thumb poses; change only right-main row X by 0/−5/−10 mm as approved.
 - Core maintains reflected counterparts and actual anchor movement, including edits

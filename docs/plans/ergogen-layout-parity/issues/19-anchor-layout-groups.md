@@ -28,8 +28,8 @@ to pass, then test reordered matrix lists through the same public route.
 - Logical disabled/deleted keys and Omitted matrices/keys keep evaluating before
   visible output filtering. Do not materialize missing geometry for anchors.
 - Compaction remaps physical references; actual shrink/removal detaches dependants
-  and keeps frame, never targets a new key at an old coordinate. Integrate the
-  confirmed asymmetric linked policy in 20–21, not a silent fallback.
+  and keeps frame, never targets a new key at an old coordinate. Deliver the group-level form of the
+  confirmed asymmetric linked policy here (20–21 consume it later), not a silent fallback.
 - Extend placement/Align through actual anchor frames and Follow representability;
   exact impossible edits refuse; constrained drags/Rotate availability remain truthful.
 
