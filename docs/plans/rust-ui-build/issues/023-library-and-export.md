@@ -46,3 +46,15 @@ ExportRowView/ZmkFirmwareExportRow and test-only ExportPanel, ProjectSetupGuide 
 its Matrix focus integration, plus only their owned legacy CSS. Preserve 012 tool
 request/name ownership, 013 outcome classification, 016 controls and stage/draft
 owners, 017 mechanical settings, 020 Parts and canonical renderer unchanged.
+
+
+Deletion slice: `07ffde6c` is actual product RED (`delete-red.log`, 0/1): the named
+Alert Dialog does not exist. Initial GREEN compile failures (`delete-green.log`)
+were prop mismatches, corrected using existing attributes and a typed callback.
+`delete-green-corrected.log` and `delete-focus-asset-diagnostic.log` distinguish a
+mounted-fixture limitation: `window.createFocusTrap` is undefined; wasm-pack does
+not serve the primitive's manganis focus asset. The identical initial Cancel,
+Tab trap and opener-restoration assertions are assigned to the pre-agreed actual
+packaged browser workflow; the mounted test retains named modal semantics,
+Cancel and persisted identity assertions. No product focus workaround or shared
+primitive change is introduced to satisfy this fixture. Diagnostics retained.

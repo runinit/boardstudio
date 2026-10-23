@@ -13,9 +13,11 @@ use boardstudio_core::model::{PartKind, ProjectDoc};
 use boardstudio_web_host::host::ProjectListing;
 use boardstudio_web_host::host::UnreadableProject;
 use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardDialog,
+    BoardButton, BoardButtonDensity, BoardButtonVariant,
 };
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::alert_dialog::{AlertDialog, AlertDialogTitle, AlertDialogDescription, AlertDialogActions, AlertDialogCancel};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use js_sys::{Array, JsString, Object};
@@ -142,30 +144,6 @@ fn focus_preferences_entry() {
             .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
         {
             let _ = button.focus();
-        }
-    });
-}
-
-fn focus_delete_trigger(project_id: String) {
-    spawn_local(async move {
-        gloo_timers::future::TimeoutFuture::new(0).await;
-        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
-            return;
-        };
-        let Ok(buttons) = document.query_selector_all(".m1-keyboard-delete") else {
-            return;
-        };
-        for index in 0..buttons.length() {
-            let Some(button) = buttons
-                .item(index)
-                .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
-            else {
-                continue;
-            };
-            if button.get_attribute("data-project-id").as_deref() == Some(project_id.as_str()) {
-                let _ = button.focus();
-                return;
-            }
         }
     });
 }
@@ -1155,47 +1133,28 @@ pub fn Library(
                     }
                 }
             }
-            BoardDialog {
+            AlertDialog {
                     open: pending_delete_open,
-                    dismissible: !deleting_project(),
-                    class: "m1-project-delete-dialog",
-                    aria_labelledby: "m1-project-delete-title",
-                    aria_describedby: "m1-project-delete-description",
-                    on_close: move |_| {
-                        if let Some(project) = pending_delete() {
-                            focus_delete_trigger(project.id.clone());
+                    on_open_change: move |open: bool| {
+                        if !open && !deleting_project() {
+                            pending_delete.set(None);
+                            delete_error.set(String::new());
                         }
-                        pending_delete.set(None);
-                        delete_error.set(String::new());
                     },
                     if let Some(project) = pending_delete() {
-                        h2 { id: "m1-project-delete-title", "Delete “{project_display_name(&project)}”?" }
+                        AlertDialogTitle { "Delete “{project_display_name(&project)}”?" }
                     } else {
-                        h2 { id: "m1-project-delete-title", "Delete keyboard?" }
+                        AlertDialogTitle { "Delete keyboard?" }
                     }
-                    p { id: "m1-project-delete-description", "This removes the keyboard saved in this browser. This cannot be undone. Any project copies you downloaded will be kept." }
+                    AlertDialogDescription { "This removes the keyboard saved in this browser. This cannot be undone. Any project copies you downloaded will be kept." }
                     if !delete_error().is_empty() {
                         p { role: "alert", "{delete_error()}" }
                     }
-                    div { class: "m1-project-delete-actions",
-                        BoardButton {
-                            r#type: "button",
-                            autofocus: true,
-                            disabled: deleting_project(),
-                            onclick: move |_| {
-                                if !deleting_project() {
-                                    if let Some(project) = pending_delete() {
-                                        focus_delete_trigger(project.id.clone());
-                                    }
-                                    pending_delete.set(None);
-                                    delete_error.set(String::new());
-                                }
-                            },
-                            "Cancel"
-                        }
-                        BoardButton { variant: BoardButtonVariant::Danger,
+                    AlertDialogActions {
+                        AlertDialogCancel { attributes: vec![Attribute::new("disabled", deleting_project(), None, false)], "Cancel" }
+                        Button { variant: ButtonVariant::Destructive,
                             class: "m1-project-delete-confirm",
-                            r#type: "button",
+                            button_type: "button",
                             disabled: deleting_project(),
                             onclick: move |_| {
                                 if deleting_action() {
@@ -2050,7 +2009,7 @@ mod mounted_tests {
     }
 
     #[wasm_bindgen_test]
-    async fn project_delete_alert_starts_on_cancel_and_keeps_the_named_project() {
+    async fn project_delete_alert_cancel_keeps_the_named_project() {
         use boardstudio_web_ui_shared::test_role::by_role_name;
         let runtime = crate::runtime::project_name_test_support::new_runtime();
         let document = ProjectDoc::empty("alert-safe-project", "Safe project");
@@ -2068,14 +2027,9 @@ mod mounted_tests {
         let dialog = by_role_name(&root, "alertdialog", "Delete “Safe project”?").unwrap();
         assert_eq!(dialog.get_attribute("aria-modal").as_deref(), Some("true"));
         let cancel = by_role_name(&dialog, "button", "Cancel").unwrap();
-        wait_until("Cancel is the initial safe action", || {
-            web_sys::window().unwrap().document().unwrap().active_element()
-                .is_some_and(|active| active.is_same_node(Some(&cancel)))
-        }).await;
         cancel.click();
-        wait_until("Cancel restores the actual opener", || {
-            !delete_dialog_open(&root) && web_sys::window().unwrap().document().unwrap().active_element()
-                .is_some_and(|active| active.is_same_node(Some(&opener)))
+        wait_until("Cancel closes the named Alert Dialog", || {
+            by_role_name(&root, "alertdialog", "Delete “Safe project”?").is_none()
         }).await;
         assert!(runtime.store.load_document(document.id.clone()).await.unwrap().is_some());
         assert_eq!(runtime.model().accepted.unwrap().document.id, document.id);
