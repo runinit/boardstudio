@@ -961,7 +961,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 div { class: "m1-layout-findings-return",
                     Button {
                         variant: ButtonVariant::Outline,
-                        class: "m1-layout-findings-back",
+                        class: "m1-layout-findings-back max-[760px]:min-h-control-touch",
                         id: "m1-layout-findings-back-to-selection",
                         button_type: "button",
                         onclick: move |_| input.on_findings_return.call(()),

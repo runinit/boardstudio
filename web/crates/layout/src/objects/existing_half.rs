@@ -7,10 +7,11 @@ use boardstudio_core::model::{
     EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::BoardDialog;
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::card::Card;
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldLabel},
@@ -743,20 +744,25 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
     };
     let cancel = props.on_cancel;
     let owner_escape = owner.clone();
+    let can_cancel = props.projection.can_cancel;
     let error = props.projection.error.clone();
 
     rsx! {
-                BoardDialog {
-                    open: true,
-                    modal: false,
+                section {
+                    role: "region",
                     aria_label: "Mirror existing half",
-                    dismissible: props.projection.can_cancel,
-                    on_close: move |_| cancel.call(owner_escape.clone()),
-                    section { class: "m1-matrix-setup m1-mirrored-pair-setup",
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key() == Key::Escape && can_cancel {
+                            event.prevent_default();
+                            event.stop_propagation();
+                            cancel.call(owner_escape.clone());
+                        }
+                    },
+                    Card { class: "m1-matrix-setup m1-mirrored-pair-setup gap-4 p-4",
                         header { class: "m1-matrix-setup-heading",
                             h2 { "Mirror existing half" }
                         }
-                        p { class: "m1-mirrored-pair-intro",
+                        Callout { variant: CalloutVariant::Info,
                             "Keep the original in place and mirror its components too. Replace a component on one side when the halves need different hardware."
                         }
                         form { onsubmit: submit,
@@ -861,7 +867,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                             footer { class: "m1-mirrored-pair-actions",
                                 Button {
                                     variant: ButtonVariant::Outline,
-                                    class: "wb-secondary",
+                                    class: "max-[760px]:min-h-control-touch",
                                     button_type: "button",
                                     disabled: !props.projection.can_cancel,
                                     onclick: move |_| cancel.call(owner.clone()),
@@ -869,7 +875,7 @@ pub fn ExistingHalfSetup(props: ExistingHalfProps) -> Element {
                                 }
                                 Button {
                                     variant: ButtonVariant::Default,
-                                    class: "wb-primary",
+                                    class: "max-[760px]:min-h-control-touch",
                                     button_type: "submit",
                                     disabled: !can_create,
                                     "Create linked half"
@@ -907,18 +913,22 @@ mod adoption_tests {
             default_axis_x: 12.125,
         };
         let mut submitted = use_signal(|| None::<f64>);
+        let mut cancellable = use_signal(|| true);
+        let mut cancelled = use_signal(Vec::<u64>::new);
         rsx! {
             ExistingHalfSetup {
                 projection: ExistingHalfProjection {
                     owner,
                     editable: true,
-                    can_cancel: true,
+                    can_cancel: cancellable(),
                     error: None,
                 },
-                on_cancel: |_| {},
+                on_cancel: move |owner: ExistingHalfOwner| cancelled.write().push(owner.open_id),
                 on_create: move |request: ExistingHalfCreateRequest| submitted.set(Some(request.axis_x)),
             }
-            output { aria_label: "Submitted axis", "{submitted:?}" }
+            output { role: "status", aria_label: "Submitted axis", "{submitted:?}" }
+            output { role: "status", aria_label: "Cancelled owners", "{cancelled:?}" }
+            Button { onclick: move |_| cancellable.set(false), "Hold Mirror cancellation" }
         }
     }
 
@@ -947,22 +957,38 @@ mod adoption_tests {
             .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
-        axis.set_value("12.123456789");
+        let create = by_role_name(&root, "button", "Create linked half").unwrap();
         let init = web_sys::EventInit::new();
         init.set_bubbles(true);
-        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
-            .unwrap();
-        wait_until("axis local draft renders", || {
-            axis.value() == "12.123456789"
-        })
-        .await;
-        by_role_name(&root, "button", "Create linked half")
-            .unwrap()
-            .click();
+        axis.set_value("");
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
+        wait_until("empty local axis disables creation", || create.has_attribute("disabled")).await;
+        axis.set_value("12.123456789");
+        axis.dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap()).unwrap();
+        wait_until("valid local axis enables creation after render", || !create.has_attribute("disabled")).await;
+        assert_eq!(axis.value(), "12.123456789");
+        create.click();
         wait_until("precise draft submitted", || {
-            root.text_content().unwrap().contains("12.123456789")
-        })
-        .await;
+            by_role_name(&root, "status", "Submitted axis").unwrap().text_content().as_deref()
+                == Some("Some(12.123456789)")
+        }).await;
+        let escape = web_sys::KeyboardEventInit::new();
+        escape.set_key("Escape"); escape.set_bubbles(true); escape.set_cancelable(true);
+        let event = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+        axis.dispatch_event(&event).unwrap();
+        assert!(event.default_prevented());
+        wait_until("Escape calls the same cancel owner once", || {
+            by_role_name(&root, "status", "Cancelled owners").unwrap().text_content().as_deref() == Some("[1]")
+        }).await;
+        by_role_name(&root, "button", "Hold Mirror cancellation").unwrap().click();
+        wait_until("the pending owner disables Cancel", || {
+            by_role_name(&root, "button", "Cancel").unwrap().has_attribute("disabled")
+        }).await;
+        let event = web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &escape).unwrap();
+        axis.dispatch_event(&event).unwrap();
+        assert!(!event.default_prevented());
+        assert_eq!(by_role_name(&root, "status", "Cancelled owners").unwrap().text_content().as_deref(), Some("[1]"));
+        assert_eq!(axis.value(), "12.123456789", "the actual local draft survives parent availability changes");
         root.remove();
     }
 }

@@ -1004,10 +1004,6 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-setup-stage-form .m1-matrix-dimension { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .m1-setup-stage-form .m1-matrix-dimension > label { display: flex; justify-content: space-between; font-weight: 600; }
 .m1-setup-stage-form .m1-matrix-dimension > [role="group"] { width: 100%; }
-.m1-matrix-slider-track { position: relative; height: 8px; border-radius: var(--wb-radius-control); background: var(--wb-surface-soft); }
-.m1-matrix-slider-range { position: absolute; height: 100%; border-radius: inherit; background: var(--wb-accent); }
-.m1-matrix-slider-thumb { position: absolute; top: 50%; width: 18px; height: 18px; border: 2px solid var(--wb-panel); border-radius: 50%; background: var(--wb-accent); box-shadow: 0 0 0 1px var(--wb-accent); transform: translate(-50%, -50%); }
-.m1-setup-drawer .m1-setup-guide .m1-setup-stage-form .m1-matrix-slider-thumb { width: 18px; min-width: 18px; height: 18px; min-height: 18px; padding: 0; }
 .m1-matrix-assembly-picker { display: grid; gap: 8px; }
 .m1-matrix-assembly-picker h3:not(:first-child) { margin-top: 8px; }
 .m1-matrix-assembly-picker button { border-radius: var(--wb-radius-control); }

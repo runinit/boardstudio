@@ -238,3 +238,59 @@ state owners remain. Copied private Collapsible headers gain 44px targets/chevro
 Only the shared layer CSS is changed so far; the unused-rule inventory is in
 `.scratch/016/owned-legacy-css-inventory.json`, not a source/SHA manifest. The
 023 guide chevron rules and shared legacy rules are retained.
+
+
+Additional affected integration-test inventory before editing: in
+`scripts/test-dock-layout.py`, only `production_tests.add_view`'s three Add-view
+state/containment selectors change from dialog to region, matching the decided
+016 presentation change. Workspace panels keep dialog semantics; all 011 sheet,
+draft, focus and operations assertions stay. No matching active writer exists.
+The new owned `scripts/test-layout-view-controls.py` will inspect the actual
+Editor-owned view controls in a packaged page across the 12 combinations; disabled
+CSS is explicitly a DOM style probe, not a domain-owner disabled outcome. Its native
+style reference is not used for adopted-control interaction or draft acceptance.
+No Layout legacy style exclusion has yet been applied without its runtime RED.
+
+
+Meaningful actual Mirror RED now obtained before its presentation edit: clean lane
+source `13f5fc79`, `CARGO_PROFILE_DEV_DEBUG=false wasm-pack test --headless --chrome
+web/crates/layout --locked --lib --
+mirror_existing_half_is_an_in_dock_view_with_its_own_precise_axis_draft` failed 0/1
+at the assertion “Mirror must stay in the Objects dock, without dialog semantics”.
+Receipt `.evidence/016/mirror-dock-actual-red-control-compiled.log` is the earliest
+actual behavioral failure. The preceding `mirror-dock-actual-red-control.log` is
+separately retained as a compile failure (a missed guide test locator), not RED proof.
+The new implementation changes only the presentation to a named region/Card;
+Escape retains its original cancellable guard and callback/owner, and all existing
+source choice/precise axis draft/parsing/create/cancel code is unchanged.
+
+
+Reviewed LAYER feature `b9371dbdabf23f1758282b898313ae7d75bae0ae` merged at
+`7761aca3719c19fc137c004bc83f5912b6024ae4` after the target command completed.
+Only conflict was add/add in the browser harness; retained the canonical landed
+CARGO_TARGET_DIR/session routing. Layer production/CSS/example source and canonical
+CONTROL files match feature. Shared-layer closure is inherited from its reviewed
+clean pin and [handoff](../shared-layer-prerequisites.md), not duplicated acceptance.
+Full 020 chooser/Label inheritance is still pending.
+
+First Mirror GREEN attempt passed the dialog/region assertions but failed the precise
+submission wait (`mirror-dock-actual-green-control.log`), retained honestly. Its input
+wait only inspected a DOM value that the test had just assigned, so it could click the
+previous render's submit closure. The test now checks the actual required-value
+validation transition (empty disables Create, precise valid input enables it) before
+clicking, then asserts the submitted value exactly. It also checks cancellable Escape
+once and the pending cancellation guard, retaining the real child's local draft.
+No production parsing, commit, draft or callback was changed to accommodate that wait.
+
+
+GREEN actual Mirror validation/cancellation/precision check 1/1 (156 filtered):
+`.evidence/016/mirror-dock-actual-validation-green.log`, same focused command above.
+This is mounted actual-form proof, not full Core/Undo or full workspace acceptance.
+
+Owned CSS deletion inventory: repository-wide source searches found no callers for
+`m1-outline-number`, `m1-matrix-slider-{track,range,thumb}` or the old findings empty
+class after their adoption. Removed their eight old rules/alternatives, including
+Layout-only findings back-button and old count/empty styling (all remaining callers
+are the two owned copied Back buttons and Badge/Empty). Structural panel/heading/row
+rules remain. The 023 guide chevron/stepper rules, shared legacy styles, 015 and Case
+selectors remain. These deletions are outside the canonical bounded layer hunks.

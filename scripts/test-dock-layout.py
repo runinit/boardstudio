@@ -48,11 +48,11 @@ def production_tests(url):
     def add_view():
         was_sheet_open = sheet_open()
         click("Add object")
-        browser("wait", "--fn", "!!document.querySelector('[role=dialog][aria-label=Add]')")
-        check("document.getElementById('m1-objects-panel').contains(document.querySelector('[role=dialog][aria-label=Add]'))")
+        browser("wait", "--fn", "!!document.querySelector('[role=region][aria-label=Add]')")
+        check("document.getElementById('m1-objects-panel').contains(document.querySelector('[role=region][aria-label=Add]'))")
         browser("focus", primitives.by_role_name("button", "← Back to objects"))
         browser("press", "Escape")
-        browser("wait", "--fn", "!document.querySelector('[role=dialog][aria-label=Add]')")
+        browser("wait", "--fn", "!document.querySelector('[role=region][aria-label=Add]')")
         assert sheet_open() == was_sheet_open
         check("document.activeElement.id==='m1-add-object-trigger'")
 
