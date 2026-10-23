@@ -2817,6 +2817,7 @@ fn SharedViewer(
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
+            style: (!inline_case_controls).then_some("container-type: size"),
             div { class: if inline_case_controls { "m1-case-view-toolbar board-tool-pill" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
                 {toolbar_leading}
                 if inline_case_controls {
@@ -2963,7 +2964,7 @@ fn SharedViewer(
                         } }
                         TooltipContent { "View controls" }
                     }
-                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[60vh] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
+                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[min(60vh,max(0px,calc(100cqh-5rem)))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }

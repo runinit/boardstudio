@@ -2,6 +2,7 @@
 """020: the packaged Parts owners, trusted role/name input, retained controls and theme captures."""
 import argparse
 import importlib
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,7 +11,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url")
     parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--sizing-baseline", type=Path)
     args = parser.parse_args()
+    sizing_baseline = json.loads(args.sizing_baseline.read_text()) if args.sizing_baseline else []
     args.evidence.mkdir(parents=True, exist_ok=True)
     driver = importlib.import_module("test-dock-primitives")
     driver.SESSION = "parts-020-" + uuid4().hex
@@ -177,6 +180,21 @@ def main():
                         if width <= 960:
                             assert icon["targetWidth"] >= 44 and icon["targetHeight"] >= 44, icon
                     action("button", "View controls")
+                    for role, name in [("button", "Top view"), ("checkbox", "Show hidden lines")]:
+                        focus(role, name)
+                        check("""(()=>{const active=document.activeElement,root=active.closest('.m1-case-view'),
+                            content=active.closest('[data-slot=collapsible-content]'),toolbar=content.parentElement.parentElement,
+                            r=active.getBoundingClientRect(),t=toolbar.getBoundingClientRect(),v=root.getBoundingClientRect();
+                            return root.scrollTop===0 && t.top>=v.top && t.bottom<=v.bottom
+                                && active.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})()""")
+                        browser("press", "Tab")
+                        check("document.querySelector('.m1-parts-sample-viewer .m1-case-view').scrollTop===0")
+                        browser("press", "Shift+Tab")
+                    before_pointer = attr("checkbox", "Show hidden lines", "aria-checked")
+                    action("checkbox", "Show hidden lines")
+                    assert attr("checkbox", "Show hidden lines", "aria-checked") != before_pointer
+                    action("checkbox", "Show hidden lines")
+                    assert attr("checkbox", "Show hidden lines", "aria-checked") == before_pointer
                     focus("checkbox", "Show hidden lines")
                     metrics = evaluate("""(() => {
                         const content=document.activeElement.closest('[data-slot=collapsible-content]');
@@ -186,6 +204,14 @@ def main():
                         probe.style.backgroundColor='var(--background)'; document.body.append(probe);
                         const expected=getComputedStyle(probe).backgroundColor; probe.remove();
                         const bounds=content.getBoundingClientRect();
+                        const root=toolbar.closest('.m1-case-view'),canvas=root.querySelector('canvas');
+                        const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}};
+                        const clips=[];
+                        for(let e=content.parentElement;e;e=e.parentElement){
+                            if(/hidden|clip|auto|scroll/.test(getComputedStyle(e).overflowY)){
+                                const r=e.getBoundingClientRect();clips.push({class:e.className,top:r.top,bottom:r.bottom,scroll:e.scrollTop});
+                            }
+                        }
                         const targets=[...toolbar.querySelectorAll('[data-slot=button],[data-slot=toggle-group-item],[data-slot=collapsible-trigger],[data-slot=select-trigger]')]
                             .filter(e=>e.checkVisibility()).map(e=>({name:e.getAttribute('aria-label')||e.textContent.trim(),height:e.getBoundingClientRect().height,width:e.getBoundingClientRect().width}));
                         const checks=[...content.querySelectorAll('[role=checkbox]')].map(e=>e.closest('label').getBoundingClientRect().height);
@@ -195,7 +221,7 @@ def main():
                             popupPosition:getComputedStyle(content).position,popupOwner:content.offsetParent===toolbar,
                             nativeColor:{connected:partsColor.isConnected,type:partsColor.type,slot:partsColor.getAttribute('data-slot'),background:getComputedStyle(partsColor).backgroundColor},
                             bounds:[bounds.left,bounds.right,bounds.top,bounds.bottom],
-                            clips:[...function*(e){while(e){const s=getComputedStyle(e);if(/hidden|clip|auto|scroll/.test(s.overflowY)){const r=e.getBoundingClientRect();yield {class:e.className,top:r.top,bottom:r.bottom,scroll:e.scrollTop};}e=e.parentElement;}}(content.parentElement)] ,
+                            clips,root:rect(root),canvas:rect(canvas),toolbar:rect(toolbar),canvasPixels:[canvas.width,canvas.height],rootScroll:root.scrollTop,
                             scroll:toolbar.scrollWidth,client:toolbar.clientWidth,
                             expected,targets,checks,sliders,
                             selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))};
@@ -207,6 +233,12 @@ def main():
                     assert 0 <= metrics["bounds"][0] < metrics["bounds"][1] <= width, metrics
                     assert 0 <= metrics["bounds"][2] < metrics["bounds"][3] <= height, metrics
                     assert all(metrics["bounds"][2] >= clip["top"] and metrics["bounds"][3] <= clip["bottom"] for clip in metrics["clips"]), metrics
+                    assert metrics["rootScroll"] == 0 and metrics["toolbar"]["height"] + 8 <= 80, metrics
+                    if sizing_baseline:
+                        baseline = next(e for e in sizing_baseline if (e["theme"], e["appearance"], e["width"]) == (theme, appearance, width))
+                        for element in ("root", "canvas", "toolbar"):
+                            assert metrics[element] == baseline[element], (element, metrics[element], baseline[element])
+                        assert metrics["canvasPixels"] == baseline["canvasPixels"], (metrics, baseline)
                     assert metrics["selected"], metrics
                     assert all(e["background"] == metrics["expected"] and e["border"] == "0px" and e["height"] >= 36 for e in metrics["selected"]), metrics
                     if width <= 960:
