@@ -79,6 +79,8 @@ python3 scripts/check.py browser # mounted browser tests and browser smoke check
 python3 scripts/check.py         # the full pre-PR check
 ```
 
+A single Core Rust test runs with `cargo test -p boardstudio_core --test integration <filter>`.
+
 **Routine loop.** `quick` takes the files changed against `main` (plus untracked files; or name
 them with `--files`) and runs the documentation checks, rustfmt and Clippy, WASM page compilation,
 the native tests of the changed crates and everything that depends on them, and the browser tests
