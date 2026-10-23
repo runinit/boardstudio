@@ -972,6 +972,49 @@ async fn mixed_format_records_are_listed_without_conversion_and_raw_json_is_pres
 }
 
 #[wasm_bindgen_test]
+async fn foreign_format_identifier_is_unsupported_and_preserved_on_list_and_load() {
+    let name = format!("boardstudio-foreign-format-{}", js_sys::Date::now());
+    let store = BrowserStore::new(&name).unwrap();
+    let healthy = ProjectDoc::empty("healthy", "Healthy");
+    store
+        .save_document(&healthy, &Default::default())
+        .await
+        .unwrap();
+    let mut value = serde_json::to_value(ProjectDoc::empty("foreign", "Foreign")).unwrap();
+    value["format"] = serde_json::json!("boardstudio/v1");
+    let database = open_database(&name).await.unwrap();
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .unwrap();
+    let completion = transaction_completion(&transaction, Rc::default());
+    transaction
+        .object_store(PROJECT_STORE)
+        .unwrap()
+        .put(&js_sys::JSON::parse(&value.to_string()).unwrap())
+        .unwrap();
+    completion.await.unwrap();
+    database.close();
+    let listing = store.list_projects().await.unwrap();
+    assert_eq!(listing.documents, vec![healthy]);
+    assert_eq!(listing.unreadable.len(), 1);
+    assert!(
+        listing.unreadable[0]
+            .error
+            .contains("Unsupported document format")
+    );
+    let error = store.load_document("foreign".into()).await.unwrap_err();
+    assert!(error.0.contains("Unsupported document format"), "{error:?}");
+    let stored = load_value(&name, PROJECT_STORE, "foreign".into())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        serde_wasm_bindgen::from_value::<serde_json::Value>(stored).unwrap(),
+        value
+    );
+}
+
+#[wasm_bindgen_test]
 async fn unreadable_project_does_not_hide_healthy_projects() {
     let store =
         BrowserStore::new(format!("boardstudio-partial-list-{}", js_sys::Date::now())).unwrap();
