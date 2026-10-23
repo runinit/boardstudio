@@ -1,6 +1,6 @@
 # 17d: Entry-path version gates
 
-Status: blocked
+Status: claimed
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md)
 Parent: [17](17-cut-over-format-and-model.md) · Spec: [spec.md](../spec.md)
