@@ -2012,7 +2012,7 @@ fn apply_with_ledger(
                 }
                 changed.extend(matrix::set_matrix(doc, matrix)?);
                 changed.extend(layout::sync(doc, &matrix.id)?);
-                layout::update_link_members(doc, &matrix.id)?;
+                layout::sync_member_pairs(doc, &matrix.id)?;
                 Ok(changed)
             },
         ),
@@ -2121,29 +2121,24 @@ fn apply_with_ledger(
                 .as_mut()
                 .ok_or("A new mirrored pair must be linked")?;
             link.correspondences.clear();
-            let target_id = &target.id;
-            for (kind, source_id, mirror_id) in std::iter::once((
-                MirroredItemKind::Matrix,
-                matrix.id.clone(),
-                target.id.clone(),
-            ))
-            .chain((0..matrix.rows).flat_map(|row| {
-                (0..matrix.columns).map(move |column| {
-                    (
-                        MirroredItemKind::Part,
-                        matrix::member_id(&matrix.id, row, column),
-                        matrix::member_id(target_id, row, column),
-                    )
-                })
-            })) {
-                link.correspondences.push(MirroredCorrespondence {
-                    kind,
-                    source_id,
-                    mirror_id,
-                    companion_mode: None,
-                    companion_tweak: None,
-                });
-            }
+            link.correspondences.push(MirroredCorrespondence {
+                kind: MirroredItemKind::Matrix,
+                source_id: matrix.id.clone(),
+                mirror_id: target.id.clone(),
+                companion_mode: None,
+                companion_tweak: None,
+            });
+            link.correspondences.extend(
+                layout::member_pairs(&matrix, &target.id, Some(&target))
+                    .into_iter()
+                    .map(|(source_id, mirror_id)| MirroredCorrespondence {
+                        kind: MirroredItemKind::Part,
+                        source_id,
+                        mirror_id,
+                        companion_mode: None,
+                        companion_tweak: None,
+                    }),
+            );
             doc.layouts.extend([left.clone(), follower]);
             layout::validate(doc)?;
             changed.extend([left.id.clone(), right.id.clone()]);

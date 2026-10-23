@@ -4230,8 +4230,7 @@ fn unrelated_matrix_edit_keeps_a_local_exception_unassociated() {
     let (mut engine, mut doc) = linked_pair();
     let link = doc.layouts[1].mirror_link.as_mut().unwrap();
     link.correspondences.retain(|record| {
-        !(record.kind == MirroredItemKind::Part
-            && record.mirror_id == "matrix/right-matrix/r0c1")
+        !(record.kind == MirroredItemKind::Part && record.mirror_id == "matrix/right-matrix/r0c1")
     });
     link.exceptions.push(MirroredException {
         companion_mode: None,

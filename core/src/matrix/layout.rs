@@ -162,6 +162,28 @@ fn validate_link(
     Ok(())
 }
 
+/// The slots both halves still own, paired by slot. A mirror without a physical matrix (an
+/// omitted group) pairs by the source shape.
+pub(crate) fn member_pairs(
+    source: &Matrix,
+    mirror_id: &str,
+    mirror: Option<&Matrix>,
+) -> Vec<(String, String)> {
+    let mirror_members = mirror.map(matrix::cell_members);
+    matrix::cell_members(source)
+        .into_iter()
+        .filter_map(|(slot, source_id)| {
+            Some((
+                source_id,
+                match &mirror_members {
+                    Some(members) => members.get(&slot).cloned()?,
+                    None => matrix::member_id(mirror_id, slot.0, slot.1),
+                },
+            ))
+        })
+        .collect()
+}
+
 pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
     let Some(link) = &mut target.mirror_link else {
         return Ok(());
@@ -187,25 +209,23 @@ pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result
         companion_tweak: None,
     });
     let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
-    for row in 0..matrix.rows {
-        for column in 0..matrix.columns {
-            link.correspondences.push(MirroredCorrespondence {
+    link.correspondences
+        .extend(member_pairs(&matrix, mirror_id, None).into_iter().map(
+            |(source_id, mirror_id)| MirroredCorrespondence {
                 kind: MirroredItemKind::Part,
-                source_id: matrix::member_id(source_id, row, column),
-                mirror_id: matrix::member_id(mirror_id, row, column),
+                source_id,
+                mirror_id,
                 companion_mode: None,
                 companion_tweak: None,
-            });
-        }
-    }
+            },
+        ));
     Ok(())
 }
 
 /// Membership edits maintain explicit identities; admission never repairs them.
-pub(crate) fn update_link_members(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
+pub(crate) fn sync_member_pairs(doc: &mut ProjectDoc, matrix_id: &str) -> Result<(), String> {
     for index in 0..doc.layouts.len() {
-        let mut target = doc.layouts[index].clone();
-        let Some(mut link) = target.mirror_link.take() else {
+        let Some(link) = doc.layouts[index].mirror_link.as_ref() else {
             continue;
         };
         let pairs: Vec<_> = link
@@ -220,36 +240,46 @@ pub(crate) fn update_link_members(doc: &mut ProjectDoc, matrix_id: &str) -> Resu
         if pairs.is_empty() {
             continue;
         }
-        let source = doc
+        let source_index = doc
             .layouts
             .iter()
-            .find(|layout| layout.id == link.source_id)
+            .position(|layout| layout.id == link.source_id)
             .ok_or("Linked layout is missing")?;
+        let pairs_of_slots: Vec<_> = pairs
+            .iter()
+            .map(|pair| {
+                let source_matrix = matrix::evaluation::logical_matrix(&pair.source_id, doc)?;
+                let mirror_matrix = matrix::evaluation::logical_matrix(&pair.mirror_id, doc)?;
+                Ok(member_pairs(
+                    &source_matrix,
+                    &pair.mirror_id,
+                    Some(mirror_matrix.as_ref()),
+                ))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let Some(mut link) = doc.layouts[index].mirror_link.take() else {
+            continue;
+        };
+        let source = &doc.layouts[source_index];
+        let target = &doc.layouts[index];
         link.correspondences.retain(|record| {
             record.kind != MirroredItemKind::Part
                 || (owns_member(doc, source, &record.source_id)
-                    && owns_member(doc, &target, &record.mirror_id))
+                    && owns_member(doc, target, &record.mirror_id))
         });
         link.exceptions.retain(|record| {
-            record.kind != MirroredItemKind::Part || owns_member(doc, &target, &record.mirror_id)
+            record.kind != MirroredItemKind::Part || owns_member(doc, target, &record.mirror_id)
         });
-        for pair in pairs {
-            let source_matrix = matrix::evaluation::logical_matrix(&pair.source_id, doc)?;
-            let mirror_matrix = matrix::evaluation::logical_matrix(&pair.mirror_id, doc)?;
-            let source_members = matrix::cell_members(&source_matrix);
-            let mirror_members = matrix::cell_members(&mirror_matrix);
-            for (slot, source_id) in source_members {
-                let Some(mirror_id) = mirror_members.get(&slot) else {
-                    continue;
-                };
+        for slots in pairs_of_slots {
+            for (source_id, mirror_id) in slots {
                 let excepted = link.exceptions.iter().any(|exception| {
                     exception.kind == MirroredItemKind::Part
-                        && (exception.mirror_id == *mirror_id || exception.mirror_id == source_id)
+                        && (exception.mirror_id == mirror_id || exception.mirror_id == source_id)
                 });
                 if excepted
                     || link.correspondences.iter().any(|record| {
                         record.kind == MirroredItemKind::Part
-                            && (record.source_id == source_id || record.mirror_id == *mirror_id)
+                            && (record.source_id == source_id || record.mirror_id == mirror_id)
                     })
                 {
                     continue;
@@ -257,7 +287,7 @@ pub(crate) fn update_link_members(doc: &mut ProjectDoc, matrix_id: &str) -> Resu
                 link.correspondences.push(MirroredCorrespondence {
                     kind: MirroredItemKind::Part,
                     source_id,
-                    mirror_id: mirror_id.clone(),
+                    mirror_id,
                     companion_mode: None,
                     companion_tweak: None,
                 });
