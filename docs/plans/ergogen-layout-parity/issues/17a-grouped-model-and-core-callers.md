@@ -23,4 +23,14 @@ Source anchors: `core/src/model.rs`, `matrix.rs`, `matrix/layout.rs`, `mirrored_
 
 ## Progress
 
-- [ ] 
+### Verification — 2026-10-23
+
+- [x] Baseline `cargo test -p boardstudio_core --test integration` after `98cad6d0e`:
+  **735 passed, 0 failed** (`.evidence/ergogen-17a/00-baseline.log`). All five named
+  tests pass; no production change was needed beyond that commit.
+- [x] `cargo check --workspace --all-targets` clean (`01-check.log`).
+- [x] Model carries column `rotation`, Spread/Stagger/Splay/origin/offset, row records,
+  cell Shift/Bend, optional anchor and `Layout.matrix_ids`; no axis vectors or
+  `Layout.matrix_id` remain. Matrix pairs come only from `LayoutMirrorLink.correspondences`
+  (`populate_new_link` refuses multi-matrix groups without explicit correspondences).
+- [ ] Ticket stays claimed; 17b-17e own validation bounds, kernel routing, entry gates and fixtures.
