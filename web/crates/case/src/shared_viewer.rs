@@ -2736,7 +2736,7 @@ fn SharedViewer(
     if !inline_case_controls {
     Collapsible { keep_mounted: true,
         CollapsibleTrigger { "Case layers and colors" }
-        CollapsibleContent { class: "data-[open=false]:hidden",
+        CollapsibleContent { class: "data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11",
         div { role: "group", "aria-label": "Case layers",
         for (id, label) in &projection.layers {
             {
@@ -2948,6 +2948,7 @@ fn SharedViewer(
                 Tooltip {
                     TooltipTrigger { as: move |attributes| { let fit = fit.clone(); rsx! {
                         UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                            class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
                             aria_label: canvas_context.fit_label(),
                             onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
                             {viewer_control_icon("Fit")}
@@ -2958,11 +2959,11 @@ fn SharedViewer(
                 Collapsible { class: "m1-case-view-settings", keep_mounted: true,
                     Tooltip {
                         TooltipTrigger { as: move |attributes| rsx! {
-                            CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center", attributes, {viewer_control_icon("View controls")} }
+                            CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]", attributes, {viewer_control_icon("View controls")} }
                         } }
                         TooltipContent { "View controls" }
                     }
-                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[60vh] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden",
+                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[60vh] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
             div { role: "group", "aria-label": "{canvas_context.camera_label()}",
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
                 UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
@@ -2998,7 +2999,7 @@ fn SharedViewer(
             }
             if transient().assembly == AssemblyView::Exploded {
                 Slider {
-                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1,
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "max-[960px]:min-h-11",
                     value: Some(f64::from(transient().explode_amount)),
                     on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
@@ -3020,11 +3021,11 @@ fn SharedViewer(
                     }
                 }
                 Slider {
-                    label: "Section position", min: -100.0, max: 100.0, step: 1.0,
+                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "max-[960px]:min-h-11",
                     value: Some(f64::from(transient().section_position)),
                     on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
                 }
-                Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0),
+                Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
                     UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show section plane",
                         checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                         on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
@@ -3032,7 +3033,7 @@ fn SharedViewer(
                     "Show section plane"
                 }
             }
-            Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0),
+            Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
                 UiCheckbox { id: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), aria_label: "Show hidden lines",
                     checked: Some(if transient().show_hidden { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                     on_checked_change: move |value| transient.with_mut(|state| state.show_hidden = bool::from(value)),

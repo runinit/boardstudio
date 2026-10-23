@@ -4,7 +4,7 @@ use boardstudio_application::SessionEpoch;
 use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use wasm_bindgen_test::wasm_bindgen_test;
 
-fn fixture() -> Element {
+fn viewer_fixture(inline_case_controls: bool) -> Element {
     let owner = use_hook(|| {
         let owner = ViewerOwner::new().unwrap();
         // This tests the real control owner; GPU/provider acceptance remains separate.
@@ -41,9 +41,22 @@ fn fixture() -> Element {
             selected_reference: None, display: CaseDisplay::default(), theme: "light".to_owned(),
             current_source: SourceGuard(Rc::new(|| false)), on_signal: |_| {},
             on_display_change: |_| {},
-            mechanical_settings: None, inline_case_controls: false, handle_projection: None,
+            mechanical_settings: None, inline_case_controls, handle_projection: None,
             handles: vec![], handle_preview: None, gesture_message: None, focus_request: None,
         }
+    }
+}
+
+fn fixture() -> Element {
+    viewer_fixture(false)
+}
+
+fn inline_fixture() -> Element {
+    rsx! {
+        style { {include_str!("../../../assets/m1.css")} }
+        // Native inline controls use these maintained vanilla theme variables and legacy rules.
+        style { {include_str!("../../../tailwind.css").replacen("@import \"tailwindcss\";", "", 1)} }
+        section { class: "m1-case-panel m1-workspace-content", {viewer_fixture(true)} }
     }
 }
 
@@ -61,6 +74,97 @@ fn key(element: &web_sys::HtmlElement, key: &str) {
             &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init).unwrap(),
         )
         .unwrap();
+}
+
+#[wasm_bindgen_test]
+async fn viewer_slot_exclusions_preserve_actual_native_inline_controls_in_four_themes() {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let html = document.document_element().unwrap();
+    let original_theme = html.get_attribute("data-theme");
+    let original_appearance = html.get_attribute("data-appearance");
+    let root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(inline_fixture);
+    dom.provide_root_context(crate::runtime::project_name_test_support::new_runtime());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    wait_until("the production inline controls mount", || {
+        by_role_name(&root, "button", "Fit").is_some()
+    })
+    .await;
+    let fit = control(&root, "button", "Fit");
+    let shaded = control(&root, "button", "Shaded");
+    let exploded = control(&root, "button", "Exploded");
+    exploded.click();
+    wait_until(
+        "the native control still updates its production transient owner",
+        || exploded.get_attribute("aria-pressed").as_deref() == Some("true"),
+    )
+    .await;
+    let probe = document.create_element("span").unwrap();
+    probe
+        .set_attribute("style", "background-color:var(--selected)")
+        .unwrap();
+    root.append_child(&probe).unwrap();
+    for theme in ["original", "shadcn"] {
+        for appearance in ["light", "dark"] {
+            html.set_attribute("data-theme", theme).unwrap();
+            html.set_attribute("data-appearance", appearance).unwrap();
+            let style =
+                |element: &web_sys::Element| window.get_computed_style(element).unwrap().unwrap();
+            let fit_style = style(&fit);
+            let shaded_style = style(&shaded);
+            assert_eq!(fit.get_attribute("data-slot"), None);
+            assert_eq!(
+                fit.closest(".m1-case-view-toolbar.board-tool-pill")
+                    .unwrap()
+                    .unwrap()
+                    .class_name(),
+                "m1-case-view-toolbar board-tool-pill"
+            );
+            assert_eq!(
+                fit_style.get_property_value("border-top-width").unwrap(),
+                "0px"
+            );
+            assert_eq!(
+                fit_style.get_property_value("background-color").unwrap(),
+                "rgba(0, 0, 0, 0)"
+            );
+            assert_eq!(
+                shaded_style.get_property_value("background-color").unwrap(),
+                style(&probe)
+                    .get_property_value("background-color")
+                    .unwrap()
+            );
+            assert_eq!(fit.get_bounding_client_rect().width(), 40.0);
+            assert_eq!(
+                exploded.get_attribute("aria-pressed").as_deref(),
+                Some("true")
+            );
+            assert_eq!(control(&root, "button", "Exploded"), exploded);
+            wasm_bindgen_test::console_log!(
+                "native inline {theme}/{appearance}: Fit height={}, border={}, background={}; selected={}",
+                fit.get_bounding_client_rect().height(),
+                fit_style.get_property_value("border-top-width").unwrap(),
+                fit_style.get_property_value("background-color").unwrap(),
+                shaded_style.get_property_value("background-color").unwrap()
+            );
+        }
+    }
+    root.remove();
+    for (name, value) in [
+        ("data-theme", original_theme),
+        ("data-appearance", original_appearance),
+    ] {
+        if let Some(value) = value {
+            html.set_attribute(name, &value).unwrap();
+        } else {
+            html.remove_attribute(name).unwrap();
+        }
+    }
 }
 
 #[wasm_bindgen_test]

@@ -136,6 +136,13 @@ def main():
         assert float(attr("slider", "Section position", "aria-valuenow")) == -100
         browser("press", "End")
         assert float(attr("slider", "Section position", "aria-valuenow")) == 100
+        track = evaluate("(()=>{const r=document.activeElement.closest('[data-slot=slider]').getBoundingClientRect();return {x:r.left+r.width/4,y:r.top+r.height/2}})()")
+        browser("mouse", "move", round(track["x"]), round(track["y"]))
+        browser("mouse", "down")
+        browser("mouse", "up")
+        assert -51 <= float(attr("slider", "Section position", "aria-valuenow")) <= -49
+        focus("slider", "Section position")
+        browser("press", "End")
         action("button", "Section plane")
         assert has("listbox", "Section plane")
         browser("press", "Home")
@@ -162,16 +169,46 @@ def main():
                     browser("set", "viewport", width, height)
                     if width < 980 and has("button", "Close panels"):
                         action("button", "Close panels")
+                    for name in ("Fit sample", "View controls"):
+                        focus("button", name)
+                        icon = evaluate("(()=>{const button=document.activeElement,svg=button.querySelector('svg'),r=svg.getBoundingClientRect(),b=button.getBoundingClientRect(),s=getComputedStyle(svg);return {width:r.width,height:r.height,fill:s.fill,stroke:s.stroke,strokeWidth:parseFloat(s.strokeWidth),bounded:r.left>=b.left&&r.right<=b.right&&r.top>=b.top&&r.bottom<=b.bottom,targetWidth:b.width,targetHeight:b.height}})()")
+                        assert icon["width"] == 16 and icon["height"] == 16 and icon["bounded"], icon
+                        assert icon["fill"] == "none" and icon["stroke"] not in ("none", "rgba(0, 0, 0, 0)") and icon["strokeWidth"] == 1.5, icon
+                        if width <= 960:
+                            assert icon["targetWidth"] >= 44 and icon["targetHeight"] >= 44, icon
                     action("button", "View controls")
                     focus("checkbox", "Show hidden lines")
-                    metrics = evaluate("(()=>{const content=document.activeElement.closest('[data-slot=collapsible-content]');const toolbar=content.parentElement.parentElement;const selected=[...toolbar.querySelectorAll('[data-slot=toggle-group-item][aria-pressed=true]')];const probe=document.createElement('div');probe.style.backgroundColor='var(--background)';document.body.append(probe);const expected=getComputedStyle(probe).backgroundColor;probe.remove();return {legacy:toolbar.classList.contains('m1-case-view-toolbar'),position:getComputedStyle(toolbar).position,display:getComputedStyle(toolbar).display,wrap:getComputedStyle(toolbar).flexWrap,popupPosition:getComputedStyle(content).position,popupOwner:content.offsetParent===toolbar,nativeColor:{connected:partsColor.isConnected,type:partsColor.type,slot:partsColor.getAttribute('data-slot'),background:getComputedStyle(partsColor).backgroundColor},bounds:[content.getBoundingClientRect().left,content.getBoundingClientRect().right],scroll:toolbar.scrollWidth,client:toolbar.clientWidth,expected,selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))}})()")
+                    metrics = evaluate("""(() => {
+                        const content=document.activeElement.closest('[data-slot=collapsible-content]');
+                        const toolbar=content.parentElement.parentElement;
+                        const selected=[...toolbar.querySelectorAll('[data-slot=toggle-group-item][aria-pressed=true]')];
+                        const probe=document.createElement('div');
+                        probe.style.backgroundColor='var(--background)'; document.body.append(probe);
+                        const expected=getComputedStyle(probe).backgroundColor; probe.remove();
+                        const bounds=content.getBoundingClientRect();
+                        const targets=[...toolbar.querySelectorAll('[data-slot=button],[data-slot=toggle-group-item],[data-slot=collapsible-trigger],[data-slot=select-trigger]')]
+                            .filter(e=>e.checkVisibility()).map(e=>({name:e.getAttribute('aria-label')||e.textContent.trim(),height:e.getBoundingClientRect().height,width:e.getBoundingClientRect().width}));
+                        const checks=[...content.querySelectorAll('[role=checkbox]')].map(e=>e.closest('label').getBoundingClientRect().height);
+                        const sliders=[...content.querySelectorAll('[data-slot=slider]')].map(e=>e.getBoundingClientRect().height);
+                        return {legacy:toolbar.classList.contains('m1-case-view-toolbar'),
+                            position:getComputedStyle(toolbar).position,display:getComputedStyle(toolbar).display,wrap:getComputedStyle(toolbar).flexWrap,
+                            popupPosition:getComputedStyle(content).position,popupOwner:content.offsetParent===toolbar,
+                            nativeColor:{connected:partsColor.isConnected,type:partsColor.type,slot:partsColor.getAttribute('data-slot'),background:getComputedStyle(partsColor).backgroundColor},
+                            bounds:[bounds.left,bounds.right,bounds.top,bounds.bottom],scroll:toolbar.scrollWidth,client:toolbar.clientWidth,
+                            expected,targets,checks,sliders,
+                            selected:selected.map(e=>({background:getComputedStyle(e).backgroundColor,border:getComputedStyle(e).borderWidth,height:e.getBoundingClientRect().height}))};
+                    })()""")
                     assert not metrics["legacy"] and metrics["scroll"] <= metrics["client"], metrics
                     assert (metrics["position"], metrics["display"], metrics["wrap"]) == ("relative", "flex", "wrap"), metrics
                     assert metrics["popupPosition"] == "absolute" and metrics["popupOwner"], metrics
                     assert metrics["nativeColor"]["connected"] and metrics["nativeColor"]["type"] == "color" and metrics["nativeColor"]["slot"] is None, metrics
                     assert 0 <= metrics["bounds"][0] < metrics["bounds"][1] <= width, metrics
+                    assert 0 <= metrics["bounds"][2] < metrics["bounds"][3] <= height, metrics
                     assert metrics["selected"], metrics
                     assert all(e["background"] == metrics["expected"] and e["border"] == "0px" and e["height"] >= 36 for e in metrics["selected"]), metrics
+                    if width <= 960:
+                        assert all(e["height"] >= 44 and e["width"] >= 44 for e in metrics["targets"]), metrics
+                        assert all(height >= 44 for height in metrics["checks"] + metrics["sliders"]), metrics
                     print("Computed preview styles:", width, theme, appearance, metrics, flush=True)
                     browser("screenshot", str((args.evidence / f"preview-{width}-{theme}-{appearance}.png").resolve()))
                     action("button", "View controls")
