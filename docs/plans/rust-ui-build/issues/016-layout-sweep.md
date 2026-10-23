@@ -800,3 +800,13 @@ reference branches and the definition alternative remain. Existing InputGroup
 and InputGroupInput callers in BoardInspector, the two private Outline numeric
 fields and ComponentInspector will supply narrow44 height. No new wrapper, API,
 visibility, dependency, parsing, draft, callback, state or domain change.
+
+Correction `67558cef` packages as build8 and all60 actual field combinations pass
+`layout-remaining-field-styles-green.log`: five fields across12 variants, including
+16px inputs/14px associated labels, transparent square borderless inputs, Field
+token group fill, copied focus ring, desktop40/narrow44 input rectangles, native
+reference1px border and retained actual nodes. Captures are
+`layout-field-styles-20261022-220403/`.
+The source diff has exactly six selector guards with unchanged declarations and
+13 existing InputGroup/Input pairs with a narrow height class, reviewed at
+`remaining-field-caller-classes.diff`. No domain expression or event changed.
