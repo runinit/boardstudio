@@ -833,3 +833,23 @@ positioning/layout rules must stay for023. Exclude copied data-slots only from
 those two appearance selectors, keeping declarations/native branches, and add
 narrow44 classes to the five existing paired InputGroup/Input callers. No
 source/draft/submit/Cancel/geometry/state contract changes.
+
+Source `f648a044` builds as production9. Both actual scripts pass:
+`mirror-width-target-actual-green.log` (12 in-flow/width/content-fit checks,
+desktop40/narrow44 axis, held Space floor, exact linked measurements and Undo)
+and `layout-all-owned-field-styles-green.log` (96 field variants, including real
+new-pair draft/node retention and Cancel with no accepted geometry change).
+Captures: `layout-adoption-20261022-220932/` and
+`layout-field-styles-20261022-220940/`. The source choice retains full accessible
+text while its existing value span truncates within the bounded dock; no shared
+Select styling or panel geometry changed.
+
+Fresh browser checks on those production bytes:
+`layout-browser-owned-final-8.log`:156 pass; guide's supported separate invocation
+`layout-guide-browser-final.log`:1 pass. `shared-ui-browser-final.log`: all24
+`ui::` tests pass (58 other shared tests filtered), including the approved
+Select Space/Enter/caller contract,006 picker floors/retained popup, Combobox ID
+label/multiple-instance/default identity test, inherited020 native Label
+association and canonical CONTROL Button event/attribute composition cases.
+No assertion/known failure was skipped; the guide split is the same supported
+isolated invocation recorded earlier. Global gates remain open.

@@ -102,7 +102,7 @@ def held_space_floor():
     click("Fit board")
 
 
-def tests(url, captures):
+def new_layout_project(url):
     browser("set", "viewport", 1440, 900)
     browser("open", url)
     browser("wait", "--fn", "!!document.querySelector('[aria-label=Project][aria-haspopup=menu]')")
@@ -112,6 +112,20 @@ def tests(url, captures):
     click("4 Case (optional)")
     click("Hide guide")
     click("Open Layout workspace")
+
+
+def create_single_matrix(expected_keys):
+    click("Add object")
+    click("Matrix… Rows, columns & key assemblies")
+    for name in ["Rows", "Columns"]:
+        browser("focus", driver.by_role_name("slider", name))
+        browser("press", "Home")
+    activate_with_space("Create matrix")
+    browser("wait", "--fn", f"document.querySelectorAll('.m1-matrix-key').length==={expected_keys}")
+
+
+def tests(url, captures):
+    new_layout_project(url)
     browser("focus", driver.by_role_name("button", "Group objects by"))
     evaluate("window.selectSpaces=[];window.recordSelectSpace=e=>{if(e.code==='Space')selectSpaces.push({trusted:e.isTrusted,prevented:e.defaultPrevented,name:e.target.getAttribute('aria-label')})};window.addEventListener('keydown',recordSelectSpace)")
     browser("press", "Space")
