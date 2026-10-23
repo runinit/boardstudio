@@ -3700,7 +3700,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         div { role: "status", Callout { variant: CalloutVariant::Warning, "Supplier review needed for the supported thickness range." } }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary, button_type: "button",
+                        variant: ButtonVariant::Outline, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
                         class: "m1-mechanical-quiet",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
@@ -3873,7 +3873,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                     div { class: "flex flex-wrap items-center justify-between gap-2",
                         strong { "Custom geometry layers" }
                         Button {
-                            variant: ButtonVariant::Secondary, button_type: "button",
+                            variant: ButtonVariant::Outline, button_type: "button",
                             aria_label: "Read KiCad layers",
                             disabled: !props.editable || busy(),
                             onclick: {
@@ -3955,7 +3955,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                             }
                         }
                         Button {
-                            variant: ButtonVariant::Secondary, button_type: "button",
+                            variant: ButtonVariant::Outline, button_type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
                             onclick: {
@@ -4065,7 +4065,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
             header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Secondary,
+                    variant: ButtonVariant::Outline,
                     button_type: "button",
                     class: "m1-mechanical-quiet",
                     aria_label: "Add polygon to {props.title}",
@@ -4101,7 +4101,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     div { class: "m1-mechanical-opening-title",
                         strong { "Contour {polygon_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Secondary,
+                            variant: ButtonVariant::Outline,
                             button_type: "button",
                             class: "m1-mechanical-quiet",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}",
@@ -4213,7 +4213,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary,
+                        variant: ButtonVariant::Outline,
                         button_type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: !props.editable,
@@ -4257,7 +4257,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
             header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Secondary,
+                    variant: ButtonVariant::Outline,
                     button_type: "button",
                     class: "m1-mechanical-quiet",
                     aria_label: "Add volume to {props.title}",
@@ -4295,7 +4295,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     div { class: "m1-mechanical-opening-title",
                         strong { "Volume {opening_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Secondary,
+                            variant: ButtonVariant::Outline,
                             button_type: "button",
                             class: "m1-mechanical-quiet",
                             aria_label: "Remove {props.title} volume {opening_index + 1}",
@@ -4440,7 +4440,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary,
+                        variant: ButtonVariant::Outline,
                         button_type: "button",
                         class: "m1-mechanical-quiet",
                         disabled: !props.editable,
