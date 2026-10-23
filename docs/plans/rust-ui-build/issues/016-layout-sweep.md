@@ -475,3 +475,39 @@ Actual mirrored-pair overlay integration is now GREEN 1/1 (156 filtered), preser
 its exact preview values, keyed draft identity and both cancel-owner outcomes:
 `mirrored-overlay-roles-green.log`. Only role/name form locators and real popup option
 enumeration changed; the canvas production source remains unchanged.
+
+
+Approved deletion applied to only the two Add accent rules. The adjacent
+width/min-height/container/SVG rules are retained byte-for-byte. Corrected caller
+name: the shell entry is `layout_workspace::add_object_header_action` (called by
+Editor), alongside `Objects`' private `AddObjectEntry`; “add_objects” above was an
+inexact continuation label. To verify both actual owners without widening visibility
+or copying their markup/state, additional owned test inventory is
+`web/crates/layout/examples/layout_add.rs` and `scripts/test-layout-add-actions.py`.
+The example mounts the actual public Objects component over a real Session/Core
+Runtime, using its internal local menu state; the packaged Editor covers the shell
+entry. Existing test-support APIs/features suffice, no manifest/API changes. The
+script will check both entries at all 12 combinations, default/hover/focus styling,
+actual open/Escape/focus callbacks and native disabled CSS/gesture probe explicitly
+distinguished from any nonexistent owner-disabled branch. No field draft is hoisted.
+
+
+The fourth full Layout attempt compiled but stalled before “Loading Wasm module”;
+after five minutes the actual page was still “Loading scripts...” with two Dioxus
+module requests pending, while targeted HTTP HEAD requests for both returned 200.
+`layout-browser-4-startup-diagnostic.log` captures its real CDP page state. No test
+started, so this is neither RED nor GREEN. Terminated only that owned hung runner/
+Cargo/driver/browser, preserving `layout-browser-owned-4.log`. The prior third full
+run's 148 passes and first real removed-select failure remain distinct. Subsequent
+WASM runs will run without our separate agent-browser sessions as a scoped
+infrastructure experiment; no product assertions/timeouts are weakened.
+
+Manual actual Editor exploration at packaged `54f64bae` already confirmed Add
+creates a 1×1 matrix, Mirror accepts the exact local axis draft 12.123456789, the
+accepted mirrored key is drawn at translate(24.246913578 0) with unchanged 18×18
+measurements, and Undo restores only the original key at translate(0 0):
+`layout-owner-manual-first.log` and `layout-owner-manual-mirror.log`. This is fresh
+actual-owner evidence, with automation assertions/captures still to be consolidated.
+The first exploratory wait incorrectly demanded an explicit DOM region attribute
+from the unchanged native named section; the browser AX snapshot correctly reports
+its implicit New matrix region. No production role change was made.
