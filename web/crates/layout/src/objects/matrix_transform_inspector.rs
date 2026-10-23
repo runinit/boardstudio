@@ -705,6 +705,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     on_open_change: move |next| transform_open.set(next),
                     CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{title}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                     CollapsibleContent {
+                        class: "data-[open=true]:overflow-visible",
                         hidden: !transform_open(),
                         inert: (!transform_open()).then_some(""),
                         {body}
