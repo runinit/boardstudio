@@ -589,3 +589,57 @@ No source, fixture, baseline, or configuration change occurred; tracked files
 remain clean apart from this progress update, and the only untracked path remains
 the prototype. 17e and parent 17 remain claimed. Final independent Standards+Spec
 reviews are pending; this gate attempt grants no closure or shipping approval.
+
+### Supported provider preparation and final quick gate — 2026-10-23
+
+Verified branch `docs/ergogen-layout-comparison` at source HEAD
+`8323a6293c4d92da02f3b5f66f3a80bf879c9151`; fixed base remains
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. `BOUNDARY_BLESS` was unset. Tracked
+files were clean before generated preparation; the only unrelated untracked path,
+`web/crates/layout/prototype/`, was not touched or passed to quick. The exact
+116-path base-to-HEAD inventory was retained (the 114 original paths plus
+`scripts/check_quick.py` and `scripts/test-check-quick.py`).
+
+Before preparation, the focused browser run reproduced the existing worker failure:
+all direct module/geometry checks passed, then `worker.onerror` surfaced at
+`cad/scripts/browser-smoke/qualification.mjs:22:63`. The required worker JS and
+WASM were absent at `web/target/providers/cad-worker/`, while the CAD package itself
+was present. No source defect was demonstrated.
+
+The documented provider-only preparation passed:
+
+```sh
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/build-web.py --providers-only --fast
+```
+
+Generated `m1_cad_worker.js` and `m1_cad_worker_bg.wasm` now exist under
+`web/target/providers/cad-worker/` and are ignored by Git. The focused browser run
+then passed **364 browser checks**, including actual worker operations and restart
+behavior. Logs: `worker-missing-browser.log`, `worker-providers-build.log`, and
+`worker-ready-browser.log` under `.evidence/ergogen-17e/`.
+
+Fresh all-caller quick used the exact 116 tracked paths at source HEAD above, with
+the shared lock, 22 GiB/no-swap scope, 3600-second timeout, and no selector,
+baseline, or skip overrides. Receipt: `worker-ready-quick-receipt.json`; log:
+`worker-ready-quick.log`, both under `.evidence/ergogen-17e/`. Repo/tooling checks,
+lint, page WASM typecheck/build, WASM guard, and native tests passed. The native
+baseline matched **2,149/2,149 names**; tests reported 2,149 passed, 12 ignored,
+zero failed/incomplete. CAD provider checks passed, CAD browser checks passed, all
+14 per-crate WASM browser launches passed, and the full-page WASM test inventory
+was listed. The paired-rejoin fixture visibly selected the Rust fallback
+(`not a web/src Rust file; every Rust check applies`).
+
+Quick is **not accepted**: 53 of 54 scheduled commands passed; the only failure was
+`python3 scripts/run-wasm-tests.py --all --depth 1 --isolate=presentation::case_workspace::`.
+The page batch executed 77 tests and failed 21. Its first reported failure was
+`presentation::layout_component_inspector_tests::mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y`
+at `web/src/presentation/layout_component_inspector_tests.rs:2050:28` (expected
+`X mm` input to render); 20 later failures were reported as panic-hook fallout.
+The separate canvas wait also timed out at 5 seconds. These runtime failures are
+unresolved; no source or test fix was made. The product drag smoke and full gate
+were not run; full remains blocked by quick. Earlier failed receipts remain intact.
+
+No baseline, fixture, source, configuration, or other ticket status changed. 17e
+and parent 17 remain claimed pending final independent Standards+Spec reviews;
+provider preparation and focused success alone are not acceptance.
