@@ -147,12 +147,18 @@ async fn noninline_parts_viewer_keeps_transient_values_and_control_identity() {
         position.get_attribute("aria-valuenow").as_deref() == Some("100")
     })
     .await;
-    control(&root, "button", "Section plane").click();
-    wait_until("section plane list is named", || {
-        by_role_name(&root, "listbox", "Section plane").is_some()
-    })
+    let section = control(&root, "button", "Section plane");
+    section.focus().unwrap();
+    key(&section, "ArrowDown");
+    wait_until(
+        "section plane list is named and its first option focused",
+        || {
+            by_role_name(&root, "listbox", "Section plane").is_some()
+                && document.active_element() == by_role_name(&root, "option", "XY").map(Into::into)
+        },
+    )
     .await;
-    control(&root, "option", "XY").click();
+    key(&control(&root, "option", "XY"), "Enter");
     wait_until("plane selection is shown by the same owner", || {
         control(&root, "button", "Section plane")
             .text_content()

@@ -271,9 +271,23 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
 
 #[wasm_bindgen_test]
 async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_selection() {
+    let key = |element: &web_sys::HtmlElement, value: &str| {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(value);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        element
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
     let (_actions, root) = mounted_add_object_chooser("chooser-controls", "board-mirror").await;
     let category = by_role_name(&root, "button", "Components").unwrap();
     let choice = by_role_name(&root, "button", "Add Reset switch").unwrap();
+    assert!(choice.closest("[data-slot=item]").unwrap().is_some());
+    assert!(choice.closest("[data-slot=item-group]").unwrap().is_some());
     let content_id = category.get_attribute("aria-controls").unwrap();
     let document = web_sys::window().unwrap().document().unwrap();
     let content = document.get_element_by_id(&content_id).unwrap();
@@ -296,15 +310,30 @@ async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_se
     );
 
     let layout = by_role_name(&root, "button", "Part placement layout").unwrap();
-    layout.click();
-    wait_until("the chooser offers its board's layout", || {
-        by_role_name(&root, "option", "Mirror layout").is_some()
-    })
+    layout.focus().unwrap();
+    key(&layout, "ArrowDown");
+    wait_until(
+        "the chooser offers its board's layout with keyboard focus",
+        || {
+            document.active_element()
+                == by_role_name(&root, "option", "Board / ungrouped").map(|e| e.unchecked_into())
+        },
+    )
     .await;
     assert!(by_role_name(&root, "option", "Main layout").is_none());
-    by_role_name(&root, "option", "Mirror layout")
-        .unwrap()
-        .click();
+    key(
+        &by_role_name(&root, "option", "Board / ungrouped").unwrap(),
+        "End",
+    );
+    wait_until("End reaches only the current board's layout", || {
+        document.active_element()
+            == by_role_name(&root, "option", "Mirror layout").map(|e| e.unchecked_into())
+    })
+    .await;
+    key(
+        &by_role_name(&root, "option", "Mirror layout").unwrap(),
+        "Enter",
+    );
     wait_until("the selected ID reaches the original layout target", || {
         by_role_name(&root, "status", "Chooser owners")
             .unwrap()

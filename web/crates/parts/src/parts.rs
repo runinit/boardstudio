@@ -381,7 +381,8 @@ fn AddObjectChoice(
     let mirror_definition_id = definition_id.clone();
     let mirror_kind = kind.clone();
     rsx! {
-        div { role: "group", "aria-label": "Add {label}",
+        Item { size: ItemSize::Xs, class: "p-0",
+        div { role: "group", "aria-label": "Add {label}", class: "w-full",
             Button {
                 key: "{definition_id}", variant: ButtonVariant::Ghost,
                 class: "w-full justify-start whitespace-normal text-left",
@@ -407,6 +408,7 @@ fn AddObjectChoice(
                     "Only this half"
                 }
             }
+        }
         }
     }
 }
@@ -445,7 +447,7 @@ pub fn AddObjectComponentChooser(
                 for (label, items) in groups {
                     Collapsible { key: "{label}", class: "py-1", default_open: label == "Components", keep_mounted: true,
                         CollapsibleTrigger { "{label}" }
-                        CollapsibleContent { class: "data-[open=false]:hidden", div { class: "m1-add-part-results",
+                        CollapsibleContent { class: "data-[open=false]:hidden", ItemGroup { class: "gap-px",
                             for entry in items {
                                 { let definition_id = entry.definition.id.clone();
                                   let kind = entry.definition.kind.clone();
@@ -469,7 +471,7 @@ pub fn AddObjectComponentChooser(
                 rsx! { div { role: "status", Callout { "No parts match this search." } } }
             } else {
                 rsx! {
-                    div { class: "m1-add-part-results",
+                    ItemGroup { class: "gap-px",
                         for entry in results {
                             { let definition_id = entry.definition.id.clone();
                               let kind = entry.definition.kind.clone();
