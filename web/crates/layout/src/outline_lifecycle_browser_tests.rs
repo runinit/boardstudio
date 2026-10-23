@@ -1691,7 +1691,6 @@ async fn mounted_outline_inspector_generates_through_the_production_owner() {
 #[wasm_bindgen_test]
 async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_points() {
     let (probe, root) = mounted_polygon_outline_inspector(false).await;
-    let document = web_sys::window().unwrap().document().unwrap();
     wait_until(
         "the generated perimeter exposes its point editor action",
         || {
@@ -1798,7 +1797,6 @@ async fn mounted_generated_perimeter_insert_creates_one_fixed_copy_with_edited_p
 #[wasm_bindgen_test]
 async fn mounted_fixed_perimeter_coordinate_enter_updates_only_the_active_feature() {
     let (probe, root) = mounted_polygon_outline_inspector(true).await;
-    let document = web_sys::window().unwrap().document().unwrap();
     wait_until(
         "the fixed perimeter exposes its point editor action",
         || {

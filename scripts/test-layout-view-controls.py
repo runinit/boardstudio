@@ -27,6 +27,17 @@ def tests(url, captures):
         for theme in ["original", "shadcn"]:
             for appearance in ["light", "dark"]:
                 evaluate(f"document.documentElement.dataset.theme='{theme}';document.documentElement.dataset.appearance='{appearance}'")
+                browser("focus", driver.by_role_name("button", "Layout findings: 0"))
+                secondary = evaluate("""(()=>{
+                    const action=document.activeElement, style=getComputedStyle(action);
+                    const paint=document.createElement('span');
+                    paint.style.background='var(--secondary)';paint.style.color='var(--secondary-foreground)';
+                    document.body.append(paint);const expected=getComputedStyle(paint);
+                    const result={slot:action.getAttribute('data-slot'),filled:action.classList.contains('bg-secondary'),
+                        background:style.backgroundColor,color:style.color,
+                        expectedBackground:expected.backgroundColor,expectedColor:expected.color};
+                    paint.remove();return result;
+                })()""")
                 browser("focus", driver.by_role_name("button", "2D"))
                 evaluate("window.actualView=document.activeElement;window.actualViewGroup=actualView.closest('.m1-layout-view-group')")
                 # Exercise real keyboard focus on the production owner; no substitute state.
@@ -53,10 +64,13 @@ def tests(url, captures):
                     legacyOwner.remove();
                     return {copied,disabled,legacyStyle,legacyPressed,expectedBackground};
                 })()""")
-                print(width, theme, appearance, result, flush=True)
+                print(width, theme, appearance, {"view": result, "secondary action": secondary}, flush=True)
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
                 copied = result["copied"]
                 checks = {
+                    "actual secondary action": secondary["slot"] == "button" and secondary["filled"],
+                    "secondary fill": secondary["background"] == secondary["expectedBackground"],
+                    "secondary ink": secondary["color"] == secondary["expectedColor"],
                     "copied font": copied["font"] == "14px",
                     "copied padding": copied["padding"] == "0px 8px",
                     "copied pressed color": copied["pressed"] == "true" and copied["bg"] == result["expectedBackground"],

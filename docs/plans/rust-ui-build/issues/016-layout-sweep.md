@@ -334,3 +334,16 @@ secondary Button variants from Outline to Secondary, preserving sizes and callba
 ToggleGroup Outline, canonical Button and landed tickets are unchanged. The sole
 mapping edit corrects the Button row with a §8 link; NumberField is untouched.
 Actual Theme checks and final closure remain required.
+
+
+Fresh browser after the documented pre-test module failure passed the corrected
+actual Outline saved-choice test 1/1 (156 filtered),
+`.evidence/016/outline-active-choice-fresh-browser.log`. No assertions were changed
+between the stalled browser and this run; two unused test locals were removed.
+
+Additional connected production caller inventory before edit: Layout-owned
+`layout_findings_state.rs::focus_layout_finding_return_destination` still searches
+the removed legacy tab class. Both actual TabsList owners now use
+`layout-inspector-tabs` to avoid legacy look overrides. A mounted actual Inspector
+regression in `layout_component_inspector_tests.rs` will prove selected-tab return
+focus before correcting this single selector; no new state/API/listener is needed.

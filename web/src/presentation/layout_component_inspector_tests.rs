@@ -1997,6 +1997,40 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
     root.remove();
 }
 
+#[wasm_bindgen_test]
+async fn mounted_finding_return_focus_reaches_the_selected_copied_inspector_tab() {
+    let (probe, root) = mounted_probe("layout-finding-return-tab-focus-root").await;
+    settle_mounted_component_inspector(&probe).await;
+    click_component_inspector(probe.root_id, "tab", "Relations");
+    settle_mounted_component_inspector(&probe).await;
+
+    let document = web_sys::window().unwrap().document().unwrap();
+    let inspector = document.create_element("section").unwrap();
+    inspector.set_id("m1-inspector-panel-content");
+    root.parent_node()
+        .unwrap()
+        .insert_before(&inspector, Some(&root))
+        .unwrap();
+    inspector.append_child(&root).unwrap();
+    let properties = component_inspector_control(probe.root_id, "tab", "Properties");
+    properties
+        .dyn_ref::<web_sys::HtmlElement>()
+        .unwrap()
+        .focus()
+        .unwrap();
+    let selected = component_inspector_control(probe.root_id, "tab", "Relations");
+
+    assert!(
+        boardstudio_web_layout::layout_findings_state::focus_layout_finding_return_destination()
+    );
+    assert_eq!(
+        document.active_element(),
+        Some(selected),
+        "finding return restores the selected tab on the actual mounted Inspector"
+    );
+    inspector.remove();
+}
+
 fn position_input(root_id: &str, label: &str) -> web_sys::HtmlInputElement {
     component_inspector_control(root_id, "spinbutton", label)
         .dyn_into::<web_sys::HtmlInputElement>()
