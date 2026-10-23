@@ -21,6 +21,13 @@ def tests(url, captures):
     click("4 Case (optional)")
     click("Hide guide")
     click("Open Layout workspace")
+    for name in ["3D assembly", "2D"]:
+        browser("focus", driver.by_role_name("button", name))
+        evaluate("window.modeView=document.activeElement")
+        browser("press", "Space")
+        browser("wait", "--fn", "modeView.getAttribute('aria-pressed')==='true'")
+        assert browser("get", "attr", driver.by_role_name("button", name), "aria-pressed")["value"] == "true"
+    print("Actual 3D/2D owner state transitions pass; CAD rendering and first paint are not qualified", flush=True)
     failures = []
     for width in [1440, 1100, 390]:
         browser("set", "viewport", width, 900)
@@ -81,6 +88,26 @@ def tests(url, captures):
                     return {copied,disabled,legacyStyle,legacyPressed,expectedBackground};
                 })()""")
                 print(width, theme, appearance, {"view": result, "secondary action": secondary}, flush=True)
+                for name in ["3D assembly", "Footprints"]:
+                    browser("focus", driver.by_role_name("button", name))
+                    evaluate("window.otherView=document.activeElement")
+                    browser("press", "Tab")
+                    browser("press", "Shift+Tab")
+                    driver.check("document.activeElement===otherView && otherView.matches(':focus-visible')")
+                    if name == "Footprints":
+                        before = browser("get", "attr", driver.by_role_name("button", name), "aria-pressed")["value"]
+                        for expected in ["false" if before == "true" else "true", before]:
+                            browser("press", "Space")
+                            browser("wait", "--fn", f"otherView.getAttribute('aria-pressed')==='{expected}'")
+                            assert browser("get", "attr", driver.by_role_name("button", name), "aria-pressed")["value"] == expected
+                    browser("wait", "--fn", "!otherView.getAnimations().some(a=>a.playState==='running')")
+                    other = evaluate("(()=>{const s=getComputedStyle(otherView),r=otherView.getBoundingClientRect();return {font:s.fontSize,padding:s.padding,outline:s.outlineStyle,ring:s.boxShadow.includes('3px'),width:r.width,height:r.height,pressed:otherView.getAttribute('aria-pressed'),background:s.backgroundColor,slot:otherView.dataset.slot}})()")
+                    print("Other actual view", width, theme, appearance, name, other, flush=True)
+                    if not (other["font"] == "14px" and other["padding"] == "1px 8px" and other["outline"] == "none" and other["ring"] and other["width"] >= 44 and other["height"] >= 44 and other["slot"] in ["toggle-group-item", "tooltip-trigger"]):
+                        failures.append((width, theme, appearance, name, "copied view style"))
+                    expected_bg = result["expectedBackground"] if other["pressed"] == "true" else "rgba(0, 0, 0, 0)"
+                    if other["background"] != expected_bg:
+                        failures.append((width, theme, appearance, name, "pressed/default fill"))
                 browser("screenshot", str(captures / f"{width}-{theme}-{appearance}.png"))
                 copied = result["copied"]
                 checks = {

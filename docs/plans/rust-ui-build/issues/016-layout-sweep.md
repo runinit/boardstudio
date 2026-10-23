@@ -909,3 +909,34 @@ old direct-child point-button selector branches have no current production
 matches after the ToggleGroup adoption; remove only those exclusive branches,
 retaining the heading's declarations and every other container/layout rule.
 No shared primitive, new wrapper, API, visibility, dependency or owner change.
+
+At production `3d702ffd`, actual point/Secondary checks pass all12 combinations:
+`layout-point-secondary-actual-green.log`, captures
+`layout-point-controls-20261022-222710/`. Point selection was already correct and
+remains unchanged; caller-only grid/full-width/zero-padding overrides restore
+column alignment. The explicit overrides beat the copied group/item defaults
+because their classes append rather than tw_merge. All48 measured Electrical,
+Done, Insert and Remove action combinations now have canonical Secondary tokens,
+padding/border and focus. Native appearance/layout declarations remain on the
+bounded legacy branches; only the three dead, exclusive direct-child point-button
+branches were deleted. The remove-protected-gap branch shares the same owned
+look correction, but that conditional action was not reached by this actual
+style script; its existing mounted operation tests remain the behavior evidence.
+
+The expanded actual view test checks all three copied controls across12 variants,
+native Footprints toggling/restoration and one real3D→2D owner transition:
+`layout-all-view-controls-final.log`, captures `view-controls-20261022-222731/`.
+It does not qualify CAD rendering or first paint. Synchronization now explicitly
+waits for the native changed aria-pressed state, preserving the value assertions;
+the final script will be rerun after that test-only improvement.
+
+Fresh selected shell browser run at the same production pin passes all41 tests,
+zero failures: `layout-shell-browser-final.log`, structured results
+`layout-shell-browser-final.json` and per-filter logs. This includes the actual
+Editor Reference hover/leave, focus/blur and matching Item description identity,
+deselection/removal/unmount release, independent layer operations, findings return,
+and the original Departure/constraint/companion actions and Undo/disabled reasons.
+Reference itself has no owner-disabled branch; no invented disabled state is
+claimed. Canonical Button disabled contracts and separate action disabled reasons
+are distinct evidence. Canonical CONTROL/Input/Checkbox/Label/layer/017/020 files
+and `presentation.rs` remain byte-identical to landed `de0dce97`.
