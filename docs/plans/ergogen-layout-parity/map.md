@@ -68,7 +68,7 @@ BoardStudio extended layout feature working.
 ├── 11 Decide mirrored-half rules (grilling, also after 05, 06, 07) ────────────────────────────┤
 ├── 12 Decide how Relations explains chains and anchors (grilling, also after 01, 05, 07) ──────┤
 ├── 13 Decide format reset and recovery (grilling, also after 07, 11) ──────────────────────────┤
-└── 14 Decide starters and demos (grilling, also after 07, 08, 09, 11, 12) ─────────────────────┴── 10 Slice the build
+└── 14 Decide starters and demos (grilling, also after 07, 08, 09, 11, 12, 13) ─────────────────┴── 10 Slice the build
 ```
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md)
@@ -185,6 +185,14 @@ BoardStudio extended layout feature working.
     edits/saves and current history on refusal/cancellation. Publish only after persistence;
     successful replacement starts a fresh editor session/history under existing recovery rules.
   - This is the planned contract, not a running-format bump or permission to erase data.
+- [14: Decide starters and demos](issues/14-starters-and-demos.md#answer):
+  - Rebuild the same three synthetic geometry-only entries with real matrix/Layout ownership,
+    19.05 mm pitch, 1.05 mm edge gap and 18×18 mm keycaps; saved user copies stay untouched.
+  - Studio 60 (5×12) and Macro 12 (3×4) preserve geometry using Row 2's carried Shift only.
+  - Split 42 uses two linked Layouts with Main/anchored Thumb matrices. Preserve left/thumb
+    poses; approve right-main Row 2 X −5 mm and Row 3 X −10 mm to become exact reflection.
+  - Keep other parameter/exception stress cases in focused fixtures. Rebuild affected schema,
+    scene and pose goldens without retaining old-engine maths or weakening other contracts.
 
 ## Not yet specified
 
