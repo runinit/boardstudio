@@ -64,11 +64,13 @@ def main():
             assert all(item["width"] >= 44 and item["height"] >= 44 for item in metrics), metrics
 
     try:
-        if args.coarse:
-            browser("set", "device", "iPhone 12")
+        # The device preset leaves pointer media unset; verify the real Chromium media feature.
+        os.environ["AGENT_BROWSER_ARGS"] = os.environ.get("AGENT_BROWSER_ARGS", "") + f"\n--blink-settings=primaryPointerType={2 if args.coarse else 4}"
         browser("set", "viewport", args.width if args.only == "attachment" else 1440, 960 if args.width > 960 else 844)
         browser("open", args.url)
         assert evaluate("matchMedia('(pointer: coarse)').matches") == args.coarse
+        assert evaluate("matchMedia('(pointer: fine)').matches") != args.coarse
+        print("Actual pointer media:", evaluate("({coarse:matchMedia('(pointer:coarse)').matches,fine:matchMedia('(pointer:fine)').matches,touchPoints:navigator.maxTouchPoints})"), flush=True)
         if args.only == "attachment":
             browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Assign host connection\"]')")
             evaluate(f"document.documentElement.dataset.theme={json.dumps(args.theme)};document.documentElement.dataset.appearance={json.dumps(args.appearance)}")
@@ -133,7 +135,10 @@ def main():
                 browser("wait", "--fn", "!!document.querySelector('.m1-controller-card')")
                 browser("wait", "--fn", "document.querySelectorAll('.m1-controller-footprint svg').length>=2", "--timeout", 15000)
                 evaluate("document.fonts.ready.then(()=>true)")
-                metrics = evaluate("""[...document.querySelectorAll('.m1-controller-card')].filter(e=>e.getAttribute('data-match')==='true').map(e=>{const rect=n=>{const r=n.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height]};return {name:e.textContent.trim(),pressed:e.getAttribute('aria-pressed'),card:rect(e),thumbnail:rect(e.querySelector('.m1-controller-footprint')),label:rect(e.querySelector('strong'))}})""")
+                browser("wait", "--fn", "document.querySelector('.m1-setup-drawer').getAnimations({subtree:true}).every(a=>a.playState!=='running'||a.effect.getComputedTiming().iterations===Infinity)", "--timeout", 5000)
+                first_name = evaluate("(()=>{const e=document.querySelector('.m1-controller-card');return e.querySelector('[role=img]').getAttribute('aria-label')+' '+e.textContent.trim()})()")
+                focus("button", first_name)
+                metrics = evaluate("""[...document.querySelectorAll('.m1-controller-card')].filter(e=>e.getAttribute('data-match')==='true').map(e=>{const rect=n=>{const r=n.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height]},clips=[];for(let p=e.parentElement;p;p=p.parentElement){if(/hidden|auto|scroll|clip/.test(getComputedStyle(p).overflowY))clips.push(rect(p))}const label=e.querySelector('strong'),range=document.createRange();range.selectNodeContents(label);return {name:e.textContent.trim(),pressed:e.getAttribute('aria-pressed'),card:rect(e),thumbnail:rect(e.querySelector('.m1-controller-footprint')),label:rect(label),text:rect(range),visible:label.checkVisibility({checkOpacity:true}),clips}})""")
                 capture("controller-cards", metrics)
                 navigation = evaluate("[...document.querySelectorAll('[aria-label=\"Previous controller\"],[aria-label=\"Next controller\"]')].map(e=>{const r=e.getBoundingClientRect();return {name:e.getAttribute('aria-label'),width:r.width,height:r.height}})")
                 print("Navigation inventory:", navigation, flush=True)
@@ -144,10 +149,15 @@ def main():
                     for child in (item["thumbnail"], item["label"]):
                         assert child[0] >= item["card"][0] and child[1] >= item["card"][1] and child[2] <= item["card"][2] and child[3] <= item["card"][3], item
                     assert item["thumbnail"][5] == 132 and item["label"][5] > 0, item
+                    assert item["visible"] and item["text"][0] >= item["card"][0] and item["text"][2] <= item["card"][2], item
+                    assert all(item["thumbnail"][1] >= clip[1] and item["label"][3] <= clip[3] for clip in item["clips"]), item
                 target = next(item for item in metrics if item["pressed"] == "false")
                 action("img", target["name"] + " footprint")
                 browser("wait", "--fn", f"[...document.querySelectorAll('.m1-controller-card')].find(e=>e.textContent.trim()==={json.dumps(target['name'])}).getAttribute('aria-pressed')==='true'")
                 check("document.querySelectorAll('.m1-controller-card[aria-pressed=true]').length===1")
+                browser("wait", "--fn", "(()=>{const e=document.querySelector('.m1-controller-card[aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return r.left>=rail.left-.1&&r.right<=rail.right+.1})()", "--timeout", 5000)
+                selected_card = evaluate("(()=>{const e=document.querySelector('.m1-controller-card[aria-pressed=true]'),r=e.getBoundingClientRect(),rail=e.parentElement.getBoundingClientRect();return {name:e.textContent.trim(),left:r.left,right:r.right,rail:[rail.left,rail.right],scroll:e.parentElement.scrollLeft}})()")
+                capture("controller-selected", selected_card)
                 for name in ("Previous controller", "Next controller"):
                     focus("button", name)
                     metrics = box("document.activeElement")
