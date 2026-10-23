@@ -530,3 +530,62 @@ fixture, tooling or baseline correction was made. The source tested remains
 documentation-only commit. 17e and parent 17 remain claimed pending the
 unreached acceptance stages and final Standards+Spec reviews; no shipping or
 user-data writer approval is implied.
+
+### CAD package preparation and final quick attempt — 2026-10-23
+
+Verified branch `docs/ergogen-layout-comparison`, source HEAD
+`f4a657d3ef13cd941f042ada35d0d2350477c7eb`, fixed base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`, `BOUNDARY_BLESS` unset, and the
+exact 116 existing tracked paths from the selector-fixed inventory (the prior
+114-path set plus `scripts/check_quick.py` and `scripts/test-check-quick.py`).
+The untracked `web/crates/layout/prototype/` was not passed. No paths were deleted.
+
+Prepared the missing ignored CAD WEB package using the supported command under
+the shared build lock, 22 GiB/no-swap scope, 3600-second timeout, and required
+environment:
+
+```sh
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 cad/scripts/build-cad-wasm.py --no-opt
+```
+
+Build passed (`Finished release profile`; wasm-pack `Done` and package ready).
+Generated JS and WASM files are present and ignored. The quick gate's existing
+`cad/scripts/test-cad-provider.py` current-build-stamp/package check ran and
+passed. Build log: `.evidence/ergogen-17e/cad-package-build.log`.
+
+Fresh all-caller quick ran against the exact HEAD and all 116 paths, with the
+same environment and resource guard:
+
+```sh
+base=a58a2bf187bd6d08b652dc739cd7c391709ff5c8
+head=f4a657d3ef13cd941f042ada35d0d2350477c7eb
+mapfile -d '' -t paths < <(git diff --name-only -z "$base" "$head")
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+unset BOUNDARY_BLESS
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/check.py quick --files "${paths[@]}" --receipt .evidence/ergogen-17e/cad-ready-quick-receipt.json
+```
+
+The selector fallback was visible for
+`web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json`:
+`not a web/src Rust file; every Rust check applies`. Repo, tooling, lint, page
+WASM typecheck, native tests and `layout-test-css` passed. All **2,149 native
+baseline names** ran (2,149 passed, 12 ignored, 0 failed/incomplete; no missing
+names). WASM-target Clippy, page `cargo check`, page/layout CSS build and the
+WASM-test guard passed. These are compile/guard checks, not WASM browser runtime
+coverage.
+
+Quick is **not accepted**: receipt `.evidence/ergogen-17e/cad-ready-quick-receipt.json`
+records 38/54 commands run, exit 1, with 16 commands not run. The CAD provider
+suite passed. The CAD browser suite reached `worker.onerror` in
+`cad/scripts/browser-smoke/qualification.mjs:22:63` after its preceding checks;
+final line: **`check: step 'browser' failed`**. The 14 per-crate WASM browser
+launches and `scripts/run-wasm-tests.py --all` page suite were not run; product
+browser smoke was not reached. The full gate was not run because quick failed.
+Quick log: `.evidence/ergogen-17e/cad-ready-quick.log`. Earlier
+`quick.log`/receipt and `selector-fixed-quick.*` remain historical evidence.
+
+No source, fixture, baseline, or configuration change occurred; tracked files
+remain clean apart from this progress update, and the only untracked path remains
+the prototype. 17e and parent 17 remain claimed. Final independent Standards+Spec
+reviews are pending; this gate attempt grants no closure or shipping approval.
