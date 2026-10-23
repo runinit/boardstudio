@@ -1635,7 +1635,7 @@ async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     assert_eq!(shown.as_deref(), Some(reason.as_str()));
     assert_eq!(
         reason,
-        "Converting would move this column: its splay pivots with the stagger."
+        "Converting requires zero Splay, Column rotation and carried Bend"
     );
     root.remove();
 }
