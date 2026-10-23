@@ -82,6 +82,14 @@ BoardStudio extended layout feature working.
 
 <!-- one line per resolved ticket: linked title, then the gist -->
 
+- [02: Pin ergogen's anchor and mirror semantics](issues/02-ergogen-anchor-and-mirror-semantics.md#answer):
+  - Anchors apply orient → shift → rotate, then `affect`.
+  - Mirrored references negate relative x and rotation unless `resist` is set.
+  - Anchors see only points generated earlier, which gives the evaluation order.
+  - `skip` and `asym` filter keys after layout.
+  - Width, height and autobind are outside layout parity.
+  - Fixture scenarios are listed.
+
 ## Not yet specified
 
 - **Relations and canvas highlight.** How Relations explains carried chains (which rows and
