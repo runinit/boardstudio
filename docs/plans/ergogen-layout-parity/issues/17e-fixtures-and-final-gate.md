@@ -1091,3 +1091,86 @@ HEAD above; the following docs-only progress commit does not change that pin.
 17e and parent 17 remain **claimed** pending their final independent
 Standards+Spec reviews. This checkpoint makes no closure, release or user-data
 writer approval.
+
+### Fresh gates after merged final-review fixes — 2026-10-23
+
+At `6838c68ae`, the independent final reviews recorded two historical requests:
+Standards P2 for persisted companion arithmetic regrouping and Spec P2 because
+This column read Splay while writing rotation. These findings are not yet
+independently rereviewed. The geometry correction `1824e7d9d32160ee0e3632600e552ee9ed4961fa`
+was merged as `81854b28b04a0637da5346584f2f4c48ff391b65`: private shared
+`companion_pose` materialization/refresh preserves the original grouping and
+angular sum. Its exact-bit drift RED and exact refresh plus serialized Core reopen
+GREEN evidence is in
+`/home/chris/.t3/worktrees/ts-boardstudio2/t3-384cad19/.evidence/ergogen-17-review-fixes/`;
+the focused runs covered 806 library and 757 integration tests.
+
+The UI correction `e06cc125c02de1b25320aa5844242413a858b889` was merged as
+`bbf1a1a8546ca2520d90f9226ce79689f7def3f8`: This column uses rotation consistently
+through display, preview, nudge, drag delta, queued resolution, equality and draft
+restoration; a scope change resets only the angle draft. Its five new WASM
+regressions and 157+1 layout browser tests plus 80 native tests are recorded in
+`/home/chris/.t3/worktrees/ts-boardstudio2/t3-c2a06b48/.evidence/ergogen-17-review-fixes/`.
+These child-worktree receipts are prior fix evidence, not substitutes for the
+fresh gates below.
+
+The parent reviewed the native baseline candidate updater's exact one addition and
+zero removals, then committed
+`matrix::projection_tests::following_companion_preserves_materialized_pose_exactly_on_refresh_and_reopen`
+at `47ce298020ef72903bab4032d5ee5980b7779215`. The WASM baseline was left
+unchanged because its plain `#[test]` name is existing debt, not a supported
+baseline entry; its debt guard passed.
+
+Fresh gate pin: branch `docs/ergogen-layout-comparison`, source HEAD
+`47ce298020ef72903bab4032d5ee5980b7779215`, fixed base
+`a58a2bf187bd6d08b652dc739cd7c391709ff5c8`. The exact base-to-HEAD diff has
+119 existing paths: the prior 117 plus
+`web/crates/layout/src/objects/layout_canvas_controls.rs` and
+`web/crates/layout/src/objects/matrix_transform_inspector.rs`. All 119 exist and
+were passed to quick, including JSON, Core, web, tests, fixtures, baseline and
+docs. No exclusions or deletions; the baseline was already in scope. Tracked
+state was clean. The preexisting untracked
+`web/crates/layout/prototype/` remained untouched and was not passed to quick.
+`BOUNDARY_BLESS` was unset; no baseline updater, skip or selector override was
+used. The receipt's local-dirty marker reflects that untracked prototype.
+
+Fresh quick command (complete output in `.evidence/ergogen-17e/review-fix-quick.log`):
+
+```sh
+mapfile -d '' -t paths < <(git diff --name-only -z a58a2bf187bd6d08b652dc739cd7c391709ff5c8 47ce298020ef72903bab4032d5ee5980b7779215)
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env -u BOUNDARY_BLESS TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 timeout 3600 python3 scripts/check.py quick --files "${paths[@]}" --receipt .evidence/ergogen-17e/review-fix-quick-receipt.json > .evidence/ergogen-17e/review-fix-quick.log 2>&1
+```
+
+Quick passed; final line: `check: all steps passed: repo, tooling, lint, typecheck,
+test, layout-test-css, browser`. Receipt `.evidence/ergogen-17e/review-fix-quick-receipt.json`
+is complete and accepted: 54/54 commands, native guard 2,150/2,150 matched
+(2,150 passed, 12 ignored), all 14 WASM launches passed, and page tests passed
+77/77. The five new WASM tests passed by name:
+`column_angle_scope_switches_display_and_discards_the_other_fields_draft`,
+`column_angle_equality_uses_the_requested_field_in_the_accepted_snapshot`,
+`column_angle_nudges_compose_without_overwriting_splay`,
+`column_angle_drag_delta_composes_with_the_latest_rotation`, and
+`column_angle_pointer_preview_starts_at_rotation_and_preserves_mirror_direction`.
+The layout launch passed 157 tests, its separate setup-guide launch passed 1, and
+CAD provider and browser checks passed (364 browser checks).
+
+Only after quick passed, the unfiltered README full check ran with the same lock,
+22 GiB/no-swap cap, timeout and test environment, plus the pinned Playwright
+`NODE_PATH` required by browser tooling:
+
+```sh
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env -u BOUNDARY_BLESS TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules timeout 3600 python3 scripts/check.py --receipt .evidence/ergogen-17e/review-fix-full-receipt.json > .evidence/ergogen-17e/review-fix-full.log 2>&1
+```
+
+Full passed; final line: `check: all steps passed: repo, tooling, lint, build, test,
+browser`. Receipt `.evidence/ergogen-17e/review-fix-full-receipt.json` is complete
+and accepted: 55/55 commands, native guard 2,150/2,150 matched (2,150 passed,
+12 ignored), all 14 WASM launches, all five named regressions, and page tests
+77/77 passed. Packaged build, CAD provider/browser checks and trusted drag/collision
+smoke all ran; drag smoke passed 13/13, including exact Undo, column rotation,
+qualified collision and product checks. No scheduled scope was unreached.
+
+These are fresh whole-gate receipts for this source pin, not final ticket reviews.
+17e and parent 17 remain **claimed** pending independent Standards+Spec rereviews;
+no closure, release or user-data writer approval is recorded. Older success and
+failure receipts above remain historical and unchanged.
