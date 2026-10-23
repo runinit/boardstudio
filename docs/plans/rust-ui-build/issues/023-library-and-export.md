@@ -1,6 +1,6 @@
 # 023: Library and Export
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
