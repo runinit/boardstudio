@@ -643,3 +643,66 @@ were not run; full remains blocked by quick. Earlier failed receipts remain inta
 No baseline, fixture, source, configuration, or other ticket status changed. 17e
 and parent 17 remain claimed pending final independent Standards+Spec reviews;
 provider preparation and focused success alone are not acceptance.
+
+### First page failure diagnosis — 2026-10-23 (partial; no fix)
+
+Source pin: `f3e7818a8a1838d3d318b3ac2ef8bc371d0bc70a`, branch
+`docs/ergogen-layout-comparison`. No production/test/fixture correction was applied.
+The unrelated untracked `web/crates/layout/prototype/` remains untouched.
+
+Two fresh exact-test diagnostic launches used the existing `run_filter` helper in
+`scripts/run-wasm-tests.py`, with `runner_environment()` and
+`desktop_webdriver_config(...)`, selecting
+`presentation::layout_component_inspector_tests::mounted_rapid_xy_queued_edits_keep_both_coordinates_and_undo_removes_only_y`.
+Both returned **0 passed, 1 failed, 76 filtered**, with the original `X mm input is
+rendered` assertion at `layout_component_inspector_tests.rs:2050:28`.
+Logs: `.evidence/ergogen-17e/page-diagnosis-exact-red.log` and
+`.evidence/ergogen-17e/page-diagnosis-state.log`. These are exact-filter partial
+runs, not page acceptance. Each used the shared outer flock, 22 GiB/no-swap
+systemd scope and 900-second timeout; `TMPDIR=/home/chris/.cache/tmp` and
+`RUST_TEST_THREADS=2` were exported, with normal runner/Cargo flags.
+
+The supported file-level command was:
+
+```sh
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/run-wasm-tests.py --files web/src/presentation/layout_component_inspector_tests.rs --result-json .evidence/ergogen-17e/page-diagnosis-module.json > .evidence/ergogen-17e/page-diagnosis-module.log 2>&1
+```
+
+It completed **25 tests: 11 passed, 14 failed, zero incomplete**. The same first
+panic was followed by 13 panic-hook failures; no additional independent origin
+was established. The original quick's 20 later failures remain fallout, not 20
+independently diagnosed bugs. Full raw module output is preserved at
+`.evidence/ergogen-17e/page-diagnosis-module.json.logs/filter-001.log`.
+
+Temporary `[DEBUG-17e-page]` probes captured the actual Core reply and missing-DOM
+state. Core returned `Error`: `Linked Layout requires an explicit correspondence
+for every source matrix`. The settled host had `accepted=false`, lifecycle
+`Empty`, no scope, empty selected IDs, no selection anchor/context, and no
+Inspector projection. Its DOM contained fixture buttons, an Inspector placeholder
+and render-generation output `1`, with no position inputs. Thus mount delay,
+Inspector conditional rendering and prior-test state are not required to explain
+this failure: the fixture's Open was refused before selection could exist.
+
+High-confidence cause: incomplete grouped-layout fixture cutover.
+`fixture_document` supplies an empty `LayoutMirrorLink.correspondences`; current
+`matrix::layout::validate_link` requires a Matrix correspondence for each source
+matrix. Compared with fixed pre-cutover `a58a2bf187bd6d08b652dc739cd7c391709ff5c8`,
+the fixture gained plural matrix IDs plus the empty list, while the validator gained
+this explicit-correspondence requirement. The old base was inspected with Git;
+it was not executed, so no historical runtime pass is claimed.
+
+Proposed next action, requiring the parent's decision: correct the shared fixture
+in `web/src/presentation/layout_component_inspector_tests.rs` with the explicit
+Matrix pair `matrix` -> `paired-matrix` (no companion override/tweak), preserving
+the intended linked-layout semantics. Add an Open-success assertion after the real
+Session/Core open in `mounted_runtime_probe`, before selection/mount, so invalid
+fixtures fail at admission. Preserve the existing mounted X/Y queue and Undo test
+as the regression seam; rerun exact then file-level checks. No Core validation or
+production Inspector change is supported by this evidence; the proposed correction
+has not been applied or verified and could expose further failures.
+
+All temporary probes were removed; the two instrumented source files returned to
+HEAD with no diff. No quick/full or product drag gate was run in this diagnosis.
+Failed receipts remain intact. 17e and parent 17 remain claimed; final acceptance,
+reviews and later feature work remain pending.
