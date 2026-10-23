@@ -1,6 +1,6 @@
 # 023: Library and Export
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [011: Docks and narrow-screen sheet](011-docks-and-narrow-sheet.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -423,3 +423,91 @@ The static 4183 test server was restarted for this workflow and remains availabl
 worktree, generated target, caches and evidence are preserved for coordinator
 review. This is a test/docs-only response to P3, not a new product acceptance or
 baseline-green claim.
+
+
+## Scoped resolution and authorized local landing
+
+The coordinator explicitly authorizes **scoped 023 resolution and local
+fast-forward landing**, despite the separately documented failed full
+acceptance. This section supersedes the earlier claimed/review/landing/cleanup
+holds; their historical evidence remains intact. This is neither a baseline-green
+claim nor a waiver of any global gate. The full-suite acceptance checkbox stays
+unchecked.
+
+Actual completed approval nodes were retrieved read-only through T3 and their
+final messages/run identities are preserved in
+`.evidence/023/closure-review-receipts.json`:
+
+- **Standards r2: APPROVE, 0 findings**, reviewed
+  `94f31e1652365898da2af378b8d765922da898f1`, completed
+  `2026-10-23T05:49:52.201Z`.
+  Node: `thread:delegated-task:command%3Amcp%3Add75e685-6104-454e-94dd-e2e71f7bb137%3Adelegate-task%3Arust-ui023-standards-review-r2`.
+- **Spec r1: APPROVE for the scoped implementation, 0 findings**, reviewed
+  `54ac7050f8cedd3256d5d5f9cbd362465bb5e2db`, completed
+  `2026-10-23T05:45:03.696Z`.
+  Node: `thread:delegated-task:command%3Amcp%3Add75e685-6104-454e-94dd-e2e71f7bb137%3Adelegate-task%3Arust-ui023-spec-review-r1`.
+  This approval carries for unchanged product; the intervening locator/test
+  correction is covered by the actual Standards r2 approval. These were source
+  and author-evidence reviews, not reviewer-executed runtime checks.
+
+Closure changes only this ticket and the build-plan map. Approved product and
+tests must remain byte-for-byte equal under Git to `94f31e16` (and product equal
+to Spec-reviewed `54ac7050`). Fresh `check.py repo` includes the real doc-link
+check; diff/equality checks and their exact results are retained in
+`.evidence/023/closure-repo-receipt.json` / `.md`, `closure-repo.log`,
+`closure-diff.log` and `closure-source-equality.log`. Existing build, native,
+mounted and packaged receipts are reused at their recorded pins; no rebuild or
+full-suite rerun is claimed for this docs-only closure.
+
+The feature was reverified at
+`c032d902ba3ae24c20ea588e5349fbe1e9559af5` before closure. It must be rechecked
+immediately before `git push . HEAD:refs/heads/feat/rust-ui-migration`, a local
+fast-forward only, with no force/remote/dev operation. Any advanced feature tip
+requires ancestry/overlap inspection rather than overwrite. The exact landed
+pin, refs and clean inventory are recorded outside the generated target in
+`.evidence/023/closure-landing-receipt.json`.
+
+The only authorized deletion is the exclusive physical generated directory
+`/home/chris/.cache/boardstudio-target/023-library-export-lineage`, after local
+landing and complete audit plus immediate live recheck. Audit/cleanup receipts
+are `.evidence/023/closure-target-classified-audit.json` and
+`.evidence/023/closure-target-cleanup-receipt.json`, including allocated/apparent
+bytes before and after, symlink/other-checkout references, ownership, mounts,
+processes/environments/open fds and lsof. Only the verified owned 4183 preview
+was stopped (`closure-preview-stop.json`, pidfd SIGTERM). Preserve the worktree,
+child branch, source, target symlink, evidence, valuable ignored settings, CAD
+caches and all other targets. Audit setup errors remain in
+`closure-target-initial-audit.log`; an exited `/proc` process is not a product RED.
+
+The first conservative audit (`closure-target-audit.json`) surfaced two orphan
+system Chromium crash reporters with this lane's inherited `LD_LIBRARY_PATH`.
+Inspection finds no target executable/cwd/open fd/mapping or build argument;
+these are inactive lookup references, not live build consumers, and are left
+running. Four protected, pre-existing systemd/PAM/GPG services have unreadable
+environment/fds and started before this target existed; they are explicitly
+listed as visibility limits, not killed or claimed fully inspected. The classified
+audit requires no unclassified same-user visibility gaps, no active consumers,
+empty lsof results, no other checkout reference and exact ownership/path guards.
+
+**Unresolved gates remain OPEN/FAILED:**
+
+- Full tooling: 20 unchanged browser-script registrations remain absent;
+  `full-receipt.json.md` / `tooling-registration-owned.log` record the first guard.
+- Drag: `full-drag-failure.log`, first wait at
+  `scripts/test-drag-interactions.cjs:87` for retired `.m1-save-state`, before the
+  first actual drag. No passing baseline or working drag is inferred.
+- PCB: `full-tests-receipt.json.md`, first legacy descendant-label assertion at
+  `web/crates/pcb/src/pcb_scene.rs:587`; 15 follow-on panic-hook failures remain
+  incompletely diagnosed.
+- Page: the same full receipt and `page-full-result.json`, first missing
+  `ToastCtx` in the selected-key fixture/connected LayoutAlign; the other five
+  failure records are not five independently established root causes.
+- Palette: `palette-corrected.log`, later unchanged Add dialog-vs-region
+  assertion after the successful deletion/native-palette block.
+
+The first-failure attributions above are unchanged-source inspection supported
+by the reviews, **not** base-revision execution. Global quick/full acceptance,
+CAD-worker qualification, first paint, screen-reader, human 026 and final merge
+remain open/failed as previously recorded. Scoped ticket resolution/local landing
+and generated-target cleanup do not certify or waive them. No new review,
+agent, watcher, remote operation or dev merge is authorized or performed here.

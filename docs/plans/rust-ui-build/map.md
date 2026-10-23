@@ -26,19 +26,21 @@ old layer once no caller remains; 026 is the single merge to `dev`.
 | [013: Toasts](issues/013-toasts.md) | 008, 010 | Transient results of one-shot actions appear as Toasts instead of inline text.. |
 | [014: Shell glue sweep](issues/014-shell-glue-sweep.md) | 011, 012, 013 | The remaining shell files have no raw controls and no `Board*` left.. |
 | [015: Layout toolbar strips](issues/015-layout-toolbar-strips.md) | 007, 008, 011 | Layout's two fixed strips above the canvas are rebuilt on Toolbar, Toggle Group and Dropdown Menu, with Snap staying in the canvas toolbar. |
-| [016: Layout sweep](issues/016-layout-sweep.md) | 006, 015 | [Resolved owned scope and review outcome](issues/016-layout-sweep.md#outcome-resolved-after-final-review); 023 guide composition remains open. |
+| [016: Layout sweep](issues/016-layout-sweep.md) | 006, 015 | [Resolved owned scope and review outcome](issues/016-layout-sweep.md#outcome-resolved-after-final-review); guide composition is closed in [023 scoped resolution](issues/023-library-and-export.md#scoped-resolution-and-authorized-local-landing). |
 | [017: Case settings, part 1: dimensions, construction and profiles](issues/017-case-settings-1.md) | 006, 008, 011 | The first half of the Case mechanical settings: dimension fields, construction controls, profile guidance and the profile geometry editors. |
 | [018: Case settings, part 2: mounts, openings, battery, manufacturing and pairs](issues/018-case-settings-2.md) | 017 | The second half of the Case mechanical settings: mounting and mount collections, openings, battery, manufacturing and the paired-feature controls. |
 | [019: Case rest](issues/019-case-rest.md) | 006, 008, 011 | The other Case files (bodies, collision checks, viewer controls, layers, panels) and the Case workspace host. |
 | [020: Parts library and inspector](issues/020-parts-library-inspector.md) | 006, 008, 011 | The Parts library, previews and inspector. |
 | [021: Parts editors](issues/021-parts-editors.md) | 006, 008, 011 | The Parts editors: assembly, model, profile and generator editors, custom definition and footprint import. |
 | [022: PCB, Keymap and Keycaps](issues/022-pcb-keymap-keycaps.md) | 006, 008, 011 | The three smaller Workspaces together, with Tabs for the keymap layers. |
-| [023: Library and Export](issues/023-library-and-export.md) | 006, 011 | The project library and Export page, the project-delete confirmation as an Alert Dialog, and the setup guide with a vertical Stepper inside its four accordion sections. |
+| [023: Library and Export](issues/023-library-and-export.md) | 006, 011 | [Resolved owned scope after actual Standards r2 and Spec r1 approvals](issues/023-library-and-export.md#scoped-resolution-and-authorized-local-landing); full acceptance remains failed/open. |
 | [024: Delete the old layer](issues/024-delete-the-old-layer.md) | 014, 016, 018, 019, 020, 021, 022, 023 | The `Board*` wrappers and the legacy styling are gone, because no caller remains.. |
 | [025: Rewrite DESIGN.md for the new structure](issues/025-rewrite-design-md.md) | 024 | DESIGN.md describes the shipped workbench: the header, docks, cards style, narrow-screen behaviour, controls and Themes, in place of the old Layout and Components sections.. |
 | [026: Merge gate and single merge](issues/026-merge-gate.md) | 024, 025 | The migration branch passes the gate and is merged to `dev` once.. |
 
 ### Frontier and rationale
+
+- **023 scoped resolution:** actual Standards r2 and scoped Spec r1 approvals authorize local fast-forward landing and exclusive generated-target cleanup. [023 closure](issues/023-library-and-export.md#scoped-resolution-and-authorized-local-landing) records exact receipt nodes and first-failure gate pointers; full/quick, CAD-worker, first-paint, screen-reader, human 026 and final-merge gates remain open/failed.
 
 - **011 resolved:** both closure axes approved; reviewed implementation and native AX locator response are recorded in [011 Outcome](issues/011-docks-and-narrow-sheet.md#outcome). Local fast-forward landing is coordinator-authorized; 012 may integrate the resulting feature tip. Global acceptance gates remain open.
 
