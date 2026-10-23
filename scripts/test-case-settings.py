@@ -259,6 +259,7 @@ def tests(url, evidence):
     for role, name in [("button", "Plate method"), ("checkbox", "Add middle frame"), ("spinbutton", "Plate thickness")]:
         assert not browser("is", "enabled", driver.by_role_name(role, name))["enabled"]
     action("button", "Toggle editing")
+    browser("mouse", "move", 1400, 10)
     observations = []
     for theme in ("original", "shadcn"):
         for appearance in ("light", "dark"):
@@ -270,10 +271,24 @@ def tests(url, evidence):
                 font:s.fontFamily,border:s.borderTopWidth,invalid:input.getAttribute('aria-invalid')}})()""")
             assert metrics["slot"] == "input-group-control" and metrics["height"] == 40, metrics
             assert metrics["labelFor"] == metrics["id"] and metrics["id"]
-            observations.append({"theme": theme, "appearance": appearance, **metrics})
             browser("screenshot", str(evidence / f"settings-{theme}-{appearance}.png"))
+            action("button", "Read KiCad layers", "focus")
+            browser("wait", "--fn", "document.activeElement.getAnimations().every(animation=>animation.playState!=='running')")
+            secondary = evaluate("""(()=>{const button=document.activeElement,style=getComputedStyle(button),probe=document.createElement('span');
+                probe.style.cssText='position:absolute;visibility:hidden;background:var(--secondary);color:var(--secondary-foreground)';
+                document.body.append(probe);const expected=getComputedStyle(probe);
+                const result={slot:button.dataset.slot,height:button.getBoundingClientRect().height,border:style.borderTopWidth,
+                    background:style.backgroundColor,foreground:style.color,expectedBackground:expected.backgroundColor,expectedForeground:expected.color};
+                probe.remove();return result})()""")
+            assert secondary["slot"] == "button" and secondary["height"] == 40 and secondary["border"] == "0px", secondary
+            assert secondary["background"] == secondary["expectedBackground"] and secondary["foreground"] == secondary["expectedForeground"], secondary
+            observations.append({"theme": theme, "appearance": appearance, **metrics, "secondary":secondary})
+            browser("screenshot", str(evidence / f"secondary-{theme}-{appearance}.png"))
     for width in (1050, 390):
         browser("set", "viewport", width, 844)
+        action("button", "Read KiCad layers", "focus")
+        if width == 390:
+            assert evaluate("document.activeElement.getBoundingClientRect().height") >= 44
         browser("screenshot", str(evidence / f"settings-{width}.png"))
     assert browser("errors").get("errors", []) == []
     (evidence / "observations.json").write_text(json.dumps(observations, indent=2)+"\n")

@@ -914,7 +914,7 @@ pub fn MechanicalSettings(props: MechanicalSettingsProps) -> Element {
                 }
                 Collapsible { keep_mounted: true, default_open: false,
                     CollapsibleTrigger { class: "w-full p-3 bg-muted text-foreground", "Switch fit profiles" }
-                    CollapsibleContent { class: "data-[open=false]:hidden",
+                    CollapsibleContent { class: "data-[open=true]:overflow-visible data-[open=false]:hidden",
                 ProfileGuidance {
                     identity: props.identity.clone(),
                     owner_key: owner_key.clone(),
@@ -3700,7 +3700,7 @@ fn ProfileGuidance(props: ProfileGuidanceProps) -> Element {
                         div { role: "status", Callout { variant: CalloutVariant::Warning, "Supplier review needed for the supported thickness range." } }
                     }
                     Button {
-                        variant: ButtonVariant::Outline, button_type: "button",
+                        variant: ButtonVariant::Secondary, button_type: "button",
                         aria_label: "Remove profile {profile.name}",
                         class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: mechanical_action_pending(&format!("profile:{}:remove", profile.definition_id)) || !props.editable,
@@ -3874,7 +3874,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         strong { "Custom geometry layers" }
                         Button {
                             class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                            variant: ButtonVariant::Outline, button_type: "button",
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Read KiCad layers",
                             disabled: !props.editable || busy(),
                             onclick: {
@@ -3957,7 +3957,7 @@ fn ProfileGeometryEditor(props: ProfileGeometryEditorProps) -> Element {
                         }
                         Button {
                             class: "max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
-                            variant: ButtonVariant::Outline, button_type: "button",
+                            variant: ButtonVariant::Secondary, button_type: "button",
                             aria_label: "Apply selected geometry",
                             disabled: mechanical_action_pending(&format!("profile:{}:update", props.profile.definition_id)) || !props.editable || busy() || selected().is_empty(),
                             onclick: {
@@ -4067,7 +4067,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
             header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add polygon to {props.title}",
@@ -4103,7 +4103,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                     div { class: "m1-mechanical-opening-title",
                         strong { "Contour {polygon_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             button_type: "button",
                             class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove contour {polygon_index + 1} from {props.title}",
@@ -4215,7 +4215,7 @@ fn ProfilePolygonListEditor(props: ProfilePolygonListEditorProps) -> Element {
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         button_type: "button",
                         class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
@@ -4259,7 +4259,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
             header { class: "flex flex-wrap items-center justify-between gap-2",
                 strong { "{props.title}" }
                 Button {
-                    variant: ButtonVariant::Outline,
+                    variant: ButtonVariant::Secondary,
                     button_type: "button",
                     class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                     aria_label: "Add volume to {props.title}",
@@ -4297,7 +4297,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                     div { class: "m1-mechanical-opening-title",
                         strong { "Volume {opening_index + 1}" }
                         Button {
-                            variant: ButtonVariant::Outline,
+                            variant: ButtonVariant::Secondary,
                             button_type: "button",
                             class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                             aria_label: "Remove {props.title} volume {opening_index + 1}",
@@ -4442,7 +4442,7 @@ fn ProfileOpeningListEditor(props: ProfileOpeningListEditorProps) -> Element {
                         }
                     }
                     Button {
-                        variant: ButtonVariant::Outline,
+                        variant: ButtonVariant::Secondary,
                         button_type: "button",
                         class: "m1-mechanical-quiet max-[760px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                         disabled: !props.editable,
