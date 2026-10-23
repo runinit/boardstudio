@@ -28,15 +28,30 @@ def fault_boundary():
     evaluate("window.failedCoreRequests=[];window.failCore=null;window.originalWorkerPost=Worker.prototype.postMessage;Worker.prototype.postMessage=function(m,...args){if(m?.kind==='core'&&window.failCore){const error=window.failCore;window.failCore=null;failedCoreRequests.push({request:m.request_id,epoch:m.executor_epoch,frame:JSON.parse(m.frame).kind});queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{kind:'core',request_id:m.request_id,executor_epoch:m.executor_epoch,frame:JSON.stringify({kind:'error',id:m.request_id,message:error,revision:0})}})));return;}return originalWorkerPost.call(this,m,...args)}")
 
 
+
+def owned_options(control):
+    check(f"document.getElementById({control}.getAttribute('aria-controls'))?.getAttribute('role')==='listbox'")
+    refs = browser("snapshot", "-i")["refs"]
+    options = {}
+    for ref, item in refs.items():
+        if item["role"] != "option":
+            continue
+        option_id = browser("get", "attr", "@" + ref, "id")["value"]
+        if evaluate(f"document.getElementById({control}.getAttribute('aria-controls')).contains(document.getElementById({json.dumps(option_id)}))"):
+            options[ref] = item
+    return options
+
+
 def choose(name, role, label):
     browser("focus", driver.by_role_name(role, name))
+    evaluate("window.activeChoice=document.activeElement")
     if role == "combobox":
         browser("fill", driver.by_role_name(role, name), label)
         browser("press", "ArrowDown")
     else:
         browser("press", "Space")
-    refs = browser("snapshot", "-i")["refs"]
-    names = [item["name"] for item in refs.values() if item["role"] == "option"]
+    refs = owned_options("activeChoice")
+    names = [item["name"] for item in refs.values()]
     assert label in names, (label, names)
     if role != "combobox":
         browser("press", "Home")
@@ -164,7 +179,7 @@ def pickers(url, captures):
         check("getComputedStyle(relatedContent).overflow==='visible' && relatedContent.dataset.open==='true'")
         current = evaluate("relatedPicker.value || relatedPicker.textContent.trim()")
         browser("press", "ArrowDown" if role == "combobox" else "Space")
-        refs = browser("snapshot", "-i")["refs"]
+        refs = owned_options("relatedPicker")
         bottom = evaluate("relatedContent.getBoundingClientRect().bottom")
         height = evaluate("innerHeight")
         candidates = []
@@ -228,8 +243,9 @@ def validation(url, captures):
     browser("focus", driver.by_role_name("combobox", "Matrix part definition"))
     current = browser("get", "value", driver.by_role_name("combobox", "Matrix part definition"))["value"]
     browser("fill", driver.by_role_name("combobox", "Matrix part definition"), "")
+    evaluate("window.definitionPicker=document.activeElement")
     browser("press", "ArrowDown")
-    refs = browser("snapshot", "-i")["refs"]
+    refs = owned_options("definitionPicker")
     alternatives = [item["name"] for item in refs.values() if item["role"] == "option" and item["name"] != current and not item.get("disabled")]
     assert alternatives, refs
     browser("press", "Escape")
