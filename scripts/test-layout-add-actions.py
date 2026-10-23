@@ -39,6 +39,7 @@ def prepare(url, editor):
         click("Hide guide")
         click("Open Layout workspace")
     browser("wait", "--fn", "!!document.getElementById('m1-add-object-trigger')")
+    check("matchMedia('(hover:hover)').matches")
 
 
 def tests(url, editor, captures):
@@ -89,6 +90,8 @@ def tests(url, editor, captures):
                     focus_add()
                     before = evaluate("addClicks.length")
                     browser("press", key)
+                    print("Activation", "Editor" if editor else "Objects", width, theme, appearance, key,
+                          evaluate("({clicks:addClicks.length,expanded:actualAdd.getAttribute('aria-expanded')})"), flush=True)
                     browser("wait", "--fn", "actualAdd.getAttribute('aria-expanded')==='true'")
                     check(f"addClicks.length==={before + 1} && addClicks.every(Boolean)")
                     region = driver.by_role_name("region", "Add")
@@ -115,6 +118,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--page-url", required=True)
     args = parser.parse_args()
+    # Chromium headless defaults to no hover capability; exercise the canonical hover media rule.
+    os.environ["AGENT_BROWSER_ARGS"] = "\n".join(filter(None, [os.environ.get("AGENT_BROWSER_ARGS"),
+                                                               "--blink-settings=primaryHoverType=2"]))
+    print("Browser capability: emulated hover, not fine pointer or human acceptance", flush=True)
     env = os.environ.copy()
     env.setdefault("CARGO_PROFILE_DEV_DEBUG", "false")
     driver.run("cargo", "build", "--locked", "-p", "boardstudio-web-layout", "--example", "layout_add",

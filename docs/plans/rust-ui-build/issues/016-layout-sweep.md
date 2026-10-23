@@ -535,3 +535,31 @@ Text, target identity, selectable state, export availability and callbacks are
 unchanged. The existing mounted finding test now asserts the actual copied Alert
 and exactly one announcement while retaining every Core-message/export/editability
 assertion; this is the decided message adoption, not a domain behavior revision.
+
+
+The actual-owner adoption script passes at packaged `769570df`: all 12 populated
+Mirror captures, exact retained local axis node/draft through Theme/width/Sheet
+hide and inert focus refusal, accepted mirror at x24.246913578, precise Origin edit
+with preserved 18×18 measurements, and three exact separate Undo outcomes. Receipt
+`layout-actual-owner-adoption-1.log`, captures
+`.evidence/016/layout-adoption-20261022-210401/`. The later Outline message-only source
+change is not in that packaged page and has no callback/geometry overlap.
+
+The two-entry test with corrected real context reaches all 12 standalone combinations:
+Secondary default/focus/native disabled and actual Enter/Space open/Escape/focus work,
+but the narrow target is 40px (`add-two-actual-owners-context.log`). Its Editor run
+stops on Space. Targeted actual Editor diagnostic confirms Enter: one trusted native
+click, expanded true; Space: trusted keydown defaultPrevented=true, no click, expanded
+false (`add-native-space-hover-diagnostic.log`). The shared window pan listener only
+excludes text fields; 015's existing guard is correctly scoped to its toolbar root.
+No 015/012/Canvas/shared helper is changed. Added only a native/raw plus virtual
+Space propagation guard to each of the two owned Add Button callers, preserving
+default native activation and callbacks. Their copied caller class also supplies a
+44px narrow minimum (important only to coexist with the retained old owner minimum);
+desktop sizing and every adjacent CSS declaration stay unchanged.
+
+The apparent hover failure is separate: the same diagnostic proves `:hover` true
+but the headless browser reports `(hover:hover)` and `(pointer:fine)` false. The
+canonical copy correctly conditions hover on that media feature. No production
+hover CSS is altered; the harness will explicitly establish real fine-pointer
+emulation before checking that state and retain this original result.

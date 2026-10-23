@@ -17,6 +17,7 @@ use boardstudio_web_ui_shared::ui::{
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use existing_half::use_existing_half;
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -763,7 +764,16 @@ fn AddObjectEntry(
                             button_type: "button",
                             id: "m1-add-object-trigger",
                             aria_label: "Add object",
-                            class: "m1-layout-add-trigger",
+                            class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                            onkeydown: move |event: KeyboardEvent| {
+                                if event.key().to_string() == " " {
+                                    // Preserve native Add activation before the window pan shortcut.
+                                    event.stop_propagation();
+                                    if let Some(raw) = event.data().try_as_web_event() {
+                                        raw.stop_propagation();
+                                    }
+                                }
+                            },
                             aria_expanded: open_menu,
                             onclick: move |_| menu_open.set(!menu_open()),
 

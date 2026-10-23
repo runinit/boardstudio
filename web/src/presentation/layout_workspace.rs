@@ -13,6 +13,7 @@ use boardstudio_web_ui_shared::ui::{
     tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
+use dioxus_web::WebEventExt;
 use std::{cell::RefCell, rc::Rc};
 
 type TransformToolOwner = (
@@ -397,7 +398,16 @@ pub(super) fn add_object_header_action(mut menu_open: Signal<bool>) -> Element {
                 button_type: "button",
                 id: "m1-add-object-trigger",
                 aria_label: "Add object",
-                class: "m1-layout-add-trigger",
+                class: "m1-layout-add-trigger max-[760px]:min-h-control-touch!",
+                onkeydown: move |event: KeyboardEvent| {
+                    if event.key().to_string() == " " {
+                        // Preserve native Add activation before the window pan shortcut.
+                        event.stop_propagation();
+                        if let Some(raw) = event.data().try_as_web_event() {
+                            raw.stop_propagation();
+                        }
+                    }
+                },
                 aria_expanded: open,
                 onclick: move |_| menu_open.set(!menu_open()),
 
