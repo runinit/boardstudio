@@ -373,3 +373,54 @@ Documentation links: `boundary-doc-links.log` reports
 scope, `timeout 900 python3 scripts/check-doc-links.py`). `git diff --check`
 passed with no output (`boundary-diff-check.log`). The full three-file diff was
 read before the narrow commit; no unrelated semantic fixture changes were accepted.
+
+### Focused independent review and acceptance gate attempt — 2026-10-23
+
+The focused boundary correction independently passed Standards + Spec review.
+The zero-turn column-0 conversion succeeds and transfers only Y Stagger
+(`0 → 3`, next column `2 → -1`); the separately splayed column-2 conversion is
+refused. Intended chain/refusal assertions run before golden comparison/blessing.
+The fixture does not prove populated key-pose preservation; the existing
+`matrix_placement.rs` pose/history cases remain part of native verification.
+This focused pass is not the final ticket review; 17e and parent 17 remain claimed.
+
+Reverified branch `docs/ergogen-layout-comparison`, tested HEAD
+`c9a0699c3189ca899d81ad97ddd4c59bbada6455`, and only the preexisting untracked
+`web/crates/layout/prototype/`. The committed fixed-base inventory exactly matches
+`git diff --name-only a58a2bf187bd6d08b652dc739cd7c391709ff5c8
+c9a0699c3189ca899d81ad97ddd4c59bbada6455`: **114/114 existing paths**, zero
+deleted/missing paths. Those 114 paths (including Core, web, tests, fixtures,
+baseline and docs) were passed to `quick --files`; the ignored prototype was not.
+`BOUNDARY_BLESS` was unset; no golden/baseline updater flags were supplied.
+
+Fresh quick command, serialized with the shared build lock, 22 GiB/no-swap scope,
+3600-second timeout, `TMPDIR=/home/chris/.cache/tmp` and `RUST_TEST_THREADS=2`:
+
+```sh
+base=a58a2bf187bd6d08b652dc739cd7c391709ff5c8
+mapfile -t paths < <(git diff --name-only "$base" c9a0699c3189ca899d81ad97ddd4c59bbada6455)
+export TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2
+unset BOUNDARY_BLESS
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- timeout 3600 python3 scripts/check.py quick --files "${paths[@]}" --receipt .evidence/ergogen-17e/quick-receipt.json
+```
+
+Quick reached repo, tooling, lint, WASM page typecheck, native tests,
+`layout-test-css`, and browser. Repo/docs, lint, typecheck, native tests,
+layout-test-css and every scheduled crate browser launch passed. The log reports
+all **2,149 baseline test names executed**; the receipt records 1,993 native
+passed, 9 existing ignored, 0 failed/incomplete, 0 missing baseline names (1,993
+matched). Fourteen WASM test launches passed, **589 passed, 0 failed** across
+host, runtime, ui-model, ui-shared (two isolated groups), keycaps, library,
+keymap, catalogue, case, parts, pcb and layout (including setup guide).
+
+Quick is **not accepted**: its final line is
+`check: step 'browser' failed`. The page-suite command rejected the supplied JSON
+fixture as `run-wasm-tests: not a web/src Rust file:
+web/src/presentation/layout_layers_fixtures/paired-rejoin-preview.json`; the
+page suite is incomplete (0/0 observed), and provider/product browser smoke was
+not run. First failure log: `.evidence/ergogen-17e/quick.log`; receipt and summary:
+`.evidence/ergogen-17e/quick-receipt.json` and `.evidence/ergogen-17e/quick-receipt.json.md`.
+Per the stop rule, full was **not run**; no full receipt/log exists. This is a
+scheduler scope failure, not a source/fixture failure. No source, fixture,
+baseline or configuration change was made. Final independent ticket reviews remain
+pending; no closure or shipping approval is implied.
