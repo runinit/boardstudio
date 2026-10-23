@@ -891,3 +891,193 @@ fn column_bases_origins_and_prefix_exclude_own_rotation() {
     assert_eq!(layout.cells[2].pose.rotation, 180.0);
     assert_eq!(layout.columns[2].cumulative_stagger, 5.0);
 }
+
+/// Core projects `matrix` through its public requests, returning the opened scene's
+/// cells, the draft projection's cells and the persisted part ids.
+fn open_and_project(document: Value) -> (Value, Value, Vec<String>) {
+    use boardstudio_core::CoreEngine;
+    use serde_json::json;
+    let mut engine = CoreEngine::new();
+    let opened: Value = serde_json::from_str(
+        &engine.request(&json!({"kind":"open","id":"states","document":document}).to_string()),
+    )
+    .unwrap();
+    assert_eq!(opened["kind"], "scene", "{opened}");
+    let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
+    assert_eq!(draft["kind"], "matrix-projections", "{draft}");
+    let parts = opened["document"]["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|part| part["id"].as_str().unwrap().to_owned())
+        .collect();
+    (
+        opened["scene"]["matrixScenes"].clone(),
+        draft["matrixScenes"].clone(),
+        parts,
+    )
+}
+
+fn states_document(source_cell: Value, omit_mirror_first: bool) -> Value {
+    use boardstudio_core::model::ProjectDoc;
+    use serde_json::json;
+    let mut document = serde_json::to_value(ProjectDoc::empty("states", "States")).unwrap();
+    document["definitions"] =
+        json!([{"id":"key","name":"Key","kind":"switch","courtyard":[],"pads":[]}]);
+    let matrix = |id: &str, x: f64, cell: Value| {
+        let mut cells = vec![];
+        if !cell.is_null() {
+            cells.push(cell);
+        }
+        json!({"id":id,"definitionId":"key","boardId":"board","rows":3,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":0.0},"cells":cells,
+            "partIds":(0..3).map(|c| format!("matrix/{id}/r{c}c0")).collect::<Vec<_>>()})
+    };
+    let live = |cell: &Value, row: u64| {
+        cell["row"] != row || (cell["enabled"] != false && cell["deleted"] != true)
+    };
+    let mut parts = vec![];
+    let mut push = |id: String, x: f64| {
+        let n = parts.len() + 1;
+        parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{n}"),"pose":{"at":{"x":x,"y":-456.0},"rotation":17.0},"side":"front"}));
+    };
+    for column in 0..3u64 {
+        if live(&source_cell, column) {
+            push(format!("matrix/src/r{column}c0"), 1000.0 + column as f64);
+        }
+        if !(omit_mirror_first && column == 0) {
+            push(format!("matrix/mir/r{column}c0"), 2000.0 + column as f64);
+        }
+    }
+    let mut source = matrix("src", 0.0, source_cell.clone());
+    source["partIds"] = json!(
+        parts
+            .iter()
+            .filter_map(|p| p["id"]
+                .as_str()
+                .filter(|id| id.starts_with("matrix/src/"))
+                .map(|id| json!(id)))
+            .collect::<Vec<_>>()
+    );
+    let mut mirror = matrix("mir", 200.0, source_cell.clone());
+    mirror["partIds"] = json!(
+        parts
+            .iter()
+            .filter_map(|p| p["id"]
+                .as_str()
+                .filter(|id| id.starts_with("matrix/mir/"))
+                .map(|id| json!(id)))
+            .collect::<Vec<_>>()
+    );
+    let exceptions = if omit_mirror_first {
+        json!([{"kind":"part","mirrorId":"matrix/mir/r0c0","state":"omitted"}])
+    } else {
+        json!([])
+    };
+    let mut correspondences = vec![json!({"kind":"matrix","sourceId":"src","mirrorId":"mir"})];
+    if omit_mirror_first {
+        correspondences
+            .push(json!({"kind":"part","sourceId":"matrix/src/r0c0","mirrorId":"matrix/mir/r0c0"}));
+    }
+    document["boards"] = json!([{"id":"board","name":"Board","outlineIds":[],"netIds":[],"thickness":1.6,"partIds":parts.iter().map(|part| part["id"].clone()).collect::<Vec<_>>()}]);
+    document["parts"] = json!(parts);
+    document["matrices"] = json!([source, mirror]);
+    document["layouts"] = json!([
+        {"id":"source","name":"Source","boardId":"board","partIds":[],"matrixIds":["src"]},
+        {"id":"mirror","name":"Mirror","boardId":"board","partIds":[],"matrixIds":["mir"],
+         "mirrorLink":{"sourceId":"source","axisX":100.0,
+            "correspondences":correspondences,
+            "exceptions":exceptions}}
+    ]);
+    document
+}
+
+fn scene_cell<'a>(scenes: &'a Value, matrix: &str, row: u64) -> Option<&'a Value> {
+    scenes
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scene| scene["matrixId"] == matrix)?["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|cell| cell["row"] == row)
+}
+
+/// Ticket 16 Answer: the kernel proves supplied logical values carry, but not that
+/// production selects the right state. Enabled, deleted and omitted keys all keep
+/// their carried Shift and Bend in Core's actual and draft scenes and materialized parts.
+#[test]
+fn production_enabled_deleted_and_omitted_keys_carry_into_later_keys() {
+    use serde_json::json;
+    let carry = json!({"row":0,"column":0,"enabled":true,"shift":{"x":2.0,"y":0.0},"bend":90.0});
+    let (base_actual, base_draft, base_parts) =
+        open_and_project(states_document(carry.clone(), false));
+    assert!(base_parts.contains(&"matrix/src/r0c0".to_owned()));
+    let carried = |scenes: &Value, matrix: &str, column| {
+        scene_cell(scenes, matrix, column).unwrap()["pose"].clone()
+    };
+    assert_ne!(
+        carried(&base_actual, "src", 1),
+        json!({"at":{"x":19.05,"y":0.0},"rotation":0.0})
+    );
+
+    let mut disabled = carry.clone();
+    disabled["enabled"] = json!(false);
+    let mut deleted = carry.clone();
+    deleted["deleted"] = json!(true);
+    for (state, cell, omit) in [
+        ("disabled", disabled, false),
+        ("deleted", deleted, false),
+        ("omitted", carry.clone(), true),
+    ] {
+        let (actual, draft, parts) = open_and_project(states_document(cell, omit));
+        for (scenes, base) in [(&actual, &base_actual), (&draft, &base_draft)] {
+            for matrix in ["src", "mir"] {
+                for column in [1, 2] {
+                    assert_eq!(
+                        carried(scenes, matrix, column),
+                        carried(base, matrix, column),
+                        "{state} {matrix} r{column}"
+                    );
+                }
+            }
+        }
+        match state {
+            "disabled" => {
+                for scenes in [&actual, &draft] {
+                    let cell =
+                        scene_cell(scenes, "src", 0).expect("disabled key stays in the scene");
+                    assert_eq!(cell["enabled"], false);
+                    assert_eq!(cell["pose"], carried(&base_actual, "src", 0));
+                }
+                assert!(!parts.contains(&"matrix/src/r0c0".to_owned()));
+            }
+            "deleted" => {
+                for scenes in [&actual, &draft] {
+                    assert!(
+                        scene_cell(scenes, "src", 0).is_none(),
+                        "deleted key leaves the scene"
+                    );
+                }
+                assert!(!parts.contains(&"matrix/src/r0c0".to_owned()));
+            }
+            _ => {
+                assert!(
+                    !parts.contains(&"matrix/mir/r0c0".to_owned()),
+                    "omitted key is never rematerialized"
+                );
+                for scenes in [&actual, &draft] {
+                    let cell =
+                        scene_cell(scenes, "mir", 0).expect("omitted key keeps its logical cell");
+                    assert_eq!(cell["pose"], carried(&base_actual, "mir", 0));
+                    assert!(cell["memberId"].is_null());
+                }
+            }
+        }
+        for column in [1, 2] {
+            let id = format!("matrix/src/r{column}c0");
+            assert!(parts.contains(&id), "{state} {id}");
+        }
+    }
+}
