@@ -282,38 +282,22 @@ pub struct Matrix {
     pub edge_gap: Option<Vec2>,
     #[serde(rename = "diodeDirection", skip_serializing_if = "Option::is_none")]
     pub diode_direction: Option<DiodeDirection>,
-    #[serde(rename = "rowOffsets", default, skip_serializing_if = "Vec::is_empty")]
-    pub row_offsets: Vec<Vec2>,
-    #[serde(
-        rename = "columnOffsets",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_offsets: Vec<Vec2>,
-    #[serde(
-        rename = "columnStaggers",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_staggers: Vec<f64>,
-    #[serde(
-        rename = "columnSplays",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_splays: Vec<f64>,
-    #[serde(
-        rename = "columnOrigins",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub column_origins: Vec<Option<Vec2>>,
+    #[serde(rename = "columnLayout", default, skip_serializing_if = "Vec::is_empty")]
+    pub column_layout: Vec<ColumnLayout>,
+    #[serde(rename = "rowLayout", default, skip_serializing_if = "Vec::is_empty")]
+    pub row_layout: Vec<RowLayout>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<MatrixAnchor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cells: Vec<MatrixCell>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatrixCell {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shift: Option<Vec2>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bend: Option<f64>,
     /// Removed slots have neither generated members nor snapping geometry.
     #[serde(default, skip_serializing_if = "is_false")]
     pub deleted: bool,
@@ -337,6 +321,57 @@ pub struct MatrixCell {
     )]
     pub assemblies_local: Option<bool>,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct ColumnLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spread: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub stagger: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub splay: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub rotation: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub splay_origin: Vec2,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RowLayout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<f64>,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub shift: Vec2,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub bend: f64,
+    #[serde(skip_serializing_if = "is_zero_vec2")]
+    pub offset: Vec2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Follow {
+    pub x: bool,
+    pub y: bool,
+    pub rotation: bool,
+}
+impl Default for Follow {
+    fn default() -> Self {
+        Self { x: true, y: true, rotation: true }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MatrixAnchor {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    #[serde(default)]
+    pub follow: Follow,
+}
+fn is_zero_f64(value: &f64) -> bool { *value == 0.0 }
+fn is_zero_vec2(value: &Vec2) -> bool { *value == Vec2::default() }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixAssembly {
     pub id: String,
@@ -888,7 +923,7 @@ pub struct Layout {
     pub id: String,
     pub name: String,
     pub board_id: String,
-    pub matrix_id: String,
+    pub matrix_ids: Vec<String>,
     pub part_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror_link: Option<LayoutMirrorLink>,
@@ -898,6 +933,10 @@ pub struct Layout {
 pub struct LayoutMirrorLink {
     pub source_id: String,
     pub axis_x: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correspondences: Vec<MirroredCorrespondence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<MirroredException>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProjectDoc {

@@ -7,6 +7,7 @@
 
 use super::splay::rotate;
 use crate::model::{Mirror, Pose2, Vec2};
+pub use crate::model::{ColumnLayout, Follow, RowLayout};
 
 /// Geometry values only, not a persisted document or an editable parallel matrix model.
 /// Short axis lists and missing cells supply defaults. The default is a 2×2 matrix.
@@ -51,22 +52,6 @@ pub enum RawAnchorContext {
     },
 }
 
-#[derive(Clone, Copy)]
-pub struct Follow {
-    pub x: bool,
-    pub y: bool,
-    pub rotation: bool,
-}
-impl Default for Follow {
-    fn default() -> Self {
-        Self {
-            x: true,
-            y: true,
-            rotation: true,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 pub enum FollowBasis {
     #[default]
@@ -77,16 +62,6 @@ pub enum FollowBasis {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct ColumnLayout {
-    pub spread: Option<f64>,
-    pub stagger: f64,
-    pub splay: f64,
-    pub rotation: f64,
-    pub splay_origin: Vec2,
-    pub offset: Vec2,
-}
-
-#[derive(Clone, Copy, Default)]
 pub struct KeyLayout {
     pub row: usize,
     pub column: usize,
@@ -94,14 +69,6 @@ pub struct KeyLayout {
     pub bend: f64,
     pub offset: Vec2,
     pub rotation: f64,
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct RowLayout {
-    pub padding: Option<f64>,
-    pub shift: Vec2,
-    pub bend: f64,
-    pub offset: Vec2,
 }
 
 pub struct CellLayout {
