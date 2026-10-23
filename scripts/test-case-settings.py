@@ -73,16 +73,21 @@ def tests(url, evidence):
     browser("set", "viewport", 1440, 960)
     browser("open", url)
     browser("wait", "--text", "Case construction")
-    for name in ("Plate method", "Mount style", "Bottom construction"):
+    for name, first, last in (("Plate method", "PCB FR-4", "Cut sheet"), ("Mount style", "Tray", "Gasket mount"), ("Bottom construction", "Tray shell", "Flat sheet")):
         action("button", name, "focus")
         assert evaluate("document.activeElement.dataset.slot === 'select-trigger'")
         browser("press", "Enter")
         lists = [item for item in browser("snapshot")["refs"].values() if item["role"] == "listbox" and item["name"] == name]
         assert len(lists) == 1, (name, lists)
+        initial = evaluate("document.activeElement.textContent")
         browser("press", "ArrowDown")
+        assert evaluate("document.activeElement.textContent") != initial, "ArrowDown must move to another option"
         browser("press", "ArrowUp")
+        assert evaluate("document.activeElement.textContent") == initial, "ArrowUp must return to the initial option"
         browser("press", "Home")
+        assert evaluate("document.activeElement.textContent").strip() == first
         browser("press", "End")
+        assert evaluate("document.activeElement.textContent").strip() == last
         assert evaluate("document.activeElement.getAttribute('role') === 'option'")
         browser("press", "Escape")
         assert evaluate("document.activeElement.getAttribute('aria-label')") == name
@@ -105,7 +110,7 @@ def tests(url, evidence):
         point = evaluate("""(()=>{const box=document.activeElement,label=box.labels[0];
             if(!box.id || label.htmlFor!==box.id) throw Error('associated unique label required');
             const r=label.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()""")
-        browser("mouse", "move", point["x"], point["y"])
+        browser("mouse", "move", round(point["x"]), round(point["y"]))
         browser("mouse", "down")
         browser("mouse", "up")
         assert int(status("Requests")) == before + 2, "label must activate exactly once"
@@ -121,10 +126,10 @@ def tests(url, evidence):
     browser("press", "Tab")
     assert status("Accepted plate thickness") == precise
     assert int(status("Requests")) == before + 1
-    action("spinbutton", "Plate thickness", "fill", "0.05")
+    action("spinbutton", "Plate thickness", "fill", "-1")
     browser("press", "Tab")
     action("spinbutton", "Plate thickness", "focus")
-    assert evaluate("document.activeElement.value") == "0.05"
+    assert evaluate("document.activeElement.value") == "-1"
     assert evaluate("document.activeElement.getAttribute('aria-invalid')") == "true"
     assert evaluate("document.getElementById(document.activeElement.getAttribute('aria-describedby')).textContent.length>0")
     assert int(status("Requests")) == before + 1
@@ -189,6 +194,9 @@ def tests(url, evidence):
     browser("press", "ArrowDown")
     browser("press", "Escape")
     assert evaluate("document.activeElement.getAttribute('role')") == "combobox"
+    assert evaluate("document.activeElement.getAttribute('aria-expanded')") == "false"
+    browser("press", "Tab")
+    assert evaluate("document.activeElement.getAttribute('role') !== 'option'"), "closed Combobox options stay out of Tab order"
     action("button", "Twelve profile targets")
     action("button", "Assign library fit profile to")
     browser("press", "End")
@@ -233,6 +241,12 @@ def tests(url, evidence):
     print("PASS production Case Select/Combobox/Checkbox/Collapsible/Toggle controls; precise native entry, validation, retained local geometry drafts, real Core extraction; both Themes/Appearances and mid/narrow captures", flush=True)
 
 
+def dismiss_notifications():
+    for ref, item in browser("snapshot", "-i")["refs"].items():
+        if item.get("role") == "button" and item.get("name") == "close":
+            browser("click", "@"+ref)
+
+
 def page_tests(url, evidence):
     """The packaged app, its Runtime, durable save and real Undo/Redo owners."""
     browser("set", "viewport", 1440, 960)
@@ -247,6 +261,7 @@ def page_tests(url, evidence):
     action("button", "Create matrix")
     browser("wait", "--text", "Matrix 1")
     action("button", "Open Case workspace")
+    dismiss_notifications()
     action("button", "Configure mechanical stack")
     browser("wait", "--text", "Dimensions and clearances")
     action("spinbutton", "Wall thickness", "focus")
@@ -283,7 +298,7 @@ def page_tests(url, evidence):
     action("spinbutton", "Wall thickness", "fill", precise)
     browser("press", "Escape")
     browser("wait", "--fn", f"document.activeElement.value === {json.dumps(original)}")
-    action("spinbutton", "Wall thickness", "fill", "0.05")
+    action("spinbutton", "Wall thickness", "fill", "-1")
     browser("press", "Tab")
     action("spinbutton", "Wall thickness", "focus")
     assert evaluate("document.activeElement.getAttribute('aria-invalid')") == "true"
@@ -312,11 +327,10 @@ def page_tests(url, evidence):
             action("button", "Settings")
             action("menuitemradio", appearance)
             browser("wait", "--fn", "document.fonts.status==='loaded'")
+            browser("wait", "--fn", "[...document.querySelectorAll('[data-slot=dropdown-menu-content]')].every(menu=>getComputedStyle(menu).opacity==='0' || menu.getClientRects().length===0)")
+            dismiss_notifications()
             action("spinbutton", "Wall thickness", "focus")
             assert evaluate("document.activeElement.value") == precise
-            for ref, item in browser("snapshot", "-i")["refs"].items():
-                if item.get("role") == "button" and item.get("name") == "close":
-                    browser("click", "@"+ref)
             browser("screenshot", str(evidence/f"page-{theme.lower()}-{appearance.lower()}.png"))
     (evidence/"page-result.json").write_text(json.dumps({"original":original,"precise":precise,"nativeEscape":True,"validation":True,"undo":True,"redo":True,"saved":saved,"undone":undone,"redone":redone,"themes":4,"browserErrors":browser("errors").get("errors",[])},indent=2)+"\n")
     print("PASS packaged Case Runtime: native precision/validation/Escape, durable save, exact Undo/Redo, four Theme/Appearance captures",flush=True)
