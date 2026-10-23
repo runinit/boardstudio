@@ -89,6 +89,14 @@ BoardStudio extended layout feature working.
   - `skip` and `asym` filter keys after layout.
   - Width, height and autobind are outside layout parity.
   - Fixture scenarios are listed.
+- [03: Design the parity fixture pipeline](issues/03-parity-fixture-pipeline.md#answer):
+  - An opt-in `scripts/generate-ergogen-parity-fixtures.cjs` runs ergogen pinned at
+    `8286e18f`, with exact Maker.js and Math.js versions and a lockfile.
+  - It writes committed JSON goldens that carry provenance and ergogen key names.
+  - Rust compares poses by `(matrix, row, column)` within `1e-9`.
+  - Licence notices travel with the tooling.
+  - The old projection oracle is replaced by regenerated BoardStudio-only regressions (see the
+    ticket's comment).
 
 ## Not yet specified
 
