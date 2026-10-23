@@ -708,6 +708,8 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|column| MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
                     row: 0,
                     column,
                     enabled: true,
@@ -720,6 +722,10 @@ mod tests {
                 .collect(),
             columns: (0..3)
                 .map(|column| MatrixColumnBasis {
+base: Default::default(),
+rotation: 0.0,
+relative_origin: Default::default(),
+spread_axis: None,
                     column,
                     splay_origin: point(0.0, 0.0),
                     splay_angle: 0.0,
@@ -935,6 +941,8 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|row| MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
                     row,
                     column: 0,
                     enabled: true,
@@ -946,6 +954,10 @@ mod tests {
                 })
                 .collect(),
             columns: vec![MatrixColumnBasis {
+base: Default::default(),
+rotation: 0.0,
+relative_origin: Default::default(),
+spread_axis: None,
                 column: 0,
                 splay_origin: point(0.0, 0.0),
                 splay_angle: 0.0,
@@ -1037,6 +1049,8 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|row| MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
                     row,
                     column: 0,
                     enabled: true,
@@ -1048,6 +1062,10 @@ mod tests {
                 })
                 .collect(),
             columns: vec![MatrixColumnBasis {
+base: Default::default(),
+rotation: 0.0,
+relative_origin: Default::default(),
+spread_axis: None,
                 column: 0,
                 splay_origin: point(0.0, 0.0),
                 splay_angle: 0.0,

@@ -244,6 +244,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             companions: vec![],
             cells: vec![
                 MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -254,6 +256,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                     },
                 },
                 MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -398,6 +402,8 @@ fn companion_placement_projection_normalizes_layout_selections() {
     scene.matrix_scenes.push(MatrixScene {
         matrix_id: "component-matrix".into(),
         cells: vec![MatrixSceneCell {
+shift_frame: Default::default(),
+offset_frame: Default::default(),
             row: 0,
             column: 0,
             enabled: true,

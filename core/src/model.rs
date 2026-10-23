@@ -2037,11 +2037,21 @@ pub struct MatrixSceneCell {
     #[serde(rename = "memberId", skip_serializing_if = "Option::is_none")]
     pub member_id: Option<String>,
     pub pose: Pose2,
+    #[serde(rename = "shiftFrame")]
+    pub shift_frame: crate::matrix::kernel::ComposedFrame,
+    #[serde(rename = "offsetFrame")]
+    pub offset_frame: crate::matrix::kernel::ComposedFrame,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixColumnBasis {
     pub column: u32,
+    pub base: Vec2,
+    pub rotation: f64,
+    #[serde(rename = "relativeOrigin")]
+    pub relative_origin: Vec2,
+    #[serde(rename = "spreadAxis", skip_serializing_if = "Option::is_none")]
+    pub spread_axis: Option<Vec2>,
     #[serde(rename = "splayOrigin")]
     pub splay_origin: Vec2,
     #[serde(rename = "splayAngle")]

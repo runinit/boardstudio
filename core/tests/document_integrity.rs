@@ -132,6 +132,52 @@ fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically
 }
 
 #[test]
+fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
+    for (enabled, deleted) in [(false, false), (true, true), (true, false)] {
+        let mut document = baseline();
+        document["constraints"] = json!([]);
+        document["parts"] = json!([{
+            "id": "matrix/matrix/r1c0", "definitionId": "def", "reference": "SW1",
+            "pose": {"at": {"x": 0, "y": 0}, "rotation": 0}, "side": "front"
+        }]);
+        document["boards"][0]["partIds"] = json!(["matrix/matrix/r1c0"]);
+        document["matrices"][0]["rows"] = json!(2);
+        document["matrices"][0]["columns"] = json!(1);
+        document["matrices"][0]["partIds"] = json!(["matrix/matrix/r1c0"]);
+        document["matrices"][0]["cells"] = json!([{
+            "row": 0, "column": 0, "enabled": enabled, "deleted": deleted,
+            "shift": {"x": 2.0, "y": 0.0}, "bend": 90.0
+        }]);
+        document["matrices"].as_array_mut().unwrap().push(json!({
+            "id": "child", "boardId": "board", "rows": 1, "columns": 1,
+            "pitch": {"x": 19.0, "y": 19.0}, "origin": {"x": 0.0, "y": -19.0},
+            "definitionId": "def", "partIds": [],
+            "anchor": {"matrixId": "matrix", "row": 0, "column": 0}
+        }));
+        document["layouts"] = json!([{
+            "id": "layout", "name": "Layout", "boardId": "board",
+            "matrixIds": ["child", "matrix"], "partIds": []
+        }]);
+        let mut engine = CoreEngine::new();
+        let reply = open(&mut engine, "carried", &document);
+        assert_eq!(reply["kind"], "scene", "{reply}");
+        let parent = &reply["scene"]["matrixScenes"][0];
+        let later = parent["cells"].as_array().unwrap().iter().find(|cell| cell["row"] == 1).unwrap();
+        assert!((later["pose"]["at"]["x"].as_f64().unwrap() + 17.0).abs() < 1e-9);
+        assert!(later["pose"]["at"]["y"].as_f64().unwrap().abs() < 1e-9);
+        assert_eq!(later["pose"]["rotation"], 90.0);
+        assert_eq!(reply["document"]["parts"][0]["pose"], later["pose"]);
+        assert!((later["offsetFrame"]["axisX"]["y"].as_f64().unwrap() - 1.0).abs() < 1e-9);
+        let child = &reply["scene"]["matrixScenes"][1]["cells"][0];
+        assert!((child["pose"]["at"]["x"].as_f64().unwrap() - 21.0).abs() < 1e-9);
+        assert_eq!(child["pose"]["rotation"], 90.0);
+        if !enabled || deleted {
+            assert!(!reply["document"]["parts"].as_array().unwrap().iter().any(|part| part["id"] == "matrix/matrix/r0c0"));
+        }
+    }
+}
+
+#[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     use boardstudio_core::migrate::CURRENT_VERSION;
 
@@ -151,7 +197,7 @@ fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
             (json!(CURRENT_VERSION - 1), "No conversion is available"),
             (json!(CURRENT_VERSION + 1), "compatible newer build"),
             (json!(0), "invalid formatVersion"),
-            (json!("7"), "invalid type"),
+            (json!("7"), "invalid formatVersion"),
         ] {
             let mut candidate = baseline();
             candidate["formatVersion"] = version;

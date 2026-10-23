@@ -25,9 +25,8 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             return Err("Layout matrix membership must be nonempty".into());
         }
         for id in &layout.matrix_ids {
-            let matrix = doc.matrices.iter().find(|matrix| &matrix.id == id)
-                .ok_or("Layout matrix is missing")?;
-            if !matrices.insert(&matrix.id) || matrix.board_id.as_ref() != Some(&board.id) {
+            let matrix = matrix::evaluation::logical_matrix(id, doc)?;
+            if !matrices.insert(matrix.id.clone()) || matrix.board_id.as_ref() != Some(&board.id) {
                 return Err("Each layout must own distinct matrices on its board".into());
             }
         }
@@ -359,8 +358,49 @@ pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     for source in sources.into_iter().flatten() {
         sync(doc, &source)?;
     }
+    matrix::placement::carrying_authored_companions(doc, matrix::placement::Reported::PreserveEditReport, |doc| {
+        for index in matrix::evaluation::order(doc)? {
+            let matrix = &doc.matrices[index];
+            let evaluated = matrix::evaluated(matrix, doc)?;
+            let mut poses = BTreeMap::new();
+            for geometry in &evaluated.cells {
+                let id = matrix::member_id(&matrix.id, geometry.row as u32, geometry.column as u32);
+                if exception_state(doc, MirroredItemKind::Part, &id) == Some(MirroredExceptionState::Local) {
+                    continue;
+                }
+                poses.insert(id.clone(), geometry.pose);
+                if let Some(cell) = matrix.cells.iter().find(|cell| cell.row == geometry.row as u32 && cell.column == geometry.column as u32) {
+                    for assembly in &cell.assemblies {
+                        let id = matrix::companion_id(&id, &assembly.id);
+                        if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
+                            let at = matrix::splay::rotate(assembly.offset, geometry.pose.rotation, Vec2::default());
+                            poses.insert(id, Pose2 { at: Vec2 { x: geometry.pose.at.x + at.x, y: geometry.pose.at.y + at.y }, rotation: geometry.pose.rotation + assembly.rotation.unwrap_or_default() });
+                        }
+                    }
+                }
+            }
+            for part in &mut doc.parts {
+                if let Some(pose) = poses.get(&part.id)
+                    && !part.properties.as_ref().is_some_and(|properties| properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))) {
+                    part.pose = *pose;
+                }
+            }
+        }
+        Ok(vec![])
+    })?;
     sync_components(doc)?;
     Ok(())
+}
+
+pub(crate) fn exception_state(doc: &ProjectDoc, kind: MirroredItemKind, id: &str) -> Option<MirroredExceptionState> {
+    doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).flat_map(|link| &link.exceptions)
+        .chain(doc.hardware.iter().flat_map(|hardware| &hardware.pairs).filter_map(|pair| pair.halves.as_ref()).flat_map(|halves| &halves.exceptions))
+        .find(|exception| exception.kind == kind && exception.mirror_id == id).map(|exception| exception.state)
+}
+
+pub(crate) fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
+    exception_state(doc, MirroredItemKind::Part, key_id)
+        .or_else(|| exception_state(doc, MirroredItemKind::Matrix, matrix_id)) == Some(MirroredExceptionState::Omitted)
 }
 
 pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {

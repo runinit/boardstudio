@@ -330,7 +330,7 @@ pub(crate) fn project_matrix(
             }
             let enabled = cell.is_none_or(|item| item.enabled);
             let member_id = if enabled {
-                members.get(&(row, column)).cloned()
+                members.get(&(row, column)).filter(|id| by_id.contains_key(id.as_str())).cloned()
             } else {
                 None
             };
@@ -353,6 +353,8 @@ pub(crate) fn project_matrix(
                     member_id
                 },
                 pose,
+                shift_frame: evaluated.cells.iter().find(|cell| cell.row == row as usize && cell.column == column as usize).ok_or("Key shift frame is missing")?.shift_frame,
+                offset_frame: evaluated.cells.iter().find(|cell| cell.row == row as usize && cell.column == column as usize).ok_or("Key offset frame is missing")?.offset_frame,
             });
         }
     }
@@ -361,6 +363,10 @@ pub(crate) fn project_matrix(
         cells: projected,
         columns: evaluated.columns.iter().enumerate().map(|(column, frame)| MatrixColumnBasis {
             column: column as u32,
+            base: frame.base,
+            rotation: frame.rotation,
+            relative_origin: frame.relative_origin,
+            spread_axis: frame.spread_axis,
             splay_origin: frame.splay_origin,
             splay_angle: frame.splay,
             custom_origin: frame.custom_origin,
@@ -601,6 +607,9 @@ pub fn set_matrix(doc: &mut ProjectDoc, incoming: &Matrix) -> Result<Vec<String>
                 continue;
             }
             let id = member_id(&incoming.id, row, column);
+            if layout::omitted(doc, &incoming.id, &id) {
+                continue;
+            }
             let pose = evaluation::cell_pose(&evaluated, row, column)?;
             let mut members = vec![(
                 id,

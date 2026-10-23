@@ -2750,7 +2750,7 @@ fn new_matrix_rejects_out_of_bounds_edits() {
                 for (record, value) in value.row_layout.iter_mut().zip(values) { record.offset = value; }
             }
     assert!(
-        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "Matrix offsets exceed dimensions")
+        matches!(engine.handle(edit(0, EditPhase::Commit, EditOperation::SetMatrix { matrix: value.clone(), definitions: None })), CoreReply::Error { message, .. } if message == "layout list exceeds axis count")
     );
     value.row_layout.iter_mut().for_each(|record| record.offset = Vec2::default());
     value.cells = vec![MatrixCell {

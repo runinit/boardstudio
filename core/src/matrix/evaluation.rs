@@ -2,6 +2,51 @@
 use super::kernel::{self, FollowBasis, KeyLayout, LayoutInput, MatrixLayout, RawAnchorContext};
 use crate::model::{Matrix, Pose2, ProjectDoc, Vec2};
 use std::collections::BTreeSet;
+use std::borrow::Cow;
+
+/// Omitted owners have a live logical matrix, but never recreate persisted parts.
+pub(crate) fn logical_matrix<'a>(id: &str, doc: &'a ProjectDoc) -> Result<Cow<'a, Matrix>, String> {
+    if let Some(matrix) = doc.matrices.iter().find(|matrix| matrix.id == id) {
+        return Ok(Cow::Borrowed(matrix));
+    }
+    use crate::model::{MirroredExceptionState, MirroredItemKind};
+    let links = doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).map(|link| (&link.correspondences, &link.exceptions, super::layout::axis_mapping(link.axis_x)))
+        .chain(doc.hardware.iter().flat_map(|hardware| &hardware.pairs).filter_map(|pair| pair.halves.as_ref().map(|halves| (&halves.correspondences, &halves.exceptions, pair.mapping))));
+    for (records, exceptions, mapping) in links {
+        let Some(record) = records.iter().find(|record| record.kind == MirroredItemKind::Matrix && record.mirror_id == id) else { continue; };
+        if !exceptions.iter().any(|exception| exception.kind == MirroredItemKind::Matrix && exception.mirror_id == id && exception.state == MirroredExceptionState::Omitted) { continue; }
+        let source = doc.matrices.iter().find(|matrix| matrix.id == record.source_id).ok_or("Omitted matrix source is missing")?;
+        let mut target = source.clone();
+        target.id = id.to_owned();
+        target.board_id = doc.layouts.iter().find(|layout| layout.matrix_ids.iter().any(|member| member == id)).map(|layout| layout.board_id.clone());
+        if let Some(anchor) = &mut target.anchor {
+            anchor.matrix_id = records.iter().find(|record| record.kind == MirroredItemKind::Matrix && record.source_id == anchor.matrix_id)
+                .ok_or("Omitted matrix anchor correspondence is missing")?.mirror_id.clone();
+        }
+        return super::layout::reflected(source, &target, mapping, false).map(Cow::Owned);
+    }
+    Err(format!("Logical matrix {id} is missing"))
+}
+
+pub(crate) fn order(doc: &ProjectDoc) -> Result<Vec<usize>, String> {
+    fn visit(index: usize, doc: &ProjectDoc, visiting: &mut BTreeSet<usize>, done: &mut BTreeSet<usize>, result: &mut Vec<usize>) -> Result<(), String> {
+        if done.contains(&index) { return Ok(()); }
+        if !visiting.insert(index) { return Err(format!("Matrix anchor cycle at {}", doc.matrices[index].id)); }
+        if let Some(anchor) = &doc.matrices[index].anchor
+            && let Some(target) = doc.matrices.iter().position(|matrix| matrix.id == anchor.matrix_id) {
+            visit(target, doc, visiting, done, result)?;
+        }
+        visiting.remove(&index);
+        done.insert(index);
+        result.push(index);
+        Ok(())
+    }
+    let mut result = Vec::new();
+    let mut visiting = BTreeSet::new();
+    let mut done = BTreeSet::new();
+    for index in 0..doc.matrices.len() { visit(index, doc, &mut visiting, &mut done, &mut result)?; }
+    Ok(result)
+}
 
 pub(crate) fn input(matrix: &Matrix) -> LayoutInput {
     LayoutInput {
@@ -34,8 +79,8 @@ fn resolve(matrix: &Matrix, doc: &ProjectDoc, visiting: &mut BTreeSet<String>) -
         return Err(format!("Matrix anchor cycle at {}", matrix.id));
     }
     let context = if let Some(anchor) = &matrix.anchor {
-        let target = doc.matrices.iter().find(|m| m.id == anchor.matrix_id)
-            .ok_or_else(|| format!("Matrix {} anchor target {} is missing", matrix.id, anchor.matrix_id))?;
+        let target = logical_matrix(&anchor.matrix_id, doc)
+            .map_err(|_| format!("Matrix {} anchor target {} is missing", matrix.id, anchor.matrix_id))?;
         let owner = doc.layouts.iter().find(|l| l.matrix_ids.contains(&matrix.id))
             .ok_or_else(|| format!("Anchored matrix {} must belong to a Layout", matrix.id))?;
         if !owner.matrix_ids.contains(&target.id) || target.board_id != matrix.board_id {
@@ -45,7 +90,7 @@ fn resolve(matrix: &Matrix, doc: &ProjectDoc, visiting: &mut BTreeSet<String>) -
         if doc.constraint_driving_part(&key_id)?.is_some() {
             return Err(format!("Matrix {} anchor key {} is constraint-driven", matrix.id, key_id));
         }
-        let target_layout = resolve(target, doc, visiting)?;
+        let target_layout = resolve(&target, doc, visiting)?;
         let logical = target_layout.cells.iter().find(|cell| cell.row == anchor.row as usize && cell.column == anchor.column as usize)
             .ok_or_else(|| format!("Matrix {} anchor key {} is missing", matrix.id, key_id))?;
         let pose = doc.parts.iter().find(|part| part.id == key_id).map_or(logical.pose, |part| part.pose);

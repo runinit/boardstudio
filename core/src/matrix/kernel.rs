@@ -81,6 +81,8 @@ pub struct CellLayout {
 }
 
 /// An evaluated world frame, never a raw input anchor. Axes retain mirror handedness.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ComposedFrame {
     pub origin: Vec2,
     pub rotation: f64,
