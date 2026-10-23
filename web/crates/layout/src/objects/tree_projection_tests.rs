@@ -86,6 +86,8 @@ async fn tree_projection_skips_runtime_updates_and_tracks_disclosures_grouping_a
         root.text_content().unwrap().contains("Switches")
     })
     .await;
+    assert_eq!(select.text_content().as_deref(), Some("By part"),
+        "the actual controlled trigger must follow the accepted local grouping");
     let mut changed = runtime.model().accepted.unwrap().document.as_ref().clone();
     changed.boards[0].name = "Updated board".into();
     support::replace_document(&runtime, "tree-update", &changed.id.clone(), changed).await;
