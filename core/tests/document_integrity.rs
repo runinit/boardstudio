@@ -117,8 +117,14 @@ fn grouped_layout_validation_refuses_bad_lists_and_unresolved_anchors_atomically
         ("rowLayout", json!([{}, {}])),
         ("columnLayout", json!([{"spread": 0.0}])),
         ("rowLayout", json!([{"padding": -2.0}])),
-        ("anchor", json!({"matrixId": "missing", "row": 0, "column": 0})),
-        ("anchor", json!({"matrixId": "matrix", "row": 0, "column": 0})),
+        (
+            "anchor",
+            json!({"matrixId": "missing", "row": 0, "column": 0}),
+        ),
+        (
+            "anchor",
+            json!({"matrixId": "matrix", "row": 0, "column": 0}),
+        ),
     ] {
         let mut invalid = document.clone();
         invalid["matrices"][0][field] = value;
@@ -162,7 +168,12 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
         let reply = open(&mut engine, "carried", &document);
         assert_eq!(reply["kind"], "scene", "{reply}");
         let parent = &reply["scene"]["matrixScenes"][0];
-        let later = parent["cells"].as_array().unwrap().iter().find(|cell| cell["row"] == 1).unwrap();
+        let later = parent["cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|cell| cell["row"] == 1)
+            .unwrap();
         assert!((later["pose"]["at"]["x"].as_f64().unwrap() + 17.0).abs() < 1e-9);
         assert!(later["pose"]["at"]["y"].as_f64().unwrap().abs() < 1e-9);
         assert_eq!(later["pose"]["rotation"], 90.0);
@@ -172,7 +183,13 @@ fn production_layout_keeps_invisible_carried_steps_and_anchor_frames() {
         assert!((child["pose"]["at"]["x"].as_f64().unwrap() - 21.0).abs() < 1e-9);
         assert_eq!(child["pose"]["rotation"], 90.0);
         if !enabled || deleted {
-            assert!(!reply["document"]["parts"].as_array().unwrap().iter().any(|part| part["id"] == "matrix/matrix/r0c0"));
+            assert!(
+                !reply["document"]["parts"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|part| part["id"] == "matrix/matrix/r0c0")
+            );
         }
     }
 }
@@ -199,7 +216,10 @@ fn omitted_matrix_membership_keeps_a_live_anchor_without_materialized_parts() {
     mirror_child["id"] = json!("mirror-child");
     mirror_child["anchor"]["matrixId"] = json!("omitted");
     mirror_child["mirror"] = json!("x");
-    document["matrices"].as_array_mut().unwrap().extend([mirror_child, child]);
+    document["matrices"]
+        .as_array_mut()
+        .unwrap()
+        .extend([mirror_child, child]);
     document["layouts"] = json!([
         {"id": "source", "name": "Source", "boardId": "board", "matrixIds": ["child", "matrix"], "partIds": []},
         {"id": "mirror", "name": "Mirror", "boardId": "board", "matrixIds": ["omitted", "mirror-child"], "partIds": [],
@@ -215,19 +235,49 @@ fn omitted_matrix_membership_keeps_a_live_anchor_without_materialized_parts() {
     let mut engine = CoreEngine::new();
     let opened = open(&mut engine, "omitted", &document);
     assert_eq!(opened["kind"], "scene", "{opened}");
-    let child_pose = |reply: &Value| reply["document"]["parts"].as_array().unwrap().iter().find(|part| part["id"] == "matrix/mirror-child/r0c0").unwrap()["pose"].clone();
+    let mut invalid = opened["document"].clone();
+    let records = invalid["layouts"][1]["mirrorLink"]["correspondences"]
+        .as_array_mut()
+        .unwrap();
+    records.push(records[0].clone());
+    assert_error(&open(&mut engine, "duplicate-correspondence", &invalid));
+    assert_eq!(snapshot(&mut engine), opened["document"]);
+    let child_pose = |reply: &Value| {
+        reply["document"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|part| part["id"] == "matrix/mirror-child/r0c0")
+            .unwrap()["pose"]
+            .clone()
+    };
     assert!((child_pose(&opened)["at"]["x"].as_f64().unwrap() - 79.0).abs() < 1e-9);
     assert_eq!(child_pose(&opened)["rotation"], -90.0);
     let mut changed = opened["document"]["matrices"][0].clone();
     changed["cells"][0]["shift"]["x"] = json!(5.0);
-    let edited = request(&mut engine, json!({"kind":"edit","id":"move-source","command":{
-        "baseRevision":0,"transactionId":"move-source","phase":"commit","targetIds":[],
-        "operation":{"kind":"set-matrix","matrix":changed}
-    }}));
+    let edited = request(
+        &mut engine,
+        json!({"kind":"edit","id":"move-source","command":{
+            "baseRevision":0,"transactionId":"move-source","phase":"commit","targetIds":[],
+            "operation":{"kind":"set-matrix","matrix":changed}
+        }}),
+    );
     assert_eq!(edited["kind"], "scene", "{edited}");
-    assert!((child_pose(&edited)["at"]["x"].as_f64().unwrap() - 76.0).abs() < 1e-9, "{edited}");
-    assert!(!edited["document"]["parts"].as_array().unwrap().iter().any(|part| part["id"].as_str().unwrap().starts_with("matrix/omitted/")));
-    assert_eq!(edited["document"]["layouts"][1]["matrixIds"], json!(["omitted", "mirror-child"]));
+    assert!(
+        (child_pose(&edited)["at"]["x"].as_f64().unwrap() - 76.0).abs() < 1e-9,
+        "{edited}"
+    );
+    assert!(
+        !edited["document"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|part| part["id"].as_str().unwrap().starts_with("matrix/omitted/"))
+    );
+    assert_eq!(
+        edited["document"]["layouts"][1]["matrixIds"],
+        json!(["omitted", "mirror-child"])
+    );
     let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
     assert_eq!(child_pose(&undone), child_pose(&opened));
     let redone = request(&mut engine, json!({"kind":"redo","id":"redo"}));
@@ -245,27 +295,42 @@ fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() 
     matrix["columns"] = json!(3);
     matrix["columnLayout"] = json!([{"splay": 12.0}, {"rotation": 18.0}]);
     matrix["rowLayout"] = json!([{"bend": 30.0}]);
-    let mut accepted = request(&mut engine, json!({"kind":"edit","id":"setup","command":{
-        "baseRevision":0,"transactionId":"setup","phase":"commit","targetIds":[],
-        "operation":{"kind":"set-matrix","matrix":matrix}
-    }}));
+    let mut accepted = request(
+        &mut engine,
+        json!({"kind":"edit","id":"setup","command":{
+            "baseRevision":0,"transactionId":"setup","phase":"commit","targetIds":[],
+            "operation":{"kind":"set-matrix","matrix":matrix}
+        }}),
+    );
     assert_eq!(accepted["kind"], "scene", "{accepted}");
     for column in 0..3 {
-        let edited = request(&mut engine, json!({"kind":"edit","id":"align","command":{
-            "baseRevision":accepted["document"]["revision"],"transactionId":"align","phase":"commit","targetIds":[],
-            "operation":{"kind":"set-matrix-placement","matrixId":"matrix", "change":{
-                "kind":"column-translation", "column":column, "delta":{"x":3.0,"y":4.0}
-            }}
-        }}));
+        let edited = request(
+            &mut engine,
+            json!({"kind":"edit","id":"align","command":{
+                "baseRevision":accepted["document"]["revision"],"transactionId":"align","phase":"commit","targetIds":[],
+                "operation":{"kind":"set-matrix-placement","matrixId":"matrix", "change":{
+                    "kind":"column-translation", "column":column, "delta":{"x":3.0,"y":4.0}
+                }}
+            }}),
+        );
         assert_eq!(edited["kind"], "scene", "{edited}");
         for row in 0..2 {
             for other in 0..3 {
                 let id = format!("matrix/matrix/r{row}c{other}");
-                let pose = |reply: &Value| reply["document"]["parts"].as_array().unwrap().iter().find(|part| part["id"] == id).unwrap()["pose"].clone();
+                let pose = |reply: &Value| {
+                    reply["document"]["parts"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|part| part["id"] == id)
+                        .unwrap()["pose"]
+                        .clone()
+                };
                 let before = pose(&accepted);
                 let after = pose(&edited);
                 for (axis, amount) in [("x", 3.0), ("y", 4.0)] {
-                    let expected = before["at"][axis].as_f64().unwrap() + if other == column { amount } else { 0.0 };
+                    let expected = before["at"][axis].as_f64().unwrap()
+                        + if other == column { amount } else { 0.0 };
                     assert!((after["at"][axis].as_f64().unwrap() - expected).abs() < 1e-9);
                 }
                 assert_eq!(after["rotation"], before["rotation"]);
@@ -273,6 +338,87 @@ fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() 
         }
         accepted = edited;
     }
+}
+
+#[test]
+fn explicit_steps_survive_pitch_edits_and_compaction_drops_only_removed_records() {
+    let mut document = baseline();
+    document["constraints"] = json!([]);
+    document["parameters"]["unrelated"] = json!({"keep": [1, 2, 3]});
+    let mut engine = CoreEngine::new();
+    assert_eq!(open(&mut engine, "steps", &document)["kind"], "scene");
+    let mut matrix = document["matrices"][0].clone();
+    matrix["rows"] = json!(4);
+    matrix["columns"] = json!(4);
+    matrix["columnLayout"] = json!([{}, {"spread": -5.0, "stagger": 2.0}, {"spread": 30.0}]);
+    matrix["rowLayout"] = json!([{}, {"padding": 0.0}, {"padding": -4.0}]);
+    let set = |engine: &mut CoreEngine, revision: u64, matrix: Value| {
+        let reply = request(
+            engine,
+            json!({"kind":"edit","id":"steps","command":{
+                "baseRevision":revision,"transactionId":"steps","phase":"commit","targetIds":[],
+                "operation":{"kind":"set-matrix","matrix":matrix}
+            }}),
+        );
+        assert_eq!(reply["kind"], "scene", "{reply}");
+        reply
+    };
+    let initial = set(&mut engine, 0, matrix);
+    let mut matrix = initial["document"]["matrices"][0].clone();
+    matrix["pitch"] = json!({"x":40.0,"y":50.0});
+    let pitched = set(&mut engine, 1, matrix);
+    let key = |reply: &Value, row: u32, column: u32| {
+        reply["scene"]["matrixScenes"][0]["cells"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|cell| cell["row"] == row && cell["column"] == column)
+            .unwrap()["pose"]["at"]
+            .clone()
+    };
+    assert_eq!(key(&pitched, 2, 2), json!({"x":25.0,"y":-2.0}));
+    assert_eq!(key(&pitched, 3, 3), json!({"x":65.0,"y":48.0}));
+    let mut matrix = pitched["document"]["matrices"][0].clone();
+    matrix["rows"] = json!(2);
+    matrix["columns"] = json!(2);
+    let shrunk = set(&mut engine, 2, matrix);
+    assert_eq!(
+        shrunk["document"]["matrices"][0]["columnLayout"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        shrunk["document"]["matrices"][0]["rowLayout"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let mut matrix = shrunk["document"]["matrices"][0].clone();
+    matrix["rows"] = json!(4);
+    matrix["columns"] = json!(4);
+    let grown = set(&mut engine, 3, matrix);
+    assert_eq!(key(&grown, 2, 2), json!({"x":35.0,"y":52.0}));
+    let compacted = request(
+        &mut engine,
+        json!({"kind":"edit","id":"remove-first-column","command":{
+            "baseRevision":4,"transactionId":"remove-first-column","phase":"commit","targetIds":[],
+            "operation":{"kind":"remove-matrix-column","matrixId":"matrix","column":0}
+        }}),
+    );
+    assert_eq!(compacted["kind"], "scene", "{compacted}");
+    assert!(
+        compacted["document"]["matrices"][0]["columnLayout"][0]
+            .get("spread")
+            .is_none()
+    );
+    assert_eq!(key(&compacted, 0, 0), json!({"x":0.0,"y":2.0}));
+    assert_eq!(
+        compacted["document"]["parameters"]["unrelated"],
+        document["parameters"]["unrelated"]
+    );
 }
 
 #[test]

@@ -256,12 +256,16 @@ fn matrix_key_move_respects_rotated_splayed_and_mirrored_cell_coordinates() {
         matrix.rotation = Some(30.0);
         matrix.mirror = Some(mirror);
         {
-                let values = vec![20.0];
-                let count = values.len().max(matrix.column_layout.len());
-                matrix.column_layout.resize_with(count, Default::default);
-                for record in &mut matrix.column_layout { record.splay = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            let values = vec![20.0];
+            let count = values.len().max(matrix.column_layout.len());
+            matrix.column_layout.resize_with(count, Default::default);
+            for record in &mut matrix.column_layout {
+                record.splay = 0.0;
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         let before = edit(
             &mut engine,
             &before,

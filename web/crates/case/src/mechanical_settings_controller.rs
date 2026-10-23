@@ -1288,7 +1288,7 @@ mod adapter_tests {
                 "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
                 "definitionId": "switch-definition", "partIds": [], "boardId": "unrelated-board",
                 "diodeDirection": "row2col", "rowLayout": [], "columnLayout": [],
-"cells": []
+            "cells": []
             }))
             .expect("a matrix edit outside the reviewed inputs parses"),
         );

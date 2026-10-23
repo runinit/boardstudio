@@ -73,8 +73,8 @@ fn matrix(id: &str, rows: u32, columns: u32) -> Matrix {
 fn cell(assemblies: Vec<MatrixAssembly>) -> MatrixCell {
     MatrixCell {
         shift: None,
-    bend: None,
-    deleted: false,
+        bend: None,
+        deleted: false,
         row: 0,
         column: 0,
         enabled: true,
@@ -512,8 +512,8 @@ fn linked_halves_list_their_own_companions() {
                 matrix_ids: vec!["right-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                 }),

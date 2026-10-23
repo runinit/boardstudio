@@ -306,35 +306,61 @@ fn committed_fixtures_match_carried_layout() {
 fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures() {
     use boardstudio_core::{CoreEngine, model::*};
     use serde_json::json;
-    let fixtures: Value = serde_json::from_str(include_str!("fixtures/ergogen-layout-parity.json")).unwrap();
+    let fixtures: Value =
+        serde_json::from_str(include_str!("fixtures/ergogen-layout-parity.json")).unwrap();
     let mut count = 0;
-    for (cases, tolerance) in [(&fixtures["cases"], 1e-6), (&fixtures["boardStudioOnly"], 1e-9)] {
+    for (cases, tolerance) in [
+        (&fixtures["cases"], 1e-6),
+        (&fixtures["boardStudioOnly"], 1e-9),
+    ] {
         for case in cases.as_array().unwrap() {
             let variants = if case.get("boardStudioMatrices").is_some() {
                 vec![(&case["boardStudioMatrices"], &case["expected"])]
             } else {
-                vec![(&case["beforeMatrices"], &case["expectedBefore"]), (&case["afterMatrices"], &case["expectedAfter"])]
+                vec![
+                    (&case["beforeMatrices"], &case["expectedBefore"]),
+                    (&case["afterMatrices"], &case["expectedAfter"]),
+                ]
             };
             for (matrices, expected) in variants {
-                let mut document = serde_json::to_value(ProjectDoc::empty("fixture", "Fixture")).unwrap();
-                document["definitions"] = json!([{"id":"key","name":"Key","kind":"switch","courtyard":[],"pads":[]}]);
+                let mut document =
+                    serde_json::to_value(ProjectDoc::empty("fixture", "Fixture")).unwrap();
+                document["definitions"] =
+                    json!([{"id":"key","name":"Key","kind":"switch","courtyard":[],"pads":[]}]);
                 let mut parts = Vec::new();
                 let mut inputs = Vec::new();
                 for input in matrices.as_array().unwrap() {
                     let mut input = input.clone();
                     input["definitionId"] = json!("key");
                     input["boardId"] = json!("board");
-                    if input.get("pitch").is_none() { input["pitch"] = json!({"x":19.05,"y":19.05}); }
-                    if input.get("origin").is_none() { input["origin"] = json!({"x":0.0,"y":0.0}); }
+                    if input.get("pitch").is_none() {
+                        input["pitch"] = json!({"x":19.05,"y":19.05});
+                    }
+                    if input.get("origin").is_none() {
+                        input["origin"] = json!({"x":0.0,"y":0.0});
+                    }
                     if let Some(cells) = input.get_mut("cells").and_then(Value::as_array_mut) {
-                        for cell in cells { if cell.get("enabled").is_none() { cell["enabled"] = json!(true); } }
+                        for cell in cells {
+                            if cell.get("enabled").is_none() {
+                                cell["enabled"] = json!(true);
+                            }
+                        }
                     }
                     let mut members = Vec::new();
                     for row in 0..input["rows"].as_u64().unwrap() {
                         for column in 0..input["columns"].as_u64().unwrap() {
-                            let cell = input["cells"].as_array().and_then(|cells| cells.iter().find(|cell| cell["row"] == row && cell["column"] == column));
-                            if cell.is_some_and(|cell| cell["enabled"] == false || cell["deleted"] == true) { continue; }
-                            let id = format!("matrix/{}/r{row}c{column}", input["id"].as_str().unwrap());
+                            let cell = input["cells"].as_array().and_then(|cells| {
+                                cells
+                                    .iter()
+                                    .find(|cell| cell["row"] == row && cell["column"] == column)
+                            });
+                            if cell.is_some_and(|cell| {
+                                cell["enabled"] == false || cell["deleted"] == true
+                            }) {
+                                continue;
+                            }
+                            let id =
+                                format!("matrix/{}/r{row}c{column}", input["id"].as_str().unwrap());
                             members.push(id.clone());
                             parts.push(json!({"id":id,"definitionId":"key","reference":format!("SW{}", parts.len()+1),"pose":{"at":{"x":123.0,"y":-456.0},"rotation":17.0},"side":"front"}));
                         }
@@ -355,21 +381,71 @@ fn production_core_actual_draft_and_materialized_keys_match_committed_fixtures()
                     document["layouts"] = json!([{"id":"layout","name":"Layout","boardId":"board","partIds":[],"matrixIds":inputs.iter().map(|input| input["id"].clone()).collect::<Vec<_>>()}]);
                 }
                 let mut engine = CoreEngine::new();
-                let opened: Value = serde_json::from_str(&engine.request(&json!({"kind":"open","id":"fixture","document":document}).to_string())).unwrap();
+                let opened: Value = serde_json::from_str(&engine.request(
+                    &json!({"kind":"open","id":"fixture","document":document}).to_string(),
+                ))
+                .unwrap();
                 assert_eq!(opened["kind"], "scene", "{}: {opened}", case["id"]);
                 let draft: Value = serde_json::from_str(&engine.request(&json!({"kind":"project-matrices","id":"draft","baseRevision":0,"matrices":opened["document"]["matrices"]}).to_string())).unwrap();
-                assert_eq!(draft["kind"], "matrix-projections", "{}: {draft}", case["id"]);
+                assert_eq!(
+                    draft["kind"], "matrix-projections",
+                    "{}: {draft}",
+                    case["id"]
+                );
                 for expected in expected.as_array().unwrap() {
-                    let id = format!("matrix/{}/r{}c{}", expected["matrix"].as_str().unwrap(), expected["row"], expected["column"]);
-                    let part = opened["document"]["parts"].as_array().unwrap().iter().find(|part| part["id"] == id);
-                    if expected["absent"] == true { assert!(part.is_none(), "{id}"); continue; }
-                    let difference = case["differences"].as_array().and_then(|values| values.iter().find(|value| value["matrix"] == expected["matrix"] && value["row"] == expected["row"] && value["column"] == expected["column"]));
-                    let (pose, tolerance) = difference.map_or((&expected["pose"], tolerance), |difference| (&difference["pose"], 1e-9));
+                    let id = format!(
+                        "matrix/{}/r{}c{}",
+                        expected["matrix"].as_str().unwrap(),
+                        expected["row"],
+                        expected["column"]
+                    );
+                    let part = opened["document"]["parts"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|part| part["id"] == id);
+                    if expected["absent"] == true {
+                        assert!(part.is_none(), "{id}");
+                        continue;
+                    }
+                    let difference = case["differences"].as_array().and_then(|values| {
+                        values.iter().find(|value| {
+                            value["matrix"] == expected["matrix"]
+                                && value["row"] == expected["row"]
+                                && value["column"] == expected["column"]
+                        })
+                    });
+                    let (pose, tolerance) = difference
+                        .map_or((&expected["pose"], tolerance), |difference| {
+                            (&difference["pose"], 1e-9)
+                        });
                     for scene in [&opened["scene"]["matrixScenes"], &draft["matrixScenes"]] {
-                        let matrix = scene.as_array().unwrap().iter().find(|matrix| matrix["matrixId"] == expected["matrix"]).unwrap();
-                        let cell = matrix["cells"].as_array().unwrap().iter().find(|cell| cell["row"] == expected["row"] && cell["column"] == expected["column"]).unwrap();
-                        for (field, actual) in [("x", &cell["pose"]["at"]["x"]), ("y", &cell["pose"]["at"]["y"]), ("rotation", &cell["pose"]["rotation"])] {
-                            assert!((actual.as_f64().unwrap() - pose[field].as_f64().unwrap()).abs() <= tolerance, "{} {id} {field}: {actual}, expected {pose}", case["id"]);
+                        let matrix = scene
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|matrix| matrix["matrixId"] == expected["matrix"])
+                            .unwrap();
+                        let cell = matrix["cells"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .find(|cell| {
+                                cell["row"] == expected["row"]
+                                    && cell["column"] == expected["column"]
+                            })
+                            .unwrap();
+                        for (field, actual) in [
+                            ("x", &cell["pose"]["at"]["x"]),
+                            ("y", &cell["pose"]["at"]["y"]),
+                            ("rotation", &cell["pose"]["rotation"]),
+                        ] {
+                            assert!(
+                                (actual.as_f64().unwrap() - pose[field].as_f64().unwrap()).abs()
+                                    <= tolerance,
+                                "{} {id} {field}: {actual}, expected {pose}",
+                                case["id"]
+                            );
                         }
                         assert_eq!(part.unwrap()["pose"], cell["pose"], "{} {id}", case["id"]);
                     }

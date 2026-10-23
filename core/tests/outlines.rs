@@ -1006,7 +1006,7 @@ fn manual_connections_respect_linked_split_boundaries() {
         ])).unwrap();
         doc.layouts=serde_json::from_value(json!([
             {"id":"left-layout","name":"Left","boardId":"board","matrixIds":["left"],"partIds":[]},
-            {"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30}}
+            {"id":"right-layout","name":"Right","boardId":"board","matrixIds":["right"],"partIds":[],"mirrorLink":{"sourceId":"left-layout","axisX":30,"correspondences":[{"kind":"matrix","sourceId":"left","mirrorId":"right"}]}}
         ])).unwrap();
         if another_axis {
             for (id, x) in [("k2", 120.0), ("k3", 180.0)] {
@@ -1020,7 +1020,7 @@ fn manual_connections_respect_linked_split_boundaries() {
             }
             doc.layouts.extend(serde_json::from_value::<Vec<Layout>>(json!([
                 {"id":"far-left-layout","name":"Far left","boardId":"board","matrixIds":["k2"],"partIds":[]},
-                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixIds":["k3"],"partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150}}
+                {"id":"far-right-layout","name":"Far right","boardId":"board","matrixIds":["k3"],"partIds":[],"mirrorLink":{"sourceId":"far-left-layout","axisX":150,"correspondences":[{"kind":"matrix","sourceId":"k2","mirrorId":"k3"}]}}
             ])).unwrap());
         }
         if let OutlineFeature::PartEnvelope { connections, .. } = &mut doc.outline[0] {

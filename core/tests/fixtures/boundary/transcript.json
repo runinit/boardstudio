@@ -2,7 +2,7 @@
   "archive": [
     {
       "buffers": [
-        "1098:71ade74bc800fd0a"
+        "1107:fba991da7baf20b7"
       ],
       "kind": "pack-project",
       "reply": {
@@ -23,12 +23,12 @@
           }
         ],
         "kind": "unpacked",
-        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":6,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnOrigins\":[null,{\"x\":4,\"y\":-20}],\"columnSplays\":[0,15,-8],\"columnStaggers\":[0,2,-1],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
+        "projectJson": "{\"assets\":[{\"id\":\"asset-id\",\"mediaType\":\"model/step\",\"name\":\"component.step\",\"sha256\":\"900b068e090cf03c8263fe9f2d1e3aa9c5a7d91ecf8530e60a8257c0aa03a048\"}],\"boards\":[{\"id\":\"board\",\"name\":\"Boundary board\",\"netIds\":[],\"outlineIds\":[],\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"thickness\":1.6}],\"caseBodies\":[],\"constraints\":[],\"definitions\":[{\"courtyard\":[],\"id\":\"switch\",\"kind\":\"switch\",\"name\":\"Switch\",\"pads\":[]}],\"format\":\"boardstudio/v2\",\"formatVersion\":7,\"futureField\":{\"preserve\":true},\"id\":\"boundary-fixture\",\"materials\":[],\"matrices\":[{\"cells\":[{\"column\":0,\"enabled\":false,\"row\":1},{\"column\":1,\"enabled\":false,\"row\":1},{\"column\":2,\"enabled\":false,\"row\":1}],\"columnLayout\":[{\"splay\":0,\"stagger\":0},{\"splay\":15,\"splayOrigin\":{\"x\":-15,\"y\":-22},\"stagger\":2},{\"splay\":-8,\"stagger\":-1}],\"columns\":3,\"definitionId\":\"switch\",\"id\":\"matrix\",\"origin\":{\"x\":7,\"y\":-3},\"partIds\":[\"matrix/matrix/r0c0\",\"matrix/matrix/r0c1\",\"matrix/matrix/r0c2\",\"matrix/matrix/r2c0\",\"matrix/matrix/r2c1\",\"matrix/matrix/r2c2\"],\"pitch\":{\"x\":19,\"y\":19},\"rows\":3}],\"name\":\"Boundary fixture\",\"nets\":[],\"outline\":[],\"parameters\":{},\"parts\":[{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c0\",\"pose\":{\"at\":{\"x\":0,\"y\":0},\"rotation\":0},\"reference\":\"S1\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c1\",\"pose\":{\"at\":{\"x\":19,\"y\":0},\"rotation\":3},\"reference\":\"S2\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r0c2\",\"pose\":{\"at\":{\"x\":38,\"y\":0},\"rotation\":6},\"reference\":\"S3\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c0\",\"pose\":{\"at\":{\"x\":0,\"y\":-38},\"rotation\":9},\"reference\":\"S4\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c1\",\"pose\":{\"at\":{\"x\":19,\"y\":-38},\"rotation\":12},\"reference\":\"S5\",\"side\":\"front\"},{\"definitionId\":\"switch\",\"id\":\"matrix/matrix/r2c2\",\"pose\":{\"at\":{\"x\":38,\"y\":-38},\"rotation\":15},\"reference\":\"S6\",\"side\":\"front\"}],\"revision\":0,\"scripts\":[]}"
       }
     },
     {
       "buffers": [
-        "972:8cf43189b5d9f5b8"
+        "981:cb32c589efe548e0"
       ],
       "kind": "pack-files",
       "reply": {
@@ -42,13 +42,13 @@
       ],
       "kind": "unpack-project",
       "reply": {
-        "bodyDigest": "2427:dff14f6f9c506b45",
+        "bodyDigest": "2471:a060989034696a5e",
         "kind": "unpacked"
       }
     },
     {
       "buffers": [
-        "958:58b38377870e6d3b"
+        "967:c1e439681bcf2920"
       ],
       "kind": "pack-files",
       "reply": {
@@ -95,7 +95,7 @@
     },
     {
       "buffers": [
-        "4196498:7fa8deced1b5cece"
+        "4196508:9c7fb956947dfb12"
       ],
       "kind": "pack-project",
       "reply": {
@@ -109,7 +109,7 @@
       ],
       "kind": "unpack-project",
       "reply": {
-        "bodyDigest": "2340:4d33ef205598c695",
+        "bodyDigest": "2384:67cb4d42bfeb652e",
         "kind": "unpacked"
       }
     }
@@ -169,6 +169,21 @@
                 "row": 1
               }
             ],
+            "columnLayout": [
+              {},
+              {
+                "splay": 15.0,
+                "splayOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                },
+                "stagger": 2.0
+              },
+              {
+                "splay": -8.0,
+                "stagger": -1.0
+              }
+            ],
             "columns": 3,
             "definitionId": "switch",
             "id": "matrix",
@@ -188,22 +203,7 @@
               "x": 19.0,
               "y": 19.0
             },
-            "rows": 3,
-            "columnLayout": [
-              {},
-              {
-                "stagger": 2.0,
-                "splay": 15.0,
-                "splayOrigin": {
-                  "x": -15.0,
-                  "y": -22.0
-                }
-              },
-              {
-                "stagger": -1.0,
-                "splay": -8.0
-              }
-            ]
+            "rows": 3
           }
         ],
         "name": "Boundary fixture",
@@ -216,8 +216,8 @@
             "id": "matrix/matrix/r0c0",
             "pose": {
               "at": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 7.0,
+                "y": -3.0
               },
               "rotation": 0.0
             },
@@ -229,10 +229,10 @@
             "id": "matrix/matrix/r0c1",
             "pose": {
               "at": {
-                "x": 19.0,
-                "y": 0.0
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
               },
-              "rotation": 3.0
+              "rotation": 15.0
             },
             "reference": "S2",
             "side": "front"
@@ -242,10 +242,10 @@
             "id": "matrix/matrix/r0c2",
             "pose": {
               "at": {
-                "x": 38.0,
-                "y": 0.0
+                "x": 38.40627814667538,
+                "y": 6.084289885556139
               },
-              "rotation": 6.0
+              "rotation": 7.0
             },
             "reference": "S3",
             "side": "front"
@@ -255,10 +255,10 @@
             "id": "matrix/matrix/r2c0",
             "pose": {
               "at": {
-                "x": 0.0,
-                "y": -38.0
+                "x": 7.0,
+                "y": 35.0
               },
-              "rotation": 9.0
+              "rotation": 0.0
             },
             "reference": "S4",
             "side": "front"
@@ -268,10 +268,10 @@
             "id": "matrix/matrix/r2c1",
             "pose": {
               "at": {
-                "x": 19.0,
-                "y": -38.0
+                "x": 9.95974468818478,
+                "y": 38.837835253881906
               },
-              "rotation": 12.0
+              "rotation": 15.0
             },
             "reference": "S5",
             "side": "front"
@@ -281,10 +281,10 @@
             "id": "matrix/matrix/r2c2",
             "pose": {
               "at": {
-                "x": 38.0,
-                "y": -38.0
+                "x": 33.77524309727978,
+                "y": 43.80104364792638
               },
-              "rotation": 15.0
+              "rotation": 7.0
             },
             "reference": "S6",
             "side": "front"
@@ -347,44 +347,149 @@
                 "column": 0,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c0",
-                "pose": {
-                  "at": {
-                    "x": 0.0,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
                     "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": -3.0
                   },
                   "rotation": 0.0
                 },
-                "row": 0
+                "pose": {
+                  "at": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                },
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c1",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                },
                 "pose": {
                   "at": {
-                    "x": 19.0,
-                    "y": 0.0
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
                   },
-                  "rotation": 3.0
+                  "rotation": 15.0
                 },
-                "row": 0
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c2",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
+                  },
+                  "rotation": 7.0
+                },
                 "pose": {
                   "at": {
-                    "x": 38.0,
-                    "y": 0.0
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
                   },
-                  "rotation": 6.0
+                  "rotation": 7.0
                 },
-                "row": 0
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
+                  },
+                  "rotation": 7.0
+                }
               },
               {
                 "column": 0,
                 "enabled": false,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                },
                 "pose": {
                   "at": {
                     "x": 7.0,
@@ -392,11 +497,41 @@
                   },
                   "rotation": 0.0
                 },
-                "row": 1
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": false,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                },
                 "pose": {
                   "at": {
                     "x": 14.877306545132676,
@@ -404,58 +539,193 @@
                   },
                   "rotation": 15.0
                 },
-                "row": 1
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": false,
-                "pose": {
-                  "at": {
-                    "x": 36.09076062197759,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 36.09076062197758,
                     "y": 24.942666766741258
                   },
                   "rotation": 7.0
                 },
-                "row": 1
+                "pose": {
+                  "at": {
+                    "x": 36.09076062197758,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                },
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 36.09076062197758,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                }
               },
               {
                 "column": 0,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c0",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                },
                 "pose": {
                   "at": {
-                    "x": 0.0,
-                    "y": -38.0
+                    "x": 7.0,
+                    "y": 35.0
                   },
-                  "rotation": 9.0
+                  "rotation": 0.0
                 },
-                "row": 2
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c1",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 9.95974468818478,
+                    "y": 38.837835253881906
+                  },
+                  "rotation": 15.0
+                },
                 "pose": {
                   "at": {
-                    "x": 19.0,
-                    "y": -38.0
+                    "x": 9.95974468818478,
+                    "y": 38.837835253881906
                   },
-                  "rotation": 12.0
+                  "rotation": 15.0
                 },
-                "row": 2
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 9.95974468818478,
+                    "y": 38.837835253881906
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c2",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 33.77524309727978,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                },
                 "pose": {
                   "at": {
-                    "x": 38.0,
-                    "y": -38.0
+                    "x": 33.77524309727978,
+                    "y": 43.80104364792638
                   },
-                  "rotation": 15.0
+                  "rotation": 7.0
                 },
-                "row": 2
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 33.77524309727978,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                }
               }
             ],
             "columns": [
@@ -465,11 +735,20 @@
                   "y": 0.0
                 },
                 "axisY": {
-                  "x": -0.0,
+                  "x": 0.0,
                   "y": 1.0
+                },
+                "base": {
+                  "x": 7.0,
+                  "y": -3.0
                 },
                 "column": 0,
                 "customOrigin": false,
+                "relativeOrigin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 0.0,
                 "splayAngle": 0.0,
                 "splayOrigin": {
                   "x": 7.0,
@@ -489,16 +768,29 @@
                   "x": -0.25881904510252074,
                   "y": 0.9659258262890683
                 },
+                "base": {
+                  "x": 26.0,
+                  "y": -1.0
+                },
                 "column": 1,
                 "customOrigin": true,
+                "relativeOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                },
+                "rotation": 0.0,
                 "splayAngle": 15.0,
                 "splayOrigin": {
                   "x": 11.0,
                   "y": -23.0
                 },
+                "spreadAxis": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
                 "staggerAxis": {
-                  "x": -0.25881904510251985,
-                  "y": 0.9659258262890695
+                  "x": 0.0,
+                  "y": 1.0
                 }
               },
               {
@@ -510,16 +802,29 @@
                   "x": -0.12186934340514748,
                   "y": 0.992546151641322
                 },
+                "base": {
+                  "x": 38.40627814667538,
+                  "y": 6.084289885556139
+                },
                 "column": 2,
                 "customOrigin": false,
+                "relativeOrigin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 0.0,
                 "splayAngle": -8.0,
                 "splayOrigin": {
-                  "x": 38.40627814667539,
-                  "y": 6.0842898855561405
+                  "x": 38.40627814667538,
+                  "y": 6.084289885556139
+                },
+                "spreadAxis": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
                 },
                 "staggerAxis": {
-                  "x": -0.25881904510252696,
-                  "y": 0.965925826289066
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
                 }
               }
             ],
@@ -539,8 +844,8 @@
             "id": "matrix/matrix/r0c0",
             "pose": {
               "at": {
-                "x": 0.0,
-                "y": 0.0
+                "x": 7.0,
+                "y": -3.0
               },
               "rotation": 0.0
             }
@@ -549,57 +854,57 @@
             "id": "matrix/matrix/r0c1",
             "pose": {
               "at": {
-                "x": 19.0,
-                "y": 0.0
+                "x": 19.794868402080567,
+                "y": 2.1326538548973133
               },
-              "rotation": 3.0
+              "rotation": 15.0
             }
           },
           {
             "id": "matrix/matrix/r0c2",
             "pose": {
               "at": {
-                "x": 38.0,
-                "y": 0.0
+                "x": 38.40627814667538,
+                "y": 6.084289885556139
               },
-              "rotation": 6.0
+              "rotation": 7.0
             }
           },
           {
             "id": "matrix/matrix/r2c0",
             "pose": {
               "at": {
-                "x": 0.0,
-                "y": -38.0
+                "x": 7.0,
+                "y": 35.0
               },
-              "rotation": 9.0
+              "rotation": 0.0
             }
           },
           {
             "id": "matrix/matrix/r2c1",
             "pose": {
               "at": {
-                "x": 19.0,
-                "y": -38.0
+                "x": 9.95974468818478,
+                "y": 38.837835253881906
               },
-              "rotation": 12.0
+              "rotation": 15.0
             }
           },
           {
             "id": "matrix/matrix/r2c2",
             "pose": {
               "at": {
-                "x": 38.0,
-                "y": -38.0
+                "x": 33.77524309727978,
+                "y": 43.80104364792638
               },
-              "rotation": 15.0
+              "rotation": 7.0
             }
           }
         ]
       }
     },
     {
-      "bodyDigest": "4804:d3ae4c4d15327a19",
+      "bodyDigest": "8522:2ec5eff0a5725095",
       "documentKeys": [
         "assets",
         "boards",
@@ -644,6 +949,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 0.0,
@@ -651,11 +971,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 7.12952805376713,
+                  "y": 11.799263652927648
+                },
+                "rotation": 52.0
+              },
               "pose": {
                 "at": {
                   "x": 7.12952805376713,
@@ -663,23 +1013,83 @@
                 },
                 "rotation": 52.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 7.12952805376713,
+                  "y": 11.799263652927648
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 19.61510683856136,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 19.615106838561356,
                   "y": 26.155806496129706
                 },
                 "rotation": 44.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 19.615106838561356,
+                  "y": 26.155806496129706
+                },
+                "rotation": 44.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 19.615106838561356,
+                  "y": 26.155806496129706
+                },
+                "rotation": 44.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -11.434485439888917,
+                  "y": 15.174074690898564
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": -11.434485439888917,
@@ -687,35 +1097,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -11.434485439888917,
+                  "y": 15.174074690898564
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": -7.842676264760585,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": -7.842676264760586,
                   "y": 23.496831684115158
                 },
                 "rotation": 52.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": -7.842676264760586,
+                  "y": 23.496831684115158
+                },
+                "rotation": 52.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": -7.842676264760586,
+                  "y": 23.496831684115158
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": 6.416597799840414,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 6.416597799840407,
                   "y": 39.82326270256408
                 },
                 "rotation": 44.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 6.416597799840407,
+                  "y": 39.82326270256408
+                },
+                "rotation": 44.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 6.416597799840407,
+                  "y": 39.82326270256408
+                },
+                "rotation": 44.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -22.868970879777834,
+                  "y": 30.34814938179713
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": -22.868970879777834,
@@ -723,31 +1223,106 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -22.868970879777834,
+                  "y": 30.34814938179713
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": -22.814880583288307,
-                  "y": 35.194399715302666
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": -22.814880583288303,
+                  "y": 35.19439971530266
                 },
                 "rotation": 52.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": -22.814880583288303,
+                  "y": 35.19439971530266
+                },
+                "rotation": 52.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": -22.814880583288303,
+                  "y": 35.19439971530266
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": -6.781911238880536,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": -6.781911238880543,
                   "y": 53.490718908998446
                 },
                 "rotation": 44.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": -6.781911238880543,
+                  "y": 53.490718908998446
+                },
+                "rotation": 44.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": -6.781911238880543,
+                  "y": 53.490718908998446
+                },
+                "rotation": 44.0
+              }
             }
           ],
           "columns": [
@@ -760,8 +1335,17 @@
                 "x": -0.6018150231520483,
                 "y": 0.7986355100472928
               },
+              "base": {
+                "x": 0.0,
+                "y": 0.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 0.0,
@@ -781,16 +1365,29 @@
                 "x": -0.7880107536067219,
                 "y": 0.6156614753256583
               },
+              "base": {
+                "x": 13.970444644594467,
+                "y": 13.031756459983502
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": 15.230842503230138,
                 "y": -13.565450108337664
               },
+              "spreadAxis": {
+                "x": 0.7986355100472928,
+                "y": 0.6018150231520483
+              },
               "staggerAxis": {
-                "x": -0.7880107536067236,
-                "y": 0.6156614753256591
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -802,16 +1399,29 @@
                 "x": -0.6946583704589973,
                 "y": 0.7193398003386511
               },
-              "column": 2,
-              "customOrigin": false,
-              "splayAngle": -8.0,
-              "splayOrigin": {
-                "x": 19.61510683856136,
+              "base": {
+                "x": 19.615106838561356,
                 "y": 26.155806496129706
               },
+              "column": 2,
+              "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
+              "splayAngle": -8.0,
+              "splayOrigin": {
+                "x": 19.615106838561356,
+                "y": 26.155806496129706
+              },
+              "spreadAxis": {
+                "x": 0.6156614753256583,
+                "y": 0.7880107536067219
+              },
               "staggerAxis": {
-                "x": -0.7880107536067271,
-                "y": 0.615661475325652
+                "x": -0.7880107536067219,
+                "y": 0.6156614753256583
               }
             }
           ],
@@ -822,6 +1432,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 42.0,
@@ -829,11 +1454,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 49.12952805376713,
+                  "y": -5.200736347072352
+                },
+                "rotation": 52.0
+              },
               "pose": {
                 "at": {
                   "x": 49.12952805376713,
@@ -841,11 +1496,41 @@
                 },
                 "rotation": 52.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 49.12952805376713,
+                  "y": -5.200736347072352
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 61.61510683856136,
+                  "y": 9.155806496129706
+                },
+                "rotation": 44.0
+              },
               "pose": {
                 "at": {
                   "x": 61.61510683856136,
@@ -853,11 +1538,41 @@
                 },
                 "rotation": 44.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 61.61510683856136,
+                  "y": 9.155806496129706
+                },
+                "rotation": 44.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 30.565514560111083,
+                  "y": -1.8259253091014358
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 30.565514560111083,
@@ -865,11 +1580,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 30.565514560111083,
+                  "y": -1.8259253091014358
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 34.157323735239416,
+                  "y": 6.496831684115158
+                },
+                "rotation": 52.0
+              },
               "pose": {
                 "at": {
                   "x": 34.157323735239416,
@@ -877,23 +1622,83 @@
                 },
                 "rotation": 52.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 34.157323735239416,
+                  "y": 6.496831684115158
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": 48.41659779984042,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 48.4165977998404,
                   "y": 22.82326270256408
                 },
                 "rotation": 44.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 48.4165977998404,
+                  "y": 22.82326270256408
+                },
+                "rotation": 44.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 48.4165977998404,
+                  "y": 22.82326270256408
+                },
+                "rotation": 44.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 19.131029120222166,
+                  "y": 13.348149381797128
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 19.131029120222166,
@@ -901,31 +1706,106 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 19.131029120222166,
+                  "y": 13.348149381797128
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
                   "x": 19.185119416711697,
-                  "y": 18.194399715302666
+                  "y": 18.19439971530266
                 },
                 "rotation": 52.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 19.185119416711697,
+                  "y": 18.19439971530266
+                },
+                "rotation": 52.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.6156614753256583,
+                  "y": 0.7880107536067219
+                },
+                "axisY": {
+                  "x": -0.7880107536067219,
+                  "y": 0.6156614753256583
+                },
+                "origin": {
+                  "x": 19.185119416711697,
+                  "y": 18.19439971530266
+                },
+                "rotation": 52.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 35.21808876111947,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 35.21808876111946,
                   "y": 36.490718908998446
                 },
                 "rotation": 44.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 35.21808876111946,
+                  "y": 36.490718908998446
+                },
+                "rotation": 44.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7193398003386511,
+                  "y": 0.6946583704589973
+                },
+                "axisY": {
+                  "x": -0.6946583704589973,
+                  "y": 0.7193398003386511
+                },
+                "origin": {
+                  "x": 35.21808876111946,
+                  "y": 36.490718908998446
+                },
+                "rotation": 44.0
+              }
             }
           ],
           "columns": [
@@ -938,16 +1818,25 @@
                 "x": -0.6018150231520483,
                 "y": 0.7986355100472928
               },
+              "base": {
+                "x": 42.0,
+                "y": -17.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 42.0,
                 "y": -17.0
               },
               "staggerAxis": {
-                "x": -0.6018150231520494,
-                "y": 0.7986355100472942
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -959,16 +1848,29 @@
                 "x": -0.7880107536067219,
                 "y": 0.6156614753256583
               },
+              "base": {
+                "x": 55.970444644594465,
+                "y": -3.9682435400164984
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": 57.230842503230136,
                 "y": -30.565450108337664
               },
+              "spreadAxis": {
+                "x": 0.7986355100472928,
+                "y": 0.6018150231520483
+              },
               "staggerAxis": {
-                "x": -0.7880107536067271,
-                "y": 0.6156614753256591
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -980,16 +1882,29 @@
                 "x": -0.6946583704589973,
                 "y": 0.7193398003386511
               },
+              "base": {
+                "x": 61.61510683856136,
+                "y": 9.155806496129706
+              },
               "column": 2,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": -8.0,
               "splayOrigin": {
                 "x": 61.61510683856136,
                 "y": 9.155806496129706
               },
+              "spreadAxis": {
+                "x": 0.6156614753256583,
+                "y": 0.7880107536067219
+              },
               "staggerAxis": {
-                "x": -0.7880107536067271,
-                "y": 0.6156614753256537
+                "x": -0.7880107536067219,
+                "y": 0.6156614753256583
               }
             }
           ],
@@ -1000,6 +1915,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 0.0,
@@ -1007,11 +1937,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -13.307344450800082,
+                  "y": -3.6010243943234084
+                },
+                "rotation": 22.0
+              },
               "pose": {
                 "at": {
                   "x": -13.307344450800082,
@@ -1019,23 +1979,83 @@
                 },
                 "rotation": 22.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -13.307344450800082,
+                  "y": -3.6010243943234084
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": -30.54923109415313,
-                  "y": -11.645733523792522
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -30.549231094153125,
+                  "y": -11.645733523792524
                 },
                 "rotation": 30.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": -30.549231094153125,
+                  "y": -11.645733523792524
+                },
+                "rotation": 30.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -30.549231094153125,
+                  "y": -11.645733523792524
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -11.434485439888917,
+                  "y": 15.174074690898564
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": -11.434485439888917,
@@ -1043,35 +2063,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -11.434485439888917,
+                  "y": 15.174074690898564
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": -20.42486972570241,
-                  "y": 14.01546884244555
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -20.424869725702408,
+                  "y": 14.015468842445552
                 },
                 "rotation": 22.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": -20.424869725702408,
+                  "y": 14.015468842445552
+                },
+                "rotation": 22.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -20.424869725702408,
+                  "y": 14.015468842445552
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
                   "x": -40.04923109415313,
-                  "y": 4.808749148111808
+                  "y": 4.808749148111811
                 },
                 "rotation": 30.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": -40.04923109415313,
+                  "y": 4.808749148111811
+                },
+                "rotation": 30.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -40.04923109415313,
+                  "y": 4.808749148111811
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -22.868970879777834,
+                  "y": 30.34814938179713
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": -22.868970879777834,
@@ -1079,31 +2189,106 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": -22.868970879777834,
+                  "y": 30.34814938179713
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": -27.542395000604742,
-                  "y": 31.631962079214517
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -27.54239500060474,
+                  "y": 31.63196207921451
                 },
                 "rotation": 22.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": -27.54239500060474,
+                  "y": 31.63196207921451
+                },
+                "rotation": 22.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": -27.54239500060474,
+                  "y": 31.63196207921451
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
                   "x": -49.54923109415313,
-                  "y": 21.26323182001614
+                  "y": 21.263231820016145
                 },
                 "rotation": 30.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": -49.54923109415313,
+                  "y": 21.263231820016145
+                },
+                "rotation": 30.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -49.54923109415313,
+                  "y": 21.263231820016145
+                },
+                "rotation": 30.0
+              }
             }
           ],
           "columns": [
@@ -1116,8 +2301,17 @@
                 "x": -0.6018150231520483,
                 "y": 0.7986355100472928
               },
+              "base": {
+                "x": 0.0,
+                "y": 0.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 0.0,
@@ -1137,16 +2331,29 @@
                 "x": -0.37460659341591207,
                 "y": 0.9271838545667873
               },
+              "base": {
+                "x": -16.37770473720266,
+                "y": -9.837214419794332
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": 8.841758422851795,
                 "y": -18.37997029355405
               },
+              "spreadAxis": {
+                "x": -0.7986355100472928,
+                "y": -0.6018150231520483
+              },
               "staggerAxis": {
-                "x": -0.37460659341591196,
-                "y": 0.9271838545667883
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -1158,16 +2365,29 @@
                 "x": -0.5,
                 "y": 0.8660254037844386
               },
+              "base": {
+                "x": -30.549231094153125,
+                "y": -11.645733523792524
+              },
               "column": 2,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": -8.0,
               "splayOrigin": {
-                "x": -30.54923109415313,
-                "y": -11.645733523792522
+                "x": -30.549231094153125,
+                "y": -11.645733523792524
+              },
+              "spreadAxis": {
+                "x": -0.9271838545667873,
+                "y": -0.37460659341591207
               },
               "staggerAxis": {
-                "x": -0.37460659341591196,
-                "y": 0.9271838545667865
+                "x": -0.37460659341591207,
+                "y": 0.9271838545667873
               }
             }
           ],
@@ -1178,6 +2398,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 42.0,
@@ -1185,35 +2420,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 28.692655549199916,
-                  "y": -20.601024394323407
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": 28.69265554919992,
+                  "y": -20.60102439432341
                 },
                 "rotation": 22.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 28.69265554919992,
+                  "y": -20.60102439432341
+                },
+                "rotation": 22.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": 28.69265554919992,
+                  "y": -20.60102439432341
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 11.45076890584687,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": 11.450768905846875,
                   "y": -28.645733523792522
                 },
                 "rotation": 30.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 11.450768905846875,
+                  "y": -28.645733523792522
+                },
+                "rotation": 30.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": 11.450768905846875,
+                  "y": -28.645733523792522
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 30.565514560111083,
+                  "y": -1.8259253091014358
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 30.565514560111083,
@@ -1221,35 +2546,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 30.565514560111083,
+                  "y": -1.8259253091014358
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
                   "x": 21.575130274297592,
-                  "y": -2.98453115755445
+                  "y": -2.984531157554448
                 },
                 "rotation": 22.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 21.575130274297592,
+                  "y": -2.984531157554448
+                },
+                "rotation": 22.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": 21.575130274297592,
+                  "y": -2.984531157554448
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": 1.9507689058468678,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": 1.9507689058468713,
                   "y": -12.191250851888189
                 },
                 "rotation": 30.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 1.9507689058468713,
+                  "y": -12.191250851888189
+                },
+                "rotation": 30.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": 1.9507689058468713,
+                  "y": -12.191250851888189
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 19.131029120222166,
+                  "y": 13.348149381797128
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 19.131029120222166,
@@ -1257,31 +2672,106 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.7986355100472928,
+                  "y": -0.6018150231520483
+                },
+                "axisY": {
+                  "x": -0.6018150231520483,
+                  "y": 0.7986355100472928
+                },
+                "origin": {
+                  "x": 19.131029120222166,
+                  "y": 13.348149381797128
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 14.457604999395254,
-                  "y": 14.631962079214517
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": 14.457604999395262,
+                  "y": 14.63196207921451
                 },
                 "rotation": 22.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 14.457604999395262,
+                  "y": 14.63196207921451
+                },
+                "rotation": 22.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.9271838545667873,
+                  "y": -0.37460659341591207
+                },
+                "axisY": {
+                  "x": -0.37460659341591207,
+                  "y": 0.9271838545667873
+                },
+                "origin": {
+                  "x": 14.457604999395262,
+                  "y": 14.63196207921451
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": -7.549231094153132,
-                  "y": 4.263231820016138
+              "offsetFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -7.549231094153129,
+                  "y": 4.263231820016145
                 },
                 "rotation": 30.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": -7.549231094153129,
+                  "y": 4.263231820016145
+                },
+                "rotation": 30.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": -0.8660254037844386,
+                  "y": -0.5
+                },
+                "axisY": {
+                  "x": -0.5,
+                  "y": 0.8660254037844386
+                },
+                "origin": {
+                  "x": -7.549231094153129,
+                  "y": 4.263231820016145
+                },
+                "rotation": 30.0
+              }
             }
           ],
           "columns": [
@@ -1294,16 +2784,25 @@
                 "x": -0.6018150231520483,
                 "y": 0.7986355100472928
               },
+              "base": {
+                "x": 42.0,
+                "y": -17.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 42.0,
                 "y": -17.0
               },
               "staggerAxis": {
-                "x": -0.6018150231520494,
-                "y": 0.7986355100472942
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -1315,16 +2814,29 @@
                 "x": -0.37460659341591207,
                 "y": 0.9271838545667873
               },
+              "base": {
+                "x": 25.62229526279734,
+                "y": -26.837214419794332
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": 50.8417584228518,
                 "y": -35.37997029355405
               },
+              "spreadAxis": {
+                "x": -0.7986355100472928,
+                "y": -0.6018150231520483
+              },
               "staggerAxis": {
-                "x": -0.3746065934159084,
-                "y": 0.9271838545667883
+                "x": -0.6018150231520483,
+                "y": 0.7986355100472928
               }
             },
             {
@@ -1336,16 +2848,29 @@
                 "x": -0.5,
                 "y": 0.8660254037844386
               },
-              "column": 2,
-              "customOrigin": false,
-              "splayAngle": -8.0,
-              "splayOrigin": {
-                "x": 11.450768905846871,
+              "base": {
+                "x": 11.450768905846875,
                 "y": -28.645733523792522
               },
+              "column": 2,
+              "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
+              "splayAngle": -8.0,
+              "splayOrigin": {
+                "x": 11.450768905846875,
+                "y": -28.645733523792522
+              },
+              "spreadAxis": {
+                "x": -0.9271838545667873,
+                "y": -0.37460659341591207
+              },
               "staggerAxis": {
-                "x": -0.3746065934159084,
-                "y": 0.9271838545667919
+                "x": -0.37460659341591207,
+                "y": 0.9271838545667873
               }
             }
           ],
@@ -1356,6 +2881,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 0.0,
@@ -1363,11 +2903,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 13.307344450800082,
+                  "y": 3.6010243943234084
+                },
+                "rotation": 22.0
+              },
               "pose": {
                 "at": {
                   "x": 13.307344450800082,
@@ -1375,23 +2945,83 @@
                 },
                 "rotation": 22.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 13.307344450800082,
+                  "y": 3.6010243943234084
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 30.54923109415313,
-                  "y": 11.645733523792522
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 30.549231094153125,
+                  "y": 11.645733523792524
                 },
                 "rotation": 30.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 30.549231094153125,
+                  "y": 11.645733523792524
+                },
+                "rotation": 30.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 30.549231094153125,
+                  "y": 11.645733523792524
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 11.434485439888917,
+                  "y": -15.174074690898564
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 11.434485439888917,
@@ -1399,35 +3029,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 11.434485439888917,
+                  "y": -15.174074690898564
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
-              "pose": {
-                "at": {
-                  "x": 20.42486972570241,
-                  "y": -14.01546884244555
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 20.424869725702408,
+                  "y": -14.015468842445552
                 },
                 "rotation": 22.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 20.424869725702408,
+                  "y": -14.015468842445552
+                },
+                "rotation": 22.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 20.424869725702408,
+                  "y": -14.015468842445552
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
                   "x": 40.04923109415313,
-                  "y": -4.808749148111808
+                  "y": -4.808749148111811
                 },
                 "rotation": 30.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 40.04923109415313,
+                  "y": -4.808749148111811
+                },
+                "rotation": 30.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 40.04923109415313,
+                  "y": -4.808749148111811
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 22.868970879777834,
+                  "y": -30.34814938179713
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 22.868970879777834,
@@ -1435,31 +3155,106 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 22.868970879777834,
+                  "y": -30.34814938179713
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 27.542395000604742,
-                  "y": -31.631962079214517
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 27.54239500060474,
+                  "y": -31.63196207921451
                 },
                 "rotation": 22.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 27.54239500060474,
+                  "y": -31.63196207921451
+                },
+                "rotation": 22.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 27.54239500060474,
+                  "y": -31.63196207921451
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
                   "x": 49.54923109415313,
-                  "y": -21.26323182001614
+                  "y": -21.263231820016145
                 },
                 "rotation": 30.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 49.54923109415313,
+                  "y": -21.263231820016145
+                },
+                "rotation": 30.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 49.54923109415313,
+                  "y": -21.263231820016145
+                },
+                "rotation": 30.0
+              }
             }
           ],
           "columns": [
@@ -1472,8 +3267,17 @@
                 "x": 0.6018150231520483,
                 "y": -0.7986355100472928
               },
+              "base": {
+                "x": 0.0,
+                "y": 0.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 0.0,
@@ -1493,16 +3297,29 @@
                 "x": 0.37460659341591207,
                 "y": -0.9271838545667873
               },
+              "base": {
+                "x": 16.37770473720266,
+                "y": 9.837214419794332
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": -8.841758422851795,
                 "y": 18.37997029355405
               },
+              "spreadAxis": {
+                "x": 0.7986355100472928,
+                "y": 0.6018150231520483
+              },
               "staggerAxis": {
-                "x": 0.37460659341591196,
-                "y": -0.9271838545667883
+                "x": 0.6018150231520483,
+                "y": -0.7986355100472928
               }
             },
             {
@@ -1514,16 +3331,29 @@
                 "x": 0.5,
                 "y": -0.8660254037844386
               },
+              "base": {
+                "x": 30.549231094153125,
+                "y": 11.645733523792524
+              },
               "column": 2,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": -8.0,
               "splayOrigin": {
-                "x": 30.54923109415313,
-                "y": 11.645733523792522
+                "x": 30.549231094153125,
+                "y": 11.645733523792524
+              },
+              "spreadAxis": {
+                "x": 0.9271838545667873,
+                "y": 0.37460659341591207
               },
               "staggerAxis": {
-                "x": 0.37460659341591196,
-                "y": -0.9271838545667865
+                "x": 0.37460659341591207,
+                "y": -0.9271838545667873
               }
             }
           ],
@@ -1534,6 +3364,21 @@
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 42.0,
@@ -1541,35 +3386,125 @@
                 },
                 "rotation": 37.0
               },
-              "row": 0
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 42.0,
+                  "y": -17.0
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
-                  "x": 55.30734445080009,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 55.30734445080008,
                   "y": -13.398975605676592
                 },
                 "rotation": 22.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 55.30734445080008,
+                  "y": -13.398975605676592
+                },
+                "rotation": 22.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 55.30734445080008,
+                  "y": -13.398975605676592
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
                   "x": 72.54923109415313,
-                  "y": -5.354266476207478
+                  "y": -5.354266476207476
                 },
                 "rotation": 30.0
               },
-              "row": 0
+              "pose": {
+                "at": {
+                  "x": 72.54923109415313,
+                  "y": -5.354266476207476
+                },
+                "rotation": 30.0
+              },
+              "row": 0,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 72.54923109415313,
+                  "y": -5.354266476207476
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 53.43448543988892,
+                  "y": -32.174074690898564
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 53.43448543988892,
@@ -1577,11 +3512,41 @@
                 },
                 "rotation": 37.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 53.43448543988892,
+                  "y": -32.174074690898564
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": false,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 62.42486972570241,
+                  "y": -31.01546884244555
+                },
+                "rotation": 22.0
+              },
               "pose": {
                 "at": {
                   "x": 62.42486972570241,
@@ -1589,23 +3554,83 @@
                 },
                 "rotation": 22.0
               },
-              "row": 1
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 62.42486972570241,
+                  "y": -31.01546884244555
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": false,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
                   "x": 82.04923109415313,
-                  "y": -21.808749148111808
+                  "y": -21.80874914811181
                 },
                 "rotation": 30.0
               },
-              "row": 1
+              "pose": {
+                "at": {
+                  "x": 82.04923109415313,
+                  "y": -21.80874914811181
+                },
+                "rotation": 30.0
+              },
+              "row": 1,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 82.04923109415313,
+                  "y": -21.80874914811181
+                },
+                "rotation": 30.0
+              }
             },
             {
               "column": 0,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 64.86897087977783,
+                  "y": -47.34814938179713
+                },
+                "rotation": 37.0
+              },
               "pose": {
                 "at": {
                   "x": 64.86897087977783,
@@ -1613,23 +3638,83 @@
                 },
                 "rotation": 37.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.7986355100472928,
+                  "y": 0.6018150231520483
+                },
+                "axisY": {
+                  "x": 0.6018150231520483,
+                  "y": -0.7986355100472928
+                },
+                "origin": {
+                  "x": 64.86897087977783,
+                  "y": -47.34814938179713
+                },
+                "rotation": 37.0
+              }
             },
             {
               "column": 1,
               "enabled": true,
-              "pose": {
-                "at": {
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
                   "x": 69.54239500060474,
-                  "y": -48.63196207921452
+                  "y": -48.63196207921451
                 },
                 "rotation": 22.0
               },
-              "row": 2
+              "pose": {
+                "at": {
+                  "x": 69.54239500060474,
+                  "y": -48.63196207921451
+                },
+                "rotation": 22.0
+              },
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.9271838545667873,
+                  "y": 0.37460659341591207
+                },
+                "axisY": {
+                  "x": 0.37460659341591207,
+                  "y": -0.9271838545667873
+                },
+                "origin": {
+                  "x": 69.54239500060474,
+                  "y": -48.63196207921451
+                },
+                "rotation": 22.0
+              }
             },
             {
               "column": 2,
               "enabled": true,
+              "offsetFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 91.54923109415313,
+                  "y": -38.263231820016145
+                },
+                "rotation": 30.0
+              },
               "pose": {
                 "at": {
                   "x": 91.54923109415313,
@@ -1637,7 +3722,22 @@
                 },
                 "rotation": 30.0
               },
-              "row": 2
+              "row": 2,
+              "shiftFrame": {
+                "axisX": {
+                  "x": 0.8660254037844386,
+                  "y": 0.5
+                },
+                "axisY": {
+                  "x": 0.5,
+                  "y": -0.8660254037844386
+                },
+                "origin": {
+                  "x": 91.54923109415313,
+                  "y": -38.263231820016145
+                },
+                "rotation": 30.0
+              }
             }
           ],
           "columns": [
@@ -1650,16 +3750,25 @@
                 "x": 0.6018150231520483,
                 "y": -0.7986355100472928
               },
+              "base": {
+                "x": 42.0,
+                "y": -17.0
+              },
               "column": 0,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": 0.0,
               "splayOrigin": {
                 "x": 42.0,
                 "y": -17.0
               },
               "staggerAxis": {
-                "x": 0.6018150231520494,
-                "y": -0.7986355100472942
+                "x": 0.6018150231520483,
+                "y": -0.7986355100472928
               }
             },
             {
@@ -1671,16 +3780,29 @@
                 "x": 0.37460659341591207,
                 "y": -0.9271838545667873
               },
+              "base": {
+                "x": 58.37770473720266,
+                "y": -7.162785580205668
+              },
               "column": 1,
               "customOrigin": true,
+              "relativeOrigin": {
+                "x": -15.0,
+                "y": -22.0
+              },
+              "rotation": 0.0,
               "splayAngle": 15.0,
               "splayOrigin": {
                 "x": 33.1582415771482,
                 "y": 1.3799702935540488
               },
+              "spreadAxis": {
+                "x": 0.7986355100472928,
+                "y": 0.6018150231520483
+              },
               "staggerAxis": {
-                "x": 0.37460659341590485,
-                "y": -0.9271838545667883
+                "x": 0.6018150231520483,
+                "y": -0.7986355100472928
               }
             },
             {
@@ -1692,16 +3814,29 @@
                 "x": 0.5,
                 "y": -0.8660254037844386
               },
+              "base": {
+                "x": 72.54923109415313,
+                "y": -5.354266476207476
+              },
               "column": 2,
               "customOrigin": false,
+              "relativeOrigin": {
+                "x": 0.0,
+                "y": 0.0
+              },
+              "rotation": 0.0,
               "splayAngle": -8.0,
               "splayOrigin": {
                 "x": 72.54923109415313,
-                "y": -5.354266476207478
+                "y": -5.354266476207476
+              },
+              "spreadAxis": {
+                "x": 0.9271838545667873,
+                "y": 0.37460659341591207
               },
               "staggerAxis": {
-                "x": 0.37460659341590485,
-                "y": -0.9271838545667865
+                "x": 0.37460659341591207,
+                "y": -0.9271838545667873
               }
             }
           ],
@@ -1713,11 +3848,11 @@
     {
       "id": "invalid-draft",
       "kind": "error",
-      "message": "Matrix dimensions are invalid",
+      "message": "invalid matrix dimensions",
       "revision": 0
     },
     {
-      "bodyDigest": "3295:de82e985df0df167",
+      "bodyDigest": "6684:6191b7cfa510ee5e",
       "id": "preview",
       "kind": "preview",
       "sceneKeys": [
@@ -1735,7 +3870,7 @@
       ]
     },
     {
-      "bodyDigest": "4805:d212175d7031c904",
+      "bodyDigest": "8523:7c1bb458995379e0",
       "documentKeys": [
         "assets",
         "boards",
@@ -1835,6 +3970,21 @@
                 "row": 0
               }
             ],
+            "columnLayout": [
+              {},
+              {
+                "splay": 15.0,
+                "splayOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                },
+                "stagger": 2.0
+              },
+              {
+                "splay": -8.0,
+                "stagger": -1.0
+              }
+            ],
             "columns": 3,
             "definitionId": "switch",
             "edgeGap": {
@@ -1858,22 +4008,7 @@
               "x": 19.0,
               "y": 19.0
             },
-            "rows": 3,
-            "columnLayout": [
-              {},
-              {
-                "stagger": 2.0,
-                "splay": 15.0,
-                "splayOrigin": {
-                  "x": -15.0,
-                  "y": -22.0
-                }
-              },
-              {
-                "stagger": -1.0,
-                "splay": -8.0
-              }
-            ]
+            "rows": 3
           }
         ],
         "name": "Boundary fixture",
@@ -1912,8 +4047,8 @@
             "id": "matrix/matrix/r0c2",
             "pose": {
               "at": {
-                "x": 38.40627814667539,
-                "y": 6.0842898855561405
+                "x": 38.40627814667538,
+                "y": 6.084289885556139
               },
               "rotation": 7.0
             },
@@ -1939,7 +4074,7 @@
             "pose": {
               "at": {
                 "x": 9.95974468818478,
-                "y": 38.83783525388191
+                "y": 38.837835253881906
               },
               "rotation": 15.0
             },
@@ -1951,7 +4086,7 @@
             "id": "matrix/matrix/r2c2",
             "pose": {
               "at": {
-                "x": 33.775243097279784,
+                "x": 33.77524309727978,
                 "y": 43.80104364792638
               },
               "rotation": 7.0
@@ -2025,6 +4160,21 @@
                 "column": 0,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c0",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                },
                 "pose": {
                   "at": {
                     "x": 10.0,
@@ -2032,12 +4182,42 @@
                   },
                   "rotation": 0.0
                 },
-                "row": 0
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": -3.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c1",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                },
                 "pose": {
                   "at": {
                     "x": 19.794868402080567,
@@ -2045,24 +4225,84 @@
                   },
                   "rotation": 15.0
                 },
-                "row": 0
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 19.794868402080567,
+                    "y": 2.1326538548973133
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": true,
                 "memberId": "matrix/matrix/r0c2",
-                "pose": {
-                  "at": {
-                    "x": 38.40627814667539,
-                    "y": 6.0842898855561405
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
                   },
                   "rotation": 7.0
                 },
-                "row": 0
+                "pose": {
+                  "at": {
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
+                  },
+                  "rotation": 7.0
+                },
+                "row": 0,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 38.40627814667538,
+                    "y": 6.084289885556139
+                  },
+                  "rotation": 7.0
+                }
               },
               {
                 "column": 0,
                 "enabled": false,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                },
                 "pose": {
                   "at": {
                     "x": 7.0,
@@ -2070,11 +4310,41 @@
                   },
                   "rotation": 0.0
                 },
-                "row": 1
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 16.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": false,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                },
                 "pose": {
                   "at": {
                     "x": 14.877306545132676,
@@ -2082,24 +4352,84 @@
                   },
                   "rotation": 15.0
                 },
-                "row": 1
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 14.877306545132676,
+                    "y": 20.48524455438961
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": false,
-                "pose": {
-                  "at": {
-                    "x": 36.09076062197759,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 36.09076062197758,
                     "y": 24.942666766741258
                   },
                   "rotation": 7.0
                 },
-                "row": 1
+                "pose": {
+                  "at": {
+                    "x": 36.09076062197758,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                },
+                "row": 1,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 36.09076062197758,
+                    "y": 24.942666766741258
+                  },
+                  "rotation": 7.0
+                }
               },
               {
                 "column": 0,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c0",
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                },
                 "pose": {
                   "at": {
                     "x": 7.0,
@@ -2107,33 +4437,108 @@
                   },
                   "rotation": 0.0
                 },
-                "row": 2
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 1.0,
+                    "y": 0.0
+                  },
+                  "axisY": {
+                    "x": 0.0,
+                    "y": 1.0
+                  },
+                  "origin": {
+                    "x": 7.0,
+                    "y": 35.0
+                  },
+                  "rotation": 0.0
+                }
               },
               {
                 "column": 1,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c1",
-                "pose": {
-                  "at": {
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
                     "x": 9.95974468818478,
-                    "y": 38.83783525388191
+                    "y": 38.837835253881906
                   },
                   "rotation": 15.0
                 },
-                "row": 2
+                "pose": {
+                  "at": {
+                    "x": 9.95974468818478,
+                    "y": 38.837835253881906
+                  },
+                  "rotation": 15.0
+                },
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.9659258262890683,
+                    "y": 0.25881904510252074
+                  },
+                  "axisY": {
+                    "x": -0.25881904510252074,
+                    "y": 0.9659258262890683
+                  },
+                  "origin": {
+                    "x": 9.95974468818478,
+                    "y": 38.837835253881906
+                  },
+                  "rotation": 15.0
+                }
               },
               {
                 "column": 2,
                 "enabled": true,
                 "memberId": "matrix/matrix/r2c2",
-                "pose": {
-                  "at": {
-                    "x": 33.775243097279784,
+                "offsetFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 33.77524309727978,
                     "y": 43.80104364792638
                   },
                   "rotation": 7.0
                 },
-                "row": 2
+                "pose": {
+                  "at": {
+                    "x": 33.77524309727978,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                },
+                "row": 2,
+                "shiftFrame": {
+                  "axisX": {
+                    "x": 0.992546151641322,
+                    "y": 0.12186934340514748
+                  },
+                  "axisY": {
+                    "x": -0.12186934340514748,
+                    "y": 0.992546151641322
+                  },
+                  "origin": {
+                    "x": 33.77524309727978,
+                    "y": 43.80104364792638
+                  },
+                  "rotation": 7.0
+                }
               }
             ],
             "columns": [
@@ -2143,11 +4548,20 @@
                   "y": 0.0
                 },
                 "axisY": {
-                  "x": -0.0,
+                  "x": 0.0,
                   "y": 1.0
+                },
+                "base": {
+                  "x": 7.0,
+                  "y": -3.0
                 },
                 "column": 0,
                 "customOrigin": false,
+                "relativeOrigin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 0.0,
                 "splayAngle": 0.0,
                 "splayOrigin": {
                   "x": 7.0,
@@ -2167,16 +4581,29 @@
                   "x": -0.25881904510252074,
                   "y": 0.9659258262890683
                 },
+                "base": {
+                  "x": 26.0,
+                  "y": -1.0
+                },
                 "column": 1,
                 "customOrigin": true,
+                "relativeOrigin": {
+                  "x": -15.0,
+                  "y": -22.0
+                },
+                "rotation": 0.0,
                 "splayAngle": 15.0,
                 "splayOrigin": {
                   "x": 11.0,
                   "y": -23.0
                 },
+                "spreadAxis": {
+                  "x": 1.0,
+                  "y": 0.0
+                },
                 "staggerAxis": {
-                  "x": -0.25881904510251985,
-                  "y": 0.9659258262890695
+                  "x": 0.0,
+                  "y": 1.0
                 }
               },
               {
@@ -2188,16 +4615,29 @@
                   "x": -0.12186934340514748,
                   "y": 0.992546151641322
                 },
+                "base": {
+                  "x": 38.40627814667538,
+                  "y": 6.084289885556139
+                },
                 "column": 2,
                 "customOrigin": false,
+                "relativeOrigin": {
+                  "x": 0.0,
+                  "y": 0.0
+                },
+                "rotation": 0.0,
                 "splayAngle": -8.0,
                 "splayOrigin": {
-                  "x": 38.40627814667539,
-                  "y": 6.0842898855561405
+                  "x": 38.40627814667538,
+                  "y": 6.084289885556139
+                },
+                "spreadAxis": {
+                  "x": 0.9659258262890683,
+                  "y": 0.25881904510252074
                 },
                 "staggerAxis": {
-                  "x": -0.25881904510252696,
-                  "y": 0.965925826289066
+                  "x": -0.25881904510252074,
+                  "y": 0.9659258262890683
                 }
               }
             ],
@@ -2237,8 +4677,8 @@
             "id": "matrix/matrix/r0c2",
             "pose": {
               "at": {
-                "x": 38.40627814667539,
-                "y": 6.0842898855561405
+                "x": 38.40627814667538,
+                "y": 6.084289885556139
               },
               "rotation": 7.0
             }
@@ -2258,7 +4698,7 @@
             "pose": {
               "at": {
                 "x": 9.95974468818478,
-                "y": 38.83783525388191
+                "y": 38.837835253881906
               },
               "rotation": 15.0
             }
@@ -2267,7 +4707,7 @@
             "id": "matrix/matrix/r2c2",
             "pose": {
               "at": {
-                "x": 33.775243097279784,
+                "x": 33.77524309727978,
                 "y": 43.80104364792638
               },
               "rotation": 7.0
@@ -2284,7 +4724,7 @@
       "revision": 1
     },
     {
-      "bodyDigest": "4921:dbccefb03d6123db",
+      "bodyDigest": "8639:eadfe526b2215025",
       "documentKeys": [
         "assets",
         "boards",
@@ -2321,7 +4761,7 @@
       ]
     },
     {
-      "bodyDigest": "5355:789927a69e9ec82e",
+      "bodyDigest": "8752:24906914537b6593",
       "documentKeys": [
         "assets",
         "boards",
@@ -2358,13 +4798,13 @@
       ]
     },
     {
-      "bodyDigest": "57865:ea5df77f5c5c3e2f",
+      "bodyDigest": "250113:9be567401b9bc161",
       "id": "large-draft",
       "kind": "matrix-projections",
       "revision": 3
     },
     {
-      "bodyDigest": "3306:1afe984a0d684174",
+      "bodyDigest": "6773:6d323eab3596d5df",
       "id": "splay-preview",
       "kind": "preview",
       "sceneKeys": [
@@ -2382,7 +4822,7 @@
       ]
     },
     {
-      "bodyDigest": "5519:6082dc4205b4c73e",
+      "bodyDigest": "8923:fa89bb263088a094",
       "documentKeys": [
         "assets",
         "boards",
@@ -2419,7 +4859,7 @@
       ]
     },
     {
-      "bodyDigest": "5692:047da7f4fdd8c0fc",
+      "bodyDigest": "9096:c81cf91aa06a282a",
       "documentKeys": [
         "assets",
         "boards",
@@ -2457,7 +4897,7 @@
       ]
     },
     {
-      "bodyDigest": "7004:20cf0197c11c5c3b",
+      "bodyDigest": "10408:fde026d77f3ce7c9",
       "documentKeys": [
         "assets",
         "boards",
@@ -2496,7 +4936,7 @@
       ]
     },
     {
-      "bodyDigest": "6944:be4dcfb9e5de7a4e",
+      "bodyDigest": "10348:04a5c96383f344e6",
       "documentKeys": [
         "assets",
         "boards",
@@ -2535,7 +4975,7 @@
       ]
     },
     {
-      "bodyDigest": "7056:81b17c72dc82d1b2",
+      "bodyDigest": "10460:9cdd897bdbda65c0",
       "documentKeys": [
         "assets",
         "boards",
@@ -2574,7 +5014,7 @@
       ]
     },
     {
-      "bodyDigest": "4319:9bf318d9c77ee1fa",
+      "bodyDigest": "7795:ffc546758242bcda",
       "id": "placement-stagger-preview",
       "kind": "preview",
       "sceneKeys": [
@@ -2592,7 +5032,7 @@
       ]
     },
     {
-      "bodyDigest": "7095:70819f4728b54748",
+      "bodyDigest": "10511:3140b92cc3764e2f",
       "documentKeys": [
         "assets",
         "boards",
@@ -2631,7 +5071,7 @@
       ]
     },
     {
-      "bodyDigest": "4330:1f235cd886c10119",
+      "bodyDigest": "7808:8339612adbeb7577",
       "id": "placement-column-offset-preview",
       "kind": "preview",
       "sceneKeys": [
@@ -2649,7 +5089,7 @@
       ]
     },
     {
-      "bodyDigest": "7078:fc5d2ea1c8e14775",
+      "bodyDigest": "10554:e40e47499033fc27",
       "documentKeys": [
         "assets",
         "boards",
@@ -2688,7 +5128,7 @@
       ]
     },
     {
-      "bodyDigest": "4342:2ac43adad81ea1d4",
+      "bodyDigest": "7822:bc7d3b254c10249d",
       "id": "placement-row-offset-preview",
       "kind": "preview",
       "sceneKeys": [
@@ -2706,7 +5146,7 @@
       ]
     },
     {
-      "bodyDigest": "7120:cd53d9c12994fbe0",
+      "bodyDigest": "10609:57d9922b145361d5",
       "documentKeys": [
         "assets",
         "boards",
@@ -2745,7 +5185,7 @@
       ]
     },
     {
-      "bodyDigest": "10978:dc712bd36144f221",
+      "bodyDigest": "14375:e66c0c92eaf6f45a",
       "documentKeys": [
         "assets",
         "boards",
@@ -2784,7 +5224,7 @@
       ]
     },
     {
-      "bodyDigest": "10934:5fe28c9b196c4696",
+      "bodyDigest": "14331:034012b389d39ba9",
       "documentKeys": [
         "assets",
         "boards",
@@ -2823,7 +5263,7 @@
       ]
     },
     {
-      "bodyDigest": "10977:66939efbb54f2731",
+      "bodyDigest": "14374:0efa4546a8166090",
       "documentKeys": [
         "assets",
         "boards",
@@ -2862,7 +5302,7 @@
       ]
     },
     {
-      "bodyDigest": "10947:6a4b148d57f25e69",
+      "bodyDigest": "14344:e3b94736c44abb60",
       "documentKeys": [
         "assets",
         "boards",
@@ -2901,7 +5341,7 @@
       ]
     },
     {
-      "bodyDigest": "11802:e4da8bcac52bb1b6",
+      "bodyDigest": "15199:451cb15a8d22ba47",
       "documentKeys": [
         "assets",
         "boards",
@@ -2941,7 +5381,7 @@
       ]
     },
     {
-      "bodyDigest": "7136:c76aef43135aa192",
+      "bodyDigest": "10525:1c7fe34cd28ff540",
       "id": "mechanical-closure-preview",
       "kind": "preview",
       "sceneKeys": [
@@ -2959,7 +5399,7 @@
       ]
     },
     {
-      "bodyDigest": "14625:9ac42557d1a89573",
+      "bodyDigest": "18022:ef00500f2421eeda",
       "documentKeys": [
         "assets",
         "boards",
@@ -2999,7 +5439,7 @@
       ]
     },
     {
-      "bodyDigest": "14379:6239a94bb00f278d",
+      "bodyDigest": "17776:9e89bb529ff23998",
       "documentKeys": [
         "assets",
         "boards",
@@ -3039,7 +5479,7 @@
       ]
     },
     {
-      "bodyDigest": "12127:5f570fdb0cbe8989",
+      "bodyDigest": "15524:05d8971b16469848",
       "documentKeys": [
         "assets",
         "boards",
@@ -3079,7 +5519,7 @@
       ]
     },
     {
-      "bodyDigest": "12342:3c97a299d0d1137b",
+      "bodyDigest": "15739:3ba652ec6089f87e",
       "documentKeys": [
         "assets",
         "boards",
@@ -3119,7 +5559,7 @@
       ]
     },
     {
-      "bodyDigest": "12279:36f4b62020d67efc",
+      "bodyDigest": "15676:1650c820f7931a8b",
       "documentKeys": [
         "assets",
         "boards",
@@ -3159,7 +5599,7 @@
       ]
     },
     {
-      "bodyDigest": "5263:8ecd23c8f8f95b01",
+      "bodyDigest": "5592:44c0365cb745d2a5",
       "documentKeys": [
         "assets",
         "boards",
@@ -3199,7 +5639,7 @@
       ]
     },
     {
-      "bodyDigest": "6528:822def86bea37f5a",
+      "bodyDigest": "6857:6a4127797d15c394",
       "documentKeys": [
         "assets",
         "boards",
@@ -3239,7 +5679,7 @@
       ]
     },
     {
-      "bodyDigest": "5789:00674ce19689fbb6",
+      "bodyDigest": "6118:8724992e1a300a5c",
       "documentKeys": [
         "assets",
         "boards",
@@ -3279,7 +5719,7 @@
       ]
     },
     {
-      "bodyDigest": "5762:1d1db30dd45d7680",
+      "bodyDigest": "6091:5b4034b3eeb28f3e",
       "documentKeys": [
         "assets",
         "boards",
@@ -3319,7 +5759,7 @@
       ]
     },
     {
-      "bodyDigest": "5787:193f13fb6895efe0",
+      "bodyDigest": "6116:c1411098c0cd9e08",
       "documentKeys": [
         "assets",
         "boards",
@@ -3359,7 +5799,7 @@
       ]
     },
     {
-      "bodyDigest": "5786:4bc21fad37094ce0",
+      "bodyDigest": "6115:64eb2ffb28857c82",
       "documentKeys": [
         "assets",
         "boards",
@@ -3399,7 +5839,7 @@
       ]
     },
     {
-      "bodyDigest": "6128:b38e73d684d8af7f",
+      "bodyDigest": "6457:1712af0bf4517f65",
       "documentKeys": [
         "assets",
         "boards",
@@ -3439,7 +5879,7 @@
       ]
     },
     {
-      "bodyDigest": "5817:ab24f46bfdcb8734",
+      "bodyDigest": "6146:f2edc2e0b7c7a51e",
       "documentKeys": [
         "assets",
         "boards",
@@ -3479,7 +5919,7 @@
       ]
     },
     {
-      "bodyDigest": "7938:548e62b3391c246f",
+      "bodyDigest": "8267:1b4c410c0e36630f",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3521,7 +5961,7 @@
       ]
     },
     {
-      "bodyDigest": "6673:1f3028b3af9d5028",
+      "bodyDigest": "7002:95551cd22413a16e",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3562,7 +6002,7 @@
       ]
     },
     {
-      "bodyDigest": "6687:baef83798876c90e",
+      "bodyDigest": "7016:a1a571fee905da7e",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3603,7 +6043,7 @@
       ]
     },
     {
-      "bodyDigest": "6697:3c95eac1f1d02cd5",
+      "bodyDigest": "7026:1dc0f316da22126d",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3644,7 +6084,7 @@
       ]
     },
     {
-      "bodyDigest": "7984:ea02ff6b557585bd",
+      "bodyDigest": "8313:419b57a7687a6b69",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3686,7 +6126,7 @@
       ]
     },
     {
-      "bodyDigest": "6721:c8f6ed202d029447",
+      "bodyDigest": "7050:43792d84229d901f",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3727,7 +6167,7 @@
       ]
     },
     {
-      "bodyDigest": "6688:7bcd1efb4e1d283b",
+      "bodyDigest": "7017:76ea373f9a254f2f",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3768,7 +6208,7 @@
       ]
     },
     {
-      "bodyDigest": "7107:eb0064fb9bf79e79",
+      "bodyDigest": "7436:f948cb26807e8285",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3809,7 +6249,7 @@
       ]
     },
     {
-      "bodyDigest": "7729:6c83faf9f43dca67",
+      "bodyDigest": "8058:b148db5ee7bf084f",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3850,7 +6290,7 @@
       ]
     },
     {
-      "bodyDigest": "7743:302fdf458dabee6c",
+      "bodyDigest": "8072:72c441b96df9bac4",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3891,7 +6331,7 @@
       ]
     },
     {
-      "bodyDigest": "8649:6aa2b68afe8b9b39",
+      "bodyDigest": "8978:428942a6b74523ef",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3932,7 +6372,7 @@
       ]
     },
     {
-      "bodyDigest": "8341:ecb6bf942eeb2582",
+      "bodyDigest": "8670:117439505833edd0",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -3973,7 +6413,7 @@
       ]
     },
     {
-      "bodyDigest": "8350:0b3d3c354cc603cd",
+      "bodyDigest": "8679:d52a4bf8e96d09f9",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4014,7 +6454,7 @@
       ]
     },
     {
-      "bodyDigest": "8769:9ca4d0540cebab96",
+      "bodyDigest": "9098:8056ac55b1f27b6e",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4055,7 +6495,7 @@
       ]
     },
     {
-      "bodyDigest": "8781:1f54925ee587b1e4",
+      "bodyDigest": "9110:b0a900731cba9d60",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4096,7 +6536,7 @@
       ]
     },
     {
-      "bodyDigest": "8793:2dfadfe550d6aceb",
+      "bodyDigest": "9122:844ea3a476cdb697",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4137,7 +6577,7 @@
       ]
     },
     {
-      "bodyDigest": "8771:a5998149b3116b3a",
+      "bodyDigest": "9100:09908038e178d4fc",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4178,7 +6618,7 @@
       ]
     },
     {
-      "bodyDigest": "8753:c88c375d7b3ad5b9",
+      "bodyDigest": "9082:7b78b2f370ce9dd1",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4219,7 +6659,7 @@
       ]
     },
     {
-      "bodyDigest": "8823:d9da7165a20dfdf2",
+      "bodyDigest": "9125:794ce1183b406e82",
       "documentKeys": [
         "assets",
         "boardOutlines",
@@ -4260,125 +6700,46 @@
       ]
     },
     {
-      "bodyDigest": "1630:2dd7f65277b3e345",
+      "bodyDigest": "130:f45fd6432c58f775",
       "id": "convert-preview",
-      "kind": "preview",
-      "sceneKeys": [
-        "boardContours",
-        "boardOutlineScenes",
-        "boardReadiness",
-        "changedIds",
-        "contours",
-        "findings",
-        "matrixScenes",
-        "readiness",
-        "revision",
-        "transactionId",
-        "transforms"
-      ]
+      "kind": "error",
+      "message": "Converting requires zero Splay, Column rotation and carried Bend",
+      "revision": 43
     },
     {
-      "bodyDigest": "8819:7da015d400c2a959",
-      "documentKeys": [
-        "assets",
-        "boardOutlines",
-        "boards",
-        "caseBodies",
-        "constraints",
-        "definitions",
-        "format",
-        "formatVersion",
-        "hardware",
-        "id",
-        "keycaps",
-        "materials",
-        "matrices",
-        "mechanical",
-        "name",
-        "nets",
-        "outline",
-        "parameters",
-        "parts",
-        "revision",
-        "scripts"
-      ],
+      "bodyDigest": "129:5c57182b2f4c6e42",
       "id": "convert-commit",
-      "kind": "scene",
-      "sceneKeys": [
-        "boardContours",
-        "boardOutlineScenes",
-        "boardReadiness",
-        "changedIds",
-        "contours",
-        "findings",
-        "matrixScenes",
-        "readiness",
-        "revision",
-        "transactionId",
-        "transforms"
-      ]
+      "kind": "error",
+      "message": "Converting requires zero Splay, Column rotation and carried Bend",
+      "revision": 43
     },
     {
-      "bodyDigest": "8842:61da91a4f3727b8b",
-      "documentKeys": [
-        "assets",
-        "boardOutlines",
-        "boards",
-        "caseBodies",
-        "constraints",
-        "definitions",
-        "format",
-        "formatVersion",
-        "hardware",
-        "id",
-        "keycaps",
-        "materials",
-        "matrices",
-        "mechanical",
-        "name",
-        "nets",
-        "outline",
-        "parameters",
-        "parts",
-        "revision",
-        "scripts"
-      ],
+      "bodyDigest": "86:0f00218f86a17022",
       "id": "convert-offset-2",
-      "kind": "scene",
-      "sceneKeys": [
-        "boardContours",
-        "boardOutlineScenes",
-        "boardReadiness",
-        "changedIds",
-        "contours",
-        "findings",
-        "matrixScenes",
-        "readiness",
-        "revision",
-        "transactionId",
-        "transforms"
-      ]
+      "kind": "error",
+      "message": "Stale base revision",
+      "revision": 43
     },
     {
-      "bodyDigest": "135:4ad87e13fabc1860",
+      "bodyDigest": "85:2da66af18302ca84",
       "id": "convert-refused",
       "kind": "error",
-      "message": "Converting would move this column: its splay pivots with the stagger.",
-      "revision": 45
+      "message": "Stale base revision",
+      "revision": 43
     },
     {
-      "bodyDigest": "117:6c1af8c1fc87aa85",
+      "bodyDigest": "93:ac388e68fcae9e0c",
       "id": "mirrored-half-new-board",
       "kind": "error",
-      "message": "Physical instance \"board\" is unavailable.",
-      "revision": 45
+      "message": "Stale base revision",
+      "revision": 43
     },
     {
-      "bodyDigest": "119:134f07aff727995f",
+      "bodyDigest": "95:93da2bfb4295bd6a",
       "id": "mirrored-half-reuse-board",
       "kind": "error",
-      "message": "Physical instance \"board\" is unavailable.",
-      "revision": 45
+      "message": "Stale base revision",
+      "revision": 43
     }
   ],
   "electricalMirrorReplacement": {
@@ -4400,11 +6761,11 @@
       "open": {
         "buffers": [],
         "kind": "unpacked",
-        "projectJson": "19469:de29955db80e4919"
+        "projectJson": "19475:94a3b21119940b8a"
       },
       "save": {
         "buffers": [
-          "2892:8b91410d2d216205"
+          "2899:dff5cce5405e8665"
         ],
         "kind": "packed"
       }

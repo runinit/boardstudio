@@ -85,8 +85,8 @@ fn fixture_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
         matrix_ids: vec!["paired-matrix".into()],
         part_ids: vec![],
         mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+            correspondences: vec![],
+            exceptions: vec![],
             source_id: "source-layout".into(),
             axis_x: 0.0,
         }),
@@ -194,8 +194,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
         cells: vec![
             MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 0,
                 column: 0,
                 enabled: true,
@@ -208,8 +208,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             },
             MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 0,
                 column: 1,
                 enabled: false,
@@ -222,8 +222,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             },
             MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: true,
+                bend: None,
+                deleted: true,
                 row: 0,
                 column: 2,
                 enabled: true,
@@ -244,8 +244,8 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
             companions: vec![],
             cells: vec![
                 MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -256,8 +256,8 @@ offset_frame: Default::default(),
                     },
                 },
                 MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -317,8 +317,8 @@ fn companion_placement_projection_normalizes_layout_selections() {
         anchor: None,
         cells: vec![MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -402,8 +402,8 @@ fn companion_placement_projection_normalizes_layout_selections() {
     scene.matrix_scenes.push(MatrixScene {
         matrix_id: "component-matrix".into(),
         cells: vec![MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+            shift_frame: Default::default(),
+            offset_frame: Default::default(),
             row: 0,
             column: 0,
             enabled: true,
@@ -1155,8 +1155,8 @@ fn runtime_document(configure: impl FnOnce(&mut ProjectDoc)) -> ProjectDoc {
                 anchor: None,
                 cells: vec![MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row: 0,
                     column: 0,
                     enabled: false,
@@ -1602,8 +1602,8 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
                 matrix_ids: vec!["component-paired-matrix".into()],
                 part_ids: vec![],
                 mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "component-layout".into(),
                     axis_x: 0.0,
                 }),
@@ -1628,8 +1628,8 @@ exceptions: vec![],
                 anchor: None,
                 cells: vec![MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -1660,8 +1660,8 @@ exceptions: vec![],
                 anchor: None,
                 cells: vec![MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -2480,12 +2480,12 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
             edge_gap: None,
             diode_direction: None,
             row_layout: vec![],
-            column_layout: vec![boardstudio_core::model::ColumnLayout { ..Default::default() }],
+            column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
             anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 0,
                 column: 0,
                 enabled: true,
@@ -3000,7 +3000,10 @@ mod matrix_relations_panel {
             operation_id: probe.runtime.operation(),
         });
         probe.land().await;
-        assert_eq!(probe.matrix().column_layout[1].offset, Vec2 { x: 1.5, y: 2.0 });
+        assert_eq!(
+            probe.matrix().column_layout[1].offset,
+            Vec2 { x: 1.5, y: 2.0 }
+        );
         assert!(
             probe.exists("[data-relation-departure='Column offset']"),
             "Undo restores the departure: {}",

@@ -692,7 +692,8 @@ impl<'a> Follow<'a> {
             .layouts
             .iter()
             .filter(|item| {
-                item.board_id == self.source_board && item.matrix_ids.iter().any(|id| id == self.source_matrix)
+                item.board_id == self.source_board
+                    && item.matrix_ids.iter().any(|id| id == self.source_matrix)
             })
             .cloned()
             .collect();
@@ -721,10 +722,26 @@ impl<'a> Follow<'a> {
                 id: id.clone(),
                 name: source.name.clone(),
                 board_id: self.mirror_board.to_owned(),
-                matrix_ids: source.matrix_ids.iter().map(|id| {
-                    if id == self.source_matrix { Ok(self.mirror_matrix.to_owned()) }
-                    else { draft.hardware.as_ref().into_iter().flat_map(|h| &h.pairs).filter_map(|p| p.halves.as_ref()).flat_map(|h| &h.correspondences).find(|c| c.kind == MirroredItemKind::Matrix && c.source_id == *id).map(|c| c.mirror_id.clone()).ok_or("Layout matrix correspondence is missing") }
-                }).collect::<Result<Vec<_>, _>>()?,
+                matrix_ids: source
+                    .matrix_ids
+                    .iter()
+                    .map(|id| {
+                        if id == self.source_matrix {
+                            Ok(self.mirror_matrix.to_owned())
+                        } else {
+                            draft
+                                .hardware
+                                .as_ref()
+                                .into_iter()
+                                .flat_map(|h| &h.pairs)
+                                .filter_map(|p| p.halves.as_ref())
+                                .flat_map(|h| &h.correspondences)
+                                .find(|c| c.kind == MirroredItemKind::Matrix && c.source_id == *id)
+                                .map(|c| c.mirror_id.clone())
+                                .ok_or("Layout matrix correspondence is missing")
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
                 part_ids,
                 mirror_link: None,
             });

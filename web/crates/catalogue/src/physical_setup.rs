@@ -2237,8 +2237,8 @@ mod tests {
             matrix_ids: vec!["matrix-b".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: "left-layout".into(),
                 axis_x: 12.0,
             }),

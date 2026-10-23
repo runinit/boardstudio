@@ -214,8 +214,8 @@ fn fixture() -> (ProjectDoc, TreeContext) {
         anchor: None,
         cells: vec![MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -255,8 +255,8 @@ fn two_key_fixture(include_standalone: bool) -> (ProjectDoc, TreeContext) {
     matrix.part_ids.push(second_key.into());
     matrix.cells.push(MatrixCell {
         shift: None,
-    bend: None,
-    deleted: false,
+        bend: None,
+        deleted: false,
         row: 0,
         column: 1,
         enabled: true,
@@ -313,8 +313,8 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
     matrix.part_ids.push(third_key.into());
     matrix.cells.push(MatrixCell {
         shift: None,
-    bend: None,
-    deleted: false,
+        bend: None,
+        deleted: false,
         row: 0,
         column: 2,
         enabled: true,
@@ -1436,8 +1436,9 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     let accepted = probe.runtime.model().accepted.unwrap();
     assert_eq!(
         accepted.document.matrices[0]
-            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+            .column_layout
             .first()
+            .map(|record| &record.stagger)
             .copied(),
         Some(4.0),
         "the Inspector value is the matrix's column stagger"
@@ -1462,7 +1463,11 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
     assert_eq!(
-        undone.document.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().first().copied(),
+        undone.document.matrices[0]
+            .column_layout
+            .first()
+            .map(|record| &record.stagger)
+            .copied(),
         Some(1.0),
         "one Undo reverts the whole second stagger edit"
     );
@@ -1506,11 +1511,18 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
 
     let (mut document, _) = two_key_fixture(false);
     {
-                let values = vec![Vec2 { x: 0.0, y: -9.525 }];
-                document.matrices[0].column_layout.resize_with(values.len().max(document.matrices[0].column_layout.len()), Default::default);
-                for record in &mut document.matrices[0].column_layout { record.offset = Vec2::default(); }
-                for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) { record.offset = value; }
-            }
+        let values = vec![Vec2 { x: 0.0, y: -9.525 }];
+        document.matrices[0].column_layout.resize_with(
+            values.len().max(document.matrices[0].column_layout.len()),
+            Default::default,
+        );
+        for record in &mut document.matrices[0].column_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     let (probe, root) = mount_selection_probe(
         "matrix-transform-convert-test",
         document,
@@ -1533,7 +1545,14 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
         revision + 1,
         "one accepted edit"
     );
-    assert_eq!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![-9.525, 9.525]);
+    assert_eq!(
+        matrix
+            .column_layout
+            .iter()
+            .map(|record| record.stagger)
+            .collect::<Vec<_>>(),
+        vec![-9.525, 9.525]
+    );
     assert_eq!(matrix.column_layout[0].offset.y, 0.0);
     // The probe host re-renders only when its version signal moves.
     let mut version = probe.version.borrow().expect("Editor version signal");
@@ -1553,11 +1572,15 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     let undone = probe.runtime.model().accepted.unwrap();
-    assert_eq!(undone.document.matrices[0].column_layout[0].offset.y, -9.525);
+    assert_eq!(
+        undone.document.matrices[0].column_layout[0].offset.y,
+        -9.525
+    );
     assert!(
         undone.document.matrices[0]
-            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+            .column_layout
             .iter()
+            .map(|record| &record.stagger)
             .all(|value| *value == 0.0)
     );
     root.remove();
@@ -1567,17 +1590,31 @@ async fn convert_to_stagger_appears_only_for_a_nonzero_offset_y_and_is_one_undo_
 async fn convert_to_stagger_is_disabled_with_core_reason_on_a_splayed_column() {
     let (mut document, _) = two_key_fixture(false);
     {
-                let values = vec![Vec2 { x: 0.0, y: -9.525 }];
-                document.matrices[0].column_layout.resize_with(values.len().max(document.matrices[0].column_layout.len()), Default::default);
-                for record in &mut document.matrices[0].column_layout { record.offset = Vec2::default(); }
-                for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) { record.offset = value; }
-            }
+        let values = vec![Vec2 { x: 0.0, y: -9.525 }];
+        document.matrices[0].column_layout.resize_with(
+            values.len().max(document.matrices[0].column_layout.len()),
+            Default::default,
+        );
+        for record in &mut document.matrices[0].column_layout {
+            record.offset = Vec2::default();
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.offset = value;
+        }
+    }
     {
-                let values = vec![10.0];
-                document.matrices[0].column_layout.resize_with(values.len().max(document.matrices[0].column_layout.len()), Default::default);
-                for record in &mut document.matrices[0].column_layout { record.splay = 0.0; }
-                for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) { record.splay = value; }
-            }
+        let values = vec![10.0];
+        document.matrices[0].column_layout.resize_with(
+            values.len().max(document.matrices[0].column_layout.len()),
+            Default::default,
+        );
+        for record in &mut document.matrices[0].column_layout {
+            record.splay = 0.0;
+        }
+        for (record, value) in document.matrices[0].column_layout.iter_mut().zip(values) {
+            record.splay = value;
+        }
+    }
     let (probe, root) = mount_selection_probe(
         "matrix-transform-convert-splayed-test",
         document,
@@ -1747,8 +1784,9 @@ async fn canvas_dimensions_preserve_inspector_drafts_and_share_undo() {
     settle(&probe).await;
     assert_eq!(
         probe.runtime.model().accepted.unwrap().document.matrices[0]
-            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+            .column_layout
             .first()
+            .map(|record| &record.stagger)
             .copied()
             .unwrap_or(0.0),
         0.0

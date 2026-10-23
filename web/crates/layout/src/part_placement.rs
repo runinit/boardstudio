@@ -1803,8 +1803,8 @@ pub fn selected_key_component_operation(
         || super::parts::matrix_input_available(definition);
     let mut cell = current.clone().unwrap_or(MatrixCell {
         shift: None,
-    bend: None,
-    deleted: false,
+        bend: None,
+        deleted: false,
         row: *row,
         column: *column,
         enabled: true,
@@ -1855,10 +1855,9 @@ pub fn selected_key_component_operation(
             || previous.variant != cell.variant
             || previous.assemblies != cell.assemblies
     });
-    let is_mirror_target = accepted
-        .layouts
-        .iter()
-        .any(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id) && layout.mirror_link.is_some());
+    let is_mirror_target = accepted.layouts.iter().any(|layout| {
+        layout.matrix_ids.iter().any(|id| id == matrix_id) && layout.mirror_link.is_some()
+    });
     if assemblies_changed && is_mirror_target {
         cell.assemblies_local = Some(true);
     }
@@ -2640,8 +2639,8 @@ mod tests {
         let mut matrix = matrix_fixture();
         matrix.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 1,
             column: 2,
             enabled: true,
@@ -3649,8 +3648,8 @@ mod tests {
             anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 1,
                 column: 2,
                 enabled: false,
@@ -3729,8 +3728,8 @@ mod tests {
         source.id = "matrix-source".into();
         source.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -3760,8 +3759,8 @@ mod tests {
                 matrix_ids: vec!["matrix-target".into()],
                 part_ids: Vec::new(),
                 mirror_link: Some(boardstudio_core::model::LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "layout-source".into(),
                     axis_x: 0.0,
                 }),

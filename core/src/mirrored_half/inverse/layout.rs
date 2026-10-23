@@ -119,7 +119,10 @@ pub(super) fn translate(links: &Links<'_>, requested: &Layout) -> Result<Outcome
     for id in &mirror.matrix_ids {
         let (source_matrix_id, mapping) = links.matrix_frame(id)?;
         if !source.matrix_ids.contains(&source_matrix_id) || mapping != Some(link.pair.mapping) {
-            return Err(format!("Native layout {:?} does not follow its paired matrix correspondence", requested.id));
+            return Err(format!(
+                "Native layout {:?} does not follow its paired matrix correspondence",
+                requested.id
+            ));
         }
     }
 
@@ -385,9 +388,15 @@ fn overlaps_legacy_link(
             .is_some_and(|legacy| ids.contains(&&layout.id) || ids.contains(&&legacy.source_id))
     });
     layout_overlap
-        || source.matrix_ids.iter().any(|id| crate::matrix::layout::has_link(links.document, id))
+        || source
+            .matrix_ids
+            .iter()
+            .any(|id| crate::matrix::layout::has_link(links.document, id))
         || mirror.is_some_and(|mirror| {
-            mirror.matrix_ids.iter().any(|id| crate::matrix::layout::has_link(links.document, id))
+            mirror
+                .matrix_ids
+                .iter()
+                .any(|id| crate::matrix::layout::has_link(links.document, id))
         })
 }
 
@@ -408,7 +417,8 @@ fn introduces_native_legacy_overlap(links: &Links<'_>, requested: &Layout) -> bo
                         correspondence.source_id.as_str(),
                         correspondence.mirror_id.as_str(),
                     ]
-                    .iter().any(|id| requested.matrix_ids.iter().any(|matrix| matrix == id)))
+                    .iter()
+                    .any(|id| requested.matrix_ids.iter().any(|matrix| matrix == id)))
         })
     })
 }

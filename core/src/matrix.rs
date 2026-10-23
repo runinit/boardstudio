@@ -18,11 +18,11 @@
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
 pub(crate) mod deletion;
-pub mod kernel;
 pub(crate) mod evaluation;
+pub mod kernel;
 use crate::model::{
-    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature,
-    Part, Pin, Pose2, ProjectDoc, Side, Vec2,
+    Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature, Part, Pin,
+    Pose2, ProjectDoc, Side, Vec2,
 };
 use serde_json::json;
 pub(crate) mod layout;
@@ -132,8 +132,8 @@ pub(crate) fn removed_members(doc: &mut ProjectDoc, requested: &[String]) -> Vec
                     .unwrap_or_else(|| {
                         matrix.cells.push(MatrixCell {
                             shift: None,
-    bend: None,
-    deleted: false,
+                            bend: None,
+                            deleted: false,
                             row,
                             column,
                             enabled: true,
@@ -291,13 +291,22 @@ pub(crate) enum ProjectionMode {
 }
 
 pub(crate) fn valid_projection_matrix(matrix: &Matrix) -> Result<(), String> {
-    let gap = matrix.edge_gap.unwrap_or(Vec2 { x: DEFAULT_EDGE_GAP_MM, y: DEFAULT_EDGE_GAP_MM });
-    if !gap.x.is_finite() || !gap.y.is_finite() || gap.x < 0.0 || gap.y < 0.0
-        || gap.x >= matrix.pitch.x || gap.y >= matrix.pitch.y {
+    let gap = matrix.edge_gap.unwrap_or(Vec2 {
+        x: DEFAULT_EDGE_GAP_MM,
+        y: DEFAULT_EDGE_GAP_MM,
+    });
+    if !gap.x.is_finite()
+        || !gap.y.is_finite()
+        || gap.x < 0.0
+        || gap.y < 0.0
+        || gap.x >= matrix.pitch.x
+        || gap.y >= matrix.pitch.y
+    {
         return Err("Matrix edge gap must be nonnegative and smaller than pitch".into());
     }
     kernel::evaluate(&evaluation::input(matrix), kernel::RawAnchorContext::World)
-        .map(|_| ()).map_err(str::to_owned)
+        .map(|_| ())
+        .map_err(str::to_owned)
 }
 
 pub(crate) fn project_matrix(
@@ -312,7 +321,10 @@ pub(crate) fn project_matrix(
         BTreeMap::new()
     };
     let by_id: BTreeMap<_, _> = if mode == ProjectionMode::Actual {
-        doc.parts.iter().map(|part| (part.id.as_str(), part)).collect()
+        doc.parts
+            .iter()
+            .map(|part| (part.id.as_str(), part))
+            .collect()
     } else {
         BTreeMap::new()
     };
@@ -330,7 +342,10 @@ pub(crate) fn project_matrix(
             }
             let enabled = cell.is_none_or(|item| item.enabled);
             let member_id = if enabled {
-                members.get(&(row, column)).filter(|id| by_id.contains_key(id.as_str())).cloned()
+                members
+                    .get(&(row, column))
+                    .filter(|id| by_id.contains_key(id.as_str()))
+                    .cloned()
             } else {
                 None
             };
@@ -353,27 +368,42 @@ pub(crate) fn project_matrix(
                     member_id
                 },
                 pose,
-                shift_frame: evaluated.cells.iter().find(|cell| cell.row == row as usize && cell.column == column as usize).ok_or("Key shift frame is missing")?.shift_frame,
-                offset_frame: evaluated.cells.iter().find(|cell| cell.row == row as usize && cell.column == column as usize).ok_or("Key offset frame is missing")?.offset_frame,
+                shift_frame: evaluated
+                    .cells
+                    .iter()
+                    .find(|cell| cell.row == row as usize && cell.column == column as usize)
+                    .ok_or("Key shift frame is missing")?
+                    .shift_frame,
+                offset_frame: evaluated
+                    .cells
+                    .iter()
+                    .find(|cell| cell.row == row as usize && cell.column == column as usize)
+                    .ok_or("Key offset frame is missing")?
+                    .offset_frame,
             });
         }
     }
     Ok(MatrixScene {
         matrix_id: matrix.id.clone(),
         cells: projected,
-        columns: evaluated.columns.iter().enumerate().map(|(column, frame)| MatrixColumnBasis {
-            column: column as u32,
-            base: frame.base,
-            rotation: frame.rotation,
-            relative_origin: frame.relative_origin,
-            spread_axis: frame.spread_axis,
-            splay_origin: frame.splay_origin,
-            splay_angle: frame.splay,
-            custom_origin: frame.custom_origin,
-            axis_x: frame.frame.axis_x,
-            axis_y: frame.frame.axis_y,
-            stagger_axis: frame.stagger_axis,
-        }).collect(),
+        columns: evaluated
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(column, frame)| MatrixColumnBasis {
+                column: column as u32,
+                base: frame.base,
+                rotation: frame.rotation,
+                relative_origin: frame.relative_origin,
+                spread_axis: frame.spread_axis,
+                splay_origin: frame.splay_origin,
+                splay_angle: frame.splay,
+                custom_origin: frame.custom_origin,
+                axis_x: frame.frame.axis_x,
+                axis_y: frame.frame.axis_y,
+                stagger_axis: frame.stagger_axis,
+            })
+            .collect(),
         companions: vec![],
     })
 }
@@ -801,7 +831,11 @@ mod projection_tests {
     use super::*;
     use crate::model::Mirror;
 
-    fn project_matrix(matrix: &Matrix, parts: &[Part], mode: ProjectionMode) -> Result<MatrixScene, String> {
+    fn project_matrix(
+        matrix: &Matrix,
+        parts: &[Part],
+        mode: ProjectionMode,
+    ) -> Result<MatrixScene, String> {
         let mut doc = ProjectDoc::empty("test", "Test");
         doc.parts = parts.to_vec();
         super::project_matrix(matrix, &doc, mode)
@@ -828,12 +862,19 @@ mod projection_tests {
 
             diode_direction: None,
             row_layout: vec![],
-            column_layout: vec![crate::model::ColumnLayout { ..Default::default() }, crate::model::ColumnLayout { stagger: 3.0, splay: 15.0, ..Default::default() }],
+            column_layout: vec![
+                crate::model::ColumnLayout::default(),
+                crate::model::ColumnLayout {
+                    stagger: 3.0,
+                    splay: 15.0,
+                    ..Default::default()
+                },
+            ],
             anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 1,
                 column: 1,
                 enabled: false,
@@ -912,21 +953,37 @@ mod projection_tests {
         assert!(valid_projection_matrix(&m).is_err());
         m.pitch.x = 19.0;
         {
-                let values = (vec![None; m.columns as usize + 1]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
-                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
-                for record in &mut m.column_layout { record.splay_origin = Vec2::default(); }
-                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            let values = (vec![None; m.columns as usize + 1])
+                .into_iter()
+                .map(|value| value.unwrap_or_default())
+                .collect::<Vec<_>>();
+            m.column_layout
+                .resize_with(values.len().max(m.column_layout.len()), Default::default);
+            for record in &mut m.column_layout {
+                record.splay_origin = Vec2::default();
             }
+            for (record, value) in m.column_layout.iter_mut().zip(values) {
+                record.splay_origin = value;
+            }
+        }
         assert!(valid_projection_matrix(&m).is_err());
         {
-                let values = (vec![Some(Vec2 {
-            x: f64::NAN,
-            y: 0.0,
-        })]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
-                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
-                for record in &mut m.column_layout { record.splay_origin = Vec2::default(); }
-                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            let values = (vec![Some(Vec2 {
+                x: f64::NAN,
+                y: 0.0,
+            })])
+            .into_iter()
+            .map(|value| value.unwrap_or_default())
+            .collect::<Vec<_>>();
+            m.column_layout
+                .resize_with(values.len().max(m.column_layout.len()), Default::default);
+            for record in &mut m.column_layout {
+                record.splay_origin = Vec2::default();
             }
+            for (record, value) in m.column_layout.iter_mut().zip(values) {
+                record.splay_origin = value;
+            }
+        }
         assert!(valid_projection_matrix(&m).is_err());
     }
 
@@ -934,11 +991,16 @@ mod projection_tests {
     fn column_basis_applies_splay_mirror_and_matrix_rotation() {
         let mut m = matrix();
         {
-                let values = vec![0.0];
-                m.column_layout.resize_with(values.len().max(m.column_layout.len()), Default::default);
-                for record in &mut m.column_layout { record.splay = 0.0; }
-                for (record, value) in m.column_layout.iter_mut().zip(values) { record.splay = value; }
+            let values = vec![0.0];
+            m.column_layout
+                .resize_with(values.len().max(m.column_layout.len()), Default::default);
+            for record in &mut m.column_layout {
+                record.splay = 0.0;
             }
+            for (record, value) in m.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         m.rotation = Some(90.0);
         m.mirror = None;
         let scene = project_matrix(&m, &[], ProjectionMode::Draft).unwrap();

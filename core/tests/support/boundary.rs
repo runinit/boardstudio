@@ -30,12 +30,12 @@ pub fn payload() -> Vec<u8> {
 
 pub fn matrix() -> Value {
     json!({
-        "id": "matrix", "rows": 3, "columns": 3, "definitionId": "switch",
-        "origin": { "x": 7, "y": -3 }, "pitch": { "x": 19, "y": 19 },
-        "partIds": ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2", "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2"],
-        "cells": (0..3).map(|column| json!({ "row": 1, "column": column, "enabled": false })).collect::<Vec<_>>(),
-        "columnLayout": [{"stagger": 0, "splay": 0}, {"stagger": 2, "splayOrigin": {"x": 4, "y": -20}, "splay": 15}, {"stagger": -1, "splay": -8}],
-})
+            "id": "matrix", "rows": 3, "columns": 3, "definitionId": "switch",
+            "origin": { "x": 7, "y": -3 }, "pitch": { "x": 19, "y": 19 },
+            "partIds": ["matrix/matrix/r0c0", "matrix/matrix/r0c1", "matrix/matrix/r0c2", "matrix/matrix/r2c0", "matrix/matrix/r2c1", "matrix/matrix/r2c2"],
+            "cells": (0..3).map(|column| json!({ "row": 1, "column": column, "enabled": false })).collect::<Vec<_>>(),
+            "columnLayout": [{"stagger": 0, "splay": 0}, {"stagger": 2, "splayOrigin": {"x": -15, "y": -22}, "splay": 15}, {"stagger": -1, "splay": -8}],
+    })
 }
 
 /// The normalized bundled mounting-hole catalogue entry projection requires.

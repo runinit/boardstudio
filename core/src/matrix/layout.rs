@@ -57,6 +57,7 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             {
                 return Err("A mirrored pair must link two distinct layouts on one board".into());
             }
+            validate_link(doc, source, layout, link)?;
         }
     }
     for part in &doc.parts {
@@ -70,21 +71,107 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
     Ok(())
 }
 
+fn owns_member(doc: &ProjectDoc, layout: &Layout, id: &str) -> bool {
+    layout.part_ids.iter().any(|member| member == id) || layout.matrix_ids.iter().any(|matrix_id| {
+        let Ok(matrix) = matrix::evaluation::logical_matrix(matrix_id, doc) else { return false; };
+        let Some(slot) = id.strip_prefix(&format!("matrix/{matrix_id}/r")) else { return false; };
+        let (slot, assembly) = slot.split_once('/').map_or((slot, None), |(slot, assembly)| (slot, Some(assembly)));
+        let Some((row, column)) = slot.split_once('c') else { return false; };
+        let (Ok(row), Ok(column)) = (row.parse::<u32>(), column.parse::<u32>()) else { return false; };
+        row < matrix.rows && column < matrix.columns && assembly.is_none_or(|id| matrix.cells.iter().any(|cell| cell.row == row && cell.column == column && cell.assemblies.iter().any(|assembly| assembly.id == id)))
+    })
+}
+
+fn validate_link(doc: &ProjectDoc, source: &Layout, target: &Layout, link: &LayoutMirrorLink) -> Result<(), String> {
+    let mut sources = Vec::new();
+    let mut targets = Vec::new();
+    for record in &link.correspondences {
+        let source_key = (record.kind, record.source_id.as_str());
+        let target_key = (record.kind, record.mirror_id.as_str());
+        if sources.contains(&source_key) || targets.contains(&target_key) {
+            return Err("Layout correspondences must have unique source and mirror identities".into());
+        }
+        sources.push(source_key); targets.push(target_key);
+        let owned = match record.kind {
+            MirroredItemKind::Matrix => source.matrix_ids.contains(&record.source_id) && target.matrix_ids.contains(&record.mirror_id),
+            MirroredItemKind::Part => owns_member(doc, source, &record.source_id) && owns_member(doc, target, &record.mirror_id),
+            _ => false,
+        };
+        if !owned { return Err("Layout correspondence has invalid ownership".into()); }
+    }
+    if source.matrix_ids.iter().any(|id| !sources.contains(&(MirroredItemKind::Matrix, id.as_str()))) {
+        return Err("Linked Layout requires an explicit correspondence for every source matrix".into());
+    }
+    let mut overlays = Vec::new();
+    for exception in &link.exceptions {
+        let key = (exception.kind, exception.mirror_id.as_str());
+        if overlays.contains(&key) { return Err("Layout exceptions must have unique identities".into()); }
+        overlays.push(key);
+        let owned = match exception.kind {
+            MirroredItemKind::Matrix => target.matrix_ids.contains(&exception.mirror_id),
+            MirroredItemKind::Part => owns_member(doc, target, &exception.mirror_id),
+            _ => false,
+        };
+        if !owned || (!targets.contains(&key) && exception.state != MirroredExceptionState::Local) {
+            return Err("Layout exception has invalid ownership or no correspondence".into());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn populate_new_link(doc: &ProjectDoc, target: &mut Layout) -> Result<(), String> {
+    let Some(link) = &mut target.mirror_link else { return Ok(()); };
+    if !link.correspondences.is_empty() { return Ok(()); }
+    let source = doc.layouts.iter().find(|layout| layout.id == link.source_id).ok_or("Linked layout is missing")?;
+    if source.matrix_ids.len() != 1 || target.matrix_ids.len() != 1 {
+        return Err("Linking matrix groups requires explicit matrix correspondences".into());
+    }
+    let source_id = &source.matrix_ids[0];
+    let mirror_id = &target.matrix_ids[0];
+    link.correspondences.push(MirroredCorrespondence { kind: MirroredItemKind::Matrix, source_id: source_id.clone(), mirror_id: mirror_id.clone(), companion_mode: None, companion_tweak: None });
+    let matrix = matrix::evaluation::logical_matrix(source_id, doc)?;
+    for row in 0..matrix.rows {
+        for column in 0..matrix.columns {
+            link.correspondences.push(MirroredCorrespondence { kind: MirroredItemKind::Part, source_id: matrix::member_id(source_id, row, column), mirror_id: matrix::member_id(mirror_id, row, column), companion_mode: None, companion_tweak: None });
+        }
+    }
+    Ok(())
+}
+
 /// The relationship is stored once, but geometry can be edited from either half.
 pub(crate) fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
-    doc.layouts.iter().filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
-        .any(|owner| owner.mirror_link.is_some() || doc.layouts.iter().any(|layout| layout.mirror_link.as_ref().is_some_and(|link| link.source_id == owner.id)))
+    doc.layouts
+        .iter()
+        .filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
+        .any(|owner| {
+            owner.mirror_link.is_some()
+                || doc.layouts.iter().any(|layout| {
+                    layout
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == owner.id)
+                })
+        })
 }
 
 pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
-    doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).find_map(|link| {
-        link.correspondences.iter().find_map(|record| {
-            if record.kind != MirroredItemKind::Matrix { return None; }
-            if record.source_id == matrix_id { Some((record.mirror_id.clone(), link.axis_x)) }
-            else if record.mirror_id == matrix_id { Some((record.source_id.clone(), link.axis_x)) }
-            else { None }
+    doc.layouts
+        .iter()
+        .filter_map(|layout| layout.mirror_link.as_ref())
+        .find_map(|link| {
+            link.correspondences.iter().find_map(|record| {
+                if record.kind != MirroredItemKind::Matrix {
+                    return None;
+                }
+                if record.source_id == matrix_id {
+                    Some((record.mirror_id.clone(), link.axis_x))
+                } else if record.mirror_id == matrix_id {
+                    Some((record.source_id.clone(), link.axis_x))
+                } else {
+                    None
+                }
+            })
         })
-    })
 }
 
 /// The pair map of a vertical mirror line at `axis_x`: the reflection `x' = 2 * axis_x - x`.
@@ -107,18 +194,9 @@ fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
 }
 
 /// Reflects `source` through a pair's `mapping` onto `target`, which keeps its identity, board and
-/// part ids. The local frame flips (`mirror` toggles) so the mirror keeps the source's numbering:
-/// column 0 is the same physical column on both halves. The origin and the matrix heading take
-/// the pair's rule ([`crate::mechanical::pair::forward`] and `forward_angle`); everything the
-/// matrix places relative to that frame (cell turns, companions) only flips handedness.
-///
-/// Key switch rule (ADR-0010, amendment on switches and companions). A switch takes no half turn.
-/// Its world heading is the pair's `forward_angle` of its heading: the mirrored matrix frame carries
-/// `forward_angle(map, matrix rotation)` and the column splays are negated by the mirror, and the
-/// cell turn is `-r`, so the sum reproduces `forward_angle(map, world heading)` exactly for any map
-/// (`-r` on an axis map, `rotation - r` under a rotated map). A companion (diode, LED) is an
-/// assembly of the cell: it keeps its side (local x flips, local y does not) and takes the negated
-/// member heading. No generator parameter is changed to suit the mirror.
+/// part ids. Layout records and all key values copy unchanged; the kernel's local mirror
+/// reflects the whole local heading once. Companions retain their separate part-local
+/// placement rule. Anchored Origin/Rotation are relative, not reflected world points.
 pub(crate) fn reflected(
     source: &Matrix,
     target: &Matrix,
@@ -151,8 +229,16 @@ pub(crate) fn reflected(
     result.column_layout = source.column_layout.clone();
     result.anchor = source.anchor.clone();
     if let Some(anchor) = &mut result.anchor {
-        anchor.matrix_id = target.anchor.as_ref().ok_or("Linked counterpart anchor is missing")?.matrix_id.clone();
-        result.origin = Vec2 { x: -source.origin.x, y: source.origin.y };
+        anchor.matrix_id = target
+            .anchor
+            .as_ref()
+            .ok_or("Linked counterpart anchor is missing")?
+            .matrix_id
+            .clone();
+        result.origin = Vec2 {
+            x: -source.origin.x,
+            y: source.origin.y,
+        };
         result.rotation = source.rotation.map(|r| -r);
     }
     let source_cells: BTreeMap<_, _> = source
@@ -192,8 +278,8 @@ pub(crate) fn reflected(
             }
             MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: source_cell.row,
                 column: source_cell.column,
                 enabled: true,
@@ -248,7 +334,9 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
     };
-    if exception_state(doc, MirroredItemKind::Matrix, &target_id) == Some(MirroredExceptionState::Omitted) {
+    if exception_state(doc, MirroredItemKind::Matrix, &target_id)
+        == Some(MirroredExceptionState::Omitted)
+    {
         return Ok(vec![]);
     }
     let source = doc
@@ -366,52 +454,102 @@ pub(crate) fn resolve(doc: &mut ProjectDoc) -> Result<(), String> {
     for source in sources.into_iter().flatten() {
         sync(doc, &source)?;
     }
-    matrix::placement::carrying_authored_companions(doc, matrix::placement::Reported::PreserveEditReport, |doc| {
-        for index in matrix::evaluation::order(doc)? {
-            let matrix = &doc.matrices[index];
-            let evaluated = matrix::evaluated(matrix, doc)?;
-            let mut poses = BTreeMap::new();
-            for geometry in &evaluated.cells {
-                let id = matrix::member_id(&matrix.id, geometry.row as u32, geometry.column as u32);
-                if exception_state(doc, MirroredItemKind::Part, &id) == Some(MirroredExceptionState::Local) {
-                    continue;
-                }
-                poses.insert(id.clone(), geometry.pose);
-                if let Some(cell) = matrix.cells.iter().find(|cell| cell.row == geometry.row as u32 && cell.column == geometry.column as u32) {
-                    for assembly in &cell.assemblies {
-                        let id = matrix::companion_id(&id, &assembly.id);
-                        if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
-                            let at = matrix::splay::rotate(assembly.offset, geometry.pose.rotation, Vec2::default());
-                            poses.insert(id, Pose2 { at: Vec2 { x: geometry.pose.at.x + at.x, y: geometry.pose.at.y + at.y }, rotation: geometry.pose.rotation + assembly.rotation.unwrap_or_default() });
-                        }
-                    }
-                }
-            }
-            for part in &mut doc.parts {
-                if let Some(pose) = poses.get(&part.id)
-                    && !part.properties.as_ref().is_some_and(|properties| properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))) {
-                    part.pose = *pose;
-                }
-            }
-        }
-        Ok(vec![])
-    })?;
+    refresh_existing(doc)?;
     sync_components(doc)?;
     Ok(())
 }
 
-pub(crate) fn exception_state(doc: &ProjectDoc, kind: MirroredItemKind, id: &str) -> Option<MirroredExceptionState> {
-    doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).flat_map(|link| &link.exceptions)
-        .chain(doc.hardware.iter().flat_map(|hardware| &hardware.pairs).filter_map(|pair| pair.halves.as_ref()).flat_map(|halves| &halves.exceptions))
-        .find(|exception| exception.kind == kind && exception.mirror_id == id).map(|exception| exception.state)
+pub(crate) fn refresh_existing(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+    matrix::placement::carrying_authored_companions(
+        doc,
+        matrix::placement::Reported::PreserveEditReport,
+        |doc| {
+            for index in matrix::evaluation::order(doc)? {
+                let matrix = &doc.matrices[index];
+                let evaluated = matrix::evaluated(matrix, doc)?;
+                let mut poses = BTreeMap::new();
+                for geometry in &evaluated.cells {
+                    let id =
+                        matrix::member_id(&matrix.id, geometry.row as u32, geometry.column as u32);
+                    if exception_state(doc, MirroredItemKind::Part, &id)
+                        == Some(MirroredExceptionState::Local)
+                    {
+                        continue;
+                    }
+                    poses.insert(id.clone(), geometry.pose);
+                    if let Some(cell) = matrix.cells.iter().find(|cell| {
+                        cell.row == geometry.row as u32 && cell.column == geometry.column as u32
+                    }) {
+                        for assembly in &cell.assemblies {
+                            let id = matrix::companion_id(&id, &assembly.id);
+                            if matches!(companion_mode(doc, &id), MatrixCompanionMode::Follows) {
+                                let at = matrix::splay::rotate(
+                                    assembly.offset,
+                                    geometry.pose.rotation,
+                                    Vec2::default(),
+                                );
+                                poses.insert(
+                                    id,
+                                    Pose2 {
+                                        at: Vec2 {
+                                            x: geometry.pose.at.x + at.x,
+                                            y: geometry.pose.at.y + at.y,
+                                        },
+                                        rotation: geometry.pose.rotation
+                                            + assembly.rotation.unwrap_or_default(),
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+                for part in &mut doc.parts {
+                    if let Some(pose) = poses.get(&part.id)
+                        && !part.properties.as_ref().is_some_and(|properties| {
+                            properties.get(matrix::OVERRIDE) == Some(&serde_json::json!(1))
+                        })
+                    {
+                        part.pose = *pose;
+                    }
+                }
+            }
+            Ok(vec![])
+        },
+    )
+}
+
+pub(crate) fn exception_state(
+    doc: &ProjectDoc,
+    kind: MirroredItemKind,
+    id: &str,
+) -> Option<MirroredExceptionState> {
+    doc.layouts
+        .iter()
+        .filter_map(|layout| layout.mirror_link.as_ref())
+        .flat_map(|link| &link.exceptions)
+        .chain(
+            doc.hardware
+                .iter()
+                .flat_map(|hardware| &hardware.pairs)
+                .filter_map(|pair| pair.halves.as_ref())
+                .flat_map(|halves| &halves.exceptions),
+        )
+        .find(|exception| exception.kind == kind && exception.mirror_id == id)
+        .map(|exception| exception.state)
 }
 
 pub(crate) fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
     // Native reconciliation owns its staged membership plan; filter same-board overlays here.
-    let state = |kind, id: &str| doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).flat_map(|link| &link.exceptions)
-        .find(|exception| exception.kind == kind && exception.mirror_id == id).map(|exception| exception.state);
-    state(MirroredItemKind::Part, key_id)
-        .or_else(|| state(MirroredItemKind::Matrix, matrix_id)) == Some(MirroredExceptionState::Omitted)
+    let state = |kind, id: &str| {
+        doc.layouts
+            .iter()
+            .filter_map(|layout| layout.mirror_link.as_ref())
+            .flat_map(|link| &link.exceptions)
+            .find(|exception| exception.kind == kind && exception.mirror_id == id)
+            .map(|exception| exception.state)
+    };
+    state(MirroredItemKind::Part, key_id).or_else(|| state(MirroredItemKind::Matrix, matrix_id))
+        == Some(MirroredExceptionState::Omitted)
 }
 
 pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
@@ -705,11 +843,17 @@ fn adopt_unassigned_components(
         .find(|layout| layout.id == source_layout_id)
         .ok_or("Linked component source layout is missing")?;
     let board_id = source_layout.board_id.clone();
-    let key_positions: Vec<_> = doc.matrices.iter()
+    let key_positions: Vec<_> = doc
+        .matrices
+        .iter()
         .filter(|matrix| source_layout.matrix_ids.contains(&matrix.id))
-        .flat_map(matrix::cell_members).filter_map(|(_, id)| doc.parts.iter().find(|part| part.id == id))
-        .map(|part| part.pose.at.x).collect();
-    if key_positions.is_empty() { return Ok(()); }
+        .flat_map(matrix::cell_members)
+        .filter_map(|(_, id)| doc.parts.iter().find(|part| part.id == id))
+        .map(|part| part.pose.at.x)
+        .collect();
+    if key_positions.is_empty() {
+        return Ok(());
+    }
     let source_center = key_positions.iter().sum::<f64>() / key_positions.len() as f64;
     if (source_center - axis_x).abs() <= f64::EPSILON {
         return Ok(());
@@ -849,7 +993,11 @@ pub(crate) fn unlink_components(doc: &mut ProjectDoc, layout_id: &str) -> Vec<St
             changed.push(id);
         }
     }
-    for matrix in doc.matrices.iter_mut().filter(|matrix| matrix_ids.contains(&matrix.id)) {
+    for matrix in doc
+        .matrices
+        .iter_mut()
+        .filter(|matrix| matrix_ids.contains(&matrix.id))
+    {
         for cell in &mut matrix.cells {
             if cell.assemblies_local == Some(true) {
                 cell.assemblies_local = None;
@@ -922,7 +1070,9 @@ pub(crate) fn remove_matrix(doc: &mut ProjectDoc, matrix_id: &str) {
         .flat_map(|layout| layout.part_ids.iter().cloned())
         .collect();
     doc.layouts.retain(|layout| !removed.contains(&layout.id));
-    for layout in &mut doc.layouts { layout.matrix_ids.retain(|id| id != matrix_id); }
+    for layout in &mut doc.layouts {
+        layout.matrix_ids.retain(|id| id != matrix_id);
+    }
     for layout in &mut doc.layouts {
         if layout
             .mirror_link
@@ -1073,7 +1223,12 @@ pub(crate) fn move_keys(
             x: position.at.x - generated.x,
             y: position.at.y - generated.y,
         };
-        let frame = &evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Key frame is missing")?.offset_frame;
+        let frame = &evaluated
+            .cells
+            .iter()
+            .find(|c| c.row == row as usize && c.column == column as usize)
+            .ok_or("Key frame is missing")?
+            .offset_frame;
         let local = matrix::evaluation::inverse_offset(frame, delta);
         let index = matrix
             .cells
@@ -1237,8 +1392,18 @@ pub(crate) fn reconcile_constraint_keys(
             continue;
         };
         let evaluated = matrix::evaluated(source, doc)?;
-        let geometry = evaluated.cells.iter().find(|c| c.row == row as usize && c.column == column as usize).ok_or("Key frame is missing")?;
-        let local = matrix::evaluation::inverse_offset(&geometry.offset_frame, Vec2 { x: next.at.x - geometry.pose.at.x, y: next.at.y - geometry.pose.at.y });
+        let geometry = evaluated
+            .cells
+            .iter()
+            .find(|c| c.row == row as usize && c.column == column as usize)
+            .ok_or("Key frame is missing")?;
+        let local = matrix::evaluation::inverse_offset(
+            &geometry.offset_frame,
+            Vec2 {
+                x: next.at.x - geometry.pose.at.x,
+                y: next.at.y - geometry.pose.at.y,
+            },
+        );
         let matrix = matrices
             .entry(source.id.clone())
             .or_insert_with(|| source.clone());
@@ -1269,8 +1434,14 @@ pub(crate) fn reconcile_constraint_keys(
             x: offset.x + local.x,
             y: offset.y + local.y,
         });
-        let sign = if matches!(source.mirror, Some(Mirror::X | Mirror::Y)) { -1.0 } else { 1.0 };
-        cell.rotation = Some(cell.rotation.unwrap_or_default() + sign * (next.rotation - geometry.pose.rotation));
+        let sign = if matches!(source.mirror, Some(Mirror::X | Mirror::Y)) {
+            -1.0
+        } else {
+            1.0
+        };
+        cell.rotation = Some(
+            cell.rotation.unwrap_or_default() + sign * (next.rotation - geometry.pose.rotation),
+        );
     }
     let mut changed = Vec::new();
     for matrix in matrices.values() {

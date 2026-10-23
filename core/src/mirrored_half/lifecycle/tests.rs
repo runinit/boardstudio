@@ -1510,8 +1510,8 @@ fn local_transition_fixture() -> Result<(ProjectDoc, MembershipContext), String>
             .flat_map(|row| {
                 (0..4).map(move |column| MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row,
                     column,
                     enabled: true,
@@ -1743,8 +1743,8 @@ fn parent_kernel_commits_local_source_edit_and_rejoin_through_real_lifecycle_con
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column: 4,
             enabled: true,

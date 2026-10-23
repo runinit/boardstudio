@@ -371,7 +371,9 @@ fn current_document_with_unconvertible_text() -> Value {
     saved["formatVersion"] = json!(migrate::CURRENT_VERSION);
     saved["definitions"] = json!([definition]);
     saved["parts"] = json!([held]);
-    migrate::migrate_value(saved).expect("current schema is admitted unchanged").0
+    migrate::migrate_value(saved)
+        .expect("current schema is admitted unchanged")
+        .0
 }
 
 #[test]

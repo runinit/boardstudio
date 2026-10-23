@@ -62,7 +62,7 @@ fn document() -> ProjectDoc {
             "pitch": { "x": 19.0, "y": 19.0 }, "origin": { "x": 0.0, "y": 0.0 },
             "definitionId": "switch-definition", "partIds": [], "boardId": "board",
             "diodeDirection": "row2col", "rowLayout": [], "columnLayout": [],
-"cells": []
+        "cells": []
         }))
         .expect("the matrix parses"),
     );
@@ -110,8 +110,9 @@ fn column_stagger(runtime: &Runtime) -> f64 {
         .expect("an accepted document")
         .document
         .matrices[0]
-        .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+        .column_layout
         .first()
+        .map(|record| &record.stagger)
         .copied()
         .unwrap_or(0.0)
 }
@@ -240,7 +241,14 @@ fn matrix_then_mechanical_settles_in_order_and_undoes_one_step_each() {
             mounting_hole(),
             mechanical_saw.clone(),
             // The mechanical resolver only sees the matrix edit once it has landed.
-            Box::new(|document| document.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().first().copied() == Some(1.5)),
+            Box::new(|document| {
+                document.matrices[0]
+                    .column_layout
+                    .first()
+                    .map(|record| &record.stagger)
+                    .copied()
+                    == Some(1.5)
+            }),
         ),
     );
     assert!(
@@ -300,7 +308,7 @@ fn mechanical_then_matrix_settles_in_order_and_undoes_one_step_each() {
             },
             mounting_hole(),
             mechanical_saw.clone(),
-            Box::new(|document| document.matrices[0].column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>().is_empty()),
+            Box::new(|document| document.matrices[0].column_layout.is_empty()),
         ),
     );
     let mut matrix_edits = PendingEdits::default();

@@ -111,8 +111,8 @@ pub fn project_mirrored_pair(
         matrix_ids: vec![ids.right_matrix_id.clone()],
         part_ids: Vec::new(),
         mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+            correspondences: vec![],
+            exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
         }),

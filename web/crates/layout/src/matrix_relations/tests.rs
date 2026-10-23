@@ -173,8 +173,12 @@ fn a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints() {
 
 #[test]
 fn staggers_read_relative_to_the_previous_column_with_a_cumulative_value() {
-    let world = world(matrix(1, 3, json!({ "columnLayout": [{"stagger": 0.0}, {"stagger": 2.0}, {"stagger": -1.0}]
-})));
+    let world = world(matrix(
+        1,
+        3,
+        json!({ "columnLayout": [{"stagger": 0.0}, {"stagger": 2.0}, {"stagger": -1.0}]
+        }),
+    ));
 
     let first = relations(&world, column(0)).unwrap();
     assert_eq!(
@@ -199,7 +203,7 @@ fn a_column_offset_is_one_departure_on_that_column_only() {
         2,
         3,
         json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}}]
-}),
+        }),
     ));
 
     let offset = relations(&world, column(1)).unwrap();
@@ -226,7 +230,7 @@ fn an_x_only_column_offset_can_reset_but_not_convert() {
         2,
         3,
         json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 0.0}}]
-}),
+        }),
     ));
     let offset = relations(&world, column(1)).unwrap();
     assert_eq!(offset.departures.len(), 1);

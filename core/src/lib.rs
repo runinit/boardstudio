@@ -57,14 +57,27 @@ impl CoreEngine {
 
     // Worker transport keeps the Rust and TypeScript protocols identical.
     pub fn request(&mut self, json: &str) -> String {
-        let preflight = serde_json::from_str::<serde_json::Value>(json).map_err(|error| error.to_string()).and_then(|value| {
-            let candidate = if value["kind"] == "open" { Some(&value["document"]) }
-                else if value["kind"] == "edit" && value["command"]["operation"]["kind"] == "replace-document" { Some(&value["command"]["operation"]["document"]) }
-                else { None };
-            candidate.map_or(Ok(()), migrate::require_current_value)
-        });
+        let preflight = serde_json::from_str::<serde_json::Value>(json)
+            .map_err(|error| error.to_string())
+            .and_then(|value| {
+                let candidate = if value["kind"] == "open" {
+                    Some(&value["document"])
+                } else if value["kind"] == "edit"
+                    && value["command"]["operation"]["kind"] == "replace-document"
+                {
+                    Some(&value["command"]["operation"]["document"])
+                } else {
+                    None
+                };
+                candidate.map_or(Ok(()), migrate::require_current_value)
+            });
         if let Err(message) = preflight {
-            return serde_json::to_string(&CoreReply::Error { id: String::new(), message, revision: self.document.revision }).expect("reply serializes");
+            return serde_json::to_string(&CoreReply::Error {
+                id: String::new(),
+                message,
+                revision: self.document.revision,
+            })
+            .expect("reply serializes");
         }
         let reply = match serde_json::from_str::<CoreRequest>(json) {
             Ok(request) => self.handle(request),
@@ -344,6 +357,25 @@ impl CoreEngine {
                 if base_revision != self.document.revision {
                     return self.error(id, "Stale base revision");
                 }
+                let mut projection_doc = self.document.clone();
+                let mut seen = BTreeSet::new();
+                for matrix in &matrices {
+                    if !seen.insert(&matrix.id) {
+                        return self.error(id, "Duplicate draft matrix identity");
+                    }
+                    if let Some(existing) = projection_doc
+                        .matrices
+                        .iter_mut()
+                        .find(|existing| existing.id == matrix.id)
+                    {
+                        *existing = matrix.clone();
+                    } else {
+                        projection_doc.matrices.push(matrix.clone());
+                    }
+                }
+                if let Err(message) = layout::refresh_existing(&mut projection_doc) {
+                    return self.error(id, &message);
+                }
                 let mut scenes = Vec::with_capacity(matrices.len());
                 for matrix in matrices {
                     if let Err(message) = matrix::valid_projection_matrix(&matrix) {
@@ -351,7 +383,7 @@ impl CoreEngine {
                     }
                     match matrix::project_matrix(
                         &matrix,
-                        &self.document,
+                        &projection_doc,
                         matrix::ProjectionMode::Draft,
                     ) {
                         Ok(scene) => scenes.push(scene),
@@ -932,6 +964,10 @@ impl CoreEngine {
             cache,
             kind,
         } = input;
+        let matrix_order = match matrix::evaluation::order(doc) {
+            Ok(order) => order,
+            Err(message) => return self.error(id, &message),
+        };
         let mut findings = geom_findings.to_vec();
         let definition_ids: BTreeSet<_> =
             doc.definitions.iter().map(|def| def.id.as_str()).collect();
@@ -1125,9 +1161,9 @@ impl CoreEngine {
                     pose: part.pose,
                 })
                 .collect(),
-            matrix_scenes: doc
-                .matrices
+            matrix_scenes: matrix_order
                 .iter()
+                .map(|index| &doc.matrices[*index])
                 .filter_map(|matrix| {
                     if matrix::valid_matrix(matrix, doc).is_err() {
                         return None;
@@ -1342,8 +1378,8 @@ mod preview_backup_tests {
             anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 0,
                 column: 0,
                 enabled: true,
@@ -1573,8 +1609,16 @@ fn add_part_placement(
                 part.id
             ));
         }
-        if layout.matrix_ids.is_empty() || layout.matrix_ids.iter().any(|id| !document.matrices.iter().any(|matrix| &matrix.id == id && matrix.board_id.as_ref() == Some(&layout.board_id))) {
-            return Err(format!("Layout {layout_id:?} has inconsistent matrix ownership"));
+        if layout.matrix_ids.is_empty()
+            || layout.matrix_ids.iter().any(|id| {
+                !document.matrices.iter().any(|matrix| {
+                    &matrix.id == id && matrix.board_id.as_ref() == Some(&layout.board_id)
+                })
+            })
+        {
+            return Err(format!(
+                "Layout {layout_id:?} has inconsistent matrix ownership"
+            ));
         }
     }
 
@@ -2041,10 +2085,9 @@ fn apply_with_ledger(
                     .layouts
                     .iter()
                     .any(|layout| layout.id == left.id || layout.id == right.id)
-                || doc
-                    .matrices
-                    .iter()
-                    .any(|item| left.matrix_ids.contains(&item.id) || right.matrix_ids.contains(&item.id))
+                || doc.matrices.iter().any(|item| {
+                    left.matrix_ids.contains(&item.id) || right.matrix_ids.contains(&item.id)
+                })
             {
                 return Err(
                     "Mirrored pair requires two new layouts and distinct matrices on one board"
@@ -2072,13 +2115,33 @@ fn apply_with_ledger(
                 layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
             changed.extend(matrix::set_matrix(doc, &target)?);
             let mut follower = right.clone();
-            let link = follower.mirror_link.as_mut().ok_or("A new mirrored pair must be linked")?;
+            let link = follower
+                .mirror_link
+                .as_mut()
+                .ok_or("A new mirrored pair must be linked")?;
             link.correspondences.clear();
             let target_id = &target.id;
-            for (kind, source_id, mirror_id) in std::iter::once((MirroredItemKind::Matrix, matrix.id.clone(), target.id.clone()))
-                .chain((0..matrix.rows).flat_map(|row| (0..matrix.columns).map(move |column| (MirroredItemKind::Part, matrix::member_id(&matrix.id, row, column), matrix::member_id(target_id, row, column)))))
-            {
-                link.correspondences.push(MirroredCorrespondence { kind, source_id, mirror_id, companion_mode: None, companion_tweak: None });
+            for (kind, source_id, mirror_id) in std::iter::once((
+                MirroredItemKind::Matrix,
+                matrix.id.clone(),
+                target.id.clone(),
+            ))
+            .chain((0..matrix.rows).flat_map(|row| {
+                (0..matrix.columns).map(move |column| {
+                    (
+                        MirroredItemKind::Part,
+                        matrix::member_id(&matrix.id, row, column),
+                        matrix::member_id(target_id, row, column),
+                    )
+                })
+            })) {
+                link.correspondences.push(MirroredCorrespondence {
+                    kind,
+                    source_id,
+                    mirror_id,
+                    companion_mode: None,
+                    companion_tweak: None,
+                });
             }
             doc.layouts.extend([left.clone(), follower]);
             layout::validate(doc)?;
@@ -2124,6 +2187,10 @@ fn apply_with_ledger(
             ),
         },
         EditOperation::SetLayout { layout: incoming } => {
+            let mut incoming = incoming.clone();
+            if incoming.mirror_link.is_some() && doc.layouts.iter().find(|layout| layout.id == incoming.id).is_some_and(|layout| layout.mirror_link.is_none()) {
+                layout::populate_new_link(doc, &mut incoming)?;
+            }
             let current = doc
                 .layouts
                 .iter_mut()

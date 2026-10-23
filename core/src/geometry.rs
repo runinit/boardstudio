@@ -161,7 +161,8 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                     .and_then(|layout| {
                         doc.matrices
                             .iter()
-                            .filter(|matrix| layout.matrix_ids.contains(&matrix.id)).min_by(|a, b| a.id.cmp(&b.id))
+                            .filter(|matrix| layout.matrix_ids.contains(&matrix.id))
+                            .min_by(|a, b| a.id.cmp(&b.id))
                     })
                     .map_or(part.pose.at.x, |matrix| matrix.origin.x);
                 groups

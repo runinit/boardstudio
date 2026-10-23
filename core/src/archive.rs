@@ -443,7 +443,10 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json, &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("legacy") && error.contains("No conversion"), "{error}");
+        assert!(
+            error.contains("legacy") && error.contains("No conversion"),
+            "{error}"
+        );
     }
 
     #[test]
@@ -507,8 +510,14 @@ mod tests {
         .to_string();
         let (_, packed) = pack_project(json.clone(), &[], LIMITS).unwrap();
         let error = dispatch(ArchiveRequest::UnpackProject, &packed, LIMITS).unwrap_err();
-        assert!(error.contains("format 5") && error.contains("No conversion"), "{error}");
-        assert_eq!(serde_json::from_str::<serde_json::Value>(&json).unwrap()["formatVersion"], 5);
+        assert!(
+            error.contains("format 5") && error.contains("No conversion"),
+            "{error}"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()["formatVersion"],
+            5
+        );
     }
 
     #[test]

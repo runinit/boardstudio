@@ -74,8 +74,8 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
             matrix_ids: vec!["matrix-mirror".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: "left".into(),
                 axis_x: 0.0,
             }),

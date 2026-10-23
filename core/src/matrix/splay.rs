@@ -13,20 +13,41 @@ pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
 }
 
 pub(crate) fn origin_world(matrix: &Matrix, column: u32, doc: &ProjectDoc) -> Result<Vec2, String> {
-    evaluated(matrix, doc)?.columns.get(column as usize).map(|c| c.splay_origin).ok_or_else(|| "Matrix column is out of bounds".into())
+    evaluated(matrix, doc)?
+        .columns
+        .get(column as usize)
+        .map(|c| c.splay_origin)
+        .ok_or_else(|| "Matrix column is out of bounds".into())
 }
 
-fn compensate(matrix: &Matrix, column: u32, point: Vec2, doc: &ProjectDoc) -> Result<Matrix, String> {
+fn compensate(
+    matrix: &Matrix,
+    column: u32,
+    point: Vec2,
+    doc: &ProjectDoc,
+) -> Result<Matrix, String> {
     let mut after = matrix.clone();
-    after.column_layout.resize_with((column as usize + 2).min(matrix.columns as usize).max(after.column_layout.len()), Default::default);
+    after.column_layout.resize_with(
+        (column as usize + 2)
+            .min(matrix.columns as usize)
+            .max(after.column_layout.len()),
+        Default::default,
+    );
     let index = column as usize;
     let values = after.column_layout[index];
-    let delta = Vec2 { x: point.x - values.splay_origin.x, y: point.y - values.splay_origin.y };
+    let delta = Vec2 {
+        x: point.x - values.splay_origin.x,
+        y: point.y - values.splay_origin.y,
+    };
     after.column_layout[index].splay_origin = point;
     let rotated = rotate(delta, values.splay + values.rotation, Vec2::default());
-    let correction = Vec2 { x: rotated.x - delta.x, y: rotated.y - delta.y };
+    let correction = Vec2 {
+        x: rotated.x - delta.x,
+        y: rotated.y - delta.y,
+    };
     if column > 0 {
-        after.column_layout[index].spread = Some(values.spread.unwrap_or(matrix.pitch.x) + correction.x);
+        after.column_layout[index].spread =
+            Some(values.spread.unwrap_or(matrix.pitch.x) + correction.x);
         after.column_layout[index].stagger += correction.y;
     } else {
         let frame = evaluated(matrix, doc)?.frame;
@@ -36,42 +57,53 @@ fn compensate(matrix: &Matrix, column: u32, point: Vec2, doc: &ProjectDoc) -> Re
             _ => v,
         };
         let world = rotate(reflect(correction), frame.rotation, Vec2::default());
-        let mut x = after.clone(); x.origin.x += 1.0;
-        let mut y = after.clone(); y.origin.y += 1.0;
-        let base = evaluated(&after, doc)?.frame.origin;
-        let px = evaluated(&x, doc)?.frame.origin;
-        let py = evaluated(&y, doc)?.frame.origin;
-        let change = solve(Vec2 { x: px.x-base.x, y: px.y-base.y }, Vec2 { x: py.x-base.x, y: py.y-base.y }, world)
-            .ok_or("Hold-still compensation requires enabling the missing Follow component or explicit Detach")?;
+        let change = super::evaluation::origin_delta(&after, doc, world)?;
         after.origin.x += change.x;
         after.origin.y += change.y;
     }
     if column + 1 < matrix.columns && values.rotation != 0.0 {
         let rotated = rotate(delta, values.rotation, Vec2::default());
-        let next = &mut after.column_layout[index+1];
-        next.spread = Some(next.spread.unwrap_or(matrix.pitch.x) + delta.x-rotated.x);
-        next.stagger += delta.y-rotated.y;
+        let next = &mut after.column_layout[index + 1];
+        next.spread = Some(next.spread.unwrap_or(matrix.pitch.x) + delta.x - rotated.x);
+        next.stagger += delta.y - rotated.y;
     }
     Ok(after)
 }
 
 fn solve(x: Vec2, y: Vec2, delta: Vec2) -> Option<Vec2> {
-    let determinant = x.x*y.y - x.y*y.x;
+    let determinant = x.x * y.y - x.y * y.x;
     if determinant.abs() < 1e-12 {
-        if delta.x.abs() < 1e-9 && delta.y.abs() < 1e-9 { return Some(Vec2::default()); }
+        if delta.x.abs() < 1e-9 && delta.y.abs() < 1e-9 {
+            return Some(Vec2::default());
+        }
         return None;
     }
-    Some(Vec2 { x: (delta.x*y.y-delta.y*y.x)/determinant, y: (x.x*delta.y-x.y*delta.x)/determinant })
+    Some(Vec2 {
+        x: (delta.x * y.y - delta.y * y.x) / determinant,
+        y: (x.x * delta.y - x.y * delta.x) / determinant,
+    })
 }
 
-pub(crate) fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange, doc: &ProjectDoc) -> Result<Matrix, String> {
+pub(crate) fn update(
+    matrix: &Matrix,
+    column: u32,
+    change: &MatrixSplayChange,
+    doc: &ProjectDoc,
+) -> Result<Matrix, String> {
     valid_projection_matrix(matrix)?;
-    if column >= matrix.columns { return Err("Matrix splay column is out of bounds".into()); }
+    if column >= matrix.columns {
+        return Err("Matrix splay column is out of bounds".into());
+    }
     let mut after = matrix.clone();
-    after.column_layout.resize_with((column as usize+1).max(after.column_layout.len()), Default::default);
+    after.column_layout.resize_with(
+        (column as usize + 1).max(after.column_layout.len()),
+        Default::default,
+    );
     match change {
         MatrixSplayChange::Angle { angle, affect } => {
-            if !angle.is_finite() { return Err("Matrix splay angle is non-finite".into()); }
+            if !angle.is_finite() {
+                return Err("Matrix splay angle is non-finite".into());
+            }
             let values = &mut after.column_layout[column as usize];
             match affect {
                 MatrixSplayAffect::Following => values.splay = *angle,
@@ -80,7 +112,9 @@ pub(crate) fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange, d
         }
         MatrixSplayChange::Origin { world } => {
             let point = if let Some(target) = world {
-                if !target.x.is_finite() || !target.y.is_finite() { return Err("Matrix splay origin is non-finite".into()); }
+                if !target.x.is_finite() || !target.y.is_finite() {
+                    return Err("Matrix splay origin is non-finite".into());
+                }
                 let base = compensate(matrix, column, Vec2::default(), doc)?;
                 let x = compensate(matrix, column, Vec2 { x: 1.0, y: 0.0 }, doc)?;
                 let y = compensate(matrix, column, Vec2 { x: 0.0, y: 1.0 }, doc)?;
@@ -89,7 +123,9 @@ pub(crate) fn update(matrix: &Matrix, column: u32, change: &MatrixSplayChange, d
                 let py = origin_world(&y, column, doc)?;
                 solve(Vec2 { x: px.x-origin.x, y: px.y-origin.y }, Vec2 { x: py.x-origin.x, y: py.y-origin.y }, Vec2 { x: target.x-origin.x, y: target.y-origin.y })
                     .ok_or("Requested splay origin cannot be represented with these turns and Follow permissions")?
-            } else { Vec2::default() };
+            } else {
+                Vec2::default()
+            };
             after = compensate(matrix, column, point, doc)?;
         }
     }
@@ -126,14 +162,35 @@ mod tests {
 
             diode_direction: None,
             row_layout: vec![],
-            column_layout: vec![crate::model::ColumnLayout { splay: 9.0, ..Default::default() }, crate::model::ColumnLayout { stagger: 3.0, splay: 17.0, ..Default::default() }, crate::model::ColumnLayout { stagger: -2.0, splay: -4.0, ..Default::default() }],
+            column_layout: vec![
+                crate::model::ColumnLayout {
+                    splay: 9.0,
+                    ..Default::default()
+                },
+                crate::model::ColumnLayout {
+                    stagger: 3.0,
+                    splay: 17.0,
+                    ..Default::default()
+                },
+                crate::model::ColumnLayout {
+                    stagger: -2.0,
+                    splay: -4.0,
+                    ..Default::default()
+                },
+            ],
             anchor: None,
             cells: vec![],
         }
     }
 
     fn key(matrix: &Matrix, row: u32, column: u32) -> Vec2 {
-        super::super::evaluation::cell_pose(&evaluated(matrix, &ProjectDoc::empty("test", "Test")).unwrap(), row, column).unwrap().at
+        super::super::evaluation::cell_pose(
+            &evaluated(matrix, &ProjectDoc::empty("test", "Test")).unwrap(),
+            row,
+            column,
+        )
+        .unwrap()
+        .at
     }
 
     #[test]
@@ -168,17 +225,31 @@ mod tests {
         before.rotation = Some(21.0);
         before.columns = 4;
         {
-                let values = vec![0.0; 4];
-                before.column_layout.resize_with(values.len().max(before.column_layout.len()), Default::default);
-                for record in &mut before.column_layout { record.stagger = 0.0; }
-                for (record, value) in before.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            let values = vec![0.0; 4];
+            before.column_layout.resize_with(
+                values.len().max(before.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut before.column_layout {
+                record.stagger = 0.0;
             }
+            for (record, value) in before.column_layout.iter_mut().zip(values) {
+                record.stagger = value;
+            }
+        }
         {
-                let values = vec![12.0, 8.0, 0.0, 0.0];
-                before.column_layout.resize_with(values.len().max(before.column_layout.len()), Default::default);
-                for record in &mut before.column_layout { record.splay = 0.0; }
-                for (record, value) in before.column_layout.iter_mut().zip(values) { record.splay = value; }
+            let values = vec![12.0, 8.0, 0.0, 0.0];
+            before.column_layout.resize_with(
+                values.len().max(before.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut before.column_layout {
+                record.splay = 0.0;
             }
+            for (record, value) in before.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         let after = update(
             &before,
             1,
@@ -206,8 +277,14 @@ mod tests {
         before.mirror = None;
         before.rotation = Some(0.0);
         before.origin = Vec2 { x: 0.0, y: 0.0 };
-        before.column_layout.iter_mut().for_each(|record| record.stagger = 0.0);
-        before.column_layout.iter_mut().for_each(|record| record.splay = 0.0);
+        before
+            .column_layout
+            .iter_mut()
+            .for_each(|record| record.stagger = 0.0);
+        before
+            .column_layout
+            .iter_mut()
+            .for_each(|record| record.splay = 0.0);
         let custom = update(
             &before,
             1,

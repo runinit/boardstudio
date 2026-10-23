@@ -266,10 +266,15 @@ pub(super) fn canonicalize(
             let mut change = change.clone();
             if let Some(mapping) = mapping {
                 use crate::model::MatrixPlacementChange;
-                if let MatrixPlacementChange::MatrixTranslation { delta } | MatrixPlacementChange::ColumnTranslation { delta, .. } = &mut change {
+                if let MatrixPlacementChange::MatrixTranslation { delta }
+                | MatrixPlacementChange::ColumnTranslation { delta, .. } = &mut change
+                {
                     let zero = pair::inverse(mapping, Vec2::default());
                     let point = pair::inverse(mapping, *delta);
-                    *delta = Vec2 { x: point.x - zero.x, y: point.y - zero.y };
+                    *delta = Vec2 {
+                        x: point.x - zero.x,
+                        y: point.y - zero.y,
+                    };
                 }
             }
             canonical.operation = Op::SetMatrixPlacement {
@@ -577,6 +582,7 @@ impl<'a> Links<'a> {
             current_source,
             mapping,
             link.pair.halves,
+            self.document,
         )?))
     }
 
@@ -654,7 +660,8 @@ impl<'a> Links<'a> {
                         .unwrap_or_else(|| name.clone()),
                 );
             }
-            let source_matrix = invert_matrix(payload, &seed, pair.mapping, pair.halves)?;
+            let source_matrix =
+                invert_matrix(payload, &seed, pair.mapping, pair.halves, self.document)?;
             (source_id, payload.id.clone(), source_matrix)
         } else {
             let mirror_id = free(super::mirror_id(&source_board, &mirror_board, &payload.id));
@@ -1102,8 +1109,16 @@ fn translate_layout_id(
             "Layout {requested_id:?} does not belong to target board {target_board_id:?}"
         ));
     }
-    if target.matrix_ids.is_empty() || target.matrix_ids.iter().any(|id| !links.document.matrices.iter().any(|matrix| &matrix.id == id && matrix.board_id.as_deref() == Some(target_board_id))) {
-        return Err(format!("Layout {requested_id:?} has inconsistent matrix ownership"));
+    if target.matrix_ids.is_empty()
+        || target.matrix_ids.iter().any(|id| {
+            !links.document.matrices.iter().any(|matrix| {
+                &matrix.id == id && matrix.board_id.as_deref() == Some(target_board_id)
+            })
+        })
+    {
+        return Err(format!(
+            "Layout {requested_id:?} has inconsistent matrix ownership"
+        ));
     }
     let mut matches = pair
         .halves
@@ -1134,7 +1149,9 @@ fn translate_layout_id(
                     && source.matrix_ids.contains(&item.source_id)
                     && target.matrix_ids.contains(&item.mirror_id)
             });
-            if source.board_id != pair.halves.source_board_id || matrix_links.count() != source.matrix_ids.len() {
+            if source.board_id != pair.halves.source_board_id
+                || matrix_links.count() != source.matrix_ids.len()
+            {
                 return Err(format!(
                     "Layout {requested_id:?} has inconsistent source ownership"
                 ));
@@ -1152,11 +1169,19 @@ fn invert_matrix(
     receiver: &Matrix,
     mapping: Pose2,
     halves: &MirroredHalves,
+    document: &ProjectDoc,
 ) -> Result<Matrix, String> {
     let mut source = crate::matrix::layout::reflected(payload, receiver, mapping, false)?;
     // `reflected` maps the origin with the forward map, which is not its own inverse when the
     // map has a translation along the mirror line; the heading rule is an involution.
-    source.origin = pair::inverse(mapping, payload.origin);
+    source.origin = if payload.anchor.is_some() {
+        Vec2 {
+            x: -payload.origin.x,
+            y: payload.origin.y,
+        }
+    } else {
+        pair::inverse(mapping, payload.origin)
+    };
     // An absent flag and `none` are one frame; keep the stored spelling so an unchanged
     // matrix translates to exactly what the source holds.
     if source.mirror == Some(Mirror::None) && receiver.mirror.is_none() {
@@ -1164,7 +1189,7 @@ fn invert_matrix(
     }
     // Companion placement depends on each companion's stored mode, so it is recomputed from
     // the payload rather than taken from the literal reflection.
-    let layout = crate::matrix::kernel::evaluate(&crate::matrix::evaluation::input(&source), crate::matrix::kernel::RawAnchorContext::World).map_err(str::to_owned)?;
+    let layout = crate::matrix::evaluated(&source, document)?;
     for cell in &mut source.cells {
         if cell.assemblies_local == Some(true) {
             continue;
@@ -1176,7 +1201,8 @@ fn invert_matrix(
         else {
             continue;
         };
-        let heading = crate::matrix::evaluation::cell_pose(&layout, cell.row, cell.column)?.rotation;
+        let heading =
+            crate::matrix::evaluation::cell_pose(&layout, cell.row, cell.column)?.rotation;
         let mirror_key_id = format!("matrix/{}/r{}c{}", payload.id, cell.row, cell.column);
         let mut assemblies = Vec::with_capacity(payload_cell.assemblies.len());
         for assembly in &payload_cell.assemblies {

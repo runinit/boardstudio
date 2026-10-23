@@ -1,7 +1,5 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
-use super::layout_align::{
-    alignment_delta, reconcile_reference_choice, transformed_envelope,
-};
+use super::layout_align::{alignment_delta, reconcile_reference_choice, transformed_envelope};
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
     TreeContext,
@@ -675,10 +673,9 @@ fn linked_selection(
 }
 
 fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Option<String> {
-    let layout = document
-        .layouts
-        .iter()
-        .find(|layout| layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id))?;
+    let layout = document.layouts.iter().find(|layout| {
+        layout.board_id == scope.board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+    })?;
     let linked = if let Some(link) = &layout.mirror_link {
         document.layouts.iter().find(|candidate| {
             candidate.board_id == scope.board_id && candidate.id == link.source_id
@@ -692,7 +689,12 @@ fn linked_partner(document: &ProjectDoc, scope: &Scope, matrix_id: &str) -> Opti
                     .is_some_and(|link| link.source_id == layout.id)
         })
     }?;
-    layout.mirror_link.as_ref().or(linked.mirror_link.as_ref())?.partner_matrix(matrix_id).map(str::to_owned)
+    layout
+        .mirror_link
+        .as_ref()
+        .or(linked.mirror_link.as_ref())?
+        .partner_matrix(matrix_id)
+        .map(str::to_owned)
 }
 
 /// Resolve an align against the accepted document at execution time. Every part the
@@ -768,18 +770,35 @@ fn make_edit(
 ) -> Option<(EditOperation, Vec<String>)> {
     match context {
         TreeContext::Matrix { matrix_id } => {
-            document.matrices.iter().find(|matrix| matrix.id == *matrix_id)?;
-            Some((EditOperation::SetMatrixPlacement {
-                matrix_id: matrix_id.clone(),
-                change: boardstudio_core::model::MatrixPlacementChange::MatrixTranslation { delta },
-            }, vec![matrix_id.clone()]))
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == *matrix_id)?;
+            Some((
+                EditOperation::SetMatrixPlacement {
+                    matrix_id: matrix_id.clone(),
+                    change: boardstudio_core::model::MatrixPlacementChange::MatrixTranslation {
+                        delta,
+                    },
+                },
+                vec![matrix_id.clone()],
+            ))
         }
         TreeContext::Column { matrix_id, column } => {
-            document.matrices.iter().find(|matrix| matrix.id == *matrix_id)?;
-            Some((EditOperation::SetMatrixPlacement {
-                matrix_id: matrix_id.clone(),
-                change: boardstudio_core::model::MatrixPlacementChange::ColumnTranslation { column: *column, delta },
-            }, vec![matrix_id.clone()]))
+            document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == *matrix_id)?;
+            Some((
+                EditOperation::SetMatrixPlacement {
+                    matrix_id: matrix_id.clone(),
+                    change: boardstudio_core::model::MatrixPlacementChange::ColumnTranslation {
+                        column: *column,
+                        delta,
+                    },
+                },
+                vec![matrix_id.clone()],
+            ))
         }
         TreeContext::Row { .. } => None,
         TreeContext::Key { .. } | TreeContext::Component { .. } => {

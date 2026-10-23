@@ -117,8 +117,8 @@ pub(in crate::mirrored_half) fn fixture_matrix(id: &str, board_id: &str) -> Matr
         cells: (0..2)
             .map(|column| MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 0,
                 column,
                 enabled: true,
@@ -2863,8 +2863,8 @@ fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) -> Mat
             .flat_map(|row| {
                 (0..3).map(move |column| MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row,
                     column,
                     enabled: true,
@@ -2880,43 +2880,80 @@ fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) -> Mat
     };
     if source_geometry {
         {
-                let values = vec![Vec2::default(), Vec2 { x: 1.0, y: 2.0 }];
-                matrix.row_layout.resize_with(values.len().max(matrix.row_layout.len()), Default::default);
-                for record in &mut matrix.row_layout { record.offset = Vec2::default(); }
-                for (record, value) in matrix.row_layout.iter_mut().zip(values) { record.offset = value; }
+            let values = vec![Vec2::default(), Vec2 { x: 1.0, y: 2.0 }];
+            matrix
+                .row_layout
+                .resize_with(values.len().max(matrix.row_layout.len()), Default::default);
+            for record in &mut matrix.row_layout {
+                record.offset = Vec2::default();
             }
+            for (record, value) in matrix.row_layout.iter_mut().zip(values) {
+                record.offset = value;
+            }
+        }
         {
-                let values = vec![
-            Vec2::default(),
-            Vec2 { x: 3.0, y: 4.0 },
-            Vec2 { x: -2.0, y: 1.0 },
-        ];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+            let values = vec![
+                Vec2::default(),
+                Vec2 { x: 3.0, y: 4.0 },
+                Vec2 { x: -2.0, y: 1.0 },
+            ];
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.offset = Vec2::default();
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.offset = value;
+            }
+        }
         {
-                let values = vec![1.0, 2.0, -1.0];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.stagger = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.stagger = value; }
+            let values = vec![1.0, 2.0, -1.0];
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.stagger = 0.0;
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.stagger = value;
+            }
+        }
         {
-                let values = vec![90.0, -90.0, 90.0];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.splay = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            let values = vec![90.0, -90.0, 90.0];
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.splay = 0.0;
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         {
-                let values = (vec![
-            Some(Vec2 { x: 2.0, y: 2.0 }),
-            None,
-            Some(Vec2 { x: -3.0, y: -6.0 }),
-        ]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+            let values = (vec![
+                Some(Vec2 { x: 2.0, y: 2.0 }),
+                None,
+                Some(Vec2 { x: -3.0, y: -6.0 }),
+            ])
+            .into_iter()
+            .map(|value| value.unwrap_or_default())
+            .collect::<Vec<_>>();
+            matrix.column_layout.resize_with(
+                values.len().max(matrix.column_layout.len()),
+                Default::default,
+            );
+            for record in &mut matrix.column_layout {
+                record.splay_origin = Vec2::default();
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay_origin = value;
+            }
+        }
         let final_cell = matrix
             .cells
             .iter_mut()
@@ -3204,41 +3241,78 @@ fn fixed_membership_assembly_fixture(
             matrix.origin = Vec2 { x: 3.0, y: -2.0 };
             {
                 let values = vec![Vec2::default(), Vec2 { x: 1.0, y: 2.0 }];
-                matrix.row_layout.resize_with(values.len().max(matrix.row_layout.len()), Default::default);
-                for record in &mut matrix.row_layout { record.offset = Vec2::default(); }
-                for (record, value) in matrix.row_layout.iter_mut().zip(values) { record.offset = value; }
+                matrix
+                    .row_layout
+                    .resize_with(values.len().max(matrix.row_layout.len()), Default::default);
+                for record in &mut matrix.row_layout {
+                    record.offset = Vec2::default();
+                }
+                for (record, value) in matrix.row_layout.iter_mut().zip(values) {
+                    record.offset = value;
+                }
             }
             {
                 let values = vec![
-                Vec2::default(),
-                Vec2 { x: 3.0, y: 4.0 },
-                Vec2 { x: -2.0, y: 1.0 },
-            ];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.offset = Vec2::default(); }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.offset = value; }
+                    Vec2::default(),
+                    Vec2 { x: 3.0, y: 4.0 },
+                    Vec2 { x: -2.0, y: 1.0 },
+                ];
+                matrix.column_layout.resize_with(
+                    values.len().max(matrix.column_layout.len()),
+                    Default::default,
+                );
+                for record in &mut matrix.column_layout {
+                    record.offset = Vec2::default();
+                }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                    record.offset = value;
+                }
             }
             {
                 let values = vec![1.0, 2.0, -1.0];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.stagger = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.stagger = value; }
+                matrix.column_layout.resize_with(
+                    values.len().max(matrix.column_layout.len()),
+                    Default::default,
+                );
+                for record in &mut matrix.column_layout {
+                    record.stagger = 0.0;
+                }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                    record.stagger = value;
+                }
             }
             {
                 let values = vec![90.0, -90.0, 90.0];
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.splay = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+                matrix.column_layout.resize_with(
+                    values.len().max(matrix.column_layout.len()),
+                    Default::default,
+                );
+                for record in &mut matrix.column_layout {
+                    record.splay = 0.0;
+                }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                    record.splay = value;
+                }
             }
             {
                 let values = (vec![
-                Some(Vec2 { x: 2.0, y: 2.0 }),
-                None,
-                Some(Vec2 { x: -3.0, y: -6.0 }),
-            ]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
-                matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
-                for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay_origin = value; }
+                    Some(Vec2 { x: 2.0, y: 2.0 }),
+                    None,
+                    Some(Vec2 { x: -3.0, y: -6.0 }),
+                ])
+                .into_iter()
+                .map(|value| value.unwrap_or_default())
+                .collect::<Vec<_>>();
+                matrix.column_layout.resize_with(
+                    values.len().max(matrix.column_layout.len()),
+                    Default::default,
+                );
+                for record in &mut matrix.column_layout {
+                    record.splay_origin = Vec2::default();
+                }
+                for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                    record.splay_origin = value;
+                }
             }
             let final_cell = matrix
                 .cells
@@ -3524,13 +3598,13 @@ fn fixed_membership_assembly_fixture_reconciles_existing_companions() {
             90.0,
             &expected_rotated[..],
             (102.0, -33.0, 90.0),
-            [((0, 0), (101.0, 37.0, 0.0)), ((1, 1), (-59.0, 55.0, -90.0))],
+            [((0, 0), (101.0, 37.0, 0.0)), ((1, 1), (-59.0, 55.0, 90.0))],
         ),
         (
             0.0,
             &expected_axis[..],
             (97.0, -32.0, 0.0),
-            [((0, 0), (31.0, -93.0, 90.0)), ((1, 1), (81.0, 15.0, 0.0))],
+            [((0, 0), (31.0, -93.0, -90.0)), ((1, 1), (81.0, 15.0, 0.0))],
         ),
     ] {
         let (mut document, projection) =
@@ -5352,7 +5426,8 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
         .iter_mut()
         .find(|matrix| matrix.id == "source-matrix")
         .unwrap()
-        .column_layout[1].splay = f64::NAN;
+        .column_layout[1]
+        .splay = f64::NAN;
     assert_rejected(document, &projection, "finite");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
@@ -5361,8 +5436,22 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
         .iter_mut()
         .find(|matrix| matrix.id == "source-matrix")
         .unwrap()
-        .column_layout = vec![crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, Default::default()];
-    assert_rejected(document, &projection, "layout values and evaluated results must be finite");
+        .column_layout = vec![
+        crate::model::ColumnLayout {
+            splay: f64::MAX,
+            ..Default::default()
+        },
+        crate::model::ColumnLayout {
+            splay: f64::MAX,
+            ..Default::default()
+        },
+        Default::default(),
+    ];
+    assert_rejected(
+        document,
+        &projection,
+        "layout values and evaluated results must be finite",
+    );
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
     document.hardware.as_mut().unwrap().pairs[0]
@@ -7177,8 +7266,14 @@ fn legacy_layout_link_syncs_components_without_changing_an_unrelated_layout() {
             matrix_ids: vec!["legacy-target-matrix".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![MirroredCorrespondence {
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "legacy-source-matrix".into(),
+                    mirror_id: "legacy-target-matrix".into(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                }],
+                exceptions: vec![],
                 source_id: "legacy-source-layout".into(),
                 axis_x: 50.0,
             }),
@@ -7552,7 +7647,15 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         id: "source-layout".into(),
         name: "Source matrix layout".into(),
         board_id: context.source_board_id.clone(),
-        matrix_ids: vec![context.matrix_pair.as_ref().unwrap().source_id.as_str().to_owned()],
+        matrix_ids: vec![
+            context
+                .matrix_pair
+                .as_ref()
+                .unwrap()
+                .source_id
+                .as_str()
+                .to_owned(),
+        ],
         part_ids: vec![source_member],
         mirror_link: None,
     };
@@ -7560,7 +7663,15 @@ fn membership_transition_removes_a_whole_paired_matrix_from_a_source_operation()
         id: "mirror-layout".into(),
         name: "Target matrix layout".into(),
         board_id: context.mirror_board_id.clone(),
-        matrix_ids: vec![context.matrix_pair.as_ref().unwrap().mirror_id.as_str().to_owned()],
+        matrix_ids: vec![
+            context
+                .matrix_pair
+                .as_ref()
+                .unwrap()
+                .mirror_id
+                .as_str()
+                .to_owned(),
+        ],
         part_ids: vec![mirror_member],
         mirror_link: None,
     };
@@ -8313,8 +8424,8 @@ fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
             .flat_map(|row| {
                 (0..4).map(move |column| MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row,
                     column,
                     enabled: true,
@@ -8344,11 +8455,26 @@ fn membership_compaction_fixture() -> Result<CompactionFixture, String> {
     source_matrix.columns = 4;
     source_matrix.pitch = Vec2 { x: 10.0, y: 20.0 };
     source_matrix.origin = Vec2 { x: 5.0, y: 1.0 };
-    source_matrix.row_layout.iter_mut().for_each(|record| record.offset = Vec2::default());
-    source_matrix.column_layout.iter_mut().for_each(|record| record.offset = Vec2::default());
-    source_matrix.column_layout.iter_mut().for_each(|record| record.stagger = 0.0);
-    source_matrix.column_layout.iter_mut().for_each(|record| record.splay = 0.0);
-    source_matrix.column_layout.iter_mut().for_each(|record| record.splay_origin = Vec2::default());
+    source_matrix
+        .row_layout
+        .iter_mut()
+        .for_each(|record| record.offset = Vec2::default());
+    source_matrix
+        .column_layout
+        .iter_mut()
+        .for_each(|record| record.offset = Vec2::default());
+    source_matrix
+        .column_layout
+        .iter_mut()
+        .for_each(|record| record.stagger = 0.0);
+    source_matrix
+        .column_layout
+        .iter_mut()
+        .for_each(|record| record.splay = 0.0);
+    source_matrix
+        .column_layout
+        .iter_mut()
+        .for_each(|record| record.splay_origin = Vec2::default());
     source_matrix.cells = matrix_cells();
     crate::matrix::set_matrix(&mut before, &source_matrix)?;
     let mut mirror_matrix = before
@@ -8791,8 +8917,8 @@ fn membership_transition_expands_with_planned_pair_identities_and_references() {
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column: 4,
             enabled: true,
@@ -9412,8 +9538,8 @@ fn membership_transition_chains_two_by_three_expansion_and_two_by_two_trim() {
     for row in 0..2 {
         expanded_source.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column: 3,
             enabled: true,
@@ -11144,8 +11270,14 @@ fn repair_fresh_refuses_native_and_legacy_matrix_overlap() {
             matrix_ids: vec!["legacy-third-matrix".into()],
             part_ids: vec![],
             mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![MirroredCorrespondence {
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "source-matrix".into(),
+                    mirror_id: "legacy-third-matrix".into(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                }],
+                exceptions: vec![],
                 source_id: "legacy-source-layout".into(),
                 axis_x: 10.0,
             }),
@@ -11230,8 +11362,8 @@ fn membership_expansion_fixture() -> MembershipExpansionFixture {
     for row in 0..2 {
         expanded.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column: 4,
             enabled: true,

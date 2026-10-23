@@ -282,7 +282,11 @@ pub struct Matrix {
     pub edge_gap: Option<Vec2>,
     #[serde(rename = "diodeDirection", skip_serializing_if = "Option::is_none")]
     pub diode_direction: Option<DiodeDirection>,
-    #[serde(rename = "columnLayout", default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "columnLayout",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub column_layout: Vec<ColumnLayout>,
     #[serde(rename = "rowLayout", default, skip_serializing_if = "Vec::is_empty")]
     pub row_layout: Vec<RowLayout>,
@@ -358,25 +362,45 @@ pub struct Follow {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum FollowComponent { X, Y, Rotation }
+enum FollowComponent {
+    X,
+    Y,
+    Rotation,
+}
 impl TryFrom<Vec<FollowComponent>> for Follow {
     type Error = &'static str;
     fn try_from(values: Vec<FollowComponent>) -> Result<Self, Self::Error> {
         for (index, value) in values.iter().enumerate() {
-            if values[..index].contains(value) { return Err("Follow components must be unique"); }
+            if values[..index].contains(value) {
+                return Err("Follow components must be unique");
+            }
         }
-        Ok(Self { x: values.contains(&FollowComponent::X), y: values.contains(&FollowComponent::Y), rotation: values.contains(&FollowComponent::Rotation) })
+        Ok(Self {
+            x: values.contains(&FollowComponent::X),
+            y: values.contains(&FollowComponent::Y),
+            rotation: values.contains(&FollowComponent::Rotation),
+        })
     }
 }
 impl From<Follow> for Vec<FollowComponent> {
     fn from(follow: Follow) -> Self {
-        [(follow.x, FollowComponent::X), (follow.y, FollowComponent::Y), (follow.rotation, FollowComponent::Rotation)]
-            .into_iter().filter_map(|(enabled, component)| enabled.then_some(component)).collect()
+        [
+            (follow.x, FollowComponent::X),
+            (follow.y, FollowComponent::Y),
+            (follow.rotation, FollowComponent::Rotation),
+        ]
+        .into_iter()
+        .filter_map(|(enabled, component)| enabled.then_some(component))
+        .collect()
     }
 }
 impl Default for Follow {
     fn default() -> Self {
-        Self { x: true, y: true, rotation: true }
+        Self {
+            x: true,
+            y: true,
+            rotation: true,
+        }
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -388,8 +412,12 @@ pub struct MatrixAnchor {
     #[serde(default)]
     pub follow: Follow,
 }
-fn is_zero_f64(value: &f64) -> bool { *value == 0.0 }
-fn is_zero_vec2(value: &Vec2) -> bool { *value == Vec2::default() }
+fn is_zero_f64(value: &f64) -> bool {
+    *value == 0.0
+}
+fn is_zero_vec2(value: &Vec2) -> bool {
+    *value == Vec2::default()
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MatrixAssembly {
     pub id: String,
@@ -959,10 +987,16 @@ pub struct LayoutMirrorLink {
 impl LayoutMirrorLink {
     pub fn partner_matrix(&self, id: &str) -> Option<&str> {
         self.correspondences.iter().find_map(|record| {
-            if record.kind != MirroredItemKind::Matrix { return None; }
-            if record.source_id == id { Some(record.mirror_id.as_str()) }
-            else if record.mirror_id == id { Some(record.source_id.as_str()) }
-            else { None }
+            if record.kind != MirroredItemKind::Matrix {
+                return None;
+            }
+            if record.source_id == id {
+                Some(record.mirror_id.as_str())
+            } else if record.mirror_id == id {
+                Some(record.source_id.as_str())
+            } else {
+                None
+            }
         })
     }
 }
@@ -1573,8 +1607,13 @@ pub enum MatrixSplayChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MatrixPlacementChange {
-    MatrixTranslation { delta: Vec2 },
-    ColumnTranslation { column: u32, delta: Vec2 },
+    MatrixTranslation {
+        delta: Vec2,
+    },
+    ColumnTranslation {
+        column: u32,
+        delta: Vec2,
+    },
     ColumnStagger {
         column: u32,
         value: f64,
@@ -1602,10 +1641,18 @@ pub fn convert_offset_available(matrix: &Matrix, column: u32) -> Result<(), Stri
     if column >= matrix.columns {
         return Err("Matrix placement column is out of bounds".into());
     }
-    let values = matrix.column_layout.get(column as usize).copied().unwrap_or_default();
-    if values.splay != 0.0 || values.rotation != 0.0
+    let values = matrix
+        .column_layout
+        .get(column as usize)
+        .copied()
+        .unwrap_or_default();
+    if values.splay != 0.0
+        || values.rotation != 0.0
         || matrix.row_layout.iter().any(|r| r.bend != 0.0)
-        || matrix.cells.iter().any(|c| c.column == column && c.bend.unwrap_or_default() != 0.0)
+        || matrix
+            .cells
+            .iter()
+            .any(|c| c.column == column && c.bend.unwrap_or_default() != 0.0)
     {
         return Err("Converting requires zero Splay, Column rotation and carried Bend".into());
     }

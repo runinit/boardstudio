@@ -326,13 +326,25 @@ fn a_version_3_closure_project_is_refused_and_current_numeric_parameters_export(
 
     let original = saved.to_string();
     let error = migrate::migrate_json(&original).unwrap_err();
-    assert!(error.contains("format 3") && error.contains("No conversion"), "{error}");
+    assert!(
+        error.contains("format 3") && error.contains("No conversion"),
+        "{error}"
+    );
     assert_eq!(saved.to_string(), original);
     let mut engine = CoreEngine::new();
-    let reply = engine.handle(CoreRequest::Open { id: "old".into(), document: serde_json::from_value(saved).unwrap() });
+    let reply = engine.handle(CoreRequest::Open {
+        id: "old".into(),
+        document: serde_json::from_value(saved).unwrap(),
+    });
     assert!(matches!(reply, CoreReply::Error { .. }));
     // The current authored numeric document still opens and exports without conversion.
-    assert!(matches!(engine.handle(CoreRequest::Open { id: "current".into(), document: document.clone() }), CoreReply::Scene { .. }));
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "current".into(),
+            document: document.clone()
+        }),
+        CoreReply::Scene { .. }
+    ));
     let migrated = document;
     assert_renders_previews_and_exports(&migrated);
 }

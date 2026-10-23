@@ -551,13 +551,22 @@ impl SceneBasis {
 
     /// The basis for a parameter, or `None` when the scene has no such column.
     pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
-        if let PlacementParameter::ColumnOffset { column } | PlacementParameter::RowOffset { row: column } = parameter {
+        if let PlacementParameter::ColumnOffset { column }
+        | PlacementParameter::RowOffset { row: column } = parameter
+        {
             let (row, column) = match parameter {
                 PlacementParameter::ColumnOffset { .. } => (0, column),
                 _ => (column, 0),
             };
-            let cell = scene.cells.iter().find(|cell| cell.row == row && cell.column == column)?;
-            return Some(Self { stagger_axis: cell.shift_frame.axis_y, axis_x: cell.offset_frame.axis_x, axis_y: cell.offset_frame.axis_y });
+            let cell = scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)?;
+            return Some(Self {
+                stagger_axis: cell.shift_frame.axis_y,
+                axis_x: cell.offset_frame.axis_x,
+                axis_y: cell.offset_frame.axis_y,
+            });
         }
         let column = match parameter {
             PlacementParameter::Stagger { column }
@@ -729,8 +738,8 @@ fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> Ed
     } else {
         next.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column,
             enabled,
@@ -770,8 +779,8 @@ fn set_cell_assembly(
     } else {
         next.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -848,8 +857,8 @@ fn set_cell_transform(
         .cloned()
         .unwrap_or(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -1120,13 +1129,38 @@ mod tests {
             rotation: Some(0.0),
             edge_gap: None,
             diode_direction: None,
-            row_layout: vec![boardstudio_core::model::RowLayout { offset: Vec2 { x: 2.0, y: 3.0 }, ..Default::default() }, boardstudio_core::model::RowLayout { offset: Vec2 { x: 4.0, y: 5.0 }, ..Default::default() }],
-            column_layout: vec![boardstudio_core::model::ColumnLayout { offset: Vec2 { x: 1.0, y: 2.0 }, stagger: 0.25, ..Default::default() }, boardstudio_core::model::ColumnLayout { stagger: 0.5, splay: 4.0, ..Default::default() }, boardstudio_core::model::ColumnLayout { stagger: 0.75, splay: 8.0, ..Default::default() }],
+            row_layout: vec![
+                boardstudio_core::model::RowLayout {
+                    offset: Vec2 { x: 2.0, y: 3.0 },
+                    ..Default::default()
+                },
+                boardstudio_core::model::RowLayout {
+                    offset: Vec2 { x: 4.0, y: 5.0 },
+                    ..Default::default()
+                },
+            ],
+            column_layout: vec![
+                boardstudio_core::model::ColumnLayout {
+                    offset: Vec2 { x: 1.0, y: 2.0 },
+                    stagger: 0.25,
+                    ..Default::default()
+                },
+                boardstudio_core::model::ColumnLayout {
+                    stagger: 0.5,
+                    splay: 4.0,
+                    ..Default::default()
+                },
+                boardstudio_core::model::ColumnLayout {
+                    stagger: 0.75,
+                    splay: 8.0,
+                    ..Default::default()
+                },
+            ],
             anchor: None,
             cells: vec![MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row: 1,
                 column: 2,
                 enabled: true,
@@ -1173,12 +1207,16 @@ mod tests {
         );
         // A splayed column with a default origin is refused with Core's own reason.
         {
-                let values = vec![12.0];
-                let count = values.len().max(matrix.column_layout.len());
-                matrix.column_layout.resize_with(count, Default::default);
-                for record in &mut matrix.column_layout { record.splay = 0.0; }
-                for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
+            let values = vec![12.0];
+            let count = values.len().max(matrix.column_layout.len());
+            matrix.column_layout.resize_with(count, Default::default);
+            for record in &mut matrix.column_layout {
+                record.splay = 0.0;
             }
+            for (record, value) in matrix.column_layout.iter_mut().zip(values) {
+                record.splay = value;
+            }
+        }
         assert_eq!(
             build(&matrix),
             Err(convert_offset_available(&matrix, 0).unwrap_err())
@@ -1579,8 +1617,8 @@ mod tests {
         let mut matrix = matrix();
         matrix.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 1,
             enabled: false,

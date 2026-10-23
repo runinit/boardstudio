@@ -1,7 +1,7 @@
 //! Strict document admission. Format 7 has no conversion from older schemas.
-use serde_json::Value;
 #[cfg(test)]
 use serde_json::Map;
+use serde_json::Value;
 
 #[cfg(test)]
 use crate::generators;
@@ -38,12 +38,17 @@ pub fn migrate_value(document: Value) -> Result<(Value, bool), String> {
 
 /// Inspect the version before schema-dependent deserialization or replacement effects.
 pub fn require_current_value(document: &Value) -> Result<(), String> {
-    let object = document.as_object().ok_or("Project data failed validation: document must be an object")?;
+    let object = document
+        .as_object()
+        .ok_or("Project data failed validation: document must be an object")?;
     if object.get("format").and_then(Value::as_str) != Some("boardstudio/v2") {
         return Err("Unsupported document format".into());
     }
     let value = object.get("formatVersion").ok_or_else(|| format!("This legacy project has no formatVersion. This build requires format {CURRENT_VERSION}. No conversion is available. Your saved data has not been changed."))?;
-    let version = value.as_u64().and_then(|n| u32::try_from(n).ok()).ok_or("Project data failed validation: invalid formatVersion")?;
+    let version = value
+        .as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or("Project data failed validation: invalid formatVersion")?;
     require_current_version(version)
 }
 
@@ -86,12 +91,8 @@ fn historical_migrate_value(mut document: Value) -> Result<(Value, bool), String
 pub fn migrate_json(text: &str) -> Result<(String, bool), String> {
     let value: Value =
         serde_json::from_str(text).map_err(|error| format!("Invalid project JSON: {error}"))?;
-    let (value, changed) = migrate_value(value)?;
-    if !changed {
-        return Ok((text.to_owned(), false));
-    }
-    let text = serde_json::to_string(&value).map_err(|error| error.to_string())?;
-    Ok((text, true))
+    require_current_value(&value)?;
+    Ok((text.to_owned(), false))
 }
 
 /// The prefix of an identifier that used to name the generator library.
@@ -441,12 +442,20 @@ fn renamed(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::historical_migrate_value as migrate_value;
+    use super::*;
     const CURRENT_VERSION: u32 = 6;
     fn migrate_json(text: &str) -> Result<(String, bool), String> {
-        let (value, changed) = migrate_value(serde_json::from_str(text).map_err(|e| e.to_string())?)?;
-        Ok((if changed { serde_json::to_string(&value).map_err(|e| e.to_string())? } else { text.to_owned() }, changed))
+        let (value, changed) =
+            migrate_value(serde_json::from_str(text).map_err(|e| e.to_string())?)?;
+        Ok((
+            if changed {
+                serde_json::to_string(&value).map_err(|e| e.to_string())?
+            } else {
+                text.to_owned()
+            },
+            changed,
+        ))
     }
     use serde_json::json;
 

@@ -62,11 +62,28 @@ all changed callers. Require native/contract and WASM compilation, not just serd
   floating-point JSON numbers so exact serialization comparisons test the schema,
   not serde_json's integer/float representation distinction. Shift/Bend and anchor
   records are persisted; document evaluation refuses unresolved anchor contexts.
-- [ ] B — complete every removed-field caller and fixture; Core library and the
-  integration test binary compile, but workspace/WASM callers are still in progress.
-- [ ] C — complete validation/default/growth/ownership acceptance.
-- [ ] D — complete browser/archive/direct-Open strict admission gates.
-- [ ] E — complete kernel production-state coverage and final changed-file gate.
+- [ ] B — caller cutover checkpointed, not accepted: native workspace compiled
+  (`af85a2a9`); production callers/oracle replacement are in `570bb2672` and the
+  subsequent WIP checkpoint. `.evidence/ergogen-17/42-core.log` has **801 unit
+  passed**, four ignored, and **729 integration passed / five failed**. Linked
+  column deletion and four linked-outline cases must turn GREEN before more
+  caller work. WASM/browser verification remains pending.
+- [ ] C — partial validation checkpoint (`8b367d8c7`, `eb82b77db` and subsequent
+  WIP): all **15 document-integrity tests pass** in `40-document-followup.log`,
+  including invalid lists, unresolved anchors, duplicate correspondences, explicit
+  steps and logical Omitted anchors with Undo/Redo. Linked compaction metadata
+  still fails the broader integration run; resize/ownership closure is pending.
+- [ ] D — strict raw browser/archive/direct-Open admission is implemented in the
+  WIP checkpoint; direct refusal/history and archive tests passed in focused runs.
+  Real BrowserStore mixed-version preservation coverage is added but unrun.
+- [ ] E — production replacement covers all **381 committed parity poses** through
+  actual scenes, draft projections and materialized parts (`33-production-parity.log`).
+  Boundary transcript rebuilt deliberately (`36-boundary-rebuild.log`); final
+  changed-file quick receipt and final non-WIP commit are still missing.
+
+The WIP checkpoint preserves the accumulated implementation and passing focused
+evidence, not a green whole-ticket state. The five failures above remain the last
+observed integration result until a replacement run completes.
 
 Checkpoint success is not ticket acceptance or approval to use user-data stores.
 

@@ -174,8 +174,8 @@ fn guided_matrix_preview() {
         .flat_map(|row| {
             (0..5).map(move |column| MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 assemblies_local: None,
                 row,
                 column,

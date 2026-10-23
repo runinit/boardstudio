@@ -321,12 +321,25 @@ fn refusing_an_older_document_preserves_its_outline_versions_and_identity_reserv
     older["formatVersion"] = serde_json::json!(2);
     let original = older.to_string();
     let error = migrate::migrate_json(&original).unwrap_err();
-    assert!(error.contains("format 2") && error.contains("No conversion"), "{error}");
+    assert!(
+        error.contains("format 2") && error.contains("No conversion"),
+        "{error}"
+    );
     assert_eq!(older.to_string(), original);
     let mut engine = CoreEngine::new();
-    let before = scene(engine.handle(CoreRequest::Open { id: "valid".into(), document: browser_writeback(&stored) }));
-    assert!(matches!(engine.handle(CoreRequest::Open { id: "old".into(), document: serde_json::from_value(older).unwrap() }), CoreReply::Error { .. }));
-    let after = scene(engine.handle(CoreRequest::Snapshot { id: "after-refusal".into() }));
+    let before = scene(engine.handle(CoreRequest::Open {
+        id: "valid".into(),
+        document: browser_writeback(&stored),
+    }));
+    assert!(matches!(
+        engine.handle(CoreRequest::Open {
+            id: "old".into(),
+            document: serde_json::from_value(older).unwrap()
+        }),
+        CoreReply::Error { .. }
+    ));
+    let after = scene(engine.handle(CoreRequest::Snapshot {
+        id: "after-refusal".into(),
+    }));
     assert_eq!(after.board_contours, before.board_contours);
-
 }

@@ -54,7 +54,8 @@ fn archive_bytes(current: bool) -> Vec<u8> {
         // Rebuilt current fixture: identities and back-side placement are authored, not migrated.
         document["formatVersion"] = json!(migrate::CURRENT_VERSION);
         document["definitions"][0]["id"] = json!("generator:ceoloide/switch_mx");
-        document["definitions"][0]["models"][0]["assetId"] = json!("bundled-model:synthetic/switch.step");
+        document["definitions"][0]["models"][0]["assetId"] =
+            json!("bundled-model:synthetic/switch.step");
         document["parts"][0]["definitionId"] = json!("generator:ceoloide/switch_mx");
         document["parts"][0]["generatorParameters"] = json!({"side": "B"});
         document["assets"][0]["id"] = json!("bundled-model:synthetic/switch.step");
@@ -89,9 +90,15 @@ fn unpacked() -> String {
 fn an_unversioned_archive_is_refused_without_releasing_assets() {
     let input = archive_bytes(false);
     let (reply, buffers) = archive::request(r#"{"kind":"unpack-project"}"#, &[input]);
-    assert!(buffers.is_empty(), "refused import must release no asset buffers");
+    assert!(
+        buffers.is_empty(),
+        "refused import must release no asset buffers"
+    );
     match serde_json::from_str(&reply).unwrap() {
-        ArchiveReply::Error { message } => assert!(message.contains("legacy") && message.contains("No conversion"), "{message}"),
+        ArchiveReply::Error { message } => assert!(
+            message.contains("legacy") && message.contains("No conversion"),
+            "{message}"
+        ),
         other => panic!("expected refusal, got {other:?}"),
     }
 }

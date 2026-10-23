@@ -449,8 +449,8 @@ pub fn matrix_with_assembly(
                 .find(|cell| cell.row == row && cell.column == column);
             cells.push(MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row,
                 column,
                 enabled: previous.is_none_or(|cell| cell.enabled),

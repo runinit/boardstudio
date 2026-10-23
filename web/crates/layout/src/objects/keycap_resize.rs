@@ -1,5 +1,5 @@
 //! Private accepted-document planner for the Layout key-size interaction.
-use boardstudio_core::model::{Layout, Matrix, MatrixCell, MatrixScene, Mirror, ProjectDoc, Vec2};
+use boardstudio_core::model::{Layout, Matrix, MatrixCell, MatrixScene, ProjectDoc, Vec2};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -163,7 +163,8 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .and_then(|link| layouts.iter().find(|layout| layout.id == link.source_id))
             })
             .or(owner);
-        let matrix_id = owner.and_then(|owner| owner.mirror_link.as_ref())
+        let matrix_id = owner
+            .and_then(|owner| owner.mirror_link.as_ref())
             .and_then(|link| link.partner_matrix(&placement.matrix_id))
             .unwrap_or(placement.matrix_id.as_str());
         let Some(matrix) = matrix_by_id.get(matrix_id).copied() else {
@@ -238,7 +239,10 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
                     .as_ref()
                     .is_some_and(|link| link.source_id == canonical_layout.id)
             })
-            && let Some(paired_matrix_id) = paired.mirror_link.as_ref().and_then(|link| link.partner_matrix(matrix_id))
+            && let Some(paired_matrix_id) = paired
+                .mirror_link
+                .as_ref()
+                .and_then(|link| link.partner_matrix(matrix_id))
             && let Some(paired_id) =
                 scene_member(scenes, paired_matrix_id, placement.row, placement.column)
             && placements.iter().any(|candidate| candidate.id == paired_id)
@@ -269,8 +273,13 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
             .find(|cell| cell.row == placement.row && cell.column == placement.column)
             .and_then(|cell| cell.offset)
             .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
-        let frame = &scenes.iter().find(|scene| scene.matrix_id == matrix.id)?.cells.iter()
-            .find(|cell| cell.row == placement.row && cell.column == placement.column)?.offset_frame;
+        let frame = &scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)?
+            .cells
+            .iter()
+            .find(|cell| cell.row == placement.row && cell.column == placement.column)?
+            .offset_frame;
         let local = frame.inverse_vector(*delta);
         let mut next = matrix.clone();
         set_cell_offset(
@@ -582,8 +591,8 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
     } else {
         matrix.cells.push(MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row,
             column,
             enabled: true,
@@ -601,7 +610,7 @@ mod tests {
     use super::*;
     use boardstudio_core::model::{
         Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, MatrixCell,
-        MatrixColumnBasis, MatrixSceneCell, Part, Pose2, Side,
+        MatrixColumnBasis, MatrixSceneCell, Mirror, Part, Pose2, Side,
     };
 
     fn point(x: f64, y: f64) -> Vec2 {
@@ -648,8 +657,8 @@ mod tests {
                 .into_iter()
                 .map(|column| MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row: 0,
                     column,
                     enabled: true,
@@ -687,8 +696,8 @@ mod tests {
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|column| MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row: 0,
                     column,
                     enabled: true,
@@ -701,10 +710,10 @@ offset_frame: Default::default(),
                 .collect(),
             columns: (0..3)
                 .map(|column| MatrixColumnBasis {
-base: Default::default(),
-rotation: 0.0,
-relative_origin: Default::default(),
-spread_axis: None,
+                    base: Default::default(),
+                    rotation: 0.0,
+                    relative_origin: Default::default(),
+                    spread_axis: None,
                     column,
                     splay_origin: point(0.0, 0.0),
                     splay_angle: 0.0,
@@ -898,8 +907,8 @@ spread_axis: None,
         matrix.cells = (0..3)
             .map(|row| MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row,
                 column: 0,
                 enabled: true,
@@ -920,8 +929,8 @@ spread_axis: None,
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|row| MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row,
                     column: 0,
                     enabled: true,
@@ -933,10 +942,10 @@ offset_frame: Default::default(),
                 })
                 .collect(),
             columns: vec![MatrixColumnBasis {
-base: Default::default(),
-rotation: 0.0,
-relative_origin: Default::default(),
-spread_axis: None,
+                base: Default::default(),
+                rotation: 0.0,
+                relative_origin: Default::default(),
+                spread_axis: None,
                 column: 0,
                 splay_origin: point(0.0, 0.0),
                 splay_angle: 0.0,
@@ -986,8 +995,8 @@ spread_axis: None,
         matrix.cells = (0..3)
             .map(|row| MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row,
                 column: 0,
                 enabled: true,
@@ -1028,8 +1037,8 @@ spread_axis: None,
             matrix_id: "m".into(),
             cells: (0..3)
                 .map(|row| MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row,
                     column: 0,
                     enabled: true,
@@ -1041,10 +1050,10 @@ offset_frame: Default::default(),
                 })
                 .collect(),
             columns: vec![MatrixColumnBasis {
-base: Default::default(),
-rotation: 0.0,
-relative_origin: Default::default(),
-spread_axis: None,
+                base: Default::default(),
+                rotation: 0.0,
+                relative_origin: Default::default(),
+                spread_axis: None,
                 column: 0,
                 splay_origin: point(0.0, 0.0),
                 splay_angle: 0.0,
@@ -1137,8 +1146,8 @@ spread_axis: None,
             matrix.cells = (0..3)
                 .map(|row| MatrixCell {
                     shift: None,
-    bend: None,
-    deleted: false,
+                    bend: None,
+                    deleted: false,
                     row,
                     column: 0,
                     enabled: true,
@@ -1280,8 +1289,8 @@ spread_axis: None,
         document.layouts[right_index].board_id = left.board_id.clone();
         document.layouts[right_index].mirror_link =
             Some(boardstudio_core::model::LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: left.id.clone(),
                 axis_x: 0.0,
             });

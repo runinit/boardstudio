@@ -6,8 +6,8 @@
 //! cell is returned in column-major order, including disabled/deleted/Omitted contributors.
 
 use super::splay::rotate;
-use crate::model::{Mirror, Pose2, Vec2};
 pub use crate::model::{ColumnLayout, Follow, RowLayout};
+use crate::model::{Mirror, Pose2, Vec2};
 
 /// Geometry values only, not a persisted document or an editable parallel matrix model.
 /// Short axis lists and missing cells supply defaults. The default is a 2×2 matrix.
@@ -92,8 +92,10 @@ pub struct ComposedFrame {
 impl ComposedFrame {
     /// Invert a displacement through the evaluated, mirror-aware orthonormal axes.
     pub fn inverse_vector(&self, delta: Vec2) -> Vec2 {
-        Vec2 { x: delta.x * self.axis_x.x + delta.y * self.axis_x.y,
-               y: delta.x * self.axis_y.x + delta.y * self.axis_y.y }
+        Vec2 {
+            x: delta.x * self.axis_x.x + delta.y * self.axis_x.y,
+            y: delta.x * self.axis_y.x + delta.y * self.axis_y.y,
+        }
     }
 }
 

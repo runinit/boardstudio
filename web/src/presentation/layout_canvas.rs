@@ -730,8 +730,8 @@ mod tests {
             matrix_id: "matrix".into(),
             cells: vec![
                 MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -742,8 +742,8 @@ offset_frame: Default::default(),
                     },
                 },
                 MatrixSceneCell {
-shift_frame: Default::default(),
-offset_frame: Default::default(),
+                    shift_frame: Default::default(),
+                    offset_frame: Default::default(),
                     row: 0,
                     column: 1,
                     enabled: false,

@@ -199,8 +199,8 @@ fn document() -> ProjectDoc {
         anchor: None,
         cells: vec![MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,

@@ -1,5 +1,5 @@
 //! Pure accepted-envelope and axis-alignment policy for Layout Align.
-use boardstudio_core::model::{Matrix, Mirror, Part, PartDefinition, PartKind, Vec2};
+use boardstudio_core::model::{Part, PartDefinition, PartKind, Vec2};
 
 pub fn reference_choice(
     current: Option<&str>,
@@ -261,7 +261,7 @@ pub fn alignment_delta(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boardstudio_core::model::Pose2;
+    use boardstudio_core::model::{Mirror, Pose2};
 
     fn part(definition_id: &str, keycap: Option<Vec2>, rotation: f64) -> Part {
         Part {
@@ -337,12 +337,27 @@ mod tests {
     fn independent_moves_use_the_published_mirror_aware_key_frame() {
         use boardstudio_core::layout_kernel::{self, ColumnLayout, LayoutInput, RawAnchorContext};
         let input = LayoutInput {
-            rows: 2, columns: 3, rotation: 90.0, mirror: Mirror::X,
-            column_layout: vec![ColumnLayout::default(), ColumnLayout { splay: 10.0, ..Default::default() }],
+            rows: 2,
+            columns: 3,
+            rotation: 90.0,
+            mirror: Mirror::X,
+            column_layout: vec![
+                ColumnLayout::default(),
+                ColumnLayout {
+                    splay: 10.0,
+                    ..Default::default()
+                },
+            ],
             ..Default::default()
         };
         let layout = layout_kernel::evaluate(&input, RawAnchorContext::World).unwrap();
-        let actual = layout.cells.iter().find(|cell| cell.row == 0 && cell.column == 1).unwrap().offset_frame.inverse_vector(Vec2 { x: 2.0, y: 3.0 });
+        let actual = layout
+            .cells
+            .iter()
+            .find(|cell| cell.row == 0 && cell.column == 1)
+            .unwrap()
+            .offset_frame
+            .inverse_vector(Vec2 { x: 2.0, y: 3.0 });
         assert!((actual.x - -3.3017196143704846).abs() < 1e-12);
         assert!((actual.y - -1.4486709730236247).abs() < 1e-12);
     }

@@ -64,7 +64,7 @@ fn explicit_connection_joins_mirrored_layouts_inside_one_outline() {
         json!({"kind":"create-mirrored-pair",
             "matrix":{"id":"left-matrix","rows":1,"columns":2,"pitch":{"x":24.,"y":19.},
                 "origin":{"x":-36.,"y":0.},"columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 0.0, "y": 10.0}}],
-"definitionId":"synthetic/switch","boardId":"main","partIds":[]},
+        "definitionId":"synthetic/switch","boardId":"main","partIds":[]},
             "left":{"id":"left-layout","name":"Left","boardId":"main","matrixIds":["left-matrix"],"partIds":[]},
             "right":{"id":"right-layout","name":"Right","boardId":"main","matrixIds":["right-matrix"], "partIds":[],
                 "mirrorLink":{"sourceId":"left-layout","axisX":0.}}

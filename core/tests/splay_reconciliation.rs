@@ -17,7 +17,11 @@ fn matrix() -> Matrix {
 
         diode_direction: None,
         row_layout: vec![],
-        column_layout: vec![boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }],
+        column_layout: vec![
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+        ],
         anchor: None,
         cells: vec![],
     }
@@ -192,14 +196,20 @@ fn custom_origin_and_linked_following_change_are_preserved() {
         EditPhase::Commit,
         MatrixSplayChange::Origin { world: None },
     )));
-    assert_eq!(reset.matrices[0].column_layout[1].splay_origin, Vec2::default());
+    assert_eq!(
+        reset.matrices[0].column_layout[1].splay_origin,
+        Vec2::default()
+    );
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "u".into() }));
     assert_eq!(
         undone.matrices[0].column_layout[1].splay_origin,
         Vec2 { x: -17.0, y: 4.0 }
     );
     let (_, redone) = scene(engine.handle(CoreRequest::Redo { id: "r".into() }));
-    assert_eq!(redone.matrices[0].column_layout[1].splay_origin, Vec2::default());
+    assert_eq!(
+        redone.matrices[0].column_layout[1].splay_origin,
+        Vec2::default()
+    );
 }
 
 #[test]
@@ -229,12 +239,12 @@ fn editing_the_mirrored_half_updates_both_projections() {
     assert_eq!(left.columns[1].splay_origin, Vec2 { x: 7.0, y: -13.0 });
     assert_eq!(right.columns[1].splay_origin, Vec2 { x: -7.0, y: -13.0 });
     let (_, undone) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
-    assert!(
-        undone
-            .matrices
+    assert!(undone.matrices.iter().all(|matrix| {
+        matrix
+            .column_layout
             .iter()
-            .all(|matrix| matrix.column_layout.iter().all(|record| record.splay_origin == Vec2::default()))
-    );
+            .all(|record| record.splay_origin == Vec2::default())
+    }));
     let (redone, _) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     assert_eq!(redone.matrix_scenes, committed.matrix_scenes);
 }

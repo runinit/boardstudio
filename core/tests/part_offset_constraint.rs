@@ -35,8 +35,8 @@ fn edit(
 fn matrix() -> Matrix {
     let cell = |column: u32| MatrixCell {
         shift: None,
-    bend: None,
-    deleted: false,
+        bend: None,
+        deleted: false,
         row: 0,
         column,
         enabled: true,
@@ -68,7 +68,11 @@ fn matrix() -> Matrix {
         edge_gap: None,
         diode_direction: None,
         row_layout: vec![],
-        column_layout: vec![boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }, boardstudio_core::model::ColumnLayout { ..Default::default() }],
+        column_layout: vec![
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+            boardstudio_core::model::ColumnLayout::default(),
+        ],
         anchor: None,
         cells: vec![cell(0), cell(1), cell(2)],
     }
@@ -688,12 +692,12 @@ fn mirrored_pair_with_held_left_component(
         edge_gap: None,
         diode_direction: None,
         row_layout: vec![],
-        column_layout: vec![boardstudio_core::model::ColumnLayout { ..Default::default() }],
+        column_layout: vec![boardstudio_core::model::ColumnLayout::default()],
         anchor: None,
         cells: vec![MatrixCell {
             shift: None,
-    bend: None,
-    deleted: false,
+            bend: None,
+            deleted: false,
             row: 0,
             column: 0,
             enabled: true,
@@ -723,8 +727,8 @@ fn mirrored_pair_with_held_left_component(
                 "right-matrix",
                 vec![],
                 Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                    correspondences: vec![],
+                    exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
                 }),

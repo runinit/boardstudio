@@ -726,7 +726,8 @@ fn split_fixture(broken: bool) -> serde_json::Value {
           "matrixIds": ["left-matrix"], "partIds": ["a", "c"] },
         { "id": "right-keys", "name": "Right keys", "boardId": "board",
           "matrixIds": ["right-matrix"], "partIds": ["mirror-a", "mirror-c"],
-          "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0 } }
+          "mirrorLink": { "sourceId": "left-keys", "axisX": 50.0,
+            "correspondences": [{"kind":"matrix","sourceId":"left-matrix","mirrorId":"right-matrix"}] } }
     ]);
     let matrix = |id: &str, origin: f64| {
         serde_json::json!({

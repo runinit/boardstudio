@@ -2721,7 +2721,7 @@ fn companion_matrix(document: &ProjectDoc, assembly_definition: &str, rotation: 
         document,
         mirror_payload(json!({
         "columnLayout": [{"splay": 0}, {"splay": 15}],
-"cells": [
+        "cells": [
             {"row": 0, "column": 0, "enabled": true, "rotation": 20, "assemblies": [
                 {"id": "diode", "definitionId": assembly_definition,
                  "offset": {"x": -8, "y": -3}, "rotation": rotation}]},

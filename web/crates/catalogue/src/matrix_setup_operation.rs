@@ -271,8 +271,8 @@ pub fn prepare_matrix(
             }
             cells.push(MatrixCell {
                 shift: None,
-    bend: None,
-    deleted: false,
+                bend: None,
+                deleted: false,
                 row,
                 column,
                 enabled: true,

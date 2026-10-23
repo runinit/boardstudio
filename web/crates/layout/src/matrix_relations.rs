@@ -236,14 +236,10 @@ impl View<'_> {
                     .is_some_and(|link| link.source_id == owner.id)
             })?,
         };
-        let matrix = self
-            .document
-            .matrices
-            .iter()
-            .find(|matrix| {
-                let link = owner.mirror_link.as_ref().or(partner.mirror_link.as_ref());
-                link.and_then(|link| link.partner_matrix(&self.matrix.id)) == Some(matrix.id.as_str())
-            })?;
+        let matrix = self.document.matrices.iter().find(|matrix| {
+            let link = owner.mirror_link.as_ref().or(partner.mirror_link.as_ref());
+            link.and_then(|link| link.partner_matrix(&self.matrix.id)) == Some(matrix.id.as_str())
+        })?;
         Some((partner, matrix))
     }
 
@@ -263,8 +259,9 @@ impl View<'_> {
 
     fn stagger(&self, column: u32) -> f64 {
         self.matrix
-            .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.stagger)
             .copied()
             .unwrap_or(0.0)
     }
@@ -275,31 +272,35 @@ impl View<'_> {
 
     fn splay(&self, column: u32) -> f64 {
         self.matrix
-            .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.splay)
             .copied()
             .unwrap_or(0.0)
     }
 
     fn custom_origin(&self, column: u32) -> bool {
         self.matrix
-            .column_layout.iter().map(|record| record.splay_origin).collect::<Vec<_>>()
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.splay_origin)
             .is_some_and(|origin| *origin != Vec2::default())
     }
 
     fn column_offset(&self, column: u32) -> Vec2 {
         self.matrix
-            .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
+            .column_layout
             .get(column as usize)
+            .map(|record| &record.offset)
             .copied()
             .unwrap_or(ZERO)
     }
 
     fn row_offset(&self, row: u32) -> Vec2 {
         self.matrix
-            .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
+            .row_layout
             .get(row as usize)
+            .map(|record| &record.offset)
             .copied()
             .unwrap_or(ZERO)
     }

@@ -1036,8 +1036,9 @@ fn transform_fields(
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,
             offset: matrix
-                .row_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
+                .row_layout
                 .get(*row as usize)
+                .map(|record| &record.offset)
                 .copied()
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
         },
@@ -1051,13 +1052,15 @@ fn transform_fields(
             MatrixTransformFields::Column {
                 column: *column,
                 offset: matrix
-                    .column_layout.iter().map(|record| record.offset).collect::<Vec<_>>()
+                    .column_layout
                     .get(*column as usize)
+                    .map(|record| &record.offset)
                     .copied()
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 stagger: matrix
-                    .column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>()
+                    .column_layout
                     .get(*column as usize)
+                    .map(|record| &record.stagger)
                     .copied()
                     .unwrap_or(0.0),
                 splay_angle: basis.splay_angle,
@@ -1096,11 +1099,10 @@ fn transform_fields(
                     })
                     .unwrap_or_default(),
                 component_choices: Vec::new(),
-                mirror_target: snapshot
-                    .document
-                    .layouts
-                    .iter()
-                    .any(|layout| layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.mirror_link.is_some()),
+                mirror_target: snapshot.document.layouts.iter().any(|layout| {
+                    layout.matrix_ids.iter().any(|id| id == &matrix.id)
+                        && layout.mirror_link.is_some()
+                }),
                 assemblies_local: cell.and_then(|cell| cell.assemblies_local).unwrap_or(false),
                 offset: cell
                     .and_then(|cell| cell.offset)
@@ -1135,7 +1137,9 @@ fn matrix_has_linked_layout(document: &ProjectDoc, board_id: &str, matrix_id: &s
     document
         .layouts
         .iter()
-        .find(|layout| layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id))
+        .find(|layout| {
+            layout.board_id == board_id && layout.matrix_ids.iter().any(|id| id == &matrix_id)
+        })
         .is_some_and(|layout| {
             layout.mirror_link.is_some()
                 || document.layouts.iter().any(|other| {

@@ -387,7 +387,9 @@ fn prepare_existing_half(
         let existing = next
             .layouts
             .iter()
-            .find(|layout| layout.matrix_ids.iter().any(|id| id == &source.id) && layout.board_id == board_id)
+            .find(|layout| {
+                layout.matrix_ids.iter().any(|id| id == &source.id) && layout.board_id == board_id
+            })
             .cloned();
         if existing.as_ref().is_some_and(|layout| {
             layout.mirror_link.is_some()
@@ -443,8 +445,8 @@ fn prepare_existing_half(
             matrix_ids: vec![target_matrix_id.clone()],
             part_ids: Vec::new(),
             mirror_link: Some(LayoutMirrorLink {
-correspondences: vec![],
-exceptions: vec![],
+                correspondences: vec![],
+                exceptions: vec![],
                 source_id: source_layout.id,
                 axis_x,
             }),
@@ -474,10 +476,9 @@ fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOp
         .iter()
         .filter(|matrix| super::matrix_visible_on_board(document, board_id, &matrix.id))
     {
-        let layout = document
-            .layouts
-            .iter()
-            .find(|layout| layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == board_id);
+        let layout = document.layouts.iter().find(|layout| {
+            layout.matrix_ids.iter().any(|id| id == &matrix.id) && layout.board_id == board_id
+        });
         let linked = layout.is_some_and(|layout| {
             layout.mirror_link.is_some()
                 || document.layouts.iter().any(|candidate| {
