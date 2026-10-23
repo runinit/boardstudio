@@ -13,7 +13,7 @@ heading. It must combine:
 - column spread and stagger, both inherited;
 - splay with an origin relative to the column base;
 - row padding;
-- the carried shift and carried rotation at row and key level;
+- Shift and Bend (the carried move and turn) at row and key level;
 - independent row, column and key offsets, measured in the key's carried frame, which do not
   move the splay origin;
 - the matrix origin, rotation and local X/Y mirror;

@@ -11,12 +11,12 @@ Make a rough, clickable prototype of how users edit:
 
 - column spread;
 - row padding;
-- carried shift and carried rotation, at row and key level;
+- Shift and Bend, at row and key level;
 - independent offsets;
 - the relative splay origin.
 
 Cover the Inspector fields for Matrix, Row, Column and Key selections, and the toolbar tools and
-drags, including a gesture for bending a column. Cover keyboard nudges and how a carried value
+drags, including a Bend gesture. Cover keyboard nudges and how a carried value
 visibly moves the keys above it during preview. Existing tools stay: Stagger, Offset, Splay,
 Origin and the Shift quick offset. React to the prototype with the user and record the chosen
 layout and wording.
