@@ -13,6 +13,7 @@
 //! - icons come from `crate::ui::icons` (ticket 004).
 //! - an existing root `id` targets the actual input for native label association (ticket 016);
 //!   the primitive still owns its generated fallback, list and active-descendant identities.
+//! - non-namespaced `aria-invalid` / `aria-describedby` also target that input (ticket 016).
 
 use dioxus::prelude::*;
 use dioxus_primitives::combobox::{
@@ -72,6 +73,11 @@ pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Elem
             None
         }
     });
+    let (input_validation, root_attributes): (Vec<_>, Vec<_>) =
+        root_attributes.into_iter().partition(|attribute| {
+            attribute.namespace.is_none()
+                && matches!(attribute.name, "aria-invalid" | "aria-describedby")
+        });
     let base = attributes!(div { class: "relative inline-block w-full", "data-slot": "combobox" });
     let merged = merge_attributes(vec![base, root_attributes]);
     rsx! {
@@ -92,6 +98,7 @@ pub fn Combobox<T: Clone + PartialEq + 'static>(props: ComboboxProps<T>) -> Elem
             div { class: "relative", "data-slot": "combobox-input-wrapper",
                 combobox::ComboboxInput {
                     id: input_id,
+                    attributes: input_validation,
                     class: "text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground flex h-control w-full min-w-0 rounded-md bg-field pl-3 pr-8 py-1 text-base transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:ring-ring/50 focus-visible:ring-2",
                     "data-slot": "combobox-input",
                     placeholder: props.placeholder,

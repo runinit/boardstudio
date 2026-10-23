@@ -1626,6 +1626,7 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                                         }
                                      ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                     CollapsibleContent {
+                                        class: "data-[open=true]:overflow-visible",
                                         hidden: !constraint_open(),
                                         inert: (!constraint_open()).then_some(""),
 

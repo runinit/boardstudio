@@ -295,6 +295,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             on_open_change: move |next| transform_open.set(next),
                             CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Position and rotation",  "Transform"   ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                             CollapsibleContent {
+                                class: "data-[open=true]:overflow-visible",
                                 hidden: !transform_open(),
                                 inert: (!transform_open()).then_some(""),
                                 NumericTransformField {
@@ -630,6 +631,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     on_open_change: move |next| assembly_open.set(next),
                     CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Key assembly"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                     CollapsibleContent {
+                        class: "data-[open=true]:overflow-visible",
                         hidden: !assembly_open(),
                         inert: (!assembly_open()).then_some(""),
                         KeyAssemblyField {
@@ -1048,6 +1050,7 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
             );
 
             let error: Option<String> = message;
+            let error_id = format!("{control_id}-error");
             let control_choices = [
                 ("none".to_owned(), "None".to_owned(), false),
                 ("x".to_owned(), "X axis".to_owned(), false),
@@ -1093,6 +1096,8 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
                     Select::<String> {
                         id: control_id,
                         aria_label: control_aria_label.clone(),
+                        aria_invalid: error.is_some(),
+                        aria_describedby: error.as_ref().map(|_| error_id.clone()),
                         value: Some(mirror_choice.into()),
                         disabled: !props.editable,
                         on_value_change,
@@ -1107,7 +1112,9 @@ fn MirrorTransformField(props: MirrorTransformFieldProps) -> Element {
                         }
                     }
                     if let Some(message) = error {
-                        FieldError { "{message}" }
+                        div { id: error_id,
+                            FieldError { "{message}" }
+                        }
                     }
                 }
             }
@@ -1173,6 +1180,7 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
             );
 
             let error: Option<String> = error;
+            let error_id = format!("{control_id}-error");
             let control_choices = [
                 ("base".to_owned(), "Column base".to_owned(), false),
                 ("custom".to_owned(), "Custom point".to_owned(), false),
@@ -1213,6 +1221,8 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
                     Select::<String> {
                         id: control_id,
                         aria_label: control_aria_label.clone(),
+                        aria_invalid: error.is_some(),
+                        aria_describedby: error.as_ref().map(|_| error_id.clone()),
                         value: Some(origin_choice.into()),
                         disabled: !props.editable,
                         on_value_change,
@@ -1227,7 +1237,9 @@ fn OriginModeTransformField(props: OriginModeTransformFieldProps) -> Element {
                         }
                     }
                     if let Some(message) = error {
-                        FieldError { "{message}" }
+                        div { id: error_id,
+                            FieldError { "{message}" }
+                        }
                     }
                 }
             }

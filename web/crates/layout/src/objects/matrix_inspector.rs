@@ -548,6 +548,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                     small { "{definition_label}" }
                  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                 CollapsibleContent {
+                    class: "data-[open=true]:overflow-visible",
                     hidden: !assembly_open(),
                     inert: (!assembly_open()).then_some(""),
                     div { class: "m1-matrix-inspector-fields",
@@ -1100,6 +1101,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         })
         .map(|feedback| feedback.message.clone());
     let error_text = error.read().clone().or(feedback_error);
+    let error_id = format!("matrix-field-error-{}", dioxus::core::current_scope_id().0);
     let current_status = status();
     let selected_choice = use_memo(move || Some(draft()));
     let input_value = draft();
@@ -1166,12 +1168,14 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
         });
         rsx! {
 
-                                Field { class: "",
+                                Field { invalid: error_text.is_some(),
                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                     if props.field == MatrixEditField::SwitchDefinition {
                                         Combobox::<String> {
                                             id: control_id.clone(),
                                             aria_label: control_aria_label.clone(),
+                                            aria_invalid: error_text.is_some(),
+                                            aria_describedby: error_text.as_ref().map(|_| error_id.clone()),
                                             list_aria_label: control_aria_label.clone(),
                                             value: Some(selected_choice.into()),
                                             disabled: !props.editable,
@@ -1190,6 +1194,8 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                                         Select::<String> {
                                             id: control_id.clone(),
                                             aria_label: control_aria_label.clone(),
+                                            aria_invalid: error_text.is_some(),
+                                            aria_describedby: error_text.as_ref().map(|_| error_id.clone()),
                                             value: Some(selected_choice.into()),
                                             disabled: !props.editable,
                                             on_value_change,
@@ -1235,6 +1241,7 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
                             submitted_request_id.set(None);
                         },
     id: control_input_id.clone(),
+    aria_describedby: error_text.as_ref().map(|_| error_id.clone()),
     attributes: vec![dioxus::core::Attribute::new("aria-invalid", error_text.is_some(), None, false),dioxus::events::onblur({
                             let mut commit = commit.clone();
                             move |_| commit(None)
@@ -1256,7 +1263,9 @@ fn MatrixFieldEditor(props: MatrixFieldEditorProps) -> Element {
 
                 }
                 if let Some(message) = error_text.as_deref() {
-                    FieldError {  "{message}"  }
+                    div { id: error_id,
+                        FieldError { "{message}" }
+                    }
                 }
                 if let Some(message) = current_status.as_deref() {
                     div { role: "status",  Callout {  variant: CalloutVariant::Info,  "{message}"  } }

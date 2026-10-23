@@ -946,6 +946,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" }
                 }
                 CollapsibleContent {
+                    class: "data-[open=true]:overflow-visible",
                     hidden: !key_size_open(),
                     inert: (!key_size_open()).then_some(""),
                     objects::KeySizeControls { mount: input.key_size }

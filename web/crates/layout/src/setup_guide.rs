@@ -6,6 +6,7 @@ pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest}
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
 use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
+use boardstudio_web_ui_shared::ui::tooltip::{Tooltip, TooltipContent, TooltipTrigger};
 
 use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus::prelude::*;
@@ -485,16 +486,22 @@ pub fn ProjectSetupGuide(
                 }
                 footer { class: "m1-setup-guide__footer",
                     if let Some(previous) = previous_stage {
-                        Button {
-                            variant: ButtonVariant::Secondary,
-                            class: "m1-setup-guide__back",
-                            aria_label: "Previous step",
-                            onclick: move |_| on_stage_change.call(previous),
-
-                            svg { view_box: "0 0 24 24", "aria-hidden": "true",
-                                path { d: "M19 12H5m7 7-7-7 7-7" }
+                        Tooltip {
+                            TooltipTrigger {
+                                r#as: move |attributes: Vec<Attribute>| rsx! {
+                                    Button {
+                                        attributes,
+                                        variant: ButtonVariant::Secondary,
+                                        class: "m1-setup-guide__back",
+                                        aria_label: "Previous step",
+                                        onclick: move |_| on_stage_change.call(previous),
+                                        svg { view_box: "0 0 24 24", "aria-hidden": "true",
+                                            path { d: "M19 12H5m7 7-7-7 7-7" }
+                                        }
+                                    }
+                                },
                             }
-
+                            TooltipContent { "Previous step" }
                         }
                     } else {
                         span {}
