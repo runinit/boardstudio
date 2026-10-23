@@ -10,7 +10,9 @@ Map: [map.md](../map.md) · Decision: [ADR-0034](../../../adr/0034-matrices-foll
 A layout can hold several matrices, and a matrix can anchor its frame to a key of another
 matrix in the same layout, with shift, rotation and ergogen-style `affect` (ADR-0034). Decide:
 
-- the stored anchor shape, and how it composes with the matrix origin and rotation;
+- the stored anchor shape. How it composes is settled by the
+  [kernel ticket](04-layout-kernel-order-of-operations.md#answer): world = anchor frame ·
+  origin · rotation · mirror · local;
 - the evaluation order across matrices, and refusal of cycles;
 - what happens when the anchor key is disabled, deleted, or renumbered by row or column
   compaction (`matrix/deletion.rs::remove_axis`), or when its matrix is removed. For example:

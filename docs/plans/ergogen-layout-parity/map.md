@@ -101,6 +101,15 @@ BoardStudio extended layout feature working.
   - Licence notices travel with the tooling.
   - The old projection oracle is replaced by regenerated BoardStudio-only regressions (see the
     ticket's comment).
+- [04: Specify the layout kernel's order of operations](issues/04-layout-kernel-order-of-operations.md#answer):
+  - Each column steps out by spread (a full step; absent means pitch) and stagger, then splays
+    about its base plus a relative origin.
+  - Each row steps by padding, then applies the summed row and key Shift, then the summed Bend.
+  - Offsets add up and Key rotation follows, both in the key's carried frame.
+  - The mirror negates the whole local heading; the anchor frame wraps origin and rotation.
+  - Storage is grouped as `columnLayout`/`rowLayout` records. One Core kernel feeds the scene
+    (`shiftFrame`, `offsetFrame`, `spreadAxis`, `base`) and drag inverses.
+  - Ergogen goldens compare within `1e-6`.
 
 ## Not yet specified
 
@@ -108,8 +117,9 @@ BoardStudio extended layout feature working.
   keys inherit a carried shift or rotation) and dependencies on anchors between matrices.
   Waits on the parameter names, the kernel and the anchor rules.
 - **Mirrored halves.** The reconcile, inverse-edit and exception rules for each new field and
-  for anchors, in `layout::reflected`, `mirrored_half/{inverse,reconcile}`. Graduates once the
-  kernel and anchor tickets resolve.
+  for anchors, in `layout::reflected`, `mirrored_half/{inverse,reconcile}`. The kernel fixes the
+  reflection rule: values are copied unchanged, and the mirror negates the local heading.
+  Graduates once the anchor ticket resolves.
 - **Format reset.** The user-facing message when an older document is refused, how stored
   browser projects and Undo history are cleared, and the archive import message.
 - **Starters.** Rebuilding the three starters and the demos under the new rules, for example

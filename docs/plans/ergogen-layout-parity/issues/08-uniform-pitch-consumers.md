@@ -16,5 +16,5 @@ Several consumers assume key centres sit on a uniform `pitch` grid (inventory se
 - `layout_align_controller.rs`, which still writes `columnOffsets` through `SetMatrix`.
 
 For each, decide whether it reads projected key poses, uses spread and padding, or keeps pitch
-only as a size. Also decide how matrix setup and resize seed the new parameters (neutral values,
-derived from pitch).
+only as a size. Setup and resize seed default records, where absent spread and padding mean
+pitch (settled by the [kernel ticket](04-layout-kernel-order-of-operations.md#answer)).

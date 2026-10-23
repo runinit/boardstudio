@@ -41,3 +41,7 @@ Find and recommend:
   geometry, so its expected poses cannot stay. Its BoardStudio-only cases (Y mirror, custom
   origins, saved poses) are re-expressed as regenerated extended-feature regressions; the
   TypeScript-captured values are not kept.
+- 2026-10-22 ([kernel ticket](04-layout-kernel-order-of-operations.md#answer)): `1e-9` is
+  too tight for ergogen goldens. Maker.js rounds every rotated point to `1e-7`, and the largest
+  error measured was `1.13e-7`. Ergogen goldens compare within `1e-6`; BoardStudio-only
+  regressions keep `1e-9`.
