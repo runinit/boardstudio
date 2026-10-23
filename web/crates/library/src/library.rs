@@ -952,13 +952,13 @@ pub fn Library(
                             let runtime = runtime.clone();
                             let key = record.key.clone();
                             move |_| runtime.download_raw_project(key.clone())
-                        }, "Download raw saved data" }
+                        }, "Download raw saved data (JSON only)" }
                         button { class: "m1-project-unreadable-delete", r#type: "button", disabled: record.token.is_none(), onclick: {
                             let runtime = runtime.clone();
                             let record = record.clone();
                             move |_| {
                                 if !web_sys::window().and_then(|window| window.confirm_with_message(
-                                    "Permanently delete this unreadable keyboard? Download its raw saved data first if you want to keep it."
+                                    &format!("Permanently delete saved keyboard \"{}\"? Download its raw saved data first if you want to keep it.", record.label)
                                 ).ok()).unwrap_or(false) { return; }
                                 let runtime = runtime.clone();
                                 let record = record.clone();
@@ -1313,6 +1313,7 @@ mod mounted_tests {
         window: web_sys::Window,
         original: wasm_bindgen::JsValue,
         answer: Rc<Cell<bool>>,
+        message: Rc<std::cell::RefCell<String>>,
         _callback: wasm_bindgen::closure::Closure<dyn FnMut(wasm_bindgen::JsValue) -> bool>,
     }
 
@@ -1322,15 +1323,21 @@ mod mounted_tests {
             let original = js_sys::Reflect::get(&window, &"confirm".into()).unwrap();
             let answer = Rc::new(Cell::new(false));
             let result = answer.clone();
+            let message = Rc::new(std::cell::RefCell::new(String::new()));
+            let prompt = message.clone();
             let callback =
                 wasm_bindgen::closure::Closure::<dyn FnMut(wasm_bindgen::JsValue) -> bool>::new(
-                    move |_| result.get(),
+                    move |value: wasm_bindgen::JsValue| {
+                        *prompt.borrow_mut() = value.as_string().unwrap();
+                        result.get()
+                    },
                 );
             js_sys::Reflect::set(&window, &"confirm".into(), callback.as_ref()).unwrap();
             Self {
                 window,
                 original,
                 answer,
+                message,
                 _callback: callback,
             }
         }
@@ -1380,9 +1387,21 @@ mod mounted_tests {
         )
         .await;
         assert!(root.text_content().unwrap().contains("partial-list-future"));
+        let raw_action = root
+            .query_selector(".m1-project-raw-download")
+            .unwrap()
+            .unwrap();
+        assert!(
+            raw_action.text_content().unwrap().contains("JSON only"),
+            "raw saved data must not promise an asset-complete archive"
+        );
         let confirm = ConfirmFixture::new();
         click(&root, ".m1-project-unreadable-delete");
         drain_and_yield(&runtime).await;
+        assert!(
+            confirm.message.borrow().contains(&future.id),
+            "delete confirmation must name its target"
+        );
         assert!(
             runtime
                 .store
