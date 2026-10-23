@@ -54,6 +54,11 @@ def tests(url, captures):
                 browser("press", "Tab")
                 browser("press", "Shift+Tab")
                 driver.check("document.activeElement===actualView && actualView.matches(':focus-visible')")
+                evaluate("window.viewClicks=[];window.recordView=e=>viewClicks.push(e.isTrusted);actualView.addEventListener('click',recordView)")
+                browser("press", "Space")
+                print("Actual 2D Space", width, theme, appearance, evaluate("({clicks:viewClicks,pressed:actualView.getAttribute('aria-pressed')})"), flush=True)
+                driver.check("viewClicks.length===1 && viewClicks[0] && actualView.getAttribute('aria-pressed')==='true'")
+                evaluate("actualView.removeEventListener('click',recordView)")
                 browser("wait", "--fn", "!actualView.getAnimations().some(a=>a.playState==='running')")
                 result = evaluate("""(()=>{
                     const style=getComputedStyle(actualView), rect=actualView.getBoundingClientRect();
