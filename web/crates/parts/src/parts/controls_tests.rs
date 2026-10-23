@@ -62,7 +62,13 @@ async fn parts_picker_uses_select_through_twelve_then_keeps_the_combobox_owned_q
         .unwrap()
         .click();
     wait_until(
-        "the actual short-picker label opens its Select and focuses its selected option",
+        "the actual short-picker label activates its trigger",
+        || document.active_element() == Some(select.clone().unchecked_into()),
+    )
+    .await;
+    key(&select, "ArrowDown");
+    wait_until(
+        "ArrowDown opens the Select and focuses its first option",
         || {
             select.get_attribute("aria-expanded").as_deref() == Some("true")
                 && document.active_element()
