@@ -3,6 +3,7 @@ use super::parts::{PartsInspectorPanel, PartsLibraryPanel, PartsPreviewWorkspace
 use super::parts::{PartsQuery, PartsSelection};
 use super::workspace_composition::PlaceholderInput;
 use boardstudio_application::{AcceptedSnapshot, Scope};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use dioxus::prelude::*;
 
 /// State shared by the Parts library, preview, placement and assembly editors.
@@ -125,7 +126,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
         section { class: "m1-placeholder-workspace",
             h1 { "{input.name}" }
             p { "{input.message}" }
-            button { onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
+            Button { variant: ButtonVariant::Secondary, onclick: move |_| input.workspace.set("Layout"), "Back to Layout" }
         }
     }
 }
@@ -133,7 +134,7 @@ pub(super) fn canvas(mut input: PlaceholderInput) -> Element {
 pub(super) fn preview(input: CanvasInput) -> Element {
     rsx! {
         if let Some(on_back) = input.controller_back {
-            button { class: "m1-parts-controller-back", type: "button", onclick: move |_| on_back.call(()), "Back to PCB" }
+            Button { class: "m1-parts-controller-back", variant: ButtonVariant::Secondary, onclick: move |_| on_back.call(()), "Back to PCB" }
         }
         PartsPreviewWorkspace {
             snapshot: input.snapshot,
@@ -170,8 +171,7 @@ pub(super) fn inspector(input: InspectorInput) -> Element {
 mod workspace_state_tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
-    use boardstudio_web_ui_shared::test_wait::wait_until;
-    use wasm_bindgen::JsCast;
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test_configure!(run_in_browser);
@@ -215,15 +215,11 @@ mod workspace_state_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("the mounted module selector renders", || {
-            root.query_selector("#select-mounted-module")
-                .is_ok_and(|button| button.is_some())
+            by_role_name(&root, "button", "Select module").is_some()
         })
         .await;
 
-        root.query_selector("#select-mounted-module")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
+        by_role_name(&root, "button", "Select module")
             .unwrap()
             .click();
         wait_until(

@@ -286,8 +286,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-add-component-chooser { display: grid; gap: 8px; min-width: 0; }
 .m1-parts-placement-layout { display: grid; gap: 5px; color: var(--wb-muted); font-size: var(--wb-type-label); }
 .m1-parts-placement-layout select:not(.board-field-control) { box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
-.m1-add-part-results { display: grid; gap: 1px; }
-.m1-parts-category > summary { padding: 7px 0; color: var(--wb-muted); cursor: pointer; font-size: var(--wb-type-label); font-weight: 600; }
 .m1-add-browse { margin-top: 4px; }
 .m1-layout-objects-content > .m1-objects { position: relative; }
 .m1-matrix-setup { position: absolute; z-index: 6; inset: 100px 8px 8px; display: flex; flex-direction: column; gap: 10px; overflow: auto; padding: 12px; border: 1px solid var(--wb-rule-strong); border-radius: 6px; color: var(--wb-ink); background: var(--wb-panel); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
@@ -441,19 +439,6 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-parts-library { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 16px 12px; color: var(--wb-ink); }
 .m1-parts-library > h2 { margin: 0 0 16px; font-size: 20px; }
 .m1-parts-search-label { display: grid; gap: 6px; color: var(--wb-muted); font: 500 var(--wb-type-label)/var(--wb-leading-ui) var(--wb-body); }
-.m1-parts-search { box-sizing: border-box; width: 100%; min-height: 34px; padding: 7px 8px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-ink); background: var(--wb-panel); font: var(--wb-type-body)/var(--wb-leading-ui) var(--wb-body); }
-.m1-parts-search:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 1px; }
-.m1-parts-search::placeholder { color: var(--wb-muted); opacity: 1; }
-.m1-parts-catalogue-scroll { overflow: auto; min-height: 0; margin-top: 12px; }
-.m1-parts-catalogue-scroll[open] { flex: 1 1 0; }
-.m1-parts-catalogue-scroll:not([open]) { flex: 0 0 auto; }
-.m1-parts-catalogue-scroll > summary { padding: 10px 0; color: var(--wb-ink); cursor: pointer; font-weight: 600; }
-.m1-parts-catalogue-scroll > summary small { margin-left: 6px; color: var(--wb-muted); }
-.m1-parts-category h3 { margin: 14px 0 4px; color: var(--wb-muted); font-size: var(--wb-type-label); }
-.m1-parts-catalogue-choice { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 34px; padding: 7px 8px; border: 1px solid transparent; border-radius: 3px; color: var(--wb-ink); background: transparent; text-align: left; cursor: pointer; font-size: var(--wb-type-body); }
-.m1-parts-catalogue-choice:hover { background: var(--wb-raised); }
-.m1-parts-catalogue-choice[aria-selected="true"] { border-color: var(--wb-accent); background: var(--wb-selection-surface); }
-.m1-parts-catalogue-choice:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: -2px; }
 .m1-parts-empty, .m1-parts-loading, .m1-parts-load-error { margin: 12px 0; color: var(--wb-muted); font-size: var(--wb-type-body); line-height: 1.5; }
 .m1-parts-load-error { color: var(--wb-status-error); }
 .m1-parts-inspector { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: auto; padding: 16px; color: var(--wb-ink); }
@@ -996,12 +981,12 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 
 .m1-shared-viewer { display: flex; flex-direction: column; gap: 10px; min-width: 0; color: var(--wb-ink); }
 .m1-shared-viewer > [role="group"] { display: flex; flex-wrap: wrap; gap: 6px; }
-.m1-shared-viewer :is(button, input:not(.board-field-control), select:not(.board-field-control)) { box-sizing: border-box; min-height: 36px; max-width: 100%; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
-.m1-shared-viewer button { padding: 6px 10px; cursor: pointer; }
-.m1-shared-viewer button:hover:not(:disabled) { background: var(--wb-raised); }
-.m1-shared-viewer button[aria-pressed="true"] { background: var(--wb-selection-surface); }
-.m1-shared-viewer :is(button, input, select):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
-.m1-shared-viewer button:disabled { opacity: .58; cursor: not-allowed; }
+.m1-shared-viewer :is(button, input:not(.board-field-control), select:not(.board-field-control)):where(:not([data-slot])) { box-sizing: border-box; min-height: 36px; max-width: 100%; border: 1px solid var(--wb-rule-strong); border-radius: 4px; color: var(--wb-ink); background: var(--wb-panel); font: inherit; }
+.m1-shared-viewer button:where(:not([data-slot])) { padding: 6px 10px; cursor: pointer; }
+.m1-shared-viewer button:where(:not([data-slot])):hover:not(:disabled) { background: var(--wb-raised); }
+.m1-shared-viewer button:where(:not([data-slot]))[aria-pressed="true"] { background: var(--wb-selection-surface); }
+.m1-shared-viewer :is(button, input, select):where(:not([data-slot])):focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+.m1-shared-viewer button:where(:not([data-slot])):disabled { opacity: .58; cursor: not-allowed; }
 .m1-shared-viewer canvas { border: 1px solid var(--wb-rule); border-radius: 4px; touch-action: none; }
 .m1-shared-viewer details { padding: 10px; border: 1px solid var(--wb-rule); background: var(--wb-panel); }
 .m1-shared-viewer summary { cursor: pointer; }
@@ -1027,7 +1012,7 @@ h2 { font-size: var(--wb-type-panel); line-height: 1.3; margin: 0; font-weight: 
 .m1-case-panel .m1-viewer-layer label { display: flex; gap: 6px; color: var(--wb-muted); }
 .m1-viewer-layer input[type="color"] { width: 44px; padding: 3px; }
 @media (max-width: 960px) {
-  .m1-shared-viewer :is(button, input, select) { min-height: 44px; }
+  .m1-shared-viewer :is(button, input, select):where(:not([data-slot])) { min-height: 44px; }
   .m1-case-panel { padding: 12px; }
 }
 

@@ -7,10 +7,16 @@ use boardstudio_core::model::{
     MountedModule, PartDefinition, Side, Vec2, VikRole,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
-use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonVariant, BoardCheckbox, BoardSelectField,
-};
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertVariant},
+    button::Button,
+    callout::Callout,
+    checkbox::{Checkbox, CheckboxState},
+    label::Label,
+    spinner::Spinner,
+    toast::{ToastOptions, use_toast},
+};
 use dioxus::prelude::*;
 use std::{cell::Cell, collections::BTreeMap, rc::Rc};
 use wasm_bindgen_futures::spawn_local;
@@ -42,6 +48,7 @@ pub fn ModuleAttachment(
     on_attached: EventHandler<AttachedModuleNavigation>,
 ) -> Element {
     let runtime = use_context::<Rc<Runtime>>();
+    let toasts = use_toast();
     let workspace = use_context::<crate::presentation::WorkspaceState>().0;
     let selection_generation = use_context::<super::super::PartsSelectionGeneration>().0;
     let mut pending = use_signal(|| false);
@@ -135,7 +142,8 @@ pub fn ModuleAttachment(
                             definition_id: definition.id.clone(),
                             selection_generation: initial_generation,
                         };
-                        feedback.set("Module attached.".into());
+                        toasts.success("Module attached.".into(), ToastOptions::new());
+                        feedback.set(String::new());
                         on_attached.call(navigation);
                     }
                     PendingEditResult::Failed { message, .. } => feedback.set(message),
@@ -348,20 +356,22 @@ pub fn ModuleAttachment(
 
     rsx! {
         section { class: "m1-module-attach", "aria-label": "Attach module to PCB",
-            BoardButton { variant: BoardButtonVariant::Primary,
-                class: "m1-primary-button",
-                r#type: "button",
+            Button { class: "w-full max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || !can_attach,
                 onclick: attach,
                 "Attach module to {board_name}"
             }
-            label { class: "m1-module-attach-connection",
-                BoardCheckbox {
-                    checked: host_connection_enabled(),
+            Label { html_for: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
+                Checkbox {
+                    id: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
+                    aria_label: "Assign host connection",
+                    checked: Some(if host_connection_enabled() { CheckboxState::Checked } else { CheckboxState::Unchecked }),
                     disabled: pending() || pending_edits.is_pending(&AttachKey::Attach) || module_port_id.is_none(),
-                    onchange: move |event: FormEvent| {
-                        host_connection_enabled.set(event.checked());
-                        if event.checked() && connector_selection().is_empty() {
+                    on_checked_change: move |value: CheckboxState| {
+                        let checked = bool::from(value);
+                        host_connection_enabled.set(checked);
+                        if checked && connector_selection().is_empty() {
                             connector_selection.set(initial_connector.clone());
                         }
                     }
@@ -369,26 +379,23 @@ pub fn ModuleAttachment(
                 "Assign host connection"
             }
             if host_connection_enabled() && module_port_id.is_some() {
-                BoardSelectField {
-                    label: "Host connector",
-                    aria_label: "Module host connector",
-                    value: "{connector_selection()}",
-                    disabled: pending(),
-                    onchange: move |event: FormEvent| connector_selection.set(event.value()),
-                    option { value: "{AUTOMATIC_CONNECTOR_SELECTION}", "Add source-backed horizontal VIK connector beside module" }
-                        for (id, reference) in &connectors {
-                            option { value: "{id}", "{reference}" }
-                        }
+                super::super::PartsChoiceField {
+                    label: "Host connector", aria_label: "Module host connector",
+                    value: connector_selection(), disabled: pending(),
+                    options: std::iter::once((AUTOMATIC_CONNECTOR_SELECTION.to_owned(), "Add source-backed horizontal VIK connector beside module".into()))
+                        .chain(connectors.iter().map(|(id, reference)| (id.clone(), reference.clone()))).collect(),
+                    on_value_change: move |value| connector_selection.set(value),
                 }
             }
             if module_port_id.is_none() {
-                p { role: "status", "This module has no module-role VIK port; it will attach without a host connection." }
+                div { role: "status", Callout { "This module has no module-role VIK port; it will attach without a host connection." } }
             }
             if !can_attach {
-                p { role: "status", "Choose a PCB in the Parts workspace before attaching this module." }
+                div { role: "status", Callout { "Choose a PCB in the Parts workspace before attaching this module." } }
             }
             if !feedback().is_empty() {
-                p { role: "status", "{feedback()}" }
+                if pending() { div { role: "status", Spinner {} "{feedback()}" } }
+                else { Alert { variant: AlertVariant::Destructive, "{feedback()}" } }
             }
         }
     }
@@ -561,9 +568,9 @@ mod mounted_settlement_tests {
     use super::*;
     use boardstudio_core::model::{Board, ProjectDoc};
     use boardstudio_web_runtime::runtime::project_name_test_support as support;
+    use boardstudio_web_ui_shared::test_role::by_role_name;
     use boardstudio_web_ui_shared::test_wait::{wait_until, wait_until_future, wait_until_step};
     use std::cell::RefCell;
-    use wasm_bindgen::JsCast;
     use wasm_bindgen_test::*;
 
     struct Probe {
@@ -599,6 +606,7 @@ mod mounted_settlement_tests {
             source: super::super::EntrySource::Project,
         };
         rsx! {
+            boardstudio_web_ui_shared::ui::toast::ToastProvider {
             ModuleAttachment {
                 snapshot,
                 module,
@@ -608,6 +616,7 @@ mod mounted_settlement_tests {
             }
             button { id: "depart-attachment-owner", onclick: move |_| selected.set(None), "Depart" }
             button { id: "return-attachment-owner", onclick: move |_| selected.set(Some((runtime.scope(), "module:module".into()))), "Return" }
+            }
         }
     }
 
@@ -656,17 +665,10 @@ mod mounted_settlement_tests {
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
         wait_until("module attachment control mounts", || {
-            root.query_selector(".m1-module-attach button")
-                .unwrap()
-                .is_some()
+            by_role_name(&root, "button", "Attach module to Board").is_some()
         })
         .await;
-        let attach: web_sys::HtmlElement = root
-            .query_selector(".m1-module-attach button")
-            .unwrap()
-            .unwrap()
-            .dyn_into()
-            .unwrap();
+        let attach = by_role_name(&root, "button", "Attach module to Board").unwrap();
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();
         wait_until("module attachment is admitted", || {
@@ -703,6 +705,15 @@ mod mounted_settlement_tests {
         assert_eq!(navigation.revision, accepted.document.revision);
         assert_eq!(navigation.selection_generation, 1);
         assert!(!attach.has_attribute("disabled"));
+        wait_until("attachment success is a transient Toast", || {
+            by_role_name(&root, "status", "Module attached.").is_some()
+        })
+        .await;
+        by_role_name(&root, "button", "close").unwrap().click();
+        wait_until("the success Toast dismisses", || {
+            by_role_name(&root, "status", "Module attached.").is_none()
+        })
+        .await;
 
         let (entered, release) = support::gate_next_core_reply(&runtime);
         attach.click();
@@ -714,12 +725,7 @@ mod mounted_settlement_tests {
         wait_until_future("second module attachment enters Core", entered)
             .await
             .unwrap();
-        root.query_selector("#depart-attachment-owner")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        by_role_name(&root, "button", "Depart").unwrap().click();
         wait_until("departed module attachment owner retires", || {
             !attach.has_attribute("disabled")
         })
@@ -753,16 +759,9 @@ mod mounted_settlement_tests {
         assert!(!root.text_content().unwrap().contains("Module attached."));
         assert!(!attach.has_attribute("disabled"));
 
-        root.query_selector("#return-attachment-owner")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
-            .click();
+        by_role_name(&root, "button", "Return").unwrap().click();
         wait_until("module attachment owner returns", || {
-            root.query_selector(".m1-module-attach button")
-                .unwrap()
-                .is_some()
+            by_role_name(&root, "button", "Attach module to Board").is_some()
         })
         .await;
         support::fail_next_core_reply(&runtime, "controlled attachment failure");

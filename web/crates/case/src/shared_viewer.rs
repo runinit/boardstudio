@@ -15,8 +15,18 @@ use crate::runtime::CadScene;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_host::cad_jobs::captured_case_document;
 use boardstudio_web_ui_shared::controls::{
-    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardDisclosure,
-    BoardSelectField,
+    BoardButton, BoardButtonDensity, BoardButtonVariant, BoardCheckbox, BoardSelectField,
+};
+use boardstudio_web_ui_shared::ui::{
+    button::{Button as UiButton, ButtonSize as UiButtonSize, ButtonVariant as UiButtonVariant},
+    checkbox::{Checkbox as UiCheckbox, CheckboxState},
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    field::Field,
+    label::Label,
+    select::{Select, SelectOption},
+    slider::Slider,
+    toggle_group::{ToggleGroup, ToggleItem},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
 };
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
@@ -2711,6 +2721,7 @@ fn SharedViewer(
     let show_assembly_controls = projection.layers.iter().any(|(id, _)| id != "pcb");
     let select_assembly_layer = select_layer.clone();
 
+    let section_plane = use_memo(move || Some(transient().section_plane.to_owned()));
     let docked_layers = boardstudio_web_ui_shared::layer_dock::use_docked_layers(rsx! {
         CaseAssemblyLayers {
             initially_open: false,
@@ -2723,8 +2734,9 @@ fn SharedViewer(
             on_display_change: assembly_change_display,
         }
     if !inline_case_controls {
-    BoardDisclosure {
-        heading: rsx! { summary { "Case layers and colors" } },
+    Collapsible { keep_mounted: true,
+        CollapsibleTrigger { "Case layers and colors" }
+        CollapsibleContent { class: "data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11",
         div { role: "group", "aria-label": "Case layers",
         for (id, label) in &projection.layers {
             {
@@ -2747,15 +2759,15 @@ fn SharedViewer(
             let reset_id = id.clone();
             rsx! {
                 div { class: "m1-viewer-layer", key: "{id}",
-                    button {
-                        "aria-pressed": selected_layer == id,
+                    UiButton { variant: UiButtonVariant::Ghost,
+                        aria_pressed: selected_layer == id,
                         onclick: move |_| select_layer(select_id.clone()),
                         "Select {label}"
                     }
-                    button {
-                        "aria-pressed": visible,
-                        "aria-label": "Toggle visibility for {label}",
-                        onclick: move |_| {
+                    ToggleGroup {
+                        aria_label: format!("Visibility for {label}"), horizontal: true,
+                        pressed: Some(if visible { [0].into_iter().collect() } else { Default::default() }),
+                        on_pressed_change: move |_| {
                             let mut next_display = toggle_next.clone();
                             let aliases = preference_ids(&toggle_id);
                             let is_hidden = aliases.iter().all(|entry| next_display.hidden.contains(entry));
@@ -2768,10 +2780,15 @@ fn SharedViewer(
                             }
                             toggle_display(next_display.clone());
                         },
-                        if visible { "Visible" } else { "Hidden" }
+                        ToggleItem { index: 0usize, aria_label: format!("Toggle visibility for {label}"),
+                            if visible { "Visible" } else { "Hidden" }
+                        }
                     }
-                    label { "Color for {label}"
+                    Field {
+                        Label { html_for: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0), "Color for {label}" }
                         input {
+                            id: format!("viewer-color-{}-{id}", dioxus::core::current_scope_id().0),
+                            aria_label: format!("Color for {label}"),
                             r#type: "color", value: "{color}",
                             oninput: move |event: FormEvent| {
                                 let mut next_display = color_next.clone();
@@ -2780,7 +2797,7 @@ fn SharedViewer(
                             }
                         }
                     }
-                    BoardButton {
+                    UiButton { variant: UiButtonVariant::Secondary,
                         disabled: !has_color,
                         onclick: move |_| {
                             let mut next_display = reset_next.clone();
@@ -2795,11 +2812,13 @@ fn SharedViewer(
         }
         }
     }
+    }
     }    });
 
     rsx! {
         div { class: "m1-case-view m1-shared-viewer",
-            div { class: "m1-case-view-toolbar board-tool-pill",
+            style: (!inline_case_controls).then_some("container-type: size"),
+            div { class: if inline_case_controls { "m1-case-view-toolbar board-tool-pill" } else { "relative flex flex-none flex-wrap items-center justify-center gap-1 rounded-md bg-toolbar p-1" },
                 {toolbar_leading}
                 if inline_case_controls {
                     div { class: "m1-case-camera-controls", role: "group", "aria-label": "Assembly camera",
@@ -2927,89 +2946,101 @@ fn SharedViewer(
                     }
                 }
                 if !inline_case_controls {
-                button { aria_label: canvas_context.fit_label(), title: canvas_context.fit_label(), onclick: move |_| run_host(&fit, |host| host.fit(), &mut status), {viewer_control_icon("Fit")} }
-                BoardDisclosure { class: "m1-case-view-settings",
-                    heading: rsx! { summary { title: "View controls", aria_label: "View controls", {viewer_control_icon("View controls")} } },
-                    div { class: "m1-case-view-settings-body",
-            div { role: "group", "aria-label": "{canvas_context.camera_label()}",
-                button { onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
-                button { onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
-                button { onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
-                button { onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
-                button { onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
-                button { onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
-                button { onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
-            }
-            div { role: "group", "aria-label": "{canvas_context.display_label()}",
-                for mode in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid] {
-                    {
-                        let mut transient = transient;
-                        let label = mode.renderer_value();
-                        rsx! { button {
-                            "aria-pressed": transient().mode == mode,
-                            onclick: move |_| transient.with_mut(|view| view.mode = mode),
-                            "{label}"
+                Tooltip {
+                    TooltipTrigger { as: move |attributes| { let fit = fit.clone(); rsx! {
+                        UiButton { attributes, variant: UiButtonVariant::Secondary, size: UiButtonSize::IconSm,
+                            class: "max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]",
+                            aria_label: canvas_context.fit_label(),
+                            onclick: move |_| run_host(&fit, |host| host.fit(), &mut status),
+                            {viewer_control_icon("Fit")}
+                        }
+                    } } }
+                    TooltipContent { "{canvas_context.fit_label()}" }
+                }
+                Collapsible { class: "m1-case-view-settings", keep_mounted: true,
+                    Tooltip {
+                        TooltipTrigger { as: move |attributes| rsx! {
+                            CollapsibleTrigger { aria_label: "View controls", class: "size-control-compact justify-center max-[960px]:min-h-11 max-[960px]:min-w-11 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.5]", attributes, {viewer_control_icon("View controls")} }
                         } }
+                        TooltipContent { "View controls" }
                     }
+                    CollapsibleContent { class: "absolute left-0 top-full z-50 mt-2 max-h-[min(60vh,max(0px,calc(100cqh-5rem)))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md bg-card p-3 shadow-md data-[open=false]:hidden max-[960px]:[&_[data-slot=button]]:min-h-11 max-[960px]:[&_[data-slot=toggle-group-item]]:min-h-11 max-[960px]:[&_[data-slot=select-trigger]]:min-h-11",
+            div { role: "group", "aria-label": "{canvas_context.camera_label()}",
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&top, |host| host.view("top"), &mut status), "Top view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&bottom, |host| host.view("bottom"), &mut status), "Bottom view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&iso, |host| host.view("isometric"), &mut status), "Isometric view" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&left, |host| host.orbit(-50.0, 0.0), &mut status), "Rotate left" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&right, |host| host.orbit(50.0, 0.0), &mut status), "Rotate right" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_in, |host| host.zoom(0.85), &mut status), "Zoom in" }
+                UiButton { variant: UiButtonVariant::Ghost, onclick: move |_| run_host(&zoom_out, |host| host.zoom(1.15), &mut status), "Zoom out" }
+            }
+            ToggleGroup {
+                aria_label: canvas_context.display_label(), horizontal: true,
+                pressed: Some([match transient().mode { RenderMode::Shaded => 0, RenderMode::Wireframe => 1, RenderMode::Hybrid => 2 }].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if let Some(index) = next.iter().next() {
+                        transient.with_mut(|view| view.mode = [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid][*index]);
+                    }
+                },
+                for (index, mode) in [RenderMode::Shaded, RenderMode::Wireframe, RenderMode::Hybrid].into_iter().enumerate() {
+                    ToggleItem { index, "{mode.renderer_value()}" }
                 }
             }
-            div { role: "group", "aria-label": "{canvas_context.assembly_label()}",
-                for view in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section] {
-                    {
-                        let mut transient = transient;
-                        let label = view.renderer_value();
-                        rsx! { button {
-                            "aria-pressed": transient().assembly == view,
-                            onclick: move |_| transient.with_mut(|state| state.assembly = view),
-                            "{label}"
-                        } }
+            ToggleGroup {
+                aria_label: canvas_context.assembly_label(), horizontal: true,
+                pressed: Some([match transient().assembly { AssemblyView::Assembled => 0, AssemblyView::Exploded => 1, AssemblyView::Section => 2 }].into_iter().collect()),
+                on_pressed_change: move |next: std::collections::HashSet<usize>| {
+                    if let Some(index) = next.iter().next() {
+                        transient.with_mut(|view| view.assembly = [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section][*index]);
                     }
+                },
+                for (index, view) in [AssemblyView::Assembled, AssemblyView::Exploded, AssemblyView::Section].into_iter().enumerate() {
+                    ToggleItem { index, "{view.renderer_value()}" }
                 }
             }
             if transient().assembly == AssemblyView::Exploded {
-                label { "Explode amount"
-                    input {
-                        r#type: "range", min: "0", max: "10", step: "0.1",
-                        value: "{transient().explode_amount}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.explode_amount = value.clamp(0.0, 10.0));
-                            }
-                        }
-                    }
+                Slider {
+                    label: "Explode amount", min: 0.0, max: 10.0, step: 0.1, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().explode_amount)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.explode_amount = (value as f32).clamp(0.0, 10.0)),
                 }
             }
             if transient().assembly == AssemblyView::Section {
-                BoardSelectField {
-                    label: "Section plane",
-                    value: "{transient().section_plane}",
-                    onchange: move |event: FormEvent| {
-                            transient.with_mut(|state| state.section_plane = match event.value().as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
-                        },
-                    option { value: "XY", "XY" }
-                        option { value: "XZ", "XZ" }
-                        option { value: "YZ", "YZ" }
-                }
-                label { "Section position"
-                    input {
-                        r#type: "range", min: "-100", max: "100", step: "1",
-                        value: "{transient().section_position}",
-                        oninput: move |event: FormEvent| {
-                            if let Ok(value) = event.value().parse::<f32>() {
-                                transient.with_mut(|state| state.section_position = value.clamp(-100.0, 100.0));
+                Field {
+                    Label { html_for: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), "Section plane" }
+                    Select::<String> {
+                        id: format!("viewer-section-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Section plane",
+                        value: Some(section_plane.into()),
+                        on_value_change: move |value: Option<String>| {
+                            if let Some(value) = value {
+                                transient.with_mut(|state| state.section_plane = match value.as_str() { "XY" => "XY", "XZ" => "XZ", _ => "YZ" });
                             }
+                        },
+                        for (index, plane) in ["XY", "XZ", "YZ"].into_iter().enumerate() {
+                            SelectOption::<String> { index, value: plane.to_owned(), text_value: plane, "{plane}" }
                         }
                     }
                 }
-                label { BoardCheckbox {
-                    checked: transient().show_section_plane,
-                    onchange: move |_| transient.with_mut(|state| state.show_section_plane = !state.show_section_plane),
-                } "Show section plane" }
+                Slider {
+                    label: "Section position", min: -100.0, max: 100.0, step: 1.0, class: "min-h-control max-[960px]:min-h-11 [&_[data-slot=slider-track]]:overflow-visible [&_[data-slot=slider-thumb]]:absolute [&_[data-slot=slider-thumb]]:top-1/2 [&_[data-slot=slider-thumb]]:-translate-x-1/2 [&_[data-slot=slider-thumb]]:-translate-y-1/2 [&_[data-slot=slider-thumb]]:scroll-m-1",
+                    value: Some(f64::from(transient().section_position)),
+                    on_value_change: move |value: f64| transient.with_mut(|state| state.section_position = (value as f32).clamp(-100.0, 100.0)),
+                }
+                Label { html_for: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                    UiCheckbox { id: format!("viewer-show-plane-{}", dioxus::core::current_scope_id().0), aria_label: "Show section plane",
+                        checked: Some(if transient().show_section_plane { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                        on_checked_change: move |value| transient.with_mut(|state| state.show_section_plane = bool::from(value)),
+                    }
+                    "Show section plane"
+                }
             }
-            label { BoardCheckbox {
-                checked: transient().show_hidden,
-                onchange: move |_| transient.with_mut(|state| state.show_hidden = !state.show_hidden),
-            } "Show hidden lines" }
+            Label { html_for: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), class: "max-[960px]:min-h-11",
+                UiCheckbox { id: format!("viewer-show-hidden-{}", dioxus::core::current_scope_id().0), aria_label: "Show hidden lines",
+                    checked: Some(if transient().show_hidden { CheckboxState::Checked } else { CheckboxState::Unchecked }),
+                    on_checked_change: move |value| transient.with_mut(|state| state.show_hidden = bool::from(value)),
+                }
+                "Show hidden lines"
+            }
                     }
                 }
                 }
@@ -4412,3 +4443,7 @@ mod tests {
         root.remove();
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+#[path = "shared_viewer_020_tests.rs"]
+mod rust_ui_020_tests;

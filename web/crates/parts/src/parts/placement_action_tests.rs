@@ -1,5 +1,5 @@
 use super::*;
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -51,6 +51,7 @@ fn add_object_host() -> Element {
             on_browse: EventHandler::default(),
             on_place: EventHandler::new(move |action| probe.actions.borrow_mut().push(action)),
         }
+        output { role: "status", aria_label: "Chooser owners", "{layout_target():?}:{query()}:{generation()}" }
     }
 }
 
@@ -85,19 +86,17 @@ async fn mounted_action(
         apply_to_key,
     });
     dioxus_web::launch::launch_virtual_dom(dom, dioxus_web::Config::new().rootnode(root.into()));
+    let root = document.get_element_by_id(root_id).unwrap();
+    let name = if apply_to_key {
+        "Apply to selected key"
+    } else {
+        "Place component"
+    };
     wait_until("the Parts Inspector placement control mounts", || {
-        document
-            .query_selector(&format!("#{root_id} .m1-parts-place-component"))
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", name).is_some()
     })
     .await;
-    let button = document
-        .query_selector(&format!("#{root_id} .m1-parts-place-component"))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let button = by_role_name(&root, "button", name).unwrap();
     (action, button)
 }
 
@@ -113,6 +112,14 @@ fn add_object_snapshot() -> AcceptedSnapshot {
             thickness: 1.6,
             traces: vec![],
             vias: vec![],
+        });
+        document.layouts.push(boardstudio_core::model::Layout {
+            id: format!("layout-{id}"),
+            name: format!("{name} layout"),
+            board_id: id.into(),
+            matrix_id: format!("matrix-{id}"),
+            part_ids: vec![],
+            mirror_link: None,
         });
     }
     document.hardware = Some(
@@ -226,9 +233,7 @@ async fn mounted_add_object_chooser(
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the Add Reset switch action mounts", || {
-        root.query_selector("button[aria-label='Add Reset switch']")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Add Reset switch").is_some()
     })
     .await;
     (actions, root)
@@ -238,18 +243,9 @@ async fn mounted_add_object_chooser(
 async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_on_mirror_board() {
     let (actions, mirror_root) =
         mounted_add_object_chooser("mirror-only-choice", "board-mirror").await;
-    let default = mirror_root
-        .query_selector("button[aria-label='Add Reset switch']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
-    let mirror_only = mirror_root
-        .query_selector("button[aria-label='Add Reset switch to this half only']")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap();
+    let default = by_role_name(&mirror_root, "button", "Add Reset switch").unwrap();
+    let mirror_only =
+        by_role_name(&mirror_root, "button", "Add Reset switch to this half only").unwrap();
     default.click();
     mirror_only.click();
     assert_eq!(
@@ -269,13 +265,108 @@ async fn mounted_add_object_chooser_keeps_default_and_exposes_mirror_only_only_o
 
     let (_source_actions, source_root) =
         mounted_add_object_chooser("source-only-choice", "board-main").await;
-    assert!(
-        source_root
-            .query_selector(".m1-mirror-only-choice")
-            .unwrap()
-            .is_none()
-    );
+    assert!(by_role_name(&source_root, "button", "Add Reset switch to this half only").is_none());
     source_root.remove();
+}
+
+#[wasm_bindgen_test]
+async fn mounted_add_object_chooser_retains_categories_and_board_owned_layout_selection() {
+    let key = |element: &web_sys::HtmlElement, value: &str| {
+        let init = web_sys::KeyboardEventInit::new();
+        init.set_key(value);
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        element
+            .dispatch_event(
+                &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+                    .unwrap(),
+            )
+            .unwrap();
+    };
+    let (_actions, root) = mounted_add_object_chooser("chooser-controls", "board-mirror").await;
+    let category = by_role_name(&root, "button", "Components").unwrap();
+    let choice = by_role_name(&root, "button", "Add Reset switch").unwrap();
+    assert!(choice.closest("[data-slot=item]").unwrap().is_some());
+    assert!(choice.closest("[data-slot=item-group]").unwrap().is_some());
+    let content_id = category.get_attribute("aria-controls").unwrap();
+    let document = web_sys::window().unwrap().document().unwrap();
+    let content = document.get_element_by_id(&content_id).unwrap();
+    category.click();
+    wait_until("the actual chooser category closes", || {
+        category.get_attribute("aria-expanded").as_deref() == Some("false")
+            && content.get_attribute("data-open").as_deref() == Some("false")
+    })
+    .await;
+    assert!(content.contains(Some(&choice)));
+    assert!(choice.is_connected());
+    category.click();
+    wait_until("the actual chooser category reopens", || {
+        category.get_attribute("aria-expanded").as_deref() == Some("true")
+    })
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Add Reset switch"),
+        Some(choice)
+    );
+
+    let layout = by_role_name(&root, "button", "Part placement layout").unwrap();
+    layout.focus().unwrap();
+    key(&layout, "ArrowDown");
+    wait_until(
+        "the chooser offers its board's layout with keyboard focus",
+        || {
+            document.active_element()
+                == by_role_name(&root, "option", "Board / ungrouped").map(|e| e.unchecked_into())
+        },
+    )
+    .await;
+    assert!(by_role_name(&root, "option", "Main layout").is_none());
+    key(
+        &by_role_name(&root, "option", "Board / ungrouped").unwrap(),
+        "End",
+    );
+    wait_until("End reaches only the current board's layout", || {
+        document.active_element()
+            == by_role_name(&root, "option", "Mirror layout").map(|e| e.unchecked_into())
+    })
+    .await;
+    key(
+        &by_role_name(&root, "option", "Mirror layout").unwrap(),
+        "Enter",
+    );
+    wait_until("the selected ID reaches the original layout target", || {
+        by_role_name(&root, "status", "Chooser owners")
+            .unwrap()
+            .text_content()
+            .as_deref()
+            == Some("Some(\"layout-board-mirror\")::0")
+    })
+    .await;
+    let search = by_role_name(&root, "searchbox", "Search parts").unwrap();
+    let input: web_sys::HtmlInputElement = search.unchecked_into();
+    input.set_value("reset");
+    let init = web_sys::EventInit::new();
+    init.set_bubbles(true);
+    input
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("input", &init).unwrap())
+        .unwrap();
+    wait_until(
+        "search preserves the original layout target and increments selection generation",
+        || {
+            by_role_name(&root, "status", "Chooser owners")
+                .unwrap()
+                .text_content()
+                .as_deref()
+                == Some("Some(\"layout-board-mirror\"):reset:1")
+        },
+    )
+    .await;
+    assert_eq!(
+        by_role_name(&root, "button", "Part placement layout"),
+        Some(layout)
+    );
+    assert!(by_role_name(&root, "button", "Add Reset switch").is_some());
+    root.remove();
 }
 
 #[wasm_bindgen_test]
