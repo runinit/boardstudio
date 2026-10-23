@@ -125,12 +125,12 @@ def tooltip(url, captures):
     browser("focus", driver.by_role_name("button", "Previous step"))
     evaluate("window.previousClicks=[];previousStep.addEventListener('click',e=>previousClicks.push(e.isTrusted),{once:true})")
     browser("press", "Space")
-    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Project name\"]')")
+    browser("wait", "--fn", "document.querySelector('[aria-label=\"Project name\"]')?.checkVisibility()")
     check("previousClicks.length===1 && previousClicks[0]")
     click("Continue to layout")
     browser("focus", driver.by_role_name("button", "Previous step"))
     browser("press", "Enter")
-    browser("wait", "--fn", "!!document.querySelector('[aria-label=\"Project name\"]')")
+    browser("wait", "--fn", "document.querySelector('[aria-label=\"Project name\"]')?.checkVisibility()")
     print("PASS Previous step focus/hover Tooltip and native Space/Enter stage callbacks", flush=True)
 
 
