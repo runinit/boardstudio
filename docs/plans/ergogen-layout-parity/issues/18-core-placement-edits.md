@@ -49,3 +49,43 @@ never replace, prepared-route preview/commit/refusal/Undo evidence.
 
 Claimed for an isolated implementation lane. Acceptance, TDD, review and gates are
 unchanged; integration owns shared baselines, test aggregation, map and closure.
+
+### Isolated implementation progress — 2026-10-23
+
+Worktree `t3-d32e0528`, branch `feat/core-placement-edits`, claim base
+`964762b519d9c57adf9cab3dda2683c2560fda08`. Status remains claimed; parent owns
+independent review, shared baselines, integration and closure.
+
+- Added named Spread/Padding and row/key Shift/Bend intents to the existing placement
+  seam, with finite/bounds checks and no-op preservation. Independent key world moves
+  already used the kernel inverse; the first regression found excessive changed IDs,
+  not an incorrect inverse. Reports now retain only moved members and the matrix ID.
+- Added relative-origin hold and world-origin swing intents. Hold/Pick solves through
+  the published fully turned column frame, so a representable partial-Follow request
+  is no longer refused by unrepresentable unit probes. Compensation retains the agreed
+  this/next step arithmetic; swing writes only the relative origin. Column 0 retains
+  its mirror-aware incoming X axis in the kernel, without adding a Spread handle.
+  Unchanged placement and splay requests preserve authored records, revision and history.
+- Exact rigid translation refuses Local or constraint-owned keys before writing,
+  including corresponding linked matrices. Existing column translation passes curved,
+  splayed, turned and X/Y-mirrored cases without scattering independent offsets.
+- Real Core accepted scene/document, native prepared pair and Session
+  preview/cancel/persist/commit/Undo/Redo coverage lives in existing test modules.
+  Focused native checks passed (27 placement, 14 kernel, 11 splay, 9 companions, 20 part-offset,
+  one native prepared pair, one Session test). No shared aggregator or fixture/golden
+  changed. New native test names need parent baseline reconciliation; no new WASM tests.
+
+Local plan, RED/GREEN logs, exact commands and final gate status are recorded under
+`.evidence/ergogen-18/` in the assigned worktree. Follow-on UI/lifecycle tickets and
+parent merged gates remain outside this implementation.
+
+Changed-file quick stopped at the retained native boundary golden:
+`transcript.core[4:preview].bodyDigest` is `6579:bd874ef70034195d`, expected
+`6684:6191b7cfa510ee5e`. The 105-byte reduction matches removing five unchanged
+member IDs from the key-move preview. The fixture is unchanged for parent review;
+no blessing or baseline-update flags were used. Repo checks, native/WASM Clippy
+and page typecheck passed; the receipt records 2,008 native passes, one golden
+failure, zero missing retained names and 15 new names within the executed scope.
+The CSS/browser phase did not run. See `.evidence/ergogen-18/quick.json` and its
+summary. Production source stayed unchanged after that run; the native prepared
+test then gained a mirror-side Swing assertion with separate focused verification.

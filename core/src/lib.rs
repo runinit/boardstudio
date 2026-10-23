@@ -709,7 +709,14 @@ impl CoreEngine {
         // typed document as the no-op oracle rather than treating an empty changed-ID list as
         // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
         if command.phase == EditPhase::Commit
-            && ((prepared_route && next == self.document)
+            && (((prepared_route
+                || matches!(
+                    command.operation,
+                    EditOperation::SetMatrixPlacement { .. }
+                        | EditOperation::SetMatrixSplay { .. }
+                        | EditOperation::MoveParts { .. }
+                ))
+                && next == self.document)
                 || (!prepared_route
                     && changed.is_empty()
                     && matches!(
@@ -2027,6 +2034,9 @@ fn apply_with_ledger(
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
             let matrix = matrix::splay::update(current, *column, change, doc)?;
+            if matrix == *current {
+                return Ok(Vec::new());
+            }
             // A splay reports every member it touched, not only those that moved.
             matrix::placement::carrying_authored_companions(
                 doc,

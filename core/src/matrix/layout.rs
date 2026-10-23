@@ -1316,8 +1316,14 @@ pub(crate) fn move_keys(
     doc: &mut ProjectDoc,
     positions: &[Position],
 ) -> Result<(Vec<String>, BTreeSet<String>), String> {
+    let before: BTreeMap<_, _> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
     let mut matrices = BTreeMap::new();
     let mut handled = BTreeSet::new();
+    let mut unchanged = BTreeSet::new();
     let mut carried = Vec::new();
     let mut constrained = Vec::new();
     for position in positions {
@@ -1334,6 +1340,11 @@ pub(crate) fn move_keys(
         }
         if !position.at.x.is_finite() || !position.at.y.is_finite() {
             return Err("Position must be finite".into());
+        }
+        if position.at == part.pose.at {
+            handled.insert(position.id.clone());
+            unchanged.insert(position.id.clone());
+            continue;
         }
         if let Some(constraint) = doc.constraint_driving_part(&position.id)? {
             if constraint.is_mirror() {
@@ -1428,6 +1439,7 @@ pub(crate) fn move_keys(
     let mut changed = vec![];
     for part in &mut doc.parts {
         if handled.contains(&part.id)
+            && !unchanged.contains(&part.id)
             && let Some(properties) = &mut part.properties
         {
             properties.remove(matrix::OVERRIDE);
@@ -1441,6 +1453,14 @@ pub(crate) fn move_keys(
         changed.extend(matrix::set_matrix(doc, matrix)?);
         changed.extend(sync(doc, &matrix.id)?);
     }
+    changed.retain(|id| {
+        before.get(id).is_none_or(|pose| {
+            doc.parts
+                .iter()
+                .find(|part| &part.id == id)
+                .is_none_or(|part| part.pose != *pose)
+        })
+    });
     Ok((changed, handled))
 }
 
