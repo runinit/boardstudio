@@ -20,6 +20,10 @@ fn fixture() -> Element {
     use_context_provider(|| SelectionAdapter::new(selected, anchor, generation));
     let layout_target = use_signal(|| None);
     let parts_query = use_signal(String::new);
+    let parts_generation = use_signal(|| 0_u64);
+    use_context_provider(|| {
+        boardstudio_web_parts::parts::PartsSelectionGeneration(parts_generation)
+    });
     let mut ready = use_signal(|| false);
     use_future(move || {
         let runtime = runtime.clone();

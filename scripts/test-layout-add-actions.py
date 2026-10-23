@@ -138,6 +138,7 @@ def main():
             assert not failures, failures
         except Exception:
             browser("screenshot", str(captures / "failure.png"))
+            print(browser("errors"), browser("snapshot", "-i")["snapshot"], flush=True)
             raise
         finally:
             browser("close")

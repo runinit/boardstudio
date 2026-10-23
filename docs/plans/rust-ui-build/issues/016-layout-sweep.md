@@ -511,3 +511,27 @@ actual-owner evidence, with automation assertions/captures still to be consolida
 The first exploratory wait incorrectly demanded an explicit DOM region attribute
 from the unchanged native named section; the browser AX snapshot correctly reports
 its implicit New matrix region. No production role change was made.
+
+
+The actual-owner exploration is consolidated in the additional owned
+`scripts/test-layout-adoption.py`: production Add/Matrix/Mirror, actual private axis
+draft/node identity through all 12 combinations and hidden/inert Sheet close,
+explicit label identity, precise accepted SVG geometry/measurements and separate
+Undo for the numeric edit, linked-half creation and original Add. Controls use
+observed role/name locators; canvas/output structure is inspected only as evidence.
+No source fixture, state hoist, domain callback or public API is introduced.
+
+
+The first standalone Add run reached its actual button and failed opening the menu.
+A no-source-change diagnostic reproduces the render panic: missing required
+`PartsSelectionGeneration` context (`add-standalone-open-diagnostic.log`). Supplied
+that existing public context in the example, matching the real owner; no production
+Parts/selection code changed. Original failure remains in `add-two-actual-owners-1.log`.
+
+Remaining owned Outline messages now use FieldError for name validation, copied
+Alert for the active persistent Core problem, and Callout for inactive alternatives.
+Diagnostic finding/ownership attributes stay on their original structural owner.
+Text, target identity, selectable state, export availability and callbacks are
+unchanged. The existing mounted finding test now asserts the actual copied Alert
+and exactly one announcement while retaining every Core-message/export/editability
+assertion; this is the decided message adoption, not a domain behavior revision.

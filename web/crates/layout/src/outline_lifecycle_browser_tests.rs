@@ -2288,12 +2288,20 @@ mod ownership_presentation {
                     root.inner_html()
                 )
             });
+        let announcement = problem
+            .query_selector("[role=alert]")
+            .unwrap()
+            .expect("the located finding is announced");
         assert_eq!(
-            problem.get_attribute("role").as_deref(),
+            announcement.get_attribute("data-slot").as_deref(),
             Some("alert"),
-            "the located finding is announced"
+            "the actual finding adopts the copied Alert"
         );
-        let text = problem.text_content().unwrap_or_default();
+        assert_eq!(
+            problem.query_selector_all("[role=alert]").unwrap().length(),
+            1
+        );
+        let text = announcement.text_content().unwrap_or_default();
         assert!(
             text.contains("cannot resolve"),
             "Core's message is shown as-is: {text}"

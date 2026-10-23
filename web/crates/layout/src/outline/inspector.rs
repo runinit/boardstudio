@@ -20,7 +20,7 @@ use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldLabel},
+    field::{Field, FieldError, FieldLabel},
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
@@ -501,16 +501,16 @@ onclick: {
                                     }
                                 }
                                 if let Some(message) = name_failure.as_ref() {
-                                    Alert { class: "m1-inline-error",
-        variant: AlertVariant::Destructive,AlertDescription {  "{message}"  } }
+                                        FieldError { class: "m1-inline-error", "{message}" }
                                 }
                             }
                             if let Some(problem) = active_problem.as_ref() {
                                 div {
                                     class: "m1-outline-problem",
-                                    role: "alert",
                                     "data-finding-id": "{problem.problem_finding_id.clone().unwrap_or_default()}",
                                     "data-ownership": "{active_ownership.label()}",
+                                        Alert { variant: AlertVariant::Destructive,
+                                            AlertDescription {
                                     p { "{problem.problem_message.clone().unwrap_or_default()}" }
                                     p {
                                         if !problem.blocked_exports.is_empty() {
@@ -526,12 +526,16 @@ onclick: {
                                     }
                                 }
                             }
+                                    }
+                                }
                             for blocked in blocked_alternatives.iter() {
-                                p {
+                                    div {
                                     class: "m1-outline-alternative-problem",
                                     "data-finding-id": "{blocked.problem_finding_id.clone().unwrap_or_default()}",
                                     "data-ownership": "{blocked.ownership.label()}",
+                                        Callout { variant: CalloutVariant::Info,
                                     "{blocked.ownership.label()} \u{201c}{blocked.name}\u{201d}: {blocked.problem_message.clone().unwrap_or_default()}"
+                                        }
                                 }
                             }
                             if !projection.has_generated && projection.active_version_id.is_none() {
