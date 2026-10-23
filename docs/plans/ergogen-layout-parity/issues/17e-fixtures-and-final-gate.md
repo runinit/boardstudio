@@ -939,3 +939,98 @@ Receipts/logs: `.evidence/ergogen-17e/final-quick-receipt.json`,
 failure logs and receipts remain intact. Acceptance remains incomplete. 17e and
 parent 17 remain **claimed** pending the full gate and final independent
 Standards+Spec reviews; this records no closure, shipping or user-data approval.
+
+
+### Conditional drag test-reader migration — 2026-10-23
+
+Verified branch `docs/ergogen-layout-comparison` at
+`a8c8e0033dea69181ff129dc72a77e9d9688ede4`, with clean tracked state and only
+preexisting untracked `web/crates/layout/prototype/`, untouched. Explicit conditional
+authorization covers this Progress and `scripts/test-drag-interactions.cjs` only.
+Read AGENTS, coding standards, README drag guidance, spec §§2/6/7, relevant glossary
+and ADRs 0007/0034; used diagnosing-bugs/TDD at the existing real-page smoke seam.
+No production fix or fixture blessing is authorized or performed. The checked site
+from the full build is reused directly by the supported runner; production sources
+are unchanged since `b35e44c5`. No rebuild, copied site or forged build receipt.
+
+**Predictions before the probe:** H1: grouped Stagger persists but legacy reads yield
+zero; H2: grouped Stagger never changes/cancels; H3: poll and final reader target
+different matrices/revisions. Temporary `[DEBUG-17e-drag]` probes in the test script
+captured selected identity, sparse grouped record, legacy fields, revision, predicate
+and selected scene before/poll/after. The existing full RED remains at
+`.evidence/ergogen-17e/final-full.log:3801` and
+`web/target/test-results/drag-browser/20261023T214730Z-292cba25aa73/run.log`.
+
+**Fresh actual RED / H1 confirmed:** `.evidence/ergogen-17e/drag-schema-red.log`;
+standard run log:
+`web/target/test-results/drag-browser/20261023T215103Z-d98c381d1da9/run.log`.
+The selected identity was `matrix-1`, row 4, column 2 throughout. Before Stagger:
+revision 6, grouped column record absent (sparse zero), both legacy fields absent,
+reader Stagger 0. Poll and after: revision 7, `columnLayout[2] = {stagger: -9.525}`,
+both legacy fields still absent, reader Stagger still 0. Selected left/right scene
+transforms changed from `translate(±67.125,76.2) rotate(0)` to
+`translate(±67.125,66.675) rotate(0)`. The trusted gesture/live preview and durable
+full-document change passed, followed by the original `changed stagger` assertion
+failing with actual 0 / expected 0. Part and Column body drag and their exact Undo
+passed first; their grouped column record stayed absent. This is positive persisted
+grouped-state evidence, excluding H2 and the observed H3 identity/timing alternative.
+
+**Poll mismatch:** the probe logged `fields: ["stagger"]`, expected/current legacy
+Stagger 0 and `changed: false`, yet execution reached the after-read. Local installed
+`playwright-core` 1.62.1 `lib/coreBundle.js:23886` calls `predicate()` synchronously,
+checks the returned Promise for truthiness and fulfills with that Promise; subsequent
+awaiting unwraps its false result without repeating the predicate. This explains the
+apparent contradiction; it is not evidence of a different matrix or a successful
+changed-field poll. Read-only implementation excerpt:
+`.evidence/ergogen-17e/drag-schema-poll-implementation.log`. Wait implementation is
+unchanged under this authorization. The durable field-change and exact-Undo
+assertions still check actual state, but async polling has this existing limitation;
+a separate authorized wait/tooling correction can address it.
+
+**Minimal migration:** inventoried all four legacy reads (Node `matrixState` and
+page-context `runDrag` poll), `vectorAt`'s sole caller, `partRead`/`columnRead` and
+all four `runDrag` callers. Both readers now use `matrix.columnLayout[column]`'s
+optional `offset`/`stagger`, with existing zero vector/scalar defaults required by
+spec §2 for missing records/fields. No legacy fallback or alias. Removed only the
+now-unused `vectorAt`. No serializers or production callers changed. Original
+expected/allowed fields, gestures, waits, tolerances, cancellation, trusted input,
+pointer capture/live preview, save-cycle/revision/full-document signature, unchanged
+fields, exact document/scene Undo, qualified collision checks and count guards remain.
+The existing real smoke supplies RED/GREEN regression coverage for these field reads;
+no new nontrivial logic or test harness was added. All temporary probes were removed
+before the focused post-migration run.
+
+Both focused runs use the same command, redirected respectively to
+`.evidence/ergogen-17e/drag-schema-red.log` and `drag-schema-green.log`:
+
+```sh
+flock /home/chris/.cache/tmp/boardstudio-build.lock systemd-run --user --scope -q -p MemoryMax=22G -p MemorySwapMax=0 -- env -u BOUNDARY_BLESS TMPDIR=/home/chris/.cache/tmp RUST_TEST_THREADS=2 NODE_PATH=/home/chris/.cache/boardstudio-web-tools/node/node_modules timeout 900 python3 scripts/run-drag-browser.py
+```
+
+**Focused GREEN:** supported runner exited 0, validated its receipt and reported
+`PASS drag browser smoke: 13 checks`. Receipt:
+`web/target/test-results/drag-browser/20261023T215124Z-6e35d0250bfc/receipt.json`;
+raw browser log is adjacent `run.log`; outer log is
+`.evidence/ergogen-17e/drag-schema-green.log`. All original checks completed: Part,
+Column body, Stagger handle and Ctrl Offset handle with exact document/scene Undo;
+Stagger cancel with no saved revision; Default collision PCB pair; Case viewer with
+overflowing collision findings; Qualified collision product fixture; Unavailable
+physical PCB stays uncertain. No new independent failure. Default collisions
+observed four PCB pairs, with findings scrolling beside the visible viewer.
+
+Final checks: complete two-file diff read; `node --check
+scripts/test-drag-interactions.cjs`, documentation links (554 Markdown files) and
+`git diff --check` passed. Logs under `.evidence/ergogen-17e/`:
+`drag-schema-syntax.log`, `drag-schema-doc-links.log`, `drag-schema-diff-check.log`.
+No legacy reads or diagnostic probes remain in the script. Only the two authorized
+files are staged for this minimal increment; the unrelated prototype remains
+untracked and untouched. No subagents, stash, push, amend, broad staging or other
+worktrees. Stop for parent review before acceptance reruns.
+
+**Scope/gates:** the script was absent from the original 116-path inventory, so its
+addition expands the next changed-file scope to 117 paths. No all-117 quick or full
+run was executed in this round. The prior all-116 quick receipt remains scoped prior
+evidence; the failed full receipt remains failed (36/55), and its later WASM/CAD/page
+stages remain unreached by that full run. This focused green does not accept the
+cutover. 17e and parent 17 remain **claimed**, with final independent Standards+Spec
+reviews and the resumed full gate outstanding. No map/closure or shipping approval.
