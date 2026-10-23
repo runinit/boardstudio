@@ -141,9 +141,15 @@ Cross-check: an independent Python implementation of ticket 04 formula 1 + mirro
 - [x] Step 3: resize test now checks every row, shows retired r0c2 stays gone after shrinking to 2, and the column-compaction test asserts the exact surviving `(source, mirror)` pair set.
 - [x] Step 4: one `layout::member_pairs` helper now backs `populate_new_link`, `sync_member_pairs` and the `CreateMirroredPair` correspondence build; `sync_member_pairs` takes the link in place instead of cloning the Layout; `update_link_members` renamed.
 - [x] Step 5: `cargo test -p boardstudio_core --lib --test integration` — 802 passed / 4 ignored and 738 passed, 0 failed.
-- [x] Step 6: `check.py test --update-native-baseline` — `all steps passed: test`, 2127 executed; baseline diff +2 added (the two new Core tests), 0 removed.
+- [x] Step 6: `check.py test --update-native-baseline` — `all steps passed: test`, 2127 executed; corrected count: `8e2454fe4` added the 2 new Core tests; the baseline change in `aec9237fb` was 29 added and 8 removed (renames) — see the notes below.
 - [x] Step 8: browser twin of the synthetic mirrored fixture no longer forces `formatVersion` 6, matching the native fix in `1c26111a5`; `connected_mirrored_outline_gap_controls_edit_distinct_regions` passes.
 - [x] Step 9: the mixed-format storage test wrote to the project store with `put_with_key`, but that store uses in-line keys (`keyPath: "id"`); `put` now matches the production save path and the record's own `id`.
 - [x] Step 10: the convert-to-stagger browser test pinned the old splay-only refusal text; Core's grouped reason (`core/tests/matrix_placement.rs` already pins it) covers Splay, Column rotation and carried Bend, so only the stale literal changed.
 - [x] Step 11: the linked part-placement fixture's mirror link now declares its one matrix correspondence; Core refuses a linked Layout without one.
 - [x] Step 7: final `check.py quick` on the five changed files — **all steps passed: repo, lint, typecheck, test, layout-test-css, browser** (`.evidence/ergogen-17a/ds-browser-quick.log`, receipt `ds-browser-receipt.json`). The two named browser failures plus two grouped-fixture failures found behind them are fixed in steps 8–11.
+
+### Consolidated fix round — notes
+
+- `aec9237fb` ("record native baseline after oracle regeneration") also holds unrelated baseline catch-up: 10 test renames tracing to `570bb2672` and `be9714b85`, plus `matrix_kernel` and `document_integrity` additions. Nothing was weakened.
+- `3172d6513`'s message names only the mirror heading and member ids; it also changed 18 custom-origin x/y expectations, documented in the oracle regeneration table above.
+- Step 6 count corrected above (`8e2454fe4`: 2 tests; `aec9237fb`: 29 added, 8 removed).
