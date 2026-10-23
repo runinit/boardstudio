@@ -284,18 +284,18 @@ fn connected_mirrored_gap_document() -> ProjectDoc {
         "../../../../core/tests/fixtures/synthetic-outline.json"
     ))
     .unwrap();
-    input["formatVersion"] = json!(6);
     for key in ["parts", "matrices", "layouts", "outline"] {
         input[key] = json!([]);
     }
     input["boards"][0]["partIds"] = json!([]);
     input["boards"][0]["outlineIds"] = json!([]);
     let mut engine = boardstudio_core::CoreEngine::new();
-    let CoreReply::Scene { document, .. } = engine.handle(CoreRequest::Open {
+    let reply = engine.handle(CoreRequest::Open {
         id: "gap-fixture".into(),
         document: serde_json::from_value(input).unwrap(),
-    }) else {
-        panic!("the synthetic gap board opens");
+    });
+    let CoreReply::Scene { document, .. } = reply else {
+        panic!("the synthetic gap board opens: {reply:?}");
     };
     let apply = |engine: &mut boardstudio_core::CoreEngine, document: &ProjectDoc, operation| {
         let reply = engine.request(&json!({"id":"gap-fixture", "kind":"edit", "command":{
