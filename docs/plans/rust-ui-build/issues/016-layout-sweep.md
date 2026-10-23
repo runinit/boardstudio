@@ -853,3 +853,16 @@ label/multiple-instance/default identity test, inherited020 native Label
 association and canonical CONTROL Button event/attribute composition cases.
 No assertion/known failure was skipped; the guide split is the same supported
 isolated invocation recorded earlier. Global gates remain open.
+
+Actual13-layout integration first run at production `f648a044`, test source
+`0e7df882`, passes native explicit long Source-label click/focus, unique input
+identity, filtering, active-descendant resolution, selected value/focus and
+non-mutating Mirror Escape cancellation. The next assertion is a real focus RED:
+focus falls to BODY after the dock view unmounts (`layout-chooser-actual-floor-first.log`,
+`layout-chooser-integration-20261022-221322/failure.png`). This proves the current
+adopted view's defect; it does not establish a different pre-migration baseline.
+Within the authorized owned focus correction scope, reuse the existing private
+Objects `focus_add_object` helper only inside the unchanged successful Cancel
+owner/pending admission guard, after clearing that view. Stale/busy owners still
+do nothing, and cancellation does not mutate the accepted document. Both pointer
+Cancel and Escape will be checked against the actual editor before acceptance.

@@ -212,6 +212,7 @@ pub fn use_existing_half(
             if !pending_create() && open.read().as_ref() == Some(&owner) {
                 open.set(None);
                 error.set(None);
+                super::focus_add_object();
             }
         }
     });

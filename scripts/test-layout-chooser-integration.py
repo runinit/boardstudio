@@ -24,10 +24,11 @@ def native_label(name, implicit):
     point = evaluate("(()=>{const label=choiceInput.labels[0],text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());if(!text)throw Error('No associated label text');const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()")
     browser("press", "Tab")
     check("document.activeElement!==choiceInput")
+    evaluate("window.labelClicks=[];choiceInput.labels[0].addEventListener('click',e=>labelClicks.push(e.isTrusted),{once:true})")
     browser("mouse", "move", point["x"], point["y"])
     browser("mouse", "down")
     browser("mouse", "up")
-    check("document.activeElement===choiceInput")
+    check("document.activeElement===choiceInput && labelClicks.length===1 && labelClicks[0]")
     browser("press", "Escape")
     browser("wait", "--fn", "choiceInput.getAttribute('aria-expanded')==='false'")
 
@@ -45,7 +46,7 @@ def choose_long(name, text):
 
 
 def parts():
-    return evaluate("[...document.querySelectorAll('[data-part-id]')].map(e=>({id:e.dataset.partId,transform:e.getAttribute('transform')})).sort((a,b)=>a.id.localeCompare(b.id))")
+    return evaluate("[...document.querySelectorAll('[data-part-id]')].map(e=>({id:e.dataset.partId,transform:e.getAttribute('transform').trim()})).sort((a,b)=>a.id.localeCompare(b.id))")
 
 
 def start_part():
@@ -76,6 +77,11 @@ def tests(url, captures):
     check("!document.querySelector('[role=region][aria-label=\"Mirror existing half\"]')")
     assert flow.geometry() == original and parts() == original_parts
     check("document.activeElement.getAttribute('aria-label')==='Add object'")
+    click("Add object")
+    click("Mirror existing half… Create a linked half from an existing layout")
+    click("Cancel")
+    check("!document.querySelector('[role=region][aria-label=\"Mirror existing half\"]') && document.activeElement.getAttribute('aria-label')==='Add object'")
+    assert flow.geometry() == original and parts() == original_parts
     click("Add object")
     click("Mirror existing half… Create a linked half from an existing layout")
     native_label("Source layouts", implicit=False)
