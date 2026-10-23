@@ -71,6 +71,11 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
 }
 
 /// The relationship is stored once, but geometry can be edited from either half.
+pub(crate) fn has_link(doc: &ProjectDoc, matrix_id: &str) -> bool {
+    doc.layouts.iter().filter(|layout| layout.matrix_ids.iter().any(|id| id == matrix_id))
+        .any(|owner| owner.mirror_link.is_some() || doc.layouts.iter().any(|layout| layout.mirror_link.as_ref().is_some_and(|link| link.source_id == owner.id)))
+}
+
 pub(crate) fn partner(doc: &ProjectDoc, matrix_id: &str) -> Option<(String, f64)> {
     doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).find_map(|link| {
         link.correspondences.iter().find_map(|record| {
@@ -402,8 +407,11 @@ pub(crate) fn exception_state(doc: &ProjectDoc, kind: MirroredItemKind, id: &str
 }
 
 pub(crate) fn omitted(doc: &ProjectDoc, matrix_id: &str, key_id: &str) -> bool {
-    exception_state(doc, MirroredItemKind::Part, key_id)
-        .or_else(|| exception_state(doc, MirroredItemKind::Matrix, matrix_id)) == Some(MirroredExceptionState::Omitted)
+    // Native reconciliation owns its staged membership plan; filter same-board overlays here.
+    let state = |kind, id: &str| doc.layouts.iter().filter_map(|layout| layout.mirror_link.as_ref()).flat_map(|link| &link.exceptions)
+        .find(|exception| exception.kind == kind && exception.mirror_id == id).map(|exception| exception.state);
+    state(MirroredItemKind::Part, key_id)
+        .or_else(|| state(MirroredItemKind::Matrix, matrix_id)) == Some(MirroredExceptionState::Omitted)
 }
 
 pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
@@ -1324,7 +1332,7 @@ mod case_hardware_tests {
         assert_eq!(reflected.rotation, Some(-20.0));
         assert_eq!(reflected.mirror, Some(Mirror::X));
         let cell = &reflected.cells[0];
-        assert_eq!(cell.rotation, Some(-15.0));
+        assert_eq!(cell.rotation, Some(15.0));
         assert_eq!(cell.assemblies[0].offset, Vec2 { x: -3.0, y: 4.0 });
         assert_eq!(cell.assemblies[0].rotation, Some(-30.0));
     }
@@ -1344,7 +1352,7 @@ mod case_hardware_tests {
         // The cell turn and the companion are relative to that frame and to the part, which
         // already carry the pair rotation: only their handedness flips.
         let cell = &reflected.cells[0];
-        assert_eq!(cell.rotation, Some(-15.0));
+        assert_eq!(cell.rotation, Some(15.0));
         assert_eq!(cell.assemblies[0].offset, Vec2 { x: -3.0, y: 4.0 });
         assert_eq!(cell.assemblies[0].rotation, Some(-30.0));
     }

@@ -551,6 +551,14 @@ impl SceneBasis {
 
     /// The basis for a parameter, or `None` when the scene has no such column.
     pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
+        if let PlacementParameter::ColumnOffset { column } | PlacementParameter::RowOffset { row: column } = parameter {
+            let (row, column) = match parameter {
+                PlacementParameter::ColumnOffset { .. } => (0, column),
+                _ => (column, 0),
+            };
+            let cell = scene.cells.iter().find(|cell| cell.row == row && cell.column == column)?;
+            return Some(Self { stagger_axis: cell.shift_frame.axis_y, axis_x: cell.offset_frame.axis_x, axis_y: cell.offset_frame.axis_y });
+        }
         let column = match parameter {
             PlacementParameter::Stagger { column }
             | PlacementParameter::ColumnOffset { column } => column,

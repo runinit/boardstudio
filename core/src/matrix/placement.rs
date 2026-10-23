@@ -20,10 +20,27 @@ fn finite(value: Vec2) -> bool {
 
 /// Apply one named placement change, changing only the entry it names. Existing
 /// vectors are padded with zeros so an index beyond the stored length is valid.
-pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<Matrix, String> {
+pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange, doc: &ProjectDoc) -> Result<Matrix, String> {
     valid_projection_matrix(matrix)?;
     let mut after = matrix.clone();
     match change {
+        MatrixPlacementChange::MatrixTranslation { delta } => {
+            translate_frame(&mut after, *delta, doc)?;
+        }
+        MatrixPlacementChange::ColumnTranslation { column, delta } => {
+            if !finite(*delta) || *column >= matrix.columns {
+                return Err("Column translation must be finite and in bounds".into());
+            }
+            let evaluated = super::evaluated(matrix, doc)?;
+            if *column == 0 {
+                translate_frame(&mut after, *delta, doc)?;
+            } else {
+                translate_step(&mut after, *column, *delta, &evaluated.columns[*column as usize]);
+            }
+            if *column + 1 < matrix.columns {
+                translate_step(&mut after, *column + 1, Vec2 { x: -delta.x, y: -delta.y }, &evaluated.columns[*column as usize + 1]);
+            }
+        }
         MatrixPlacementChange::ColumnStagger { column, value } => {
             if *column >= matrix.columns {
                 return Err("Matrix placement column is out of bounds".into());
@@ -105,6 +122,34 @@ pub(crate) fn update(matrix: &Matrix, change: &MatrixPlacementChange) -> Result<
         }
     }
     Ok(after)
+}
+
+fn translate_step(matrix: &mut Matrix, column: u32, delta: Vec2, frame: &super::kernel::ColumnFrame) {
+    grow(&mut matrix.column_layout, column as usize);
+    let values = &mut matrix.column_layout[column as usize];
+    if let Some(axis) = frame.spread_axis {
+        values.spread = Some(values.spread.unwrap_or(matrix.pitch.x) + delta.x * axis.x + delta.y * axis.y);
+    }
+    values.stagger += delta.x * frame.stagger_axis.x + delta.y * frame.stagger_axis.y;
+}
+
+fn translate_frame(matrix: &mut Matrix, delta: Vec2, doc: &ProjectDoc) -> Result<(), String> {
+    if !finite(delta) { return Err("Matrix translation must be finite".into()); }
+    let base = super::evaluated(matrix, doc)?.frame.origin;
+    let mut x = matrix.clone(); x.origin.x += 1.0;
+    let mut y = matrix.clone(); y.origin.y += 1.0;
+    let px = super::evaluated(&x, doc)?.frame.origin;
+    let py = super::evaluated(&y, doc)?.frame.origin;
+    let ax = Vec2 { x: px.x-base.x, y: px.y-base.y };
+    let ay = Vec2 { x: py.x-base.x, y: py.y-base.y };
+    let determinant = ax.x * ay.y - ax.y * ay.x;
+    if determinant.abs() < 1e-12 {
+        return Err("Exact matrix translation requires enabling the missing Follow component or explicit Detach".into());
+    }
+    matrix.origin.x += (delta.x * ay.y - delta.y * ay.x) / determinant;
+    matrix.origin.y += (ax.x * delta.y - ax.y * delta.x) / determinant;
+    super::evaluated(matrix, doc)?;
+    Ok(())
 }
 
 /// Which parts an edit that carries companions reports as changed.

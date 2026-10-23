@@ -127,7 +127,7 @@ pub(super) fn mirror_added_matrix(
 ) -> Result<MirroredMatrix, String> {
     let facts = pair_facts(document, addition)?;
     for id in [&addition.source_id, &addition.mirror_id] {
-        if layout::partner(document, id).is_some() {
+        if layout::has_link(document, id) {
             return Err(format!(
                 "The matrix {id:?} is linked by a legacy layout mirror link; unlink it before \
                  the matrix is mirrored by the native pair"

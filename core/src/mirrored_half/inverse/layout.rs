@@ -385,9 +385,9 @@ fn overlaps_legacy_link(
             .is_some_and(|legacy| ids.contains(&&layout.id) || ids.contains(&&legacy.source_id))
     });
     layout_overlap
-        || source.matrix_ids.iter().any(|id| crate::matrix::layout::partner(links.document, id).is_some())
+        || source.matrix_ids.iter().any(|id| crate::matrix::layout::has_link(links.document, id))
         || mirror.is_some_and(|mirror| {
-            mirror.matrix_ids.iter().any(|id| crate::matrix::layout::partner(links.document, id).is_some())
+            mirror.matrix_ids.iter().any(|id| crate::matrix::layout::has_link(links.document, id))
         })
 }
 

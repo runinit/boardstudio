@@ -785,11 +785,11 @@ fn convert_preserves_poses_on_the_last_column_and_a_custom_origin() {
             }
     });
     assert_eq!(matrix.column_layout.iter().map(|record| record.stagger).collect::<Vec<_>>(), vec![0.0, 0.0, 4.0]);
-    convert_case("custom origin with splay", 1, |matrix| {
+    convert_case("custom origin with preceding splay", 1, |matrix| {
         matrix.rotation = Some(20.0);
         matrix.mirror = Some(Mirror::X);
         {
-                let values = vec![10.0, -15.0, 5.0];
+                let values = vec![10.0, 0.0, 5.0];
                 matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
                 for record in &mut matrix.column_layout { record.splay = 0.0; }
                 for (record, value) in matrix.column_layout.iter_mut().zip(values) { record.splay = value; }
@@ -848,7 +848,7 @@ fn convert_errors_on_a_splayed_default_origin_and_changes_nothing() {
             definitions: None,
         },
     );
-    let reason = "Converting would move this column: its splay pivots with the stagger.";
+    let reason = "Converting requires zero Splay, Column rotation and carried Bend";
     assert_eq!(
         convert_offset_available(&before.matrices[0], 1),
         Err(reason.to_string())

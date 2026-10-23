@@ -2909,9 +2909,9 @@ fn fixed_geometry_matrix(id: &str, board_id: &str, source_geometry: bool) -> Mat
             }
         {
                 let values = (vec![
-            Some(Vec2 { x: 2.0, y: 3.0 }),
+            Some(Vec2 { x: 2.0, y: 2.0 }),
             None,
-            Some(Vec2 { x: 17.0, y: -4.0 }),
+            Some(Vec2 { x: -3.0, y: -6.0 }),
         ]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
                 matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
                 for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
@@ -3232,9 +3232,9 @@ fn fixed_membership_assembly_fixture(
             }
             {
                 let values = (vec![
-                Some(Vec2 { x: 2.0, y: 3.0 }),
+                Some(Vec2 { x: 2.0, y: 2.0 }),
                 None,
-                Some(Vec2 { x: 17.0, y: -4.0 }),
+                Some(Vec2 { x: -3.0, y: -6.0 }),
             ]).into_iter().map(|value| value.unwrap_or_default()).collect::<Vec<_>>();
                 matrix.column_layout.resize_with(values.len().max(matrix.column_layout.len()), Default::default);
                 for record in &mut matrix.column_layout { record.splay_origin = Vec2::default(); }
@@ -5362,7 +5362,7 @@ fn fixed_membership_rejections_are_atomic_and_reach_the_intended_guard() {
         .find(|matrix| matrix.id == "source-matrix")
         .unwrap()
         .column_layout = vec![crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, crate::model::ColumnLayout { splay: f64::MAX, ..Default::default() }, Default::default()];
-    assert_rejected(document, &projection, "non-finite splay geometry");
+    assert_rejected(document, &projection, "layout values and evaluated results must be finite");
 
     let (mut document, projection) = fixed_geometry_fixture().unwrap();
     document.hardware.as_mut().unwrap().pairs[0]

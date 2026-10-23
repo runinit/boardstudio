@@ -890,7 +890,7 @@ fn the_added_mirror_is_the_mirror_creation_derives_for_the_same_source() {
         let label = format!("map ({x}, {y}, {rotation}) {mode}");
         let mut request = new_matrix("left-thumbs", "left", (10.0, 120.0), 3);
         request["matrix"]["rotation"] = json!(12);
-        request["matrix"]["columnSplays"] = json!([0, 6, -3]);
+        request["matrix"]["columnLayout"] = json!([{}, {"splay": 6.0}, {"splay": -3.0}]);
         request["matrix"]["cells"][0]["offset"] = json!({"x": 0.5, "y": -0.25});
         request["matrix"]["cells"][0]["rotation"] = json!(4);
         request["matrix"]["cells"][0]["assemblies"]

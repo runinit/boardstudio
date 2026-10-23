@@ -89,6 +89,13 @@ pub struct ComposedFrame {
     pub axis_x: Vec2,
     pub axis_y: Vec2,
 }
+impl ComposedFrame {
+    /// Invert a displacement through the evaluated, mirror-aware orthonormal axes.
+    pub fn inverse_vector(&self, delta: Vec2) -> Vec2 {
+        Vec2 { x: delta.x * self.axis_x.x + delta.y * self.axis_x.y,
+               y: delta.x * self.axis_y.x + delta.y * self.axis_y.y }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StepSource {

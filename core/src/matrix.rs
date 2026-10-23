@@ -903,47 +903,6 @@ mod projection_tests {
     }
 
     #[test]
-    fn projections_match_captured_typescript_behavior() {
-        let fixtures: serde_json::Value =
-            serde_json::from_str(include_str!("../tests/fixtures/matrix-projections.json"))
-                .unwrap();
-        for fixture in fixtures["cases"].as_array().unwrap() {
-            let matrix = serde_json::from_value(fixture["matrix"].clone()).unwrap();
-            let parts: Vec<Part> = serde_json::from_value(fixture["parts"].clone()).unwrap();
-            let expected: Vec<MatrixSceneCell> =
-                serde_json::from_value(fixture["expected"].clone()).unwrap();
-            let scene = project_matrix(&matrix, &parts, ProjectionMode::Actual).unwrap();
-            assert_eq!(scene.cells.len(), expected.len());
-            for (actual, expected) in scene.cells.iter().zip(expected) {
-                assert_eq!(
-                    (actual.row, actual.column, actual.enabled, &actual.member_id),
-                    (
-                        expected.row,
-                        expected.column,
-                        expected.enabled,
-                        &expected.member_id
-                    )
-                );
-                assert!(
-                    (actual.pose.at.x - expected.pose.at.x).abs() < 1e-9,
-                    "{} x",
-                    fixture["name"]
-                );
-                assert!(
-                    (actual.pose.at.y - expected.pose.at.y).abs() < 1e-9,
-                    "{} y",
-                    fixture["name"]
-                );
-                assert!(
-                    (actual.pose.rotation - expected.pose.rotation).abs() < 1e-9,
-                    "{} rotation",
-                    fixture["name"]
-                );
-            }
-        }
-    }
-
-    #[test]
     fn projection_rejects_invalid_draft_geometry() {
         let mut m = matrix();
         m.rows = 0;

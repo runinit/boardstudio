@@ -350,11 +350,29 @@ pub struct RowLayout {
     pub offset: Vec2,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(try_from = "Vec<FollowComponent>", into = "Vec<FollowComponent>")]
 pub struct Follow {
     pub x: bool,
     pub y: bool,
     pub rotation: bool,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum FollowComponent { X, Y, Rotation }
+impl TryFrom<Vec<FollowComponent>> for Follow {
+    type Error = &'static str;
+    fn try_from(values: Vec<FollowComponent>) -> Result<Self, Self::Error> {
+        for (index, value) in values.iter().enumerate() {
+            if values[..index].contains(value) { return Err("Follow components must be unique"); }
+        }
+        Ok(Self { x: values.contains(&FollowComponent::X), y: values.contains(&FollowComponent::Y), rotation: values.contains(&FollowComponent::Rotation) })
+    }
+}
+impl From<Follow> for Vec<FollowComponent> {
+    fn from(follow: Follow) -> Self {
+        [(follow.x, FollowComponent::X), (follow.y, FollowComponent::Y), (follow.rotation, FollowComponent::Rotation)]
+            .into_iter().filter_map(|(enabled, component)| enabled.then_some(component)).collect()
+    }
 }
 impl Default for Follow {
     fn default() -> Self {
@@ -1555,6 +1573,8 @@ pub enum MatrixSplayChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MatrixPlacementChange {
+    MatrixTranslation { delta: Vec2 },
+    ColumnTranslation { column: u32, delta: Vec2 },
     ColumnStagger {
         column: u32,
         value: f64,

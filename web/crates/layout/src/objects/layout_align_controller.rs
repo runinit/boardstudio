@@ -1,6 +1,6 @@
 //! Root-lifetime admission and exact outcome settlement for Layout Align commands.
 use super::layout_align::{
-    alignment_delta, local_matrix_delta, reconcile_reference_choice, transformed_envelope,
+    alignment_delta, reconcile_reference_choice, transformed_envelope,
 };
 use super::{
     AlignAction, AlignCommand, AlignFeedback, AlignReference, LayoutAlignMount, ScopedTreeContext,
@@ -768,43 +768,18 @@ fn make_edit(
 ) -> Option<(EditOperation, Vec<String>)> {
     match context {
         TreeContext::Matrix { matrix_id } => {
-            let mut matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == *matrix_id)?
-                .clone();
-            matrix.origin.x += delta.x;
-            matrix.origin.y += delta.y;
-            let id = matrix.id.clone();
-            Some((
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
-                },
-                vec![id],
-            ))
+            document.matrices.iter().find(|matrix| matrix.id == *matrix_id)?;
+            Some((EditOperation::SetMatrixPlacement {
+                matrix_id: matrix_id.clone(),
+                change: boardstudio_core::model::MatrixPlacementChange::MatrixTranslation { delta },
+            }, vec![matrix_id.clone()]))
         }
         TreeContext::Column { matrix_id, column } => {
-            let mut matrix = document
-                .matrices
-                .iter()
-                .find(|matrix| matrix.id == *matrix_id)?
-                .clone();
-            let local = local_matrix_delta(&matrix, delta, *column as usize);
-            let index = *column as usize;
-            while matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().len() <= index {
-                matrix.column_layout.iter().map(|record| record.offset).collect::<Vec<_>>().push(Vec2::default());
-            }
-            matrix.column_layout[index].offset.x += local.x;
-            matrix.column_layout[index].offset.y += local.y;
-            let id = matrix.id.clone();
-            Some((
-                EditOperation::SetMatrix {
-                    matrix,
-                    definitions: None,
-                },
-                vec![id],
-            ))
+            document.matrices.iter().find(|matrix| matrix.id == *matrix_id)?;
+            Some((EditOperation::SetMatrixPlacement {
+                matrix_id: matrix_id.clone(),
+                change: boardstudio_core::model::MatrixPlacementChange::ColumnTranslation { column: *column, delta },
+            }, vec![matrix_id.clone()]))
         }
         TreeContext::Row { .. } => None,
         TreeContext::Key { .. } | TreeContext::Component { .. } => {

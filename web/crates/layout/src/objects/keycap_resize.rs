@@ -269,7 +269,9 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
             .find(|cell| cell.row == placement.row && cell.column == placement.column)
             .and_then(|cell| cell.offset)
             .unwrap_or(Vec2 { x: 0.0, y: 0.0 });
-        let local = local_matrix_delta(matrix, *delta, placement.column as usize);
+        let frame = &scenes.iter().find(|scene| scene.matrix_id == matrix.id)?.cells.iter()
+            .find(|cell| cell.row == placement.row && cell.column == placement.column)?.offset_frame;
+        let local = frame.inverse_vector(*delta);
         let mut next = matrix.clone();
         set_cell_offset(
             &mut next,
@@ -594,29 +596,6 @@ fn set_cell_offset(matrix: &mut Matrix, row: u32, column: u32, offset: Vec2) {
         });
     }
 }
-fn local_matrix_delta(matrix: &Matrix, delta: Vec2, column: usize) -> Vec2 {
-    let angle = -matrix.rotation.unwrap_or_default().to_radians();
-    let (sin, cos) = angle.sin_cos();
-    let mut x = delta.x * cos - delta.y * sin;
-    let mut y = delta.x * sin + delta.y * cos;
-    match matrix.mirror {
-        Some(Mirror::X) => x = -x,
-        Some(Mirror::Y) => y = -y,
-        _ => {}
-    }
-    let splay = -matrix
-        .column_layout.iter().map(|record| record.splay).collect::<Vec<_>>()
-        .iter()
-        .take(column + 1)
-        .sum::<f64>()
-        .to_radians();
-    let (sin, cos) = splay.sin_cos();
-    Vec2 {
-        x: x * cos - y * sin,
-        y: x * sin + y * cos,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

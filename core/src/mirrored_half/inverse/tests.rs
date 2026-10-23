@@ -2691,7 +2691,7 @@ fn a_mirror_matrix_payload_becomes_the_source_matrix_through_the_inverse_pair_ma
         "partIds": [
             "matrix/left-keys/r0c0", "matrix/left-keys/r0c0/diode", "matrix/left-keys/r0c1"],
         "cells": [
-            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": -5,
+            {"row": 0, "column": 0, "enabled": true, "offset": {"x": 1, "y": 2}, "rotation": 5,
              "assemblies": [
                 {"id": "diode", "definitionId": "d", "offset": {"x": 8, "y": -3}, "rotation": 80}]},
             {"row": 0, "column": 1, "enabled": false}
@@ -2774,11 +2774,11 @@ fn a_duplicate_position_companion_keeps_the_mirror_values_as_the_source_values()
 #[test]
 fn a_stabiliser_recovers_its_source_turn_from_its_keys_world_heading() {
     let matrix = companion_matrix(&fixture(), "kicad:marbastlib/STAB_MX_2u", -60.0);
-    // Cell 0: key heading is the source cell turn -20; the turn is -60 + 0 - 2(-20) = -20.
+    // Cell 0: stored Key rotation copies unchanged; the source heading is +20, so -60 - 2(20) = -100.
     assert_close(
         &matrix["cells"][0]["assemblies"][0],
         &json!({"id": "diode", "definitionId": "kicad:marbastlib/STAB_MX_2u",
-                "offset": {"x": 8, "y": -3}, "rotation": -20}),
+                "offset": {"x": 8, "y": -3}, "rotation": -100}),
         "cell 0",
     );
     // Cell 1: key heading is the column splay 15; the turn is 10 + 0 - 30 = -20.

@@ -235,6 +235,47 @@ fn omitted_matrix_membership_keeps_a_live_anchor_without_materialized_parts() {
 }
 
 #[test]
+fn rigid_column_translation_uses_steps_under_bend_and_preserves_other_columns() {
+    let mut document = baseline();
+    document["constraints"] = json!([]);
+    let mut engine = CoreEngine::new();
+    assert_eq!(open(&mut engine, "start", &document)["kind"], "scene");
+    let mut matrix = document["matrices"][0].clone();
+    matrix["rows"] = json!(2);
+    matrix["columns"] = json!(3);
+    matrix["columnLayout"] = json!([{"splay": 12.0}, {"rotation": 18.0}]);
+    matrix["rowLayout"] = json!([{"bend": 30.0}]);
+    let mut accepted = request(&mut engine, json!({"kind":"edit","id":"setup","command":{
+        "baseRevision":0,"transactionId":"setup","phase":"commit","targetIds":[],
+        "operation":{"kind":"set-matrix","matrix":matrix}
+    }}));
+    assert_eq!(accepted["kind"], "scene", "{accepted}");
+    for column in 0..3 {
+        let edited = request(&mut engine, json!({"kind":"edit","id":"align","command":{
+            "baseRevision":accepted["document"]["revision"],"transactionId":"align","phase":"commit","targetIds":[],
+            "operation":{"kind":"set-matrix-placement","matrixId":"matrix", "change":{
+                "kind":"column-translation", "column":column, "delta":{"x":3.0,"y":4.0}
+            }}
+        }}));
+        assert_eq!(edited["kind"], "scene", "{edited}");
+        for row in 0..2 {
+            for other in 0..3 {
+                let id = format!("matrix/matrix/r{row}c{other}");
+                let pose = |reply: &Value| reply["document"]["parts"].as_array().unwrap().iter().find(|part| part["id"] == id).unwrap()["pose"].clone();
+                let before = pose(&accepted);
+                let after = pose(&edited);
+                for (axis, amount) in [("x", 3.0), ("y", 4.0)] {
+                    let expected = before["at"][axis].as_f64().unwrap() + if other == column { amount } else { 0.0 };
+                    assert!((after["at"][axis].as_f64().unwrap() - expected).abs() < 1e-9);
+                }
+                assert_eq!(after["rotation"], before["rotation"]);
+            }
+        }
+        accepted = edited;
+    }
+}
+
+#[test]
 fn incompatible_format_refusals_explain_recovery_and_preserve_history() {
     use boardstudio_core::migrate::CURRENT_VERSION;
 

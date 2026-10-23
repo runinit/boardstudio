@@ -2000,7 +2000,7 @@ fn apply_with_ledger(
                 .find(|matrix| &matrix.id == matrix_id)
                 .cloned()
                 .ok_or("Matrix not found")?;
-            let matrix = matrix::placement::update(&current, change)?;
+            let matrix = matrix::placement::update(&current, change, doc)?;
             // Setting the current value is a valid no-op.
             if matrix == current {
                 return Ok(Vec::new());

@@ -262,10 +262,19 @@ pub(super) fn canonicalize(
             };
         }
         Op::SetMatrixPlacement { matrix_id, change } => {
-            // Every placement value is in the matrix's own frame, shared with the source.
+            let (id, mapping) = links.matrix_frame(matrix_id)?;
+            let mut change = change.clone();
+            if let Some(mapping) = mapping {
+                use crate::model::MatrixPlacementChange;
+                if let MatrixPlacementChange::MatrixTranslation { delta } | MatrixPlacementChange::ColumnTranslation { delta, .. } = &mut change {
+                    let zero = pair::inverse(mapping, Vec2::default());
+                    let point = pair::inverse(mapping, *delta);
+                    *delta = Vec2 { x: point.x - zero.x, y: point.y - zero.y };
+                }
+            }
             canonical.operation = Op::SetMatrixPlacement {
-                matrix_id: links.matrix_id(matrix_id)?,
-                change: change.clone(),
+                matrix_id: id,
+                change,
             };
         }
         Op::SetMatrix {
@@ -488,7 +497,7 @@ impl<'a> Links<'a> {
                     && (correspondence.source_id == id || correspondence.mirror_id == id)
             })
         });
-        if native && crate::matrix::layout::partner(self.document, id).is_some() {
+        if native && crate::matrix::layout::has_link(self.document, id) {
             return Err(format!(
                 "The matrix {id:?} is linked by a native mirrored pair and by a legacy layout \
                  mirror link; unlink one of them before editing it"
