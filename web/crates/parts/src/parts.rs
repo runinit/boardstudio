@@ -55,6 +55,7 @@ fn AssemblyCreateButton() -> Element {
     rsx! { Tooltip {
         TooltipTrigger { as: move |attributes| rsx! {
             Button { attributes, variant: ButtonVariant::Ghost, size: ButtonSize::IconSm,
+                class: "max-[960px]:min-h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:min-h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
                 aria_label: "New assembly", disabled: current.is_none(),
                 onclick: move |event: MouseEvent| { event.prevent_default(); event.stop_propagation(); if let Some(action) = current { action.call(event); } },
                 svg { class: "fill-none stroke-current stroke-[1.5]", view_box: "0 0 20 20", "aria-hidden": "true", path { d: "M10 4v12M4 10h12" } }
@@ -1245,6 +1246,7 @@ pub fn ControllerSetupPicker(
                 Tooltip {
                     TooltipTrigger { as: move |attributes| { let previous = previous.clone(); rsx! {
                         Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            class: "max-[960px]:h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
                             aria_label: "Previous controller", disabled: navigation_disabled,
                             onclick: move |_| { if let Some(id) = previous.clone() { choose.call(id); } },
                             boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "rotate-90" }
@@ -1255,6 +1257,7 @@ pub fn ControllerSetupPicker(
                 Tooltip {
                     TooltipTrigger { as: move |attributes| { let next = next.clone(); rsx! {
                         Button { attributes, variant: ButtonVariant::Secondary, size: ButtonSize::IconSm,
+                            class: "max-[960px]:h-control-touch max-[960px]:min-w-control-touch [@media(pointer:coarse)]:h-control-touch [@media(pointer:coarse)]:min-w-control-touch",
                             aria_label: "Next controller", disabled: navigation_disabled,
                             onclick: move |_| { if let Some(id) = next.clone() { choose.call(id); } },
                             boardstudio_web_ui_shared::ui::icons::ChevronDown { class: "-rotate-90" }
@@ -1270,7 +1273,7 @@ pub fn ControllerSetupPicker(
                         let active = chosen_id.as_ref() == Some(&id);
                         let matching = preferred_label(&entry.definition).to_lowercase().contains(&needle);
                         rsx! { Button {
-                            key: "{id}", class: "m1-controller-card", variant: ButtonVariant::Ghost, aria_pressed: active,
+                            key: "{id}", class: "m1-controller-card h-auto", variant: ButtonVariant::Ghost, aria_pressed: active,
                             attributes: {
                                 let mut attributes = vec![Attribute::new("data-match", matching, None, false)];
                                 if !matching { attributes.push(Attribute::new("aria-hidden", "true", None, false)); }

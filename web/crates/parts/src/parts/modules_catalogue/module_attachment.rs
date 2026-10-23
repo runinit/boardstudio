@@ -362,6 +362,7 @@ pub fn ModuleAttachment(
                 "Attach module to {board_name}"
             }
             Label { html_for: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
+                class: "max-[960px]:min-h-control-touch [@media(pointer:coarse)]:min-h-control-touch",
                 Checkbox {
                     id: format!("parts-host-connection-{}", dioxus::core::current_scope_id().0),
                     aria_label: "Assign host connection",
