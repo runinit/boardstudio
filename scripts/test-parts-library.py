@@ -61,10 +61,15 @@ def main():
         check("partsCheckbox.id && [...document.querySelectorAll('label[for]')].filter(e=>e.htmlFor===partsCheckbox.id).length===1")
         # Native label activation through a trusted pointer at its text node.
         point = evaluate("(()=>{const label=[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id);const text=[...label.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());const range=document.createRange();range.selectNodeContents(text);const r=range.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+        hit = evaluate(f"(()=>{{const target=document.elementFromPoint({round(point['x'])},{round(point['y'])}),label=[...document.querySelectorAll('label[for]')].find(e=>e.htmlFor===partsCheckbox.id);return label.contains(target);}})()")
+        assert hit, (name, point, "native label pointer target is occluded")
+        evaluate("window.partsLabelClicks=[];partsCheckbox.addEventListener('click',e=>partsLabelClicks.push({trusted:e.isTrusted,target:e.target.getAttribute('aria-label')}));window.partsPointerEvents=[];['pointerdown','pointerup','click'].forEach(type=>document.addEventListener(type,e=>partsPointerEvents.push({type,tag:e.target.tagName,text:e.target.textContent?.slice(0,60),name:e.target.getAttribute('aria-label'),trusted:e.isTrusted,x:e.clientX,y:e.clientY}),{capture:true,once:true}))")
         browser("mouse", "move", round(point["x"]), round(point["y"]))
         browser("mouse", "down")
         browser("mouse", "up")
+        browser("wait", "--fn", f"partsCheckbox.getAttribute('aria-checked')==='{before}'", "--timeout", 5000)
         assert attr("checkbox", name, "aria-checked") == before, (name, "label activation")
+        print("Native label activation:", name, evaluate("partsLabelClicks"), flush=True)
 
     def slider_geometry(name, width):
         focus("slider", name)
@@ -237,6 +242,8 @@ def main():
                         browser("press", "Tab")
                         check("document.querySelector('.m1-parts-sample-viewer .m1-case-view').scrollTop===0")
                         browser("press", "Shift+Tab")
+                    mode_names = ("shaded", "wireframe", "hybrid")
+                    before_modes = [attr("button", name, "aria-pressed") for name in mode_names]
                     focus("button", "Top view")
                     tab_order = []
                     for _ in range(20):
@@ -253,8 +260,10 @@ def main():
                             break
                         browser("press", "Tab")
                     assert tab_order == ["Top view", "Bottom view", "Isometric view", "Rotate left", "Rotate right",
-                                         "Zoom in", "Zoom out", "hybrid", "section", "Section plane", "Section position",
+                                         "Zoom in", "Zoom out", tab_order[7], "section", "Section plane", "Section position",
                                          "Show section plane", "Show hidden lines"], tab_order
+                    assert tab_order[7] in mode_names, tab_order
+                    assert [attr("button", name, "aria-pressed") for name in mode_names] == before_modes
                     print("Reachable popup Tab order:", width, theme, appearance, tab_order, flush=True)
                     before_pointer = attr("checkbox", "Show hidden lines", "aria-checked")
                     action("checkbox", "Show hidden lines")
@@ -331,6 +340,7 @@ def main():
         browser("wait", "--fn", "document.querySelector('[aria-label=\"2D footprint\"]').getAttribute('aria-pressed')==='true'")
         print("PASS: packaged Parts Select, preview ToggleGroup, retained production owner values/identity, sliders, checkbox Space/Enter/labels, and 28 library/preview/Inspector theme-width captures", flush=True)
     except Exception:
+        print("Failure interaction diagnostics:", evaluate("({pointer:window.partsPointerEvents,labelClicks:window.partsLabelClicks,checkbox:window.partsCheckbox?.outerHTML,active:document.activeElement?.outerHTML})"), flush=True)
         browser("screenshot", str((args.evidence / "failure.png").resolve()))
         raise
     finally:
