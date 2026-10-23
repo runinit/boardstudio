@@ -190,6 +190,7 @@ mod identity_tests {
                                 Attribute::new("aria-invalid", (phase() != 1).then_some("true"), None, false),
                                 Attribute::new("aria-describedby", (phase() != 1).then_some(description.clone()), None, false),
                                 Attribute::new("aria-invalid", "namespaced root", Some("urn:boardstudio:validation-test"), false),
+                                Attribute::new("aria-describedby", "namespaced description", Some("urn:boardstudio:validation-test"), false),
                                 Attribute::new("data-owner", "validation root", None, false),
                             ],
                             ComboboxOption::<String> { index: 0usize, value: "value", text_value: "Value", "Value" }
@@ -256,6 +257,12 @@ mod identity_tests {
                     .as_deref(),
                 Some("namespaced root")
             );
+            assert_eq!(
+                owner
+                    .get_attribute_ns(Some("urn:boardstudio:validation-test"), "aria-describedby")
+                    .as_deref(),
+                Some("namespaced description")
+            );
         }
         let default = by_role_name(&root, "combobox", "No validation").unwrap();
         assert!(
@@ -303,6 +310,26 @@ mod identity_tests {
                     .contains("failure 2")
             );
         }
+        for input in &inputs {
+            let owner = input.closest("[data-slot=combobox]").unwrap().unwrap();
+            assert!(owner.get_attribute_ns(None, "aria-invalid").is_none());
+            assert!(owner.get_attribute_ns(None, "aria-describedby").is_none());
+            assert_eq!(
+                owner
+                    .get_attribute_ns(Some("urn:boardstudio:validation-test"), "aria-invalid")
+                    .as_deref(),
+                Some("namespaced root")
+            );
+            assert_eq!(
+                owner
+                    .get_attribute_ns(Some("urn:boardstudio:validation-test"), "aria-describedby")
+                    .as_deref(),
+                Some("namespaced description")
+            );
+        }
+        assert!(
+            !default.has_attribute("aria-invalid") && !default.has_attribute("aria-describedby")
+        );
         root.remove();
     }
 

@@ -216,7 +216,7 @@ def validation(url, captures):
         points.dismiss_notifications()
         choose(name, role, label)
         browser("wait", "--fn", "!document.querySelector('[data-slot=field-error]')")
-        check("rejectedControl.getAttribute('aria-invalid')!=='true' && !rejectedControl.hasAttribute('aria-describedby')")
+        check("rejectedControl.getAttribute('aria-invalid')!=='true' && !rejectedControl.hasAttribute('aria-describedby') && document.activeElement===rejectedControl")
         print("Accepted choice clears failure", name, flush=True)
 
     rejected_choice("Mirror matrix", "button", "X axis")
