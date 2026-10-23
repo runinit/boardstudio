@@ -977,6 +977,54 @@ fn connection_endpoints_follow_moves_and_detach_atomically() {
 }
 
 #[test]
+fn grouped_anchored_matrices_keep_linked_outline_halves_separate() {
+    let mut doc = document();
+    doc.parts.clear();
+    doc.boards[0].part_ids.clear();
+    for (id, anchor, x) in [
+        ("source-root", None, 0.0),
+        ("aa-source-child", Some("source-root"), 0.0),
+        ("mirror-root", None, 100.0),
+        ("aa-mirror-child", Some("mirror-root"), 0.0),
+    ] {
+        let part_id = format!("matrix/{id}/r0c0");
+        let mut matrix = json!({"id":id,"boardId":"board","rows":1,"columns":1,
+            "pitch":{"x":19.05,"y":19.05},"origin":{"x":x,"y":if anchor.is_some() {20.0} else {0.0}},
+            "definitionId":"switch","partIds":[part_id]});
+        if let Some(anchor) = anchor {
+            matrix["anchor"] = json!({"matrixId":anchor,"row":0,"column":0});
+        }
+        doc.matrices.push(serde_json::from_value(matrix).unwrap());
+        doc.parts.push(
+            serde_json::from_value(json!({"id":part_id,"definitionId":"switch",
+            "reference":id,"pose":{"at":{"x":0,"y":0},"rotation":0},"side":"front"}))
+            .unwrap(),
+        );
+        doc.boards[0].part_ids.push(part_id);
+    }
+    doc.layouts = serde_json::from_value(json!([
+        {"id":"source","name":"Source","boardId":"board","matrixIds":["aa-source-child","source-root"],"partIds":[]},
+        {"id":"mirror","name":"Mirror","boardId":"board","matrixIds":["aa-mirror-child","mirror-root"],"partIds":[],
+         "mirrorLink":{"sourceId":"source","axisX":50,"correspondences":[
+             {"kind":"matrix","sourceId":"source-root","mirrorId":"mirror-root"},
+             {"kind":"matrix","sourceId":"aa-source-child","mirrorId":"aa-mirror-child"}]}}
+    ])).unwrap();
+    if let OutlineFeature::PartEnvelope { part_ids, .. } = &mut doc.outline[0] {
+        *part_ids = doc.boards[0].part_ids.clone();
+    }
+    let result = scene(CoreEngine::new().handle(CoreRequest::Open {
+        id: "grouped-outline".into(),
+        document: doc,
+    }));
+    assert_eq!(
+        result.contours.len(),
+        2,
+        "relative child origins must not classify the whole Layout on the source side"
+    );
+    assert!(!contains(&result.contours, 50.0, 0.0));
+}
+
+#[test]
 fn manual_connections_respect_linked_split_boundaries() {
     for (points, crosses_axis, another_axis) in [
         (json!([]), false, false),

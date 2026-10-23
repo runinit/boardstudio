@@ -159,9 +159,13 @@ fn feature_geometry(doc: &ProjectDoc, feature: &OutlineFeature) -> FeatureGeomet
                 });
                 let x = owner
                     .and_then(|layout| {
-                        doc.matrices
+                        layout
+                            .matrix_ids
                             .iter()
-                            .filter(|matrix| layout.matrix_ids.contains(&matrix.id))
+                            .filter_map(|id| {
+                                crate::matrix::evaluation::logical_matrix(id, doc).ok()
+                            })
+                            .filter(|matrix| matrix.anchor.is_none())
                             .min_by(|a, b| a.id.cmp(&b.id))
                     })
                     .map_or(part.pose.at.x, |matrix| matrix.origin.x);

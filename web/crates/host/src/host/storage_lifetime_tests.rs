@@ -966,10 +966,7 @@ async fn mixed_format_records_are_listed_without_conversion_and_raw_json_is_pres
             serde_json::from_str::<serde_json::Value>(&raw).unwrap(),
             original
         );
-        let stored = load_value(&name, PROJECT_STORE, id)
-            .await
-            .unwrap()
-            .unwrap();
+        let stored = load_value(&name, PROJECT_STORE, id).await.unwrap().unwrap();
         assert_eq!(
             serde_wasm_bindgen::from_value::<serde_json::Value>(stored).unwrap(),
             original

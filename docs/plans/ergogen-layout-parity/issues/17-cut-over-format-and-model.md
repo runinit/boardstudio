@@ -83,8 +83,23 @@ all changed callers. Require native/contract and WASM compilation, not just serd
   changed-file quick receipt and final non-WIP commit are still missing.
 
 The WIP checkpoint preserves the accumulated implementation and passing focused
-evidence, not a green whole-ticket state. The five failures above remain the last
-observed integration result until a replacement run completes.
+evidence, not a green whole-ticket state.
+
+- [x] B/C linked-split regression follow-up: `4db0c548` checkpoints the accumulated
+  cutover; `98cad6d0` maintains explicit member identities through compaction and
+  resize. The five failures from `42-core.log` subsequently pass (734 integration
+  passed in `43-integration.log`). The new public resize/reopen case failed on stale
+  ownership in `44-resize-red.log`, then passed in `45-resize-green.log`.
+- [x] B grouped-outline follow-up: a public anchored two-matrix-per-Layout fixture
+  exposed automatic bridging across the split when a child's relative Origin was
+  used to classify the entire group. `48-outline-red.log` observes one contour
+  instead of two; `49-outline-green.log` passes after classifying by unanchored
+  logical roots. Admission is not weakened and logical Omitted roots remain usable.
+- [ ] Verification closure: `46-quick.log` was interrupted; `47-quick.log` passes
+  native lint but stops at WASM lint on a redundant String conversion in the new
+  BrowserStore test, now corrected. Neither is an acceptance receipt. Replayed
+  manual launches interleaved some earlier logs; require a fresh scheduler receipt
+  rather than treating those logs as final evidence.
 
 Checkpoint success is not ticket acceptance or approval to use user-data stores.
 
