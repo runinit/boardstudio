@@ -1,6 +1,6 @@
 # 016: Layout sweep
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [006: Accessible Select and Combobox](006-accessible-select-combobox.md), [015: Layout toolbar strips](015-layout-toolbar-strips.md)
 Parent: [Spec](../../rust-ui-migration/spec.md)
@@ -13,9 +13,9 @@ The rest of the Layout workspace is migrated. The Add view and Mirror existing h
 ## Acceptance criteria
 
 - [ ] Every Layout row of the inventory (the layout crate and the Layout files in the app shell) has zero raw controls and zero `Board*` uses
-- [ ] Add and Mirror existing half work as in-dock views with the same operations, undo and measurements as today
-- [ ] Layout works in both Themes and both Appearances at the three widths, with screenshots in the outcome
-- [ ] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
+- [x] Add and Mirror existing half work as in-dock views with the same operations, undo and measurements as today
+- [x] Layout works in both Themes and both Appearances at the three widths, with screenshots in the outcome
+- [x] The shared contract in the [plan map](../map.md#shared-contract) holds for everything this ticket touches
 
 ## Ownership (016 lineage)
 
@@ -1530,3 +1530,72 @@ browser check remains. The only live exclusive-target process is the existing
 preview server PID269594 (parent shell269581), port4186. Other lanes'4197/4222/
 4219 previews were untouched. Target, preview, branch/worktree and evidence are
 retained while landing/cleanup are held; no generated-target deletion is claimed.
+
+## Outcome: resolved after final review
+
+Coordinator explicitly authorized docs-only closure, local fast-forward to
+`feat/rust-ui-migration`, then audited cleanup of only the exclusive016 generated
+target. Approved source/test pin is
+`685181f9356b14fa6863966a06bf1bc2533b6eac`; the final closure changes documentation
+only. Status is resolved for the authorized016 ownership. The aggregate first
+inventory checkbox remains open for inherited/protected composition: this is not
+an assertion of literal zero whole-crate HTML/Board names or completion of023.
+The accepted scope and protected015 exceptions remain as recorded above.
+
+All actual coordinator review receipts are retained outside the target in
+`.evidence/016/final-review-receipts.log`, retrieved from the parent thread
+`9b186519-9e71-4e26-a24b-6587e94c69e4` timeline positions2730,2732,2758,2759,2776.
+Exact nodes share prefix
+`node:delegated-task:command%3Amcp%3A2a86db4d-5ca5-4383-b139-deebb4fe7ee7%3Adelegate-task%3A`
+and the following leaf identifiers:
+
+| Review node leaf | Exact reviewed pin | Result and disposition |
+| --- | --- | --- |
+| `rust-ui016-standards-review-r1` | `05180b271171bf64954c39f427f9f270372d3b69` | Standards0; Spec2 P2 (choice ARIA plus duplicate Previous Tooltip). |
+| `rust-ui016-spec-review-r1` | `05180b271171bf64954c39f427f9f270372d3b69` | Standards0; Spec3 P2 (popup overflow, legacy Back/error look, Previous Tooltip). Four unique P2 across r1; corrected together. |
+| `rust-ui016-spec-review-r2` | `da5b41be01ff6203800bd4789c6ec5cfe0a157d0` | APPROVE0; Standards0/Spec0 for all four corrections including approved Combobox validation routing. |
+| `rust-ui016-standards-review-r2` | `da5b41be01ff6203800bd4789c6ec5cfe0a157d0` | Standards0; one connected Spec P2, missed Matrix Mirror picker ancestor. Corrected by the sole class line at2a08b7e2. |
+| `rust-ui016-spec-review-r3` | `685181f9356b14fa6863966a06bf1bc2533b6eac` | APPROVE0; final Mirror P2 resolved. Standards r2 zero carries only for unchanged bounded scope, as explicitly authorized. |
+
+The reviews are actual independent source reviews plus inspection of author
+receipts; reviewers did not rerun tests/browser/builds. Earlier initial/follow-up
+failures remain retained and do not become passes. The final runtime evidence
+qualification (native108px scroll RED, not a null-hit RED) was included in r3 and
+accepted without a new claim of reproduced clipping. Fresh build/focused Mirror
+checks and explicitly reused157 Layout/25 shared/41 shell/97 native/Clippy remain
+exactly as recorded above; no unnecessary broad rerun is claimed for docs closure.
+
+### 023 handoff remains open
+
+[023: Library and Export](023-library-and-export.md) still owns the vertical
+Stepper/current-ready composition and related guide presentation/state. The016
+inherited work is existing Button/Input/Accordion adoption, including the
+canonical Previous Tooltip. At approved685181f, source hunks are
+`web/crates/layout/src/setup_guide.rs` imports and ProjectSetupGuide lines337–526
+plus SetupHardwarePreview lines693–737. Future023 work must preserve
+`sync_stage_trigger` (line70), ProjectSetupGuide's existing current/ready/available
+stage behavior, links/callbacks, name draft/commit/focus and native activation.
+Keep `.m1-setup-guide*`/`.m1-setup-stage*` layout rules until023 migrates them.
+The guide's existing mounted browser test (`setup_guide::`,1 test) and
+`objects/matrix_setup_focus_tests.rs` tests
+`matrix_cancel_restores_guide_focus_and_new_form_focuses_rows` and
+`matrix_cancel_restores_the_canvas_opener_without_a_guide` remain named/floored.
+No Stepper/API/readiness behavior was added by016, and023 is not resolved here.
+
+Fresh docs/repository checks, approved source/test equality, exact local landing
+and cleanup receipts follow below/outside the target. Global full/quick/CAD
+worker.onerror/first-paint/screen-reader/human026/final merge remain OPEN.
+
+Docs-only closure checks pass: `BOARDSTUDIO_CHECK_JOBS=1 python3 scripts/check.py
+repo` (`final-closure-repo.log`, all repo steps), `python3
+scripts/check-wasm-tests.py` (`final-closure-wasm-guard.log`,0 baselined), Python
+syntax and git whitespace. The repo old-CSS check reports633 legacy selectors/
+82 variables; it is the ordinary baseline check, not024's strict removal gate.
+`final-landing-receipt.log` records the exact reviewed source/test equality and
+local-only fast-forward/ref/clean-state verification. `final-target-cleanup.log`
+records the ownership/alias/process/environment/open-fd/lsof checks, immediate
+pre-deletion recheck and exclusive physical bytes before/after. Both receipts live
+in `.evidence/016/`, outside the generated target; cleanup never removes this
+worktree, branch, evidence, source, valuable ignored files, CAD caches or other
+targets. The source-tree target symlink is retained and may be dangling after the
+physical generated target is removed. No origin/dev operation is authorized.

@@ -26,7 +26,7 @@ old layer once no caller remains; 026 is the single merge to `dev`.
 | [013: Toasts](issues/013-toasts.md) | 008, 010 | Transient results of one-shot actions appear as Toasts instead of inline text.. |
 | [014: Shell glue sweep](issues/014-shell-glue-sweep.md) | 011, 012, 013 | The remaining shell files have no raw controls and no `Board*` left.. |
 | [015: Layout toolbar strips](issues/015-layout-toolbar-strips.md) | 007, 008, 011 | Layout's two fixed strips above the canvas are rebuilt on Toolbar, Toggle Group and Dropdown Menu, with Snap staying in the canvas toolbar. |
-| [016: Layout sweep](issues/016-layout-sweep.md) | 006, 015 | The rest of the Layout workspace is migrated. |
+| [016: Layout sweep](issues/016-layout-sweep.md) | 006, 015 | [Resolved owned scope and review outcome](issues/016-layout-sweep.md#outcome-resolved-after-final-review); 023 guide composition remains open. |
 | [017: Case settings, part 1: dimensions, construction and profiles](issues/017-case-settings-1.md) | 006, 008, 011 | The first half of the Case mechanical settings: dimension fields, construction controls, profile guidance and the profile geometry editors. |
 | [018: Case settings, part 2: mounts, openings, battery, manufacturing and pairs](issues/018-case-settings-2.md) | 017 | The second half of the Case mechanical settings: mounting and mount collections, openings, battery, manufacturing and the paired-feature controls. |
 | [019: Case rest](issues/019-case-rest.md) | 006, 008, 011 | The other Case files (bodies, collision checks, viewer controls, layers, panels) and the Case workspace host. |
