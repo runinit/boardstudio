@@ -869,6 +869,26 @@ fn corner_markers_for(board_id: &str, locations: &[Vec2]) -> Vec<crate::model::F
     .collect()
 }
 
+/// The split coordinate of a part: the origin of the unanchored root of the matrix that owns
+/// it. A part outside any matrix has only its own pose.
+fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
+    let Some(owner) = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.part_ids.contains(&part.id))
+    else {
+        return Ok(part.pose.at.x);
+    };
+    let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
+    for _ in 0..=doc.matrices.len() {
+        let Some(anchor) = root.anchor.as_ref() else {
+            return Ok(root.origin.x);
+        };
+        root = crate::matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)?;
+    }
+    Err(format!("Matrix anchors of {} form a cycle", owner.id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1087,24 +1107,4 @@ mod tests {
     fn compare_200() {
         compare(200);
     }
-}
-
-/// The split coordinate of a part: the origin of the unanchored root of the matrix that owns
-/// it. A part outside any matrix has only its own pose.
-fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
-    let Some(owner) = doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.part_ids.contains(&part.id))
-    else {
-        return Ok(part.pose.at.x);
-    };
-    let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
-    for _ in 0..=doc.matrices.len() {
-        let Some(anchor) = root.anchor.as_ref() else {
-            return Ok(root.origin.x);
-        };
-        root = crate::matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)?;
-    }
-    Err(format!("Matrix anchors of {} form a cycle", owner.id))
 }
