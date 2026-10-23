@@ -2,10 +2,11 @@
 use super::objects;
 use super::workspace_composition::SharedObjectsInput;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use boardstudio_web_ui_shared::ui::tabs::{Tabs, TabsContent, TabsList, TabsTrigger};
 use boardstudio_web_ui_shared::ui::{
     toggle_group::{ToggleGroup, ToggleItem},
@@ -860,6 +861,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         };
     }
     let board_context_header = input.board_inspector_mount.projection.is_some();
+    let show_context_header = input.outline_inspector.is_none() && input.component_inspector.is_none();
     let matrix_context_tabs = input.component_inspector.is_none()
         && input.outline_inspector.is_none()
         && input.board_inspector_mount.projection.is_none()
@@ -920,7 +922,10 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 keep_mounted: true,
                 open: Some(key_size_open()),
                 on_open_change: move |next| key_size_open.set(next),
-                CollapsibleTrigger { "Key size" }
+                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
+                    "Key size"
+                    ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" }
+                }
                 CollapsibleContent {
                     hidden: !key_size_open(),
                     inert: (!key_size_open()).then_some(""),
@@ -930,7 +935,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         }
         if input.matrix_transform_inspector.projection.is_some() {
             objects::MatrixTransformInspector {
-                mount: input.matrix_transform_inspector,
+                mount: input.matrix_transform_inspector.clone(),
                 on_pick_splay_origin: input.on_pick_splay_origin,
             }
         }
@@ -966,7 +971,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     }
                 }
             }
-            if input.outline_inspector.is_none() && input.component_inspector.is_none() {
+            if show_context_header {
                 if let Some(title) = input.context_title.as_ref() {
                     section {
                         class: if board_context_header { "m1-selected-context m1-board-context" } else { "m1-selected-context" },

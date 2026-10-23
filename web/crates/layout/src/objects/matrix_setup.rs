@@ -3,7 +3,7 @@ use crate::matrix_setup_operation::MatrixSetupPreset;
 pub use crate::presentation::parts::MatrixPlacementSource;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 
 use boardstudio_web_ui_shared::ui::{

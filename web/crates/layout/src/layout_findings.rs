@@ -2,7 +2,12 @@
 use super::keycaps_fit::{self, FindingNavigationTarget};
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{Finding, ProjectDoc, Severity};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::{
+    badge::{Badge, BadgeVariant},
+    button::{Button, ButtonSize, ButtonVariant},
+    empty::{Empty, EmptyDescription},
+    item::{Item, ItemSize},
+};
 
 use dioxus::prelude::*;
 use std::rc::Rc;
@@ -51,7 +56,7 @@ pub fn LayoutFindingsFooterButton(count: usize, on_toggle: EventHandler<()>) -> 
                 "aria-hidden": "true",
                 path { d: "M10 2.5 18 17H2zM10 7v4m0 3v.2" }
             }
-            "Layout findings: {count}"
+            "Layout findings: " Badge { variant: BadgeVariant::Secondary, "{count}" }
 
         }
     }
@@ -107,10 +112,10 @@ pub fn LayoutFindingsInspector(
             }
             div { class: "m1-layout-findings-heading",
                 h2 { id: "m1-layout-findings-heading", tabindex: "-1", "Layout findings" }
-                span { "{keycaps_fit::presented_findings(&findings, &document).len()}" }
+                Badge { variant: BadgeVariant::Secondary, "{keycaps_fit::presented_findings(&findings, &document).len()}" }
             }
             if groups.is_empty() {
-                p { class: "m1-layout-findings-empty", "No active findings for this board." }
+                Empty { class: "p-4", EmptyDescription { "No active findings for this board." } }
             } else {
                 div { class: "wb-finding-groups",
                     for group in groups {
@@ -141,10 +146,10 @@ fn LayoutFinding(
     source: Source,
     on_navigate: EventHandler<Request>,
 ) -> Element {
-    let (severity, severity_class) = match &finding.severity {
-        Severity::Error => ("Error", "error"),
-        Severity::Warning => ("Warning", "warning"),
-        Severity::Info => ("Information", "info"),
+    let (severity, severity_variant) = match &finding.severity {
+        Severity::Error => ("Error", BadgeVariant::Destructive),
+        Severity::Warning => ("Warning", BadgeVariant::Warning),
+        Severity::Info => ("Information", BadgeVariant::Info),
     };
     let preview_electrical_notice = finding.id.starts_with("preview:electrical:");
     let target = (!preview_electrical_notice)
@@ -167,10 +172,9 @@ fn LayoutFinding(
     });
 
     rsx! {
-        li { class: "m1-keycaps-fit-finding m1-layout-finding is-{severity_class}",
-            span { class: "wb-finding-mark", "aria-hidden": "true" }
-            div {
-                strong { class: "wb-finding-severity", "{severity}" }
+        li { class: "m1-layout-finding",
+            Item { size: ItemSize::Sm, class: "items-start",
+                Badge { variant: severity_variant, "{severity}" }
                 p { "{finding.message}" }
                 if let (Some(label), Some(request)) = (
                     action_label.filter(|label| !label.is_empty()),
@@ -230,6 +234,7 @@ mod tests {
     use super::*;
     use boardstudio_application::SessionEpoch;
     use boardstudio_core::model::{Board, Part, Pose2, Scope as FindingScope, Side, Vec2};
+    use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
     use std::cell::RefCell;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -377,7 +382,10 @@ mod tests {
             dom,
             dioxus_web::Config::new().rootnode(root.clone().into()),
         );
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("the actual findings Inspector mounts", || {
+            by_role_name(&root, "button", "Back to selection").is_some()
+        })
+        .await;
         root
     }
 
@@ -393,16 +401,17 @@ mod tests {
             },
         )
         .await;
-        let action = live
-            .query_selector("button.wb-finding-action")
-            .unwrap()
+        let action = by_role_name(&live, "button", "Select affected geometry")
             .expect("a live Part target must offer navigation");
         assert_eq!(
             action.text_content().as_deref(),
             Some("Select affected geometry")
         );
-        action.dyn_into::<web_sys::HtmlElement>().unwrap().click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        action.click();
+        wait_until("finding navigation reaches its owner", || {
+            !requests.borrow().is_empty()
+        })
+        .await;
         assert!(matches!(
             requests.borrow().as_slice(),
             [Request { target: FindingNavigationTarget::Part { part_id, .. }, .. }] if part_id == "left-part"
@@ -432,10 +441,7 @@ mod tests {
             "the finding message stays visible"
         );
         assert!(
-            stale
-                .query_selector("button.wb-finding-action")
-                .unwrap()
-                .is_none(),
+            by_role_name(&stale, "button", "Select affected geometry").is_none(),
             "a deleted target must not render a navigation action"
         );
         assert!(stale_requests.borrow().is_empty());
@@ -456,14 +462,13 @@ mod tests {
             },
         )
         .await;
-        moved
-            .query_selector("button.wb-finding-action")
-            .unwrap()
+        by_role_name(&moved, "button", "Select affected geometry")
             .expect("a part that moved boards navigates to its current board")
-            .dyn_into::<web_sys::HtmlElement>()
-            .unwrap()
             .click();
-        gloo_timers::future::TimeoutFuture::new(40).await;
+        wait_until("moved finding navigation reaches its owner", || {
+            !moved_requests.borrow().is_empty()
+        })
+        .await;
         assert!(matches!(
             moved_requests.borrow().as_slice(),
             [Request { target: FindingNavigationTarget::Part { board_id, .. }, .. }] if board_id == "right"
@@ -493,10 +498,7 @@ mod tests {
         assert!(text.contains("Preview removes pad pad-1 on right-U1 (right/U1)"));
         assert!(text.contains("net OMIT_CONTROLLER (right/omit-controller-net)"));
         assert!(
-            preview
-                .query_selector("button.wb-finding-action")
-                .unwrap()
-                .is_none(),
+            by_role_name(&preview, "button", "Select affected geometry").is_none(),
             "a preview-only electrical notice remains passive even when its Part target is live"
         );
         preview.remove();

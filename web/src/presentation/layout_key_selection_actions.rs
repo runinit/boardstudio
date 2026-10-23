@@ -5,7 +5,7 @@ use boardstudio_application::{EditResolver, Event, ReadModel, Resolution, Scope,
 use boardstudio_core::model::EditOperation;
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 
 use boardstudio_web_ui_shared::pending_edit_helpers::PendingEditSignals;
 use dioxus::prelude::*;

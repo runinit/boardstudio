@@ -9,7 +9,7 @@ use boardstudio_core::model::{
     MatrixCell, MatrixScene, MatrixSceneCell, PartDefinition, PartKind, PartOutline, Pose2,
     ProjectDoc, Readiness, SceneDelta, Side,
 };
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 use std::cell::RefCell;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
@@ -1324,17 +1324,18 @@ async fn settle_mounted_component_inspector(probe: &MountedProbe) {
     settle_component_inspector(probe.root_id, generation).await;
 }
 
-fn click_component_inspector(root_id: &str, selector: &str) {
-    web_sys::window()
+fn component_inspector_control(root_id: &str, role: &str, name: &str) -> web_sys::HtmlElement {
+    let root = web_sys::window()
         .unwrap()
         .document()
         .unwrap()
-        .query_selector(&format!("#{root_id} {selector}"))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
-        .click();
+        .get_element_by_id(root_id)
+        .expect("mounted Inspector root");
+    by_role_name(&root, role, name).unwrap_or_else(|| panic!("{role} {name} is rendered"))
+}
+
+fn click_component_inspector(root_id: &str, role: &str, name: &str) {
+    component_inspector_control(root_id, role, name).click();
 }
 
 #[wasm_bindgen_test]
@@ -1442,8 +1443,8 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     })
     .await;
     let revision = accepted_revision(&probe);
-    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
-    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-omit");
+    click_component_inspector(probe.root_id, "button", "Mirrored half");
+    click_component_inspector(probe.root_id, "button", "Omit");
     assert!(matches!(
         probe.last_action.borrow().as_ref(),
         Some(LayoutComponentInspectorAction::SetMirroredHalfState {
@@ -1502,8 +1503,8 @@ async fn mounted_mirrored_half_actions_work_from_either_board_and_undo() {
     })
     .await;
     let revision = accepted_revision(&probe);
-    click_component_inspector(probe.root_id, ".m1-layout-component-mirror-state > summary");
-    click_component_inspector(probe.root_id, "#component-inspector-mirrored-half-local");
+    click_component_inspector(probe.root_id, "button", "Mirrored half");
+    click_component_inspector(probe.root_id, "button", "Make local");
     assert!(matches!(
         probe.last_action.borrow().as_ref(),
         Some(LayoutComponentInspectorAction::SetMirroredHalfState {
@@ -1688,7 +1689,7 @@ async fn mounted_matrix_key_stays_key_until_explicit_finding_opens_component_ins
         "ordinary matrix primary selection remains in Key mode"
     );
 
-    click_component_inspector(probe.root_id, "#component-inspector-select-component");
+    click_component_inspector(probe.root_id, "button", "Select component from finding");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         probe
@@ -1730,7 +1731,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
     settle_mounted_component_inspector(&probe).await;
     let old_projection = probe.projection.borrow().clone().unwrap();
     let old_action = *probe.action.borrow().as_ref().unwrap();
-    click_component_inspector(probe.root_id, "#component-inspector-select-source");
+    click_component_inspector(probe.root_id, "button", "Select source");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(*probe.selected_part.borrow(), Some("source-part".into()));
     assert_eq!(
@@ -1738,7 +1739,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
         "U2",
         "component selection changes must rerender the mounted Inspector"
     );
-    click_component_inspector(probe.root_id, "#component-inspector-select-original");
+    click_component_inspector(probe.root_id, "button", "Select original");
     settle_mounted_component_inspector(&probe).await;
     assert_ne!(
         old_projection.owner.context_generation,
@@ -1786,7 +1787,7 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
 
     let stale = probe.projection.borrow().clone().unwrap();
     let stale_action = *probe.action.borrow().as_ref().unwrap();
-    click_component_inspector(probe.root_id, "#component-inspector-clear");
+    click_component_inspector(probe.root_id, "button", "Clear selection");
     settle_mounted_component_inspector(&probe).await;
     let cleared = accepted_position(&probe, "selected-part");
     stale_action.call(LayoutComponentInspectorAction::SetPosition {
@@ -1808,29 +1809,17 @@ async fn mounted_component_inspector_production_handler_rejects_selection_aba_an
 async fn mounted_component_margin_enter_commits_and_escape_restores_the_accepted_value() {
     let (probe, root) = mounted_probe("layout-component-inspector-margin-test-root").await;
     settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
+    click_component_inspector(probe.root_id, "button", "Board outline");
     settle_mounted_component_inspector(&probe).await;
     assert!(
-        web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .query_selector(&format!("#{} .m1-layout-component-outline", probe.root_id))
-            .unwrap()
-            .unwrap()
-            .has_attribute("open"),
+        component_inspector_control(probe.root_id, "button", "Board outline")
+            .get_attribute("aria-expanded")
+            .as_deref()
+            == Some("true"),
         "the margin field must be in the expanded outline section"
     );
     let document = web_sys::window().unwrap().document().unwrap();
-    let input = document
-        .query_selector(&format!(
-            "#{} input[aria-label='Part edge margin']",
-            probe.root_id
-        ))
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap();
+    let input = position_input(probe.root_id, "Part edge margin");
     input.focus().unwrap();
     assert_eq!(
         document
@@ -1915,15 +1904,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
 {
     let (probe, root) = mounted_probe("layout-component-inspector-refresh-test-root").await;
     settle_mounted_component_inspector(&probe).await;
-    let document = web_sys::window().unwrap().document().unwrap();
-    let input = |label: &str| {
-        document
-            .query_selector(&format!("#{} input[aria-label='{label}']", probe.root_id))
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::HtmlInputElement>()
-            .unwrap()
-    };
+    let input = |label: &str| position_input(probe.root_id, label);
     let type_value = |field: &web_sys::HtmlInputElement, value: &str| {
         field.focus().unwrap();
         field.set_value(value);
@@ -1934,8 +1915,8 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
             .unwrap();
     };
 
-    click_component_inspector(probe.root_id, ".m1-layout-component-outline summary");
-    click_component_inspector(probe.root_id, ".m1-layout-component-constraint summary");
+    click_component_inspector(probe.root_id, "button", "Board outline");
+    click_component_inspector(probe.root_id, "button", "Layout constraint");
     settle_mounted_component_inspector(&probe).await;
     let x = input("X mm");
     type_value(&x, "7.25");
@@ -1977,17 +1958,13 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
         "4.00",
         "clean Y follows the accepted position"
     );
-    for selector in [
-        ".m1-layout-component-outline",
-        ".m1-layout-component-constraint",
-    ] {
-        assert!(
-            document
-                .query_selector(&format!("#{} {selector}", probe.root_id))
-                .unwrap()
-                .unwrap()
-                .has_attribute("open"),
-            "disclosure {selector} survives unrelated acceptance"
+    for name in ["Board outline", "Layout constraint"] {
+        assert_eq!(
+            component_inspector_control(probe.root_id, "button", name)
+                .get_attribute("aria-expanded")
+                .as_deref(),
+            Some("true"),
+            "disclosure {name} survives unrelated acceptance"
         );
     }
 
@@ -2002,7 +1979,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
 
     // The Relations tab holds its selection across a further unrelated acceptance on the
     // same mounted Inspector these draft checks use.
-    click_component_inspector(probe.root_id, "button[role='tab']:nth-child(2)");
+    click_component_inspector(probe.root_id, "tab", "Relations");
     settle_mounted_component_inspector(&probe).await;
     let relations_revision = probe.accept_unrelated_revision().await;
     settle_mounted_component_inspector(&probe).await;
@@ -2011,13 +1988,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
         relations_revision
     );
     assert_eq!(
-        document
-            .query_selector(&format!(
-                "#{} button[role='tab']:nth-child(2)",
-                probe.root_id
-            ))
-            .unwrap()
-            .unwrap()
+        component_inspector_control(probe.root_id, "tab", "Relations")
             .get_attribute("aria-selected")
             .as_deref(),
         Some("true"),
@@ -2027,13 +1998,7 @@ async fn mounted_component_position_draft_survives_unrelated_acceptance_and_blur
 }
 
 fn position_input(root_id: &str, label: &str) -> web_sys::HtmlInputElement {
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{root_id} input[aria-label='{label}']"))
-        .unwrap()
-        .unwrap_or_else(|| panic!("{label} input is rendered"))
+    component_inspector_control(root_id, "spinbutton", label)
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
 }
@@ -2165,7 +2130,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
     crate::runtime::project_name_test_support::drive_pending(&probe.runtime);
     entered.await.expect("the position edit reached Core");
 
-    click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
+    click_component_inspector(probe.root_id, "button", "Toggle Inspector view");
     settle_mounted_component_inspector(&probe).await;
     assert!(
         web_sys::window()
@@ -2181,7 +2146,7 @@ async fn mounted_component_inspector_view_unmount_retires_held_field_observation
         "the view-only toggle unmounts the Inspector"
     );
     assert_eq!(*probe.selected_part.borrow(), Some("selected-part".into()));
-    click_component_inspector(probe.root_id, "#component-inspector-toggle-view");
+    click_component_inspector(probe.root_id, "button", "Toggle Inspector view");
     settle_mounted_component_inspector(&probe).await;
     release
         .send(())
@@ -2403,35 +2368,52 @@ async fn mounted_locked_component_presents_xy_unavailable_and_suppresses_commit(
     root.remove();
 }
 
-fn offset_form_select(root_id: &str, label: &str) -> web_sys::HtmlSelectElement {
-    web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .query_selector(&format!("#{root_id} select[aria-label='{label}']"))
-        .unwrap()
-        .unwrap_or_else(|| panic!("the {label} choice mounts"))
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap()
+async fn choose_inspector_option(root: &web_sys::Element, name: &str, option: &str) {
+    let control = by_role_name(root, "combobox", name).expect("named choice control");
+    control.click();
+    wait_until("the actual choice popup opens", || {
+        control.get_attribute("aria-expanded").as_deref() == Some("true")
+            && by_role_name(root, "option", option).is_some()
+    })
+    .await;
+    by_role_name(root, "option", option).unwrap().click();
+    wait_until("the chosen option closes the popup", || {
+        control.get_attribute("aria-expanded").as_deref() == Some("false")
+    })
+    .await;
 }
 
-/// The Offset X draft, the Offset axes choice and the Source part choice the form shows.
+/// The Offset X draft and visible axes/source choices shown by the copied controls.
 fn offset_form(root_id: &str) -> (String, String, String) {
+    let source = component_inspector_control(root_id, "combobox", "Constraint source part")
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .unwrap()
+        .value();
     (
         position_input(root_id, "Offset X (mm)").value(),
-        offset_form_select(root_id, "Offset axes").value(),
-        offset_form_select(root_id, "Constraint source part").value(),
+        component_inspector_control(root_id, "combobox", "Offset axes")
+            .text_content()
+            .unwrap_or_default(),
+        source,
     )
 }
 
-fn choose_offset_axes_in_form(root_id: &str, value: &str) {
-    let select = offset_form_select(root_id, "Offset axes");
-    select.set_value(value);
-    let bubbling = web_sys::EventInit::new();
-    bubbling.set_bubbles(true);
-    select
-        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &bubbling).unwrap())
+async fn choose_offset_axes_in_form(root_id: &str, option: &str) {
+    let trigger = component_inspector_control(root_id, "button", "Layout constraint");
+    if trigger.get_attribute("aria-expanded").as_deref() != Some("true") {
+        trigger.click();
+        wait_until("the constraint form is visible", || {
+            trigger.get_attribute("aria-expanded").as_deref() == Some("true")
+        })
+        .await;
+    }
+    let root = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(root_id)
         .unwrap();
+    choose_inspector_option(&root, "Offset axes", option).await;
 }
 
 /// The Properties form takes its source, axes and numbers from `offset_drafts` on every
@@ -2516,38 +2498,41 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     // First render: the saved part-offset constraint.
     assert_eq!(
         offset_form(root_id),
-        ("1".into(), "part".into(), KEY.into()),
+        ("1".into(), "Offset along part axes".into(), "SW1".into()),
         "first render"
     );
 
     // A selection change to a part without a constraint: its first other part is the
     // selected-part, which is not a key, so the default is board axes and zeros.
-    click_component_inspector(root_id, "#component-inspector-select-source");
+    click_component_inspector(root_id, "button", "Select source");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
-        ("0".into(), "board".into(), "selected-part".into()),
+        ("0".into(), "Offset on board axes".into(), "U1".into()),
         "after selecting an unconstrained part"
     );
 
     // Back to the constrained part: its saved kind, source and numbers again.
-    click_component_inspector(root_id, "#component-inspector-select-original");
+    click_component_inspector(root_id, "button", "Select original");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
-        ("1".into(), "part".into(), KEY.into()),
+        ("1".into(), "Offset along part axes".into(), "SW1".into()),
         "after selecting the constrained part again"
     );
 
     // A conversion re-expresses the numbers on the board axes at the key's 30 degree turn.
-    choose_offset_axes_in_form(root_id, "board");
+    choose_offset_axes_in_form(root_id, "Offset on board axes").await;
     accept_pending(&probe).await;
     let (x, axes, source) = offset_form(root_id);
     assert!(
         (x.parse::<f64>().unwrap() - 2.866_025_403_784_439).abs() < 1e-6,
         "converted X draft {x}"
     );
-    assert_eq!((axes.as_str(), source.as_str()), ("board", KEY));
+    assert_eq!(
+        (axes.as_str(), source.as_str()),
+        ("Offset on board axes", "SW1")
+    );
 
     // Undoing the conversion restores the saved part-offset constraint and its numbers.
     probe.runtime.submit(boardstudio_application::Event::Undo {
@@ -2556,24 +2541,28 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
     accept_pending(&probe).await;
     assert_eq!(
         offset_form(root_id),
-        ("1".into(), "part".into(), KEY.into()),
+        ("1".into(), "Offset along part axes".into(), "SW1".into()),
         "after undoing the conversion"
     );
 
     // The reset: an unconstrained part's unsaved axes choice goes back to the default when
     // Properties is shown again.
-    click_component_inspector(root_id, "#component-inspector-select-source");
+    click_component_inspector(root_id, "button", "Select source");
     settle_mounted_component_inspector(&probe).await;
-    choose_offset_axes_in_form(root_id, "part");
+    choose_offset_axes_in_form(root_id, "Offset along part axes").await;
     settle_mounted_component_inspector(&probe).await;
-    assert_eq!(offset_form(root_id).1, "part", "the unsaved choice shows");
-    click_component_inspector(root_id, "button[role='tab']:nth-child(2)");
+    assert_eq!(
+        offset_form(root_id).1,
+        "Offset along part axes",
+        "the unsaved choice shows"
+    );
+    click_component_inspector(root_id, "tab", "Relations");
     settle_mounted_component_inspector(&probe).await;
-    click_component_inspector(root_id, "button[role='tab']:nth-child(1)");
+    click_component_inspector(root_id, "tab", "Properties");
     settle_mounted_component_inspector(&probe).await;
     assert_eq!(
         offset_form(root_id),
-        ("0".into(), "board".into(), "selected-part".into()),
+        ("0".into(), "Offset on board axes".into(), "U1".into()),
         "after the reset"
     );
     root.remove();
@@ -2584,7 +2573,10 @@ async fn mounted_offset_form_follows_the_selection_a_conversion_its_undo_and_the
 mod matrix_relations_panel {
     use super::super::layout_workspace;
     use super::super::*;
-    use super::{click_component_inspector, settle_component_inspector, wait_until};
+    use super::{
+        click_component_inspector, component_inspector_control, settle_component_inspector,
+        wait_until,
+    };
     use boardstudio_application::{Event, Session};
     use boardstudio_core::CoreEngine;
     use boardstudio_core::model::{
@@ -2677,8 +2669,24 @@ mod matrix_relations_panel {
                 .unwrap_or_default()
         }
 
-        fn click(&self, selector: &str) {
-            click_component_inspector(self.root_id, selector);
+        fn click(&self, role: &str, name: &str) {
+            click_component_inspector(self.root_id, role, name);
+        }
+
+        fn reference(&self, part_id: &str) -> web_sys::HtmlElement {
+            let name = self
+                .runtime
+                .model()
+                .accepted
+                .unwrap()
+                .document
+                .parts
+                .iter()
+                .find(|part| part.id == part_id)
+                .expect("referenced part")
+                .reference
+                .clone();
+            component_inspector_control(self.root_id, "button", &name)
         }
 
         fn exists(&self, selector: &str) -> bool {
@@ -2692,7 +2700,7 @@ mod matrix_relations_panel {
         }
 
         async fn open_relations_tab(&self) {
-            self.click(".m1-layout-component-tabs button:nth-child(2)");
+            self.click("tab", "Relations");
             self.settle().await;
         }
 
@@ -2968,7 +2976,7 @@ mod matrix_relations_panel {
         probe.open_relations_tab().await;
         assert!(probe.exists("[data-relation-departure='Column offset']"));
 
-        probe.click("[data-relation-action='reset']");
+        probe.click("button", "Reset offsets: Column offset");
         probe.land().await;
         assert_eq!(
             probe.matrix().column_offsets[1],
@@ -2992,7 +3000,7 @@ mod matrix_relations_panel {
             probe.text()
         );
 
-        probe.click("[data-relation-action='convert']");
+        probe.click("button", "Convert to stagger: Column offset");
         probe.land().await;
         let matrix = probe.matrix();
         assert_eq!(matrix.column_staggers[1], 2.0);
@@ -3065,14 +3073,14 @@ mod matrix_relations_panel {
             probe.text()
         );
 
-        probe.click("[data-relation-constraint='tie'] [data-relation-role='source']");
+        probe.reference("matrix/main/r0c0").click();
         probe.land().await;
         assert_eq!(probe.selected_context(), Some(key_ctx(0, 0)));
 
         probe.select(matrix_ctx());
         probe.land().await;
         probe.open_relations_tab().await;
-        probe.click("[data-relation-constraint='tie'] [data-relation-role='target']");
+        probe.reference(&companion).click();
         probe.land().await;
         assert!(
             matches!(
@@ -3117,6 +3125,7 @@ mod matrix_relations_panel {
         let source = "[data-relation-constraint='tie'] [data-relation-role='source']";
         assert!(probe.exists(source), "{}", probe.text());
 
+        let queued_source = probe.reference("matrix/main/r0c0");
         // Remove the referenced key, letting the edit land without re-rendering the panel:
         // the button is still in the DOM, as when a click was queued before the removal.
         let accepted = probe.runtime.model().accepted.unwrap();
@@ -3140,7 +3149,7 @@ mod matrix_relations_panel {
             "the removal landed"
         );
         let before = probe.selected_context();
-        probe.click(source);
+        queued_source.click();
         crate::runtime::project_name_test_support::run_pending(&probe.runtime).await;
         assert_eq!(
             probe.selected_context(),
@@ -3159,12 +3168,9 @@ mod matrix_relations_panel {
     }
 }
 
-fn companion_click(root: &web_sys::Element, selector: &str) {
-    root.query_selector(selector)
-        .unwrap()
-        .expect(selector)
-        .dyn_into::<web_sys::HtmlElement>()
-        .unwrap()
+fn companion_click(root: &web_sys::Element, role: &str, name: &str) {
+    by_role_name(root, role, name)
+        .unwrap_or_else(|| panic!("{role} {name} is rendered"))
         .click();
 }
 
@@ -3334,27 +3340,11 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the live companion placement control mounts", || {
-        root.query_selector("details.m1-layout-companion-placement summary")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Companion placement").is_some()
     })
     .await;
-    companion_click(&root, "details.m1-layout-companion-placement summary");
+    companion_click(&root, "button", "Companion placement");
 
-    let choose_mode = |value: &str| {
-        let select = root
-            .query_selector("select")
-            .unwrap()
-            .expect("mode selector")
-            .dyn_into::<web_sys::HtmlSelectElement>()
-            .unwrap();
-        select.set_value(value);
-        let event = web_sys::EventInit::new();
-        event.set_bubbles(true);
-        select
-            .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
-            .unwrap();
-    };
     let pair_mode = |runtime: &Rc<crate::runtime::Runtime>| {
         runtime
             .model()
@@ -3372,9 +3362,9 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     };
 
     let before = runtime.model().accepted.unwrap().document.revision;
-    choose_mode("duplicate-position");
-    companion_click(&root, ".m1-layout-companion-placement-default input");
-    companion_click(&root, "button");
+    choose_inspector_option(&root, "Mode", "Duplicate position").await;
+    companion_click(&root, "checkbox", "Also set the pair default");
+    companion_click(&root, "button", "Apply placement");
     wait_until_step("Core accepts the companion default edit", async || {
         crate::runtime::project_name_test_support::run_pending(&runtime).await;
         pair_mode(&runtime) == MirroredCompanionMode::DuplicatePosition
@@ -3392,20 +3382,21 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
     })
     .await;
 
-    companion_click(&root, ".m1-layout-companion-placement-default input");
-    choose_mode("literal-mirror-with-tweak");
+    companion_click(&root, "checkbox", "Also set the pair default");
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
     wait_until("the tweak fields mount", || {
-        root.query_selector_all("input[type='number']")
-            .unwrap()
-            .length()
-            == 3
+        ["X tweak (mm)", "Y tweak (mm)", "Rotation tweak (degrees)"]
+            .iter()
+            .all(|name| by_role_name(&root, "spinbutton", name).is_some())
     })
     .await;
-    let tweak_inputs = root.query_selector_all("input[type='number']").unwrap();
-    for (index, value) in ["0.5", "0.25", "2"].into_iter().enumerate() {
-        let input = tweak_inputs
-            .item(index as u32)
-            .expect("tweak input")
+    for (name, value) in [
+        ("X tweak (mm)", "0.5"),
+        ("Y tweak (mm)", "0.25"),
+        ("Rotation tweak (degrees)", "2"),
+    ] {
+        let input = by_role_name(&root, "spinbutton", name)
+            .unwrap()
             .dyn_into::<web_sys::HtmlInputElement>()
             .unwrap();
         input.set_value(value);
@@ -3416,7 +3407,7 @@ async fn companion_placement_mounted_edit_undo_and_core_refusal() {
             .unwrap();
     }
     reject_pair_tweak.set(true);
-    companion_click(&root, "button");
+    companion_click(&root, "button", "Apply placement");
     wait_until_step("Core refusal reaches the Inspector", async || {
         crate::runtime::project_name_test_support::run_pending(&runtime).await;
         root.query_selector("[role='alert']")
@@ -3460,41 +3451,24 @@ async fn companion_placement_shows_mixed_modes_and_tweaks() {
         dioxus_web::Config::new().rootnode(root.clone().into()),
     );
     wait_until("the mixed companion placement section mounts", || {
-        root.query_selector("details.m1-layout-companion-placement summary")
-            .unwrap()
-            .is_some()
+        by_role_name(&root, "button", "Companion placement").is_some()
     })
     .await;
-    let summary = root
-        .query_selector("details.m1-layout-companion-placement summary small")
-        .unwrap()
-        .unwrap();
-    assert_eq!(summary.text_content().as_deref(), Some("Mixed"));
-    companion_click(&root, "details.m1-layout-companion-placement summary");
-    let mode = root
-        .query_selector("select")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .unwrap();
-    assert_eq!(mode.value(), "");
-    mode.set_value("literal-mirror-with-tweak");
-    let change = web_sys::EventInit::new();
-    change.set_bubbles(true);
-    mode.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
-        .unwrap();
+    let trigger = by_role_name(&root, "button", "Companion placement").unwrap();
+    assert!(trigger.text_content().unwrap().contains("Mixed"));
+    trigger.click();
+    let mode = by_role_name(&root, "combobox", "Mode").unwrap();
+    assert!(mode.text_content().unwrap().contains("Mixed values"));
+    choose_inspector_option(&root, "Mode", "Mirror with tweak").await;
     wait_until("mixed tweak fields mount", || {
-        root.query_selector_all("input[type='number']")
-            .unwrap()
-            .length()
-            == 3
+        ["X tweak (mm)", "Y tweak (mm)", "Rotation tweak (degrees)"]
+            .iter()
+            .all(|name| by_role_name(&root, "spinbutton", name).is_some())
     })
     .await;
-    let inputs = root.query_selector_all("input[type='number']").unwrap();
-    for index in 0..inputs.length() {
+    for name in ["X tweak (mm)", "Y tweak (mm)", "Rotation tweak (degrees)"] {
         assert_eq!(
-            inputs
-                .item(index)
+            by_role_name(&root, "spinbutton", name)
                 .unwrap()
                 .dyn_into::<web_sys::HtmlInputElement>()
                 .unwrap()
@@ -3523,19 +3497,16 @@ async fn stabiliser_companion_placement_shows_a_disabled_mode_and_core_reason() 
     );
     use boardstudio_web_ui_shared::test_wait::wait_until;
     wait_until("the stabiliser placement reason mounts", || {
-        root.query_selector("select").unwrap().is_some()
+        by_role_name(&root, "combobox", "Mode").is_some()
     })
     .await;
-    let mode = root
-        .query_selector("select")
-        .unwrap()
-        .expect("disabled mode control");
+    let mode = by_role_name(&root, "combobox", "Mode").expect("disabled mode control");
     assert!(mode.has_attribute("disabled"));
     assert!(
         root.text_content()
             .unwrap()
             .contains("Stabilisers keep their mirrored-X position")
     );
-    assert_eq!(root.query_selector_all("button").unwrap().length(), 0);
+    assert!(by_role_name(&root, "button", "Apply placement").is_none());
     root.remove();
 }

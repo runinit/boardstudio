@@ -86,18 +86,15 @@ fn host() -> Element {
     rsx! { Editor {} }
 }
 
-use boardstudio_web_ui_shared::test_wait::wait_until;
+use boardstudio_web_ui_shared::{test_role::by_role_name, test_wait::wait_until};
 
 fn count(root: &web_sys::Element, selector: &str) -> u32 {
     root.query_selector_all(selector).unwrap().length()
 }
 
-fn click(root: &web_sys::Element, selector: &str) {
-    root.query_selector(selector)
-        .unwrap()
-        .expect(selector)
-        .dyn_into::<HtmlElement>()
-        .unwrap()
+fn click(root: &web_sys::Element, name: &str) {
+    by_role_name(root, "button", name)
+        .unwrap_or_else(|| panic!("Button {name} is rendered"))
         .click();
 }
 
@@ -121,35 +118,35 @@ async fn switch_visibility_keeps_keycaps_independent() {
     .await;
     assert_eq!(count(&root, ".m1-keycap-overlay"), 1);
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 1);
+    let layer_trigger = by_role_name(&root, "button", "Canvas visibility").unwrap();
     assert_eq!(
-        count(
-            &root,
-            "#m1-objects-panel #m1-layers-trigger[aria-expanded='false']"
-        ),
-        1,
-        "Layout layers must start collapsed at the persistent bottom edge"
+        layer_trigger.get_attribute("aria-expanded").as_deref(),
+        Some("false"),
+        "Layout layers start collapsed at the persistent bottom edge"
     );
-    assert_eq!(
-        count(&root, "#m1-layers-trigger[aria-label='Canvas visibility']"),
-        1,
-        "Layout visibility controls are distinct from authored and PCB layers"
+    assert!(
+        layer_trigger
+            .closest("#m1-objects-panel")
+            .unwrap()
+            .is_some(),
+        "Layout visibility controls stay in the Objects dock"
     );
     assert_eq!(
         count(&root, ".m1-workspace-content .m1-layers"),
         0,
         "the viewer must not duplicate the docked visibility controls"
     );
-    click(&root, "#m1-layers-trigger");
+    click(&root, "Canvas visibility");
     wait_until("the layers menu offers Hide Switches", || {
-        count(&root, "button[aria-label='Hide Switches']") == 1
+        by_role_name(&root, "button", "Hide Switches").is_some()
     })
     .await;
-    click(&root, "button[aria-label='Hide Switches']");
+    click(&root, "Hide Switches");
     wait_until(
         "hiding switches removes the switch and offers Show Switches",
         || {
             count(&root, ".m1-scene-part .m1-part") == 0
-                && count(&root, "button[aria-label='Show Switches']") == 1
+                && by_role_name(&root, "button", "Show Switches").is_some()
         },
     )
     .await;
@@ -159,8 +156,8 @@ async fn switch_visibility_keeps_keycaps_independent() {
         "hiding switches must preserve visible keycaps"
     );
     assert_eq!(count(&root, ".m1-scene-part .m1-part"), 0);
-    assert_eq!(count(&root, "button[aria-label='Show Switches']"), 1);
-    click(&root, "button[aria-label='Hide Keycaps']");
+    assert!(by_role_name(&root, "button", "Show Switches").is_some());
+    click(&root, "Hide Keycaps");
     wait_until(
         "hiding keycaps removes the keycaps and the scene part",
         || count(&root, ".m1-keycap-overlay") == 0 && count(&root, ".m1-scene-part") == 0,
@@ -168,7 +165,7 @@ async fn switch_visibility_keeps_keycaps_independent() {
     .await;
     assert_eq!(count(&root, ".m1-keycap-overlay"), 0);
     assert_eq!(count(&root, ".m1-scene-part"), 0);
-    click(&root, "button[aria-label='Show Switches']");
+    click(&root, "Show Switches");
     wait_until(
         "showing switches restores the switch without keycaps",
         || count(&root, ".m1-scene-part .m1-part") == 1 && count(&root, ".m1-keycap-overlay") == 0,
@@ -319,7 +316,10 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
     let registration_notice = format!(
         "Preview removes net OMIT_CONTROLLER ({mirror_net_id}) from board Synthetic left (mirror) (right)."
     );
-    click(&root, "#m1-layout-findings-trigger");
+    click(
+        &root,
+        &format!("Layout findings: {}", accepted_findings_count + 3),
+    );
     wait_until("the footer opens the Info-only findings panel", || {
         root.query_selector(".m1-layout-findings")
             .unwrap()
@@ -337,10 +337,7 @@ async fn paired_rejoin_preview_findings_reach_editor_footer_panel_and_clear_befo
     assert!(text.contains(&registration_notice));
     let pin_row = finding_row_containing(&root, &pin_notice).expect("pin notice row is rendered");
     assert!(
-        pin_row
-            .query_selector("button.wb-finding-action")
-            .unwrap()
-            .is_none(),
+        by_role_name(&pin_row, "button", "Select affected geometry").is_none(),
         "the preview electrical notice has no navigation action"
     );
 

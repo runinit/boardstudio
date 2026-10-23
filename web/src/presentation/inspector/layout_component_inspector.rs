@@ -4,8 +4,9 @@ use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{
     Constraint, ConstraintRelation, HalfExceptionState, MirrorAxis, OffsetAxes, PartOutline, Vec2,
 };
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
@@ -18,11 +19,10 @@ use boardstudio_web_ui_shared::ui::{
 };
 use boardstudio_web_ui_shared::ui::{
     input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
+    input_group::{InputGroup, InputGroupInput},
 };
 
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use dioxus_web::WebEventExt;
 use std::{
@@ -1198,7 +1198,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                 span { "{projection.definition_kind}" }
                             }
                             if let Some(notice) = projection.envelope_notice.as_ref() {
-                                p { class: "m1-layout-component-notice", "{notice}" }
+                                Callout { class: "m1-layout-component-notice", variant: CalloutVariant::Info, "{notice}" }
                             }
                         }
                         if let Some(mirrored_half) = projection.mirrored_half.as_ref() {
@@ -1207,7 +1207,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                 keep_mounted: true,
                                 open: Some(mirror_section_open()),
                                 on_open_change: move |next| mirror_section_open.set(next),
-                                CollapsibleTrigger { aria_label: "Mirrored half",
+                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Mirrored half",
                                     span { "Mirrored half" }
                                     small {
                                         match mirrored_half.state {
@@ -1216,7 +1216,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                             HalfExceptionState::Omitted => "Omitted",
                                         }
                                     }
-                                }
+                                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                 CollapsibleContent {
                                     hidden: !mirror_section_open(),
                                     inert: (!mirror_section_open()).then_some(""),
@@ -1397,7 +1397,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                 keep_mounted: true,
                                 open: Some(outline_section_open()),
                                 on_open_change: move |next| outline_section_open.set(next),
-                                CollapsibleTrigger { aria_label: "Board outline",
+                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Board outline",
                                     span { "Board outline" }
                                     small {
                                         if projection.outline.excluded {
@@ -1406,7 +1406,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                             "Included"
                                         }
                                     }
-                                }
+                                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                 CollapsibleContent {
                                     hidden: !outline_section_open(),
                                     inert: (!outline_section_open()).then_some(""),
@@ -1425,15 +1425,15 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                         aria_label: "Include in outline",
                                                         checked: Some(
                                                             if !projection.outline.excluded {
-                                                                dioxus_primitives::checkbox::CheckboxState::Checked
+                                                                CheckboxState::Checked
                                                             } else {
-                                                                dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                                CheckboxState::Unchecked
                                                             },
                                                         ),
                                                         on_checked_change: {
                                                             let baseline = outline.clone();
                                                             let submit = set_outline.clone();
-                                                            move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                            move |checked: CheckboxState| {
                                                                 let mut outline = baseline.clone();
                                                                 outline.excluded = !bool::from(checked);
                                                                 submit(outline);
@@ -1459,15 +1459,15 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                             aria_label: "Use board margin",
                                                             checked: Some(
                                                                 if projection.outline.margin.is_none() {
-                                                                    dioxus_primitives::checkbox::CheckboxState::Checked
+                                                                    CheckboxState::Checked
                                                                 } else {
-                                                                    dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                                    CheckboxState::Unchecked
                                                                 },
                                                             ),
                                                             on_checked_change: {
                                                                 let baseline = outline.clone();
                                                                 let submit = set_outline.clone();
-                                                                move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                                move |checked: CheckboxState| {
                                                                     let mut outline = baseline.clone();
                                                                     outline.margin = if bool::from(checked) { None } else { Some(0.0) };
                                                                     margin
@@ -1551,15 +1551,15 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                         aria_label: "Allow component body overhang",
                                                         checked: Some(
                                                             if projection.outline.allow_body_overhang {
-                                                                dioxus_primitives::checkbox::CheckboxState::Checked
+                                                                CheckboxState::Checked
                                                             } else {
-                                                                dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                                CheckboxState::Unchecked
                                                             },
                                                         ),
                                                         on_checked_change: {
                                                             let baseline = outline.clone();
                                                             let submit = set_outline.clone();
-                                                            move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                            move |checked: CheckboxState| {
                                                                 let mut outline = baseline.clone();
                                                                 outline.allow_body_overhang = bool::from(checked);
                                                                 submit(outline);
@@ -1582,7 +1582,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                 keep_mounted: true,
                                 open: Some(constraint_open()),
                                 on_open_change: move |next| constraint_open.set(next),
-                                CollapsibleTrigger { aria_label: "Layout constraint",
+                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Layout constraint",
                                     span { "Layout constraint" }
                                     small {
                                         if active_constraint.is_some() {
@@ -1591,7 +1591,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                             "Optional"
                                         }
                                     }
-                                }
+                                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                 CollapsibleContent {
                                     hidden: !constraint_open(),
                                     inert: (!constraint_open()).then_some(""),
@@ -1690,7 +1690,7 @@ on_value_change: { let mut reset = reset_properties_drafts; move |value: String|
                                                     FieldLabel { html_for: control_id.clone(), "{control_label}" }
                                                     Combobox::<String> {
                                                         id: control_id,
-                                                        aria_label: control_aria_label,
+                                                        aria_label: control_aria_label.clone(),
                                                         list_aria_label: control_aria_label.clone(),
                                                         value: Some(dioxus::core::SuperInto::super_into(Some(control_value))),
                                                         disabled: false,

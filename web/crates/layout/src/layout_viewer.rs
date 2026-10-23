@@ -11,7 +11,12 @@ use super::{
 use crate::runtime::Runtime;
 use boardstudio_application::SelectionMode;
 use boardstudio_core::model::{Finding, ProjectDoc};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::{
+    alert::{Alert, AlertDescription, AlertVariant},
+    button::{Button, ButtonVariant},
+    callout::{Callout, CalloutVariant},
+    spinner::Spinner,
+};
 
 use dioxus::prelude::*;
 use std::{cell::Cell, rc::Rc};
@@ -310,7 +315,8 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
     };
 
     let Some(preview) = preview else {
-        let message = if let Some(error) = runtime.layout_preview_error() {
+        let preview_error = runtime.layout_preview_error();
+        let message = if let Some(error) = preview_error.as_ref() {
             format!("3D preview unavailable: {error}")
         } else if runtime.layout_preview_pending() {
             "Preparing canonical board preview…".to_owned()
@@ -321,21 +327,32 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
         };
         return rsx! {
             div {
-                p { role: "status", class: "m1-layout-viewer-status", "{message}" }
+                if preview_error.is_some() {
+                    Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                        AlertDescription { "{message}" }
+                    }
+                } else {
+                    div { role: "status", class: "m1-layout-viewer-status",
+                        Callout { variant: CalloutVariant::Info,
+                            if runtime.layout_preview_pending() || request.is_some() { Spinner {} }
+                            "{message}"
+                        }
+                    }
+                }
                 if let Some(blocker) = props
                     .keycaps_fit
                     .as_ref()
                     .and_then(|fit| fit.preview_blocker_message())
                 {
-                    p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+                    div { role: "status", class: "m1-layout-viewer-status", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
                 } else if keycaps_preview_pending() {
-                    p { role: "status", class: "m1-layout-viewer-status",
-                        "Generating keycap CAD…"
+                    div { role: "status", class: "m1-layout-viewer-status",
+                        Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
                     }
                 }
                 if let Some(error) = keycaps_preview_error() {
-                    p { role: "alert", class: "m1-layout-viewer-status",
-                        "Keycap preview failed: {error}"
+                    Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                        AlertDescription { "Keycap preview failed: {error}" }
                     }
                     Button {
                         variant: ButtonVariant::Outline,
@@ -388,13 +405,15 @@ pub fn LayoutCanonicalViewer(props: LayoutCanonicalViewerProps) -> Element {
                 .as_ref()
                 .and_then(|fit| fit.preview_blocker_message())
             {
-                p { role: "status", class: "m1-layout-viewer-status", "{blocker}" }
+                div { role: "status", class: "m1-layout-viewer-status", Callout { variant: CalloutVariant::Warning, "{blocker}" } }
             } else if keycaps_preview_pending() {
-                p { role: "status", class: "m1-layout-viewer-status", "Generating keycap CAD…" }
+                div { role: "status", class: "m1-layout-viewer-status",
+                    Callout { variant: CalloutVariant::Info, Spinner {} "Generating keycap CAD…" }
+                }
             }
             if let Some(error) = keycaps_preview_error() {
-                div { role: "alert", class: "m1-layout-viewer-status",
-                    p { "Keycap preview failed: {error}" }
+                Alert { class: "m1-layout-viewer-status", variant: AlertVariant::Destructive,
+                    AlertDescription { "Keycap preview failed: {error}" }
                     Button {
                         variant: ButtonVariant::Outline,
                         button_type: "button",

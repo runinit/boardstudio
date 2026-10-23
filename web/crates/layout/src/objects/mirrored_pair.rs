@@ -4,18 +4,15 @@ use crate::mirrored_pair_geometry::MirroredPairProjection;
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::Vec2;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
+    field::{Field, FieldLabel},
     select::{Select, SelectOption},
 };
 use boardstudio_web_ui_shared::ui::{
     input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
+    input_group::{InputGroup, InputGroupInput},
 };
 
 use dioxus::prelude::*;
@@ -228,7 +225,7 @@ pub fn MirroredPairForm(props: MirroredPairFormProps) -> Element {
     disabled: !props.projection.editable,
     oninput: move |event: FormEvent| left_name.set(event.value()),
     id: control_input_id.clone(),
-    attributes: vec![dioxus::events::onmounted(move |event| async move { let _ = event.set_focus(true).await; })], }
+    attributes: vec![dioxus::events::onmounted(move |event: MountedEvent| async move { let _ = event.set_focus(true).await; })], }
                                         }
                                     }
                                 }

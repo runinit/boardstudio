@@ -13,8 +13,7 @@ use boardstudio_web_ui_shared::ui::{
 
 use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
 use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
+    field::{Field, FieldLabel},
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
@@ -528,6 +527,9 @@ pub fn Objects(
                                             if item.expanded == Some(true) { "Collapse" } else { "Expand" },
                                             item.label,
                                         );
+                                        let disclosure_id = format!("{tree_item_id}-disclosure");
+                                        let tooltip_label = disclosure_label.clone();
+                                        let is_expanded = item.expanded == Some(true);
                                         let select_on_click = on_select;
                                         let navigate_on_click = on_navigate;
                                         let select_on_key = on_select;
@@ -559,22 +561,25 @@ pub fn Objects(
                                                 if item.expandable {
                                                     Tooltip {
                                                         TooltipTrigger {
-                                                            r#as: move |attributes: Vec<Attribute>| rsx! {
-                                                                Button {
-                                                                    attributes,
-                                                                    variant: ButtonVariant::Ghost,
-                                                                    id: "{tree_item_id}-disclosure",
-                                                                    class: "min-h-11 min-w-11",
-                                                                    aria_label: "{disclosure_label}",
-                                                                    aria_expanded: item.expanded == Some(true),
-                                                                    onclick: move |_| toggle_tree(expanded, &toggle_item.id),
-                                                                    size: ButtonSize::IconSm,
-                                                                    ChevronDown { class: if item.expanded == Some(true) { "size-4" } else { "size-4 -rotate-90" } }
+                                                            r#as: move |attributes: Vec<Attribute>| {
+                                                                let toggle_item = toggle_item.clone();
+                                                                rsx! {
+                                                                    Button {
+                                                                        attributes,
+                                                                        variant: ButtonVariant::Ghost,
+                                                                        id: disclosure_id.clone(),
+                                                                        class: "min-h-11 min-w-11",
+                                                                        aria_label: disclosure_label.clone(),
+                                                                        aria_expanded: is_expanded,
+                                                                        onclick: move |_| toggle_tree(expanded, &toggle_item.id),
+                                                                        size: ButtonSize::IconSm,
+                                                                        ChevronDown { class: if is_expanded { "size-4" } else { "size-4 -rotate-90" } }
+                                                                    }
                                                                 }
                                                             },
                                                         }
-                                                        TooltipContent { "{disclosure_label}" }
-        }
+                                                        TooltipContent { "{tooltip_label}" }
+                                                    }
                                                 } else {
                                                     span { class: "m1-tree-spacer", "aria-hidden": "true" }
 
@@ -806,7 +811,7 @@ fn AddObjectEntry(
                                 keep_mounted: true,
                                 open: Some(layouts_open()),
                                 on_open_change: move |next| layouts_open.set(next),
-                                CollapsibleTrigger { "Layouts" }
+                                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Layouts"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                 CollapsibleContent {
                                     hidden: !layouts_open(),
                                     inert: (!layouts_open()).then_some(""),
@@ -884,7 +889,7 @@ fn AddObjectEntry(
                                             keep_mounted: true,
                                             open: Some(matrix_actions_open()),
                                             on_open_change: move |next| matrix_actions_open.set(next),
-                                            CollapsibleTrigger { "{matrix_label}" }
+                                            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{matrix_label}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                             CollapsibleContent {
                                                 hidden: !matrix_actions_open(),
                                                 inert: (!matrix_actions_open()).then_some(""),
@@ -956,7 +961,7 @@ fn AddObjectEntry(
                                     keep_mounted: true,
                                     open: Some(geometry_open()),
                                     on_open_change: move |next| geometry_open.set(next),
-                                    CollapsibleTrigger { "Board geometry" }
+                                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Board geometry"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                                     CollapsibleContent {
                                         hidden: !geometry_open(),
                                         inert: (!geometry_open()).then_some(""),

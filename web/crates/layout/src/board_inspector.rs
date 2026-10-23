@@ -8,12 +8,7 @@ use boardstudio_application::{
 use boardstudio_core::model::EditOperation;
 use boardstudio_web_ui_shared::ui::field::FieldError;
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 use dioxus::prelude::*;
 use std::{
     cell::{Cell, RefCell},

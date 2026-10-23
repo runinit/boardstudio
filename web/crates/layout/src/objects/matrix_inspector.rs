@@ -2,7 +2,7 @@
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::DiodeDirection;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -19,6 +19,7 @@ use boardstudio_web_ui_shared::ui::{
     },
 };
 
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -531,10 +532,10 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 keep_mounted: true,
                 open: Some(assembly_open()),
                 on_open_change: move |next| assembly_open.set(next),
-                CollapsibleTrigger {
+                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
                     span { "Key assembly" }
                     small { "{definition_label}" }
-                }
+                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                 CollapsibleContent {
                     hidden: !assembly_open(),
                     inert: (!assembly_open()).then_some(""),
@@ -716,10 +717,10 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 keep_mounted: true,
                 open: Some(spacing_open()),
                 on_open_change: move |next| spacing_open.set(next),
-                CollapsibleTrigger {
+                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold",
                     span { "Keycap spacing" }
                     small { "Preview only" }
-                }
+                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                 CollapsibleContent {
                     hidden: !spacing_open(),
                     inert: (!spacing_open()).then_some(""),
@@ -787,7 +788,7 @@ pub fn MatrixInspector(props: MatrixInspectorProps) -> Element {
                 keep_mounted: true,
                 open: Some(actions_open()),
                 on_open_change: move |next| actions_open.set(next),
-                CollapsibleTrigger { "Matrix actions" }
+                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Matrix actions"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                 CollapsibleContent {
                     hidden: !actions_open(),
                     inert: (!actions_open()).then_some(""),

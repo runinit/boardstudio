@@ -210,3 +210,31 @@ The Layout view-mode root retains its original `m1-layout-view-group board-tool-
 placement. The user-approved Layout-only legacy button CSS exclusions remain
 unmodified pending an actual computed-style RED; this is outside the shared layer
 slice. No full Layout runtime or compile GREEN is claimed yet.
+
+
+Coordinator returned the 016 exclusive build slot after clean layer child verification
+at supplied source `16947138`; two-axis layer review is running separately, not accepted
+or landed by this lane. Expanded process-yield receipt is
+`.evidence/016/control-slot-yield-process-scan.log` (222 readable same-UID processes,
+zero target matches; four old user-service environments unreadable). No build started
+until the explicit slot return.
+
+Post-CONTROL compile progression: checks 4–6 preserve actual type/ownership errors
+(native event-vector type annotations, canonical CheckboxState reexport, moved
+projection/control-label values), then GREEN check 7:
+`CARGO_PROFILE_DEV_DEBUG=false cargo check --locked -p boardstudio-web --target
+wasm32-unknown-unknown --all-targets`, `.evidence/016/layout-adoption-check-7-control.log`.
+This compiles production Layout and shell targets plus shell tests; it does not execute
+browser tests or compile every dependency crate's mounted tests. The actual Mirror
+behavioral RED is still required before changing its dialog presentation.
+
+Source continuation: actual Inspector tests use role/name controls, real Select option
+clicks, copied Checkbox clicks and named precise InputGroup fields; existing Undo,
+rejection, stale-owner and local draft assertions/test names remain. Reference navigation
+uses the actual named Button, including a retained queued stale Button for deletion.
+Layout findings now use Item/Badge and Empty; persistent viewer errors use Alert,
+notices use Callout, and pending CAD text includes Spinner. Existing operations and
+state owners remain. Copied private Collapsible headers gain 44px targets/chevrons.
+Only the shared layer CSS is changed so far; the unused-rule inventory is in
+`.scratch/016/owned-legacy-css-inventory.json`, not a source/SHA manifest. The
+023 guide chevron rules and shared legacy rules are retained.

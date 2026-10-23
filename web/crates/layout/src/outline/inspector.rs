@@ -1,12 +1,7 @@
 //! Outline version Inspector.
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 
 use super::hook::{OutlineDrawTool, OutlineInspectorProjection, OutlineVersionOwnership};
 use super::overlays::{OutlineCoordinate, OutlineDimension};
@@ -18,14 +13,14 @@ use boardstudio_core::model::{
     Contour, CornerStyle, EditPhase, Operation, OutlineControlPoint, OutlineFeature, Side, Vec2,
     polygon_signed_area,
 };
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::toggle_group::{ToggleGroup, ToggleItem};
 
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
+    field::{Field, FieldLabel},
     select::{Select, SelectOption},
 };
 use dioxus::prelude::*;
@@ -680,15 +675,15 @@ onclick: {
                                                                 aria_label: "Keep gap {index + 1}",
                                                                 checked: Some(
                                                                     if gap.protected {
-                                                                        dioxus_primitives::checkbox::CheckboxState::Checked
+                                                                        CheckboxState::Checked
                                                                     } else {
-                                                                        dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                                        CheckboxState::Unchecked
                                                                     },
                                                                 ),
                                                                 on_checked_change: {
                                                                     let gap_id = gap.id.clone();
                                                                     let action_context = action_context.clone();
-                                                                    move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                                    move |checked: CheckboxState| {
                                                                         on_action
                                                                             .call(
                                                                                 action_context
@@ -725,14 +720,14 @@ onclick: {
                                                         aria_label: "Automatic gap cleanup",
                                                         checked: Some(
                                                             if projection.repair.enabled {
-                                                                dioxus_primitives::checkbox::CheckboxState::Checked
+                                                                CheckboxState::Checked
                                                             } else {
-                                                                dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                                CheckboxState::Unchecked
                                                             },
                                                         ),
                                                         on_checked_change: {
                                                             let action_context = action_context.clone();
-                                                            move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                                            move |checked: CheckboxState| {
                                                                 on_action
                                                                     .call(
                                                                         action_context

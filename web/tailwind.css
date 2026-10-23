@@ -1048,7 +1048,8 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .board-accordion-content { padding: 8px 12px 16px; }
 .board-accordion-content label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; }
 .board-accordion-content label:has(select), .board-accordion-content label:has(input[type="number"]) { flex-wrap: wrap; }
-.m1-object-layer-dock .board-accordion .m1-layer-list { position: static; width: 100%; max-height: none; overflow: visible; padding: 0; border: 0; background: transparent; }
+.m1-object-layer-dock .board-accordion .m1-layer-list,
+.m1-object-layer-dock .m1-layers[data-slot="collapsible"] .m1-layer-list { position: static; width: 100%; max-height: none; overflow: visible; padding: 0; border: 0; background: transparent; }
 .m1-matrix-assembly-picker h3 { margin: 0; font-size: var(--wb-type-label); }
 .m1-matrix-assembly-picker > div[data-orientation] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .m1-matrix-assembly-choice { display: grid; min-height: 58px; grid-template-columns: 28px max-content; justify-content: center; align-items: center; gap: 8px; padding: 6px; text-align: left; }
@@ -1575,7 +1576,7 @@ label:has(> .board-checkbox:disabled) { cursor: default; }
 .m1-layout-snap-dock .board-popover-trigger small { margin-left: auto; color: var(--wb-muted); }
 .m1-layout-snap-dock .m1-layout-command-menu-header { display: flex; min-height: 36px; align-items: center; justify-content: space-between; gap: var(--wb-space-2); margin-bottom: var(--wb-space-2); padding-bottom: var(--wb-space-2); border-bottom: 1px solid var(--wb-rule); color: var(--wb-ink); font-size: var(--wb-type-label); }
 .m1-object-layer-dock .m1-layer-list > .m1-layer-group { display: grid; gap: 2px; }
-.m1-object-layer-dock .m1-layer-list button { min-height: var(--wb-control-height); border-radius: var(--wb-radius-control); }
+.m1-object-layer-dock .m1-layer-list button:where(:not([data-slot])) { min-height: var(--wb-control-height); border-radius: var(--wb-radius-control); }
 @keyframes m1-dock-panel-rise { from { opacity: .9; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .board-accordion .board-accordion-content[data-open='true'] { animation-duration: var(--wb-motion-reveal); animation-timing-function: var(--wb-ease-out); }
 .board-accordion .board-accordion-content[data-open='false'] { animation-duration: var(--wb-motion-feedback); animation-timing-function: ease-in; }

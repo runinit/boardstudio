@@ -4,11 +4,13 @@ use crate::matrix_transform_operation::{
 };
 use boardstudio_application::{Scope, SnapshotToken};
 use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
+use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
@@ -280,7 +282,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             keep_mounted: true,
                             open: Some(transform_open()),
                             on_open_change: move |next| transform_open.set(next),
-                            CollapsibleTrigger { aria_label: "Position and rotation",  "Transform"  }
+                            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Position and rotation",  "Transform"   ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                             CollapsibleContent {
                                 hidden: !transform_open(),
                                 inert: (!transform_open()).then_some(""),
@@ -454,7 +456,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             keep_mounted: true,
                             open: Some(origin_open()),
                             on_open_change: move |next| origin_open.set(next),
-                            CollapsibleTrigger { aria_label: "Splay and origin",  "Origin & scope"  }
+                            CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Splay and origin",  "Origin & scope"   ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                             CollapsibleContent {
                                 hidden: !origin_open(),
                                 inert: (!origin_open()).then_some(""),
@@ -502,7 +504,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                                     "Pick origin"
 
                                 }
-                                p { class: "m1-empty-note", "Move the origin without moving the keys." }
+                                Callout { variant: CalloutVariant::Info, "Move the origin without moving the keys." }
                             }
                          }
                     },
@@ -527,7 +529,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     keep_mounted: true,
                     open: Some(transform_open()),
                     on_open_change: move |next| transform_open.set(next),
-                    CollapsibleTrigger { "Position & rotation" }
+                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Position & rotation"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                     CollapsibleContent {
                         hidden: !transform_open(),
                         inert: (!transform_open()).then_some(""),
@@ -620,7 +622,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     keep_mounted: true,
                     open: Some(assembly_open()),
                     on_open_change: move |next| assembly_open.set(next),
-                    CollapsibleTrigger { "Key assembly" }
+                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "Key assembly"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                     CollapsibleContent {
                         hidden: !assembly_open(),
                         inert: (!assembly_open()).then_some(""),
@@ -685,7 +687,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     keep_mounted: true,
                     open: Some(transform_open()),
                     on_open_change: move |next| transform_open.set(next),
-                    CollapsibleTrigger { "{title}" }
+                    CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", "{title}"  ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                     CollapsibleContent {
                         hidden: !transform_open(),
                         inert: (!transform_open()).then_some(""),
@@ -1256,12 +1258,12 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                         disabled,
                         checked: Some(
                             if current {
-                                dioxus_primitives::checkbox::CheckboxState::Checked
+                                CheckboxState::Checked
                             } else {
-                                dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                CheckboxState::Unchecked
                             },
                         ),
-                        on_checked_change: move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                        on_checked_change: move |checked: CheckboxState| {
                             let Some(id) = sequence().checked_add(1) else {
                                 return;
                             };
@@ -1482,13 +1484,13 @@ fn AttachedComponentsField(props: AttachedComponentsFieldProps) -> Element {
                         on_edit: props.on_edit,
                     }
                 } else {
-                    p { class: "m1-matrix-empty-note",
+                    Callout { variant: CalloutVariant::Info,
                         "The key assembly and attached components follow the paired half. Replacing one here keeps this key local."
                     }
                 }
             }
             if props.value.is_empty() {
-                p { class: "m1-matrix-empty-note", "No attached components. Apply a component in Parts." }
+                Callout { variant: CalloutVariant::Info, "No attached components. Apply a component in Parts." }
             }
             for (assembly_id, definition_id) in props.value.iter().cloned() {
                 {

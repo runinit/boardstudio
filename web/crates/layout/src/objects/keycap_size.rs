@@ -2,12 +2,11 @@
 use super::keycap_resize::ResizeAxis;
 use super::keycap_size_controller::{KeySizeMount, KeySizeOwner, KeySizeRequest};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::{
     combobox::{Combobox, ComboboxOption},
     field::{Field, FieldError, FieldLabel},
-    select::{Select, SelectOption},
 };
 
 use dioxus::prelude::*;
@@ -299,15 +298,15 @@ pub fn KeySizeControls(props: KeySizeControlsProps) -> Element {
                             disabled: !props.mount.editable,
                             checked: Some(
                                 if !mixed && draft().y > draft().x {
-                                    dioxus_primitives::checkbox::CheckboxState::Checked
+                                    CheckboxState::Checked
                                 } else {
-                                    dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                    CheckboxState::Unchecked
                                 },
                             ),
                             on_checked_change: {
                                 let owner = event_owner.clone();
                                 let generation = timer_generation.clone();
-                                move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                move |checked: CheckboxState| {
                                     generation.set(generation.get().wrapping_add(1));
                                     let current = draft();
                                     let long = current.x.max(current.y);

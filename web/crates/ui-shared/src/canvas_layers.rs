@@ -1,6 +1,13 @@
 //! Shared layer control presentation backed by the editor-owned visibility state.
 use super::LayerVisibility;
+use crate::ui::{
+    collapsible::{Collapsible, CollapsibleContent, CollapsibleTrigger},
+    item::{Item, ItemSize},
+    toggle_group::{ToggleGroup, ToggleItem},
+    tooltip::{Tooltip, TooltipContent, TooltipTrigger},
+};
 use dioxus::prelude::*;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LayerTarget {
@@ -86,17 +93,30 @@ pub fn LayerToggleButton(
     on_toggle: EventHandler<()>,
 ) -> Element {
     rsx! {
-        button {
-            r#type: "button",
-            aria_pressed: "{visible}",
-            aria_label,
-            onclick: move |_| on_toggle.call(()),
-            span { class: "m1-layer-swatch", "data-layer": "{swatch}" }
-            span { class: "m1-layer-label", "{label}" }
-            svg { view_box: "0 0 20 20", "aria-hidden": "true",
-                path { d: "M2 10q8-12 16 0-8 12-16 0Z" }
-                circle { cx: "10", cy: "10", r: "2.5" }
-                if !visible { path { d: "m3 17 14-14" } }
+        Item { size: ItemSize::Xs, class: "flex-nowrap gap-2 px-1 py-0",
+            span { class: if visible { "m1-layer-swatch" } else { "m1-layer-swatch opacity-35" }, "data-layer": "{swatch}" }
+            span { class: if visible { "m1-layer-label flex-1" } else { "m1-layer-label flex-1 text-muted-foreground" }, "{label}" }
+            ToggleGroup {
+                aria_label: format!("{label} visibility"),
+                pressed: Some(if visible { HashSet::from([0usize]) } else { HashSet::new() }),
+                on_pressed_change: move |next: HashSet<usize>| {
+                    if next.contains(&0) != visible { on_toggle.call(()); }
+                },
+                Tooltip {
+                    TooltipTrigger { r#as: {
+                        let aria_label = aria_label.clone();
+                        move |attributes: Vec<Attribute>| rsx! {
+                            ToggleItem { index: 0usize, aria_label: aria_label.clone(), class: "min-h-11 min-w-11", attributes,
+                                svg { view_box: "0 0 20 20", "aria-hidden": "true",
+                                    path { d: "M2 10q8-12 16 0-8 12-16 0Z" }
+                                    circle { cx: "10", cy: "10", r: "2.5" }
+                                    if !visible { path { d: "m3 17 14-14" } }
+                                }
+                            }
+                        }
+                    } }
+                    TooltipContent { "{aria_label}" }
+                }
             }
         }
     }
@@ -111,6 +131,7 @@ pub fn LayerPanel(
     list_id: String,
     children: Element,
 ) -> Element {
+    let mut open = use_signal(|| initially_open);
     let keydown_trigger_id = trigger_id.clone();
     let onkeydown = move |event: KeyboardEvent| {
         use wasm_bindgen::JsCast;
@@ -129,11 +150,16 @@ pub fn LayerPanel(
         }
     };
     rsx! {
-        super::controls::BoardAccordionSection {
-            id: trigger_id, label: trigger_label.clone(), class: "m1-layers",
-            initially_open, onkeydown,
-            heading: rsx! { span { "{trigger_label}" } },
-            div { id: "{list_id}", class: "m1-layer-list", {children} }
+        Collapsible {
+            class: "m1-layers", keep_mounted: true,
+            open: Some(open()), on_open_change: move |next| open.set(next),
+            attributes: vec![dioxus::events::onkeydown(onkeydown)],
+            CollapsibleTrigger { id: trigger_id, aria_label: trigger_label.clone(), class: "min-h-11 px-3 py-2",
+                span { "{trigger_label}" }
+            }
+            CollapsibleContent { id: list_id, class: "m1-layer-list", hidden: !open(), inert: (!open()).then_some(""),
+                {children}
+            }
         }
     }
 }

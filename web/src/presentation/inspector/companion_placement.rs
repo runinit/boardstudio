@@ -3,25 +3,23 @@ use boardstudio_core::model::{
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::ui::alert::{Alert, AlertDescription, AlertVariant};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::callout::{Callout, CalloutVariant};
-use boardstudio_web_ui_shared::ui::checkbox::Checkbox;
+use boardstudio_web_ui_shared::ui::checkbox::{Checkbox, CheckboxState};
 use boardstudio_web_ui_shared::ui::collapsible::{
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 };
 use boardstudio_web_ui_shared::ui::label::Label;
 use boardstudio_web_ui_shared::ui::{
-    combobox::{Combobox, ComboboxOption},
-    field::{Field, FieldError, FieldLabel},
+    field::{Field, FieldLabel},
     select::{Select, SelectOption},
 };
 use boardstudio_web_ui_shared::ui::{
     input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
+    input_group::{InputGroup, InputGroupInput},
 };
 
+use boardstudio_web_ui_shared::ui::icons::ChevronDown;
 use dioxus::prelude::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -235,10 +233,10 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                 keep_mounted: true,
                 open: Some(placement_section_open()),
                 on_open_change: move |next| placement_section_open.set(next),
-                CollapsibleTrigger { aria_label: "Companion placement",
+                CollapsibleTrigger { class: "group min-h-control-touch w-full justify-start px-3 py-2 text-left text-sm font-semibold", aria_label: "Companion placement",
                     span { "Companion placement" }
                     small { "{summary}" }
-                }
+                 ChevronDown { class: "ml-auto size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" } }
                 CollapsibleContent {
                     hidden: !placement_section_open(),
                     inert: (!placement_section_open()).then_some(""),
@@ -372,13 +370,13 @@ pub fn CompanionPlacementInspector(mut props: CompanionPlacementInspectorProps) 
                                             id: check_id.clone(),
                                             checked: Some(
                                                 if pair_default() {
-                                                    dioxus_primitives::checkbox::CheckboxState::Checked
+                                                    CheckboxState::Checked
                                                 } else {
-                                                    dioxus_primitives::checkbox::CheckboxState::Unchecked
+                                                    CheckboxState::Unchecked
                                                 },
                                             ),
                                             disabled,
-                                            on_checked_change: move |checked: dioxus_primitives::checkbox::CheckboxState| {
+                                            on_checked_change: move |checked: CheckboxState| {
                                                 pair_default.set(bool::from(checked))
                                             },
                                             aria_label: "Also set the pair default",

@@ -3,14 +3,9 @@ use boardstudio_core::{
     model::{PartKind, ProjectDoc, SceneDelta, Severity},
 };
 pub use boardstudio_web_ui_model::state::{PendingNewKeyboard, SetupGuideRequest};
-use boardstudio_web_ui_shared::ui::button::{Button, ButtonSize, ButtonVariant};
+use boardstudio_web_ui_shared::ui::button::{Button, ButtonVariant};
 use boardstudio_web_ui_shared::ui::field::{Field, FieldLabel};
-use boardstudio_web_ui_shared::ui::{
-    input::InputType,
-    input_group::{
-        InputGroup, InputGroupAddon, InputGroupAddonAlign, InputGroupInput, InputGroupText,
-    },
-};
+use boardstudio_web_ui_shared::ui::input_group::{InputGroup, InputGroupInput};
 
 use boardstudio_web_ui_shared::ui::accordion::{Accordion, AccordionItem, AccordionTrigger};
 use dioxus::prelude::*;
@@ -416,7 +411,7 @@ pub fn ProjectSetupGuide(
     value: "{project_name}",
     oninput: move |event: FormEvent| on_name_change.call(event.value()),
     id: control_input_id.clone(),
-    attributes: vec![dioxus::events::onblur(move |_| on_name_commit.call(())),dioxus::events::onkeydown(move |event| {
+    attributes: vec![dioxus::events::onblur(move |_| on_name_commit.call(())),dioxus::events::onkeydown(move |event: KeyboardEvent| {
                                                         if event.key() == Key::Enter
                                                             && let Some(input) = event.data().try_as_web_event()
                                                                 .and_then(|event| event.target())
