@@ -1892,22 +1892,41 @@ fn apply_with_ledger(
                 .clone();
             // Dependants keep their current world frame instead of dangling.
             let mut detached = matrix::anchors::detach_dependants(doc, id)?;
-            layout::remove_matrix(doc, id);
+            // Ticket 21: linked partners follow the deletion or survive it
+            // complete; only defunct pair records retire.
+            let follow = layout::plan_linked_matrix_removal(doc, id, &mut detached)?;
+            for gone in std::iter::once(id.clone())
+                .chain(follow.matrices.clone())
+                .chain(follow.retired.clone())
+            {
+                layout::remove_matrix(doc, &gone);
+            }
+            let mut ids = ids;
+            ids.extend(follow.part_ids);
             let mut changed = apply(doc, &[], &EditOperation::RemoveParts { ids })?;
             changed.append(&mut detached);
-            doc.matrices.retain(|matrix| matrix.id != *id);
-            let prefix = format!("matrix/{id}/net/");
-            let empty_owned: std::collections::BTreeSet<_> = doc
-                .nets
-                .iter()
-                .filter(|net| net.id.starts_with(&prefix) && net.pins.is_empty())
-                .map(|net| net.id.clone())
-                .collect();
+            doc.matrices.retain(|matrix| {
+                matrix.id != *id
+                    && !follow.matrices.contains(&matrix.id)
+                    && !follow.retired.contains(&matrix.id)
+            });
+            let mut empty_owned: std::collections::BTreeSet<_> = std::collections::BTreeSet::new();
+            for gone in std::iter::once(id.clone()).chain(follow.matrices.clone()) {
+                let prefix = format!("matrix/{gone}/net/");
+                empty_owned.extend(
+                    doc.nets
+                        .iter()
+                        .filter(|net| net.id.starts_with(&prefix) && net.pins.is_empty())
+                        .map(|net| net.id.clone()),
+                );
+            }
             doc.nets.retain(|net| !empty_owned.contains(&net.id));
             for board in &mut doc.boards {
                 board.net_ids.retain(|id| !empty_owned.contains(id));
             }
             changed.push(id.clone());
+            changed.extend(follow.matrices);
+            changed.extend(follow.retired);
             Ok(changed)
         }
         EditOperation::SetMatrixCellsEnabled { cells, enabled } => {

@@ -1909,6 +1909,132 @@ pub(crate) fn apply_exception_transitions(
     Ok(changed)
 }
 
+/// Follow-deleted mirror matrices and their member parts for one removal,
+/// plus retired absent (Omitted) records that leave no parts behind.
+#[derive(Default)]
+pub(crate) struct LinkedRemovalFollow {
+    pub matrices: Vec<String>,
+    pub part_ids: Vec<String>,
+    pub retired: Vec<String>,
+}
+
+/// Ticket 21: source-removal lifecycle for linked matrix pairs. A Local
+/// partner survives complete with its dimensions, layout and parts; only
+/// the defunct pair records retire. A linked partner follows the deletion;
+/// an Omitted partner stays absent and its record retires. Dependants of
+/// retired records detach keeping their frame (an asymmetric detach still
+/// refuses naming its Local exception). Unrelated pairs, surviving
+/// ownership and anchors are preserved; no replacement is joined.
+pub(crate) fn plan_linked_matrix_removal(
+    doc: &mut ProjectDoc,
+    matrix_id: &str,
+    detached: &mut Vec<String>,
+) -> Result<LinkedRemovalFollow, String> {
+    let pairs: Vec<(String, String)> = doc
+        .layouts
+        .iter()
+        .filter_map(|layout| layout.mirror_link.as_ref())
+        .flat_map(|link| link.correspondences.iter())
+        .filter(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && (record.source_id == matrix_id || record.mirror_id == matrix_id)
+        })
+        .map(|record| (record.source_id.clone(), record.mirror_id.clone()))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut follow = LinkedRemovalFollow::default();
+    let mut retired_members: Vec<String> = vec![matrix_id.to_string()];
+    for (source_id, mirror_id) in &pairs {
+        let removed_is_source = source_id == matrix_id;
+        let partner_id = if removed_is_source {
+            mirror_id.clone()
+        } else {
+            source_id.clone()
+        };
+        if removed_is_source {
+            match exception_state(doc, MirroredItemKind::Matrix, &partner_id) {
+                // The Local partner survives complete; only the defunct
+                // pair records retire below.
+                Some(MirroredExceptionState::Local) => {}
+                // The absent partner stays absent: detach its dependants
+                // keeping their frame, then retire its record.
+                Some(MirroredExceptionState::Omitted) => {
+                    detached.extend(matrix::anchors::detach_dependants(doc, &partner_id)?);
+                    doc.matrices.retain(|matrix| matrix.id != partner_id);
+                    follow.retired.push(partner_id.clone());
+                    retired_members.push(partner_id.clone());
+                }
+                // A linked partner follows the deletion with its parts.
+                None => {
+                    detached.extend(matrix::anchors::detach_dependants(doc, &partner_id)?);
+                    if let Some(record) =
+                        doc.matrices.iter().find(|matrix| matrix.id == partner_id)
+                    {
+                        follow.part_ids.extend(record.part_ids.iter().cloned());
+                    }
+                    doc.matrices.retain(|matrix| matrix.id != partner_id);
+                    follow.matrices.push(partner_id.clone());
+                    retired_members.push(partner_id.clone());
+                }
+            }
+        }
+        retire_pair_records(doc, source_id, mirror_id, &retired_members);
+    }
+    Ok(follow)
+}
+
+/// Retire the matrix/part correspondences and member exceptions for one
+/// matrix pair, limited to members of removed records. Surviving members
+/// keep their exceptions and ownership.
+fn retire_pair_records(
+    doc: &mut ProjectDoc,
+    source_id: &str,
+    mirror_id: &str,
+    retired_members: &[String],
+) {
+    let source_prefix = format!("matrix/{source_id}/");
+    let mirror_prefix = format!("matrix/{mirror_id}/");
+    for layout in &mut doc.layouts {
+        let Some(link) = layout.mirror_link.as_mut() else {
+            continue;
+        };
+        link.correspondences.retain(|record| {
+            if record.kind == MirroredItemKind::Matrix
+                && ((record.source_id == source_id && record.mirror_id == mirror_id)
+                    || (record.source_id == mirror_id && record.mirror_id == source_id))
+            {
+                return false;
+            }
+            if record.kind == MirroredItemKind::Part
+                && ((record.source_id.starts_with(&source_prefix)
+                    && record.mirror_id.starts_with(&mirror_prefix))
+                    || (record.source_id.starts_with(&mirror_prefix)
+                        && record.mirror_id.starts_with(&source_prefix)))
+            {
+                return false;
+            }
+            true
+        });
+        link.exceptions.retain(|exception| {
+            if exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_id {
+                return !retired_members.iter().any(|removed| removed == mirror_id);
+            }
+            if exception.kind == MirroredItemKind::Part {
+                for removed in retired_members {
+                    if exception
+                        .mirror_id
+                        .starts_with(&format!("matrix/{removed}/"))
+                    {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
+    }
+}
+
 /// Ticket 21: record a Local matrix exception for a confirmed linked
 /// detach. Refuses when the matrix is not a linked mirror member or the
 /// overlay already exists, so stale confirmations change nothing.

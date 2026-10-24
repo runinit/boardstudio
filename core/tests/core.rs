@@ -2603,6 +2603,11 @@ fn mirrored_pair_links_extra_components_and_unlink_preserves_poses() {
 
 #[test]
 fn mirrored_pair_deletion_keeps_surviving_half_and_cleans_membership() {
+    // Ticket 21 supersedes the old linked survival: a plain linked
+    // counterpart follows the source deletion, while a Local counterpart
+    // survives complete and its layout turns independent. Name kept for the
+    // native baseline; the linked follow-deletion itself is proven in
+    // `matrix_anchors::linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair`.
     let (mut engine, doc) = linked_pair();
     let removed = scene(engine.handle(edit(
         doc.revision,
@@ -2614,6 +2619,29 @@ fn mirrored_pair_deletion_keeps_surviving_half_and_cleans_membership() {
     .1;
     assert_eq!(removed.parts.len(), 10);
     assert_reflected_keys(&removed);
+    // The surviving half goes Local before the source is deleted.
+    let mut right_layout = removed.layouts[1].clone();
+    right_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            companion_mode: None,
+            companion_tweak: None,
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "right-matrix".into(),
+            state: MirroredExceptionState::Local,
+            removed_copper: None,
+        });
+    let removed = scene(engine.handle(edit(
+        removed.revision,
+        EditPhase::Commit,
+        EditOperation::SetLayout {
+            layout: right_layout,
+        },
+    )))
+    .1;
     let surviving = removed.matrices[1].clone();
     let removed = scene(engine.handle(edit(
         removed.revision,

@@ -2841,3 +2841,240 @@ fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
     assert!(stale.contains("stale"), "unexpected message: {stale:?}");
     assert_eq!(snapshot(&mut engine), current);
 }
+
+#[test]
+fn linked_source_removal_retains_local_matrix_and_retires_only_defunct_links() {
+    // Ticket 21: deleting a source matrix retains its complete Local
+    // counterpart (not loose parts), retires only the defunct records, and
+    // preserves surviving ownership, anchors and unrelated links.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, removed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrix { id: "main".into() },
+    );
+    // Source gone with its parts; the Local matrix survives complete.
+    assert!(
+        removed.matrices.iter().all(|matrix| matrix.id != "main"),
+        "source matrix removed"
+    );
+    assert!(
+        removed
+            .parts
+            .iter()
+            .all(|part| !part.id.starts_with("matrix/main/")),
+        "source parts removed"
+    );
+    let survivor = removed
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("complete Local survivor");
+    assert_eq!((survivor.rows, survivor.columns), (1, 3));
+    for column in 0..3 {
+        assert!(
+            removed
+                .parts
+                .iter()
+                .any(|part| part.id == member("main2", 0, column)),
+            "survivor part (0,{column}) retained"
+        );
+    }
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/main2/") {
+            assert_eq!(pose_of(&removed, id), *pose, "{id}");
+        }
+    }
+    // Only the defunct correspondence retired; the unrelated pair intact.
+    let link = removed
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .expect("surviving link");
+    assert!(
+        link.correspondences.iter().all(|record| {
+            !(record.kind == MirroredItemKind::Matrix
+                && (record.source_id == "main" || record.mirror_id == "main2"))
+        }),
+        "defunct matrix correspondence retired"
+    );
+    assert!(
+        link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == "thumb"
+                && record.mirror_id == "thumb2"
+        }),
+        "unrelated link preserved"
+    );
+    // The source-anchored dependent detached with its frame; the surviving
+    // anchored pair still evaluates.
+    assert_eq!(anchor_of(&removed, "thumb"), None);
+    assert_eq!(
+        pose_of(&removed, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    // One Undo restores the source; Redo removes it again.
+    let undone_doc = undone(&mut engine);
+    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
+    let redone_doc = redone(&mut engine);
+    assert!(redone_doc.matrices.iter().all(|matrix| matrix.id != "main"));
+    assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "main2"));
+}
+
+#[test]
+fn linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair() {
+    // Ticket 21: without an exception the linked counterpart follows the
+    // source deletion; unrelated pairs and their poses survive.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, removed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrix { id: "main".into() },
+    );
+    // Both halves of the removed pair are gone with their parts.
+    for gone in ["main", "main2"] {
+        assert!(
+            removed.matrices.iter().all(|matrix| matrix.id != gone),
+            "{gone} removed"
+        );
+        assert!(
+            removed
+                .parts
+                .iter()
+                .all(|part| !part.id.starts_with(&format!("matrix/{gone}/"))),
+            "{gone} parts removed"
+        );
+    }
+    // The unrelated pair survives with its poses and correspondence.
+    for kept in ["thumb", "thumb2"] {
+        assert!(
+            removed.matrices.iter().any(|matrix| matrix.id == kept),
+            "{kept} survives"
+        );
+    }
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb") {
+            assert_eq!(pose_of(&removed, id), *pose, "{id}");
+        }
+    }
+    let link = removed
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .expect("surviving link");
+    assert!(
+        link.correspondences.iter().any(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == "thumb"
+                && record.mirror_id == "thumb2"
+        }),
+        "unrelated correspondence preserved"
+    );
+    assert!(
+        link.correspondences.iter().all(|record| {
+            record.source_id != "main" && record.mirror_id != "main2"
+        }),
+        "defunct records retired"
+    );
+    let undone_doc = undone(&mut engine);
+    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
+    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main2"));
+}
+
+#[test]
+fn linked_source_removal_retires_omitted_records_without_resurrection() {
+    // Ticket 21: an Omitted counterpart stays absent and its record retires
+    // with the source; nothing resurrects it.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, removed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrix { id: "main".into() },
+    );
+    assert!(
+        removed.matrices.iter().all(|matrix| matrix.id != "main"),
+        "source removed"
+    );
+    assert!(
+        removed.matrices.iter().all(|matrix| matrix.id != "main2"),
+        "omitted record retired"
+    );
+    assert!(
+        removed
+            .parts
+            .iter()
+            .all(|part| !part.id.starts_with("matrix/main2/")),
+        "nothing resurrected"
+    );
+    // The surviving pair still evaluates through its live anchors.
+    assert_eq!(
+        pose_of(&removed, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    let undone_doc = undone(&mut engine);
+    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
+}
