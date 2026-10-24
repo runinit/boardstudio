@@ -1047,6 +1047,63 @@ fn apply_pending_splay_origin_pick(
     true
 }
 
+/// A pending anchor-key pick and the picked key identity: the canvas hit
+/// already carries the key, so unlike the splay pick there is no world point
+/// to resolve.
+struct PendingAnchorPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    matrix_id: String,
+    row: u32,
+    column: u32,
+}
+
+fn apply_pending_anchor_pick(
+    runtime: &Runtime,
+    workspace: Signal<&'static str>,
+    adapter: &SelectionAdapter,
+    owner: &LayoutOwnerIdentity,
+    pick: PendingAnchorPick<'_>,
+) -> bool {
+    let PendingAnchorPick {
+        pending,
+        inspector,
+        matrix_id,
+        row,
+        column,
+    } = pick;
+    let Some(picked_owner) = pending.peek().clone() else {
+        return false;
+    };
+    pending.set(None);
+    let selected_is_current = adapter
+        .selected_context
+        .read()
+        .as_ref()
+        .is_some_and(|selected| {
+            selected.scope == picked_owner.scope
+                && selected.context == picked_owner.context
+                && matches!(&selected.context, objects::TreeContext::Matrix { .. })
+                && selection::context_is_current(
+                    &runtime.model(),
+                    &selected.scope,
+                    &selected.context,
+                )
+        });
+    let inspector_is_current = inspector
+        .projection
+        .as_ref()
+        .is_some_and(|projection| projection.owner == picked_owner);
+    if !layout_owner_is_current(runtime, workspace, adapter, owner)
+        || !selected_is_current
+        || !inspector_is_current
+        || !inspector.pick_matrix_anchor(matrix_id, row, column)
+    {
+        runtime.report("Matrix selection changed. Pick the anchor key again.");
+    }
+    true
+}
+
 fn layout_finding_context(
     model: &ReadModel,
     target: &keycaps_fit::FindingNavigationTarget,
@@ -2975,6 +3032,7 @@ fn Editor() -> Element {
         "Layout",
     );
     let pending_splay_origin_pick = layout_state.pending_splay_origin_pick();
+    let pending_anchor_pick = layout_state.pending_anchor_pick();
     let layout_align = objects::use_canvas_align(
         runtime.clone(),
         version,
@@ -6265,6 +6323,7 @@ fn Editor() -> Element {
         let canvas_interaction = canvas_interaction.clone();
         let snap_settings = layout_snap_settings;
         let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
@@ -6423,6 +6482,11 @@ fn Editor() -> Element {
             }
             if key == "Escape" && pending_splay_pick.peek().is_some() {
                 pending_splay_pick.set(None);
+                event.prevent_default();
+                return;
+            }
+            if key == "Escape" && pending_anchor_pick.peek().is_some() {
+                pending_anchor_pick.set(None);
                 event.prevent_default();
                 return;
             }
@@ -7856,6 +7920,7 @@ fn Editor() -> Element {
                 on_pick_splay_origin: {
                     let mount = matrix_transform_inspector.clone();
                     let mut pending = pending_splay_origin_pick;
+                    let mut anchor_pending = pending_anchor_pick;
                     EventHandler::new(move |()| {
                         let Some(projection) = mount.projection.as_ref() else {
                             return;
@@ -7865,9 +7930,33 @@ fn Editor() -> Element {
                             objects::TreeContext::Column { .. }
                         ) && mount.editable
                         {
+                            anchor_pending.set(None);
                             pending.set(Some(projection.owner.clone()));
                         }
                     })
+                },
+                on_pick_anchor: {
+                    let mount = matrix_transform_inspector.clone();
+                    let mut pending = pending_anchor_pick;
+                    let mut splay_pending = pending_splay_origin_pick;
+                    EventHandler::new(move |()| {
+                        let Some(projection) = mount.projection.as_ref() else {
+                            return;
+                        };
+                        if matches!(
+                            &projection.owner.context,
+                            objects::TreeContext::Matrix { .. }
+                        ) && mount.editable
+                        {
+                            splay_pending.set(None);
+                            pending.set(Some(projection.owner.clone()));
+                        }
+                    })
+                },
+                anchor_pick_pending: pending_anchor_pick().is_some(),
+                on_cancel_anchor_pick: {
+                    let mut pending = pending_anchor_pick;
+                    EventHandler::new(move |()| pending.set(None))
                 },
                 splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
                 on_cancel_splay_origin_pick: {
@@ -8349,6 +8438,7 @@ fn Editor() -> Element {
         let owner = layout_owner.clone();
         let tree_cell_anchor = tree_cell_anchor.clone();
         let mut pending_splay_pick = pending_splay_origin_pick;
+        let mut pending_anchor_pick = pending_anchor_pick;
         let transform_inspector = matrix_transform_inspector.clone();
         let canvas_interaction = canvas_interaction.clone();
         let mirrored_pair = mirrored_pair.clone();
@@ -8384,6 +8474,26 @@ fn Editor() -> Element {
                         inspector: &transform_inspector,
                         point,
                         swing: pointer.ctrl_key(),
+                    },
+                );
+                return;
+            }
+            if pending_anchor_pick.peek().is_some() {
+                // Key-identity hits retarget the anchor; the world point is
+                // irrelevant, so no coordinate resolution can fail here.
+                pointer.prevent_default();
+                pointer.stop_propagation();
+                apply_pending_anchor_pick(
+                    &runtime,
+                    workspace,
+                    &adapter,
+                    &owner,
+                    PendingAnchorPick {
+                        pending: &mut pending_anchor_pick,
+                        inspector: &transform_inspector,
+                        matrix_id: request.matrix_id.clone(),
+                        row: request.row,
+                        column: request.column,
                     },
                 );
                 return;
@@ -9090,6 +9200,11 @@ fn Editor() -> Element {
                     if active_workspace == "Layout" && pending_splay_origin_pick().is_some() {
                         div { class: "m1-canvas-placement-hint", role: "status",
                             "Pick splay origin · Click the canvas · Esc cancels"
+                        }
+                    }
+                    if active_workspace == "Layout" && pending_anchor_pick().is_some() {
+                        div { class: "m1-canvas-placement-hint", role: "status",
+                            "Pick anchor key · Click a key · Esc cancels"
                         }
                     }
                 }

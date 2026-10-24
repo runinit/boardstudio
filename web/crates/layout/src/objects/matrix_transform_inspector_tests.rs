@@ -135,7 +135,13 @@ fn matrix_transform_host() -> Element {
             }
         }
         div { id: "inspector-geometry-test",
-            MatrixTransformInspector { mount, on_pick_splay_origin: |_| {} }
+            MatrixTransformInspector {
+                mount,
+                on_pick_splay_origin: |_| {},
+                on_pick_anchor: |_| {},
+                anchor_pick_pending: false,
+                on_cancel_anchor_pick: |_| {},
+            }
         }
     }
 }
@@ -3256,6 +3262,219 @@ fn add_anchored_matrix_fixture() -> (ProjectDoc, TreeContext) {
         mirror_link: None,
     });
     (document, selected)
+}
+
+/// A second anchor target for the anchor Pick: another 1x1 matrix in the same
+/// Layout with a live key part.
+fn pick_anchor_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, context) = anchored_matrix_fixture(true);
+    document.layouts[0].matrix_ids.push("matrix-c".into());
+    let key_id = "matrix/matrix-c/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 120.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-c".into(),
+        name: Some("Other".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (document, context)
+}
+
+/// Ticket 23 slice, RED: the anchor block offers Pick anchor, and applying
+/// the picked key retargets via SetMatrixAnchor as one atomic intent with one
+/// Undo entry.
+#[wasm_bindgen_test]
+async fn anchor_pick_retargets_the_anchor_with_one_undo() {
+    let (document, context) = pick_anchor_fixture();
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-anchor-pick-test", document, context, &[]).await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    assert!(
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .any(|node| node.text_content().as_deref() == Some("Pick anchor")),
+        "the anchor block offers Pick anchor"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_matrix_anchor("matrix-c".into(), 0, 0);
+    assert!(submitted, "the picked key reaches the transform request");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor,
+        Some(MatrixAnchor {
+            matrix_id: "matrix-c".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        }),
+        "the pick retargets the anchor keeping Follow"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the retarget is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .matrix_id
+            .as_str(),
+        "matrix",
+        "one Undo restores the previous anchor target"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice, RED: picking an invalid anchor target refuses through
+/// Core and surfaces the refusal without committing.
+#[wasm_bindgen_test]
+async fn anchor_pick_refuses_an_invalid_target_without_committing() {
+    let (document, context) = pick_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-anchor-pick-refusal-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_matrix_anchor("matrix-b".into(), 0, 0);
+    assert!(submitted, "the self pick reaches Core for validation");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after.document.revision, revision_before,
+        "a refused pick commits nothing"
+    );
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .matrix_id
+            .as_str(),
+        "matrix",
+        "a refused pick keeps the anchor target"
+    );
+    let alerts = root.query_selector_all("[role='alert']").unwrap();
+    assert!(
+        (0..alerts.length())
+            .filter_map(|index| alerts.item(index))
+            .any(|node| node
+                .text_content()
+                .is_some_and(|text| text.contains("cannot anchor to itself"))),
+        "the refusal surfaces beside the anchor block"
+    );
+    root.remove();
 }
 
 /// Ticket 23 slice, RED: a Key selection offers Add anchored matrix, driving

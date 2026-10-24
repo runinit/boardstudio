@@ -399,6 +399,7 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::DeleteSelection => "Delete",
         MatrixTransformField::MatrixDetach => "Detach",
         MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
+        MatrixTransformField::MatrixAnchorPick => "Pick anchor",
         MatrixTransformField::MatrixFollowX => "Follow X",
         MatrixTransformField::MatrixFollowY => "Follow Y",
         MatrixTransformField::MatrixFollowRotation => "Follow rotation",
@@ -441,6 +442,51 @@ impl MatrixTransformInspectorMount {
             .find(|(candidate, _, _)| *candidate == field)
             .expect("numeric transform field has a stable view");
         (*draft, *failure)
+    }
+
+    /// A canvas pick of the anchor key: retargets the anchor to the picked
+    /// key identity, keeping the Follow subset, through one `SetMatrixAnchor`
+    /// intent. Core validates the target (same Layout, no cycle, not
+    /// constraint-driven) and its refusal surfaces through the Inspector
+    /// feedback beside the anchor block.
+    pub fn pick_matrix_anchor(&self, matrix_id: String, row: u32, column: u32) -> bool {
+        let Some(projection) = self.projection.as_ref() else {
+            return false;
+        };
+        let MatrixTransformFields::Matrix { .. } = &projection.fields else {
+            return false;
+        };
+        if !self.editable {
+            return false;
+        }
+        let Some(request_id) = (self.request_sequence)().checked_add(1) else {
+            return false;
+        };
+        let mut request_sequence = self.request_sequence;
+        request_sequence.set(request_id);
+        self.on_edit.call(MatrixTransformRequest {
+            owner: projection.owner.clone(),
+            request_id,
+            snapshot_token: projection.snapshot_token,
+            revision: projection.revision,
+            field: MatrixTransformField::MatrixAnchorPick,
+            baseline: MatrixTransformValue::AnchorKey {
+                matrix_id: String::new(),
+                row: u32::MAX,
+                column: u32::MAX,
+            },
+            value: MatrixTransformValue::AnchorKey {
+                matrix_id,
+                row,
+                column,
+            },
+            splay_affect: (self.splay_affect)(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+        true
     }
 
     /// A canvas pick of the splay origin. With Ctrl held the pick swings the
@@ -990,9 +1036,7 @@ pub fn use_workspace_matrix_transform(
             {
                 selected_keys_delete_resolver(request.owner.matrix_id.clone(), selected_cells)
             } else if request.field == MatrixTransformField::KeyAddAnchoredMatrix
-                && let TreeContext::Key {
-                    row, column, ..
-                } = &request.owner.context
+                && let TreeContext::Key { row, column, .. } = &request.owner.context
                 && let MatrixTransformValue::Text(proposed_id) = &resolved_value
             {
                 add_anchored_matrix_resolver(

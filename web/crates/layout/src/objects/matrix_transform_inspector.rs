@@ -97,6 +97,9 @@ pub struct MatrixTransformProjection {
 pub struct MatrixTransformInspectorProps {
     pub mount: MatrixTransformInspectorMount,
     pub on_pick_splay_origin: EventHandler<()>,
+    pub on_pick_anchor: EventHandler<()>,
+    pub anchor_pick_pending: bool,
+    pub on_cancel_anchor_pick: EventHandler<()>,
 }
 
 #[component]
@@ -180,6 +183,19 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         detach_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetach),
                         confirm_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetachConfirm),
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
+                    PickAnchorButton {
+                        editable: props.mount.editable,
+                        pending: props.anchor_pick_pending,
+                        on_pick_anchor: props.on_pick_anchor,
+                        on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+                    }
+                    if let Some(message) = props.mount.feedback.iter().rev().find(|item| {
+                        item.owner == owner
+                            && item.field == MatrixTransformField::MatrixAnchorPick
+                            && item.message.is_some()
+                    }).and_then(|item| item.message.clone()) {
+                        p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
                     }
                 } else {
                     p { class: "m1-empty-note", "No anchor. The matrix places itself." }
@@ -1360,6 +1376,41 @@ fn DetachAnchorButton(props: DetachAnchorButtonProps) -> Element {
             }
             if let Some(message) = error.as_deref() {
                 p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+            }
+        }
+    }
+}
+
+/// Retarget the anchor by picking a key on the canvas. Arming the pick is a
+/// presentation concern (the Inspector only fires `on_pick_anchor`); the
+/// canvas hit funnels into `MatrixTransformInspectorMount::pick_matrix_anchor`
+/// with the picked key identity and Core validates the target.
+#[derive(Props, Clone, PartialEq)]
+struct PickAnchorButtonProps {
+    editable: bool,
+    pending: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
+}
+
+#[component]
+fn PickAnchorButton(props: PickAnchorButtonProps) -> Element {
+    rsx! {
+        if props.pending {
+            p { class: "m1-empty-note",
+                "Click a key on the canvas to retarget the anchor."
+            }
+            BoardButton {
+                r#type: "button", class: "m1-inspector-secondary",
+                onclick: move |_| props.on_cancel_anchor_pick.call(()),
+                "Cancel anchor pick"
+            }
+        } else {
+            BoardButton {
+                r#type: "button", class: "m1-inspector-secondary",
+                disabled: !props.editable,
+                onclick: move |_| props.on_pick_anchor.call(()),
+                "Pick anchor"
             }
         }
     }

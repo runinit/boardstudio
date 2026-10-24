@@ -45,6 +45,7 @@ pub enum MatrixTransformField {
     DeleteSelection,
     MatrixDetach,
     MatrixDetachConfirm,
+    MatrixAnchorPick,
     MatrixFollowX,
     MatrixFollowY,
     MatrixFollowRotation,
@@ -55,9 +56,17 @@ pub enum MatrixTransformValue {
     Number(f64),
     Mirror(Option<Mirror>),
     Offset(Vec2),
-    CellTransform { offset: Vec2, rotation: f64 },
+    CellTransform {
+        offset: Vec2,
+        rotation: f64,
+    },
     OriginMode(bool),
     Point(Vec2),
+    AnchorKey {
+        matrix_id: String,
+        row: u32,
+        column: u32,
+    },
     Bool(bool),
     Text(String),
     Attached(Vec<(String, String)>),
@@ -289,6 +298,31 @@ pub fn build_operation(
             matrix_id: matrix.id.clone(),
             local_matrix_id,
         }),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixAnchorPick,
+            Value::AnchorKey {
+                matrix_id,
+                row,
+                column,
+            },
+        ) => Ok(EditOperation::SetMatrixAnchor {
+            matrix_id: matrix.id.clone(),
+            anchor: MatrixAnchor {
+                matrix_id: matrix_id.clone(),
+                row,
+                column,
+                follow: current.follow,
+            },
+        }),
+        (
+            MatrixTransformFields::Matrix { anchor: None, .. },
+            Field::MatrixAnchorPick,
+            Value::AnchorKey { .. },
+        ) => Err("This matrix has no anchor to retarget. Anchor it first.".into()),
         (
             MatrixTransformFields::Matrix {
                 anchor: Some(current),

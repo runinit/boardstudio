@@ -2863,6 +2863,9 @@ mod matrix_relations_panel {
                 on_pick_splay_origin: EventHandler::new(|()| {}),
                 splay_origin_pick_pending: false,
                 on_cancel_splay_origin_pick: EventHandler::new(|()| {}),
+                on_pick_anchor: EventHandler::new(|()| {}),
+                anchor_pick_pending: false,
+                on_cancel_anchor_pick: EventHandler::new(|()| {}),
                 inspector_tab: state.inspector_tab(),
                 matrix_relations: matrix_context_relations(&model, selected.as_ref()),
                 relation_target: {

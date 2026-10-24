@@ -92,6 +92,9 @@ pub(super) struct InspectorInput {
     pub(super) on_pick_splay_origin: EventHandler<()>,
     pub(super) splay_origin_pick_pending: bool,
     pub(super) on_cancel_splay_origin_pick: EventHandler<()>,
+    pub(super) on_pick_anchor: EventHandler<()>,
+    pub(super) anchor_pick_pending: bool,
+    pub(super) on_cancel_anchor_pick: EventHandler<()>,
     pub(super) inspector_tab: Signal<LayoutInspectorTab>,
     pub(super) matrix_relations: Option<boardstudio_web_layout::matrix_relations::MatrixRelations>,
     /// Resolves a Relations reference against the live accepted document at click time:
@@ -130,6 +133,7 @@ pub(super) struct LayoutWorkspaceState {
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    pending_anchor_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
     pair_created_selection: Signal<Option<objects::MirroredPairCreated>>,
     component_inspector_edits: Signal<super::layout_component_edits::LayoutComponentInspectorEdits>,
     component_inspector_x: Signal<String>,
@@ -164,6 +168,7 @@ pub(super) fn use_layout_workspace_state(
         assembly_3d: use_signal(|| false),
         splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
         pending_splay_origin_pick: use_signal(|| None),
+        pending_anchor_pick: use_signal(|| None),
         pair_created_selection: use_signal(|| None),
         component_inspector_edits: use_signal(
             super::layout_component_edits::LayoutComponentInspectorEdits::new,
@@ -197,6 +202,7 @@ pub(super) fn use_layout_workspace_state(
     use_effect(use_reactive!(|observed_assembly_3d| {
         if observed_assembly_3d {
             state.pending_splay_origin_pick.set(None);
+            state.pending_anchor_pick.set(None);
         }
     }));
     state
@@ -234,6 +240,11 @@ impl LayoutWorkspaceState {
         self,
     ) -> Signal<Option<objects::MatrixTransformInspectorOwner>> {
         self.pending_splay_origin_pick
+    }
+    pub(super) fn pending_anchor_pick(
+        self,
+    ) -> Signal<Option<objects::MatrixTransformInspectorOwner>> {
+        self.pending_anchor_pick
     }
     pub(super) fn pair_created_selection(self) -> Signal<Option<objects::MirroredPairCreated>> {
         self.pair_created_selection
@@ -302,6 +313,7 @@ impl LayoutWorkspaceState {
         self.assembly_3d.set(assembly_3d);
         if assembly_3d {
             self.pending_splay_origin_pick.set(None);
+            self.pending_anchor_pick.set(None);
         }
     }
 
@@ -486,6 +498,7 @@ mod workspace_state_tests {
         let mut inspector_tab = state.inspector_tab();
         let selection_kind = state.selection_kind();
         let mut pending_pick = state.pending_splay_origin_pick();
+        let mut pending_anchor_pick = state.pending_anchor_pick();
         let mut active_tool = state.transform_tool();
         let owner = objects::MatrixTransformInspectorOwner {
             editor_instance_id: 1,
@@ -505,6 +518,7 @@ mod workspace_state_tests {
         };
         let selection_owner = owner.clone();
         let pick_owner = owner.clone();
+        let anchor_pick_owner = owner.clone();
         let selection_kind_label = match selection_kind() {
             objects::LayoutSelectionKind::Matrix => "Matrix",
             objects::LayoutSelectionKind::Row => "Row",
@@ -528,6 +542,7 @@ mod workspace_state_tests {
                 state.set_selection_kind_from_context(&context);
             }, "Select matrix" }
             button { id: "layout-state-arm-pick", onclick: move |_| pending_pick.set(Some(pick_owner.clone())), "Arm origin pick" }
+            button { id: "layout-state-arm-anchor-pick", onclick: move |_| pending_anchor_pick.set(Some(anchor_pick_owner.clone())), "Arm anchor pick" }
             button { id: "layout-state-enter-3d", onclick: move |_| state.set_assembly_3d(true), "Enter 3D" }
             button { id: "layout-state-tool", onclick: move |_| active_tool.set(Some(objects::LayoutTransformTool::Stagger)), "Activate tool" }
             button { id: "layout-state-switch", onclick: move |_| workspace.set("Keycaps"), "Switch workspace" }
@@ -535,6 +550,7 @@ mod workspace_state_tests {
             output { id: "layout-state-selection-kind", "{selection_kind_label}" }
             output { id: "layout-state-selection-present", "{selection_present}" }
             output { id: "layout-state-pending", "{pending_pick().is_some()}" }
+            output { id: "layout-state-anchor-pending", "{pending_anchor_pick().is_some()}" }
             output { id: "layout-state-tool-active", "{active_tool().is_some()}" }
         }
     }
@@ -612,6 +628,14 @@ mod workspace_state_tests {
                 .is_some_and(|pending| pending.text_content().as_deref() == Some("true"))
         })
         .await;
+        click(&document, "layout-state-arm-anchor-pick");
+        wait_until("the anchor pick becomes armed", || {
+            root.query_selector("#layout-state-anchor-pending")
+                .ok()
+                .flatten()
+                .is_some_and(|pending| pending.text_content().as_deref() == Some("true"))
+        })
+        .await;
         click(&document, "layout-state-enter-3d");
         wait_until("entering 3D clears the origin pick", || {
             root.query_selector("#layout-state-pending")
@@ -620,9 +644,24 @@ mod workspace_state_tests {
                 .is_some_and(|pending| pending.text_content().as_deref() == Some("false"))
         })
         .await;
+        wait_until("entering 3D clears the anchor pick", || {
+            root.query_selector("#layout-state-anchor-pending")
+                .ok()
+                .flatten()
+                .is_some_and(|pending| pending.text_content().as_deref() == Some("false"))
+        })
+        .await;
         assert_eq!(
             document
                 .get_element_by_id("layout-state-pending")
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("false")
+        );
+        assert_eq!(
+            document
+                .get_element_by_id("layout-state-anchor-pending")
                 .unwrap()
                 .text_content()
                 .as_deref(),
@@ -859,6 +898,9 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 objects::MatrixTransformInspector {
                     mount: input.matrix_transform_inspector,
                     on_pick_splay_origin: input.on_pick_splay_origin,
+                    on_pick_anchor: input.on_pick_anchor,
+                    anchor_pick_pending: input.anchor_pick_pending,
+                    on_cancel_anchor_pick: input.on_cancel_anchor_pick,
                 }
             }
             if let Some(projection) = input.outline_inspector {
