@@ -1091,6 +1091,17 @@
   "setup_guide_state::tests::unrelated_accepted_edits_preserve_typing_but_project_switch_resets_it"
  ],
  "boardstudio_web_library": [
+  "demo_projects::demo_rebuild_tests::demo_entries_keep_their_identities",
+  "demo_projects::demo_rebuild_tests::macro12_uses_the_single_matrix_recipe_at_3x4",
+  "demo_projects::demo_rebuild_tests::rebuilt_examples_share_pitch_gap_caps_and_board_intent",
+  "demo_projects::demo_rebuild_tests::split42_anchor_edit_moves_thumb_and_counterpart_with_one_undo",
+  "demo_projects::demo_rebuild_tests::split42_has_two_linked_layouts_with_four_matrices",
+  "demo_projects::demo_rebuild_tests::split42_keeps_approved_poses_with_matrix_identities",
+  "demo_projects::demo_rebuild_tests::split42_preview_cancel_leaves_the_document_unchanged",
+  "demo_projects::demo_rebuild_tests::split42_right_half_edit_routes_to_the_left_counterpart",
+  "demo_projects::demo_rebuild_tests::studio60_copies_do_not_share_mutable_state",
+  "demo_projects::demo_rebuild_tests::studio60_is_a_core_generated_v7_matrix_document",
+  "demo_projects::demo_rebuild_tests::studio60_keeps_existing_poses_with_matrix_identities",
   "project_name::tests::admission_rejects_unmounted_changed_owner_and_blank_drafts",
   "project_name::tests::rename_failure_surfaces_the_ticket_message",
   "project_name::tests::rename_lands_trimmed_and_same_name_changes_nothing",
