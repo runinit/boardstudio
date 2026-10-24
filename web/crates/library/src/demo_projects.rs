@@ -595,7 +595,7 @@ mod demo_rebuild_tests {
 
     #[test]
     fn rebuilt_examples_share_pitch_gap_caps_and_board_intent() {
-        for name in ["Studio 60", "Macro 12"] {
+        for name in ["Studio 60", "Macro 12", "Split 42"] {
             let document = DEMO_PROJECTS
                 .iter()
                 .find(|demo| demo.name == name)
@@ -639,6 +639,32 @@ mod demo_rebuild_tests {
             assert!(document.hardware.is_none(), "{name} no hardware claim");
             assert!(document.nets.is_empty(), "{name} no wiring");
             assert!(document.modules.is_empty(), "{name} no controllers");
+            // The part-envelope outline keeps its intent and references the
+            // generated members, not the retired loose-part ids.
+            let envelopes: Vec<_> = document
+                .outline
+                .iter()
+                .filter_map(|feature| match feature {
+                    boardstudio_core::model::OutlineFeature::PartEnvelope {
+                        id,
+                        part_ids,
+                        margin,
+                        ..
+                    } => Some((id.clone(), part_ids.clone(), *margin)),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(envelopes.len(), 1, "{name} one outline envelope");
+            assert_eq!(envelopes[0].0, "demo-outline", "{name} outline identity");
+            assert_eq!(envelopes[0].2, 4.0, "{name} outline margin");
+            assert_eq!(
+                envelopes[0]
+                    .1
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>(),
+                document.parts.iter().map(|part| &part.id).collect(),
+                "{name} outline references every generated member"
+            );
         }
     }
 
