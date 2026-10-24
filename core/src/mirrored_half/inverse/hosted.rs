@@ -182,6 +182,9 @@ pub(super) fn translate(
         | Op::RemoveSelectedMatrixCells { .. }
         | Op::SetMatrixSplay { .. }
         | Op::SetMatrixPlacement { .. }
+        | Op::AddAnchoredMatrix { .. }
+        | Op::SetMatrixAnchor { .. }
+        | Op::DetachMatrixAnchor { .. }
         | Op::SetMatrix { .. }
         | Op::EditKeymap { .. }
         | Op::SetKeyBinding { .. }

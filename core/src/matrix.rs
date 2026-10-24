@@ -19,6 +19,7 @@
 
 pub(crate) mod deletion;
 pub(crate) mod evaluation;
+pub(crate) mod anchors;
 pub mod kernel;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature, Part, Pin,

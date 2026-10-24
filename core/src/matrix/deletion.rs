@@ -440,6 +440,10 @@ pub(crate) fn remove_axis(
         return Ok(changed);
     }
     let mut changes = PartChanges::new();
+    // Anchors at the removed slot detach with their frame while the anchor key
+    // still resolves; later anchors shift after the axis removal is stored.
+    let compacted: Vec<String> = matrices.iter().map(|matrix| matrix.id.clone()).collect();
+    let mut changed = super::anchors::remap_compacted(doc, &compacted, index, row_axis)?;
     for matrix in &mut matrices {
         for row in 0..matrix.rows {
             for column in 0..matrix.columns {
@@ -487,12 +491,13 @@ pub(crate) fn remove_axis(
         remap_ids(&mut matrix.part_ids, &changes);
     }
     let pruned = remap_parts(doc, &changes);
-    let mut changed = changed_ids(&changes);
+    changed.extend(changed_ids(&changes));
     changed.extend(pruned);
     for matrix in matrices {
         changed.extend(set_matrix(doc, &matrix)?);
     }
     changed.extend(layout::sync(doc, matrix_id)?);
+    changed.extend(super::anchors::shift_compacted(doc, &compacted, index, row_axis)?);
     Ok(changed)
 }
 

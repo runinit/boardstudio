@@ -726,6 +726,9 @@ impl CoreEngine {
                     command.operation,
                     EditOperation::SetMatrixPlacement { .. }
                         | EditOperation::SetMatrixSplay { .. }
+                        | EditOperation::AddAnchoredMatrix { .. }
+                        | EditOperation::SetMatrixAnchor { .. }
+                        | EditOperation::DetachMatrixAnchor { .. }
                         | EditOperation::MoveParts { .. }
                 ))
                 && next == self.document)
@@ -1887,8 +1890,11 @@ fn apply_with_ledger(
                 .ok_or("Matrix does not exist")?
                 .part_ids
                 .clone();
+            // Dependants keep their current world frame instead of dangling.
+            let mut detached = matrix::anchors::detach_dependants(doc, id)?;
             layout::remove_matrix(doc, id);
             let mut changed = apply(doc, &[], &EditOperation::RemoveParts { ids })?;
+            changed.append(&mut detached);
             doc.matrices.retain(|matrix| matrix.id != *id);
             let prefix = format!("matrix/{id}/net/");
             let empty_owned: std::collections::BTreeSet<_> = doc
@@ -2041,6 +2047,22 @@ fn apply_with_ledger(
                     doc.definitions.push(definition.clone());
                     changed.push(definition.id.clone());
                 }
+                if let Some(previous) = doc
+                    .matrices
+                    .iter()
+                    .find(|item| item.id == matrix.id)
+                    .cloned()
+                {
+                    // Shrinking never retargets an anchor onto a new key at an old
+                    // coordinate: dependants of removed slots detach with their frame.
+                    changed.extend(matrix::anchors::detach_out_of_range(
+                        doc,
+                        &matrix.id,
+                        matrix.rows,
+                        matrix.columns,
+                    )?);
+                    matrix::anchors::check_anchored_frame_change(doc, &previous, matrix)?;
+                }
                 changed.extend(matrix::set_matrix(doc, matrix)?);
                 changed.extend(layout::sync(doc, &matrix.id)?);
                 layout::sync_member_pairs(doc, &matrix.id)?;
@@ -2093,6 +2115,27 @@ fn apply_with_ledger(
                     changed.extend(layout::sync(doc, matrix_id)?);
                     Ok(changed)
                 },
+            )
+        }
+        EditOperation::AddAnchoredMatrix { id, anchor } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::add(doc, id, anchor),
+            )
+        }
+        EditOperation::SetMatrixAnchor { matrix_id, anchor } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::set_anchor(doc, matrix_id, anchor),
+            )
+        }
+        EditOperation::DetachMatrixAnchor { matrix_id } => {
+            matrix::placement::carrying_authored_companions(
+                doc,
+                matrix::placement::Reported::Moved,
+                |doc| matrix::anchors::detach(doc, matrix_id),
             )
         }
         EditOperation::CreateMirroredPair {
@@ -2259,6 +2302,9 @@ fn apply_with_ledger(
             constraints::convert_offset(doc, constraint_id, *to)
         }
         EditOperation::SetConstraint { constraint } => {
+            if let Some(reason) = matrix::anchors::constraining_refusal(doc, constraint) {
+                return Err(reason);
+            }
             if let Some(current) = doc
                 .constraints
                 .iter_mut()

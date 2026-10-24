@@ -1871,6 +1871,27 @@ pub enum EditOperation {
         matrix_id: String,
         change: MatrixPlacementChange,
     },
+    /// Creates a 1x3 matrix anchored to one key of another matrix. Core assigns
+    /// the anchor target's board, joins its Layout, uses Origin (0, -pitch.y)
+    /// with all Follow components and materializes members in one Undo entry.
+    AddAnchoredMatrix {
+        id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Re-targets one matrix's anchor and Follow subset in one Undo entry.
+    SetMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        anchor: MatrixAnchor,
+    },
+    /// Clears one matrix's anchor after writing its current effective world
+    /// frame to Origin/Rotation, so every pose is unchanged. Linked groups
+    /// detach together; a detach that would need a new Local exception is
+    /// refused and names it instead of silently changing one side.
+    DetachMatrixAnchor {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+    },
     SetConstraint {
         constraint: Constraint,
     },

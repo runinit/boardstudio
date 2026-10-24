@@ -41,7 +41,7 @@ pub(in crate::mirrored_half) use constraints::PreparedConstraintEdit;
 use crate::matrix::splay::rotate as rotate_about;
 use crate::mechanical::pair;
 use crate::model::{
-    EditOperation, Matrix, MatrixSplayChange, Mirror, MirroredCompanionMode,
+    EditOperation, Matrix, MatrixAnchor, MatrixSplayChange, Mirror, MirroredCompanionMode,
     MirroredCompanionTweak, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
     MirroredItemKind, Part, Pose2, Position, ProjectDoc, Vec2,
 };
@@ -285,6 +285,49 @@ pub(super) fn canonicalize(
             canonical.operation = Op::SetMatrixPlacement {
                 matrix_id: id,
                 change,
+            };
+        }
+        // Ticket 19: anchor intents translate their matrix identity like any
+        // other matrix edit. Relative anchor Origin/Rotation reflection through
+        // the pair map is ticket 20's job, so a mirrored anchor payload is
+        // refused instead of silently keeping source-world values.
+        Op::AddAnchoredMatrix { id, anchor } => {
+            let (source_id, mapping) = links.matrix_frame(&anchor.matrix_id)?;
+            if mapping.is_some() {
+                return Err(Refusal::Request(format!(
+                    "Adding an anchored matrix through mirrored half {} needs its reflected counterpart (ticket 20)",
+                    anchor.matrix_id
+                )));
+            }
+            canonical.operation = Op::AddAnchoredMatrix {
+                id: id.clone(),
+                anchor: MatrixAnchor {
+                    matrix_id: source_id,
+                    ..anchor.clone()
+                },
+            };
+        }
+        Op::SetMatrixAnchor { matrix_id, anchor } => {
+            let (id, mapping) = links.matrix_frame(matrix_id)?;
+            let (source_id, target_mapping) = links.matrix_frame(&anchor.matrix_id)?;
+            if mapping.is_some() || target_mapping.is_some() {
+                return Err(Refusal::Request(format!(
+                    "Changing an anchor through mirrored half {matrix_id} needs reflected relative values (ticket 20)"
+                )));
+            }
+            canonical.operation = Op::SetMatrixAnchor {
+                matrix_id: id,
+                anchor: MatrixAnchor {
+                    matrix_id: source_id,
+                    ..anchor.clone()
+                },
+            };
+        }
+        Op::DetachMatrixAnchor { matrix_id } => {
+            // Detach keeps the live world frame, so translating the identity
+            // is enough: the pair sync mirrors the kept pose in the same edit.
+            canonical.operation = Op::DetachMatrixAnchor {
+                matrix_id: links.matrix_id(matrix_id)?,
             };
         }
         Op::SetMatrix {
