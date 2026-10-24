@@ -408,6 +408,8 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::MatrixRotation,
             MatrixTransformField::RowOffsetX,
             MatrixTransformField::RowOffsetY,
+            MatrixTransformField::RowShiftX,
+            MatrixTransformField::RowShiftY,
             MatrixTransformField::ColumnSplay,
             MatrixTransformField::SplayOriginX,
             MatrixTransformField::SplayOriginY,
@@ -416,6 +418,8 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::ColumnOffsetY,
             MatrixTransformField::KeyOffsetX,
             MatrixTransformField::KeyOffsetY,
+            MatrixTransformField::KeyShiftX,
+            MatrixTransformField::KeyShiftY,
             MatrixTransformField::KeyRotation,
         ]
         .into_iter()
@@ -1043,6 +1047,12 @@ fn transform_fields(
                 .map(|record| &record.offset)
                 .copied()
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+            shift: matrix
+                .row_layout
+                .get(*row as usize)
+                .map(|record| &record.shift)
+                .copied()
+                .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
         },
         TreeContext::Column { column, .. } => {
             let scene = snapshot
@@ -1111,6 +1121,9 @@ fn transform_fields(
                     .and_then(|cell| cell.offset)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 rotation: cell.and_then(|cell| cell.rotation).unwrap_or(0.0),
+                shift: cell
+                    .and_then(|cell| cell.shift)
+                    .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
             }
         }
         _ => return None,
@@ -1183,6 +1196,12 @@ fn field_value(
         (MatrixTransformFields::Row { offset, .. }, Field::RowOffsetReset) => {
             Some(Value::Offset(*offset))
         }
+        (MatrixTransformFields::Row { shift, .. }, Field::RowShiftX) => {
+            Some(Value::Number(shift.x))
+        }
+        (MatrixTransformFields::Row { shift, .. }, Field::RowShiftY) => {
+            Some(Value::Number(shift.y))
+        }
         (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetX) => {
             Some(Value::Number(offset.x))
         }
@@ -1232,6 +1251,12 @@ fn field_value(
         }
         (MatrixTransformFields::Key { rotation, .. }, Field::KeyRotation) => {
             Some(Value::Number(*rotation))
+        }
+        (MatrixTransformFields::Key { shift, .. }, Field::KeyShiftX) => {
+            Some(Value::Number(shift.x))
+        }
+        (MatrixTransformFields::Key { shift, .. }, Field::KeyShiftY) => {
+            Some(Value::Number(shift.y))
         }
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))

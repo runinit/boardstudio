@@ -1907,6 +1907,34 @@ fn two_row_fixture() -> (ProjectDoc, TreeContext) {
     (document, selected)
 }
 
+/// A second column over the two-row fixture, so a key Shift has a same-column
+/// later key to carry to and a neighbouring column that must stay still.
+fn shift_grid_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = two_row_fixture();
+    let matrix = &mut document.matrices[0];
+    matrix.columns = 2;
+    for key in ["matrix/matrix/r0c1", "matrix/matrix/r1c1"] {
+        matrix.part_ids.push(key.into());
+        document.boards[0].part_ids.push(key.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: key.into(),
+            definition_id: "key-definition".into(),
+            reference: format!("K{key}"),
+            pose: Pose2 {
+                at: Vec2::default(),
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+    }
+    (document, selected)
+}
+
 fn row_context(row: u32) -> TreeContext {
     TreeContext::Row {
         matrix_id: "matrix".into(),
@@ -1935,7 +1963,7 @@ fn scene_key_at(probe: &Probe, row: u32, column: u32) -> Vec2 {
         .at
 }
 
-/// Ticket 23 first slice, RED: the Row Inspector names the carried Shift fields.
+/// Ticket 23 first slice: the Row Inspector names the carried Shift fields.
 /// Setting Shift X moves the later-row key through Core's running frame as one
 /// accepted edit, and one Undo restores both rows exactly.
 #[wasm_bindgen_test]
@@ -2011,17 +2039,20 @@ async fn inspector_row_shift_moves_later_row_keys_with_one_undo() {
     root.remove();
 }
 
-/// Ticket 23 first slice, RED: the Key Inspector names this-only Shift fields.
-/// Setting Shift X moves exactly that key through Core as one accepted edit,
-/// and one Undo restores both keys exactly.
+/// Ticket 23 first slice: the Key Inspector names this-column Shift fields.
+/// Setting Shift X moves the edited key and carries down its own column through
+/// Core's running frame as one accepted edit; the neighbouring column stays
+/// still, and one Undo restores all four keys exactly.
 #[wasm_bindgen_test]
-async fn inspector_key_shift_moves_only_that_key_with_one_undo() {
-    let (document, selected) = two_row_fixture();
+async fn inspector_key_shift_carries_down_its_column_with_one_undo() {
+    let (document, selected) = shift_grid_fixture();
     let (probe, root) =
         mount_selection_probe("matrix-transform-key-shift-test", document, selected, &[]).await;
     settle(&probe).await;
     let before_moved = scene_key_at(&probe, 0, 0);
-    let before_still = scene_key_at(&probe, 1, 0);
+    let before_carried = scene_key_at(&probe, 1, 0);
+    let before_next_own = scene_key_at(&probe, 0, 1);
+    let before_next_later = scene_key_at(&probe, 1, 1);
     let revision = probe.runtime.model().accepted.unwrap().document.revision;
 
     set_numeric_field(&root, "Shift X", "3");
@@ -2049,10 +2080,20 @@ async fn inspector_key_shift_moves_only_that_key_with_one_undo() {
         (moved.x - before_moved.x - 3.0).abs() < 1e-9 && (moved.y - before_moved.y).abs() < 1e-9,
         "the edited key moves its Shift through Core's frame"
     );
-    let still = scene_key_at(&probe, 1, 0);
+    let carried = scene_key_at(&probe, 1, 0);
     assert!(
-        (still.x - before_still.x).abs() < 1e-9 && (still.y - before_still.y).abs() < 1e-9,
-        "the later-row key does not follow a key Shift"
+        (carried.x - before_carried.x - 3.0).abs() < 1e-9
+            && (carried.y - before_carried.y).abs() < 1e-9,
+        "a key Shift carries down its own column"
+    );
+    let next_own = scene_key_at(&probe, 0, 1);
+    let next_later = scene_key_at(&probe, 1, 1);
+    assert!(
+        (next_own.x - before_next_own.x).abs() < 1e-9
+            && (next_own.y - before_next_own.y).abs() < 1e-9
+            && (next_later.x - before_next_later.x).abs() < 1e-9
+            && (next_later.y - before_next_later.y).abs() < 1e-9,
+        "the neighbouring column does not follow a key Shift"
     );
 
     probe.runtime.submit(Event::Undo {
@@ -2060,14 +2101,17 @@ async fn inspector_key_shift_moves_only_that_key_with_one_undo() {
     });
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let restored_moved = scene_key_at(&probe, 0, 0);
-    let restored_still = scene_key_at(&probe, 1, 0);
-    assert!(
-        (restored_moved.x - before_moved.x).abs() < 1e-9
-            && (restored_moved.y - before_moved.y).abs() < 1e-9
-            && (restored_still.x - before_still.x).abs() < 1e-9
-            && (restored_still.y - before_still.y).abs() < 1e-9,
-        "one Undo restores both keys exactly"
-    );
+    for (row, column, before) in [
+        (0, 0, before_moved),
+        (1, 0, before_carried),
+        (0, 1, before_next_own),
+        (1, 1, before_next_later),
+    ] {
+        let restored = scene_key_at(&probe, row, column);
+        assert!(
+            (restored.x - before.x).abs() < 1e-9 && (restored.y - before.y).abs() < 1e-9,
+            "one Undo restores key ({row}, {column}) exactly"
+        );
+    }
     root.remove();
 }

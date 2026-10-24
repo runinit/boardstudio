@@ -460,7 +460,7 @@ pub fn LayoutTransformToolOverlay(
     };
     let offset_now = match placement_current(&matrix, offset_parameter) {
         PlacementValue::Offset(offset) => offset,
-        PlacementValue::Stagger(_) => Vec2::default(),
+        _ => Vec2::default(),
     };
     let stagger_now = matrix
         .column_layout
@@ -1120,6 +1120,22 @@ fn placement_current(matrix: &Matrix, parameter: PlacementParameter) -> Placemen
                 .copied()
                 .unwrap_or_default(),
         ),
+        PlacementParameter::RowShift { row } => PlacementValue::Shift(
+            matrix
+                .row_layout
+                .get(row as usize)
+                .map(|record| &record.shift)
+                .copied()
+                .unwrap_or_default(),
+        ),
+        PlacementParameter::KeyShift { row, column } => PlacementValue::Shift(
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+                .and_then(|cell| cell.shift)
+                .unwrap_or_default(),
+        ),
     }
 }
 
@@ -1151,6 +1167,17 @@ fn placement_target(
             PlacementParameter::RowOffset { row: *row },
             PlacementValue::Offset(*value),
         )),
+        MatrixPlacementChange::RowShift { row, value } => Some((
+            PlacementParameter::RowShift { row: *row },
+            PlacementValue::Shift(*value),
+        )),
+        MatrixPlacementChange::KeyShift { row, column, value } => Some((
+            PlacementParameter::KeyShift {
+                row: *row,
+                column: *column,
+            },
+            PlacementValue::Shift(*value),
+        )),
         _ => None,
     }
 }
@@ -1160,6 +1187,7 @@ fn placement_target(
 enum PlacementDelta {
     Stagger(f64),
     Offset(Vec2),
+    Shift(Vec2),
 }
 
 fn placement_delta(start: PlacementValue, end: PlacementValue) -> Option<PlacementDelta> {
@@ -1169,6 +1197,12 @@ fn placement_delta(start: PlacementValue, end: PlacementValue) -> Option<Placeme
         }
         (PlacementValue::Offset(start), PlacementValue::Offset(end)) => {
             Some(PlacementDelta::Offset(Vec2 {
+                x: end.x - start.x,
+                y: end.y - start.y,
+            }))
+        }
+        (PlacementValue::Shift(start), PlacementValue::Shift(end)) => {
+            Some(PlacementDelta::Shift(Vec2 {
                 x: end.x - start.x,
                 y: end.y - start.y,
             }))
@@ -1184,6 +1218,12 @@ fn apply_placement_delta(current: PlacementValue, delta: PlacementDelta) -> Opti
         }
         (PlacementValue::Offset(value), PlacementDelta::Offset(delta)) => {
             Some(PlacementValue::Offset(Vec2 {
+                x: value.x + delta.x,
+                y: value.y + delta.y,
+            }))
+        }
+        (PlacementValue::Shift(value), PlacementDelta::Shift(delta)) => {
+            Some(PlacementValue::Shift(Vec2 {
                 x: value.x + delta.x,
                 y: value.y + delta.y,
             }))
@@ -1207,16 +1247,22 @@ fn accepted_placement_basis(
     matrix: &Matrix,
     parameter: PlacementParameter,
 ) -> Result<SceneBasis, &'static str> {
-    if let PlacementParameter::RowOffset { row } = parameter
+    if let PlacementParameter::RowOffset { row } | PlacementParameter::RowShift { row } = parameter
         && row >= matrix.rows
     {
         return Err("The selected row no longer exists.");
     }
-    if let PlacementParameter::Stagger { column } | PlacementParameter::ColumnOffset { column } =
-        parameter
+    if let PlacementParameter::Stagger { column }
+    | PlacementParameter::ColumnOffset { column }
+    | PlacementParameter::KeyShift { column, .. } = parameter
         && column >= matrix.columns
     {
         return Err("The selected column no longer exists.");
+    }
+    if let PlacementParameter::KeyShift { row, .. } = parameter
+        && row >= matrix.rows
+    {
+        return Err("The selected key no longer exists.");
     }
     accepted
         .scene
@@ -3073,6 +3119,8 @@ mod nudge_tests {
             stagger_axis: Vec2 { x: 1.0, y: 0.0 },
             axis_x: Vec2 { x: 1.0, y: 0.0 },
             axis_y: Vec2 { x: 0.0, y: 1.0 },
+            shift_axis_x: Vec2 { x: 1.0, y: 0.0 },
+            shift_axis_y: Vec2 { x: 0.0, y: 1.0 },
         });
         assert!(
             (value(&drag, Vec2 { x: 5.0, y: 0.0 }) - 4.0).abs() < 1e-9,

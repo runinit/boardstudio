@@ -157,7 +157,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 }
             },
         ),
-        MatrixTransformFields::Row { row, offset } => (
+        MatrixTransformFields::Row { row, offset, shift } => (
             "Position & rotation",
             rsx! {
                 div { class: "m1-matrix-inspector-fields",
@@ -173,6 +173,20 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         field: MatrixTransformField::RowOffsetY, label: "Offset Y", unit: "mm",
                         draft: props.mount.numeric_field(MatrixTransformField::RowOffsetY).0, failure: props.mount.numeric_field(MatrixTransformField::RowOffsetY).1,
                         value: offset.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowShiftX, label: "Shift X", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowShiftX).0, failure: props.mount.numeric_field(MatrixTransformField::RowShiftX).1,
+                        value: shift.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowShiftY, label: "Shift Y", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowShiftY).0, failure: props.mount.numeric_field(MatrixTransformField::RowShiftY).1,
+                        value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }
@@ -312,6 +326,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             assemblies_local,
             offset,
             rotation,
+            shift,
         } => (
             "Key properties",
             rsx! {
@@ -343,6 +358,20 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         field: MatrixTransformField::KeyRotation, label: "Key rotation", unit: "°",
                         draft: props.mount.numeric_field(MatrixTransformField::KeyRotation).0, failure: props.mount.numeric_field(MatrixTransformField::KeyRotation).1,
                         value: *rotation, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyShiftX, label: "Shift X", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyShiftX).0, failure: props.mount.numeric_field(MatrixTransformField::KeyShiftX).1,
+                        value: shift.x, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyShiftY, label: "Shift Y", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyShiftY).0, failure: props.mount.numeric_field(MatrixTransformField::KeyShiftY).1,
+                        value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }
