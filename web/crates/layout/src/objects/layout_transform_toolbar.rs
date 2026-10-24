@@ -1210,6 +1210,7 @@ pub fn LayoutTransformToolOverlay(
                     class: "m1-transform-rotate-guide",
                     d: "M{matrix_handle_point.x} {matrix_handle_point.y + 12.0} L{matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}"
                 }
+                if tool == LayoutTransformTool::Move {
                 g {
                     class: "m1-transform-handle m1-matrix-move-handle",
                     transform: "translate({matrix_handle_point.x} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
@@ -1225,6 +1226,8 @@ pub fn LayoutTransformToolOverlay(
                     path { d: "M0 -5v10M-5 0h10M-2.5 -2.5 0 -5l2.5 2.5M-2.5 2.5 0 5l2.5 -2.5" }
                     title { "Drag to move matrix · X {matrix.origin.x:.2} mm, Y {matrix.origin.y:.2} mm" }
                 }
+                }
+                if tool == LayoutTransformTool::Rotate {
                 if matrix_rotation_followed {
                     g {
                         class: "m1-transform-handle m1-matrix-rotate-handle",
@@ -1252,6 +1255,7 @@ pub fn LayoutTransformToolOverlay(
                         path { d: "M5.5 -2.5 A6 6 0 1 1 -2.5 -5.5M5.5 -5.5v3h-3" }
                         title { "Rotate matrix (unavailable: Follow rotation is off)" }
                     }
+                }
                 }
             }
         } else if tool == LayoutTransformTool::Spread {
@@ -5477,6 +5481,54 @@ mod tool_tests {
             matrix.origin
         );
         root.remove();
+    }
+
+    /// Ticket 23 follow-up: each matrix tool mount draws only its own
+    /// handle. The packaged-page smoke caught the Move and Rotate mounts
+    /// each rendering both handles, so two identical "Drag to move matrix"
+    /// copies fought over the gesture.
+    #[wasm_bindgen_test]
+    async fn matrix_tool_mounts_draw_only_their_own_handle() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let (move_root, _) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        assert!(
+            move_root
+                .query_selector("[aria-label='Drag to move matrix']")
+                .unwrap()
+                .is_some(),
+            "the Move mount draws the move handle"
+        );
+        assert!(
+            move_root
+                .query_selector("[aria-label='Drag to rotate matrix']")
+                .unwrap()
+                .is_none(),
+            "the Move mount draws no rotate handle"
+        );
+        move_root.remove();
+        let (rotate_root, _) =
+            mount_matrix_overlay(&runtime, LayoutTransformTool::Rotate, "dep").await;
+        assert!(
+            rotate_root
+                .query_selector("[aria-label='Drag to rotate matrix']")
+                .unwrap()
+                .is_some(),
+            "the Rotate mount draws the rotate handle"
+        );
+        assert!(
+            rotate_root
+                .query_selector("[aria-label='Drag to move matrix']")
+                .unwrap()
+                .is_none(),
+            "the Rotate mount draws no move handle"
+        );
+        rotate_root.remove();
     }
 
     /// Ticket 23 slice, RED: the Rotate tool turns the selected matrix, and
