@@ -19,6 +19,7 @@ pub(super) fn transform_tools(
         TreeContext::Column { .. } => match active {
             Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],
             Some(Tool::Origin) => vec![Tool::Stagger, Tool::Origin],
+            Some(Tool::Spread) => vec![Tool::Spread, Tool::Splay],
             _ => vec![Tool::Stagger, Tool::Splay],
         },
         TreeContext::Row { .. } => vec![Tool::Offset],

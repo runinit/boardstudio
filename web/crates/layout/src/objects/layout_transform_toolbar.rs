@@ -41,14 +41,16 @@ type TransformEscapeListener = Rc<
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LayoutTransformTool {
     Stagger,
+    Spread,
     Offset,
     Splay,
     Origin,
 }
 
 impl LayoutTransformTool {
-    const ALL: [(Self, &'static str); 4] = [
+    const ALL: [(Self, &'static str); 5] = [
         (Self::Stagger, "Stagger"),
+        (Self::Spread, "Spread"),
         (Self::Offset, "Offset"),
         (Self::Splay, "Splay"),
         (Self::Origin, "Origin"),
@@ -129,6 +131,10 @@ enum TransformGesture {
         column: u32,
         quick_offset: bool,
     },
+    /// Edits the column's inherited spread step.
+    Spread {
+        column: u32,
+    },
     /// Edits one row's or one column's independent offset (`RowOffset` or `ColumnOffset`).
     Offset {
         parameter: PlacementParameter,
@@ -144,13 +150,14 @@ enum TransformGesture {
 }
 
 impl TransformGesture {
-    /// The placement parameter a Stagger or Offset gesture writes.
+    /// The placement parameter a Stagger, Spread or Offset gesture writes.
     fn parameter(&self) -> Option<PlacementParameter> {
         match *self {
             Self::Stagger {
                 column,
                 quick_offset,
             } => Some(stagger_parameter(column, quick_offset)),
+            Self::Spread { column } => Some(PlacementParameter::ColumnSpread { column }),
             Self::Offset { parameter } => Some(parameter),
             Self::Splay { .. } | Self::Origin { .. } => None,
         }
@@ -371,6 +378,9 @@ pub fn LayoutTransformToolOverlay(
                         y: at.y + 12.0,
                     })
             }
+            // The Spread handle lands in the GREEN slice; until then the tool draws
+            // nothing rather than a borrowed handle.
+            LayoutTransformTool::Spread => None,
             LayoutTransformTool::Stagger | LayoutTransformTool::Offset => {
                 let cell = projection
                     .cells
@@ -920,6 +930,9 @@ pub fn LayoutTransformToolOverlay(
         LayoutTransformTool::Stagger => TransformGesture::Stagger {
             column: selected_column,
             quick_offset: false,
+        },
+        LayoutTransformTool::Spread => TransformGesture::Spread {
+            column: selected_column,
         },
         LayoutTransformTool::Offset => TransformGesture::Offset {
             parameter: offset_parameter,
@@ -1821,7 +1834,9 @@ fn sample_transform(
     } = context;
     let matrix = &drag.matrix;
     match drag.gesture {
-        TransformGesture::Stagger { .. } | TransformGesture::Offset { .. } => {
+        TransformGesture::Stagger { .. }
+        | TransformGesture::Spread { .. }
+        | TransformGesture::Offset { .. } => {
             let rect = svg.borrow().as_ref()?.get_bounding_client_rect();
             if rect.width() <= 0.0 || rect.height() <= 0.0 {
                 return None;
@@ -2075,6 +2090,12 @@ pub fn LayoutContextActionToolbar(
                 "Activate Offset column; selection changes to Column",
                 mount.column_available,
             ),
+            (
+                LayoutTransformTool::Spread,
+                "Spread column",
+                "Activate Spread column; selection changes to Column",
+                mount.column_available,
+            ),
         ],
         LayoutSelectionKind::Row => vec![
             (
@@ -2089,6 +2110,12 @@ pub fn LayoutContextActionToolbar(
                 "Activate Stagger column; selection changes to Column",
                 mount.column_available,
             ),
+            (
+                LayoutTransformTool::Spread,
+                "Spread column",
+                "Activate Spread column; selection changes to Column",
+                mount.column_available,
+            ),
         ],
         LayoutSelectionKind::Column => vec![
             (
@@ -2101,6 +2128,12 @@ pub fn LayoutContextActionToolbar(
                 LayoutTransformTool::Offset,
                 "Offset column",
                 "Activate Offset for the selected column",
+                mount.column_available,
+            ),
+            (
+                LayoutTransformTool::Spread,
+                "Spread column",
+                "Activate Spread for the selected column",
                 mount.column_available,
             ),
         ],
@@ -2196,6 +2229,7 @@ fn LayoutContextToolButton(
     let on_transform_tool = mount.on_transform_tool;
     let glyph = match tool {
         LayoutTransformTool::Stagger => "M10 2v16M6 6l4-4 4 4M6 14l4 4 4-4",
+        LayoutTransformTool::Spread => "M2 10h16M4 6l-2 4 2 4M16 6l2 4-2 4",
         LayoutTransformTool::Offset => "M2 10h16M6 6l-4 4 4 4M14 6l4 4-4 4",
         LayoutTransformTool::Splay => "M4 16h13M4 16l8-12M7 16a7 7 0 0 0 3-6",
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
@@ -2215,6 +2249,7 @@ fn LayoutContextToolButton(
             span { class: "layout-action-label", {match label.as_str() {
                 "Stagger column" => "Stagger",
                 "Offset column" | "Offset row" => "Offset",
+                "Spread column" => "Spread",
                 _ => label.as_str(),
             }} }
         }
@@ -2426,6 +2461,7 @@ mod shortcut_tests {
         };
         let active_label = match active_tool() {
             Some(LayoutTransformTool::Stagger) => "Stagger",
+            Some(LayoutTransformTool::Spread) => "Spread",
             Some(LayoutTransformTool::Offset) => "Offset",
             Some(LayoutTransformTool::Splay) => "Splay",
             Some(LayoutTransformTool::Origin) => "Origin",
@@ -2468,7 +2504,7 @@ mod shortcut_tests {
             .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
             .map(|button| button.text_content().unwrap_or_default())
             .collect::<Vec<_>>();
-        assert_eq!(labels, ["Row offsets", "Offset", "Stagger"]);
+        assert_eq!(labels, ["Row offsets", "Offset", "Stagger", "Spread"]);
         root.query_selector(
             "button[aria-label='Activate Stagger column; selection changes to Column']",
         )
@@ -3671,7 +3707,7 @@ mod tool_tests {
                 .filter(|button| {
                     matches!(
                         button.text_content().as_deref(),
-                        Some("Stagger" | "Offset" | "Splay" | "Origin")
+                        Some("Stagger" | "Spread" | "Offset" | "Splay" | "Origin")
                     )
                 })
                 .collect::<Vec<_>>();
@@ -3679,7 +3715,7 @@ mod tool_tests {
                 .iter()
                 .map(|button| button.text_content().unwrap_or_default())
                 .collect::<Vec<_>>();
-            assert_eq!(labels, ["Stagger", "Offset", "Splay", "Origin"]);
+            assert_eq!(labels, ["Stagger", "Spread", "Offset", "Splay", "Origin"]);
             for button in &tools {
                 assert_eq!(button.has_attribute("disabled"), !available);
                 let pressed = button.get_attribute("aria-pressed");
@@ -4117,6 +4153,140 @@ mod tool_tests {
             }),
             "the offset is untouched"
         );
+        root.remove();
+    }
+
+    /// Ticket 23, RED: the Spread tool draws its own horizontal handle that
+    /// commits an explicit Spread through the real Runtime/Core seam.
+    /// A 40 px drag is 10 world mm; the 4.7625 mm grid lands six steps out,
+    /// so column 1 steps 28.575 mm and column 2 follows.
+    #[wasm_bindgen_test]
+    async fn spread_handle_drag_commits_an_explicit_spread_with_one_undo() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
+        assert_eq!(
+            handle.get_attribute("aria-label").as_deref(),
+            Some("Drag to spread"),
+            "the Spread tool draws its own horizontal handle"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, 1, (140, 100));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the drag previews actual later-column movement before commit"
+        );
+        dispatch_pointer(&handle, "pointerup", false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.column_layout.get(1).and_then(|record| record.spread),
+            Some(28.575),
+            "the drag commits an explicit Spread"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        let scene = runtime.model().accepted.unwrap().scene.clone();
+        let at = |column| {
+            scene.matrix_scenes[0]
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == column)
+                .expect("the key is laid out")
+                .pose
+                .at
+        };
+        assert!(
+            (at(1).x - 28.575).abs() < 1e-9 && (at(2).x - 47.625).abs() < 1e-9,
+            "later columns step out the full Spread"
+        );
+        assert!(
+            at(0).x.abs() < 1e-9,
+            "column 0 does not follow a later Spread"
+        );
+        fixture::undo(&runtime).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert!(
+            matrix
+                .column_layout
+                .get(1)
+                .and_then(|record| record.spread)
+                .is_none(),
+            "one Undo restores the default step"
+        );
+        root.remove();
+    }
+
+    /// Ticket 23, RED: hovering the Spread handle neither replaces its SVG
+    /// target nor lets a passive hint intercept the pointer-down that follows.
+    #[wasm_bindgen_test]
+    async fn spread_handle_hover_keeps_its_svg_target() {
+        let runtime = fixture::open_matrix_runtime().await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
+        dispatch_pointer(&handle, "pointerover", false, 0, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        let live = root
+            .query_selector(".m1-transform-handle")
+            .unwrap()
+            .expect("the handle survives hover");
+        assert!(
+            live == handle,
+            "hover does not replace the handle's SVG target"
+        );
+        let rect = handle.get_bounding_client_rect();
+        let hit = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .element_from_point(
+                (rect.x() + rect.width() / 2.0) as f32,
+                (rect.y() + rect.height() / 2.0) as f32,
+            )
+            .expect("hit testing resolves a target");
+        assert!(
+            hit == handle
+                || hit
+                    .closest(".m1-transform-handle")
+                    .ok()
+                    .flatten()
+                    .is_some_and(|ancestor| ancestor == handle),
+            "no passive hint intercepts the handle"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, 1, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision || runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            fixture_revision(&runtime) > revision || runtime.model().display_preview.is_some(),
+            "the pointer-down after hover still starts the drag"
+        );
+        dispatch_pointer(&handle, "pointerup", false, 0, (140, 100));
         root.remove();
     }
 }
