@@ -560,8 +560,10 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 let Some(link) = &layout.mirror_link else {
                     continue;
                 };
-                let edited_is_source = link.source_id == edited_layout && layout.id == target_layout;
-                let edited_is_mirror = layout.id == edited_layout && link.source_id == target_layout;
+                let edited_is_source =
+                    link.source_id == edited_layout && layout.id == target_layout;
+                let edited_is_mirror =
+                    layout.id == edited_layout && link.source_id == target_layout;
                 if !edited_is_source && !edited_is_mirror {
                     continue;
                 }

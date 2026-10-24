@@ -122,7 +122,8 @@ fn linked_group(doc: &ProjectDoc, layout_id: &str) -> Option<(String, Vec<String
         .map(|link| link.source_id.clone())
         .unwrap_or_else(|| layout_id.to_string());
     if !doc.layouts.iter().any(|layout| {
-        layout.mirror_link
+        layout
+            .mirror_link
             .as_ref()
             .is_some_and(|link| link.source_id == source_id)
     }) {
@@ -241,13 +242,8 @@ pub(crate) fn add(
         // Map the anchor target into every member layout before mutating.
         let mut anchors_by_layout = std::collections::BTreeMap::new();
         for member in &group_layouts {
-            let mapped = counterpart_in_layout(
-                doc,
-                &anchor.matrix_id,
-                &layout_id,
-                member,
-                &source_id,
-            )?;
+            let mapped =
+                counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
             anchors_by_layout.insert(
                 member.clone(),
                 MatrixAnchor {
@@ -294,8 +290,8 @@ pub(crate) fn add(
             validate_target(doc, counterpart_id, None, counterpart_anchor)?;
             // The mapped anchor must live in the same member layout the new
             // matrix joins; otherwise the group would silently retarget.
-            let anchor_layout = owning_layout(doc, &counterpart_anchor.matrix_id)
-                .map(|layout| layout.id.clone());
+            let anchor_layout =
+                owning_layout(doc, &counterpart_anchor.matrix_id).map(|layout| layout.id.clone());
             if anchor_layout.as_deref() != Some(member.as_str()) {
                 return Err(format!(
                     "Matrix {counterpart_id} anchor must stay on the same board and Layout"
@@ -317,28 +313,22 @@ pub(crate) fn add(
                 .matrix_ids
                 .push(counterpart_id.clone());
             // Record the matrix correspondence on the mirror link.
-            if !is_source {
-                let source_matrix_id = ids_by_layout[&source_id].clone();
-                if let Some(layout) = doc
-                    .layouts
-                    .iter_mut()
-                    .find(|layout| &layout.id == member)
-                    && let Some(link) = layout.mirror_link.as_mut()
-                {
-                    if !link.correspondences.iter().any(|record| {
-                        record.kind == MirroredItemKind::Matrix
-                            && record.source_id == source_matrix_id
-                            && record.mirror_id == counterpart_id
-                    }) {
-                        link.correspondences.push(MirroredCorrespondence {
-                            kind: MirroredItemKind::Matrix,
-                            source_id: source_matrix_id,
-                            mirror_id: counterpart_id.clone(),
-                            companion_mode: None,
-                            companion_tweak: None,
-                        });
-                    }
-                }
+            if !is_source
+                && let Some(layout) = doc.layouts.iter_mut().find(|layout| &layout.id == member)
+                && let Some(link) = layout.mirror_link.as_mut()
+                && !link.correspondences.iter().any(|record| {
+                    record.kind == MirroredItemKind::Matrix
+                        && record.source_id == ids_by_layout[&source_id]
+                        && record.mirror_id == counterpart_id
+                })
+            {
+                link.correspondences.push(MirroredCorrespondence {
+                    kind: MirroredItemKind::Matrix,
+                    source_id: ids_by_layout[&source_id].clone(),
+                    mirror_id: counterpart_id.clone(),
+                    companion_mode: None,
+                    companion_tweak: None,
+                });
             }
         }
         // Materialize every new matrix, then sync pairs and member pairs.

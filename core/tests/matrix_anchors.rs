@@ -1002,14 +1002,25 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     assert_eq!(claw.origin, Vec2 { x: 0.0, y: -19.0 });
     assert_eq!(mirror.origin, Vec2 { x: -0.0, y: -19.0 });
     // Partner poses are the x=10 reflection of the source.
-    assert_eq!(pose_of(&doc, &member("claw", 0, 0)).at, Vec2 { x: 0.0, y: -19.0 });
+    assert_eq!(
+        pose_of(&doc, &member("claw", 0, 0)).at,
+        Vec2 { x: 0.0, y: -19.0 }
+    );
     assert_eq!(
         pose_of(&doc, &member("claw-mirror", 0, 0)).at,
         Vec2 { x: 20.0, y: -19.0 }
     );
     // Layout membership and matrix correspondences cover both.
-    let left = doc.layouts.iter().find(|layout| layout.id == "left-layout").unwrap();
-    let right = doc.layouts.iter().find(|layout| layout.id == "right-layout").unwrap();
+    let left = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "left-layout")
+        .unwrap();
+    let right = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "right-layout")
+        .unwrap();
     assert!(left.matrix_ids.contains(&"claw".to_string()));
     assert!(right.matrix_ids.contains(&"claw-mirror".to_string()));
     let link = right.mirror_link.as_ref().expect("mirror link");
@@ -1021,10 +1032,20 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     // One Undo removes both, Redo restores both.
     let undone_doc = undone(&mut engine);
     assert!(undone_doc.matrices.iter().all(|matrix| matrix.id != "claw"));
-    assert!(undone_doc.matrices.iter().all(|matrix| matrix.id != "claw-mirror"));
+    assert!(
+        undone_doc
+            .matrices
+            .iter()
+            .all(|matrix| matrix.id != "claw-mirror")
+    );
     let redone_doc = redone(&mut engine);
     assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "claw"));
-    assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "claw-mirror"));
+    assert!(
+        redone_doc
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == "claw-mirror")
+    );
 }
 
 fn set_follow(
@@ -1463,14 +1484,15 @@ fn linked_follow_transports_source_basis_with_non_origin_axis() {
             },
         },
     );
-    assert!(!doc
-        .matrices
-        .iter()
-        .find(|matrix| matrix.id == "thumb2")
-        .and_then(|matrix| matrix.anchor.clone())
-        .expect("thumb2 anchor")
-        .follow
-        .x);
+    assert!(
+        !doc.matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb2")
+            .and_then(|matrix| matrix.anchor.clone())
+            .expect("thumb2 anchor")
+            .follow
+            .x
+    );
     let (_, moved) = edit(
         &mut engine,
         &doc,
@@ -1651,10 +1673,7 @@ fn linked_dependent_follows_actual_local_anchor() {
         .find(|layout| layout.id == "mirror-layout")
         .expect("mirror layout")
         .clone();
-    let link = mirror_layout
-        .mirror_link
-        .as_mut()
-        .expect("mirror link");
+    let link = mirror_layout.mirror_link.as_mut().expect("mirror link");
     link.exceptions.push(MirroredException {
         kind: MirroredItemKind::Part,
         mirror_id: member("main2", 0, 2),
@@ -1670,14 +1689,17 @@ fn linked_dependent_follows_actual_local_anchor() {
             layout: mirror_layout,
         },
     );
-    assert!(doc
-        .layouts
-        .iter()
-        .find(|layout| layout.id == "mirror-layout")
-        .and_then(|layout| layout.mirror_link.as_ref())
-        .is_some_and(|link| link.exceptions.iter().any(|exception| exception.mirror_id
-            == member("main2", 0, 2)
-            && exception.state == MirroredExceptionState::Local)));
+    assert!(
+        doc.layouts
+            .iter()
+            .find(|layout| layout.id == "mirror-layout")
+            .and_then(|layout| layout.mirror_link.as_ref())
+            .is_some_and(|link| link
+                .exceptions
+                .iter()
+                .any(|exception| exception.mirror_id == member("main2", 0, 2)
+                    && exception.state == MirroredExceptionState::Local))
+    );
     // Move the actual Local anchor key independently from the mirror side.
     let (_, moved) = edit(
         &mut engine,
@@ -1778,8 +1800,7 @@ fn linked_column_zero_hold_still_reflects_compensation_once() {
     for (id, pose) in &before {
         let after = pose_of(&moved, id);
         assert!(
-            (after.at.x - pose.at.x).abs() < 1e-9
-                && (after.at.y - pose.at.y).abs() < 1e-9,
+            (after.at.x - pose.at.x).abs() < 1e-9 && (after.at.y - pose.at.y).abs() < 1e-9,
             "{id} moved: {pose:?} vs {after:?}"
         );
     }
@@ -1794,7 +1815,9 @@ fn linked_omitted_anchor_keeps_live_logical_pose() {
     let mut omitted = doc.clone();
     // Drop the omitted matrix's materialized parts; Open must not recreate
     // them, but anchors through it stay live.
-    omitted.parts.retain(|part| !part.id.starts_with("matrix/main2/"));
+    omitted
+        .parts
+        .retain(|part| !part.id.starts_with("matrix/main2/"));
     for board in &mut omitted.boards {
         board.part_ids.retain(|id| !id.starts_with("matrix/main2/"));
     }
@@ -1815,7 +1838,11 @@ fn linked_omitted_anchor_keeps_live_logical_pose() {
     }
     let (_, _, doc) = open(omitted);
     // No materialized parts for the omitted anchor target.
-    assert!(doc.parts.iter().all(|part| part.id != member("main2", 0, 2)));
+    assert!(
+        doc.parts
+            .iter()
+            .all(|part| part.id != member("main2", 0, 2))
+    );
     // Both dependants still evaluate through the live logical anchor: source
     // thumb at its anchor key plus relative origin, mirror thumb at the
     // reflected logical pose (axis x=10).

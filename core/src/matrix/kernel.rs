@@ -612,8 +612,7 @@ mod tests {
             // kernel implements, to pin the transport against independent
             // partner-world zeroing.
             let candidate = Vec2 {
-                x: anchor.at.x
-                    + relative.x * (anchor.rotation.to_radians().cos())
+                x: anchor.at.x + relative.x * (anchor.rotation.to_radians().cos())
                     - relative.y * (anchor.rotation.to_radians().sin()),
                 y: anchor.at.y
                     + relative.x * (anchor.rotation.to_radians().sin())
@@ -640,8 +639,7 @@ mod tests {
             }
         };
         assert!(
-            (transported.x - expected.x).abs() < 1e-9
-                && (transported.y - expected.y).abs() < 1e-9,
+            (transported.x - expected.x).abs() < 1e-9 && (transported.y - expected.y).abs() < 1e-9,
             "transported {transported:?} vs expected {expected:?}"
         );
         assert!(
