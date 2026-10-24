@@ -546,6 +546,213 @@ mod demo_rebuild_tests {
         }
     }
 
+    fn split42() -> ProjectDoc {
+        DEMO_PROJECTS
+            .iter()
+            .find(|demo| demo.name == "Split 42")
+            .expect("Split 42 entry")
+            .document()
+    }
+
+    #[test]
+    fn split42_has_two_linked_layouts_with_four_matrices() {
+        use boardstudio_core::model::MirroredItemKind;
+        let document = split42();
+        assert_eq!(document.format_version, CURRENT_VERSION);
+        assert_eq!(document.layouts.len(), 2, "two linked Layouts");
+        let left = document
+            .layouts
+            .iter()
+            .find(|layout| layout.mirror_link.is_none())
+            .expect("left source Layout");
+        let right = document
+            .layouts
+            .iter()
+            .find(|layout| layout.mirror_link.is_some())
+            .expect("right derived Layout");
+        assert_eq!(left.board_id, "demo-board");
+        assert_eq!(right.board_id, "demo-board");
+        assert_eq!(left.matrix_ids.len(), 2, "left main + thumb");
+        assert_eq!(right.matrix_ids.len(), 2, "right main + thumb");
+        assert_eq!(document.matrices.len(), 4, "four matrices");
+        let link = right.mirror_link.as_ref().expect("right link");
+        assert_eq!(link.source_id, left.id);
+        assert_eq!(link.axis_x, 0.0, "reflection about X = 0");
+        assert!(link.exceptions.is_empty(), "no default exceptions");
+        let matrix_links: Vec<_> = link
+            .correspondences
+            .iter()
+            .filter(|record| record.kind == MirroredItemKind::Matrix)
+            .collect();
+        assert_eq!(matrix_links.len(), 2, "both matrix groups correspond");
+        for matrix in &document.matrices {
+            let in_left = left.matrix_ids.contains(&matrix.id);
+            let in_right = right.matrix_ids.contains(&matrix.id);
+            assert!(in_left ^ in_right, "{} owned by exactly one Layout", matrix.id);
+        }
+        let mains: Vec<_> = document
+            .matrices
+            .iter()
+            .filter(|matrix| matrix.rows == 3 && matrix.columns == 6)
+            .collect();
+        let thumbs: Vec<_> = document
+            .matrices
+            .iter()
+            .filter(|matrix| matrix.rows == 1 && matrix.columns == 3)
+            .collect();
+        assert_eq!(mains.len(), 2, "two 3x6 main matrices");
+        assert_eq!(thumbs.len(), 2, "two 1x3 thumb matrices");
+        assert_eq!(document.parts.len(), 42, "42 keys total");
+    }
+
+    #[test]
+    fn split42_keeps_approved_poses_with_matrix_identities() {
+        let document = split42();
+        let pose_of = |member: &str| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == member)
+                .unwrap_or_else(|| panic!("missing member {member}"))
+                .pose
+        };
+        // Left keeps every legacy pose; both thumbs keep theirs; the right
+        // row 1 keeps its X. Only right-main rows 2/3 move, by -5/-10 mm.
+        let left_id = document
+            .layouts
+            .iter()
+            .find(|layout| layout.mirror_link.is_none())
+            .expect("left")
+            .id
+            .clone();
+        let left_main = document
+            .matrices
+            .iter()
+            .find(|matrix| left_has(&document, &left_id, &matrix.id) && matrix.rows == 3)
+            .expect("left main")
+            .id
+            .clone();
+        let left_thumb = document
+            .matrices
+            .iter()
+            .find(|matrix| left_has(&document, &left_id, &matrix.id) && matrix.rows == 1)
+            .expect("left thumb")
+            .id
+            .clone();
+        for row in 0..3 {
+            for column in 0..6 {
+                let legacy = Vec2 {
+                    x: -(31.0 + column as f64 * 19.05) + row as f64 * 2.5,
+                    y: (row as f64 - 1.0) * 19.05,
+                };
+                let pose = pose_of(&format!("matrix/{left_main}/r{row}c{column}"));
+                assert!(
+                    (pose.at.x - legacy.x).abs() < 1e-9 && (pose.at.y - legacy.y).abs() < 1e-9,
+                    "left main r{row}c{column} drifts: got {:?}, want {legacy:?}",
+                    pose.at
+                );
+                assert_eq!(pose.rotation, 0.0);
+            }
+        }
+        for thumb in 0..3 {
+            let legacy = Vec2 {
+                x: -(64.0 + thumb as f64 * 19.05),
+                y: 40.0 + thumb as f64 * 3.0,
+            };
+            let pose = pose_of(&format!("matrix/{left_thumb}/r0c{thumb}"));
+            assert!(
+                (pose.at.x - legacy.x).abs() < 1e-9 && (pose.at.y - legacy.y).abs() < 1e-9,
+                "left thumb {thumb} drifts: got {:?}, want {legacy:?}",
+                pose.at
+            );
+            assert_eq!(pose.rotation, 0.0);
+        }
+        let right_id = document
+            .layouts
+            .iter()
+            .find(|layout| layout.mirror_link.is_some())
+            .expect("right")
+            .id
+            .clone();
+        let right_main = document
+            .matrices
+            .iter()
+            .find(|matrix| {
+                document
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == right_id)
+                    .expect("right")
+                    .matrix_ids
+                    .contains(&matrix.id)
+                    && matrix.rows == 3
+            })
+            .expect("right main")
+            .id
+            .clone();
+        let right_thumb: Vec<String> = document
+            .matrices
+            .iter()
+            .filter(|matrix| {
+                document
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == right_id)
+                    .expect("right")
+                    .matrix_ids
+                    .contains(&matrix.id)
+                    && matrix.rows == 1
+            })
+            .map(|matrix| matrix.id.clone())
+            .collect();
+        assert_eq!(right_thumb.len(), 1);
+        for row in 0..3 {
+            for column in 0..6 {
+                let legacy_x = (31.0 + column as f64 * 19.05) + row as f64 * 2.5;
+                let approved = match row {
+                    0 => legacy_x,
+                    1 => legacy_x - 5.0,
+                    _ => legacy_x - 10.0,
+                };
+                let legacy_y = (row as f64 - 1.0) * 19.05;
+                let pose = pose_of(&format!("matrix/{right_main}/r{row}c{column}"));
+                assert!(
+                    (pose.at.x - approved).abs() < 1e-9 && (pose.at.y - legacy_y).abs() < 1e-9,
+                    "right main r{row}c{column}: got {:?}, want ({approved}, {legacy_y})",
+                    pose.at
+                );
+                assert_eq!(pose.rotation, 0.0);
+            }
+        }
+        for thumb in 0..3 {
+            let pose = pose_of(&format!("matrix/{}/r0c{thumb}", right_thumb[0]));
+            let want = Vec2 {
+                x: 64.0 + thumb as f64 * 19.05,
+                y: 40.0 + thumb as f64 * 3.0,
+            };
+            assert!(
+                (pose.at.x - want.x).abs() < 1e-9 && (pose.at.y - want.y).abs() < 1e-9,
+                "right thumb {thumb}: got {:?}, want {want:?}",
+                pose.at
+            );
+            assert_eq!(pose.rotation, 0.0);
+        }
+        assert!(
+            document.parts.iter().all(|part| part.id.starts_with("matrix/")),
+            "matrix-coordinate identities only"
+        );
+    }
+
+    fn left_has(document: &ProjectDoc, left_id: &str, matrix_id: &str) -> bool {
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == left_id)
+            .expect("left")
+            .matrix_ids
+            .contains(&matrix_id.to_string())
+    }
+
     #[test]
     fn studio60_copies_do_not_share_mutable_state() {
         let mut first = studio60();
