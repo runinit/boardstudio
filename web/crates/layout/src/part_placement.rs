@@ -4113,4 +4113,49 @@ mod tests {
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("other"), true));
         assert!(!owner.is_current(&initial, Some(&scope), 4, true, Some("project"), false));
     }
+
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    fn component_placement_snap_uses_the_selected_matrix_pitch() {
+        // RED (ticket 22): the board matrix uses a 20 mm pitch, so a quarter snap
+        // steps 5 mm (ticket 08 decision 1: pitch x snap fraction, 19.05 mm only
+        // when none is selected). The hardcoded 19.05 mm grid answers 4.7625.
+        let mut document = fixture();
+        document.matrices.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "matrix",
+                "rows": 1,
+                "columns": 2,
+                "pitch": {"x": 20.0, "y": 20.0},
+                "origin": {"x": 0.0, "y": 0.0},
+                "definitionId": "catalog:controller",
+                "partIds": [],
+                "boardId": "board-main",
+                "cells": []
+            }))
+            .unwrap(),
+        );
+        let definition = controller_definition("catalog:controller");
+        let pending = controller_part(
+            definition,
+            "part-controller".into(),
+            "U1".into(),
+            Vec2::default(),
+        )
+        .expect("controller placement");
+        assert_eq!(
+            snap_placement_at(
+                &document,
+                "board-main",
+                &pending,
+                Vec2 { x: 4.6, y: -4.6 },
+                PlacementSnapOptions {
+                    snap_fraction: 0.25,
+                    geometry_snap: false,
+                    gap: None,
+                    free: false,
+                },
+            ),
+            Vec2 { x: 5.0, y: -5.0 }
+        );
+    }
 }
