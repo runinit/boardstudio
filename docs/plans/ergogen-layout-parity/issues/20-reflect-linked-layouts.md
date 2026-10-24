@@ -95,6 +95,8 @@ Proving tests (all via public `Open`/`Edit` routes with preview/commit/Undo unle
 Preserved refusals (existing tests still green, no model.rs type changes): linked Y mirror
 refusal in `reflected`, ambiguous-alias/simultaneous-target in `inverse::matrix_frame`/`move_parts`,
 constraint-driven anchor and constrain-an-anchor-key in `anchors::validate_target`/`constraining_refusal`.
+Characterization proof (GREEN on current code, guard at `layout.rs:381-382`):
+`matrix_anchors::linked_y_mirror_change_is_refused` proves linked Y-mirror refusal leaves state unchanged.
 Same-board Local/Omitted geometry proven above; resize/Rejoin/confirmed-detach/source-removal
 lifecycle remains ticket 21.
 

@@ -1855,3 +1855,64 @@ fn linked_omitted_anchor_keeps_live_logical_pose() {
         Vec2 { x: -18.0, y: -19.0 }
     );
 }
+
+#[test]
+fn linked_y_mirror_change_is_refused() {
+    // Ticket 20 preserved refusal: a horizontal local frame needs an
+    // independent layout. Proves the `layout.rs::reflected` guard via public
+    // Edit; GREEN on current code is characterization (RED without the guard
+    // at layout.rs:381-382 is by code-path inspection only: `reflected`
+    // would otherwise accept Y and silently map the partner to X).
+    let (mut engine, doc) = linked_anchored_fixture();
+    for matrix_id in ["thumb", "thumb2"] {
+        let mut attempted = doc
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .expect("linked matrix")
+            .clone();
+        attempted.mirror = Some(Mirror::Y);
+        let message = error(
+            &mut engine,
+            &doc,
+            EditOperation::SetMatrix {
+                matrix: attempted,
+                definitions: None,
+            },
+        );
+        assert!(
+            message.contains("Unlink the halves before changing to a horizontal matrix mirror"),
+            "{matrix_id}: unexpected message: {message:?}"
+        );
+        assert_eq!(
+            snapshot(&mut engine),
+            doc,
+            "{matrix_id}: refusal changed state"
+        );
+    }
+    // Narrow guard: the ordinary None/X toggle still succeeds on the linked
+    // source (claw-mirror toggle), so the refusal is Y-specific.
+    let mut toggled = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix")
+        .clone();
+    toggled.mirror = Some(Mirror::X);
+    let (_, changed) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: toggled,
+            definitions: None,
+        },
+    );
+    assert_eq!(
+        changed
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .and_then(|matrix| matrix.mirror),
+        Some(Mirror::X)
+    );
+}
