@@ -4845,6 +4845,10 @@ mod tool_tests {
         (root, handle)
     }
 
+    /// Dispatch a script-created pointer event. The returned event is never
+    /// trusted: mounted drag coverage proves wiring and math through this
+    /// seam, while real trusted-pointer proof lives in the packaged-page
+    /// mouse smoke.
     fn dispatch_pointer(
         target: &web_sys::Element,
         kind: &str,
@@ -4852,7 +4856,7 @@ mod tool_tests {
         alt: bool,
         buttons: u16,
         client: (i32, i32),
-    ) {
+    ) -> web_sys::PointerEvent {
         let init = js_sys::Object::new();
         for (name, value) in [
             ("bubbles", wasm_bindgen::JsValue::TRUE),
@@ -4881,6 +4885,27 @@ mod tool_tests {
             .dyn_into::<web_sys::PointerEvent>()
             .unwrap();
         target.dispatch_event(&event).unwrap();
+        event
+    }
+
+    /// Ticket 23: the mounted drag harness dispatches script-created pointer
+    /// events, which the platform never trusts. This pins the coverage split:
+    /// mounted tests prove drag wiring and math, and the packaged-page mouse
+    /// smoke (`scripts/test-drag-interactions.cjs`) proves the same gestures
+    /// with real trusted pointer events.
+    #[wasm_bindgen_test]
+    async fn mounted_pointer_dispatch_is_synthetic_never_trusted() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let target = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&target).unwrap();
+        for kind in ["pointerdown", "pointermove", "pointerup"] {
+            let event = dispatch_pointer(&target, kind, false, false, 1, (100, 100));
+            assert!(
+                !event.is_trusted(),
+                "{kind} dispatched from the harness is synthetic, never trusted"
+            );
+        }
+        target.remove();
     }
 
     async fn wait_until_editable(runtime: &Rc<Runtime>) {
@@ -4902,8 +4927,12 @@ mod tool_tests {
         panic!("the runtime did not become editable");
     }
 
-    /// One real pointer drag on the handle: down, move, up. Returns the handle's
-    /// `data-quick-offset` after the down and after the move.
+    /// One synthetic pointer drag on the handle: down, move, up. The dispatched
+    /// events are script-created, so `isTrusted` is always false here; real
+    /// trusted-pointer proof for the drags lives in the packaged-page mouse
+    /// smoke (`scripts/test-drag-interactions.cjs`, `check.py drag-smoke`).
+    /// Returns the handle's `data-quick-offset` after the down and after the
+    /// move.
     async fn drag_handle(
         runtime: &Rc<Runtime>,
         handle: &web_sys::Element,

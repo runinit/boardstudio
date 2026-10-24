@@ -24,7 +24,9 @@ pub(super) fn transform_tools(
         return match (context, active) {
             (TreeContext::Column { .. }, Some(tool)) => vec![tool],
             (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
-            (TreeContext::Matrix { .. }, Some(Tool::Move | Tool::Rotate)) => vec![tool],
+            (TreeContext::Matrix { .. }, Some(active @ (Tool::Move | Tool::Rotate))) => {
+                vec![active]
+            }
             _ => Vec::new(),
         };
     }
@@ -640,6 +642,36 @@ mod tests {
                 true,
             ),
             vec![Tool::Offset]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                None,
+                true,
+            ),
+            vec![Tool::Move, Tool::Rotate]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                true,
+            ),
+            vec![Tool::Move, Tool::Rotate]
+        );
+        assert_eq!(
+            transform_tools(
+                &TreeContext::Matrix {
+                    matrix_id: "matrix".into()
+                },
+                Some(Tool::Move),
+                false,
+            ),
+            vec![Tool::Move]
         );
     }
 
