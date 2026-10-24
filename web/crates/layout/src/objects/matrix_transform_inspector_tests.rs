@@ -491,10 +491,20 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         });
     };
     key("matrix/main/r0c0", "K1", 0.0, 0.0);
-    // The mirror anchor key is Local with a moved pose.
     key("matrix/main2/r0c0", "K2", 12.0, 5.0);
     key("matrix/thumb/r0c0", "K3", 0.0, -19.0);
     key("matrix/thumb2/r0c0", "K4", 12.0, -14.0);
+    // The mirror anchor key is Local with a moved pose. The layout-override
+    // mark is what MoveParts writes: without it Open recomputes the stored
+    // pose from the mirror source.
+    document
+        .parts
+        .iter_mut()
+        .find(|part| part.id == "matrix/main2/r0c0")
+        .expect("the moved key exists")
+        .properties
+        .get_or_insert_with(std::collections::BTreeMap::new)
+        .insert("layoutOverride".into(), serde_json::json!(1));
     let matrix = |id: &str, key_id: &str, mirror: Option<boardstudio_core::model::Mirror>, origin: Vec2, anchor_target: &str| Matrix {
         id: id.into(),
         name: None,
