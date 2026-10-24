@@ -82,6 +82,68 @@ pub struct MatrixRelations {
     pub structure: Vec<RelationItem>,
     pub departures: Vec<Departure>,
     pub constraints: Vec<ConstraintItem>,
+    /// Set when the selected parts span matrices: the chain covers one context
+    /// only, never a merged cross-matrix frame.
+    pub selection_note: Option<String>,
+}
+
+/// Explain a cross-matrix selection instead of merging it into one chain.
+/// Returns a note when the selected parts name live members of more than one
+/// matrix scene; the chain still covers only `context`.
+pub fn cross_matrix_note(
+    scenes: &[MatrixScene],
+    context: &TreeContext,
+    selected_part_ids: &[String],
+) -> Option<String> {
+    let mut owners = std::collections::BTreeSet::new();
+    for id in selected_part_ids {
+        for scene in scenes {
+            let member = scene
+                .cells
+                .iter()
+                .any(|cell| cell.member_id.as_deref() == Some(id.as_str()))
+                || scene
+                    .companions
+                    .iter()
+                    .any(|companion| companion.part_id == *id);
+            if member {
+                owners.insert(scene.matrix_id.as_str());
+            }
+        }
+    }
+    if owners.len() < 2 {
+        return None;
+    }
+    Some(format!(
+        "Parts in {} matrices are selected. This chain covers {}; select one matrix context for detail.",
+        owners.len(),
+        describe_context(context)
+    ))
+}
+
+fn describe_context(context: &TreeContext) -> String {
+    match context {
+        TreeContext::Matrix { matrix_id } => format!("matrix {matrix_id}"),
+        TreeContext::Row { matrix_id, row } => {
+            format!("row {} of matrix {matrix_id}", row + 1)
+        }
+        TreeContext::Column { matrix_id, column } => {
+            format!("column {} of matrix {matrix_id}", column + 1)
+        }
+        TreeContext::Key {
+            matrix_id,
+            row,
+            column,
+        } => format!(
+            "row {}, column {} of matrix {matrix_id}",
+            row + 1,
+            column + 1
+        ),
+        TreeContext::Component { part_id, .. } => {
+            format!("component {}", part_id.as_deref().unwrap_or("unknown"))
+        }
+        _ => "this selection".to_owned(),
+    }
 }
 
 /// The relationships of one matrix selection, or `None` when the context does not name a
@@ -340,6 +402,20 @@ impl View<'_> {
             .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.y)))
     }
 
+    /// This column's Spread: absent on column 0, the pitch unless explicitly
+    /// stored.
+    fn column_spread_text(&self, column: u32) -> String {
+        if column == 0 {
+            return "no spread on column 1".to_owned();
+        }
+        self.matrix
+            .column_layout
+            .get(column as usize)
+            .and_then(|record| record.spread)
+            .map(|spread| format!("{} mm", mm(spread)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)))
+    }
+
     fn custom_origin(&self, column: u32) -> bool {
         self.matrix
             .column_layout
@@ -495,6 +571,113 @@ impl View<'_> {
             Some(Mirror::Y) => structure.push(item("Mirror", "Y".into(), None, vec![])),
             _ => {}
         }
+        // Shared values across the matrix, or "Varies" when members disagree.
+        // No per-key value is presented as universal.
+        let keys = self.all_keys();
+        let spreads: Vec<String> = (1..matrix.columns)
+            .map(|column| {
+                matrix
+                    .column_layout
+                    .get(column as usize)
+                    .and_then(|record| record.spread)
+                    .map(|spread| format!("{} mm", mm(spread)))
+                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.x)))
+            })
+            .collect();
+        structure.push(item(
+            "Column spread",
+            if matrix.columns <= 1 {
+                "no spread (single column)".to_owned()
+            } else {
+                uniform_or_varies(spreads)
+            },
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column stagger",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{} mm", mm(self.stagger(column))))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column splay",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{}°", mm(self.column_turn(column).0)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Column rotation",
+            uniform_or_varies(
+                (0..matrix.columns)
+                    .map(|column| format!("{}°", mm(self.column_turn(column).1)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        let paddings: Vec<String> = (1..matrix.rows)
+            .map(|row| {
+                matrix
+                    .row_layout
+                    .get(row as usize)
+                    .and_then(|record| record.padding)
+                    .map(|padding| format!("{} mm", mm(padding)))
+                    .unwrap_or_else(|| format!("{} mm (pitch)", mm(matrix.pitch.y)))
+            })
+            .collect();
+        structure.push(item(
+            "Row padding",
+            if matrix.rows <= 1 {
+                "no padding (single row)".to_owned()
+            } else {
+                uniform_or_varies(paddings)
+            },
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Row shift",
+            uniform_or_varies(
+                (0..matrix.rows)
+                    .map(|row| offset_text(self.row_stored_shift(row)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Row bend",
+            uniform_or_varies(
+                (0..matrix.rows)
+                    .map(|row| bend_text(self.row_stored_bend(row)))
+                    .collect(),
+            ),
+            None,
+            all.clone(),
+        ));
+        structure.push(item("Key shift", aggregate_shift(&keys), None, all.clone()));
+        structure.push(item("Key bend", aggregate_bend(&keys), None, all.clone()));
+        structure.push(item(
+            "Cumulative shift",
+            aggregate_cumulative_shift(&keys),
+            None,
+            all.clone(),
+        ));
+        structure.push(item(
+            "Cumulative bend",
+            aggregate_cumulative_bend(&keys),
+            None,
+            all.clone(),
+        ));
         for column in 0..matrix.columns {
             let members = self.members(|_, c| c == column);
             if self.stagger(column) != 0.0 {
@@ -561,7 +744,63 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&all),
+            selection_note: None,
         }
+    }
+
+    /// Stored and Core-published facts for one logical key. Stored shift/bend
+    /// come from the document (so deleted keys keep their carried values);
+    /// cumulative totals come from Core's scene (so only scene-present keys
+    /// have them).
+    fn key_facts(&self, row: u32, column: u32) -> AggregatedKey {
+        let stored = self
+            .matrix
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column);
+        let published = self.contributions(row, column);
+        AggregatedKey {
+            shift: stored.and_then(|cell| cell.shift).unwrap_or(ZERO),
+            bend: stored.and_then(|cell| cell.bend).unwrap_or(0.0),
+            cumulative_shift: published.map(|facts| facts.cumulative_shift),
+            cumulative_bend: published.map(|facts| facts.cumulative_bend),
+            state: self.key_state(row, column),
+        }
+    }
+
+    fn row_keys(&self, row: u32) -> Vec<AggregatedKey> {
+        (0..self.matrix.columns)
+            .map(|column| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn column_keys(&self, column: u32) -> Vec<AggregatedKey> {
+        (0..self.matrix.rows)
+            .map(|row| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn all_keys(&self) -> Vec<AggregatedKey> {
+        (0..self.matrix.rows)
+            .flat_map(|row| (0..self.matrix.columns).map(move |column| (row, column)))
+            .map(|(row, column)| self.key_facts(row, column))
+            .collect()
+    }
+
+    fn row_stored_shift(&self, row: u32) -> Vec2 {
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .map(|record| record.shift)
+            .unwrap_or(ZERO)
+    }
+
+    fn row_stored_bend(&self, row: u32) -> f64 {
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .map(|record| record.bend)
+            .unwrap_or(0.0)
     }
 
     fn row(&self, row: u32) -> Option<MatrixRelations> {
@@ -569,28 +808,66 @@ impl View<'_> {
             return None;
         }
         let members = self.members(|r, _| r == row);
-        let keys = (0..self.matrix.columns)
-            .filter(|column| self.key_state(row, *column) == KeyState::Enabled)
-            .count();
-        let structure = vec![
+        let keys = self.row_keys(row);
+        let (mut enabled, mut disabled, mut removed) = (0u32, 0u32, 0u32);
+        for key in &keys {
+            match key.state {
+                KeyState::Enabled => enabled += 1,
+                KeyState::Disabled => disabled += 1,
+                KeyState::Removed => removed += 1,
+            }
+        }
+        let mut keys_text = format!("{enabled} keys in Row {}", row + 1);
+        if disabled > 0 {
+            keys_text.push_str(&format!(", {disabled} disabled"));
+        }
+        if removed > 0 {
+            keys_text.push_str(&format!(", {removed} removed"));
+        }
+        let mut structure = vec![
+            item("Keys", keys_text, None, members.clone()),
+            parameter(
+                "Padding",
+                self.row_padding_text(row),
+                (row > 0).then(|| self.row_context(row)),
+                members.clone(),
+            ),
+            parameter(
+                "Row shift",
+                offset_text(self.row_stored_shift(row)),
+                Some(self.row_context(row)),
+                members.clone(),
+            ),
+            parameter(
+                "Row bend",
+                bend_text(self.row_stored_bend(row)),
+                Some(self.row_context(row)),
+                members.clone(),
+            ),
+            item("Key shift", aggregate_shift(&keys), None, members.clone()),
+            item("Key bend", aggregate_bend(&keys), None, members.clone()),
             item(
-                "Keys",
-                format!("{keys} keys in Row {}", row + 1),
+                "Cumulative shift",
+                aggregate_cumulative_shift(&keys),
                 None,
                 members.clone(),
             ),
-            if row == 0 {
-                item("Spacing", "from the matrix origin".into(), None, vec![])
-            } else {
-                item(
-                    "Spacing",
-                    format!("{} mm from Row {}", mm(self.matrix.pitch.y), row),
-                    Some(self.row_context(row - 1)),
-                    self.members(|r, _| r == row - 1),
-                )
-            },
-            item("Column staggers", "apply to each key".into(), None, vec![]),
+            item(
+                "Cumulative bend",
+                aggregate_cumulative_bend(&keys),
+                None,
+                members.clone(),
+            ),
         ];
+        // Padding carries to later rows, so later rows inherit this row's steps.
+        for later in row + 1..self.matrix.rows {
+            structure.push(item(
+                "Inherited by",
+                format!("Row {}", later + 1),
+                Some(self.row_context(later)),
+                self.members(|r, _| r == later),
+            ));
+        }
         let offset = self.row_offset(row);
         let departures = (offset != ZERO)
             .then(|| Departure {
@@ -606,6 +883,7 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&members),
+            selection_note: None,
         })
     }
 
@@ -625,29 +903,44 @@ impl View<'_> {
         if cumulative != 0.0 {
             value.push_str(&format!(", cumulative {} mm", mm(cumulative)));
         }
-        let mut structure = vec![item("Stagger", value, None, members.clone())];
+        // Stagger totals are steps before turns, not final key positions.
+        value.push_str(", before turns");
+        let keys = self.column_keys(column);
+        let mut structure = vec![
+            item("Stagger", value, None, members.clone()),
+            parameter(
+                "Column spread",
+                self.column_spread_text(column),
+                Some(self.column_context(column)),
+                members.clone(),
+            ),
+            parameter(
+                "Column turn",
+                self.column_turn_text(column),
+                Some(self.column_context(column)),
+                members.clone(),
+            ),
+            item("Key shift", aggregate_shift(&keys), None, members.clone()),
+            item("Key bend", aggregate_bend(&keys), None, members.clone()),
+            item(
+                "Cumulative shift",
+                aggregate_cumulative_shift(&keys),
+                None,
+                members.clone(),
+            ),
+            item(
+                "Cumulative bend",
+                aggregate_cumulative_bend(&keys),
+                None,
+                members.clone(),
+            ),
+        ];
         for later in column + 1..self.matrix.columns {
             structure.push(item(
                 "Inherited by",
                 format!("Column {}", later + 1),
                 Some(self.column_context(later)),
                 self.members(|_, c| c == later),
-            ));
-        }
-        if self.splay(column) != 0.0 || self.custom_origin(column) {
-            structure.push(item(
-                "Splay",
-                format!(
-                    "{}°, {} pivot",
-                    mm(self.splay(column)),
-                    if self.custom_origin(column) {
-                        "custom"
-                    } else {
-                        "default"
-                    }
-                ),
-                None,
-                members.clone(),
             ));
         }
         let offset = self.column_offset(column);
@@ -670,6 +963,7 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&members),
+            selection_note: None,
         })
     }
 
@@ -805,6 +1099,17 @@ impl View<'_> {
                 column_members,
             ),
         ];
+        if self.key_state(row, column) == KeyState::Disabled {
+            structure.insert(
+                1,
+                item(
+                    "Key state",
+                    "disabled (stored values still carry)".into(),
+                    None,
+                    highlight.clone(),
+                ),
+            );
+        }
         if let Some((layout, partner)) = self.partner() {
             let partner_member = format!("matrix/{}/r{row}c{column}", partner.id);
             structure.push(item(
@@ -872,6 +1177,7 @@ impl View<'_> {
             structure,
             departures,
             constraints: self.constraints_touching(&touched),
+            selection_note: None,
         })
     }
 
@@ -925,6 +1231,7 @@ impl View<'_> {
             structure,
             departures,
             constraints,
+            selection_note: None,
         })
     }
 }
@@ -989,6 +1296,113 @@ fn bend_text(bend: f64) -> String {
     } else {
         format!("{}°", mm(bend))
     }
+}
+
+/// One aggregated logical key: stored shift/bend from the document (deleted
+/// keys keep theirs) and Core's cumulative totals when the scene carries them.
+struct AggregatedKey {
+    shift: Vec2,
+    bend: f64,
+    cumulative_shift: Option<Vec2>,
+    cumulative_bend: Option<f64>,
+    state: KeyState,
+}
+
+/// One shared text when every value agrees, otherwise "Varies".
+fn uniform_or_varies(mut values: Vec<String>) -> String {
+    values.sort();
+    values.dedup();
+    if values.len() == 1 {
+        values
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| "Varies".to_owned())
+    } else {
+        "Varies".to_owned()
+    }
+}
+
+/// Names the non-enabled contributors behind an aggregate, so disabled and
+/// deleted keys are not silently dropped from the chain.
+fn state_suffix(disabled: bool, deleted: bool) -> &'static str {
+    match (disabled, deleted) {
+        (true, true) => " (includes disabled and deleted keys)",
+        (true, false) => " (includes disabled keys)",
+        (false, true) => " (includes deleted keys)",
+        (false, false) => "",
+    }
+}
+
+/// Stored key shifts across an aggregate, labelled with contributor state.
+fn aggregate_shift(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys.iter().map(|key| offset_text(key.shift)).collect();
+    let mut text = uniform_or_varies(texts);
+    let (mut disabled, mut deleted) = (false, false);
+    for key in keys {
+        if key.shift != ZERO {
+            match key.state {
+                KeyState::Disabled => disabled = true,
+                KeyState::Removed => deleted = true,
+                KeyState::Enabled => {}
+            }
+        }
+    }
+    text.push_str(state_suffix(disabled, deleted));
+    text
+}
+
+/// Stored key bends across an aggregate, labelled with contributor state.
+fn aggregate_bend(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys.iter().map(|key| bend_text(key.bend)).collect();
+    let mut text = uniform_or_varies(texts);
+    let (mut disabled, mut deleted) = (false, false);
+    for key in keys {
+        if key.bend != 0.0 {
+            match key.state {
+                KeyState::Disabled => disabled = true,
+                KeyState::Removed => deleted = true,
+                KeyState::Enabled => {}
+            }
+        }
+    }
+    text.push_str(state_suffix(disabled, deleted));
+    text
+}
+
+/// Core's cumulative shifts across scene-present keys; keys removed from the
+/// scene carry no published total.
+fn aggregate_cumulative_shift(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys
+        .iter()
+        .filter_map(|key| key.cumulative_shift)
+        .map(|shift| format!("{}, {} mm in matrix axes", mm(shift.x), mm(shift.y)))
+        .collect();
+    if texts.is_empty() {
+        return "not shown (keys removed)".to_owned();
+    }
+    let mut text = uniform_or_varies(texts);
+    let disabled = keys.iter().any(|key| {
+        key.cumulative_shift.is_some_and(|shift| shift != ZERO) && key.state == KeyState::Disabled
+    });
+    text.push_str(state_suffix(disabled, false));
+    text
+}
+
+fn aggregate_cumulative_bend(keys: &[AggregatedKey]) -> String {
+    let texts: Vec<String> = keys
+        .iter()
+        .filter_map(|key| key.cumulative_bend)
+        .map(|bend| format!("{}° (row and key only)", mm(bend)))
+        .collect();
+    if texts.is_empty() {
+        return "not shown (keys removed)".to_owned();
+    }
+    let mut text = uniform_or_varies(texts);
+    let disabled = keys.iter().any(|key| {
+        key.cumulative_bend.is_some_and(|bend| bend != 0.0) && key.state == KeyState::Disabled
+    });
+    text.push_str(state_suffix(disabled, false));
+    text
 }
 
 /// A millimetre or degree value without trailing zeros; a minus sign is U+2212.

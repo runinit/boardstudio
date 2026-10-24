@@ -123,6 +123,13 @@ fn column(column: u32) -> TreeContext {
     }
 }
 
+fn row(row: u32) -> TreeContext {
+    TreeContext::Row {
+        matrix_id: MATRIX.into(),
+        row,
+    }
+}
+
 fn key(row: u32, column: u32) -> TreeContext {
     TreeContext::Key {
         matrix_id: MATRIX.into(),
@@ -156,7 +163,10 @@ fn a_blank_matrix_shows_structure_at_once_and_no_departures_or_constraints() {
     );
 
     let third = relations(&world, column(2)).unwrap();
-    assert_eq!(value(&third.structure, "Stagger"), "0 mm from Column 2");
+    assert_eq!(
+        value(&third.structure, "Stagger"),
+        "0 mm from Column 2, before turns"
+    );
     let inherited: Vec<_> = third
         .structure
         .iter()
@@ -183,17 +193,17 @@ fn staggers_read_relative_to_the_previous_column_with_a_cumulative_value() {
     let first = relations(&world, column(0)).unwrap();
     assert_eq!(
         value(&first.structure, "Stagger"),
-        "0 mm from the matrix origin"
+        "0 mm from the matrix origin, before turns"
     );
     let second = relations(&world, column(1)).unwrap();
     assert_eq!(
         value(&second.structure, "Stagger"),
-        "2 mm from Column 1, cumulative 2 mm"
+        "2 mm from Column 1, cumulative 2 mm, before turns"
     );
     let third = relations(&world, column(2)).unwrap();
     assert_eq!(
         value(&third.structure, "Stagger"),
-        "\u{2212}1 mm from Column 2, cumulative 1 mm"
+        "\u{2212}1 mm from Column 2, cumulative 1 mm, before turns"
     );
 }
 
@@ -242,6 +252,128 @@ fn a_bent_key_reports_its_transported_cumulative_shift_from_core_facts() {
             row: 1,
         }),
         "a carried contribution navigates to the row that authors it"
+    );
+}
+
+#[test]
+fn a_row_chain_shows_its_padding_and_mixed_key_shifts_as_varies() {
+    let world = world(matrix(
+        3,
+        2,
+        json!({
+            "rowLayout": [{}, {"padding": 5.0, "shift": {"x": 1.0, "y": 0.0}}, {}],
+            "cells": [
+                {"row": 1, "column": 0, "enabled": true, "shift": {"x": 3.0, "y": 0.0}},
+                {"row": 1, "column": 1, "enabled": true, "shift": {"x": 4.0, "y": 0.0}},
+            ],
+        }),
+    ));
+
+    let row = relations(&world, row(1)).unwrap();
+    assert_eq!(value(&row.structure, "Padding"), "5 mm");
+    assert_eq!(value(&row.structure, "Row shift"), "1, 0 mm");
+    assert_eq!(value(&row.structure, "Key shift"), "Varies");
+    assert_eq!(value(&row.structure, "Cumulative shift"), "Varies");
+    assert_eq!(
+        value(&row.structure, "Cumulative bend"),
+        "0° (row and key only)"
+    );
+    let inherited: Vec<_> = row
+        .structure
+        .iter()
+        .filter(|item| item.label == "Inherited by")
+        .map(|item| item.value.as_str())
+        .collect();
+    assert_eq!(inherited, ["Row 3"]);
+}
+
+#[test]
+fn a_column_chain_marks_before_turns_totals_and_mixed_shifts_as_varies() {
+    let world = world(matrix(
+        2,
+        2,
+        json!({
+            "columnLayout": [{}, {"spread": 20.0, "stagger": 2.0, "splay": 15.0,
+                                 "rotation": 5.0}],
+            "cells": [
+                {"row": 0, "column": 1, "enabled": true, "shift": {"x": 3.0, "y": 0.0}},
+            ],
+        }),
+    ));
+
+    let col = relations(&world, column(1)).unwrap();
+    assert_eq!(
+        value(&col.structure, "Stagger"),
+        "2 mm from Column 1, cumulative 2 mm, before turns"
+    );
+    assert_eq!(value(&col.structure, "Column spread"), "20 mm");
+    assert_eq!(
+        value(&col.structure, "Column turn"),
+        "splay 15°, column rotation 5° (this column only)"
+    );
+    assert_eq!(value(&col.structure, "Key shift"), "Varies");
+    let first = relations(&world, column(0)).unwrap();
+    assert_eq!(
+        value(&first.structure, "Column spread"),
+        "no spread on column 1"
+    );
+}
+
+#[test]
+fn a_matrix_chain_shows_common_values_or_varies() {
+    let world = world(matrix(
+        2,
+        2,
+        json!({
+            "columnLayout": [{}, {"stagger": 2.0}],
+            "rowLayout": [{}, {"shift": {"x": 1.0, "y": 0.0}}],
+        }),
+    ));
+
+    let summary = relations(&world, matrix_context()).unwrap();
+    assert_eq!(value(&summary.structure, "Column stagger"), "Varies");
+    assert_eq!(value(&summary.structure, "Column spread"), "19 mm (pitch)");
+    assert_eq!(value(&summary.structure, "Row shift"), "Varies");
+    assert_eq!(value(&summary.structure, "Key shift"), "none");
+}
+
+#[test]
+fn selected_parts_in_two_matrices_yield_a_single_context_note() {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (first, _) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "left"})) }),
+    );
+    let (scene, _document) = apply(
+        &mut engine,
+        first.revision,
+        json!({ "kind": "set-matrix", "matrix": matrix(1, 1, json!({"id": "right"})) }),
+    );
+    let members: Vec<String> = scene
+        .matrix_scenes
+        .iter()
+        .flat_map(|scene| scene.cells.iter().filter_map(|cell| cell.member_id.clone()))
+        .collect();
+    assert_eq!(members.len(), 2, "one live member per matrix");
+    let context = TreeContext::Key {
+        matrix_id: "left".into(),
+        row: 0,
+        column: 0,
+    };
+    let note = cross_matrix_note(&scene.matrix_scenes, &context, &members).expect("two matrices");
+    assert!(note.contains("Parts in 2 matrices are selected"), "{note}");
+    assert!(
+        note.contains("select one matrix context for detail"),
+        "{note}"
+    );
+    assert!(
+        cross_matrix_note(&scene.matrix_scenes, &context, &members[..1]).is_none(),
+        "one matrix stays note-free"
     );
 }
 

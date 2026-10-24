@@ -40,6 +40,9 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
     rsx! {
         section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
+            if let Some(note) = relations.selection_note.as_ref() {
+                p { class: "m1-relations-cross-matrix", role: "note", "{note}" }
+            }
             section { class: "m1-relations-structure", aria_labelledby: "m1-relations-structure-heading",
                 h3 { id: "m1-relations-structure-heading", "How it is placed" }
                 ul {

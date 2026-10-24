@@ -1956,11 +1956,19 @@ fn matrix_context_relations(
         .matrix_scenes
         .iter()
         .find(|scene| scene.matrix_id == *matrix_id)?;
-    boardstudio_web_layout::matrix_relations::matrix_relations(
+    let mut relations = boardstudio_web_layout::matrix_relations::matrix_relations(
         &snapshot.document,
         scene,
         &selected.context,
-    )
+    )?;
+    // The chain covers one matrix context only: selected parts in other
+    // matrices get an explanatory note, never a merged frame.
+    relations.selection_note = boardstudio_web_layout::matrix_relations::cross_matrix_note(
+        &snapshot.scene.matrix_scenes,
+        &selected.context,
+        &model.selected_part_ids,
+    );
+    Some(relations)
 }
 
 fn layout_relationship_summary(

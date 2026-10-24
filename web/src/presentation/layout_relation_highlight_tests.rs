@@ -476,3 +476,56 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
         "parameter navigation writes nothing, so no Undo entry"
     );
 }
+
+/// Selecting parts in two matrices must not merge their chains: the Relations
+/// panel keeps the single key context and explains the spanning selection.
+#[wasm_bindgen_test]
+async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
+    let root_id = "relation-cross-matrix";
+    let probe = mount(root_id).await;
+    let revision = probe.revision();
+    probe
+        .land(set_matrix_command(
+            revision,
+            matrix_json(json!({"id": "second", "rows": 1, "columns": 1})),
+        ))
+        .await;
+    probe.select(objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 0,
+        column: 0,
+    });
+    probe.runtime.submit(Event::SelectParts {
+        operation_id: probe.runtime.operation(),
+        part_ids: vec!["matrix/main/r0c0".into(), "matrix/second/r0c0".into()],
+        range_part_ids: vec![],
+        mode: boardstudio_application::SelectionMode::Replace,
+    });
+    support::run_pending(&probe.runtime).await;
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the spanning selection is explained, not merged", || {
+        query(root_id, ".m1-relations-cross-matrix").is_some_and(|note| {
+            note.text_content()
+                .unwrap_or_default()
+                .contains("Parts in 2 matrices are selected")
+        })
+    })
+    .await;
+    let note = probe
+        .element(".m1-relations-cross-matrix")
+        .text_content()
+        .unwrap();
+    assert!(
+        note.contains("select one matrix context for detail"),
+        "{note}"
+    );
+    assert_eq!(
+        query(root_id, "li[data-relation-label='Pitch cell']").is_some(),
+        true,
+        "the single key chain still renders"
+    );
+}
