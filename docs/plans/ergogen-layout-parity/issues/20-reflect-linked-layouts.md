@@ -1,6 +1,6 @@
 # 20: Reflect complete layout groups and inverse-edit their actual frames
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [19](19-anchor-layout-groups.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
