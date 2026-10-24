@@ -639,7 +639,8 @@ mod tests {
         use_context_provider(|| super::super::RelationHighlight(highlight));
         let (document, initial_scene) = use_hook(fixture);
         let mut accepted_document = use_signal(|| document.clone());
-        let mut displayed = use_signal(|| initial_scene);
+        let mut displayed = use_signal(|| initial_scene.clone());
+        let mut preview = use_signal(|| false);
         let mut generation = use_signal(|| 0_usize);
         let mut observed = use_signal(|| 0_usize);
         let mut selected = use_signal(Vec::<String>::new);
@@ -652,7 +653,12 @@ mod tests {
                 let mut next = (*displayed()).clone();
                 next.transforms = vec![Transform { id: "key".into(), pose: Pose2 { at: Vec2 { x: 9.0, y: 4.0 }, rotation: 0.0 } }];
                 displayed.set(Arc::new(next));
+                preview.set(true);
             }, "Preview" }
+            button { id: "canvas-preview-off", onclick: move |_| {
+                displayed.set(initial_scene.clone());
+                preview.set(false);
+            }, "Clear preview" }
             button { id: "canvas-select", onclick: move |_| selected.set(vec!["key".into()]), "Select" }
             button { id: "canvas-accepted", onclick: move |_| {
                 let mut next = accepted_document();
@@ -767,6 +773,51 @@ mod tests {
         click("#canvas-hide");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(root.query_selector(".m1-scene-part").unwrap().is_none());
+        root.remove();
+    }
+
+    /// Ticket 23 slice 9, RED: a transform-drag preview marks the effective
+    /// poses amber until the preview clears.
+    #[wasm_bindgen_test]
+    async fn transform_preview_marks_the_scene_amber_until_it_clears() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(render_fixture),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        let click = |selector: &str| {
+            root.query_selector(selector)
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::HtmlElement>()
+                .unwrap()
+                .click()
+        };
+        assert!(
+            root.query_selector(".m1-scene-preview")
+                .unwrap()
+                .is_none(),
+            "the settled scene carries no preview mark"
+        );
+        click("#canvas-preview");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        assert!(
+            root.query_selector(".m1-scene-preview")
+                .unwrap()
+                .is_some(),
+            "the preview marks its effective poses amber"
+        );
+        click("#canvas-preview-off");
+        gloo_timers::future::TimeoutFuture::new(5).await;
+        assert!(
+            root.query_selector(".m1-scene-preview")
+                .unwrap()
+                .is_none(),
+            "clearing the preview restores the scene"
+        );
         root.remove();
     }
 
