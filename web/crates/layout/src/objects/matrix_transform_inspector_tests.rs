@@ -2703,3 +2703,103 @@ async fn followed_rotation_keeps_the_rotation_field_editable() {
     );
     root.remove();
 }
+
+/// Ticket 23 slice 7b, RED: an anchored matrix names its anchor target and
+/// Follow subset, and Detach clears the anchor in one atomic Core intent that
+/// keeps every pose with one Undo entry.
+#[wasm_bindgen_test]
+async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-detach-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let target = root
+        .query_selector(".m1-matrix-anchor-target")
+        .unwrap()
+        .expect("the anchor names its target");
+    assert_eq!(
+        target.text_content().as_deref(),
+        Some("Anchored to matrix · row 0 · column 0"),
+        "the anchor names its target key"
+    );
+    let follow = root
+        .query_selector(".m1-matrix-anchor-follow")
+        .unwrap()
+        .expect("the anchor names its Follow subset");
+    assert_eq!(
+        follow.text_content().as_deref(),
+        Some("Follows X, Y and rotation"),
+        "the anchor names its Follow subset"
+    );
+    let before = probe.runtime.model().accepted.expect("an accepted document");
+    let pose_before = before
+        .document
+        .parts
+        .iter()
+        .find(|part| part.id == "matrix/matrix-b/r0c0")
+        .expect("the anchored key is laid out")
+        .pose
+        .clone();
+    let revision_before = before.document.revision;
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("an anchored matrix offers Detach")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe.runtime.model().accepted.expect("an accepted document");
+    assert!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .is_none(),
+        "Detach clears the anchor"
+    );
+    assert_eq!(
+        after
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/matrix-b/r0c0")
+            .expect("the key survives")
+            .pose,
+        pose_before,
+        "Detach keeps every pose"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "Detach is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe.runtime.model().accepted.expect("an accepted document");
+    assert!(
+        undone
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .is_some(),
+        "one Undo restores the anchor"
+    );
+    root.remove();
+}
