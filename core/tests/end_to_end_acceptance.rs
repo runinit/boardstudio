@@ -239,7 +239,6 @@ fn scene_pose(scene: &SceneDelta, matrix_id: &str, row: u32, column: u32) -> Pos
         .find(|cell| cell.row == row && cell.column == column)
         .unwrap_or_else(|| panic!("missing cell {matrix_id} {row}/{column}"))
         .pose
-        .clone()
 }
 
 fn part_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
@@ -248,7 +247,6 @@ fn part_pose(doc: &ProjectDoc, id: &str) -> Pose2 {
         .find(|part| part.id == id)
         .unwrap_or_else(|| panic!("missing part {id}"))
         .pose
-        .clone()
 }
 
 fn close(a: f64, b: f64) -> bool {
