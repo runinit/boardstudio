@@ -228,8 +228,9 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
         .pose
         .at;
     assert_eq!(previewed_pose, Vec2 { x: 0.0, y: -19.0 });
-    // Preview leaves accepted state, revision and history unchanged.
-    assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
+    // Preview leaves accepted state, revision and history unchanged: the whole
+    // document (not just the matrix list) is byte-identical.
+    assert_eq!(snapshot(&mut engine), doc);
     let (_, committed) = edit(&mut engine, &doc, operation);
     assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
     assert_eq!(
@@ -322,6 +323,64 @@ fn add_anchored_matrix_creates_1x3_in_same_layout_and_follows_its_anchor_key() {
     assert_eq!(at(&doc, &anchor_key), Vec2 { x: 43.0, y: 7.0 });
     assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 43.0, y: -12.0 });
     assert_eq!(at(&doc, &member("thumb", 0, 2)), Vec2 { x: 81.0, y: -12.0 });
+}
+
+#[test]
+fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
+    let (mut engine, doc) = fixture();
+    let operation = EditOperation::AddAnchoredMatrix {
+        id: "thumb".into(),
+        anchor: MatrixAnchor {
+            matrix_id: "main".into(),
+            row: 0,
+            column: 2,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        },
+    };
+    // Preview evaluates the new members but stores nothing.
+    let previewed = preview(&mut engine, &doc, operation.clone());
+    assert!(
+        previewed
+            .matrix_scenes
+            .iter()
+            .any(|scene| scene.matrix_id == "thumb"),
+        "preview must evaluate the added matrix"
+    );
+    assert_eq!(snapshot(&mut engine), doc);
+    let (_, committed) = edit(&mut engine, &doc, operation);
+    assert!(
+        committed
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == "thumb")
+    );
+    assert!(
+        committed
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "layout")
+            .is_some_and(|layout| layout.matrix_ids.contains(&"thumb".to_string()))
+    );
+    // One Undo restores pre-Add membership: matrix, Layout entry and members.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, doc.matrices);
+    assert_eq!(undone_doc.layouts, doc.layouts);
+    assert_eq!(undone_doc.parts, doc.parts);
+    // The Add was a single history entry: nothing remains to undo.
+    match engine.handle(CoreRequest::Undo {
+        id: "undo-empty".into(),
+    }) {
+        CoreReply::Error { message, .. } => assert!(
+            message.contains("History is empty"),
+            "unexpected message: {message:?}"
+        ),
+        other => panic!("expected empty history, got: {other:?}"),
+    }
+    assert_eq!(redone(&mut engine).matrices, committed.matrices);
 }
 
 #[test]
