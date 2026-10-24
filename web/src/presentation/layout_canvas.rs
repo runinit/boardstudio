@@ -121,6 +121,9 @@ impl PartialEq for SceneSource {
 #[derive(Props, Clone)]
 pub(super) struct SceneProps {
     source: SceneSource,
+    /// A transform drag is previewing: mark the effective poses amber until
+    /// the preview clears. Part of PartialEq so toggling re-renders.
+    preview_active: bool,
     selected_ids: Vec<String>,
     selected_context: Option<super::objects::ScopedTreeContext>,
     keys_visible: bool,
@@ -135,6 +138,7 @@ impl PartialEq for SceneProps {
     fn eq(&self, other: &Self) -> bool {
         // Props memoization refreshes callbacks even when the geometry does not rerender.
         self.source == other.source
+            && self.preview_active == other.preview_active
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
             && self.keys_visible == other.keys_visible
@@ -198,7 +202,7 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         .iter()
         .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
-    scene(LayoutCanvasInput {
+    let input = LayoutCanvasInput {
         document,
         visible_indices: &visible_indices,
         definition_indices: &definition_indices,
@@ -215,7 +219,15 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         footprints_visible: props.footprints_visible,
         on_matrix_pointer_down: props.on_matrix_pointer_down,
         on_part_pointer_down: props.on_part_pointer_down,
-    })
+    };
+    // The wrapper stays mounted whether or not a preview is up so toggling
+    // the amber mark never rebuilds memoized part graphics.
+    rsx! {
+        g {
+            class: if props.preview_active { "m1-scene-preview" } else { "m1-scene" },
+            {scene(input)}
+        }
+    }
 }
 
 pub(super) struct MatrixPointerDown {
@@ -670,6 +682,7 @@ mod tests {
             svg {
                 Scene {
                     source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
+                    preview_active: preview(),
                     selected_ids: selected(), selected_context: None,
                     keys_visible: keys(), components_visible: true, keycaps_visible: keys(), footprints_visible: false,
                     on_matrix_pointer_down: |_| {},
@@ -797,25 +810,19 @@ mod tests {
                 .click()
         };
         assert!(
-            root.query_selector(".m1-scene-preview")
-                .unwrap()
-                .is_none(),
+            root.query_selector(".m1-scene-preview").unwrap().is_none(),
             "the settled scene carries no preview mark"
         );
         click("#canvas-preview");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
-            root.query_selector(".m1-scene-preview")
-                .unwrap()
-                .is_some(),
+            root.query_selector(".m1-scene-preview").unwrap().is_some(),
             "the preview marks its effective poses amber"
         );
         click("#canvas-preview-off");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
-            root.query_selector(".m1-scene-preview")
-                .unwrap()
-                .is_none(),
+            root.query_selector(".m1-scene-preview").unwrap().is_none(),
             "clearing the preview restores the scene"
         );
         root.remove();
