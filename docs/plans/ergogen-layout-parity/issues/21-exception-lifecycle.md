@@ -120,3 +120,21 @@ Integrator notes: do NOT edit `scripts/check-native-tests-baseline.json`
 here. New names needing reconciliation: 14 `matrix_anchors::*` listed
 above; `core::mirrored_pair_deletion_...` is name-retained with changed
 body. No shared goldens, fixtures or baselines changed.
+
+Verification (capped: `TMPDIR=/home/chris/.cache/tmp`, every heavy command
+under `flock`, `RUST_TEST_THREADS=4`, no baseline edits):
+
+- `cargo test -p boardstudio_core --lib`: `ok. 808 passed; 0 failed`.
+- `cargo test -p boardstudio_core --test integration`: `ok. 815 passed;
+  0 failed` (802 pre-existing: 795 ticket-20 total + 7 follow-ups, plus
+  13 new: 10 `matrix_anchors` lifecycle + 3 removal; 1 `core.rs` body
+  updated with its name retained).
+- `python3 scripts/check.py quick --files <10 changed paths>` (22G cap):
+  `check: all steps passed: repo, lint, typecheck, test, layout-test-css,
+  browser` in 387.4s (repo 1.3s, lint 47.6s, typecheck 24.3s, test 70.2s,
+  layout-test-css 75.7s, browser 168.3s).
+
+Fix-round style commits on top of `4358e55`: `22aeea4` (repo rustfmt),
+`e69db78` (clippy collapsible-if). Both green first run; the quick gate
+above ran with these applied. Still claimed; no push, no stash,
+`prototype/` untouched and untracked.
