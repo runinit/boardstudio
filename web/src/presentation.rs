@@ -5865,6 +5865,15 @@ fn Editor() -> Element {
                                     geometry_snap: settings.geometry_snap,
                                     gap: part_placement::placement_gap(&settings),
                                     free: pointer.alt_key(),
+                                    // Ticket 22: component placement snaps in the selected
+                                    // matrix pitch (19.05 mm only when none is selected).
+                                    pitch: matrix_snap_parameters(
+                                        &model,
+                                        &active.owner.scope,
+                                        &adapter,
+                                        None,
+                                    )
+                                    .0,
                                 }
                             },
                         )
@@ -6058,29 +6067,35 @@ fn Editor() -> Element {
                     return;
                 }
                 if let Some(point) = coordinates(&svg, &pointer, view_x, view_y, width, height) {
-                    let at = runtime
-                        .model()
-                        .accepted
-                        .as_ref()
-                        .map_or(point, |_snapshot| {
-                            placement.projection.as_ref().map_or(point, |active| {
-                                part_placement::snap_placement_at(
-                                    &active.snap_document,
-                                    &active.owner.board_id,
-                                    &active.pending,
-                                    point,
-                                    {
-                                        let settings = snap_settings.read();
-                                        part_placement::PlacementSnapOptions {
-                                            snap_fraction: settings.snap_fraction,
-                                            geometry_snap: settings.geometry_snap,
-                                            gap: part_placement::placement_gap(&settings),
-                                            free: pointer.alt_key(),
-                                        }
-                                    },
-                                )
-                            })
-                        });
+                    let model = runtime.model();
+                    let at = model.accepted.as_ref().map_or(point, |_snapshot| {
+                        placement.projection.as_ref().map_or(point, |active| {
+                            part_placement::snap_placement_at(
+                                &active.snap_document,
+                                &active.owner.board_id,
+                                &active.pending,
+                                point,
+                                {
+                                    let settings = snap_settings.read();
+                                    part_placement::PlacementSnapOptions {
+                                        snap_fraction: settings.snap_fraction,
+                                        geometry_snap: settings.geometry_snap,
+                                        gap: part_placement::placement_gap(&settings),
+                                        free: pointer.alt_key(),
+                                        // Ticket 22: component placement snaps in the selected
+                                        // matrix pitch (19.05 mm only when none is selected).
+                                        pitch: matrix_snap_parameters(
+                                            &model,
+                                            &active.owner.scope,
+                                            &adapter,
+                                            None,
+                                        )
+                                        .0,
+                                    }
+                                },
+                            )
+                        })
+                    });
                     placement.on_commit.call(at);
                 }
                 return;
