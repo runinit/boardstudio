@@ -23,8 +23,8 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
 is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
-and all five subtickets are resolved. The next build frontier is [23](issues/23-inspector-toolbar-and-handles.md) (READY-FOR-AGENT),
-now unblocked by resolved [22](issues/22-update-layout-consumers.md); parent-owned handoff remains
+and all five subtickets are resolved. The next build frontier is [24](issues/24-relations-and-highlights.md) (READY-FOR-AGENT),
+now unblocked by resolved [23](issues/23-inspector-toolbar-and-handles.md); parent-owned handoff remains
 pending. [25](issues/25-project-format-recovery.md) remains RESOLVED independently.
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
@@ -118,7 +118,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [20: Linked group reflection](issues/20-reflect-linked-layouts.md#answer) | 19 | Resolved: linked Add with transported Follow, anchor-by-identity, actual Local, column-0 hold-still, Omitted live pose and Y-mirror refusal proof. |
 | [21: Exception lifecycle](issues/21-exception-lifecycle.md#answer) | 20 | Resolved: Local/Omitted resize, Rejoin adoption, confirmed detach and source-removal lifecycle; native matrix-level transitions deferred. |
 | [22: Consumers](issues/22-update-layout-consumers.md#answer) | 21 | Resolved: selected-pitch snap, exact Core Align routing with rigid Column proof and Follow refusal; remaining consumers verified with no production change. |
-| [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md) | 22 | Accepted D interaction through real controls and trusted pointer input. |
+| [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md#answer) | 22 | Resolved: variant-D Inspector/toolbar/handles through real controls and trusted pointer drags; both re-reviews passed. |
 | [24: Relations/highlights](issues/24-relations-and-highlights.md) | 23 | Core facts, placement explanation, navigation and reference lifecycle. |
 | [25: Project recovery](issues/25-project-format-recovery.md#answer) | 17 | Resolved: safe unsupported-project recovery preserves records, drafts, saves and history; full merged gate passed. |
 | [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md) | 24, 25 | Exact approved examples and affected schema/scene contract updates. |

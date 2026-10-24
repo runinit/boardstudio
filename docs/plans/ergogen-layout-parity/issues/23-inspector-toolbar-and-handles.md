@@ -1,6 +1,6 @@
 # 23: Deliver the accepted Inspector, toolbar and working canvas handles
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [22](22-update-layout-consumers.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -45,3 +45,18 @@ Sources: layout `matrix_transform_operation.rs`, `matrix_transform_lifecycle.rs`
 Use mounted `layout`/page tests and the real packaged-page mouse-drag smoke, rebuilding
 providers/page as README requires. Test keyboard nudges and Ctrl/Alt at pointer-down.
 Record which engine/input was used; physical touch remains unproved unless tested.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` at `34b8045ec`. All slices
+landed, plus five fix commits: `9cd0542e8` (key-selection Add anchored matrix
+through Core intent), `ebcfd1897` (anchor-section canvas Pick), `3a3f3666`
+(Follow-constrained matrix Move and Rotate drags), `23d22080c`
+(trusted-pointer Matrix drag smoke with synthetic dispatch marker), `34b8045ec`
+(each matrix tool mount draws only its own handle). Both independent Spec and
+Standards re-reviews PASSED. Native baseline `47820fc85` (+13 names,
+0 removals). Fresh gates green — quick: `check: all steps passed: repo,
+tooling, lint, typecheck, test, browser`; full: `check: all steps passed: repo,
+tooling, lint, build, test, browser`.
+
+No release approval is implied.
