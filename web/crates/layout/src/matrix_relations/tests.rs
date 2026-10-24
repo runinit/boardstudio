@@ -11,6 +11,7 @@ const MATRIX: &str = "main";
 struct World {
     document: ProjectDoc,
     scene: MatrixScene,
+    scenes: Vec<MatrixScene>,
 }
 
 fn definition(id: &str, kind: &str) -> serde_json::Value {
@@ -74,13 +75,18 @@ fn apply(
     }))
 }
 
-fn world_of(scene: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
-    let scene = scene
+fn world_of(delta: SceneDelta, document: ProjectDoc, matrix_id: &str) -> World {
+    let scene = delta
         .matrix_scenes
-        .into_iter()
+        .iter()
         .find(|scene| scene.matrix_id == matrix_id)
-        .expect("the matrix has a scene");
-    World { document, scene }
+        .expect("the matrix has a scene")
+        .clone();
+    World {
+        document,
+        scene,
+        scenes: delta.matrix_scenes,
+    }
 }
 
 fn world(matrix_json: serde_json::Value) -> World {
@@ -89,12 +95,12 @@ fn world(matrix_json: serde_json::Value) -> World {
         id: "open".into(),
         document: base(),
     }));
-    let (scene, document) = apply(
+    let (delta, document) = apply(
         &mut engine,
         opened.revision,
         json!({ "kind": "set-matrix", "matrix": matrix_json }),
     );
-    world_of(scene, document, MATRIX)
+    world_of(delta, document, MATRIX)
 }
 
 fn reopen(document: ProjectDoc, matrix_id: &str) -> World {
@@ -107,7 +113,225 @@ fn reopen(document: ProjectDoc, matrix_id: &str) -> World {
 }
 
 fn relations(world: &World, context: TreeContext) -> Option<MatrixRelations> {
-    matrix_relations(&world.document, &world.scene, &context)
+    matrix_relations(&world.document, &world.scene, &context, &world.scenes)
+}
+
+fn mirrored_pair_with_exception(kind: &str, state: &str) -> (World, World) {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(1, 1, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    let mut mirror: serde_json::Value = serde_json::to_value(
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .expect("mirror layout"),
+    )
+    .unwrap();
+    mirror["mirrorLink"]["exceptions"] = json!([
+        {"kind": "matrix", "mirrorId": "right-matrix", "state": state},
+        {"kind": kind, "mirrorId": "matrix/right-matrix/r0c0", "state": state},
+    ]);
+    let (scene, document) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "set-layout", "layout": mirror }),
+    );
+    (
+        world_of(scene.clone(), document.clone(), "left-matrix"),
+        world_of(scene, document, "right-matrix"),
+    )
+}
+
+#[test]
+fn a_local_overlay_explains_pose_pinning_on_its_key_and_matrix() {
+    let (_, right) = mirrored_pair_with_exception("part", "local");
+
+    let key = relations(&right, key_in("right-matrix", 0, 0)).unwrap();
+    assert_eq!(
+        value(&key.structure, "Local key"),
+        "holds its final pose; carried fields stay shared"
+    );
+
+    let matrix = relations(&right, matrix_in("right-matrix")).unwrap();
+    assert_eq!(
+        value(&matrix.structure, "Local matrix"),
+        "keeps its own dimensions and layout; its anchor stays detached"
+    );
+}
+
+#[test]
+fn an_omitted_key_keeps_a_logical_pose_without_resurrecting_parts() {
+    let (_, right) = mirrored_pair_with_exception("part", "omitted");
+
+    let key = relations(&right, key_in("right-matrix", 0, 0))
+        .expect("logical inspection still projects an Omitted key");
+    assert_eq!(
+        value(&key.structure, "Omitted key"),
+        "live logical pose only; inherited parts stay suppressed"
+    );
+    let suppressed = "matrix/right-matrix/r0c0";
+    let names_suppressed = |ids: &[String]| ids.iter().any(|id| id == suppressed);
+    assert!(
+        key.structure
+            .iter()
+            .all(|item| !names_suppressed(&item.highlight)),
+        "the suppressed part is never highlighted"
+    );
+    assert!(
+        key.departures
+            .iter()
+            .all(|departure| !names_suppressed(&departure.highlight)),
+        "the suppressed part is never highlighted"
+    );
+
+    let matrix = relations(&right, matrix_in("right-matrix")).unwrap();
+    assert_eq!(
+        value(&matrix.structure, "Omitted matrix"),
+        "live logical poses only; inherited parts stay suppressed"
+    );
+}
+
+fn anchored_pair() -> (World, World) {
+    let mut engine = CoreEngine::new();
+    let main = matrix(2, 2, json!({}));
+    let thumb = matrix(
+        1,
+        2,
+        json!({"id": "thumb",
+               "anchor": {"matrixId": "main", "row": 1, "column": 1,
+                          "follow": ["x", "y"]}}),
+    );
+    let mut document = serde_json::to_value(base()).unwrap();
+    document["matrices"] = json!([main, thumb]);
+    document["layouts"] = json!([{ "id": "layout", "name": "Layout",
+        "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
+    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(document).unwrap(),
+    }));
+    (
+        world_of(scene.clone(), document.clone(), MATRIX),
+        world_of(scene, document, "thumb"),
+    )
+}
+
+#[test]
+fn following_a_local_anchor_key_says_it_holds_its_pose() {
+    let mut engine = CoreEngine::new();
+    let (opened, _) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: base(),
+    }));
+    let (scene, document) = apply(
+        &mut engine,
+        opened.revision,
+        json!({ "kind": "create-mirrored-pair",
+            "matrix": matrix(1, 1, json!({ "id": "left-matrix",
+                "origin": { "x": -20.0, "y": 5.0 }, "mirror": "x" })),
+            "left": { "id": "left-layout", "name": "Left half", "boardId": "board",
+                      "matrixIds": ["left-matrix"], "partIds": [] },
+            "right": { "id": "right-layout", "name": "Right half", "boardId": "board",
+                       "matrixIds": ["right-matrix"], "partIds": [],
+                       "mirrorLink": { "sourceId": "left-layout", "axisX": 10.0 } } }),
+    );
+    let mut mirror: serde_json::Value = serde_json::to_value(
+        document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "right-layout")
+            .expect("mirror layout"),
+    )
+    .unwrap();
+    mirror["mirrorLink"]["exceptions"] = json!([
+        {"kind": "part", "mirrorId": "matrix/right-matrix/r0c0", "state": "local"},
+    ]);
+    let (scene, _) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "set-layout", "layout": mirror }),
+    );
+    let (scene, document) = apply(
+        &mut engine,
+        scene.revision,
+        json!({ "kind": "add-anchored-matrix", "id": "follower",
+                "anchor": {"matrixId": "right-matrix", "row": 0, "column": 0,
+                           "follow": ["x", "y", "rotation"]} }),
+    );
+    let follower = world_of(scene, document, "follower");
+    let relations = relations(&follower, matrix_in("follower")).unwrap();
+    let item = relations
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("the follower names its Local anchor key");
+    assert_eq!(
+        item.value,
+        "row 1, column 1 of matrix right-matrix (follows X, Y, rotation); \
+         the anchor key is Local and holds its final pose"
+    );
+}
+
+#[test]
+fn anchored_matrices_name_their_follow_key_subset_and_dependants() {
+    let (main, thumb) = anchored_pair();
+    let thumb_matrix = TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    };
+    let follows = relations(&thumb, thumb_matrix).unwrap();
+    let item = follows
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("an anchored matrix follows its anchor key");
+    assert_eq!(item.value, "row 2, column 2 of matrix main (follows X, Y)");
+    assert_eq!(
+        item.target,
+        Some(TreeContext::Key {
+            matrix_id: MATRIX.into(),
+            row: 1,
+            column: 1,
+        })
+    );
+
+    let main_matrix = TreeContext::Matrix {
+        matrix_id: MATRIX.into(),
+    };
+    let followed = relations(&main, main_matrix).unwrap();
+    let item = followed
+        .structure
+        .iter()
+        .find(|item| item.label == "Followed by")
+        .expect("an anchor matrix names its dependants");
+    assert_eq!(item.value, "Matrix thumb");
+    assert_eq!(
+        item.target,
+        Some(TreeContext::Matrix {
+            matrix_id: "thumb".into(),
+        })
+    );
+
+    let anchor_key = relations(&main, key(1, 1)).unwrap();
+    let item = anchor_key
+        .structure
+        .iter()
+        .find(|item| item.label == "Followed by")
+        .expect("an anchor key names the matrices it moves");
+    assert_eq!(item.value, "Matrix thumb");
 }
 
 fn matrix_context() -> TreeContext {
@@ -131,10 +355,20 @@ fn row(row: u32) -> TreeContext {
 }
 
 fn key(row: u32, column: u32) -> TreeContext {
+    key_in(MATRIX, row, column)
+}
+
+fn key_in(matrix_id: &str, row: u32, column: u32) -> TreeContext {
     TreeContext::Key {
-        matrix_id: MATRIX.into(),
+        matrix_id: matrix_id.into(),
         row,
         column,
+    }
+}
+
+fn matrix_in(matrix_id: &str) -> TreeContext {
+    TreeContext::Matrix {
+        matrix_id: matrix_id.into(),
     }
 }
 

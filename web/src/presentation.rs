@@ -1960,6 +1960,7 @@ fn matrix_context_relations(
         &snapshot.document,
         scene,
         &selected.context,
+        &snapshot.scene.matrix_scenes,
     )?;
     // The chain covers one matrix context only: selected parts in other
     // matrices get an explanatory note, never a merged frame.

@@ -477,6 +477,125 @@ async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
     );
 }
 
+fn replace_command(base_revision: u64, document: ProjectDoc) -> EditCommand {
+    EditCommand {
+        base_revision,
+        transaction_id: "replace".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![],
+        operation: serde_json::from_value(json!({
+            "kind": "replace-document",
+            "document": serde_json::to_value(document).unwrap(),
+        }))
+        .expect("the operation parses"),
+    }
+}
+
+fn anchor_command(base_revision: u64, id: &str, anchor: serde_json::Value) -> EditCommand {
+    EditCommand {
+        base_revision,
+        transaction_id: "anchor".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![],
+        operation: serde_json::from_value(json!({
+            "kind": "add-anchored-matrix", "id": id, "anchor": anchor,
+        }))
+        .expect("the operation parses"),
+    }
+}
+
+/// A Follows reference navigates to its anchor key without writing: the key's
+/// chain then names the matrix following it.
+#[wasm_bindgen_test]
+async fn anchored_follows_navigates_to_its_key_without_writing() {
+    let root_id = "relation-anchored-follows";
+    let probe = mount(root_id).await;
+    let accepted = probe.runtime.model().accepted.expect("accepted document");
+    let mut document = (*accepted.document).clone();
+    document.layouts.push(
+        serde_json::from_value(
+            json!({ "id": "layout", "name": "Layout", "boardId": "board",
+            "matrixIds": ["main"], "partIds": [] }),
+        )
+        .unwrap(),
+    );
+    probe
+        .land(replace_command(document.revision, document))
+        .await;
+    probe
+        .land(anchor_command(
+            probe.revision(),
+            "thumb",
+            json!({ "matrixId": "main", "row": 0, "column": 0,
+                    "follow": ["x", "y", "rotation"] }),
+        ))
+        .await;
+    // The anchor key's own chain names its follower.
+    probe.select(objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 0,
+        column: 0,
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the anchor key names the matrix following it", || {
+        query(root_id, "li[data-relation-label='Followed by']").is_some_and(|item| {
+            item.text_content()
+                .unwrap_or_default()
+                .contains("Matrix thumb")
+        })
+    })
+    .await;
+    // Selecting another object returns to Properties, so wait for the reset
+    // to settle before re-opening Relations.
+    probe.select(objects::TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    });
+    wait_until("the tab resets to Properties for the new selection", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
+            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the anchored matrix names its anchor key", || {
+        query(root_id, "li[data-relation-label='Follows']").is_some_and(|item| {
+            item.text_content()
+                .unwrap_or_default()
+                .contains("row 1, column 1 of matrix main")
+        })
+    })
+    .await;
+    let before = probe.revision();
+    click(root_id, "li[data-relation-label='Follows'] button");
+    // The reference navigates by changing the selection; the key view itself
+    // is proven above, so poll the selection rather than racing its render.
+    let adapter = probe.adapter.clone();
+    let anchor_key = objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 0,
+        column: 0,
+    };
+    wait_until("Follows selects the anchor key", || {
+        adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == anchor_key)
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "reference navigation writes nothing, so no Undo entry"
+    );
+}
+
 /// Selecting parts in two matrices must not merge their chains: the Relations
 /// panel keeps the single key context and explains the spanning selection.
 #[wasm_bindgen_test]
