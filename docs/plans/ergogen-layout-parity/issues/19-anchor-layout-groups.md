@@ -126,3 +126,48 @@ the 19 `matrix_anchors::*` names above are new and need baseline reconciliation.
 `document_integrity::edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically`
 kept its name (baseline-safe) but its shrink case now asserts ticket 19 detach
 semantics. No shared goldens, fixtures or baselines changed.
+
+Fix round (review follow-ups, still claimed, no push, `prototype/` untouched):
+
+- Commits on top of `0cb960fa4`: `892f5e54` (Add preview/Undo proof +
+  `:231` full-doc strengthening), `02d2bf39` (standards nits +
+  rustfmt follow-up), `0afc61ab` (linked-group detach proof).
+- Add proof mirrors the change `:231` snapshot pattern:
+  `add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry`
+  asserts preview evaluates thumb yet leaves the whole document identical,
+  one Undo restores matrices/Layouts/parts, a second Undo reports
+  `History is empty` (single history entry), and Redo restores the Add.
+- Change `:231` strengthened from matrices-only to full-doc equality:
+  trivial, green first run (refusal tests already assert full-doc).
+- Group-level linked detach:
+  `linked_detach_clears_both_anchors_and_keeps_both_poses` opens a
+  two-group doc (source `layout` + `mirror-layout` linked at `axis_x = 10`
+  with explicit matrix correspondences) through public `Open`, detaches
+  `thumb` via public `Edit`, and proves both anchors clear and all 12
+  materialized poses are unchanged, with one-transaction Undo/Redo.
+  Green on unmodified production code (honest pass: the claim rides the
+  normal pair sync plus the post-edit `layout::resolve`). Non-vacuity
+  checked by sabotaging `reflected()` anchor propagation only: the test
+  fails at the `thumb2`-anchor assertion (`left: Some(MatrixAnchor ...)`,
+  `right: None`); sabotage reverted, tree otherwise untouched.
+  The `anchors.rs:242-244` Local-exception naming stays as the
+  sync-failure path (e.g. un-mappable counterpart); no linked-detach
+  refusal case was reachable through public routes, so the success path
+  above is the proving test.
+- Standards nits: `validate_target` is now private to `anchors.rs`
+  (sole caller), and `linked_layout` carries explicit `&&`/`||` parens.
+
+Integrator notes (fix round): still no baseline edits. Reconcile two more
+new names beyond the 19 above (now 21 `matrix_anchors` tests total):
+`matrix_anchors::add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry`,
+`matrix_anchors::linked_detach_clears_both_anchors_and_keeps_both_poses`.
+
+Fix-round verification (capped, `TMPDIR=/home/chris/.cache/tmp`, heavy cmds
+under `flock`, `RUST_TEST_THREADS=4`):
+
+- `cargo test -p boardstudio_core --lib`: `ok. 806 passed; 0 failed`.
+- `cargo test -p boardstudio_core --test integration`:
+  `ok. 795 passed; 0 failed` (774 pre-existing + 21 `matrix_anchors`).
+- `python3 scripts/check.py quick --files core/src/matrix/anchors.rs core/tests/matrix_anchors.rs`
+  (22G cap): `check: all steps passed: repo, lint, typecheck, test,
+  layout-test-css, browser` in 200.6s.
