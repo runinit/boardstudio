@@ -2710,13 +2710,8 @@ async fn followed_rotation_keeps_the_rotation_field_editable() {
 #[wasm_bindgen_test]
 async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
     let (document, context) = anchored_matrix_fixture(true);
-    let (probe, root) = mount_selection_probe(
-        "matrix-transform-detach-test",
-        document,
-        context,
-        &[],
-    )
-    .await;
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-detach-test", document, context, &[]).await;
     settle(&probe).await;
     let target = root
         .query_selector(".m1-matrix-anchor-target")
@@ -2736,7 +2731,11 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
         Some("Follows X, Y and rotation"),
         "the anchor names its Follow subset"
     );
-    let before = probe.runtime.model().accepted.expect("an accepted document");
+    let before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     let pose_before = before
         .document
         .parts
@@ -2756,7 +2755,11 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
     detach.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let after = probe.runtime.model().accepted.expect("an accepted document");
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     assert!(
         after
             .document
@@ -2789,7 +2792,11 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
     });
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let undone = probe.runtime.model().accepted.expect("an accepted document");
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     assert!(
         undone
             .document
