@@ -1002,25 +1002,49 @@ fn edits_that_orphan_an_anchor_or_empty_a_layout_are_refused_atomically() {
     let mut engine = CoreEngine::new();
     let mut document = two_matrix_document();
     document["matrices"][1]["anchor"] = json!({"matrixId": "matrix", "row": 0, "column": 1});
-    assert_eq!(open(&mut engine, "valid", &document)["kind"], "scene");
+    let opened = open(&mut engine, "valid", &document);
+    assert_eq!(opened["kind"], "scene");
     let accepted = snapshot(&mut engine);
+    let laid_out = opened["scene"]["matrixScenes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scene| scene["matrixId"] == "second")
+        .expect("anchored scene")["cells"][0]["pose"]
+        .clone();
     let mut shrunk = accepted["matrices"][0].clone();
     shrunk["columns"] = json!(1);
     shrunk["partIds"] = json!(["a"]);
+    // Ticket 19: shrinking detaches dependants with their frame instead of
+    // refusing. The anchor never retargets the new key at the old coordinate.
     let reply = edit(&mut engine, 0, json!({"kind":"set-matrix","matrix":shrunk}));
-    assert_refused(&reply, "anchor key matrix/matrix/r0c1 is missing");
-    assert_eq!(snapshot(&mut engine), accepted);
-    let mut unowned = accepted["matrices"][1].clone();
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let detached = snapshot(&mut engine);
+    assert_eq!(detached["matrices"][1]["anchor"], json!(null));
+    assert_eq!(
+        detached["matrices"][1]["origin"],
+        json!({"x": 19.0, "y": -19.0})
+    );
+    let member_c = detached["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|part| part["id"] == "matrix/second/r0c0")
+        .expect("detached member is kept");
+    // The stale authored id "c" is normalized to its member id; its pose is
+    // the laid-out one, unchanged by the detach.
+    assert_eq!(member_c["pose"], laid_out);
+    let mut unowned = detached["matrices"][1].clone();
     unowned["anchor"] = json!({"matrixId": "missing", "row": 0, "column": 0});
     assert_refused(
         &edit(
             &mut engine,
-            0,
+            1,
             json!({"kind":"set-matrix","matrix":unowned}),
         ),
         "anchor target missing is missing",
     );
-    assert_eq!(snapshot(&mut engine), accepted);
+    assert_eq!(snapshot(&mut engine), detached);
 }
 
 #[test]
