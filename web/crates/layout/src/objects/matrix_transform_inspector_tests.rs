@@ -2115,3 +2115,263 @@ async fn inspector_key_shift_carries_down_its_column_with_one_undo() {
     }
     root.remove();
 }
+
+fn scene_key_rotation(probe: &Probe, row: u32, column: u32) -> f64 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+        })
+        .expect("the key is laid out")
+        .pose
+        .rotation
+}
+
+/// Ticket 23, RED: the Row Inspector names the carried Bend field. Setting
+/// Bend turns the later-row keys through Core's running frame as one accepted
+/// edit, and one Undo restores both rows exactly.
+#[wasm_bindgen_test]
+async fn inspector_row_bend_turns_later_row_keys_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-row-bend-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Bend", "10");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .row_layout
+            .first()
+            .map(|record| &record.bend)
+            .copied()
+            .unwrap_or_default(),
+        10.0,
+        "the Inspector value is the matrix row's carried Bend"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    assert!(
+        (scene_key_rotation(&probe, 0, 0) - 10.0).abs() < 1e-9
+            && (scene_key_rotation(&probe, 1, 0) - 10.0).abs() < 1e-9,
+        "the edited row and its later row turn the full Bend"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        scene_key_rotation(&probe, 0, 0).abs() < 1e-9
+            && scene_key_rotation(&probe, 1, 0).abs() < 1e-9,
+        "one Undo restores both rows exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 23, RED: the Key Inspector names this-column Bend. Setting Bend
+/// turns the edited key and carries down its own column as one accepted edit;
+/// the neighbouring column stays still, and one Undo restores all four keys.
+#[wasm_bindgen_test]
+async fn inspector_key_bend_carries_down_its_column_with_one_undo() {
+    let (document, selected) = shift_grid_fixture();
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-key-bend-test", document, selected, &[]).await;
+    settle(&probe).await;
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Bend", "10");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    let cell = accepted.document.matrices[0]
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0)
+        .expect("the edited key keeps its cell");
+    assert_eq!(
+        cell.bend.unwrap_or_default(),
+        10.0,
+        "the Inspector value is the key's own Bend"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    assert!(
+        (scene_key_rotation(&probe, 0, 0) - 10.0).abs() < 1e-9
+            && (scene_key_rotation(&probe, 1, 0) - 10.0).abs() < 1e-9,
+        "a key Bend turns its key and carries down its column"
+    );
+    assert!(
+        scene_key_rotation(&probe, 0, 1).abs() < 1e-9
+            && scene_key_rotation(&probe, 1, 1).abs() < 1e-9,
+        "the neighbouring column does not follow a key Bend"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    for (row, column) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        assert!(
+            scene_key_rotation(&probe, row, column).abs() < 1e-9,
+            "one Undo restores key ({row}, {column}) exactly"
+        );
+    }
+    root.remove();
+}
+
+/// Ticket 23, RED: the Column Inspector names the inherited Spread field.
+/// Setting Spread moves the later columns through Core as one accepted edit,
+/// and one Undo restores both columns exactly.
+#[wasm_bindgen_test]
+async fn inspector_spread_moves_later_columns_with_one_undo() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-spread-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let before_moved = scene_key_at(&probe, 0, 1);
+    let before_still = scene_key_at(&probe, 0, 0);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Spread", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .column_layout
+            .get(1)
+            .and_then(|record| record.spread),
+        Some(24.0),
+        "the Inspector value is the column's explicit Spread"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let moved = scene_key_at(&probe, 0, 1);
+    assert!(
+        (moved.x - before_moved.x - 5.0).abs() < 1e-9 && (moved.y - before_moved.y).abs() < 1e-9,
+        "column 1 steps out the full Spread past the 19 mm pitch"
+    );
+    let still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (still.x - before_still.x).abs() < 1e-9 && (still.y - before_still.y).abs() < 1e-9,
+        "column 0 does not follow a later Spread"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let restored_moved = scene_key_at(&probe, 0, 1);
+    let restored_still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (restored_moved.x - before_moved.x).abs() < 1e-9
+            && (restored_moved.y - before_moved.y).abs() < 1e-9
+            && (restored_still.x - before_still.x).abs() < 1e-9
+            && (restored_still.y - before_still.y).abs() < 1e-9,
+        "one Undo restores both columns exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 23, RED: the Row Inspector names the Padding step field. Setting
+/// Padding on row 1 moves that row's keys through Core as one accepted edit
+/// without moving row 0, and one Undo restores both rows exactly.
+#[wasm_bindgen_test]
+async fn inspector_padding_moves_only_its_own_row_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-padding-test",
+        document,
+        row_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let before_moved = scene_key_at(&probe, 1, 0);
+    let before_still = scene_key_at(&probe, 0, 0);
+    let revision = probe.runtime.model().accepted.unwrap().document.revision;
+
+    set_numeric_field(&root, "Padding", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+
+    let accepted = probe.runtime.model().accepted.unwrap();
+    assert_eq!(
+        accepted.document.matrices[0]
+            .row_layout
+            .get(1)
+            .and_then(|record| record.padding),
+        Some(24.0),
+        "the Inspector value is the row's explicit Padding"
+    );
+    assert_eq!(
+        accepted.document.revision,
+        revision + 1,
+        "one accepted edit"
+    );
+    let moved = scene_key_at(&probe, 1, 0);
+    assert!(
+        (moved.y - before_moved.y - 5.0).abs() < 1e-9 && (moved.x - before_moved.x).abs() < 1e-9,
+        "row 1 steps out the full Padding past the 19 mm pitch"
+    );
+    let still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (still.x - before_still.x).abs() < 1e-9 && (still.y - before_still.y).abs() < 1e-9,
+        "row 0 does not follow a later Padding"
+    );
+
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let restored_moved = scene_key_at(&probe, 1, 0);
+    let restored_still = scene_key_at(&probe, 0, 0);
+    assert!(
+        (restored_moved.x - before_moved.x).abs() < 1e-9
+            && (restored_moved.y - before_moved.y).abs() < 1e-9
+            && (restored_still.x - before_still.x).abs() < 1e-9
+            && (restored_still.y - before_still.y).abs() < 1e-9,
+        "one Undo restores both rows exactly"
+    );
+    root.remove();
+}
