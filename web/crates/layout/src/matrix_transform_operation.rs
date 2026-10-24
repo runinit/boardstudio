@@ -63,6 +63,9 @@ pub enum MatrixTransformFields {
         rotation: f64,
         mirror: Option<Mirror>,
         mirror_y_locked: bool,
+        /// False when the matrix is anchored without rotation Follow: Core
+        /// would refuse the no-op edit, so the Inspector disables the field.
+        rotation_followed: bool,
     },
     Row {
         row: u32,
@@ -2132,6 +2135,7 @@ mod tests {
             rotation: 0.0,
             mirror: None,
             mirror_y_locked: true,
+            rotation_followed: true,
         };
         let error = build_operation(
             &matrix,
@@ -2152,6 +2156,7 @@ mod tests {
             rotation: 0.0,
             mirror: None,
             mirror_y_locked: false,
+            rotation_followed: true,
         };
         for (field, value, expected) in [
             (

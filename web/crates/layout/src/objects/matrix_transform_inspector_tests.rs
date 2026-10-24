@@ -6,7 +6,7 @@ use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, Follow, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell, Part, PartDefinition,
+    Board, Follow, Layout, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell, Part, PartDefinition,
     PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
@@ -344,9 +344,18 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
 }
 
 /// A second 1-key matrix anchored to the first key, with rotation Follow on or
-/// off. The anchor target is the fixture's own first key.
+/// off. The anchor target is the fixture's own first key. Both matrices join
+/// one Layout, which anchor validation requires.
 fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext) {
     let (mut document, _) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
     let key_id = "matrix/matrix-b/r0c0";
     document.boards[0].part_ids.push(key_id.into());
     document.parts.push(Part {

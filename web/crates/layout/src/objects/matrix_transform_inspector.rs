@@ -123,6 +123,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             rotation,
             mirror,
             mirror_y_locked,
+            rotation_followed,
         } => (
             "Position & orientation",
             rsx! {
@@ -145,8 +146,13 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         owner: owner.clone(), snapshot_token, revision,
                         field: MatrixTransformField::MatrixRotation, label: "Rotation", unit: "°",
                         draft: props.mount.numeric_field(MatrixTransformField::MatrixRotation).0, failure: props.mount.numeric_field(MatrixTransformField::MatrixRotation).1,
-                        value: *rotation, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        value: *rotation, request_sequence, editable: props.mount.editable, disabled: !rotation_followed, feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
+                    }
+                    if !rotation_followed {
+                        p { class: "m1-empty-note m1-matrix-transform-note", role: "note",
+                            "Rotation is not followed, so turning it changes nothing."
+                        }
                     }
                 }
                 MirrorTransformField {
@@ -552,6 +558,10 @@ pub(super) struct NumericTransformFieldProps {
     splay_affect: Signal<MatrixSplayAffect>,
     draft: Signal<String>,
     failure: Signal<Option<String>>,
+    /// Hard unavailability with its own explained reason, e.g. a rotation the
+    /// anchor does not follow. Unlike `editable`, this disables the input.
+    #[props(default)]
+    disabled: bool,
     #[props(default)]
     display_precision: Option<usize>,
     /// A muted badge beside the value, e.g. the pitch a default step follows.
@@ -692,6 +702,7 @@ pub(super) fn NumericTransformField(props: NumericTransformFieldProps) -> Elemen
             unit: props.unit,
             value: current,
             readonly: !props.editable,
+            disabled: props.disabled,
             error: error_message,
             oninput: move |event: FormEvent| {
                 if !dirty() {

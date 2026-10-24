@@ -1106,6 +1106,10 @@ fn transform_fields(
             rotation: matrix.rotation.unwrap_or(0.0),
             mirror: matrix.mirror,
             mirror_y_locked: matrix_has_linked_layout(&snapshot.document, board_id, &matrix.id),
+            rotation_followed: matrix
+                .anchor
+                .as_ref()
+                .is_none_or(|anchor| anchor.follow.rotation),
         },
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,
