@@ -293,6 +293,49 @@ struct ContextGeneration {
     value: u64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct TransformChangeAnnouncement {
+    pub(super) owner: MatrixTransformInspectorOwner,
+    pub(super) revision: u64,
+    pub(super) message: String,
+}
+
+/// The human name of a transform field, used by the change announcement.
+pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str {
+    match field {
+        MatrixTransformField::OriginX => "Origin X",
+        MatrixTransformField::OriginY => "Origin Y",
+        MatrixTransformField::MatrixRotation => "Rotation",
+        MatrixTransformField::MatrixMirror => "Mirror",
+        MatrixTransformField::RowOffsetX | MatrixTransformField::ColumnOffsetX => "Offset X",
+        MatrixTransformField::RowOffsetY | MatrixTransformField::ColumnOffsetY => "Offset Y",
+        MatrixTransformField::RowOffsetReset | MatrixTransformField::ColumnOffsetReset => {
+            "Reset offsets"
+        }
+        MatrixTransformField::RowShiftX | MatrixTransformField::KeyShiftX => "Shift X",
+        MatrixTransformField::RowShiftY | MatrixTransformField::KeyShiftY => "Shift Y",
+        MatrixTransformField::RowBend | MatrixTransformField::KeyBend => "Bend",
+        MatrixTransformField::RowPadding => "Padding",
+        MatrixTransformField::ColumnStagger => "Stagger",
+        MatrixTransformField::ColumnSpread => "Spread",
+        MatrixTransformField::ColumnSplay => "Splay",
+        MatrixTransformField::SplayOriginMode => "Origin",
+        MatrixTransformField::SplayOriginX => "Origin X",
+        MatrixTransformField::SplayOriginY => "Origin Y",
+        MatrixTransformField::SplayOriginPoint => "Pick origin",
+        MatrixTransformField::ColumnOffsetConvert => "Convert to stagger",
+        MatrixTransformField::KeyOffsetX => "Local X",
+        MatrixTransformField::KeyOffsetY => "Local Y",
+        MatrixTransformField::KeyRotation => "Key rotation",
+        MatrixTransformField::KeyTransformReset => "Reset local transform",
+        MatrixTransformField::KeyEnabled => "Enabled",
+        MatrixTransformField::KeyAssembly => "Key assembly",
+        MatrixTransformField::KeyAttached => "Attached components",
+        MatrixTransformField::KeyAssembliesLocal => "Use mirrored components",
+        MatrixTransformField::DeleteSelection => "Delete",
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct MatrixTransformInspectorMount {
     pub projection: Option<MatrixTransformProjection>,
@@ -307,6 +350,7 @@ pub struct MatrixTransformInspectorMount {
     pub(super) canvas_numeric_fields:
         Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
     one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
+    pub(super) change_status: Signal<Option<TransformChangeAnnouncement>>,
 }
 
 impl MatrixTransformInspectorMount {
@@ -466,6 +510,7 @@ pub fn use_workspace_matrix_transform(
         .collect::<Vec<_>>()
     });
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
+    let change_status = use_signal(|| None::<TransformChangeAnnouncement>);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
     let canvas_mounted = use_signal(|| false);
@@ -658,13 +703,20 @@ pub fn use_workspace_matrix_transform(
         {
             let runtime = runtime.clone();
             let mut feedback = feedback;
+            let mut change_status = change_status;
             let pending = pending.clone();
             let alive = alive.clone();
             move |(_, current_workspace, _, _)| {
                 let owner_is_live = alive.get()
                     && (inspector_mounted() || canvas_mounted())
                     && workspace_route_matches(current_workspace, owner_workspace);
-                settle_pending(&runtime, &pending, owner_is_live, &mut feedback);
+                settle_pending(
+                    &runtime,
+                    &pending,
+                    owner_is_live,
+                    &mut feedback,
+                    &mut change_status,
+                );
             }
         },
     ));
@@ -677,6 +729,7 @@ pub fn use_workspace_matrix_transform(
         let retained_keys = retained_keys.clone();
         let mut last_request_id = last_request_id;
         let mut feedback = feedback;
+        let mut change_status = change_status;
         let mut catalog_requested = catalog_requested;
         move |request: MatrixTransformRequest| {
             let current_generation = context_generation.borrow().value;
@@ -877,6 +930,8 @@ pub fn use_workspace_matrix_transform(
             if let (Some(draft), Some(failure)) = (request.draft, request.failure) {
                 pending.bind_field(key.clone(), draft, failure);
             }
+            // A newer submit retires the previous announcement before Core answers.
+            change_status.set(None);
             if !request.one_shot {
                 pending.begin_field(
                     &runtime,
@@ -917,6 +972,7 @@ pub fn use_workspace_matrix_transform(
         canvas_numeric_fields,
         numeric_fields,
         one_shot_fields,
+        change_status,
     }
 }
 
@@ -1320,12 +1376,27 @@ fn settle_pending(
     pending: &PendingEditSignals<TransformPendingKey>,
     owner_is_live: bool,
     feedback: &mut Signal<Vec<MatrixTransformFeedback>>,
+    change_status: &mut Signal<Option<TransformChangeAnnouncement>>,
 ) {
     for result in pending.settle(owner_is_live, |key| accepted_field_text(runtime, key)) {
         match result {
             PendingEditResult::Landed { key, .. } => {
                 if key.failure.is_none() {
                     publish_feedback(feedback, &key.owner, key.request_id, key.field, None)
+                }
+                let revision = runtime
+                    .model()
+                    .accepted
+                    .map(|snapshot| snapshot.document.revision);
+                if let Some(revision) = revision {
+                    change_status.set(Some(TransformChangeAnnouncement {
+                        owner: key.owner.clone(),
+                        revision,
+                        message: format!(
+                            "Changed {} · one Undo entry",
+                            transform_field_label(key.field)
+                        ),
+                    }));
                 }
             }
             PendingEditResult::Failed { key, message } => {
@@ -1338,11 +1409,24 @@ fn settle_pending(
                         Some(message),
                     )
                 }
+                change_status.set(None);
             }
             PendingEditResult::Retired { key } => {
                 clear_feedback(feedback, &key);
             }
         }
+    }
+    // Undo, canvas drags and other writers move the revision without a mount
+    // submit; their result retires an announcement they did not produce.
+    let revision = runtime
+        .model()
+        .accepted
+        .map(|snapshot| snapshot.document.revision);
+    if change_status()
+        .as_ref()
+        .is_some_and(|announcement| Some(announcement.revision) != revision)
+    {
+        change_status.set(None);
     }
 }
 

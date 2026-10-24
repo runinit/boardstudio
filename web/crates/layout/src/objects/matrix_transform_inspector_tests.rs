@@ -1505,11 +1505,13 @@ async fn inspector_stagger_lands_as_a_placement_edit_that_moves_later_columns_wi
     )
     .await;
     settle(&probe).await;
-    let label = root
-        .query_selector(".m1-matrix-field-context")
-        .unwrap()
-        .expect("the column context label is mounted")
-        .text_content();
+    let contexts = root.query_selector_all(".m1-matrix-field-context").unwrap();
+    let label = (0..contexts.length())
+        .filter_map(|index| contexts.item(index))
+        .find_map(|node| {
+            let text = node.text_content()?;
+            text.starts_with("Column").then_some(text)
+        });
     assert_eq!(label.as_deref(), Some("Column 1"));
     // The fixture's key poses were never laid out by Core; the first edit syncs them, so
     // measure the second change from that synced state.
