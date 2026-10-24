@@ -4730,10 +4730,7 @@ mod tool_tests {
             "the preview clears on release"
         );
         let stagger = fixture::accepted_matrix(&runtime).column_layout[1].stagger;
-        assert!(
-            stagger != 0.0,
-            "the committed drag moved the column"
-        );
+        assert!(stagger != 0.0, "the committed drag moved the column");
         fixture::undo(&runtime).await;
         assert_eq!(
             fixture::accepted_matrix(&runtime).column_layout[1].stagger,

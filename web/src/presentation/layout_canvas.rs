@@ -356,7 +356,10 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                         .and_then(|id| projection.visible_by_id.get(id).copied());
                     let definition = match member {
                         Some(part) => input.definitions.get(part.definition_id.as_str()).copied(),
-                        None => input.definitions.get(matrix.definition_id.as_str()).copied(),
+                        None => input
+                            .definitions
+                            .get(matrix.definition_id.as_str())
+                            .copied(),
                     };
                     ghosts.push((
                         matrix.id.clone(),
@@ -1097,9 +1100,7 @@ mod ghost_tests {
                 .click()
         };
         assert!(
-            root.query_selector(".m1-scene-ghost")
-                .unwrap()
-                .is_none(),
+            root.query_selector(".m1-scene-ghost").unwrap().is_none(),
             "the settled scene carries no ghosts"
         );
         click("#canvas-ghost-preview");
@@ -1119,9 +1120,7 @@ mod ghost_tests {
         click("#canvas-ghost-off");
         gloo_timers::future::TimeoutFuture::new(5).await;
         assert!(
-            root.query_selector(".m1-scene-ghost")
-                .unwrap()
-                .is_none(),
+            root.query_selector(".m1-scene-ghost").unwrap().is_none(),
             "clearing the preview retires its ghosts"
         );
         root.remove();
