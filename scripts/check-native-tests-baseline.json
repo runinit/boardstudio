@@ -1585,6 +1585,7 @@
   "encoder_inputs::reversible_contacts_compile_as_distinct_physical_pads_on_one_terminal",
   "encoder_inputs::switching_scan_mode_removes_only_the_previous_generated_press_routes",
   "encoder_inputs::wired_split_encoders_cannot_reuse_either_uart_gpio",
+  "end_to_end_acceptance::preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_group",
   "finding_locations::fitted_corner_warning_has_local_geometry_through_public_scene",
   "finding_locations::keycap_clearance_warning_locates_both_affected_inputs",
   "firmware_hardware::firmware_request_remains_value_comparable_with_compact_module_snapshot",
