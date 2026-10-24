@@ -23,9 +23,9 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
 is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
-and all five subtickets are resolved. The active build frontier is
-[18](issues/18-core-placement-edits.md) (CLAIMED); [25](issues/25-project-format-recovery.md)
-is RESOLVED independently. [19](issues/19-anchor-layout-groups.md) remains blocked by 18.
+and all five subtickets are resolved. The next build frontier is [19](issues/19-anchor-layout-groups.md) (READY-FOR-AGENT),
+now unblocked by resolved [18](issues/18-core-placement-edits.md); parent-owned handoff remains
+pending. [25](issues/25-project-format-recovery.md) remains RESOLVED independently.
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -113,7 +113,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer) | 17a | Resolved: projection and parts use the kernel; ordinary saved-pose/member-id oracle coverage replaces the retired test. |
 | [17d: Entry-path gates](issues/17d-entry-path-gates.md) | 17a | Resolved: archive unpack gated before the asset table; Core Open, replace and browser list/load gates pinned by tests. |
 | [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer) | 17b, 17c, 17d | Resolved: minimum fixture repairs, quick/full gates and independent Standards/Spec re-reviews passed. |
-| [18: Core placement edits](issues/18-core-placement-edits.md) | 17 | Named edits, exact inverses, origin compensation and rigid Column Align. |
+| [18: Core placement edits](issues/18-core-placement-edits.md#answer) | 17 | Resolved: named edits, exact inverses, origin compensation and rigid Column Align; linked constraint-driven Align retains its existing refusal. |
 | [19: Anchor/Layout groups](issues/19-anchor-layout-groups.md) | 18 | Dependency evaluation, typed anchor edits and identity lifecycle. |
 | [20: Linked group reflection](issues/20-reflect-linked-layouts.md) | 19 | Both linking systems, actual/transported frames and inverse edits. |
 | [21: Exception lifecycle](issues/21-exception-lifecycle.md) | 20 | Local/Omitted resize, Rejoin, confirmed detach and source removal. |
@@ -138,6 +138,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 - [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer): All 119 paths passed fresh quick/full gates, native 2,150, page 77/77 and packaged drag/collision 13/13; both final review findings were fixed and independent Standards/Spec re-reviews passed.
 - [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer): Draft/actual projection and parts route through the kernel; nine ordinary fixture cases retain saved-pose/member-id coverage, and the reviewed merged quick passes.
 - [25: Project recovery](issues/25-project-format-recovery.md#answer): Incompatible Open/import is validated before switching; owned commits settle and replacements publish only after persistence. Raw download is JSON-only, New is fresh, Delete is named and guarded; merged quick/full and independent Spec/Standards review passed. Conservative confirmation may appear for an already-open editor because there is no shared dirty-state registry. This does not authorize release or user-data writers.
+- [18: Core placement edits](issues/18-core-placement-edits.md#answer): Named placement edits, inverse moves, exact origin compensation and rigid Column Align passed the independent Spec/Standards review and fresh merged quick/full gates. The existing linked-pair constraint-driven Align refusal remains for ticket 20; no constrained Align support or release approval is claimed.
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md#answer): **Shift** and **Bend**
   are the carried move and turn (ergogen `shift` and `rotate`). Offsets and Key rotation keep their

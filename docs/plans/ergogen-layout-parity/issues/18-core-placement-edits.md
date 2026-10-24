@@ -1,6 +1,6 @@
 # 18: Implement named placement, inverse moves and exact origin compensation
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [17a](17a-grouped-model-and-core-callers.md), [17c](17c-kernel-production-routing.md) (parent: [17](17-cut-over-format-and-model.md))
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -143,3 +143,14 @@ case was not added; actual public Core Matrix/Column preview, commit and Undo co
 remains the evidence for ordinary representable constraints. Changing linked refusal
 policy needs an explicit future scope decision. Golden deltas are justified by the inverse
 helper's Follow behavior, not by the `3.02e-14` rounding magnitude alone.
+
+## Answer
+
+Integrated the independently reviewed source `1a5385b0ef709468b02fb174f6607118960dfce4` with ticket 25 at merge `f2e53b7b04867e3e413da47757f4ebc602df6350`. Documentation/comment polish is `da4412f4eaa876e6ba270398d4c63de490bb0d0a` and `e50bcc8167bcab1c16d61bddfcb1898a49575500`; the supported native-baseline update is `04cbd057a003`. Fresh merged verification ran at tested HEAD `04cbd057a00367036222c6703a61030157b5abbb` (full SHA recorded by Git).
+
+- The independent combined Spec and Standards review passed the source pin with no blockers. The minor tolerance suggestion was not adopted; the reviewed exactness assertions and 130-reply semantic golden audit remain intact. The final origin inverse delta is explained by Follow/frame reuse, not by its magnitude alone.
+- The supported updater passed with 2,172 native tests. The baseline grew from 2,154 to 2,172: exactly the 18 names in the author inventory, with zero removals or renames. Receipt: `.evidence/ergogen-18-integration/native-baseline.json`.
+- Fresh quick passed 48/48 commands: 2,016 selected native tests passed, zero retained names missing/new, and all 14 WASM launches passed (598 tests). Receipt: `.evidence/ergogen-18-integration/quick.json`.
+- Fresh full passed 55/55 commands: 2,172 native tests passed with 2,172 retained names matched and zero missing/new; all 14 WASM launches passed (598 tests); the page suite passed 77/77. Packaged trusted drag/Undo passed for Part, Column, Stagger and Ctrl+Offset; collision smoke observed four PCB pairs; CAD-provider and CAD-browser checks passed. Receipt: `.evidence/ergogen-18-integration/full.json`.
+
+Known limit: the linked-pair constraint-driven rigid Align route retains its pre-existing membership refusal for ticket 20; this is not native constrained Align support. Ordinary public Core Matrix/Column preview, commit and Undo cover representable internal constraints. A dedicated unlinked prepared-half/internal-constraint case was not added. No ticket 20 policy or release approval is implied.
