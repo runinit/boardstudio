@@ -2267,6 +2267,175 @@ fn position(replies: &[Value], id: &str) -> usize {
 }
 
 fn check_core(replies: &[Value]) {
+    // These scenario outcomes must hold before transcript.json compaction or blessing.
+    let requests = core_requests();
+    assert_eq!(requests.len(), 67, "retain every existing primary scenario");
+    assert_eq!(replies.len(), requests.len());
+    let mut revision = 0;
+    for (request, reply) in requests.iter().zip(replies) {
+        let id = request["id"].as_str().unwrap();
+        assert_eq!(reply["id"], id);
+        let refusal = match id {
+            "invalid-draft" => Some("invalid matrix dimensions"),
+            "stale-draft" => Some("Stale base revision"),
+            "convert-refused" => {
+                Some("Converting requires zero Splay, Column rotation and carried Bend")
+            }
+            "mirrored-half-new-board" | "mirrored-half-reuse-board" => {
+                Some("Physical instance \"board\" is unavailable.")
+            }
+            _ => None,
+        };
+        let kind = if let Some(reason) = refusal {
+            assert_eq!(reply["message"], reason, "{id}");
+            "error"
+        } else {
+            match request["kind"].as_str().unwrap() {
+                "edit" if request["command"]["phase"] == "preview" => "preview",
+                "edit" => {
+                    assert_eq!(request["command"]["phase"], "commit");
+                    if !matches!(
+                        id,
+                        "mechanical-closure-repeat"
+                            | "outline-corners-repeat"
+                            | "outline-rename-repeat"
+                    ) {
+                        revision += 1;
+                    }
+                    "scene"
+                }
+                "undo" | "redo" => {
+                    revision += 1;
+                    "scene"
+                }
+                "open" | "snapshot" => "scene",
+                "project-matrices" => "matrix-projections",
+                other => panic!("declare the intended outcome of {other}: {id}"),
+            }
+        };
+        assert_eq!(reply["kind"], kind, "{id}: {reply}");
+        let actual_revision = reply
+            .get("scene")
+            .map_or(&reply["revision"], |scene| &scene["revision"]);
+        assert_eq!(*actual_revision, revision, "{id}: revision/history intent");
+    }
+
+    let initial = &replies[0]["document"];
+    let committed = &replies[6]["document"];
+    for index in [4, 6] {
+        assert_eq!(
+            replies[index]["scene"]["transforms"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|part| &part["id"])
+                .collect::<Vec<_>>(),
+            initial["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|part| &part["id"])
+                .collect::<Vec<_>>(),
+            "preview/commit retain every visible member identity",
+        );
+        assert_eq!(
+            replies[index]["scene"]["changedIds"],
+            json!(["matrix", "matrix/matrix/r0c0"])
+        );
+        for transform in replies[index]["scene"]["transforms"].as_array().unwrap() {
+            let original = initial["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|part| part["id"] == transform["id"])
+                .unwrap();
+            if transform["id"] == "matrix/matrix/r0c0" {
+                assert_eq!(transform["pose"]["at"], json!({"x":10.0,"y":12.0}));
+                assert_eq!(transform["pose"]["rotation"], original["pose"]["rotation"]);
+            } else {
+                assert_eq!(
+                    transform["pose"], original["pose"],
+                    "unselected key stays still"
+                );
+            }
+        }
+    }
+    assert_eq!(replies[5]["document"], *initial, "preview must not publish");
+    assert_eq!(
+        committed["matrices"][0]["partIds"],
+        initial["matrices"][0]["partIds"]
+    );
+    let moved = committed["matrices"][0]["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|cell| cell["row"] == 0 && cell["column"] == 0)
+        .unwrap();
+    assert_eq!(moved["offset"], json!({"x":3.0,"y":15.0}));
+    for (index, expected) in [(8, initial), (9, committed)] {
+        let mut actual = replies[index]["document"].clone();
+        actual["revision"] = expected["revision"].clone();
+        assert_eq!(actual, *expected, "history restores all authored state");
+    }
+    let before_origin = &replies[9]["document"];
+    let held = &replies[12]["document"];
+    for index in [11, 12] {
+        let matrix_scene = &replies[index]["scene"]["matrixScenes"][0];
+        let original_cells = replies[9]["scene"]["matrixScenes"][0]["cells"]
+            .as_array()
+            .unwrap();
+        let cells = matrix_scene["cells"].as_array().unwrap();
+        assert_eq!(cells.len(), original_cells.len());
+        for (cell, original) in cells.iter().zip(original_cells) {
+            assert_eq!(cell["memberId"], original["memberId"]);
+            assert_eq!(cell["enabled"], original["enabled"]);
+            for axis in ["x", "y"] {
+                assert!(
+                    (cell["pose"]["at"][axis].as_f64().unwrap()
+                        - original["pose"]["at"][axis].as_f64().unwrap())
+                    .abs()
+                        < 1e-9,
+                    "hold includes logical disabled keys"
+                );
+            }
+            assert_eq!(cell["pose"]["rotation"], original["pose"]["rotation"]);
+        }
+        assert_eq!(
+            matrix_scene["columns"][1]["splayOrigin"],
+            json!({"x":5.0,"y":-12.0})
+        );
+        for transform in replies[index]["scene"]["transforms"].as_array().unwrap() {
+            let original = before_origin["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|part| part["id"] == transform["id"])
+                .unwrap();
+            for axis in ["x", "y"] {
+                assert!(
+                    (transform["pose"]["at"][axis].as_f64().unwrap()
+                        - original["pose"]["at"][axis].as_f64().unwrap())
+                    .abs()
+                        < 1e-9,
+                    "origin hold: {} {axis}",
+                    transform["id"]
+                );
+            }
+            assert_eq!(transform["pose"]["rotation"], original["pose"]["rotation"]);
+        }
+    }
+    assert_eq!(
+        held["matrices"][0]["cells"],
+        before_origin["matrices"][0]["cells"]
+    );
+    let mut allowed = before_origin["matrices"][0].clone();
+    for field in ["spread", "stagger", "splayOrigin"] {
+        allowed["columnLayout"][1][field] = held["matrices"][0]["columnLayout"][1][field].clone();
+    }
+    assert_eq!(
+        held["matrices"][0], allowed,
+        "hold writes only this step and relative origin when Column rotation is zero"
+    );
     assert_eq!(
         replies[0]["scene"]["matrixScenes"][0]["cells"]
             .as_array()

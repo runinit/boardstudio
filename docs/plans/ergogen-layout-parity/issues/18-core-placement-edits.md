@@ -66,8 +66,10 @@ independent review, shared baselines, integration and closure.
   this/next step arithmetic; swing writes only the relative origin. Column 0 retains
   its mirror-aware incoming X axis in the kernel, without adding a Spread handle.
   Unchanged placement and splay requests preserve authored records, revision and history.
-- Exact rigid translation refuses Local or constraint-owned keys before writing,
-  including corresponding linked matrices. Existing column translation passes curved,
+- Exact rigid translation retains Local ownership guards and checks the resolved
+  candidate against the requested positions/headings before publication. Ordinary
+  internal constraints translate without retuning; nonrepresentable results are refused.
+  Existing column translation passes curved,
   splayed, turned and X/Y-mirrored cases without scattering independent offsets.
 - Real Core accepted scene/document, native prepared pair and Session
   preview/cancel/persist/commit/Undo/Redo coverage lives in existing test modules.
@@ -89,3 +91,36 @@ failure, zero missing retained names and 15 new names within the executed scope.
 The CSS/browser phase did not run. See `.evidence/ergogen-18/quick.json` and its
 summary. Production source stayed unchanged after that run; the native prepared
 test then gained a mirror-side Swing assertion with separate focused verification.
+
+### P2 and semantic golden follow-up — 2026-10-23
+
+Independent Spec review of `9d6cc4c6` found that its blanket constraint-ownership
+guard refused representable internal Offset constraints. Public Matrix/Column
+translation previews failed RED on that refusal. The shared final-candidate check
+now runs after the existing solver in commit and both preview routes. Tests prove
+requested rigid movement, unchanged constraint records and independent parameters,
+neighbour/member identity, preview nonmutation and exact Undo/Redo. The external
+constraint test is clarified and strengthened to check both refusal phases/history.
+
+The additional native linked case exposed the pre-existing membership refusal in
+`mirrored_half/reconcile.rs`. Parent explicitly retained that contract for ticket 20.
+Its identical inputs now characterize the exact refusal and complete state/history
+preservation. This does not implement native constrained Align or waive acceptance;
+the next independent review owns the scope/dependency boundary. No native membership,
+companion ownership or Open admission code changed in this follow-up.
+
+Fresh controlled replay compared all 130 raw Core replies with the claimed-base
+provider; that provider reproduced the complete original golden through the existing
+native replay/compaction path. Kinds, revisions and refusal reasons are unchanged.
+The only semantic differences are precise changed IDs in preview/commit and origin
+inverse rounding (maximum `3.02e-14`) inherited by 12 subsequent replies. All 67 primary
+IDs/order, 11 archive cases and four compound summaries are preserved. Shared semantic
+assertions now run before compaction/blessing. Supported `BOUNDARY_BLESS` regeneration
+and unblessed replay passed, with seven boundary, 29 placement, 14 kernel, 11 splay,
+nine companion, 20 part-offset, one native scope-characterization and one Session test.
+
+Detailed field-by-field rationale, source/runtime evidence, exact commands and final
+fresh quick result are under `.evidence/ergogen-18/golden-*`, particularly
+`golden-notes.md` and `golden-quick.json`. Earlier failed quick remains historical
+failure evidence, not acceptance. Status remains claimed; source changes after the
+pinned review require parent follow-up review, integration and merged gates.

@@ -4,8 +4,8 @@
 use super::splay::rotate;
 use super::{OVERRIDE, member_id, valid_projection_matrix};
 use crate::model::{
-    Matrix, MatrixCell, MatrixPlacementChange, Mirror, MirroredExceptionState, MirroredItemKind,
-    Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
+    EditOperation, Matrix, MatrixCell, MatrixPlacementChange, Mirror, MirroredExceptionState,
+    MirroredItemKind, Part, Pose2, ProjectDoc, Vec2, convert_offset_available,
 };
 use std::collections::BTreeMap;
 
@@ -327,9 +327,61 @@ fn rigid_translation_available(
                 {
                     return Err("Exact translation cannot move a Local key; explicitly Rejoin or edit its independent pose".into());
                 }
-                if doc.constraint_driving_part(&id)?.is_some() {
-                    return Err("Exact translation cannot move a constraint-driven key; edit or remove its constraint first".into());
-                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Constraints remain solver-owned; check the exact promise after that solver settles.
+pub(crate) fn validate_translation(
+    before: &[Part],
+    after: &ProjectDoc,
+    operation: &EditOperation,
+) -> Result<(), String> {
+    let (matrix_id, column, delta) = match operation {
+        EditOperation::SetMatrixPlacement {
+            matrix_id,
+            change: MatrixPlacementChange::MatrixTranslation { delta },
+        } => (matrix_id, None, delta),
+        EditOperation::SetMatrixPlacement {
+            matrix_id,
+            change: MatrixPlacementChange::ColumnTranslation { column, delta },
+        } => (matrix_id, Some(*column), delta),
+        _ => return Ok(()),
+    };
+    let matrix = after
+        .matrices
+        .iter()
+        .find(|matrix| &matrix.id == matrix_id)
+        .ok_or("Translated matrix is missing")?;
+    for row in 0..matrix.rows {
+        for col in 0..matrix.columns {
+            let id = member_id(matrix_id, row, col);
+            let Some(previous) = before.iter().find(|part| part.id == id) else {
+                continue;
+            };
+            let part = after
+                .parts
+                .iter()
+                .find(|part| part.id == id)
+                .ok_or("Translated key is missing")?;
+            let movement = if column.is_none_or(|column| column == col) {
+                *delta
+            } else {
+                Vec2::default()
+            };
+            let wanted = Vec2 {
+                x: previous.pose.at.x + movement.x,
+                y: previous.pose.at.y + movement.y,
+            };
+            if !finite(wanted)
+                || !finite(part.pose.at)
+                || (part.pose.at.x - wanted.x).abs() > 1e-9
+                || (part.pose.at.y - wanted.y).abs() > 1e-9
+                || part.pose.rotation != previous.pose.rotation
+            {
+                return Err("Exact translation is not representable after constraint resolution; edit the constraint or its selected scope first".into());
             }
         }
     }

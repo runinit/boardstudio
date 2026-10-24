@@ -1852,7 +1852,7 @@ fn carried_bend_carries_authored_companions_and_keeps_constraint_precedence() {
 }
 
 #[test]
-fn exact_align_refuses_constraint_owned_keys_without_retuning_them() {
+fn exact_column_align_refuses_external_constraint_without_retuning_it() {
     let (_, _, mut document) = fixture(2, 2);
     document.constraints.push(Constraint::Offset {
         id: "held".into(),
@@ -1862,24 +1862,29 @@ fn exact_align_refuses_constraint_owned_keys_without_retuning_them() {
         rotation: 0.0,
     });
     let (mut engine, _, before) = open(document);
-    let reply = engine.handle(CoreRequest::Edit {
-        id: "align".into(),
-        command: EditCommand {
-            base_revision: before.revision,
-            transaction_id: "align".into(),
-            phase: EditPhase::Commit,
-            target_ids: vec![],
-            operation: EditOperation::SetMatrixPlacement {
-                matrix_id: "main".into(),
-                change: MatrixPlacementChange::ColumnTranslation {
-                    column: 1,
-                    delta: Vec2 { x: 4.0, y: -3.0 },
+    for phase in [EditPhase::Preview, EditPhase::Commit] {
+        let reply = engine.handle(CoreRequest::Edit {
+            id: "align".into(),
+            command: EditCommand {
+                base_revision: before.revision,
+                transaction_id: "align".into(),
+                phase,
+                target_ids: vec![],
+                operation: EditOperation::SetMatrixPlacement {
+                    matrix_id: "main".into(),
+                    change: MatrixPlacementChange::ColumnTranslation {
+                        column: 1,
+                        delta: Vec2 { x: 4.0, y: -3.0 },
+                    },
                 },
             },
-        },
-    });
-    assert!(matches!(reply,CoreReply::Error {message,..} if message.contains("constraint")));
-    assert_eq!(snapshot(&mut engine), before);
+        });
+        assert!(matches!(reply,CoreReply::Error {message,..} if message.contains("constraint")));
+        assert_eq!(snapshot(&mut engine), before);
+    }
+    assert!(
+        matches!(engine.handle(CoreRequest::Undo {id:"refusal-history".into()}),CoreReply::Error {message,..} if message.contains("History is empty"))
+    );
 }
 
 #[test]
@@ -1923,4 +1928,140 @@ fn swing_origin_at_column_zero_uses_mirrored_incoming_axes() {
         assert_eq!(after.matrices[0].origin, before.matrices[0].origin);
         assert_eq!(after.matrices[0].column_layout.len(), 1);
     }
+}
+
+fn internal_constraint_translation(column: Option<u32>) {
+    let (mut engine, _, document) = fixture(3, 3);
+    let mut matrix = document.matrices[0].clone();
+    matrix.column_layout = vec![
+        ColumnLayout::default(),
+        ColumnLayout {
+            offset: Vec2 { x: 1.0, y: 2.0 },
+            ..Default::default()
+        },
+        ColumnLayout::default(),
+    ];
+    matrix.row_layout = vec![
+        RowLayout::default(),
+        RowLayout {
+            offset: Vec2 { x: 2.0, y: -1.0 },
+            ..Default::default()
+        },
+    ];
+    let (_, mut document) = edit(
+        &mut engine,
+        &document,
+        EditOperation::SetMatrix {
+            matrix,
+            definitions: None,
+        },
+    );
+    document.constraints.push(Constraint::Offset {
+        id: "internal".into(),
+        source_part_id: member("main", 0, 1),
+        target_part_id: member("main", 1, 1),
+        offset: Vec2 { x: 2.0, y: 18.0 },
+        rotation: 0.0,
+    });
+    let (mut engine, _, before) = open(document);
+    let requested = Vec2 { x: 4.0, y: -3.0 };
+    let change = match column {
+        Some(column) => MatrixPlacementChange::ColumnTranslation {
+            column,
+            delta: requested,
+        },
+        None => MatrixPlacementChange::MatrixTranslation { delta: requested },
+    };
+    let operation = EditOperation::SetMatrixPlacement {
+        matrix_id: "main".into(),
+        change,
+    };
+    let preview = match engine.handle(CoreRequest::Edit {
+        id: "internal-preview".into(),
+        command: EditCommand {
+            base_revision: before.revision,
+            transaction_id: "internal".into(),
+            phase: EditPhase::Preview,
+            target_ids: vec!["main".into()],
+            operation: operation.clone(),
+        },
+    }) {
+        CoreReply::Preview { scene, .. } => scene,
+        other => panic!("representable internal constraint preview: {other:?}"),
+    };
+    assert_eq!(snapshot(&mut engine), before);
+    let assert_translated = |scene: &SceneDelta| {
+        for row in 0..3 {
+            for col in 0..3 {
+                let id = member("main", row, col);
+                let original = before.parts.iter().find(|part| part.id == id).unwrap();
+                let actual = scene.transforms.iter().find(|part| part.id == id).unwrap();
+                let movement = if column.is_none_or(|column| column == col) {
+                    requested
+                } else {
+                    Vec2::default()
+                };
+                assert!(
+                    close(
+                        actual.pose.at,
+                        Vec2 {
+                            x: original.pose.at.x + movement.x,
+                            y: original.pose.at.y + movement.y
+                        }
+                    ),
+                    "{id}"
+                );
+                assert_eq!(actual.pose.rotation, original.pose.rotation);
+            }
+        }
+    };
+    assert_translated(&preview);
+    let (committed, after) = edit(&mut engine, &before, operation);
+    assert_translated(&committed);
+    assert_eq!(committed.matrix_scenes, preview.matrix_scenes);
+    assert_eq!(after.constraints, before.constraints);
+    assert_eq!(after.matrices[0].row_layout, before.matrices[0].row_layout);
+    assert_eq!(after.matrices[0].cells, before.matrices[0].cells);
+    assert_eq!(after.matrices[0].part_ids, before.matrices[0].part_ids);
+    assert_eq!(after.matrices[0].pitch, before.matrices[0].pitch);
+    if column.is_none() {
+        assert_eq!(
+            after.matrices[0].column_layout,
+            before.matrices[0].column_layout
+        );
+    }
+    for (part, original) in after.parts.iter().zip(&before.parts) {
+        assert_eq!(part.id, original.id);
+        assert_eq!(part.reference, original.reference);
+        assert_eq!(part.definition_id, original.definition_id);
+    }
+    for (values, original) in after.matrices[0]
+        .column_layout
+        .iter()
+        .zip(&before.matrices[0].column_layout)
+    {
+        assert_eq!(values.offset, original.offset);
+    }
+    let (_, undone) = scene(engine.handle(CoreRequest::Undo {
+        id: "internal-undo".into(),
+    }));
+    assert_eq!(undone.parts, before.parts);
+    assert_eq!(undone.matrices, before.matrices);
+    assert_eq!(undone.constraints, before.constraints);
+    let (_, redone) = scene(engine.handle(CoreRequest::Redo {
+        id: "internal-redo".into(),
+    }));
+    assert_eq!(redone.parts, after.parts);
+    assert_eq!(redone.matrices, after.matrices);
+    assert_eq!(redone.constraints, after.constraints);
+}
+
+#[test]
+fn matrix_translation_preserves_internal_constraint_without_retuning() {
+    internal_constraint_translation(None);
+}
+
+#[test]
+fn column_translation_preserves_internal_constraint_without_retuning() {
+    internal_constraint_translation(Some(1));
 }

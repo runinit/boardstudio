@@ -5215,3 +5215,65 @@ fn production_curved_key_move_uses_the_published_offset_inverse() {
     );
     assert_reflects_every_part(&swung["document"], "curved-placement", "mirror Swing");
 }
+
+#[test]
+fn production_linked_rigid_translation_retains_membership_refusal() {
+    // Linked constraint admission belongs to ticket 20; preserve its current atomic refusal.
+    for column in [None, Some(0)] {
+        let mut input = runtime_supported_document();
+        input["constraints"] = json!([{"kind":"offset","id":"internal-keys",
+            "sourcePartId":"matrix/left-synthetic-keys/r0c0","targetPartId":"matrix/left-synthetic-keys/r1c0",
+            "offset":{"x":0,"y":21},"rotation":0}]);
+        let (mut engine, source) = seed(&input, "left");
+        let prepared = request(
+            &mut engine,
+            json!({"kind":"edit","id":"internal-setup","command":{
+                "baseRevision":source["revision"],"transactionId":"internal-setup","phase":"commit","targetIds":[],
+                "operation":{"kind":"set-matrix","matrix":source["matrices"][0]}
+            }}),
+        );
+        let source = prepared["document"].clone();
+        let created = create(
+            &mut engine,
+            &source,
+            "internal-translation",
+            "left",
+            new_board("right", "right"),
+            mapping(200.0),
+        )
+        .unwrap();
+        let before = created["document"].clone();
+        let change = match column {
+            Some(column) => {
+                json!({"kind":"column-translation","column":column,"delta":{"x":4,"y":-3}})
+            }
+            None => json!({"kind":"matrix-translation","delta":{"x":4,"y":-3}}),
+        };
+        let operation =
+            json!({"kind":"set-matrix-placement","matrixId":"left-synthetic-keys","change":change});
+        for phase in ["preview", "commit"] {
+            let input = json!({"kind":"edit","id":format!("internal-{phase}"),"command":{
+                "baseRevision":before["revision"],"transactionId":"internal","phase":phase,"targetIds":[],"operation":operation
+            }});
+            let refused: Value = serde_json::from_str(&engine.request(&input.to_string())).unwrap();
+            assert_eq!(refused["kind"], "error");
+            assert_eq!(
+                refused["message"],
+                "Linked matrix placements cannot retain authored or constrained geometry"
+            );
+            assert_eq!(refused["revision"], before["revision"]);
+            assert_eq!(snapshot(&mut engine), before);
+        }
+        let undone = request(&mut engine, json!({"kind":"undo","id":"internal-undo"}));
+        let mut expected = source.clone();
+        expected["revision"] = undone["document"]["revision"].clone();
+        assert_eq!(
+            undone["document"], expected,
+            "failed edits add no history entry"
+        );
+        let redone = request(&mut engine, json!({"kind":"redo","id":"internal-redo"}));
+        expected = before;
+        expected["revision"] = redone["document"]["revision"].clone();
+        assert_eq!(redone["document"], expected);
+    }
+}

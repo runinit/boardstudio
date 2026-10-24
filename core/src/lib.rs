@@ -705,6 +705,11 @@ impl CoreEngine {
             next = raw_next;
             changed = raw_changed;
         }
+        if let Err(message) =
+            matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
+        {
+            return self.error(id, &message);
+        }
         // Prepared edits can change document-level fields that have no entity ID. Use the
         // typed document as the no-op oracle rather than treating an empty changed-ID list as
         // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
@@ -845,6 +850,13 @@ impl CoreEngine {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
         };
+        if let Err(message) = matrix::placement::validate_translation(
+            &self.document.parts,
+            &draft,
+            &command.operation,
+        ) {
+            return self.error(id, &message);
+        }
         let (cache, contours, mut findings) = outlines(&draft, None, &changed);
         findings.extend(preview_electrical_loss_findings(&self.document, &draft));
         self.scene(
@@ -889,6 +901,11 @@ impl CoreEngine {
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
+            matrix::placement::validate_translation(
+                &before_parts,
+                &self.document,
+                &command.operation,
+            )?;
             Ok(changed)
         });
         let reply = match result {
