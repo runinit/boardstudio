@@ -759,3 +759,204 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     );
     assert_eq!(snapshot(&mut engine), doc);
 }
+
+fn set_follow(
+    engine: &mut CoreEngine,
+    doc: &ProjectDoc,
+    x: bool,
+    y: bool,
+    rotation: bool,
+) -> ProjectDoc {
+    edit(
+        engine,
+        doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: MatrixAnchor {
+                matrix_id: "main".into(),
+                row: 0,
+                column: 2,
+                follow: Follow { x, y, rotation },
+            },
+        },
+    )
+    .1
+}
+
+#[test]
+fn anchor_follow_covers_every_subset_with_zeroing() {
+    // Each subset keeps exactly its followed components of the anchor motion;
+    // unfollowed components read world zero, even for the relative origin.
+    for (x, y, rotation) in [
+        (false, false, false),
+        (true, false, false),
+        (false, true, false),
+        (false, false, true),
+        (true, true, false),
+        (true, false, true),
+        (false, true, true),
+        (true, true, true),
+    ] {
+        let (mut engine, doc) = anchored_fixture();
+        let doc = set_follow(&mut engine, &doc, x, y, rotation);
+        let (_, moved) = edit(
+            &mut engine,
+            &doc,
+            EditOperation::MoveParts {
+                positions: vec![Position {
+                    id: member("main", 0, 2),
+                    at: Vec2 { x: 43.0, y: 7.0 },
+                }],
+            },
+        );
+        let expected = Vec2 {
+            x: if x { 43.0 } else { 0.0 },
+            y: if y { 7.0 - 19.0 } else { 0.0 },
+        };
+        assert_eq!(
+            pose_of(&moved, &member("thumb", 0, 0)).at,
+            expected,
+            "follow x={x} y={y} rotation={rotation}"
+        );
+        assert_eq!(
+            pose_of(&moved, &member("thumb", 0, 0)).rotation,
+            0.0,
+            "follow x={x} y={y} rotation={rotation}"
+        );
+    }
+}
+
+#[test]
+fn anchor_follow_applies_origin_and_rotation_before_filtering() {
+    let (mut engine, doc) = anchored_fixture();
+    // Widen the relative origin so the order is observable.
+    let mut widened = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix")
+        .clone();
+    widened.origin = Vec2 { x: 10.0, y: -19.0 };
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: widened,
+            definitions: None,
+        },
+    );
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 0)).at,
+        Vec2 { x: 48.0, y: -19.0 }
+    );
+    // Dropping Follow X zeroes the whole candidate X, including the relative
+    // origin: Origin runs before Follow, not after it.
+    let doc = set_follow(&mut engine, &doc, false, true, true);
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 0)).at,
+        Vec2 { x: 0.0, y: -19.0 }
+    );
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 2)).at,
+        Vec2 { x: 38.0, y: -19.0 }
+    );
+}
+
+#[test]
+fn anchor_follow_rotation_filters_the_completed_heading() {
+    let (mut engine, doc) = anchored_fixture();
+    let mut turned = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    turned.rotation = Some(30.0);
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: turned,
+            definitions: None,
+        },
+    );
+    let followed = pose_of(&doc, &member("thumb", 0, 0));
+    assert_eq!(followed.rotation, 30.0);
+    let cos30 = 30f64.to_radians().cos();
+    let sin30 = 30f64.to_radians().sin();
+    near(
+        followed.at,
+        38.0 * cos30 + 19.0 * sin30,
+        38.0 * sin30 - 19.0 * cos30,
+    );
+    // Without Follow rotation the heading zeroes but the rotated candidate
+    // position stands.
+    let doc = set_follow(&mut engine, &doc, true, true, false);
+    let unfollowed = pose_of(&doc, &member("thumb", 0, 0));
+    assert_eq!(unfollowed.rotation, 0.0);
+    assert_eq!(unfollowed.at, followed.at);
+}
+
+#[test]
+fn anchored_matrix_translation_respects_follow_and_refuses_impossible_drags() {
+    let (mut engine, doc) = anchored_fixture();
+    let doc = set_follow(&mut engine, &doc, false, true, true);
+    // A drag along the unfollowed X cannot be represented: refuse atomically.
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "thumb".into(),
+            change: MatrixPlacementChange::MatrixTranslation {
+                delta: Vec2 { x: 5.0, y: 0.0 },
+            },
+        },
+    );
+    assert!(message.contains("Follow"), "unexpected message: {message:?}");
+    assert_eq!(snapshot(&mut engine), doc);
+    // A drag along the followed Y succeeds and moves every member.
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "thumb".into(),
+            change: MatrixPlacementChange::MatrixTranslation {
+                delta: Vec2 { x: 0.0, y: 5.0 },
+            },
+        },
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 0)).at,
+        Vec2 { x: 0.0, y: -14.0 }
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 2)).at,
+        Vec2 { x: 38.0, y: -14.0 }
+    );
+}
+
+#[test]
+fn anchored_frame_edits_refuse_unfollowed_components() {
+    let (mut engine, doc) = anchored_fixture();
+    let doc = set_follow(&mut engine, &doc, true, true, false);
+    let mut rotated = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix")
+        .clone();
+    rotated.rotation = Some(15.0);
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: rotated,
+            definitions: None,
+        },
+    );
+    assert!(
+        message.contains("not followed"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(snapshot(&mut engine), doc);
+}
