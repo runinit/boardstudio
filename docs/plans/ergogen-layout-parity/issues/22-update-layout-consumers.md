@@ -1,6 +1,6 @@
 # 22: Adapt setup, alignment, selection and geometry consumers
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [21](21-exception-lifecycle.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -110,3 +110,59 @@ scan/pin ordering and keymap bind materialized member poses/identities with no
 `row * pitch` grid recreation; Core `set_matrix` truncates layout records on
 shrink and the kernel treats absent records as defaults on grow, so resize needs
 no record appending.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` over base `32ac3c39c`
+(ticket 21 closure). Implementation commits: `3ff34b1` (claim), `50d023f`
+test-only RED (selected-pitch snap), `42c5b35` fix GREEN (`PlacementSnapOptions.pitch`,
+per-axis snap, both `presentation.rs` component-placement routes), `0386ca1` Align
+consumer proofs (routing + rigid + Follow-refusal), `6eb9086` (repo rustfmt),
+`c629d457` (consumer proofs and quick-gate evidence, kept claimed). No native
+baseline commit was needed: the 4 new tests are WASM-only, so
+`scripts/check-native-tests-baseline.json` correctly records 2215 matched,
+0 missing, 0 new at `4215f8538` (clean). Receipt:
+`.evidence/ergogen-22-integration/native-baseline.json` (3/3 commands, exit 0).
+
+- What delivered: component placement snap follows the selected matrix pitch
+  (`None` keeps the 19.05 mm default; per-axis steps; existing 19.05 expectations
+  unchanged); Matrix Align submits its frame translation, Column submits
+  `ColumnTranslation` (never client offsets), Row stays unavailable, keys keep the
+  `MoveParts` route; rigid Column Align on a bent column moves every target by one
+  shared nonzero translation with rotations preserved; unfollowed-X Matrix Align
+  refuses naming Follow with revision and parts byte-identical. Remaining
+  consumers needed no production change (verified by reading): setup seeds empty
+  layout records with kernel defaults; pitch changes move only default steps;
+  previews/cells/keycaps use resolved centres with pitch-minus-gap sizes and never
+  resize keycaps on nonuniform steps; tree lists Layout matrices flat in evaluation
+  order with Follows detail and frame-free multi-matrix actions; outlines,
+  collision, CAD/PCB, companions, electrical scan/pin ordering and keymap consume
+  final member poses/identities.
+- Reviews: integrator-performed combined read-only Spec + Standards review of
+  `32ac3c39c..c629d457` against the ticket and `CODING_STANDARDS.md`: Standards
+  Clean with no blockers (pitch threading reuses `matrix_snap_parameters`; the
+  `snap_pitch` default carries a ticket-08 comment; new tests match sibling
+  fixture/naming shape; no saved arithmetic is rewritten). Spec PASS for the
+  consumer contract — first RED/GREEN slice plus every subsequent acceptance
+  bullet is proven by test or by read-through with no behavior change claimed.
+  Three non-blocking nits (no ticket change): (1) `grid_snap_point` duplicates
+  the per-axis step computation for `pitch.x`/`pitch.y` instead of a shared
+  per-axis helper; (2) `presentation.rs` repeats the `matrix_snap_parameters`
+  pitch lookup in two component-placement routes instead of sharing one call
+  site; (3) the resolver-test bent-column document hand-builds matrices/cells
+  instead of reusing a shared layout-test fixture.
+- Tests: `cargo test -p boardstudio_core --lib`: `ok. 808 passed; 0 failed`
+  (Core untouched). `cargo test -p boardstudio_core --test integration`:
+  `ok. 815 passed; 0 failed` (matches the ticket-21 baseline). WASM targeted:
+  `part_placement::tests::component_placement_snap_uses_the_selected_matrix_pitch`:
+  1 passed; `layout_align_controller` filter: 6 passed, 0 failed (routing, rigid,
+  refusal + 3 pre-existing). Fresh capped `quick --files` (3 code paths):
+  15/15 commands green (`repo, lint, typecheck, test, layout-test-css, browser`;
+  layout WASM 161 passed with `resolver_tests` 5 and `part_placement` 31, page
+  76/76). Fresh full: 55/55 commands green, native 2215 passed with 2215
+  retained names matched and zero missing/new, layout WASM 161 passed, page suite
+  77/77, drag and provider/CAD smokes passed. Receipts:
+  `.evidence/ergogen-22-integration/quick.json` and `full.json` (plus `.md`
+  summaries).
+
+No release approval is implied.
