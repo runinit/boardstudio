@@ -41,7 +41,7 @@ fn owning_layout<'a>(doc: &'a ProjectDoc, owner_id: &str) -> Option<&'a Layout> 
 /// Refuse anything that is not a same-board, same-Layout, live, non-driven key
 /// outside the owner's own anchor chain. `owner_layout` is `None` while an Add
 /// has not joined a Layout yet; the owner then joins its target's Layout.
-pub(crate) fn validate_target(
+fn validate_target(
     doc: &ProjectDoc,
     owner_id: &str,
     owner_layout: Option<&str>,
@@ -114,7 +114,7 @@ pub(crate) fn validate_target(
 
 fn linked_layout(doc: &ProjectDoc, layout_id: &str) -> bool {
     doc.layouts.iter().any(|layout| {
-        layout.id == layout_id && layout.mirror_link.is_some()
+        (layout.id == layout_id && layout.mirror_link.is_some())
             || layout
                 .mirror_link
                 .as_ref()

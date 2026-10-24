@@ -352,12 +352,7 @@ fn add_anchored_matrix_previews_without_mutation_and_undoes_in_one_entry() {
     );
     assert_eq!(snapshot(&mut engine), doc);
     let (_, committed) = edit(&mut engine, &doc, operation);
-    assert!(
-        committed
-            .matrices
-            .iter()
-            .any(|matrix| matrix.id == "thumb")
-    );
+    assert!(committed.matrices.iter().any(|matrix| matrix.id == "thumb"));
     assert!(
         committed
             .layouts
