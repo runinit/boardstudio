@@ -1,6 +1,6 @@
 # 21: Preserve Local/Omitted state through resize, detach, Rejoin and removal
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [20](20-reflect-linked-layouts.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -51,10 +51,6 @@ Implementation lane on branch `docs/ergogen-layout-comparison`, base `eb4e0ac63`
 Status remains claimed; no resolve, no push. `web/crates/layout/prototype/`
 untouched.
 
-Implementation lane on branch `docs/ergogen-layout-comparison`, base `eb4e0ac63`.
-Status remains claimed; no resolve, no push. `web/crates/layout/prototype/`
-untouched.
-
 Commits (`git log` SHAs):
 
 - `6be9bf2` test-only (RED): public source resize with a Local partner.
@@ -66,7 +62,7 @@ Commits (`git log` SHAs):
   `core.rs` keeping the name for the baseline).
 
 Proving tests (all via public `Open`/`Edit` routes with preview/cancel/Undo
-where noted; 14 new `matrix_anchors::*` names for the integrator baseline,
+where noted; 13 new `matrix_anchors::*` names for the integrator baseline,
 1 updated `core.rs` name retained):
 
 - Resize: `linked_resize_keeps_local_partner_dimensions_and_poses`,
@@ -117,7 +113,7 @@ native origin-only edits with a Local mirror succeed. Repro: matrix-level
 not attempted here to avoid risking the mature kernel.
 
 Integrator notes: do NOT edit `scripts/check-native-tests-baseline.json`
-here. New names needing reconciliation: 14 `matrix_anchors::*` listed
+here. New names needing reconciliation: 13 `matrix_anchors::*` listed
 above; `core::mirrored_pair_deletion_...` is name-retained with changed
 body. No shared goldens, fixtures or baselines changed.
 
