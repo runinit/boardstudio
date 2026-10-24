@@ -1,6 +1,6 @@
 # 19: Evaluate multi-matrix Layouts and maintain single-key anchors
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [18](18-core-placement-edits.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
