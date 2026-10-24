@@ -20,6 +20,10 @@ pub struct RelationItem {
     pub value: String,
     pub target: Option<TreeContext>,
     pub highlight: Vec<String>,
+    /// A parameter entry: activating it selects its owner and opens the matching
+    /// tool/editor. Receiver references (followers, anchor dependants, linked
+    /// partners) navigate without leaving the Relations tab instead.
+    pub opens_editor: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -277,6 +281,63 @@ impl View<'_> {
             .map(|record| &record.splay)
             .copied()
             .unwrap_or(0.0)
+    }
+
+    fn column_turn(&self, column: u32) -> (f64, f64) {
+        let record = self.matrix.column_layout.get(column as usize);
+        (
+            record.map(|record| record.splay).unwrap_or(0.0),
+            record.map(|record| record.rotation).unwrap_or(0.0),
+        )
+    }
+
+    /// The column's own step: Spread (absent on column 0, otherwise the pitch
+    /// unless explicitly stored) and stagger, before any turns.
+    fn column_step_text(&self, column: u32) -> String {
+        let stagger = format!("{} mm", mm(self.stagger(column)));
+        if column == 0 {
+            return format!("no spread, stagger {stagger}");
+        }
+        let spread = self
+            .matrix
+            .column_layout
+            .get(column as usize)
+            .and_then(|record| record.spread)
+            .map(|spread| format!("{} mm", mm(spread)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.x)));
+        format!("spread {spread}, stagger {stagger}")
+    }
+
+    /// This column's own turn: Splay plus Column rotation, which never carry to
+    /// later columns.
+    fn column_turn_text(&self, column: u32) -> String {
+        let (splay, rotation) = self.column_turn(column);
+        if splay == 0.0 && rotation == 0.0 && !self.custom_origin(column) {
+            return "none (this column only)".to_owned();
+        }
+        let mut text = format!(
+            "splay {}°, column rotation {}° (this column only)",
+            mm(splay),
+            mm(rotation)
+        );
+        if self.custom_origin(column) {
+            text.push_str(", custom origin");
+        }
+        text
+    }
+
+    /// The padding step into this row: stored per row, defaulting to the pitch.
+    /// Row 0 has no padding step.
+    fn row_padding_text(&self, row: u32) -> String {
+        if row == 0 {
+            return "no padding on row 1".to_owned();
+        }
+        self.matrix
+            .row_layout
+            .get(row as usize)
+            .and_then(|record| record.padding)
+            .map(|padding| format!("{} mm", mm(padding)))
+            .unwrap_or_else(|| format!("{} mm (pitch)", mm(self.matrix.pitch.y)))
     }
 
     fn custom_origin(&self, column: u32) -> bool {
@@ -612,6 +673,21 @@ impl View<'_> {
         })
     }
 
+    fn contributions(&self, row: u32, column: u32) -> Option<CoreCellFacts> {
+        self.scene
+            .cells
+            .iter()
+            .find(|cell| cell.row == row && cell.column == column)
+            .map(|cell| CoreCellFacts {
+                row_shift: cell.row_shift,
+                key_shift: cell.key_shift,
+                row_bend: cell.row_bend,
+                key_bend: cell.key_bend,
+                cumulative_shift: cell.cumulative_shift,
+                cumulative_bend: cell.cumulative_bend,
+            })
+    }
+
     fn key(&self, row: u32, column: u32) -> Option<MatrixRelations> {
         if row >= self.matrix.rows
             || column >= self.matrix.columns
@@ -621,13 +697,19 @@ impl View<'_> {
         }
         let member = self.member(row, column).map(str::to_owned);
         let highlight: Vec<String> = member.iter().cloned().collect();
+        let facts = self.contributions(row, column).unwrap_or_default();
         let row_offset = self.row_offset(row);
         let column_offset = self.column_offset(column);
+        let row_members = self.members(|r, _| r == row);
+        let column_members = self.members(|_, c| c == column);
         let mirror = match self.matrix.mirror {
             Some(Mirror::X) => "X",
             Some(Mirror::Y) => "Y",
             _ => "none",
         };
+        // The chain follows kernel order: matrix frame, column step and turn,
+        // row padding, carried row/key shift and bend with their matrix-axes
+        // totals, then the independent offsets that never carry.
         let mut structure = vec![
             item(
                 "Pitch cell",
@@ -635,31 +717,7 @@ impl View<'_> {
                 None,
                 highlight.clone(),
             ),
-            item(
-                "Row offset",
-                offset_text(row_offset),
-                Some(self.row_context(row)),
-                self.members(|r, _| r == row),
-            ),
-            item(
-                "Column offset",
-                offset_text(column_offset),
-                Some(self.column_context(column)),
-                self.members(|_, c| c == column),
-            ),
-            item(
-                "Cumulative stagger",
-                format!("{} mm", mm(self.cumulative(column))),
-                Some(self.column_context(column)),
-                self.members(|_, c| c == column),
-            ),
-            item(
-                "Splay",
-                format!("{}°", mm(self.splay(column))),
-                Some(self.column_context(column)),
-                vec![],
-            ),
-            item(
+            parameter(
                 "Matrix frame",
                 format!(
                     "rotation {}°, mirror {mirror}",
@@ -669,6 +727,82 @@ impl View<'_> {
                     matrix_id: self.matrix.id.clone(),
                 }),
                 self.members(|_, _| true),
+            ),
+            parameter(
+                "Column step",
+                self.column_step_text(column),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Cumulative stagger",
+                format!("{} mm", mm(self.cumulative(column))),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Column turn",
+                self.column_turn_text(column),
+                Some(self.column_context(column)),
+                column_members.clone(),
+            ),
+            parameter(
+                "Row padding",
+                self.row_padding_text(row),
+                (row > 0).then(|| self.row_context(row)),
+                row_members.clone(),
+            ),
+            parameter(
+                "Row shift",
+                offset_text(facts.row_shift),
+                Some(self.row_context(row)),
+                row_members.clone(),
+            ),
+            item(
+                "Key shift",
+                offset_text(facts.key_shift),
+                None,
+                highlight.clone(),
+            ),
+            parameter(
+                "Row bend",
+                bend_text(facts.row_bend),
+                Some(self.row_context(row)),
+                row_members.clone(),
+            ),
+            item(
+                "Key bend",
+                bend_text(facts.key_bend),
+                None,
+                highlight.clone(),
+            ),
+            item(
+                "Cumulative shift",
+                format!(
+                    "{}, {} mm in matrix axes",
+                    mm(facts.cumulative_shift.x),
+                    mm(facts.cumulative_shift.y)
+                ),
+                None,
+                highlight.clone(),
+            ),
+            item(
+                "Cumulative bend",
+                format!("{}° (row and key only)", mm(facts.cumulative_bend)),
+                None,
+                highlight.clone(),
+            ),
+            parameter(
+                "Row offset",
+                offset_text(row_offset),
+                Some(self.row_context(row)),
+                row_members,
+            ),
+            parameter(
+                "Column offset",
+                offset_text(column_offset),
+                Some(self.column_context(column)),
+                column_members,
             ),
         ];
         if let Some((layout, partner)) = self.partner() {
@@ -797,6 +931,18 @@ impl View<'_> {
 
 const ZERO: Vec2 = Vec2 { x: 0.0, y: 0.0 };
 
+/// Carried per-key facts published by Core's kernel through the scene. Relations
+/// reads them; it never recomputes layout maths.
+#[derive(Clone, Copy, Debug, Default)]
+struct CoreCellFacts {
+    row_shift: Vec2,
+    key_shift: Vec2,
+    row_bend: f64,
+    key_bend: f64,
+    cumulative_shift: Vec2,
+    cumulative_bend: f64,
+}
+
 fn item(
     label: &str,
     value: String,
@@ -808,6 +954,24 @@ fn item(
         value,
         target,
         highlight,
+        opens_editor: false,
+    }
+}
+
+/// A parameter entry: activating it selects its owner and opens the matching
+/// tool/editor instead of staying on the Relations tab.
+fn parameter(
+    label: &str,
+    value: String,
+    target: Option<TreeContext>,
+    highlight: Vec<String>,
+) -> RelationItem {
+    RelationItem {
+        label: label.to_owned(),
+        value,
+        target,
+        highlight,
+        opens_editor: true,
     }
 }
 
@@ -816,6 +980,14 @@ fn offset_text(offset: Vec2) -> String {
         "none".to_owned()
     } else {
         format!("{}, {} mm", mm(offset.x), mm(offset.y))
+    }
+}
+
+fn bend_text(bend: f64) -> String {
+    if bend == 0.0 {
+        "none".to_owned()
+    } else {
+        format!("{}°", mm(bend))
     }
 }
 

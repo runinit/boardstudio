@@ -2174,6 +2174,32 @@ pub struct MatrixSceneCell {
     pub shift_frame: crate::matrix::kernel::ComposedFrame,
     #[serde(rename = "offsetFrame")]
     pub offset_frame: crate::matrix::kernel::ComposedFrame,
+    /// Carried row/key contributions from the layout kernel, in stored axes.
+    /// Relations reads these instead of recomputing layout maths.
+    #[serde(rename = "rowShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub row_shift: Vec2,
+    #[serde(rename = "keyShift", default, skip_serializing_if = "is_zero_vec2")]
+    pub key_shift: Vec2,
+    #[serde(rename = "rowBend", default, skip_serializing_if = "is_zero_f64")]
+    pub row_bend: f64,
+    #[serde(rename = "keyBend", default, skip_serializing_if = "is_zero_f64")]
+    pub key_bend: f64,
+    /// Accumulated carried translation in unreflected matrix axes: each shift
+    /// transported through the running carried heading, not a raw sum.
+    #[serde(
+        rename = "cumulativeShift",
+        default,
+        skip_serializing_if = "is_zero_vec2"
+    )]
+    pub cumulative_shift: Vec2,
+    /// Accumulated carried row/key bend in degrees; excludes Splay, Column
+    /// rotation, Key rotation and matrix/anchor rotation.
+    #[serde(
+        rename = "cumulativeBend",
+        default,
+        skip_serializing_if = "is_zero_f64"
+    )]
+    pub cumulative_bend: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

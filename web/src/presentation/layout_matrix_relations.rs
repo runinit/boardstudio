@@ -14,6 +14,8 @@ pub(super) struct MatrixRelationsPanelProps {
     pub mount: objects::MatrixTransformInspectorMount,
     /// Select the referenced object. The owner guards currency and Escape return.
     pub on_navigate: EventHandler<objects::TreeContext>,
+    /// Select a parameter's owner and open its matching tool/editor.
+    pub on_open_owner: EventHandler<objects::TreeContext>,
 }
 
 #[component]
@@ -39,19 +41,19 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
         section { class: "m1-layout-component-inspector", aria_labelledby: "m1-relations-heading",
             h2 { id: "m1-relations-heading", "Relationships" }
             section { class: "m1-relations-structure", aria_labelledby: "m1-relations-structure-heading",
-                h3 { id: "m1-relations-structure-heading", "Structure" }
+                h3 { id: "m1-relations-structure-heading", "How it is placed" }
                 ul {
                     for item in relations.structure.iter() {
-                        StructureRow { item: item.clone(), on_navigate }
+                        StructureRow { item: item.clone(), on_navigate, on_open_owner: props.on_open_owner }
                     }
                 }
             }
             if !relations.departures.is_empty() {
                 section { class: "m1-relations-departures", aria_labelledby: "m1-relations-departures-heading",
-                    h3 { id: "m1-relations-departures-heading", "Local adjustments" }
+                    h3 { id: "m1-relations-departures-heading", "Independent adjustments" }
                     ul {
                         for departure in relations.departures.iter() {
-                            DepartureRow { departure: departure.clone(), mount: props.mount.clone(), on_navigate }
+                            DepartureRow { departure: departure.clone(), mount: props.mount.clone(), on_open_owner: props.on_open_owner }
                         }
                     }
                 }
@@ -71,7 +73,18 @@ pub(super) fn MatrixRelationsPanel(props: MatrixRelationsPanelProps) -> Element 
 }
 
 #[component]
-fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeContext>) -> Element {
+fn StructureRow(
+    item: RelationItem,
+    on_navigate: EventHandler<objects::TreeContext>,
+    on_open_owner: EventHandler<objects::TreeContext>,
+) -> Element {
+    // Parameter entries open their owner's matching tool/editor; receiver
+    // references navigate while staying on the Relations tab.
+    let on_select = if item.opens_editor {
+        on_open_owner
+    } else {
+        on_navigate
+    };
     rsx! {
         li { class: "m1-relations-row", "data-relation-label": "{item.label}",
             span { class: "m1-layout-component-matrix-note", "{item.label}" }
@@ -81,7 +94,7 @@ fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeConte
                     text: item.value.clone(),
                     parts: item.highlight.clone(),
                     what: format!("{} {}", item.label, item.value),
-                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+                    on_select: EventHandler::new(move |()| on_select.call(target.clone())),
                 }
             } else {
                 span { "{item.value}" }
@@ -94,7 +107,7 @@ fn StructureRow(item: RelationItem, on_navigate: EventHandler<objects::TreeConte
 fn DepartureRow(
     departure: Departure,
     mount: objects::MatrixTransformInspectorMount,
-    on_navigate: EventHandler<objects::TreeContext>,
+    on_open_owner: EventHandler<objects::TreeContext>,
 ) -> Element {
     rsx! {
         li { class: "m1-relations-row", "data-relation-departure": "{departure.parameter}",
@@ -105,7 +118,7 @@ fn DepartureRow(
                     text: departure.value.clone(),
                     parts: departure.highlight.clone(),
                     what: format!("{} {}", departure.parameter, departure.value),
-                    on_select: EventHandler::new(move |()| on_navigate.call(target.clone())),
+                    on_select: EventHandler::new(move |()| on_open_owner.call(target.clone())),
                 }
             } else {
                 span { "{departure.value}" }

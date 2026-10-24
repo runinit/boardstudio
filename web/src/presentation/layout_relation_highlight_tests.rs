@@ -239,6 +239,10 @@ fn host() -> Element {
 
 /// Create the matrix through the Session and Core, then mount the real Layout editor.
 async fn mount(root_id: &'static str) -> Probe {
+    mount_with(root_id, matrix_json(json!({}))).await
+}
+
+async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
     let runtime = support::new_runtime();
     support::install(&runtime, Session::new(), CoreEngine::new());
     support::install_memory_persistence(&runtime);
@@ -248,10 +252,7 @@ async fn mount(root_id: &'static str) -> Probe {
     });
     support::run_pending(&runtime).await;
     let revision = runtime.model().accepted.unwrap().document.revision;
-    support::submit_fixed_command(
-        &runtime,
-        set_matrix_command(revision, matrix_json(json!({}))),
-    );
+    support::submit_fixed_command(&runtime, set_matrix_command(revision, matrix));
     support::run_pending(&runtime).await;
     let probe = Probe {
         runtime: runtime.clone(),
@@ -416,4 +417,62 @@ async fn a_key_removed_while_highlighted_leaves_nothing_highlighted() {
         "the removed keys are not highlighted"
     );
     assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
+}
+
+/// Row 0 shifts (10, 0) then bends 90; row 1 shifts (10, 0) into the turned
+/// heading. The mounted key explanation must show the transported (10, 10)
+/// matrix-axes total from real Core facts, and activating its Row shift entry
+/// must open the row's editor without writing the document or history.
+#[wasm_bindgen_test]
+async fn bent_key_explains_its_cumulative_shift_and_opens_its_row() {
+    let root_id = "relation-bent-key";
+    let probe = mount_with(
+        root_id,
+        matrix_json(json!({
+            "columns": 1,
+            "rowLayout": [{ "shift": { "x": 10.0, "y": 0.0 }, "bend": 90.0 },
+                          { "shift": { "x": 10.0, "y": 0.0 } }],
+        })),
+    )
+    .await;
+    probe.select(objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 1,
+        column: 0,
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until(
+        "the key chain shows its Core-backed cumulative shift",
+        || {
+            query(root_id, "li[data-relation-label='Cumulative shift']").is_some_and(|item| {
+                item.text_content()
+                    .unwrap_or_default()
+                    .contains("10, 10 mm in matrix axes")
+            })
+        },
+    )
+    .await;
+    assert_eq!(
+        probe
+            .element("#m1-relations-structure-heading")
+            .text_content()
+            .unwrap(),
+        "How it is placed"
+    );
+    let before = probe.revision();
+    click(root_id, "li[data-relation-label='Row shift'] button");
+    wait_until("activating Row shift opens the Properties tab", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
+            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "parameter navigation writes nothing, so no Undo entry"
+    );
 }

@@ -198,6 +198,54 @@ fn staggers_read_relative_to_the_previous_column_with_a_cumulative_value() {
 }
 
 #[test]
+fn a_bent_key_reports_its_transported_cumulative_shift_from_core_facts() {
+    // Row 0 shifts (10, 0) then bends 90; row 1 shifts (10, 0) into the turned
+    // heading. A raw sum would read (20, 0); the kernel transports the second
+    // shift through the carried bend, so the matrix-axes cumulative shift at
+    // row 1 is (10, 10).
+    let world = world(matrix(
+        2,
+        1,
+        json!({ "rowLayout": [{ "shift": { "x": 10.0, "y": 0.0 }, "bend": 90.0 },
+                              { "shift": { "x": 10.0, "y": 0.0 } }] }),
+    ));
+
+    let first = relations(&world, key(0, 0)).unwrap();
+    assert_eq!(
+        value(&first.structure, "Cumulative shift"),
+        "10, 0 mm in matrix axes"
+    );
+    assert_eq!(
+        value(&first.structure, "Cumulative bend"),
+        "90° (row and key only)"
+    );
+
+    let key = relations(&world, key(1, 0)).unwrap();
+    assert_eq!(value(&key.structure, "Row shift"), "10, 0 mm");
+    assert_eq!(value(&key.structure, "Key shift"), "none");
+    assert_eq!(value(&key.structure, "Row bend"), "none");
+    assert_eq!(
+        value(&key.structure, "Cumulative shift"),
+        "10, 10 mm in matrix axes"
+    );
+    assert_eq!(
+        value(&key.structure, "Cumulative bend"),
+        "90° (row and key only)"
+    );
+    assert_eq!(
+        key.structure
+            .iter()
+            .find(|item| item.label == "Row shift")
+            .and_then(|item| item.target.clone()),
+        Some(TreeContext::Row {
+            matrix_id: MATRIX.into(),
+            row: 1,
+        }),
+        "a carried contribution navigates to the row that authors it"
+    );
+}
+
+#[test]
 fn a_column_offset_is_one_departure_on_that_column_only() {
     let world = world(matrix(
         2,

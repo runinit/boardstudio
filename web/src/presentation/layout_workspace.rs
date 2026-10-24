@@ -753,6 +753,29 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
         }
         relation_select.call(request);
     });
+    // Parameter entries select their owner and open the matching tool/editor on
+    // the Properties tab. The same currency guard applies: a target removed
+    // since the row was projected does nothing.
+    let open_scope = input.relation_scope.clone();
+    let open_target = input.relation_target.clone();
+    let open_select = input.on_select_context;
+    let mut open_tab = input.inspector_tab;
+    let on_open_owner_relation = EventHandler::new(move |context: objects::TreeContext| {
+        let Some(scope) = open_scope.clone() else {
+            return;
+        };
+        let request = objects::TreeSelectRequest {
+            scope,
+            context,
+            mode: boardstudio_application::SelectionMode::Replace,
+            outline_action: None,
+        };
+        let Some(request) = open_target(request) else {
+            return;
+        };
+        open_tab.set(LayoutInspectorTab::Properties);
+        open_select.call(request);
+    });
     if let Some(page) = input.findings_page.filter(|page| page.open) {
         return rsx! {
             PendingSplayOriginPickEscape {
@@ -838,6 +861,7 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 relations: input.matrix_relations.clone(),
                 mount: input.matrix_transform_inspector.clone(),
                 on_navigate: on_navigate_relation,
+                on_open_owner: on_open_owner_relation,
             }
         } else {
             if input.outline_inspector.is_none() {

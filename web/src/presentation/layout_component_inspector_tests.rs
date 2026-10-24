@@ -7,7 +7,7 @@ use boardstudio_application::{AcceptedSnapshot, ReadModel, Scope, SessionEpoch};
 use boardstudio_core::model::{
     Board, Constraint, ConstraintEndpoint, ConstraintRelation, Layout, LayoutMirrorLink, Matrix,
     MatrixCell, MatrixScene, MatrixSceneCell, MirroredCorrespondence, MirroredItemKind,
-    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side,
+    PartDefinition, PartKind, PartOutline, Pose2, ProjectDoc, Readiness, SceneDelta, Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use std::cell::RefCell;
@@ -252,6 +252,12 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 MatrixSceneCell {
                     shift_frame: Default::default(),
                     offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 0,
                     enabled: true,
@@ -264,6 +270,12 @@ fn board_part_choices_mark_only_live_matrix_keys_as_matrix_keys() {
                 MatrixSceneCell {
                     shift_frame: Default::default(),
                     offset_frame: Default::default(),
+                    row_shift: Vec2::default(),
+                    key_shift: Vec2::default(),
+                    row_bend: 0.0,
+                    key_bend: 0.0,
+                    cumulative_shift: Vec2::default(),
+                    cumulative_bend: 0.0,
                     row: 0,
                     column: 1,
                     enabled: false,
@@ -410,6 +422,12 @@ fn companion_placement_projection_normalizes_layout_selections() {
         cells: vec![MatrixSceneCell {
             shift_frame: Default::default(),
             offset_frame: Default::default(),
+            row_shift: Vec2::default(),
+            key_shift: Vec2::default(),
+            row_bend: 0.0,
+            key_bend: 0.0,
+            cumulative_shift: Vec2::default(),
+            cumulative_bend: 0.0,
             row: 0,
             column: 0,
             enabled: true,

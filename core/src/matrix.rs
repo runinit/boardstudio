@@ -378,6 +378,11 @@ pub(crate) fn project_matrix(
             if !pose.at.x.is_finite() || !pose.at.y.is_finite() || !pose.rotation.is_finite() {
                 return Err("Matrix projection exceeds finite geometry".into());
             }
+            let geometry = evaluated
+                .cells
+                .iter()
+                .find(|cell| cell.row == row as usize && cell.column == column as usize)
+                .ok_or("Key geometry is missing")?;
             projected.push(MatrixSceneCell {
                 row,
                 column,
@@ -388,18 +393,14 @@ pub(crate) fn project_matrix(
                     member_id
                 },
                 pose,
-                shift_frame: evaluated
-                    .cells
-                    .iter()
-                    .find(|cell| cell.row == row as usize && cell.column == column as usize)
-                    .ok_or("Key shift frame is missing")?
-                    .shift_frame,
-                offset_frame: evaluated
-                    .cells
-                    .iter()
-                    .find(|cell| cell.row == row as usize && cell.column == column as usize)
-                    .ok_or("Key offset frame is missing")?
-                    .offset_frame,
+                shift_frame: geometry.shift_frame,
+                offset_frame: geometry.offset_frame,
+                row_shift: geometry.contributions.row_shift,
+                key_shift: geometry.contributions.key_shift,
+                row_bend: geometry.contributions.row_bend,
+                key_bend: geometry.contributions.key_bend,
+                cumulative_shift: geometry.contributions.cumulative_shift,
+                cumulative_bend: geometry.contributions.cumulative_bend,
             });
         }
     }
