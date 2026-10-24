@@ -4681,6 +4681,143 @@ mod tool_tests {
         root.remove();
     }
 
+    /// Ticket 23 slice 11: releasing the pointer outside the handle still
+    /// commits the drag. Capture retargets the up to the handle, so the drop
+    /// path must not re-hit-test the handle geometry: an up far outside it
+    /// commits the previewed operation with one Undo step.
+    #[wasm_bindgen_test]
+    async fn pointerup_outside_the_handle_still_commits_the_drag() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(2, Default::default);
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 60));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the drag is previewing before the outside release"
+        );
+        // The pointer left the handle: the up arrives with a client point far
+        // outside the handle geometry, as capture retargeting delivers it.
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (900, 900));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "the outside release commits one accepted edit"
+        );
+        assert!(
+            runtime.model().display_preview.is_none(),
+            "the preview clears on release"
+        );
+        let stagger = fixture::accepted_matrix(&runtime).column_layout[1].stagger;
+        assert!(
+            stagger != 0.0,
+            "the committed drag moved the column"
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[1].stagger,
+            0.0,
+            "one Undo restores the column"
+        );
+        root.remove();
+    }
+
+    /// Ticket 23 slice 12: losing pointer capture mid-drag cancels the
+    /// preview with nothing committed, and a subsequent drag on the same
+    /// handle recovers and commits.
+    #[wasm_bindgen_test]
+    async fn lost_capture_cancels_and_a_subsequent_drag_recovers() {
+        let mut document = fixture::matrix_document();
+        document.matrices[0]
+            .column_layout
+            .resize_with(2, Default::default);
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        wait_until_editable(&runtime).await;
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Stagger).await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 60));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the drag is previewing before capture is lost"
+        );
+        dispatch_pointer(&handle, "lostpointercapture", false, false, 1, (140, 60));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_none() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_none(),
+            "lost capture clears the preview"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision,
+            "the cancelled drag commits nothing"
+        );
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[1].stagger,
+            0.0,
+            "the cancelled drag moves nothing"
+        );
+        // A subsequent drag on the same handle recovers and commits.
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 60));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 60));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "the subsequent drag commits one accepted edit"
+        );
+        assert!(
+            fixture::accepted_matrix(&runtime).column_layout[1].stagger != 0.0,
+            "the subsequent drag moves the column"
+        );
+        root.remove();
+    }
+
     /// Ticket 23 slice 6, RED: Ctrl at pointer-down on the Splay handle latches a
     /// swing. The drag writes only the origin through `OriginSwing` (no step
     /// compensation), never the angle; one Undo restores exactly.
