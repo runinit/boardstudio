@@ -1,6 +1,6 @@
 # 24: Deliver Core-backed placement explanations and Relations highlighting
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [23](23-inspector-toolbar-and-handles.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
