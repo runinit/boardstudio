@@ -157,7 +157,14 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                 }
             },
         ),
-        MatrixTransformFields::Row { row, offset, shift } => (
+        MatrixTransformFields::Row {
+            row,
+            offset,
+            shift,
+            bend,
+            padding,
+            pitch,
+        } => (
             "Position & rotation",
             rsx! {
                 div { class: "m1-matrix-inspector-fields",
@@ -189,6 +196,20 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowBend, label: "Bend", unit: "°",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowBend).0, failure: props.mount.numeric_field(MatrixTransformField::RowBend).1,
+                        value: *bend, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::RowPadding, label: "Padding", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::RowPadding).0, failure: props.mount.numeric_field(MatrixTransformField::RowPadding).1,
+                        value: padding.unwrap_or(*pitch), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
                 }
                 ResetTransformButton {
                     label: "Reset offsets", owner: owner.clone(), snapshot_token, revision,
@@ -206,6 +227,8 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             column,
             offset,
             stagger,
+            spread,
+            pitch,
             splay_angle,
             rotation,
             splay_origin,
@@ -221,6 +244,13 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         field: MatrixTransformField::ColumnStagger, label: "Stagger", unit: "mm",
                         draft: props.mount.numeric_field(MatrixTransformField::ColumnStagger).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnStagger).1,
                         value: *stagger, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::ColumnSpread, label: "Spread", unit: "mm",
+                        draft: props.mount.numeric_field(MatrixTransformField::ColumnSpread).0, failure: props.mount.numeric_field(MatrixTransformField::ColumnSpread).1,
+                        value: spread.unwrap_or(*pitch), request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                     div { class: "m1-matrix-inspector-fields",
@@ -327,6 +357,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             offset,
             rotation,
             shift,
+            bend,
         } => (
             "Key properties",
             rsx! {
@@ -372,6 +403,13 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         field: MatrixTransformField::KeyShiftY, label: "Shift Y", unit: "mm",
                         draft: props.mount.numeric_field(MatrixTransformField::KeyShiftY).0, failure: props.mount.numeric_field(MatrixTransformField::KeyShiftY).1,
                         value: shift.y, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
+                        on_edit, splay_affect,
+                    }
+                    NumericTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::KeyBend, label: "Bend", unit: "°",
+                        draft: props.mount.numeric_field(MatrixTransformField::KeyBend).0, failure: props.mount.numeric_field(MatrixTransformField::KeyBend).1,
+                        value: *bend, request_sequence, editable: props.mount.editable,  feedback: props.mount.feedback.clone(),
                         on_edit, splay_affect,
                     }
                 }

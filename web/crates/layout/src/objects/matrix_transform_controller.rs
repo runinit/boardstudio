@@ -410,16 +410,20 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::RowOffsetY,
             MatrixTransformField::RowShiftX,
             MatrixTransformField::RowShiftY,
+            MatrixTransformField::RowBend,
+            MatrixTransformField::RowPadding,
             MatrixTransformField::ColumnSplay,
             MatrixTransformField::SplayOriginX,
             MatrixTransformField::SplayOriginY,
             MatrixTransformField::ColumnStagger,
+            MatrixTransformField::ColumnSpread,
             MatrixTransformField::ColumnOffsetX,
             MatrixTransformField::ColumnOffsetY,
             MatrixTransformField::KeyOffsetX,
             MatrixTransformField::KeyOffsetY,
             MatrixTransformField::KeyShiftX,
             MatrixTransformField::KeyShiftY,
+            MatrixTransformField::KeyBend,
             MatrixTransformField::KeyRotation,
         ]
         .into_iter()
@@ -1053,6 +1057,17 @@ fn transform_fields(
                 .map(|record| &record.shift)
                 .copied()
                 .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+            bend: matrix
+                .row_layout
+                .get(*row as usize)
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+            padding: matrix
+                .row_layout
+                .get(*row as usize)
+                .and_then(|record| record.padding),
+            pitch: matrix.pitch.y,
         },
         TreeContext::Column { column, .. } => {
             let scene = snapshot
@@ -1075,6 +1090,11 @@ fn transform_fields(
                     .map(|record| &record.stagger)
                     .copied()
                     .unwrap_or(0.0),
+                spread: matrix
+                    .column_layout
+                    .get(*column as usize)
+                    .and_then(|record| record.spread),
+                pitch: matrix.pitch.x,
                 splay_angle: basis.splay_angle,
                 rotation: basis.rotation,
                 splay_origin: basis.splay_origin,
@@ -1124,6 +1144,7 @@ fn transform_fields(
                 shift: cell
                     .and_then(|cell| cell.shift)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
+                bend: cell.and_then(|cell| cell.bend).unwrap_or(0.0),
             }
         }
         _ => return None,
@@ -1202,6 +1223,10 @@ fn field_value(
         (MatrixTransformFields::Row { shift, .. }, Field::RowShiftY) => {
             Some(Value::Number(shift.y))
         }
+        (MatrixTransformFields::Row { bend, .. }, Field::RowBend) => Some(Value::Number(*bend)),
+        (MatrixTransformFields::Row { padding, pitch, .. }, Field::RowPadding) => {
+            Some(Value::Number(padding.unwrap_or(*pitch)))
+        }
         (MatrixTransformFields::Column { offset, .. }, Field::ColumnOffsetX) => {
             Some(Value::Number(offset.x))
         }
@@ -1218,6 +1243,9 @@ fn field_value(
         }
         (MatrixTransformFields::Column { stagger, .. }, Field::ColumnStagger) => {
             Some(Value::Number(*stagger))
+        }
+        (MatrixTransformFields::Column { spread, pitch, .. }, Field::ColumnSpread) => {
+            Some(Value::Number(spread.unwrap_or(*pitch)))
         }
         (
             MatrixTransformFields::Column {
@@ -1258,6 +1286,7 @@ fn field_value(
         (MatrixTransformFields::Key { shift, .. }, Field::KeyShiftY) => {
             Some(Value::Number(shift.y))
         }
+        (MatrixTransformFields::Key { bend, .. }, Field::KeyBend) => Some(Value::Number(*bend)),
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))
         }

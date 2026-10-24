@@ -15,11 +15,14 @@ pub enum MatrixTransformField {
     RowOffsetReset,
     RowShiftX,
     RowShiftY,
+    RowBend,
+    RowPadding,
     ColumnOffsetX,
     ColumnOffsetY,
     ColumnOffsetReset,
     ColumnOffsetConvert,
     ColumnStagger,
+    ColumnSpread,
     ColumnSplay,
     SplayOriginMode,
     SplayOriginX,
@@ -29,6 +32,7 @@ pub enum MatrixTransformField {
     KeyOffsetY,
     KeyShiftX,
     KeyShiftY,
+    KeyBend,
     KeyRotation,
     KeyTransformReset,
     KeyEnabled,
@@ -63,11 +67,16 @@ pub enum MatrixTransformFields {
         row: u32,
         offset: Vec2,
         shift: Vec2,
+        bend: f64,
+        padding: Option<f64>,
+        pitch: f64,
     },
     Column {
         column: u32,
         offset: Vec2,
         stagger: f64,
+        spread: Option<f64>,
+        pitch: f64,
         splay_angle: f64,
         rotation: f64,
         splay_origin: Vec2,
@@ -89,6 +98,7 @@ pub enum MatrixTransformFields {
         offset: Vec2,
         rotation: f64,
         shift: Vec2,
+        bend: f64,
     },
 }
 
@@ -318,6 +328,20 @@ pub fn build_operation(
                 PlacementValue::Shift(Vec2 { x: shift.x, y }),
             ))
         }
+        (MatrixTransformFields::Row { row, .. }, Field::RowBend, Value::Number(bend)) => {
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::RowBend { row: *row },
+                PlacementValue::Bend(bend),
+            ))
+        }
+        (MatrixTransformFields::Row { row, .. }, Field::RowPadding, Value::Number(padding)) => {
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::RowPadding { row: *row },
+                PlacementValue::Padding(padding),
+            ))
+        }
         (
             MatrixTransformFields::Column { column, offset, .. },
             Field::ColumnOffsetX,
@@ -357,6 +381,15 @@ pub fn build_operation(
             &matrix.id,
             PlacementParameter::Stagger { column: *column },
             PlacementValue::Stagger(stagger),
+        )),
+        (
+            MatrixTransformFields::Column { column, .. },
+            Field::ColumnSpread,
+            Value::Number(spread),
+        ) => Ok(placement_operation(
+            &matrix.id,
+            PlacementParameter::ColumnSpread { column: *column },
+            PlacementValue::Spread(spread),
         )),
         (
             MatrixTransformFields::Column { column, .. },
@@ -487,6 +520,16 @@ pub fn build_operation(
             },
             PlacementValue::Shift(Vec2 { x: shift.x, y }),
         )),
+        (MatrixTransformFields::Key { row, column, .. }, Field::KeyBend, Value::Number(bend)) => {
+            Ok(placement_operation(
+                &matrix.id,
+                PlacementParameter::KeyBend {
+                    row: *row,
+                    column: *column,
+                },
+                PlacementValue::Bend(bend),
+            ))
+        }
         (
             MatrixTransformFields::Key {
                 row,
@@ -574,14 +617,27 @@ pub enum PlacementParameter {
     RowShift { row: u32 },
     /// Carried X/Y move of one key, in that key's running frame.
     KeyShift { row: u32, column: u32 },
+    /// Carried turn of one row, in degrees; later rows inherit it.
+    RowBend { row: u32 },
+    /// Carried turn of one key, in degrees; later rows in its column inherit it.
+    KeyBend { row: u32, column: u32 },
+    /// Inherited X step of one column; absent means the matrix pitch.
+    ColumnSpread { column: u32 },
+    /// Y step of one row; absent means the matrix pitch.
+    RowPadding { row: u32 },
 }
 
-/// An absolute parameter value in matrix coordinates.
+/// An absolute parameter value in matrix coordinates. Spread and Padding are
+/// resolved: the pitch fills an absent stored step, so a drag that starts from
+/// a default writes an explicit step and never a stored copy of the pitch.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PlacementValue {
     Stagger(f64),
     Offset(Vec2),
     Shift(Vec2),
+    Bend(f64),
+    Spread(f64),
+    Padding(f64),
 }
 
 /// The arrow keys a nudge can consume.
@@ -603,6 +659,7 @@ pub struct SceneBasis {
     pub axis_y: Vec2,
     pub shift_axis_x: Vec2,
     pub shift_axis_y: Vec2,
+    pub spread_axis: Option<Vec2>,
 }
 
 impl SceneBasis {
@@ -613,21 +670,26 @@ impl SceneBasis {
             axis_y: basis.axis_y,
             shift_axis_x: basis.axis_x,
             shift_axis_y: basis.axis_y,
+            spread_axis: basis.spread_axis,
         }
     }
 
     /// The basis for a parameter, or `None` when the scene has no such row or
     /// column. Row parameters read the column-0 key's frames; a key Shift reads
-    /// its own key's running frame.
+    /// its own key's running frame. Bend and Padding have no drag gesture, so
+    /// their basis only feeds the exhaustiveness of the lookup.
     pub fn for_parameter(scene: &MatrixScene, parameter: PlacementParameter) -> Option<Self> {
         if let PlacementParameter::ColumnOffset { column }
         | PlacementParameter::RowOffset { row: column }
         | PlacementParameter::RowShift { row: column }
-        | PlacementParameter::KeyShift { column, .. } = parameter
+        | PlacementParameter::RowBend { row: column }
+        | PlacementParameter::KeyShift { column, .. }
+        | PlacementParameter::KeyBend { column, .. } = parameter
         {
             let (row, column) = match parameter {
                 PlacementParameter::ColumnOffset { .. } => (0, column),
-                PlacementParameter::KeyShift { row, column } => (row, column),
+                PlacementParameter::KeyShift { row, column }
+                | PlacementParameter::KeyBend { row, column } => (row, column),
                 _ => (column, 0),
             };
             let cell = scene
@@ -640,13 +702,19 @@ impl SceneBasis {
                 axis_y: cell.offset_frame.axis_y,
                 shift_axis_x: cell.shift_frame.axis_x,
                 shift_axis_y: cell.shift_frame.axis_y,
+                spread_axis: None,
             });
         }
         let column = match parameter {
             PlacementParameter::Stagger { column }
-            | PlacementParameter::ColumnOffset { column } => column,
-            PlacementParameter::RowOffset { .. } | PlacementParameter::RowShift { .. } => 0,
-            PlacementParameter::KeyShift { column, .. } => column,
+            | PlacementParameter::ColumnOffset { column }
+            | PlacementParameter::ColumnSpread { column } => column,
+            PlacementParameter::RowOffset { .. }
+            | PlacementParameter::RowShift { .. }
+            | PlacementParameter::RowBend { .. }
+            | PlacementParameter::RowPadding { .. } => 0,
+            PlacementParameter::KeyShift { column, .. }
+            | PlacementParameter::KeyBend { column, .. } => column,
         };
         scene
             .columns
@@ -677,6 +745,24 @@ pub fn placement_operation(
         }
         (PlacementParameter::KeyShift { row, column }, PlacementValue::Shift(value)) => {
             MatrixPlacementChange::KeyShift { row, column, value }
+        }
+        (PlacementParameter::RowBend { row }, PlacementValue::Bend(value)) => {
+            MatrixPlacementChange::RowBend { row, value }
+        }
+        (PlacementParameter::KeyBend { row, column }, PlacementValue::Bend(value)) => {
+            MatrixPlacementChange::KeyBend { row, column, value }
+        }
+        (PlacementParameter::ColumnSpread { column }, PlacementValue::Spread(value)) => {
+            MatrixPlacementChange::ColumnSpread {
+                column,
+                value: Some(value),
+            }
+        }
+        (PlacementParameter::RowPadding { row }, PlacementValue::Padding(value)) => {
+            MatrixPlacementChange::RowPadding {
+                row,
+                value: Some(value),
+            }
         }
         (parameter, value) => panic!("{value:?} is not a value of {parameter:?}"),
     };
@@ -717,6 +803,9 @@ pub fn placement_value(
         (_, PlacementValue::Shift(shift), PlacementSet::ShiftY(y)) => {
             PlacementValue::Shift(Vec2 { x: shift.x, y })
         }
+        (_, _, PlacementSet::Bend(value)) => PlacementValue::Bend(value),
+        (_, _, PlacementSet::Spread(value)) => PlacementValue::Spread(value),
+        (_, _, PlacementSet::Padding(value)) => PlacementValue::Padding(value),
         (_, _, set) => panic!("{set:?} does not fit {parameter:?}"),
     }
 }
@@ -729,6 +818,9 @@ pub enum PlacementSet {
     OffsetY(f64),
     ShiftX(f64),
     ShiftY(f64),
+    Bend(f64),
+    Spread(f64),
+    Padding(f64),
 }
 
 /// A drag sample: the world delta since pointer-down, projected onto the scene axes and
@@ -762,6 +854,21 @@ pub fn gesture_value(
                 x: snapped(start.x + local.x, snap.map(|step| step.x)),
                 y: snapped(start.y + local.y, snap.map(|step| step.y)),
             })
+        }
+        (_, PlacementValue::Spread(start)) => {
+            let axis = basis.spread_axis.unwrap_or(basis.axis_x);
+            let along = dot(world_delta, axis) / dot(axis, axis);
+            PlacementValue::Spread(snapped(start + along, snap.map(|step| step.x)))
+        }
+        // Bend and Padding have no drag gesture: Bend turns the running frame
+        // rather than translating along an axis, and Padding steps along the
+        // pre-row frame no handle exposes. Both are Inspector-only until a
+        // gesture names their frame.
+        (_, PlacementValue::Bend(_)) => {
+            panic!("a carried Bend has no drag gesture; use the Inspector field")
+        }
+        (_, PlacementValue::Padding(_)) => {
+            panic!("row Padding has no drag gesture; use the Inspector field")
         }
         (parameter, start) => panic!("{start:?} is not a value of {parameter:?}"),
     }
@@ -1105,6 +1212,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         assert!(component_edit_admitted_by_catalogue(
             None,
@@ -1291,6 +1399,8 @@ mod tests {
             splay_origin: Vec2::default(),
             custom_origin: false,
             convert: Ok(()),
+            spread: None,
+            pitch: 19.05,
         };
         let build = |matrix: &Matrix| {
             build_operation(
@@ -1324,12 +1434,142 @@ mod tests {
     }
 
     #[test]
+    fn bend_spread_and_padding_map_to_named_placement_edits() {
+        let matrix = matrix();
+        let row_fields = MatrixTransformFields::Row {
+            row: 1,
+            offset: Vec2 { x: 4.0, y: 5.0 },
+            shift: Vec2::default(),
+            bend: 2.0,
+            padding: None,
+            pitch: 19.05,
+        };
+        assert_eq!(
+            placement_result(
+                build_operation(
+                    &matrix,
+                    &row_fields,
+                    MatrixTransformField::RowBend,
+                    MatrixTransformValue::Number(7.5),
+                    MatrixSplayAffect::Following,
+                )
+                .unwrap(),
+            ),
+            MatrixPlacementChange::RowBend { row: 1, value: 7.5 }
+        );
+        assert_eq!(
+            placement_result(
+                build_operation(
+                    &matrix,
+                    &row_fields,
+                    MatrixTransformField::RowPadding,
+                    MatrixTransformValue::Number(24.0),
+                    MatrixSplayAffect::Following,
+                )
+                .unwrap(),
+            ),
+            MatrixPlacementChange::RowPadding {
+                row: 1,
+                value: Some(24.0),
+            }
+        );
+        let key_fields = MatrixTransformFields::Key {
+            enabled: true,
+            definition_id: "switch".into(),
+            choices: Vec::new(),
+            assemblies: Vec::new(),
+            component_choices: Vec::new(),
+            mirror_target: false,
+            assemblies_local: false,
+            row: 1,
+            column: 2,
+            offset: Vec2 { x: 6.0, y: 7.0 },
+            rotation: 9.0,
+            shift: Vec2::default(),
+            bend: 0.0,
+        };
+        assert_eq!(
+            placement_result(
+                build_operation(
+                    &matrix,
+                    &key_fields,
+                    MatrixTransformField::KeyBend,
+                    MatrixTransformValue::Number(-3.0),
+                    MatrixSplayAffect::Following,
+                )
+                .unwrap(),
+            ),
+            MatrixPlacementChange::KeyBend {
+                row: 1,
+                column: 2,
+                value: -3.0,
+            }
+        );
+        let column_fields = MatrixTransformFields::Column {
+            column: 1,
+            offset: Vec2::default(),
+            stagger: 0.5,
+            spread: None,
+            pitch: 19.05,
+            splay_angle: 0.0,
+            rotation: 0.0,
+            splay_origin: Vec2::default(),
+            custom_origin: false,
+            convert: Ok(()),
+        };
+        assert_eq!(
+            placement_result(
+                build_operation(
+                    &matrix,
+                    &column_fields,
+                    MatrixTransformField::ColumnSpread,
+                    MatrixTransformValue::Number(24.0),
+                    MatrixSplayAffect::Following,
+                )
+                .unwrap(),
+            ),
+            MatrixPlacementChange::ColumnSpread {
+                column: 1,
+                value: Some(24.0),
+            }
+        );
+        // Inspector sets compose per component against the resolved current value.
+        assert_eq!(
+            placement_value(
+                PlacementParameter::RowBend { row: 1 },
+                PlacementValue::Bend(2.0),
+                PlacementSet::Bend(7.5),
+            ),
+            PlacementValue::Bend(7.5)
+        );
+        assert_eq!(
+            placement_value(
+                PlacementParameter::ColumnSpread { column: 1 },
+                PlacementValue::Spread(19.05),
+                PlacementSet::Spread(24.0),
+            ),
+            PlacementValue::Spread(24.0)
+        );
+        assert_eq!(
+            placement_value(
+                PlacementParameter::RowPadding { row: 1 },
+                PlacementValue::Padding(19.05),
+                PlacementSet::Padding(24.0),
+            ),
+            PlacementValue::Padding(24.0)
+        );
+    }
+
+    #[test]
     fn row_offset_changes_only_the_selected_row_and_preserves_other_matrix_data() {
         let matrix = matrix();
         let fields = MatrixTransformFields::Row {
             row: 1,
             offset: Vec2 { x: 4.0, y: 5.0 },
             shift: Vec2::default(),
+            bend: 0.0,
+            padding: None,
+            pitch: 19.05,
         };
         let operation = build_operation(
             &matrix,
@@ -1364,6 +1604,8 @@ mod tests {
             splay_origin: Vec2 { x: 10.0, y: 20.0 },
             custom_origin: true,
             convert: Ok(()),
+            spread: None,
+            pitch: 19.05,
         };
         let point = Vec2 { x: 33.5, y: -12.0 };
         assert!(matches!(
@@ -1399,6 +1641,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let operation = build_operation(
             &matrix,
@@ -1441,6 +1684,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let operation = build_operation(
             &matrix,
@@ -1496,6 +1740,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let EditOperation::SetMatrix { matrix: next, .. } = build_operation(
             &matrix,
@@ -1546,6 +1791,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let EditOperation::SetMatrix { matrix: next, .. } = build_operation(
             &matrix,
@@ -1577,6 +1823,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         }
     }
 
@@ -1699,6 +1946,7 @@ mod tests {
             offset: Vec2 { x: 0.0, y: 0.0 },
             rotation: 0.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let operation = build_operation(
             &matrix,
@@ -1751,6 +1999,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let operation = build_operation(
             &matrix,
@@ -1781,6 +2030,8 @@ mod tests {
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: false,
             convert: Ok(()),
+            spread: None,
+            pitch: 19.05,
         };
         let operation = build_operation(
             &matrix,
@@ -1891,6 +2142,9 @@ mod tests {
             row: 0,
             offset: Vec2 { x: 2.0, y: 3.0 },
             shift: Vec2::default(),
+            bend: 0.0,
+            padding: None,
+            pitch: 19.05,
         };
         let change = placement_result(
             build_operation(
@@ -1936,6 +2190,8 @@ mod tests {
             splay_origin: Vec2 { x: 11.0, y: 12.0 },
             custom_origin: true,
             convert: Ok(()),
+            spread: None,
+            pitch: 19.05,
         };
         for (field, value, expected) in [
             (
@@ -2043,6 +2299,7 @@ mod tests {
             offset: Vec2 { x: 6.0, y: 7.0 },
             rotation: 9.0,
             shift: Vec2::default(),
+            bend: 0.0,
         };
         let next = set_matrix_result(
             build_operation(
@@ -2154,6 +2411,11 @@ mod tests {
                 PlacementValue::Offset(Vec2 { x: 2.5, y: -3.0 }),
             ),
             (
+                PlacementParameter::ColumnSpread { column: 1 },
+                PlacementValue::Spread(19.0),
+                PlacementValue::Spread(24.0),
+            ),
+            (
                 PlacementParameter::RowShift { row: 2 },
                 PlacementValue::Shift(Vec2 { x: 1.0, y: -2.0 }),
                 PlacementValue::Shift(Vec2 { x: -4.0, y: 6.5 }),
@@ -2182,6 +2444,13 @@ mod tests {
                     y: (to.x - from.x) * basis.shift_axis_x.y
                         + (to.y - from.y) * basis.shift_axis_y.y,
                 },
+                (PlacementValue::Spread(from), PlacementValue::Spread(to)) => {
+                    let axis = basis.spread_axis.unwrap_or(basis.axis_x);
+                    Vec2 {
+                        x: (to - from) * axis.x,
+                        y: (to - from) * axis.y,
+                    }
+                }
                 _ => unreachable!(),
             };
             let gesture = gesture_value(&basis, parameter, start, world_delta, None);
@@ -2196,6 +2465,15 @@ mod tests {
                 PlacementValue::Shift(value) => {
                     let x = placement_value(parameter, start, PlacementSet::ShiftX(value.x));
                     placement_value(parameter, x, PlacementSet::ShiftY(value.y))
+                }
+                PlacementValue::Spread(value) => {
+                    placement_value(parameter, start, PlacementSet::Spread(value))
+                }
+                PlacementValue::Bend(value) => {
+                    placement_value(parameter, start, PlacementSet::Bend(value))
+                }
+                PlacementValue::Padding(value) => {
+                    placement_value(parameter, start, PlacementSet::Padding(value))
                 }
             };
             let (gesture_op, inspector_op) = (
@@ -2246,6 +2524,16 @@ mod tests {
                 "{a:?} vs {b:?}"
             ),
             (
+                MatrixPlacementChange::ColumnSpread {
+                    column: ca,
+                    value: va,
+                },
+                MatrixPlacementChange::ColumnSpread {
+                    column: cb,
+                    value: vb,
+                },
+            ) => assert!(ca == cb && va == vb, "{a:?} vs {b:?}"),
+            (
                 MatrixPlacementChange::RowShift { row: ra, value: va },
                 MatrixPlacementChange::RowShift { row: rb, value: vb },
             ) => assert!(
@@ -2279,6 +2567,7 @@ mod tests {
             axis_y: Vec2 { x: 0.0, y: 1.0 },
             shift_axis_x: Vec2 { x: 1.0, y: 0.0 },
             shift_axis_y: Vec2 { x: 0.0, y: 1.0 },
+            spread_axis: None,
         };
         let parameter = PlacementParameter::Stagger { column: 0 };
         let step = Some(Vec2 {
@@ -2335,6 +2624,7 @@ mod tests {
             axis_y: Vec2 { x: -1.0, y: 0.0 },
             shift_axis_x: Vec2 { x: 0.0, y: 1.0 },
             shift_axis_y: Vec2 { x: -1.0, y: 0.0 },
+            spread_axis: None,
         };
         let stagger = PlacementParameter::Stagger { column: 0 };
         let start = PlacementValue::Stagger(0.0);
@@ -2367,6 +2657,7 @@ mod tests {
             axis_y: Vec2 { x: 0.0, y: -1.0 },
             shift_axis_x: Vec2 { x: 1.0, y: 0.0 },
             shift_axis_y: Vec2 { x: 0.0, y: -1.0 },
+            spread_axis: None,
         };
         let offset = PlacementParameter::ColumnOffset { column: 0 };
         let zero = PlacementValue::Offset(Vec2 { x: 0.0, y: 0.0 });

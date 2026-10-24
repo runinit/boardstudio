@@ -1093,7 +1093,9 @@ fn stagger_parameter(column: u32, quick_offset: bool) -> PlacementParameter {
     }
 }
 
-/// The parameter's value in `matrix`; an index past the saved vector reads as zero.
+/// The parameter's value in `matrix`; an index past the saved vector reads as zero,
+/// and an absent Spread or Padding reads the pitch so a drag that starts from a
+/// default writes an explicit step.
 fn placement_current(matrix: &Matrix, parameter: PlacementParameter) -> PlacementValue {
     match parameter {
         PlacementParameter::Stagger { column } => PlacementValue::Stagger(
@@ -1136,13 +1138,45 @@ fn placement_current(matrix: &Matrix, parameter: PlacementParameter) -> Placemen
                 .and_then(|cell| cell.shift)
                 .unwrap_or_default(),
         ),
+        PlacementParameter::RowBend { row } => PlacementValue::Bend(
+            matrix
+                .row_layout
+                .get(row as usize)
+                .map(|record| &record.bend)
+                .copied()
+                .unwrap_or(0.0),
+        ),
+        PlacementParameter::KeyBend { row, column } => PlacementValue::Bend(
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+                .and_then(|cell| cell.bend)
+                .unwrap_or(0.0),
+        ),
+        PlacementParameter::ColumnSpread { column } => PlacementValue::Spread(
+            matrix
+                .column_layout
+                .get(column as usize)
+                .and_then(|record| record.spread)
+                .unwrap_or(matrix.pitch.x),
+        ),
+        PlacementParameter::RowPadding { row } => PlacementValue::Padding(
+            matrix
+                .row_layout
+                .get(row as usize)
+                .and_then(|record| record.padding)
+                .unwrap_or(matrix.pitch.y),
+        ),
     }
 }
 
-/// The parameter and absolute value a placement operation sets.
+/// The parameter and absolute value a placement operation sets. Absent Spread
+/// and Padding resolve against the matrix pitch, matching `placement_current`,
+/// so a drag that lands on a default still compares and deltas exactly.
 fn placement_target(
     operation: &EditOperation,
-    matrix_id: &str,
+    matrix: &Matrix,
 ) -> Option<(PlacementParameter, PlacementValue)> {
     let EditOperation::SetMatrixPlacement {
         matrix_id: target,
@@ -1151,7 +1185,7 @@ fn placement_target(
     else {
         return None;
     };
-    if target != matrix_id {
+    if target != &matrix.id {
         return None;
     }
     match change {
@@ -1178,6 +1212,25 @@ fn placement_target(
             },
             PlacementValue::Shift(*value),
         )),
+        MatrixPlacementChange::RowBend { row, value } => Some((
+            PlacementParameter::RowBend { row: *row },
+            PlacementValue::Bend(*value),
+        )),
+        MatrixPlacementChange::KeyBend { row, column, value } => Some((
+            PlacementParameter::KeyBend {
+                row: *row,
+                column: *column,
+            },
+            PlacementValue::Bend(*value),
+        )),
+        MatrixPlacementChange::ColumnSpread { column, value } => Some((
+            PlacementParameter::ColumnSpread { column: *column },
+            PlacementValue::Spread(value.unwrap_or(matrix.pitch.x)),
+        )),
+        MatrixPlacementChange::RowPadding { row, value } => Some((
+            PlacementParameter::RowPadding { row: *row },
+            PlacementValue::Padding(value.unwrap_or(matrix.pitch.y)),
+        )),
         _ => None,
     }
 }
@@ -1188,6 +1241,8 @@ enum PlacementDelta {
     Stagger(f64),
     Offset(Vec2),
     Shift(Vec2),
+    Spread(f64),
+    Padding(f64),
 }
 
 fn placement_delta(start: PlacementValue, end: PlacementValue) -> Option<PlacementDelta> {
@@ -1206,6 +1261,12 @@ fn placement_delta(start: PlacementValue, end: PlacementValue) -> Option<Placeme
                 x: end.x - start.x,
                 y: end.y - start.y,
             }))
+        }
+        (PlacementValue::Spread(start), PlacementValue::Spread(end)) => {
+            Some(PlacementDelta::Spread(end - start))
+        }
+        (PlacementValue::Padding(start), PlacementValue::Padding(end)) => {
+            Some(PlacementDelta::Padding(end - start))
         }
         _ => None,
     }
@@ -1228,6 +1289,12 @@ fn apply_placement_delta(current: PlacementValue, delta: PlacementDelta) -> Opti
                 y: value.y + delta.y,
             }))
         }
+        (PlacementValue::Spread(value), PlacementDelta::Spread(delta)) => {
+            Some(PlacementValue::Spread(value + delta))
+        }
+        (PlacementValue::Padding(value), PlacementDelta::Padding(delta)) => {
+            Some(PlacementValue::Padding(value + delta))
+        }
         _ => None,
     }
 }
@@ -1247,19 +1314,25 @@ fn accepted_placement_basis(
     matrix: &Matrix,
     parameter: PlacementParameter,
 ) -> Result<SceneBasis, &'static str> {
-    if let PlacementParameter::RowOffset { row } | PlacementParameter::RowShift { row } = parameter
+    if let PlacementParameter::RowOffset { row }
+    | PlacementParameter::RowShift { row }
+    | PlacementParameter::RowBend { row }
+    | PlacementParameter::RowPadding { row } = parameter
         && row >= matrix.rows
     {
         return Err("The selected row no longer exists.");
     }
     if let PlacementParameter::Stagger { column }
     | PlacementParameter::ColumnOffset { column }
-    | PlacementParameter::KeyShift { column, .. } = parameter
+    | PlacementParameter::ColumnSpread { column }
+    | PlacementParameter::KeyShift { column, .. }
+    | PlacementParameter::KeyBend { column, .. } = parameter
         && column >= matrix.columns
     {
         return Err("The selected column no longer exists.");
     }
-    if let PlacementParameter::KeyShift { row, .. } = parameter
+    if let PlacementParameter::KeyShift { row, .. } | PlacementParameter::KeyBend { row, .. } =
+        parameter
         && row >= matrix.rows
     {
         return Err("The selected key no longer exists.");
@@ -1400,7 +1473,7 @@ fn transform_drag_result(
     operation: &EditOperation,
 ) -> Option<TransformDragResult> {
     if let Some(gesture_parameter) = drag.gesture.parameter() {
-        let (parameter, end) = placement_target(operation, &drag.matrix.id)?;
+        let (parameter, end) = placement_target(operation, &drag.matrix)?;
         if parameter != gesture_parameter {
             return None;
         }
@@ -1821,7 +1894,7 @@ fn stored_column_angle(matrix: &Matrix, column: u32, affect: &MatrixSplayAffect)
 
 fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> bool {
     if let Some(gesture_parameter) = drag.gesture.parameter() {
-        return placement_target(operation, &drag.matrix.id).is_some_and(|(parameter, value)| {
+        return placement_target(operation, &drag.matrix).is_some_and(|(parameter, value)| {
             parameter == gesture_parameter && value == placement_current(&drag.matrix, parameter)
         });
     }
@@ -3121,6 +3194,7 @@ mod nudge_tests {
             axis_y: Vec2 { x: 0.0, y: 1.0 },
             shift_axis_x: Vec2 { x: 1.0, y: 0.0 },
             shift_axis_y: Vec2 { x: 0.0, y: 1.0 },
+            spread_axis: None,
         });
         assert!(
             (value(&drag, Vec2 { x: 5.0, y: 0.0 }) - 4.0).abs() < 1e-9,
