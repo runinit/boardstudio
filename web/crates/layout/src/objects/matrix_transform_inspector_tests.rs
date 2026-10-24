@@ -3167,3 +3167,83 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     }
     root.remove();
 }
+
+/// Ticket 23 slice 8, RED: the anchor block edits its Follow subset in place.
+/// Unchecking rotation writes one atomic SetMatrixAnchor with one Undo entry.
+#[wasm_bindgen_test]
+async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-follow-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let rotation = root
+        .query_selector("input[aria-label='Follow rotation']")
+        .unwrap()
+        .expect("the anchor names rotation Follow")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        rotation.checked(),
+        "the anchored matrix follows rotation"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    rotation.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe.runtime.model().accepted.expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .follow
+            .rotation,
+        false,
+        "unchecking rotation writes the Follow subset"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the toggle is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .follow
+            .rotation,
+        "one Undo restores rotation Follow"
+    );
+    root.remove();
+}
