@@ -505,7 +505,11 @@ fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
         .properties
         .get_or_insert_with(std::collections::BTreeMap::new)
         .insert("layoutOverride".into(), serde_json::json!(1));
-    let matrix = |id: &str, key_id: &str, mirror: Option<boardstudio_core::model::Mirror>, origin: Vec2, anchor_target: &str| Matrix {
+    let matrix = |id: &str,
+                  key_id: &str,
+                  mirror: Option<boardstudio_core::model::Mirror>,
+                  origin: Vec2,
+                  anchor_target: &str| Matrix {
         id: id.into(),
         name: None,
         rows: 1,
@@ -3016,7 +3020,11 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
     // The refusal changed nothing: both anchors stay, no new revision.
-    let refused = probe.runtime.model().accepted.expect("an accepted document");
+    let refused = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     assert!(
         refused
             .document
@@ -3078,6 +3086,14 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
         "Cancel leaves the anchor"
     );
     // Confirm clears both anchors, keeps every pose, in one Undo entry.
+    // Cancel re-rendered the actions, so the Detach handle is re-queried.
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("Cancel restores the Detach action")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
     detach.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
@@ -3091,7 +3107,11 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     confirm.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let confirmed = probe.runtime.model().accepted.expect("an accepted document");
+    let confirmed = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     for id in ["thumb", "thumb2"] {
         assert!(
             confirmed
@@ -3128,7 +3148,11 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
     });
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let undone = probe.runtime.model().accepted.expect("an accepted document");
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     for id in ["thumb", "thumb2"] {
         assert!(
             undone

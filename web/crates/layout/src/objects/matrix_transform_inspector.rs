@@ -168,13 +168,11 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
                     }
                     p { class: "m1-matrix-anchor-follow", "{follows_label(&anchor.follow)}" }
-                    ResetTransformButton {
-                        label: "Detach", owner: owner.clone(), snapshot_token, revision,
-                        field: MatrixTransformField::MatrixDetach,
-                        pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetach),
-                        baseline: MatrixTransformValue::Bool(false),
-                        value: MatrixTransformValue::Bool(true),
+                    DetachAnchorButton {
+                        owner: owner.clone(), snapshot_token, revision,
                         request_sequence, editable: props.mount.editable,
+                        detach_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetach),
+                        confirm_pending: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetachConfirm),
                         feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                     }
                 } else {
@@ -1222,6 +1220,133 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
         }
         if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+    }
+}
+
+/// Parse Core's detach proposal ("Detaching {m} would move its linked partner
+/// {p}; make {p} Local ...") into the required Local matrix. Anything else is
+/// shown verbatim without a Confirm action.
+fn detach_proposal(message: &str, matrix_id: &str) -> Option<String> {
+    // The transform layer prefixes Core refusals ("The transform change was
+    // refused: ..."), so the proposal marker is searched, not anchored.
+    let marker = format!("Detaching {matrix_id} would move its linked partner ");
+    let at = message.find(&marker)?;
+    let (partner, tail) = message[at + marker.len()..].split_once(';')?;
+    if tail.trim_start() == format!("make {partner} Local to keep its pose and confirm the detach")
+    {
+        Some(partner.to_owned())
+    } else {
+        None
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct DetachAnchorButtonProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    detach_pending: Signal<bool>,
+    confirm_pending: Signal<bool>,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+}
+
+/// Detach an anchored matrix. A plain click clears the anchor in one atomic
+/// Core intent. When Core refuses because the detach would move the linked
+/// partner, the refusal names the required Local exception and the button
+/// offers Confirm/Cancel in place: Confirm applies the detach and the
+/// exception atomically, Cancel leaves the whole edit unchanged. A stale
+/// confirmation is refused by Core and surfaces as an error, never a silent
+/// change.
+#[component]
+fn DetachAnchorButton(props: DetachAnchorButtonProps) -> Element {
+    let mut submitted = use_signal(|| None::<(MatrixTransformField, u64)>);
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let matrix_id = props.owner.matrix_id.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let mut send = move |field: MatrixTransformField,
+                         baseline: MatrixTransformValue,
+                         value: MatrixTransformValue| {
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some((field, id)));
+        on_edit.call(MatrixTransformRequest::one_shot(
+            owner.clone(),
+            (token, revision),
+            id,
+            (field, baseline, value),
+            affect(),
+        ));
+    };
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            let Some((field, request_id)) = submitted() else {
+                return false;
+            };
+            item.owner == props.owner
+                && item.field == field
+                && request_id == item.request_id
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let proposal = error
+        .as_deref()
+        .and_then(|message| detach_proposal(message, &matrix_id));
+    let busy = (props.detach_pending)() || (props.confirm_pending)();
+    rsx! {
+        if let Some(partner) = proposal.as_deref() {
+            div { class: "m1-matrix-detach-confirm",
+                p { class: "m1-matrix-transform-error", role: "alert", "{error.as_deref().unwrap_or_default()}" }
+                p { class: "m1-empty-note",
+                    "Confirming clears both anchors and keeps every pose in one Undo entry."
+                }
+                BoardButton {
+                    r#type: "button", class: "m1-inspector-secondary",
+                    disabled: !props.editable || busy,
+                    onclick: {
+                        let partner = partner.to_owned();
+                        let mut send = send.clone();
+                        move |_| send(
+                            MatrixTransformField::MatrixDetachConfirm,
+                            MatrixTransformValue::Text(String::new()),
+                            MatrixTransformValue::Text(partner.clone()),
+                        )
+                    },
+                    "Confirm detach"
+                }
+                BoardButton {
+                    r#type: "button", class: "m1-inspector-secondary",
+                    onclick: move |_| submitted.set(None),
+                    "Cancel"
+                }
+            }
+        } else {
+            BoardButton {
+                r#type: "button", class: "m1-inspector-secondary",
+                disabled: !props.editable || busy,
+                onclick: move |_| send(
+                    MatrixTransformField::MatrixDetach,
+                    MatrixTransformValue::Bool(false),
+                    MatrixTransformValue::Bool(true),
+                ),
+                "Detach"
+            }
+            if let Some(message) = error.as_deref() {
+                p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+            }
+        }
     }
 }
 
