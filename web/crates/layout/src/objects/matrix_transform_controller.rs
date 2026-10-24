@@ -323,6 +323,7 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::SplayOriginX => "Origin X",
         MatrixTransformField::SplayOriginY => "Origin Y",
         MatrixTransformField::SplayOriginPoint => "Pick origin",
+        MatrixTransformField::SplayOriginSwingPoint => "Pick origin",
         MatrixTransformField::ColumnOffsetConvert => "Convert to stagger",
         MatrixTransformField::KeyOffsetX => "Local X",
         MatrixTransformField::KeyOffsetY => "Local Y",
@@ -374,7 +375,10 @@ impl MatrixTransformInspectorMount {
         (*draft, *failure)
     }
 
-    pub fn pick_splay_origin(&self, point: Vec2) -> bool {
+    /// A canvas pick of the splay origin. With Ctrl held the pick swings the
+    /// keys: it writes only the origin through `OriginSwing`, never a
+    /// hold-still compensation.
+    pub fn pick_splay_origin(&self, point: Vec2, swing: bool) -> bool {
         let Some(projection) = self.projection.as_ref() else {
             return false;
         };
@@ -394,7 +398,11 @@ impl MatrixTransformInspectorMount {
             request_id,
             snapshot_token: projection.snapshot_token,
             revision: projection.revision,
-            field: MatrixTransformField::SplayOriginPoint,
+            field: if swing {
+                MatrixTransformField::SplayOriginSwingPoint
+            } else {
+                MatrixTransformField::SplayOriginPoint
+            },
             baseline: MatrixTransformValue::Point(*splay_origin),
             value: MatrixTransformValue::Point(point),
             splay_affect: (self.splay_affect)(),
@@ -1325,6 +1333,9 @@ fn field_value(
             Some(Value::Number(splay_origin.y))
         }
         (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginPoint) => {
+            Some(Value::Point(*splay_origin))
+        }
+        (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginSwingPoint) => {
             Some(Value::Point(*splay_origin))
         }
         (MatrixTransformFields::Key { offset, .. }, Field::KeyOffsetX) => {

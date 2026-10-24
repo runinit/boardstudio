@@ -127,25 +127,24 @@ impl PartialEq for LayoutTransformSvg {
 enum TransformGesture {
     /// Edits the column's stagger. `quick_offset` is latched from `ctrlKey` at pointer-down
     /// and turns the drag into a free 2-D column-offset gesture for its whole length.
-    Stagger {
-        column: u32,
-        quick_offset: bool,
-    },
+    Stagger { column: u32, quick_offset: bool },
     /// Edits the column's inherited spread step.
-    Spread {
-        column: u32,
-    },
+    Spread { column: u32 },
     /// Edits one row's or one column's independent offset (`RowOffset` or `ColumnOffset`).
-    Offset {
-        parameter: PlacementParameter,
-    },
+    Offset { parameter: PlacementParameter },
     Splay {
         column: u32,
         start_angle: f64,
         origin: Vec2,
+        /// Latched from `ctrlKey` at pointer-down: the drag swings the origin
+        /// through `OriginSwing` instead of turning the angle.
+        swing: bool,
     },
     Origin {
         column: u32,
+        /// Latched from `ctrlKey` at pointer-down: the drag writes the origin
+        /// without hold-still compensation.
+        swing: bool,
     },
 }
 
@@ -176,6 +175,10 @@ struct TransformDrag {
     tool: LayoutTransformTool,
     /// The scene frame at pointer-down; the world delta is projected onto it.
     basis: Option<SceneBasis>,
+    /// The dragged column's world base and world origin at pointer-down: the
+    /// snap target and the no-op point for an origin swing.
+    origin_base: Option<Vec2>,
+    start_origin: Option<Vec2>,
     start_client_x: f64,
     start_client_y: f64,
     pending: Option<EditOperation>,
@@ -207,17 +210,26 @@ pub fn LayoutTransformToolOverlay(
 ) -> Element {
     let control = use_signal(|| false);
     let _control_listener = use_hook(move || {
-        Rc::new(if tool == LayoutTransformTool::Stagger {
-            CtrlModifierListener::install(control)
-        } else {
-            None
-        })
+        Rc::new(
+            if matches!(
+                tool,
+                LayoutTransformTool::Stagger
+                    | LayoutTransformTool::Splay
+                    | LayoutTransformTool::Origin
+            ) {
+                CtrlModifierListener::install(control)
+            } else {
+                None
+            },
+        )
     });
     let _ = surface_size.map(|size| size());
     let drag = use_hook(|| Rc::new(RefCell::new(None::<TransformDrag>)));
     let snap_guide = use_signal(|| None::<Vec2>);
     // True from a Ctrl pointer-down until release: the handle shows the offset glyph.
     let quick_glyph = use_signal(|| false);
+    // True from a Ctrl pointer-down on a Splay or Origin handle until release.
+    let swing_glyph = use_signal(|| false);
     let runtime_inner = runtime.0.clone();
     let arbiter_for_drop = arbiter.clone();
     let drag_for_drop = drag.clone();
@@ -229,6 +241,7 @@ pub fn LayoutTransformToolOverlay(
             &arbiter_for_drop,
             &mut guide_for_drop,
             quick_glyph,
+            swing_glyph,
         );
     });
     let escape_listener = use_hook(TransformEscapeListener::default);
@@ -267,7 +280,14 @@ pub fn LayoutTransformToolOverlay(
                 }
                 event.prevent_default();
                 let mut guide = snap_guide;
-                cancel_transform_drag(&runtime, &drag, &arbiter, &mut guide, quick_glyph);
+                cancel_transform_drag(
+                    &runtime,
+                    &drag,
+                    &arbiter,
+                    &mut guide,
+                    quick_glyph,
+                    swing_glyph,
+                );
                 on_finish.call(());
             }) as Box<dyn FnMut(_)>);
             let _ = document
@@ -308,6 +328,7 @@ pub fn LayoutTransformToolOverlay(
                         &arbiter_for_owner,
                         &mut guide_for_owner,
                         quick_glyph,
+                        swing_glyph,
                     );
                 }
             }
@@ -495,6 +516,7 @@ pub fn LayoutTransformToolOverlay(
     let start_drag = Rc::new(move |event: PointerEvent, gesture: TransformGesture| {
         let mut guide_for_start = guide_for_start;
         let mut quick_for_start = quick_glyph;
+        let mut swing_for_start = swing_glyph;
         let Some(pointer) = event.data().try_as_web_event() else {
             return;
         };
@@ -503,6 +525,21 @@ pub fn LayoutTransformToolOverlay(
             TransformGesture::Stagger { column, .. } => TransformGesture::Stagger {
                 column,
                 quick_offset: pointer.ctrl_key(),
+            },
+            TransformGesture::Splay {
+                column,
+                start_angle,
+                origin,
+                ..
+            } => TransformGesture::Splay {
+                column,
+                start_angle,
+                origin,
+                swing: pointer.ctrl_key(),
+            },
+            TransformGesture::Origin { column, .. } => TransformGesture::Origin {
+                column,
+                swing: pointer.ctrl_key(),
             },
             other => other,
         };
@@ -561,14 +598,31 @@ pub fn LayoutTransformToolOverlay(
         };
         let start_angle = (start_point.y - angle_origin.y).atan2(start_point.x - angle_origin.x);
         let gesture = match gesture {
-            TransformGesture::Splay { column, origin, .. } => TransformGesture::Splay {
+            TransformGesture::Splay {
+                column,
+                origin,
+                swing,
+                ..
+            } => TransformGesture::Splay {
                 column,
                 origin,
                 start_angle,
+                swing,
             },
             other => other,
         };
         let operation = runtime_for_start.operation();
+        let swing_basis = match gesture {
+            TransformGesture::Splay { column, .. } | TransformGesture::Origin { column, .. } => {
+                projection_for_start
+                    .columns
+                    .iter()
+                    .find(|basis| basis.column == column)
+            }
+            _ => None,
+        };
+        let origin_base = swing_basis.map(|basis| basis.base);
+        let start_origin = swing_basis.map(|basis| basis.splay_origin);
         *drag_for_start.borrow_mut() = Some(TransformDrag {
             pointer_id: pointer.pointer_id(),
             capture,
@@ -579,6 +633,8 @@ pub fn LayoutTransformToolOverlay(
             context: current_context.clone(),
             tool,
             basis,
+            origin_base,
+            start_origin,
             start_client_x: f64::from(pointer.client_x()),
             start_client_y: f64::from(pointer.client_y()),
             pending: None,
@@ -591,6 +647,11 @@ pub fn LayoutTransformToolOverlay(
                 quick_offset: true,
                 ..
             }
+        ));
+        swing_for_start.set(matches!(
+            gesture,
+            TransformGesture::Splay { swing: true, .. }
+                | TransformGesture::Origin { swing: true, .. }
         ));
     });
 
@@ -630,6 +691,7 @@ pub fn LayoutTransformToolOverlay(
                 &arbiter_for_move,
                 &mut guide_for_move,
                 quick_glyph,
+                swing_glyph,
             );
             return;
         }
@@ -701,6 +763,7 @@ pub fn LayoutTransformToolOverlay(
                 &arbiter_for_end,
                 &mut guide_for_end,
                 quick_glyph,
+                swing_glyph,
             );
             return;
         }
@@ -711,6 +774,7 @@ pub fn LayoutTransformToolOverlay(
                 &arbiter_for_end,
                 &mut guide_for_end,
                 quick_glyph,
+                swing_glyph,
             );
             return;
         }
@@ -750,6 +814,8 @@ pub fn LayoutTransformToolOverlay(
         guide_for_end.set(None);
         let mut quick_for_end = quick_glyph;
         quick_for_end.set(false);
+        let mut swing_for_end = swing_glyph;
+        swing_for_end.set(false);
         // Releasing capture fires `lostpointercapture`; retire the drag before it can cancel the drop.
         drag_for_end.borrow_mut().take();
         if active.capture.has_pointer_capture(active.pointer_id) {
@@ -780,6 +846,7 @@ pub fn LayoutTransformToolOverlay(
                 &arbiter_for_cancel,
                 &mut guide_for_cancel,
                 quick_glyph,
+                swing_glyph,
             );
         }
     });
@@ -802,6 +869,7 @@ pub fn LayoutTransformToolOverlay(
                 &arbiter_for_key,
                 &mut guide_for_key,
                 quick_glyph,
+                swing_glyph,
             );
             on_finish.call(());
             return;
@@ -971,6 +1039,7 @@ pub fn LayoutTransformToolOverlay(
         },
         LayoutTransformTool::Splay | LayoutTransformTool::Origin => TransformGesture::Origin {
             column: selected_column,
+            swing: false,
         },
     };
     let stagger_axis = projection
@@ -1068,7 +1137,9 @@ pub fn LayoutTransformToolOverlay(
                     class: "m1-transform-handle m1-splay-origin-handle",
                     transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
                     role: "button", tabindex: "0", "aria-label": "Move splay origin",
-                    onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column }) },
+                    "aria-description": "Hold Ctrl while dragging to swing the origin without moving the keys.",
+                    "data-swing": "{swing_glyph()}",
+                    onpointerdown: { let start = start_drag.clone(); move |event| start(event, TransformGesture::Origin { column: selected_column, swing: false }) },
                     onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                     onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
                     onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
@@ -1086,12 +1157,15 @@ pub fn LayoutTransformToolOverlay(
                             column: selected_column,
                             start_angle: 0.0,
                             origin,
+                            swing: false,
                         };
                         rsx! {
                             g {
                                 class: "m1-transform-handle m1-splay-angle-handle",
                                 transform: "translate({angle_point.x} {angle_point.y}) scale({handle_scale})",
                                 role: "button", tabindex: "0", "aria-label": "Drag to splay",
+                                "aria-description": "Hold Ctrl while dragging to swing the origin instead.",
+                                "data-swing": "{swing_glyph()}",
                                 onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
                                 onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
                                 onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
@@ -1556,6 +1630,10 @@ enum TransformDragResult {
         column: u32,
         world: Option<Vec2>,
     },
+    SplaySwing {
+        column: u32,
+        world: Vec2,
+    },
 }
 
 fn transform_drag_result(
@@ -1572,6 +1650,20 @@ fn transform_drag_result(
     }
     match (&drag.gesture, operation) {
         (
+            TransformGesture::Splay {
+                column,
+                swing: true,
+                ..
+            },
+            EditOperation::SetMatrixSplay {
+                change: MatrixSplayChange::OriginSwing { world: Some(world) },
+                ..
+            },
+        ) => Some(TransformDragResult::SplaySwing {
+            column: *column,
+            world: *world,
+        }),
+        (
             TransformGesture::Splay { column, .. },
             EditOperation::SetMatrixSplay {
                 change: MatrixSplayChange::Angle { angle, affect },
@@ -1583,7 +1675,20 @@ fn transform_drag_result(
             affect: affect.clone(),
         }),
         (
-            TransformGesture::Origin { column },
+            TransformGesture::Origin {
+                column,
+                swing: true,
+            },
+            EditOperation::SetMatrixSplay {
+                change: MatrixSplayChange::OriginSwing { world: Some(world) },
+                ..
+            },
+        ) => Some(TransformDragResult::SplaySwing {
+            column: *column,
+            world: *world,
+        }),
+        (
+            TransformGesture::Origin { column, .. },
             EditOperation::SetMatrixSplay {
                 change: MatrixSplayChange::Origin { world },
                 ..
@@ -1642,6 +1747,15 @@ fn transform_drag_resolver(
                         matrix_id: matrix_id.clone(),
                         column: *column,
                         change: MatrixSplayChange::Origin { world: *world },
+                    }
+                }
+                TransformDragResult::SplaySwing { column, world } => {
+                    EditOperation::SetMatrixSplay {
+                        matrix_id: matrix_id.clone(),
+                        column: *column,
+                        change: MatrixSplayChange::OriginSwing {
+                            world: Some(*world),
+                        },
                     }
                 }
             };
@@ -1817,35 +1931,53 @@ fn snap_delta(delta: Vec2, pitch: Vec2, fraction: f64) -> Vec2 {
     }
 }
 
+fn snap_tolerance(svg: &Rc<RefCell<Option<SvgElement>>>, view_width: f64) -> f64 {
+    svg.borrow().as_ref().map_or(1.0, |surface| {
+        let width = surface.get_bounding_client_rect().width();
+        if width > 0.0 {
+            view_width / width * 8.0
+        } else {
+            1.0
+        }
+    })
+}
+
+/// The snap inputs for an origin drop: part geometry, the dragged column's
+/// world base and the grid fraction. The base is checked first: Ctrl-dragging
+/// the origin onto it is the ergogen-style reset.
+struct OriginSnapTarget<'a> {
+    settings: &'a super::layout_toolbar::LayoutSnapSettings,
+    origins: &'a [super::super::outline_snapping::Origin],
+    svg: &'a Rc<RefCell<Option<SvgElement>>>,
+    view_width: f64,
+    column_base: Option<Vec2>,
+}
+
 fn snap_world_origin(
     point: Vec2,
     matrix: &Matrix,
     pointer: &web_sys::PointerEvent,
-    settings: &super::layout_toolbar::LayoutSnapSettings,
-    origins: &[super::super::outline_snapping::Origin],
-    svg: &Rc<RefCell<Option<SvgElement>>>,
-    view_width: f64,
+    target: &OriginSnapTarget<'_>,
 ) -> (Vec2, Option<Vec2>) {
     if pointer.alt_key() {
         return (point, None);
     }
-    if settings.geometry_snap {
-        let tolerance = svg.borrow().as_ref().map_or(1.0, |surface| {
-            let width = surface.get_bounding_client_rect().width();
-            if width > 0.0 {
-                view_width / width * 8.0
-            } else {
-                1.0
-            }
-        });
+    if let Some(base) = target.column_base
+        && (point.x - base.x).hypot(point.y - base.y)
+            <= snap_tolerance(target.svg, target.view_width)
+    {
+        return (base, Some(base));
+    }
+    if target.settings.geometry_snap {
+        let tolerance = snap_tolerance(target.svg, target.view_width);
         if let Some((at, _)) =
-            super::super::outline_snapping::snap_origin(point, origins, tolerance)
+            super::super::outline_snapping::snap_origin(point, target.origins, tolerance)
         {
             return (at, Some(at));
         }
     }
     (
-        snap_delta(point, matrix.pitch, settings.snap_fraction),
+        snap_delta(point, matrix.pitch, target.settings.snap_fraction),
         None,
     )
 }
@@ -1936,7 +2068,30 @@ fn sample_transform(
             column,
             start_angle,
             origin,
+            swing,
         } => {
+            if swing {
+                // A Ctrl pointer-down swings the keys: the origin moves with no
+                // hold-still compensation, exactly like a Ctrl-click pick.
+                let (world, snap) = snap_world_origin(
+                    point,
+                    matrix,
+                    pointer,
+                    &OriginSnapTarget {
+                        settings,
+                        origins,
+                        svg,
+                        view_width,
+                        column_base: drag.origin_base,
+                    },
+                );
+                guide.set(snap);
+                return Some(EditOperation::SetMatrixSplay {
+                    matrix_id: matrix.id.clone(),
+                    column,
+                    change: MatrixSplayChange::OriginSwing { world: Some(world) },
+                });
+            }
             let angle = (point.y - origin.y).atan2(point.x - origin.x) - start_angle;
             let mut delta = angle.sin().atan2(angle.cos()).to_degrees();
             if matches!(
@@ -1962,14 +2117,29 @@ fn sample_transform(
                 },
             })
         }
-        TransformGesture::Origin { column } => {
-            let (world, snap) =
-                snap_world_origin(point, matrix, pointer, settings, origins, svg, view_width);
+        TransformGesture::Origin { column, swing } => {
+            let (world, snap) = snap_world_origin(
+                point,
+                matrix,
+                pointer,
+                &OriginSnapTarget {
+                    settings,
+                    origins,
+                    svg,
+                    view_width,
+                    column_base: drag.origin_base,
+                },
+            );
             guide.set(snap);
+            let change = if swing {
+                MatrixSplayChange::OriginSwing { world: Some(world) }
+            } else {
+                MatrixSplayChange::Origin { world: Some(world) }
+            };
             Some(EditOperation::SetMatrixSplay {
                 matrix_id: matrix.id.clone(),
                 column,
-                change: MatrixSplayChange::Origin { world: Some(world) },
+                change,
             })
         }
     }
@@ -1992,6 +2162,29 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
     }
     match (&drag.gesture, operation) {
         (
+            TransformGesture::Splay {
+                column,
+                swing: true,
+                ..
+            },
+            EditOperation::SetMatrixSplay {
+                matrix_id,
+                column: target,
+                change: MatrixSplayChange::OriginSwing { world: Some(world) },
+            },
+        )
+        | (
+            TransformGesture::Origin {
+                column,
+                swing: true,
+            },
+            EditOperation::SetMatrixSplay {
+                matrix_id,
+                column: target,
+                change: MatrixSplayChange::OriginSwing { world: Some(world) },
+            },
+        ) => matrix_id == &drag.matrix.id && target == column && Some(*world) == drag.start_origin,
+        (
             TransformGesture::Splay { column, .. },
             EditOperation::SetMatrixSplay {
                 matrix_id,
@@ -2004,7 +2197,7 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
                 && *angle == stored_column_angle(&drag.matrix, *column, affect)
         }
         (
-            TransformGesture::Origin { column },
+            TransformGesture::Origin { column, .. },
             EditOperation::SetMatrixSplay {
                 matrix_id,
                 column: target,
@@ -2058,10 +2251,12 @@ fn cancel_transform_drag(
     arbiter: &CanvasInteractionArbiter,
     guide: &mut Signal<Option<Vec2>>,
     mut quick_glyph: Signal<bool>,
+    mut swing_glyph: Signal<bool>,
 ) {
     if abandon_transform_drag(runtime, drag, arbiter) {
         guide.set(None);
         quick_glyph.set(false);
+        swing_glyph.set(false);
     }
 }
 
@@ -2892,6 +3087,7 @@ mod nudge_tests {
                 column: 0,
                 start_angle: 0.0,
                 origin: Vec2::default(),
+                swing: false,
             },
         );
         let operation = EditOperation::SetMatrixSplay {
@@ -3141,6 +3337,8 @@ mod nudge_tests {
             basis: gesture
                 .parameter()
                 .and_then(|parameter| SceneBasis::for_parameter(scene, parameter)),
+            origin_base: None,
+            start_origin: None,
             start_client_x: 0.0,
             start_client_y: 0.0,
             pending: None,
@@ -4576,11 +4774,7 @@ mod tool_tests {
             }
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
-        assert_eq!(
-            fixture_revision(&runtime),
-            before + 1,
-            "one accepted edit"
-        );
+        assert_eq!(fixture_revision(&runtime), before + 1, "one accepted edit");
         let matrix = fixture::accepted_matrix(&runtime);
         let record = &matrix.column_layout[1];
         assert_eq!(record.splay, 17.0, "the swing writes no angle");
@@ -4598,15 +4792,16 @@ mod tool_tests {
         );
         fixture::undo(&runtime).await;
         let matrix = fixture::accepted_matrix(&runtime);
+        let record = &matrix.column_layout[1];
         assert_eq!(
-            matrix.column_layout[1].splay_origin,
+            record.splay_origin,
             Vec2::default(),
             "one Undo restores the origin exactly"
         );
-        assert_eq!(
-            fixture_revision(&runtime),
-            before,
-            "one Undo restores the revision"
+        assert_eq!(record.splay, 17.0, "one Undo keeps the angle");
+        assert!(
+            record.spread.is_none() && record.stagger == 3.0,
+            "one Undo keeps the steps uncompensated"
         );
         root.remove();
     }
@@ -4653,14 +4848,7 @@ mod tool_tests {
             )
         };
         // Raw drop (23, 1): 1.4 mm from the base, off the grid.
-        dispatch_pointer(
-            &handle,
-            "pointerdown",
-            false,
-            false,
-            1,
-            client(27.0, 0.0),
-        );
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, client(27.0, 0.0));
         gloo_timers::future::TimeoutFuture::new(40).await;
         dispatch_pointer(&handle, "pointermove", false, false, 1, client(23.0, 1.0));
         for _ in 0..100 {
@@ -4696,16 +4884,23 @@ mod tool_tests {
         );
 
         // Alt disables the snap: the same gesture lands on the raw drop, and
-        // the recovered drag still commits.
+        // the recovered drag still commits. The overlay remounts because the
+        // commit moved the owner revision on.
+        root.remove();
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
+        let rect = root
+            .query_selector("svg")
+            .unwrap()
+            .unwrap()
+            .get_bounding_client_rect();
+        let client = |x: f64, y: f64| {
+            (
+                (rect.left() + x * 4.0).round() as i32,
+                (rect.top() - y * 4.0).round() as i32,
+            )
+        };
         let revision = fixture_revision(&runtime);
-        dispatch_pointer(
-            &handle,
-            "pointerdown",
-            false,
-            false,
-            1,
-            client(27.0, 0.0),
-        );
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, client(27.0, 0.0));
         gloo_timers::future::TimeoutFuture::new(40).await;
         dispatch_pointer(&handle, "pointermove", false, true, 1, client(23.0, 1.0));
         dispatch_pointer(&handle, "pointerup", false, true, 0, client(23.0, 1.0));
@@ -4717,9 +4912,12 @@ mod tool_tests {
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         let record = &fixture::accepted_matrix(&runtime).column_layout[1];
+        // One client pixel is a quarter world mm, and Alt skips the snap that
+        // would absorb the roundtrip: the drop lands on the raw point, which
+        // is neither the base nor a grid step.
         assert!(
-            (record.splay_origin.x - 1.0).abs() < 1e-6
-                && (record.splay_origin.y - 1.0).abs() < 1e-6,
+            (record.splay_origin.x - 1.0).abs() < 0.25
+                && (record.splay_origin.y - 1.0).abs() < 0.25,
             "Alt lands the raw drop without snapping: {:?}",
             record.splay_origin
         );

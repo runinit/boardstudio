@@ -993,15 +993,28 @@ fn pcb_bounds(snapshot: &AcceptedSnapshot, scope: &Scope) -> Option<(f64, f64, f
     bounds
 }
 
+/// A pending splay-origin pick and the pointer state that fires it: with Ctrl
+/// held the pick swings the keys instead of holding them still.
+struct PendingSplayOriginPick<'a> {
+    pending: &'a mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
+    inspector: &'a objects::MatrixTransformInspectorMount,
+    point: Vec2,
+    swing: bool,
+}
+
 fn apply_pending_splay_origin_pick(
     runtime: &Runtime,
     workspace: Signal<&'static str>,
     adapter: &SelectionAdapter,
     owner: &LayoutOwnerIdentity,
-    pending: &mut Signal<Option<objects::MatrixTransformInspectorOwner>>,
-    inspector: &objects::MatrixTransformInspectorMount,
-    point: Vec2,
+    pick: PendingSplayOriginPick<'_>,
 ) -> bool {
+    let PendingSplayOriginPick {
+        pending,
+        inspector,
+        point,
+        swing,
+    } = pick;
     let Some(picked_owner) = pending.peek().clone() else {
         return false;
     };
@@ -1027,7 +1040,7 @@ fn apply_pending_splay_origin_pick(
     if !layout_owner_is_current(runtime, workspace, adapter, owner)
         || !selected_is_current
         || !inspector_is_current
-        || !inspector.pick_splay_origin(point)
+        || !inspector.pick_splay_origin(point, swing)
     {
         runtime.report("Column selection changed. Pick the splay origin again.");
     }
@@ -6509,9 +6522,12 @@ fn Editor() -> Element {
                         workspace,
                         &adapter,
                         &layout_owner_for_pick,
-                        &mut pending_splay_pick,
-                        &transform_inspector,
-                        point,
+                        PendingSplayOriginPick {
+                            pending: &mut pending_splay_pick,
+                            inspector: &transform_inspector,
+                            point,
+                            swing: pointer.ctrl_key(),
+                        },
                     );
                 }
             }
@@ -8363,9 +8379,12 @@ fn Editor() -> Element {
                     workspace,
                     &adapter,
                     &owner,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
                 );
                 return;
             }
@@ -8485,9 +8504,12 @@ fn Editor() -> Element {
                     workspace,
                     &adapter,
                     &owner,
-                    &mut pending_splay_pick,
-                    &transform_inspector,
-                    point,
+                    PendingSplayOriginPick {
+                        pending: &mut pending_splay_pick,
+                        inspector: &transform_inspector,
+                        point,
+                        swing: pointer.ctrl_key(),
+                    },
                 );
                 return;
             }

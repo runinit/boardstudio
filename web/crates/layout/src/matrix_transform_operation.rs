@@ -28,6 +28,7 @@ pub enum MatrixTransformField {
     SplayOriginX,
     SplayOriginY,
     SplayOriginPoint,
+    SplayOriginSwingPoint,
     KeyOffsetX,
     KeyOffsetY,
     KeyShiftX,
@@ -459,6 +460,15 @@ pub fn build_operation(
             matrix_id: matrix.id.clone(),
             column: *column,
             change: MatrixSplayChange::Origin { world: Some(point) },
+        }),
+        (
+            MatrixTransformFields::Column { column, .. },
+            Field::SplayOriginSwingPoint,
+            Value::Point(point),
+        ) => Ok(EditOperation::SetMatrixSplay {
+            matrix_id: matrix.id.clone(),
+            column: *column,
+            change: MatrixSplayChange::OriginSwing { world: Some(point) },
         }),
         (
             MatrixTransformFields::Key {
@@ -1630,6 +1640,39 @@ mod tests {
                 matrix_id,
                 column: 1,
                 change: MatrixSplayChange::Origin { world: Some(origin) },
+            } if matrix_id == "matrix-1" && origin == point
+        ));
+    }
+
+    #[test]
+    fn ctrl_click_pick_writes_an_uncompensated_swing() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Column {
+            column: 1,
+            offset: Vec2 { x: 0.0, y: 0.0 },
+            stagger: 0.5,
+            splay_angle: 4.0,
+            rotation: 0.0,
+            splay_origin: Vec2 { x: 10.0, y: 20.0 },
+            custom_origin: true,
+            convert: Ok(()),
+            spread: None,
+            pitch: 19.05,
+        };
+        let point = Vec2 { x: 33.5, y: -12.0 };
+        assert!(matches!(
+            build_operation(
+                &matrix,
+                &fields,
+                MatrixTransformField::SplayOriginSwingPoint,
+                MatrixTransformValue::Point(point),
+                MatrixSplayAffect::Following,
+            )
+            .unwrap(),
+            EditOperation::SetMatrixSplay {
+                matrix_id,
+                column: 1,
+                change: MatrixSplayChange::OriginSwing { world: Some(origin) },
             } if matrix_id == "matrix-1" && origin == point
         ));
     }
