@@ -662,10 +662,11 @@ def quick_plan(selection: "check_quick.Selection", packages: "dict[str, check_qu
             commands = select_browser_crate_launches(crates, browser())
             if selection.page_files:
                 commands.append([PY, "scripts/run-wasm-tests.py", "--files", *selection.page_files,
+                                 "--depth", "1", *[f"--isolate={name}" for name in ISOLATED],
                                  "--result-json", "web/target/test-results/browser-quick.json"])
         if commands:
-            if "layout" in crates:
-                plan.append(("layout-test-css", [LAYOUT_TEST_CSS]))
+            # No layout-test-css: quick excludes the packaged-site drag smoke, and no quick
+            # browser test reads the dx bundle (dx build touches no tracked files).
             plan.append(("browser", commands))
     if selection.cad:
         plan.append(("test", [[PY, "cad/scripts/test-cad.py"]]))
