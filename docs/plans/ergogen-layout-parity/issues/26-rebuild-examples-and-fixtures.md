@@ -1,6 +1,6 @@
 # 26: Rebuild the three matrix-owned examples and finish affected fixture updates
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [24](24-relations-and-highlights.md), [25](25-project-format-recovery.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
