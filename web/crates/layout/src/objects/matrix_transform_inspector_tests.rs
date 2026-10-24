@@ -2909,8 +2909,7 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
         .iter()
         .find(|part| part.id == "matrix/matrix-b/r0c0")
         .expect("the anchored key is laid out")
-        .pose
-        .clone();
+        .pose;
     let revision_before = before.document.revision;
     let buttons = root.query_selector_all("button").unwrap();
     let detach = (0..buttons.length())
@@ -3007,7 +3006,7 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
         .document
         .parts
         .iter()
-        .map(|part| (part.id.clone(), part.pose.clone()))
+        .map(|part| (part.id.clone(), part.pose))
         .collect();
     let revision_before = probe
         .runtime
