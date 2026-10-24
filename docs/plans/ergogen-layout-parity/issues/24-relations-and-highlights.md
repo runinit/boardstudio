@@ -1,6 +1,6 @@
 # 24: Deliver Core-backed placement explanations and Relations highlighting
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [23](23-inspector-toolbar-and-handles.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -43,3 +43,19 @@ Sources: `web/crates/layout/src/matrix_relations.rs`,
 `web/src/presentation/layout_relation_highlight_tests.rs`. Add real Core fact coverage
 and mounted panel/page pointer+focus lifecycle tests, with affected browser subsets
 and quick checks. Selected state, visibility and pending edits must remain independent.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` at `1ccce1ed2`. All slices
+landed: `7fa93838a` (Core-backed How-it-is-placed key chain with transported
+cumulative shift), `8292e4efe` (row/column/matrix chains with defaults, Varies
+and cross-matrix note), `7737db2aa` (anchor relations with Follow subset and
+Local/Omitted overlays), `a71b60f2e` (Slice D: hidden-layer note, receiver
+highlight and stale Follows tests), `dcc14a568` (Slice E: blocked Convert
+reason and Core precedence in Relations), plus lint fix `1ccce1ed2`. Both
+independent Spec and Standards reviews PASSED. Native baseline `eaa1b392f`
+(+9 names, 0 removals). Fresh gates green — quick: `check: all steps passed:
+repo, tooling, lint, typecheck, test, browser`; full: `check: all steps passed:
+repo, tooling, lint, build, test, browser`.
+
+No release approval is implied.
