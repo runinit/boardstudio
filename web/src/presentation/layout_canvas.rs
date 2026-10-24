@@ -124,6 +124,9 @@ pub(super) struct SceneProps {
     /// A transform drag is previewing: mark the effective poses amber until
     /// the preview clears. Part of PartialEq so toggling re-renders.
     preview_active: bool,
+    /// The accepted scene behind the preview: keys whose accepted pose
+    /// differs render a dashed ghost. Only `Some` while previewing.
+    accepted_scene: Option<Arc<SceneDelta>>,
     selected_ids: Vec<String>,
     selected_context: Option<super::objects::ScopedTreeContext>,
     keys_visible: bool,
@@ -139,6 +142,11 @@ impl PartialEq for SceneProps {
         // Props memoization refreshes callbacks even when the geometry does not rerender.
         self.source == other.source
             && self.preview_active == other.preview_active
+            && match (&self.accepted_scene, &other.accepted_scene) {
+                (Some(mine), Some(theirs)) => Arc::ptr_eq(mine, theirs),
+                (None, None) => true,
+                _ => false,
+            }
             && self.selected_ids == other.selected_ids
             && self.selected_context == other.selected_context
             && self.keys_visible == other.keys_visible
@@ -202,6 +210,14 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         .iter()
         .map(|matrix| (matrix.matrix_id.as_str(), matrix))
         .collect();
+    let accepted_matrix_scenes: Option<BTreeMap<&str, &MatrixScene>> =
+        props.accepted_scene.as_ref().map(|accepted| {
+            accepted
+                .matrix_scenes
+                .iter()
+                .map(|matrix| (matrix.matrix_id.as_str(), matrix))
+                .collect()
+        });
     let input = LayoutCanvasInput {
         document,
         visible_indices: &visible_indices,
@@ -210,6 +226,7 @@ pub(super) fn Scene(props: SceneProps) -> Element {
         definitions: &definitions,
         matrices: &matrices,
         matrix_scenes: &matrix_scenes,
+        accepted_matrix_scenes: accepted_matrix_scenes.as_ref(),
         transforms: &scene_data.transforms,
         selected_ids: &props.selected_ids,
         selected_context: props.selected_context.as_ref(),
@@ -251,6 +268,7 @@ pub(super) struct LayoutCanvasInput<'a> {
     pub(super) definitions: &'a BTreeMap<&'a str, &'a PartDefinition>,
     pub(super) matrices: &'a [&'a Matrix],
     pub(super) matrix_scenes: &'a BTreeMap<&'a str, &'a MatrixScene>,
+    pub(super) accepted_matrix_scenes: Option<&'a BTreeMap<&'a str, &'a MatrixScene>>,
     pub(super) transforms: &'a [Transform],
     pub(super) selected_ids: &'a [String],
     pub(super) selected_context: Option<&'a super::objects::ScopedTreeContext>,
@@ -312,6 +330,45 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
         input.matrix_scenes,
         input.transforms,
     );
+    // Dashed ghosts of accepted (pre-drag) key poses, drawn only for matrix
+    // keys whose preview pose moved. Computed up front: rsx flow takes no
+    // bare `let` bindings.
+    let mut ghosts: Vec<(String, u32, u32, Pose2, Vec2)> = Vec::new();
+    if let Some(accepted_scenes) = input.accepted_matrix_scenes {
+        for matrix in input.matrices {
+            if let (Some(displayed), Some(accepted)) = (
+                input.matrix_scenes.get(matrix.id.as_str()),
+                accepted_scenes.get(matrix.id.as_str()),
+            ) {
+                for cell in accepted.cells.iter().filter(|cell| cell.enabled) {
+                    let unchanged = displayed.cells.iter().any(|shown| {
+                        shown.enabled
+                            && shown.row == cell.row
+                            && shown.column == cell.column
+                            && shown.pose == cell.pose
+                    });
+                    if unchanged {
+                        continue;
+                    }
+                    let member = cell
+                        .member_id
+                        .as_deref()
+                        .and_then(|id| projection.visible_by_id.get(id).copied());
+                    let definition = match member {
+                        Some(part) => input.definitions.get(part.definition_id.as_str()).copied(),
+                        None => input.definitions.get(matrix.definition_id.as_str()).copied(),
+                    };
+                    ghosts.push((
+                        matrix.id.clone(),
+                        cell.row,
+                        cell.column,
+                        cell.pose,
+                        resolved_matrix_keycap(member, definition, matrix),
+                    ));
+                }
+            }
+        }
+    }
     rsx! {
         if input.keys_visible {
             for matrix in input.matrices {
@@ -370,6 +427,17 @@ pub(super) fn scene(input: LayoutCanvasInput<'_>) -> Element {
                         }
                     }
                 }
+            }
+        }
+        for (matrix_id, row, column, pose, size) in &ghosts {
+            rect {
+                key: "ghost-{matrix_id}-{row}-{column}",
+                class: "m1-scene-ghost",
+                x: "{-size.x / 2.0}",
+                y: "{-size.y / 2.0}",
+                width: "{size.x}",
+                height: "{size.y}",
+                transform: "translate({pose.at.x} {pose.at.y}) rotate({pose.rotation})",
             }
         }
         for (part_index, part) in input.visible_indices.iter().zip(input.visible) {
@@ -683,6 +751,7 @@ mod tests {
                 Scene {
                     source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
                     preview_active: preview(),
+                    accepted_scene: None,
                     selected_ids: selected(), selected_context: None,
                     keys_visible: keys(), components_visible: true, keycaps_visible: keys(), footprints_visible: false,
                     on_matrix_pointer_down: |_| {},
@@ -982,7 +1051,7 @@ mod ghost_tests {
     }
 
     fn render_ghost_fixture() -> Element {
-        let mut highlight = use_signal(|| None::<Vec<String>>);
+        let highlight = use_signal(|| None::<Vec<String>>);
         use_context_provider(|| super::super::RelationHighlight(highlight));
         let (document, initial_scene, preview_scene) = use_hook(ghost_fixture);
         let accepted_document = use_signal(|| document.clone());
@@ -998,6 +1067,7 @@ mod ghost_tests {
                 Scene {
                     source: SceneSource { document: accepted_document(), scene: displayed(), board_id: "board".into() },
                     preview_active: false,
+                    accepted_scene: Some(initial_scene.clone()),
                     selected_ids: Vec::new(), selected_context: None,
                     keys_visible: true, components_visible: true, keycaps_visible: true, footprints_visible: false,
                     on_matrix_pointer_down: |_| {}, on_part_pointer_down: |_| {},

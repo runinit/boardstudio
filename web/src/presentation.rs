@@ -8900,6 +8900,10 @@ fn Editor() -> Element {
                         layout_canvas::Scene {
                             source: canvas_source,
                             preview_active: model.display_preview.is_some(),
+                            accepted_scene: model
+                                .display_preview
+                                .as_ref()
+                                .map(|_| snapshot.scene.clone()),
                             selected_ids: model.selected_part_ids.clone(),
                             selected_context: selected_tree_context.clone(),
                             keys_visible: !(layer_visibility.hidden)().contains("Keys"),
