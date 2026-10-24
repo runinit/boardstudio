@@ -2237,20 +2237,16 @@ fn ensure_part_correspondence(
         .iter_mut()
         .find(|layout| layout.id == layout_id)
         .ok_or("Linked layout is missing")?;
-    link_correspondence(layout, source_id, mirror_id.to_string());
-    Ok(())
-}
-
-fn link_correspondence(layout: &mut Layout, source_id: String, mirror_id: String) {
     if let Some(link) = layout.mirror_link.as_mut() {
         link.correspondences.push(MirroredCorrespondence {
             kind: MirroredItemKind::Part,
             source_id,
-            mirror_id,
+            mirror_id: mirror_id.to_string(),
             companion_mode: None,
             companion_tweak: None,
         });
     }
+    Ok(())
 }
 
 /// Ticket 21: materialize a record-absent Omitted member on Rejoin (or
