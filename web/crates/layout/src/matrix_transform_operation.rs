@@ -898,6 +898,15 @@ pub fn nudge_value(
             return None;
         }
     }
+    if matches!(parameter, PlacementParameter::ColumnSpread { .. }) {
+        // A Spread nudge consumes only the arrow pair along the step: a
+        // perpendicular press is not consumed, so it never submits a no-op.
+        let axis = basis.spread_axis.unwrap_or(basis.axis_x);
+        let horizontal = axis.x.abs() >= axis.y.abs();
+        if horizontal != matches!(key, ArrowKey::Left | ArrowKey::Right) {
+            return None;
+        }
+    }
     Some(gesture_value(basis, parameter, current, delta, None))
 }
 

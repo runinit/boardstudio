@@ -378,10 +378,12 @@ pub fn LayoutTransformToolOverlay(
                         y: at.y + 12.0,
                     })
             }
-            // The Spread handle lands in the GREEN slice; until then the tool draws
-            // nothing rather than a borrowed handle.
-            LayoutTransformTool::Spread => None,
-            LayoutTransformTool::Stagger | LayoutTransformTool::Offset => {
+            // Spread is a column step: a Row selection renders no handle, and
+            // column 0 follows the pitch, so it has no step to drag.
+            LayoutTransformTool::Spread if selected_row.is_some() || selected_column == 0 => None,
+            LayoutTransformTool::Stagger
+            | LayoutTransformTool::Offset
+            | LayoutTransformTool::Spread => {
                 let cell = projection
                     .cells
                     .iter()
@@ -411,7 +413,9 @@ pub fn LayoutTransformToolOverlay(
         });
         let point = if matches!(
             tool,
-            LayoutTransformTool::Stagger | LayoutTransformTool::Offset
+            LayoutTransformTool::Stagger
+                | LayoutTransformTool::Offset
+                | LayoutTransformTool::Spread
         ) && !selected_points.is_empty()
         {
             Some(Vec2 {
@@ -462,6 +466,7 @@ pub fn LayoutTransformToolOverlay(
     let current_owner = owner.clone();
     let current_context = context.clone();
     let matrix_for_key = matrix.clone();
+    let matrix_for_spread = matrix.clone();
     let offset_parameter = match context_row(&context) {
         Some(row) => PlacementParameter::RowOffset { row },
         None => PlacementParameter::ColumnOffset {
@@ -841,6 +846,33 @@ pub fn LayoutTransformToolOverlay(
             _ => ArrowKey::Down,
         };
         let nudge = match target.get_attribute("aria-label").as_deref() {
+            Some("Drag to spread") => {
+                let parameter = PlacementParameter::ColumnSpread {
+                    column: selected_column,
+                };
+                let big = key.shift_key();
+                // The pair across the spread axis is not consumed; column 0 has
+                // no Spread handle, so its basis never reaches this mapping.
+                let Some(basis) = SceneBasis::for_parameter(&projection_for_key, parameter) else {
+                    return;
+                };
+                if nudge_value(
+                    &basis,
+                    parameter,
+                    placement_current(&matrix_for_key, parameter),
+                    arrow,
+                    big,
+                )
+                .is_none()
+                {
+                    return;
+                }
+                TransformNudge::Spread {
+                    column: selected_column,
+                    key: arrow,
+                    big,
+                }
+            }
             Some("Drag to stagger") => {
                 let parameter = PlacementParameter::Stagger {
                     column: selected_column,
@@ -947,18 +979,33 @@ pub fn LayoutTransformToolOverlay(
         .find(|basis| basis.column == selected_column)
         .map_or(Vec2 { x: 0.0, y: 1.0 }, |basis| basis.stagger_axis);
     let arrow_rotation = stagger_arrow_degrees(stagger_axis);
+    let spread_now = match placement_current(
+        &matrix_for_spread,
+        PlacementParameter::ColumnSpread {
+            column: selected_column,
+        },
+    ) {
+        PlacementValue::Spread(value) => value,
+        _ => matrix_for_spread.pitch.x,
+    };
     let handle_label = match (tool, context_row(&context)) {
         (LayoutTransformTool::Stagger, None) if control() || quick_glyph() => {
             "Drag to offset column"
         }
         (LayoutTransformTool::Offset, Some(_)) => "Drag to offset row",
         (LayoutTransformTool::Offset, None) => "Drag to offset column",
+        (LayoutTransformTool::Spread, _) => "Drag to spread",
         _ => "Drag to stagger",
     };
-    let handle_value = if tool == LayoutTransformTool::Offset || control() || quick_glyph() {
-        format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
-    } else {
-        format!("{stagger_now:.2} mm")
+    let handle_value = match tool {
+        LayoutTransformTool::Offset => {
+            format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
+        }
+        LayoutTransformTool::Spread => format!("{spread_now:.2} mm"),
+        _ if control() || quick_glyph() => {
+            format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
+        }
+        _ => format!("{stagger_now:.2} mm"),
     };
     let quick_offset_shown = quick_glyph() || control() || tool == LayoutTransformTool::Offset;
     rsx! {
@@ -967,7 +1014,25 @@ pub fn LayoutTransformToolOverlay(
                 circle { cx: "{guide.x}", cy: "{guide.y}", r: "{width / 170.0}" }
             }
         }
-        if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
+        if tool == LayoutTransformTool::Spread {
+            g {
+                class: "m1-transform-handle m1-spread-handle",
+                transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
+                role: "button", tabindex: "0", "aria-label": "{handle_label}",
+                "aria-description": "{handle_value}",
+                onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
+                onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
+                onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
+                onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
+                circle { r: "4" }
+                g { transform: "rotate(90)",
+                    path { d: "M0 -3v6M-1.5 -1.5 0 -3l1.5 1.5M-1.5 1.5 0 3l1.5 -1.5" }
+                }
+                title { "Drag to spread · {handle_value}" }
+            }
+        } else if matches!(tool, LayoutTransformTool::Stagger | LayoutTransformTool::Offset) {
             g {
                 class: "m1-transform-handle m1-stagger-handle",
                 transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
@@ -1050,6 +1115,11 @@ pub fn LayoutTransformToolOverlay(
 #[derive(Clone, Debug, PartialEq)]
 enum TransformNudge {
     Stagger {
+        column: u32,
+        key: ArrowKey,
+        big: bool,
+    },
+    Spread {
         column: u32,
         key: ArrowKey,
         big: bool,
@@ -1410,6 +1480,13 @@ fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec
                     let parameter = PlacementParameter::Stagger { column: *column };
                     // The step follows the accepted stagger axis, so a queued press lands on
                     // whatever the earlier presses produced.
+                    match nudge_placement(accepted, matrix, parameter, *key, *big) {
+                        Ok(operation) => operation,
+                        Err(stop) => return stop.resolution(),
+                    }
+                }
+                TransformNudge::Spread { column, key, big } => {
+                    let parameter = PlacementParameter::ColumnSpread { column: *column };
                     match nudge_placement(accepted, matrix, parameter, *key, *big) {
                         Ok(operation) => operation,
                         Err(stop) => return stop.resolution(),
@@ -3729,7 +3806,10 @@ mod tool_tests {
                 );
             }
             if available {
-                tools[1]
+                tools
+                    .iter()
+                    .find(|button| button.text_content().as_deref() == Some("Offset"))
+                    .expect("the Offset tool stays listed")
                     .clone()
                     .dyn_into::<web_sys::HtmlElement>()
                     .unwrap()
@@ -4194,9 +4274,12 @@ mod tool_tests {
             gloo_timers::future::TimeoutFuture::new(10).await;
         }
         let matrix = fixture::accepted_matrix(&runtime);
-        assert_eq!(
-            matrix.column_layout.get(1).and_then(|record| record.spread),
-            Some(28.575),
+        assert!(
+            matrix
+                .column_layout
+                .get(1)
+                .and_then(|record| record.spread)
+                .is_some_and(|spread| (spread - 28.575).abs() < 1e-9),
             "the drag commits an explicit Spread"
         );
         assert_eq!(
@@ -4253,23 +4336,47 @@ mod tool_tests {
             "hover does not replace the handle's SVG target"
         );
         let rect = handle.get_bounding_client_rect();
-        let hit = web_sys::window()
-            .unwrap()
-            .document()
-            .unwrap()
-            .element_from_point(
-                (rect.x() + rect.width() / 2.0) as f32,
-                (rect.y() + rect.height() / 2.0) as f32,
-            )
-            .expect("hit testing resolves a target");
+        // No passive hint may cover the handle: every painted element in the
+        // overlay that contains the handle's center and paints above it must
+        // opt out of pointer events. Box math is viewport-independent, so the
+        // check holds wherever the canvas scrolled.
+        let center = (
+            rect.x() + rect.width() / 2.0,
+            rect.y() + rect.height() / 2.0,
+        );
+        let window = web_sys::window().unwrap();
+        let painted = root.query_selector_all("svg *").unwrap();
+        let mut interceptors = Vec::new();
+        for index in 0..painted.length() {
+            let element: web_sys::Element = painted.item(index).unwrap().dyn_into().unwrap();
+            if element == handle || handle.contains(Some(element.unchecked_ref())) {
+                continue;
+            }
+            let position = handle.compare_document_position(element.unchecked_ref());
+            if position & web_sys::Node::DOCUMENT_POSITION_FOLLOWING == 0 {
+                continue;
+            }
+            let area = element.get_bounding_client_rect();
+            if center.0 < area.x()
+                || center.0 > area.x() + area.width()
+                || center.1 < area.y()
+                || center.1 > area.y() + area.height()
+            {
+                continue;
+            }
+            let events = window
+                .get_computed_style(&element)
+                .ok()
+                .flatten()
+                .and_then(|style| style.get_property_value("pointer-events").ok())
+                .unwrap_or_default();
+            if events != "none" {
+                interceptors.push(format!("{}.{}", element.tag_name(), element.class_name()));
+            }
+        }
         assert!(
-            hit == handle
-                || hit
-                    .closest(".m1-transform-handle")
-                    .ok()
-                    .flatten()
-                    .is_some_and(|ancestor| ancestor == handle),
-            "no passive hint intercepts the handle"
+            interceptors.is_empty(),
+            "no passive hint intercepts the handle: {interceptors:?}"
         );
         let revision = fixture_revision(&runtime);
         dispatch_pointer(&handle, "pointerdown", false, 1, (100, 100));
