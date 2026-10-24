@@ -169,6 +169,79 @@ fn member(matrix: &str, row: u32, column: u32) -> String {
     format!("matrix/{matrix}/r{row}c{column}")
 }
 
+fn anchored_fixture() -> (CoreEngine, ProjectDoc) {
+    let (mut engine, doc) = fixture();
+    let doc = add_thumb(&mut engine, &doc);
+    (engine, doc)
+}
+
+fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
+    doc.matrices
+        .iter()
+        .find(|matrix| matrix.id == id)
+        .and_then(|matrix| matrix.anchor.clone())
+}
+
+fn undone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn redone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Redo { id: "redo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+#[test]
+fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
+    let (mut engine, doc) = anchored_fixture();
+    let moved = MatrixAnchor {
+        matrix_id: "main".into(),
+        row: 0,
+        column: 0,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+    };
+    let operation = EditOperation::SetMatrixAnchor {
+        matrix_id: "thumb".into(),
+        anchor: moved.clone(),
+    };
+    let before = at(&doc, &member("thumb", 0, 0));
+    assert_eq!(before, Vec2 { x: 38.0, y: -19.0 });
+    let previewed = preview(&mut engine, &doc, operation.clone());
+    let previewed_pose = previewed
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "thumb")
+        .expect("thumb scene")
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0)
+        .expect("thumb cell")
+        .pose
+        .at;
+    assert_eq!(previewed_pose, Vec2 { x: 0.0, y: -19.0 });
+    // Preview leaves accepted state, revision and history unchanged.
+    assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
+    let (_, committed) = edit(&mut engine, &doc, operation);
+    assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
+    assert_eq!(at(&committed, &member("thumb", 0, 0)), Vec2 { x: 0.0, y: -19.0 });
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
+    assert_eq!(redone(&mut engine).matrices, committed.matrices);
+}
+
+fn snapshot(engine: &mut CoreEngine) -> ProjectDoc {
+    scene(engine.handle(CoreRequest::Snapshot { id: "snap".into() })).1
+}
+
 fn add_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> ProjectDoc {
     edit(
         engine,
@@ -266,4 +339,102 @@ fn reordered_matrix_lists_evaluate_to_the_same_poses() {
         .map(|part| (part.id.clone(), part.pose.at))
         .collect();
     assert_eq!(forward, backward);
+}
+
+fn pose_of(doc: &ProjectDoc, id: &str) -> Pose2 {
+    doc.parts
+        .iter()
+        .find(|part| part.id == id)
+        .unwrap_or_else(|| panic!("missing part {id}"))
+        .pose
+}
+
+fn near(actual: Vec2, x: f64, y: f64) {
+    assert!(
+        (actual.x - x).abs() < 1e-9 && (actual.y - y).abs() < 1e-9,
+        "expected ({x}, {y}), got ({}, {})",
+        actual.x,
+        actual.y
+    );
+}
+
+#[test]
+fn detach_keeps_world_frame_and_clears_the_anchor() {
+    let (mut engine, doc) = anchored_fixture();
+    // Turn the whole group so the kept frame carries a nonzero rotation.
+    let mut turned = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    turned.rotation = Some(30.0);
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: turned,
+            definitions: None,
+        },
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::DetachMatrixAnchor {
+            matrix_id: "thumb".into(),
+        },
+    );
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    for (id, pose) in &poses_before {
+        assert_eq!(pose_of(&detached, id), *pose, "{id}");
+    }
+    let thumb = detached
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix");
+    // The stored frame is the actual evaluated frame, not world zero.
+    let cos30 = 30f64.to_radians().cos();
+    let sin30 = 30f64.to_radians().sin();
+    near(
+        thumb.origin,
+        38.0 * cos30 + 19.0 * sin30,
+        38.0 * sin30 - 19.0 * cos30,
+    );
+    assert_eq!(thumb.rotation, Some(30.0));
+    // Moving the old anchor key no longer moves the detached members.
+    let (_, moved) = edit(
+        &mut engine,
+        &detached,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main", 0, 2),
+                at: Vec2 { x: 100.0, y: 100.0 },
+            }],
+        },
+    );
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb/") {
+            assert_eq!(pose_of(&moved, id), *pose, "{id}");
+        }
+    }
+    near(
+        pose_of(&moved, &member("main", 0, 2)).at,
+        100.0,
+        100.0,
+    );
+    let undone_move = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_move, "thumb"), None);
+    let undone_detach = undone(&mut engine);
+    assert_eq!(
+        anchor_of(&undone_detach, "thumb"),
+        anchor_of(&doc, "thumb")
+    );
+    assert_eq!(redone(&mut engine).matrices, detached.matrices);
+    assert_eq!(redone(&mut engine).matrices, moved.matrices);
 }
