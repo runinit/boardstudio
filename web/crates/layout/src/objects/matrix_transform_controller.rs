@@ -336,6 +336,9 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::DeleteSelection => "Delete",
         MatrixTransformField::MatrixDetach => "Detach",
         MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
+        MatrixTransformField::MatrixFollowX => "Follow X",
+        MatrixTransformField::MatrixFollowY => "Follow Y",
+        MatrixTransformField::MatrixFollowRotation => "Follow rotation",
     }
 }
 
@@ -1347,6 +1350,27 @@ fn field_value(
         (MatrixTransformFields::Column { splay_origin, .. }, Field::SplayOriginSwingPoint) => {
             Some(Value::Point(*splay_origin))
         }
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowX,
+        ) => Some(Value::Bool(anchor.follow.x)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowY,
+        ) => Some(Value::Bool(anchor.follow.y)),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(anchor),
+                ..
+            },
+            Field::MatrixFollowRotation,
+        ) => Some(Value::Bool(anchor.follow.rotation)),
         (MatrixTransformFields::Key { offset, .. }, Field::KeyOffsetX) => {
             Some(Value::Number(offset.x))
         }

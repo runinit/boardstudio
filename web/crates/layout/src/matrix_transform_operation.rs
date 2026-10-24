@@ -1,8 +1,8 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
-    EditOperation, Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis, MatrixPlacementChange,
-    MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2,
-    convert_offset_available,
+    EditOperation, Follow, Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis,
+    MatrixPlacementChange, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror,
+    PartDefinition, Vec2, convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,6 +44,9 @@ pub enum MatrixTransformField {
     DeleteSelection,
     MatrixDetach,
     MatrixDetachConfirm,
+    MatrixFollowX,
+    MatrixFollowY,
+    MatrixFollowRotation,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -284,6 +287,57 @@ pub fn build_operation(
         ) => Ok(EditOperation::DetachMatrixAnchorConfirmed {
             matrix_id: matrix.id.clone(),
             local_matrix_id,
+        }),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixFollowX,
+            Value::Bool(x),
+        ) => Ok(EditOperation::SetMatrixAnchor {
+            matrix_id: matrix.id.clone(),
+            anchor: MatrixAnchor {
+                follow: Follow {
+                    x,
+                    ..current.follow
+                },
+                ..current.clone()
+            },
+        }),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixFollowY,
+            Value::Bool(y),
+        ) => Ok(EditOperation::SetMatrixAnchor {
+            matrix_id: matrix.id.clone(),
+            anchor: MatrixAnchor {
+                follow: Follow {
+                    y,
+                    ..current.follow
+                },
+                ..current.clone()
+            },
+        }),
+        (
+            MatrixTransformFields::Matrix {
+                anchor: Some(current),
+                ..
+            },
+            Field::MatrixFollowRotation,
+            Value::Bool(rotation),
+        ) => Ok(EditOperation::SetMatrixAnchor {
+            matrix_id: matrix.id.clone(),
+            anchor: MatrixAnchor {
+                follow: Follow {
+                    rotation,
+                    ..current.follow
+                },
+                ..current.clone()
+            },
         }),
         (MatrixTransformFields::Matrix { .. }, Field::OriginX, Value::Number(x)) => {
             let mut next = matrix.clone();
@@ -1747,6 +1801,56 @@ mod tests {
                 local_matrix_id,
             } if matrix_id == "matrix-1" && local_matrix_id == "partner-mirror"
         ));
+    }
+
+    #[test]
+    fn follow_toggles_rewrite_only_their_own_component() {
+        let matrix = matrix();
+        let anchor = MatrixAnchor {
+            matrix_id: "other".into(),
+            row: 0,
+            column: 1,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        };
+        let fields = MatrixTransformFields::Matrix {
+            origin: matrix.origin,
+            rotation: 0.0,
+            mirror: None,
+            mirror_y_locked: false,
+            rotation_followed: true,
+            anchor: Some(anchor),
+        };
+        for (field, expected) in [
+            (MatrixTransformField::MatrixFollowX, (false, true, true)),
+            (MatrixTransformField::MatrixFollowY, (true, false, true)),
+            (
+                MatrixTransformField::MatrixFollowRotation,
+                (true, true, false),
+            ),
+        ] {
+            let EditOperation::SetMatrixAnchor { matrix_id, anchor } = build_operation(
+                &matrix,
+                &fields,
+                field,
+                MatrixTransformValue::Bool(false),
+                MatrixSplayAffect::Following,
+            )
+            .unwrap() else {
+                panic!("a Follow toggle reaches SetMatrixAnchor")
+            };
+            assert_eq!(matrix_id, "matrix-1");
+            assert_eq!(anchor.matrix_id, "other");
+            assert_eq!((anchor.row, anchor.column), (0, 1));
+            assert_eq!(
+                (anchor.follow.x, anchor.follow.y, anchor.follow.rotation),
+                expected,
+                "only the toggled component changes"
+            );
+        }
     }
 
     #[test]

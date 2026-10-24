@@ -3,7 +3,7 @@ use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{Follow, MatrixSplayAffect, Mirror, Vec2};
+use boardstudio_core::model::{Follow, MatrixAnchor, MatrixSplayAffect, Mirror, Vec2};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
 };
@@ -168,6 +168,12 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                         "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
                     }
                     p { class: "m1-matrix-anchor-follow", "{follows_label(&anchor.follow)}" }
+                    FollowTransformField {
+                        owner: owner.clone(), snapshot_token, revision,
+                        anchor: anchor.clone(),
+                        request_sequence, editable: props.mount.editable,
+                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
                     DetachAnchorButton {
                         owner: owner.clone(), snapshot_token, revision,
                         request_sequence, editable: props.mount.editable,
@@ -1367,6 +1373,105 @@ fn follows_label(follow: &Follow) -> String {
         [only] => format!("Follows {only}"),
         [first, second] => format!("Follows {first} and {second}"),
         _ => format!("Follows {}, {} and {}", kept[0], kept[1], kept[2]),
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct FollowTransformFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    anchor: MatrixAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+}
+
+/// The anchor's Follow subset as three toggles. Each toggle submits its own
+/// field in one atomic Core intent; a newer accepted anchor retires the
+/// pending error display.
+#[component]
+fn FollowTransformField(props: FollowTransformFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<(MatrixTransformField, u64)>);
+    let current_follow = props.anchor.follow;
+    let observed_follow = use_signal(|| current_follow);
+    let mut submitted_effect = submitted;
+    let mut observed_effect = observed_follow;
+    use_effect(use_reactive((&current_follow,), move |(follow,)| {
+        if observed_effect() != follow {
+            observed_effect.set(follow);
+            submitted_effect.set(None);
+        }
+    }));
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            let Some((field, request_id)) = submitted() else {
+                return false;
+            };
+            item.owner == props.owner
+                && item.field == field
+                && request_id == item.request_id
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    let send = move |field: MatrixTransformField, baseline: bool, value: bool| {
+        if baseline == value {
+            return;
+        }
+        let Some(id) = sequence().checked_add(1) else {
+            return;
+        };
+        sequence.set(id);
+        submitted.set(Some((field, id)));
+        on_edit.call(MatrixTransformRequest {
+            owner: owner.clone(),
+            request_id: id,
+            snapshot_token: token,
+            revision,
+            field,
+            baseline: MatrixTransformValue::Bool(baseline),
+            value: MatrixTransformValue::Bool(value),
+            splay_affect: affect(),
+            draft: None,
+            failure: None,
+            submitted_text: None,
+            one_shot: false,
+        });
+    };
+    let toggle = move |(field, label, current): (MatrixTransformField, &'static str, bool)| {
+        let mut send = send.clone();
+        rsx! {
+            label {
+                BoardCheckbox {
+                    checked: current,
+                    disabled: !props.editable,
+                    aria_label: label,
+                    onchange: move |_| send(field, current, !current),
+                }
+                "{label}"
+            }
+        }
+    };
+    rsx! {
+        div { class: "m1-matrix-follow",
+            {toggle((MatrixTransformField::MatrixFollowX, "Follow X", current_follow.x))}
+            {toggle((MatrixTransformField::MatrixFollowY, "Follow Y", current_follow.y))}
+            {toggle((MatrixTransformField::MatrixFollowRotation, "Follow rotation", current_follow.rotation))}
+        }
+        if let Some(message) = error.as_deref() {
+            p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+        }
     }
 }
 
