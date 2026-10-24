@@ -1,7 +1,9 @@
 use boardstudio_core::model::{
-    Board, Material, Operation, OutlineFeature, OutlineSettings, Part, PartDefinition, PartKind,
-    Pose2, ProjectDoc, Side, Vec2,
+    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Layout, Material,
+    Matrix, Operation, OutlineFeature, OutlineSettings, Part, PartDefinition, PartKind, Pose2,
+    ProjectDoc, RowLayout, Side, Vec2,
 };
+use boardstudio_core::CoreEngine;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DemoProject {
@@ -35,8 +37,192 @@ pub(crate) const DEMO_PROJECTS: [DemoProject; 3] = [
     },
 ];
 
+/// Builds one shipped example by driving Core through its public requests, so
+/// every switch pose is Core-generated matrix materialization (decision 14),
+/// never a baked part pose.
+struct DemoBuilder {
+    engine: CoreEngine,
+    revision: u64,
+}
+
+impl DemoBuilder {
+    fn open(document: ProjectDoc) -> Result<Self, String> {
+        let mut engine = CoreEngine::new();
+        let revision = match engine.handle(CoreRequest::Open {
+            id: "demo-open".into(),
+            document,
+        }) {
+            CoreReply::Scene { scene, .. } => scene.revision,
+            CoreReply::Error { message, .. } => return Err(message),
+            reply => return Err(format!("demo Open failed: {reply:?}")),
+        };
+        Ok(Self { engine, revision })
+    }
+
+    fn commit(&mut self, operation: EditOperation) -> Result<ProjectDoc, String> {
+        let revision = self.revision;
+        let reply = self.engine.handle(CoreRequest::Edit {
+            id: "demo-edit".into(),
+            command: EditCommand {
+                base_revision: revision,
+                transaction_id: format!("demo-{revision}"),
+                phase: EditPhase::Commit,
+                target_ids: vec![],
+                operation,
+            },
+        });
+        match reply {
+            CoreReply::Scene { scene, document, .. } => {
+                self.revision = scene.revision;
+                Ok(*document)
+            }
+            CoreReply::Error { message, .. } => Err(message),
+            reply => Err(format!("demo edit failed: {reply:?}")),
+        }
+    }
+
+    fn replace(&mut self, document: ProjectDoc) -> Result<ProjectDoc, String> {
+        self.commit(EditOperation::ReplaceDocument {
+            document: Box::new(document),
+        })
+    }
+}
+
+const DEMO_PITCH_MM: f64 = 19.05;
+const DEMO_EDGE_GAP_MM: f64 = 1.05;
+const DEMO_ROW_SHIFT_MM: f64 = 4.7625;
+
+fn demo_shell(name: &str) -> ProjectDoc {
+    let mut document = ProjectDoc::empty("demo-template", name);
+    document.definitions.push(PartDefinition {
+        hardware_profile: None,
+        input_profile: None,
+        id: "demo-switch".into(),
+        name: "Demo switch".into(),
+        kind: PartKind::Switch,
+        keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
+        envelope_source: None,
+        kicad_source: None,
+        terminals: Default::default(),
+        matrix_terminals: None,
+        envelope_notice: None,
+        courtyard: Vec::new(),
+        pads: Vec::new(),
+        models: None,
+        generator: None,
+        mechanical_profile: None,
+    });
+    document.outline.push(OutlineFeature::PartEnvelope {
+        connections: Vec::new(),
+        settings: OutlineSettings::default(),
+        id: "demo-outline".into(),
+        part_ids: Vec::new(),
+        margin: 4.0,
+        operation: Operation::Add,
+    });
+    document.boards.push(Board {
+        id: "demo-board".into(),
+        name: "Main board".into(),
+        outline_ids: vec!["demo-outline".into()],
+        part_ids: Vec::new(),
+        net_ids: Vec::new(),
+        thickness: 1.6,
+        traces: Vec::new(),
+        vias: Vec::new(),
+    });
+    document.materials.push(Material {
+        id: "pla".into(),
+        name: "PLA".into(),
+        thickness: 3.0,
+    });
+    document
+}
+
+fn single_matrix_document(
+    name: &str,
+    rows: u32,
+    columns: u32,
+    origin: Vec2,
+) -> Result<ProjectDoc, String> {
+    let mut builder = DemoBuilder::open(demo_shell(name))?;
+    builder.commit(EditOperation::SetMatrix {
+        matrix: Matrix {
+            id: "main".into(),
+            name: Some("Main".into()),
+            rows,
+            columns,
+            pitch: Vec2 {
+                x: DEMO_PITCH_MM,
+                y: DEMO_PITCH_MM,
+            },
+            origin,
+            definition_id: "demo-switch".into(),
+            part_ids: Vec::new(),
+            board_id: None,
+            mirror: None,
+            rotation: None,
+            edge_gap: Some(Vec2 {
+                x: DEMO_EDGE_GAP_MM,
+                y: DEMO_EDGE_GAP_MM,
+            }),
+            diode_direction: None,
+            column_layout: Vec::new(),
+            row_layout: vec![
+                RowLayout::default(),
+                RowLayout {
+                    shift: Vec2 {
+                        x: DEMO_ROW_SHIFT_MM,
+                        y: 0.0,
+                    },
+                    ..Default::default()
+                },
+            ],
+            anchor: None,
+            cells: Vec::new(),
+        },
+        definitions: None,
+    })?;
+    let mut document = match builder.engine.handle(CoreRequest::Snapshot {
+        id: "demo-snapshot".into(),
+    }) {
+        CoreReply::Scene { document, .. } => *document,
+        CoreReply::Error { message, .. } => return Err(message),
+        reply => return Err(format!("demo snapshot failed: {reply:?}")),
+    };
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "demo-board".into(),
+        matrix_ids: vec!["main".into()],
+        part_ids: Vec::new(),
+        mirror_link: None,
+    });
+    let mut document = builder.replace(document)?;
+    // The builder session stays inside `document()`; the template itself
+    // carries no session revision. `Runtime::open_demo_copy` assigns a fresh
+    // id and revision when a user opens it.
+    document.revision = 0;
+    Ok(document)
+}
+
+fn studio60_document(name: &str) -> ProjectDoc {
+    single_matrix_document(
+        name,
+        5,
+        12,
+        Vec2 {
+            x: -104.775,
+            y: -38.1,
+        },
+    )
+    .expect("Studio 60 demo builds through Core")
+}
+
 impl DemoProject {
     pub(crate) fn document(self) -> ProjectDoc {
+        if matches!(self.layout, DemoLayout::Studio60) {
+            return studio60_document(self.name);
+        }
         let mut document = ProjectDoc::empty("demo-template", self.name);
         let positions = match self.layout {
             DemoLayout::Split42 => split42_positions(),
