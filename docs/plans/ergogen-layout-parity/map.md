@@ -23,8 +23,9 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
 is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
-and all five subtickets are resolved. The unblocked build frontier is
-[18](issues/18-core-placement-edits.md) and [25](issues/25-project-format-recovery.md).
+and all five subtickets are resolved. The active build frontier is
+[18](issues/18-core-placement-edits.md) (CLAIMED); [25](issues/25-project-format-recovery.md)
+is RESOLVED independently. [19](issues/19-anchor-layout-groups.md) remains blocked by 18.
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -119,7 +120,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [22: Consumers](issues/22-update-layout-consumers.md) | 21 | Setup, Align, selection, size/snap and downstream geometry contracts. |
 | [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md) | 22 | Accepted D interaction through real controls and trusted pointer input. |
 | [24: Relations/highlights](issues/24-relations-and-highlights.md) | 23 | Core facts, placement explanation, navigation and reference lifecycle. |
-| [25: Project recovery](issues/25-project-format-recovery.md) | 17 | Safe unsupported-project actions, drafts, saves and history lifecycle. |
+| [25: Project recovery](issues/25-project-format-recovery.md#answer) | 17 | Resolved: safe unsupported-project recovery preserves records, drafts, saves and history; full merged gate passed. |
 | [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md) | 24, 25 | Exact approved examples and affected schema/scene contract updates. |
 | [27: End-to-end acceptance](issues/27-end-to-end-acceptance.md) | 26 | Full production-path proof and release gate, not planning evidence. |
 
@@ -136,6 +137,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 - [17: Model/format cutover](issues/17-cut-over-format-and-model.md#answer): The coordinated unshipped cutover and all five subtickets are accepted; 18 and 25 form the next independent lanes. Release remains gated by 27.
 - [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer): All 119 paths passed fresh quick/full gates, native 2,150, page 77/77 and packaged drag/collision 13/13; both final review findings were fixed and independent Standards/Spec re-reviews passed.
 - [17c: Kernel production routing](issues/17c-kernel-production-routing.md#answer): Draft/actual projection and parts route through the kernel; nine ordinary fixture cases retain saved-pose/member-id coverage, and the reviewed merged quick passes.
+- [25: Project recovery](issues/25-project-format-recovery.md#answer): Incompatible Open/import is validated before switching; owned commits settle and replacements publish only after persistence. Raw download is JSON-only, New is fresh, Delete is named and guarded; merged quick/full and independent Spec/Standards review passed. Conservative confirmation may appear for an already-open editor because there is no shared dirty-state registry. This does not authorize release or user-data writers.
 
 - [01: Name the carried parameters](issues/01-name-the-carried-parameters.md#answer): **Shift** and **Bend**
   are the carried move and turn (ergogen `shift` and `rotate`). Offsets and Key rotation keep their
