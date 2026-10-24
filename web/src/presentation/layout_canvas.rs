@@ -13,9 +13,20 @@ use std::{
 pub(super) fn transform_tools(
     context: &super::objects::TreeContext,
     active: Option<super::objects::LayoutTransformTool>,
-    _handles_visible: bool,
+    handles_visible: bool,
 ) -> Vec<super::objects::LayoutTransformTool> {
     use super::objects::{LayoutTransformTool as Tool, TreeContext};
+    if !handles_visible {
+        // View-only: every passive handle hides, but the active tool keeps
+        // the handle its gesture requires. Origin and Splay expose their
+        // origin through the active overlay itself, so no extra overlay is
+        // needed. With no active tool nothing draws.
+        return match (context, active) {
+            (TreeContext::Column { .. }, Some(tool)) => vec![tool],
+            (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
+            _ => Vec::new(),
+        };
+    }
     match context {
         TreeContext::Column { .. } => match active {
             Some(Tool::Offset) => vec![Tool::Offset, Tool::Splay],

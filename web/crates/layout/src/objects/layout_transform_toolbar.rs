@@ -2551,6 +2551,90 @@ mod shortcut_tests {
         }
     }
 
+    /// Ticket 23: the Handles toggle flips view state and reports the intent,
+    /// so hiding handles never touches the document. The host owns no Runtime
+    /// and no edit machinery: the intent carries a plain bool to workspace state.
+    #[component]
+    fn snap_dock_host() -> Element {
+        let mut handles = use_signal(|| true);
+        let mut toggled = use_signal(|| None::<bool>);
+        rsx! {
+            super::super::layout_toolbar::LayoutSnapDock {
+                settings: super::super::layout_toolbar::LayoutSnapSettings::default(),
+                open_menu: use_signal(|| None),
+                on_snap_intent: EventHandler::new(|_| {}),
+                handles_visible: handles(),
+                on_toggle_handles: EventHandler::new(move |visible| {
+                    toggled.set(Some(visible));
+                    handles.set(visible);
+                }),
+            }
+            output { id: "snap-dock-toggled", "{toggled():?}" }
+        }
+    }
+
+    fn handles_checkbox(root: &web_sys::Element) -> web_sys::HtmlInputElement {
+        let labels = root.query_selector_all("label").unwrap();
+        let toggle: web_sys::Element = (0..labels.length())
+            .filter_map(|index| labels.item(index))
+            .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+            .find(|node| node.text_content().as_deref() == Some("Canvas handles"))
+            .expect("the dock names the Canvas handles toggle");
+        toggle
+            .query_selector("input")
+            .unwrap()
+            .expect("the toggle is a checkbox")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+    }
+
+    #[wasm_bindgen_test]
+    async fn handles_toggle_reports_intent_and_flips_view_only() {
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new(snap_dock_host),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        root.query_selector("#m1-layout-snap-trigger")
+            .unwrap()
+            .expect("the snap dock trigger is mounted")
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert!(handles_checkbox(&root).checked(), "handles start visible");
+        handles_checkbox(&root).click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#snap-dock-toggled")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Some(false)"),
+            "the toggle reports the flipped view state"
+        );
+        assert!(
+            !handles_checkbox(&root).checked(),
+            "the checkbox follows view state"
+        );
+        handles_checkbox(&root).click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            root.query_selector("#snap-dock-toggled")
+                .unwrap()
+                .unwrap()
+                .text_content()
+                .as_deref(),
+            Some("Some(true)"),
+            "toggling back restores the handles"
+        );
+        root.remove();
+    }
+
     async fn mount_context_actions(
         selection_kind: LayoutSelectionKind,
         pointer_tools_visible: bool,

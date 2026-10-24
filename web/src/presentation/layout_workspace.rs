@@ -126,6 +126,7 @@ pub(super) struct LayoutWorkspaceState {
     command_menu: Signal<Option<objects::LayoutCommandMenu>>,
     transform_tool: Signal<Option<objects::LayoutTransformTool>>,
     transform_tool_owner: Signal<Option<TransformToolOwner>>,
+    transform_handles: Signal<bool>,
     assembly_3d: Signal<bool>,
     splay_affect: Signal<boardstudio_core::model::MatrixSplayAffect>,
     pending_splay_origin_pick: Signal<Option<objects::MatrixTransformInspectorOwner>>,
@@ -159,6 +160,7 @@ pub(super) fn use_layout_workspace_state(
         command_menu: use_signal(|| None),
         transform_tool: use_signal(|| None),
         transform_tool_owner: use_signal(|| None),
+        transform_handles: use_signal(|| true),
         assembly_3d: use_signal(|| false),
         splay_affect: use_signal(|| boardstudio_core::model::MatrixSplayAffect::Following),
         pending_splay_origin_pick: use_signal(|| None),
@@ -218,6 +220,9 @@ impl LayoutWorkspaceState {
     }
     pub(super) fn transform_tool(self) -> Signal<Option<objects::LayoutTransformTool>> {
         self.transform_tool
+    }
+    pub(super) fn transform_handles(self) -> Signal<bool> {
+        self.transform_handles
     }
     pub(super) fn assembly_3d(self) -> Signal<bool> {
         self.assembly_3d
