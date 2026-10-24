@@ -497,7 +497,9 @@ pub(crate) fn remove_axis(
         changed.extend(set_matrix(doc, &matrix)?);
     }
     changed.extend(layout::sync(doc, matrix_id)?);
-    changed.extend(super::anchors::shift_compacted(doc, &compacted, index, row_axis)?);
+    changed.extend(super::anchors::shift_compacted(
+        doc, &compacted, index, row_axis,
+    )?);
     Ok(changed)
 }
 

@@ -23,7 +23,12 @@ fn dependants(doc: &ProjectDoc, target_id: &str) -> Vec<(String, MatrixAnchor)> 
                 .as_ref()
                 .is_some_and(|anchor| anchor.matrix_id == target_id)
         })
-        .map(|matrix| (matrix.id.clone(), matrix.anchor.clone().expect("filtered anchor")))
+        .map(|matrix| {
+            (
+                matrix.id.clone(),
+                matrix.anchor.clone().expect("filtered anchor"),
+            )
+        })
         .collect()
 }
 
@@ -45,8 +50,12 @@ pub(crate) fn validate_target(
     if anchor.matrix_id == owner_id {
         return Err(format!("Matrix {owner_id} cannot anchor to itself"));
     }
-    let target = evaluation::logical_matrix(&anchor.matrix_id, doc)
-        .map_err(|_| format!("Matrix {owner_id} anchor target {} is missing", anchor.matrix_id))?;
+    let target = evaluation::logical_matrix(&anchor.matrix_id, doc).map_err(|_| {
+        format!(
+            "Matrix {owner_id} anchor target {} is missing",
+            anchor.matrix_id
+        )
+    })?;
     match owner_layout {
         Some(layout_id) => {
             let owner_board = doc
@@ -115,7 +124,11 @@ fn linked_layout(doc: &ProjectDoc, layout_id: &str) -> bool {
 
 /// Create a 1x3 matrix in the anchor target's Layout and board at relative
 /// Origin (0, -pitch.y) with every Follow component, then materialize it.
-pub(crate) fn add(doc: &mut ProjectDoc, id: &str, anchor: &MatrixAnchor) -> Result<Vec<String>, String> {
+pub(crate) fn add(
+    doc: &mut ProjectDoc,
+    id: &str,
+    anchor: &MatrixAnchor,
+) -> Result<Vec<String>, String> {
     if id.is_empty()
         || !id
             .bytes()
@@ -236,7 +249,10 @@ pub(crate) fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String
 
 /// Detach every matrix anchored to `target_id`, keeping each current world
 /// frame. Call before the target matrix disappears.
-pub(crate) fn detach_dependants(doc: &mut ProjectDoc, target_id: &str) -> Result<Vec<String>, String> {
+pub(crate) fn detach_dependants(
+    doc: &mut ProjectDoc,
+    target_id: &str,
+) -> Result<Vec<String>, String> {
     let mut changed = vec![];
     for (id, _) in dependants(doc, target_id) {
         changed.extend(detach(doc, &id)?);

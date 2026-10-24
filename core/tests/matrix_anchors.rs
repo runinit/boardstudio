@@ -232,7 +232,10 @@ fn change_anchor_retargets_dependants_with_preview_cancel_and_undo() {
     assert_eq!(snapshot(&mut engine).matrices, doc.matrices);
     let (_, committed) = edit(&mut engine, &doc, operation);
     assert_eq!(anchor_of(&committed, "thumb"), Some(moved));
-    assert_eq!(at(&committed, &member("thumb", 0, 0)), Vec2 { x: 0.0, y: -19.0 });
+    assert_eq!(
+        at(&committed, &member("thumb", 0, 0)),
+        Vec2 { x: 0.0, y: -19.0 }
+    );
     let undone_doc = undone(&mut engine);
     assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
     assert_eq!(redone(&mut engine).matrices, committed.matrices);
@@ -423,18 +426,11 @@ fn detach_keeps_world_frame_and_clears_the_anchor() {
             assert_eq!(pose_of(&moved, id), *pose, "{id}");
         }
     }
-    near(
-        pose_of(&moved, &member("main", 0, 2)).at,
-        100.0,
-        100.0,
-    );
+    near(pose_of(&moved, &member("main", 0, 2)).at, 100.0, 100.0);
     let undone_move = undone(&mut engine);
     assert_eq!(anchor_of(&undone_move, "thumb"), None);
     let undone_detach = undone(&mut engine);
-    assert_eq!(
-        anchor_of(&undone_detach, "thumb"),
-        anchor_of(&doc, "thumb")
-    );
+    assert_eq!(anchor_of(&undone_detach, "thumb"), anchor_of(&doc, "thumb"));
     assert_eq!(redone(&mut engine).matrices, detached.matrices);
     assert_eq!(redone(&mut engine).matrices, moved.matrices);
 }
@@ -912,7 +908,10 @@ fn anchored_matrix_translation_respects_follow_and_refuses_impossible_drags() {
             },
         },
     );
-    assert!(message.contains("Follow"), "unexpected message: {message:?}");
+    assert!(
+        message.contains("Follow"),
+        "unexpected message: {message:?}"
+    );
     assert_eq!(snapshot(&mut engine), doc);
     // A drag along the followed Y succeeds and moves every member.
     let (_, moved) = edit(
@@ -1086,9 +1085,7 @@ fn disabled_and_deleted_anchor_keys_keep_anchoring() {
         (
             "disabled",
             EditOperation::SetMatrixCellsEnabled {
-                cells: [(String::from("main"), vec![(0, 2)])]
-                    .into_iter()
-                    .collect(),
+                cells: [(String::from("main"), vec![(0, 2)])].into_iter().collect(),
                 enabled: false,
             },
         ),

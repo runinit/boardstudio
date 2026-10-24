@@ -17,9 +17,9 @@
 //! - Key moves and linked halves: `layout::move_keys`, `layout::sync`, `set_component_pose`.
 //! - Tests: `core/tests/matrix_companions.rs`, `matrix_placement.rs`, `splay_companions.rs`.
 
+pub(crate) mod anchors;
 pub(crate) mod deletion;
 pub(crate) mod evaluation;
-pub(crate) mod anchors;
 pub mod kernel;
 use crate::model::{
     Matrix, MatrixCell, MatrixColumnBasis, MatrixScene, MatrixSceneCell, OutlineFeature, Part, Pin,
