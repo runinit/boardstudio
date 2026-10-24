@@ -23,10 +23,9 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
 is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
-and all five subtickets are resolved. The next build frontier is [26](issues/26-rebuild-examples-and-fixtures.md) (READY-FOR-AGENT),
-now unblocked by resolved [24](issues/24-relations-and-highlights.md) and resolved
-[25](issues/25-project-format-recovery.md#answer); parent-owned handoff remains
-pending.
+and all five subtickets are resolved. The next build frontier is [27](issues/27-end-to-end-acceptance.md) (READY-FOR-AGENT),
+now unblocked by resolved [26](issues/26-rebuild-examples-and-fixtures.md#answer);
+parent-owned handoff remains pending.
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
 ## Notes
@@ -122,7 +121,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md#answer) | 22 | Resolved: variant-D Inspector/toolbar/handles through real controls and trusted pointer drags; both re-reviews passed. |
 | [24: Relations/highlights](issues/24-relations-and-highlights.md#answer) | 23 | Resolved: Core-backed placement chains, Follow-subset/Local/Omitted anchor overlays, reference navigation and highlight lifecycle; both re-reviews passed. |
 | [25: Project recovery](issues/25-project-format-recovery.md#answer) | 17 | Resolved: safe unsupported-project recovery preserves records, drafts, saves and history; full merged gate passed. |
-| [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md) | 24, 25 | Exact approved examples and affected schema/scene contract updates. |
+| [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md#answer) | 24, 25 | Resolved: Studio 60, Macro 12 and Split 42 rebuilt through Core matrix materialization with approved poses; both re-reviews passed. |
 | [27: End-to-end acceptance](issues/27-end-to-end-acceptance.md) | 26 | Full production-path proof and release gate, not planning evidence. |
 
 ## Ownership

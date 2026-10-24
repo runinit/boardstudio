@@ -1,6 +1,6 @@
 # 26: Rebuild the three matrix-owned examples and finish affected fixture updates
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [24](24-relations-and-highlights.md), [25](25-project-format-recovery.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -47,3 +47,21 @@ Sources: `web/crates/library/src/demo_projects.rs`, library/Runtime copy flow, b
 fixture and Core integration tests. Use real factory documents + Core/Session acceptance,
 mounted library/layout tests and affected quick/browser checks. Numeric planning
 recipes alone are not production evidence. Regenerate packaged assets before page tests.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` at `846d6afef`. All slices
+landed: `71b92fe41` (RED Studio 60 Core-generated matrix document), `b022a8f92`
+(GREEN Studio 60 through Core matrix materialization), `1e3afe6db` (RED Macro 12
+single-matrix recipe and shared example intent), `6a26189d7` (GREEN Macro 12
+through the shared single-matrix builder), `dde2021e4` (RED Split 42 linked
+layouts and approved pose deltas), `12d8c6496` (GREEN Split 42 with Core-derived
+right half), `e07831e78` (Split reflection, one-Undo and preview-cancel through
+Core), `59fc10764` (shared board/outline intent extended to Split 42), plus
+rustfmt `846d6afef`. Both independent Spec and Standards reviews PASSED
+(standards nits only, left as reviewed per integration scope). Native baseline
+`818adfd32` (+11 names, 0 removals). Fresh gates green — quick: `check: all
+steps passed: repo, tooling, lint, typecheck, test, browser`; full: `check: all
+steps passed: repo, tooling, lint, build, test, browser`.
+
+No release approval is implied.
