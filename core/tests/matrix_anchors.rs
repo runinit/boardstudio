@@ -960,3 +960,214 @@ fn anchored_frame_edits_refuse_unfollowed_components() {
     );
     assert_eq!(snapshot(&mut engine), doc);
 }
+
+#[test]
+fn compaction_remaps_anchors_onto_the_surviving_key() {
+    let (mut engine, doc) = anchored_fixture();
+    let (_, compacted) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main".into(),
+            column: 0,
+        },
+    );
+    // The anchor followed its physical key from (0,2) to (0,1), never
+    // retargeting the new key at the old coordinate.
+    assert_eq!(
+        anchor_of(&compacted, "thumb"),
+        Some(MatrixAnchor {
+            matrix_id: "main".into(),
+            row: 0,
+            column: 1,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        })
+    );
+    assert_eq!(
+        pose_of(&compacted, &member("thumb", 0, 0)).at,
+        Vec2 { x: 19.0, y: -19.0 }
+    );
+    assert_eq!(
+        pose_of(&compacted, &member("thumb", 0, 2)).at,
+        Vec2 { x: 57.0, y: -19.0 }
+    );
+}
+
+#[test]
+fn removing_the_anchor_slot_detaches_dependants_with_their_frame() {
+    let (mut engine, doc) = anchored_fixture();
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main".into(),
+            column: 2,
+        },
+    );
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    let thumb = detached
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix");
+    assert_eq!(thumb.origin, Vec2 { x: 38.0, y: -19.0 });
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb/") {
+            assert_eq!(pose_of(&detached, id), *pose, "{id}");
+        }
+    }
+}
+
+#[test]
+fn removing_the_anchor_matrix_detaches_dependants() {
+    let (mut engine, doc) = anchored_fixture();
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrix { id: "main".into() },
+    );
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    assert!(
+        detached
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "layout")
+            .is_some_and(|layout| layout.matrix_ids == vec!["thumb".to_string()])
+    );
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb/") {
+            assert_eq!(pose_of(&detached, id), *pose, "{id}");
+        }
+    }
+}
+
+#[test]
+fn shrinking_through_set_matrix_detaches_out_of_range_anchors() {
+    let (mut engine, doc) = anchored_fixture();
+    let mut shrunk = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    shrunk.columns = 2;
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: shrunk,
+            definitions: None,
+        },
+    );
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    assert_eq!(
+        pose_of(&detached, &member("thumb", 0, 0)).at,
+        Vec2 { x: 38.0, y: -19.0 }
+    );
+}
+
+#[test]
+fn disabled_and_deleted_anchor_keys_keep_anchoring() {
+    for (name, operation) in [
+        (
+            "disabled",
+            EditOperation::SetMatrixCellsEnabled {
+                cells: [(String::from("main"), vec![(0, 2)])]
+                    .into_iter()
+                    .collect(),
+                enabled: false,
+            },
+        ),
+        (
+            "deleted",
+            EditOperation::RemoveMatrixCells {
+                matrix_id: "main".into(),
+                cells: vec![(0, 2)],
+            },
+        ),
+    ] {
+        let (mut engine, doc) = anchored_fixture();
+        let (_, edited) = edit(&mut engine, &doc, operation);
+        assert!(
+            anchor_of(&edited, "thumb").is_some(),
+            "{name}: anchor was dropped"
+        );
+        assert_eq!(
+            pose_of(&edited, &member("thumb", 0, 0)).at,
+            Vec2 { x: 38.0, y: -19.0 },
+            "{name}"
+        );
+        assert!(
+            edited
+                .parts
+                .iter()
+                .all(|part| part.id != member("main", 0, 2)),
+            "{name}: invisible key was materialized"
+        );
+    }
+}
+
+#[test]
+fn constraints_consume_final_anchored_poses() {
+    let (mut engine, doc) = anchored_fixture();
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetConstraint {
+            constraint: Constraint::Offset {
+                id: "ride".into(),
+                source_part_id: member("main", 0, 0),
+                target_part_id: member("thumb", 0, 1),
+                offset: Vec2 { x: 5.0, y: 5.0 },
+                rotation: 0.0,
+            },
+        },
+    );
+    // The anchored member solves from its laid-out pose, not from a stale one.
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 1)).at,
+        Vec2 { x: 5.0, y: 5.0 }
+    );
+}
+
+#[test]
+fn column_align_moves_through_the_actual_anchor_frame() {
+    let (mut engine, doc) = anchored_fixture();
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "thumb".into(),
+            change: MatrixPlacementChange::ColumnTranslation {
+                column: 1,
+                delta: Vec2 { x: 0.0, y: 5.0 },
+            },
+        },
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 1)).at,
+        Vec2 { x: 57.0, y: -14.0 }
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 0)).at,
+        Vec2 { x: 38.0, y: -19.0 }
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 2)).at,
+        Vec2 { x: 76.0, y: -19.0 }
+    );
+}
