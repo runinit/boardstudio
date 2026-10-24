@@ -124,3 +124,22 @@ fresh quick result are under `.evidence/ergogen-18/golden-*`, particularly
 `golden-notes.md` and `golden-quick.json`. Earlier failed quick remains historical
 failure evidence, not acceptance. Status remains claimed; source changes after the
 pinned review require parent follow-up review, integration and merged gates.
+
+### Independent review response and parallel integration preflight — 2026-10-23
+
+The independent combined Spec and Standards review passed pinned candidate
+`1a5385b0ef709468b02fb174f6607118960dfce4` with no blockers, including the P2 ordinary
+representability repair and 130-reply semantic golden audit. This approval is for that
+pinned source; the isolated integration preflight adds comments and this progress note
+only. Status remains claimed pending parent-owned fresh baseline and merged gates.
+
+The linked-pair constraint-driven rigid Align refusal characterized by
+`production_linked_rigid_translation_retains_membership_refusal` is pre-existing policy,
+and ticket 20 is not scheduled to lift it: ticket 20 acceptance explicitly preserves
+constraint refusals. Ordinary prepared native Align works. The linked case verifies the
+exact refusal and state/history preservation; it is not evidence of native constrained
+Align support. A dedicated unlinked prepared-half/internal-constraint case was not
+added; actual public Core Matrix/Column preview, commit and Undo coverage remains the
+evidence for ordinary representable constraints. Changing linked refusal policy needs
+an explicit future scope decision. Golden deltas are justified by the inverse helper's
+Follow behavior, not by the `3.02e-14` rounding magnitude alone.

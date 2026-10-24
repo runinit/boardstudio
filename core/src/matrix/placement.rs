@@ -375,6 +375,7 @@ pub(crate) fn validate_translation(
                 x: previous.pose.at.x + movement.x,
                 y: previous.pose.at.y + movement.y,
             };
+            // Translation changes no turn parameters, so the resolved heading must stay exact.
             if !finite(wanted)
                 || !finite(part.pose.at)
                 || (part.pose.at.x - wanted.x).abs() > 1e-9

@@ -137,6 +137,7 @@ pub(crate) fn update(
                         ..Default::default()
                     }
                 };
+                // The hold inverse order is pinned by core/tests/fixtures/boundary/transcript.json.
                 let local = frame.inverse_vector(delta);
                 Vec2 {
                     x: current.relative_origin.x + local.x,
