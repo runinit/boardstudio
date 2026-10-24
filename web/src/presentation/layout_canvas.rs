@@ -13,6 +13,7 @@ use std::{
 pub(super) fn transform_tools(
     context: &super::objects::TreeContext,
     active: Option<super::objects::LayoutTransformTool>,
+    _handles_visible: bool,
 ) -> Vec<super::objects::LayoutTransformTool> {
     use super::objects::{LayoutTransformTool as Tool, TreeContext};
     match context {
@@ -522,15 +523,15 @@ mod tests {
             column: 0,
         };
         assert_eq!(
-            transform_tools(&column, Some(Tool::Offset)),
+            transform_tools(&column, Some(Tool::Offset), true),
             vec![Tool::Offset, Tool::Splay]
         );
         assert_eq!(
-            transform_tools(&column, Some(Tool::Origin)),
+            transform_tools(&column, Some(Tool::Origin), true),
             vec![Tool::Stagger, Tool::Origin]
         );
         assert_eq!(
-            transform_tools(&column, None),
+            transform_tools(&column, None, true),
             vec![Tool::Stagger, Tool::Splay]
         );
         assert_eq!(
@@ -539,9 +540,55 @@ mod tests {
                     matrix_id: "matrix".into(),
                     row: 0
                 },
-                Some(Tool::Stagger)
+                Some(Tool::Stagger),
+                true,
             ),
             vec![Tool::Offset]
+        );
+    }
+
+    /// Ticket 23: the Handles toggle is view-only. Hidden handles drop every
+    /// passive overlay but keep the active tool's required handle; with no
+    /// active tool nothing draws.
+    #[wasm_bindgen_test]
+    fn hidden_handles_keep_only_the_active_tool() {
+        use super::super::objects::{LayoutTransformTool as Tool, TreeContext};
+        let column = TreeContext::Column {
+            matrix_id: "matrix".into(),
+            column: 1,
+        };
+        let row = TreeContext::Row {
+            matrix_id: "matrix".into(),
+            row: 0,
+        };
+        let key = TreeContext::Key {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        };
+        assert_eq!(transform_tools(&column, None, false), Vec::new());
+        assert_eq!(transform_tools(&row, None, false), Vec::new());
+        assert_eq!(transform_tools(&key, None, false), Vec::new());
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Stagger), false),
+            vec![Tool::Stagger]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Spread), false),
+            vec![Tool::Spread]
+        );
+        assert_eq!(
+            transform_tools(&column, Some(Tool::Origin), false),
+            vec![Tool::Origin]
+        );
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Offset), false),
+            vec![Tool::Offset]
+        );
+        // A Row selection never draws a Stagger handle, even hidden.
+        assert_eq!(
+            transform_tools(&row, Some(Tool::Stagger), false),
+            Vec::new()
         );
     }
 

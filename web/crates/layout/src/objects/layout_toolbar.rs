@@ -836,11 +836,15 @@ fn LayoutSelectionIcon(kind: LayoutSelectionKind) -> Element {
 }
 
 /// Always-visible snapping preferences; the existing intent owner remains authoritative.
+/// The Canvas handles checkbox below them flips workspace view state only: hiding
+/// handles never submits an edit and never touches document or history.
 #[component]
 pub fn LayoutSnapDock(
     settings: LayoutSnapSettings,
     open_menu: Signal<Option<LayoutCommandMenu>>,
     on_snap_intent: EventHandler<LayoutSnapIntent>,
+    #[props(default = true)] handles_visible: bool,
+    on_toggle_handles: EventHandler<bool>,
 ) -> Element {
     rsx! {
         boardstudio_web_ui_shared::controls::BoardAccordionSection {
@@ -850,6 +854,15 @@ pub fn LayoutSnapDock(
                 span { "Snap" } small { "{snap_label(settings.snap_fraction)}" }
             },
             LayoutSnapOptions { settings, on_snap_intent }
+            label { class: "m1-layout-snap-check",
+                BoardCheckbox {
+                    checked: handles_visible,
+                    onchange: move |event: FormEvent| {
+                        on_toggle_handles.call(event.checked());
+                    },
+                }
+                "Canvas handles"
+            }
         }
     }
 }

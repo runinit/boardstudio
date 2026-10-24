@@ -8733,6 +8733,8 @@ fn Editor() -> Element {
                             settings: layout_snap_settings.read().clone(),
                             open_menu: layout_command_menu,
                             on_snap_intent: layout_snap_intent,
+                            handles_visible: true,
+                            on_toggle_handles: EventHandler::new(|_| {}),
                         }
                     }
                 }
@@ -8938,7 +8940,7 @@ fn Editor() -> Element {
                             && !layout_assembly_3d()
                             && let Some((matrix, projection, context)) = layout_transform_target.clone()
                         {
-                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool()) {
+                            for tool in layout_canvas::transform_tools(&context, layout_transform_tool(), true) {
                             objects::LayoutTransformToolOverlay {
                                 key: "{tool:?}",
                                 runtime: objects::LayoutTransformRuntime(runtime.clone()),
