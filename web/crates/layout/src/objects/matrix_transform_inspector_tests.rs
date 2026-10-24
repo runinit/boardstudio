@@ -3242,3 +3242,117 @@ async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
     );
     root.remove();
 }
+
+/// A one-key matrix in a Layout, selected at its key: the anchor target Core
+/// requires for the key's Add anchored matrix entry.
+fn add_anchored_matrix_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, selected) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    (document, selected)
+}
+
+/// Ticket 23 slice, RED: a Key selection offers Add anchored matrix, driving
+/// the Core AddAnchoredMatrix intent (1x3, same Layout, Origin (0, -pitch.y),
+/// mirrored counterpart per spec section 4) as one atomic intent with one
+/// Undo entry.
+#[wasm_bindgen_test]
+async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
+    let (document, context) = add_anchored_matrix_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-add-anchored-test",
+        document,
+        context,
+        &["key-part"],
+    )
+    .await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let button = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Add anchored matrix"))
+        .expect("the key offers Add anchored matrix")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    button.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    let added = after
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id != "matrix")
+        .expect("Add anchored matrix creates a matrix");
+    assert_eq!((added.rows, added.columns), (1, 3), "the addition is 1x3");
+    assert_eq!(
+        added.origin,
+        Vec2 { x: 0.0, y: -19.0 },
+        "the addition starts at relative Origin (0, -pitch.y)"
+    );
+    assert_eq!(
+        added.anchor,
+        Some(MatrixAnchor {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        }),
+        "the addition anchors to the selected key with full Follow"
+    );
+    assert!(
+        after
+            .document
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "layout")
+            .expect("the layout survives")
+            .matrix_ids
+            .contains(&added.id),
+        "the addition joins the selected key's Layout"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the addition is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .all(|matrix| matrix.id == "matrix"),
+        "one Undo removes the added matrix"
+    );
+    root.remove();
+}

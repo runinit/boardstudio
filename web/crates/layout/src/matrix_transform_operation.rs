@@ -41,6 +41,7 @@ pub enum MatrixTransformField {
     KeyAssembly,
     KeyAttached,
     KeyAssembliesLocal,
+    KeyAddAnchoredMatrix,
     DeleteSelection,
     MatrixDetach,
     MatrixDetachConfirm,
@@ -672,6 +673,31 @@ pub fn build_operation(
             Field::KeyEnabled,
             Value::Bool(enabled),
         ) => Ok(set_cell_enabled(matrix, *row, *column, enabled)),
+        (
+            MatrixTransformFields::Key { row, column, .. },
+            Field::KeyAddAnchoredMatrix,
+            Value::Text(id),
+        ) => {
+            if id.is_empty()
+                || !id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+            {
+                return Err("Matrix ID must use letters, digits, _ or -".into());
+            }
+            if *row >= matrix.rows || *column >= matrix.columns {
+                return Err("The selected key no longer exists.".into());
+            }
+            Ok(EditOperation::AddAnchoredMatrix {
+                id: id.clone(),
+                anchor: MatrixAnchor {
+                    matrix_id: matrix.id.clone(),
+                    row: *row,
+                    column: *column,
+                    follow: Follow::default(),
+                },
+            })
+        }
         (
             MatrixTransformFields::Key { row, column, .. },
             Field::KeyTransformReset,

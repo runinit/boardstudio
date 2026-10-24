@@ -225,6 +225,68 @@ fn selected_keys_delete_resolver(matrix_id: String, cells: Vec<(u32, u32)>) -> E
     )
 }
 
+/// Resolve a Key's Add anchored matrix against the accepted document at execution
+/// time. The new identity is derived when the edit runs so a queued edit that
+/// claimed the proposed identity retires this one instead of Core refusing a
+/// duplicate; Core still validates the anchor target and assigns Origin
+/// (0, -pitch.y), the Layout and the mirrored counterpart.
+fn add_anchored_matrix_resolver(
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    proposed_id: String,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-transform",
+        move |accepted: &AcceptedSnapshot| {
+            let document = &accepted.document;
+            let Some(matrix) = document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == matrix_id)
+            else {
+                return Resolution::Retire("The selected matrix no longer exists.".into());
+            };
+            if row >= matrix.rows || column >= matrix.columns {
+                return Resolution::Retire("The selected key no longer exists.".into());
+            }
+            // Core refuses a duplicate identity; dedup here so a queued edit that
+            // claimed the proposed identity still lands as one atomic intent.
+            // Only matrix identities can clash: Core derives the new members
+            // from the new matrix identity.
+            let mut id = proposed_id.clone();
+            if document.matrices.iter().any(|matrix| matrix.id == id) {
+                let base = proposed_id.clone();
+                let mut index = 2u64;
+                loop {
+                    let candidate = format!("{base}-{index}");
+                    if !document
+                        .matrices
+                        .iter()
+                        .any(|matrix| matrix.id == candidate)
+                    {
+                        id = candidate;
+                        break;
+                    }
+                    index = index.checked_add(1).expect("matrix identity exhausted");
+                }
+            }
+            Resolution::submit(
+                vec![matrix_id.clone(), id.clone()],
+                EditOperation::AddAnchoredMatrix {
+                    id,
+                    anchor: boardstudio_core::model::MatrixAnchor {
+                        matrix_id: matrix_id.clone(),
+                        row,
+                        column,
+                        follow: boardstudio_core::model::Follow::default(),
+                    },
+                },
+            )
+        },
+    )
+}
+
 fn guard_matrix_topology(
     matrix_id: String,
     dimensions: (u32, u32),
@@ -333,6 +395,7 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::KeyAssembly => "Key assembly",
         MatrixTransformField::KeyAttached => "Attached components",
         MatrixTransformField::KeyAssembliesLocal => "Use mirrored components",
+        MatrixTransformField::KeyAddAnchoredMatrix => "Add anchored matrix",
         MatrixTransformField::DeleteSelection => "Delete",
         MatrixTransformField::MatrixDetach => "Detach",
         MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
@@ -518,6 +581,7 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::MatrixDetachConfirm,
             MatrixTransformField::KeyAssembliesLocal,
             MatrixTransformField::KeyAttached,
+            MatrixTransformField::KeyAddAnchoredMatrix,
             MatrixTransformField::DeleteSelection,
         ]
         .into_iter()
@@ -852,13 +916,28 @@ pub fn use_workspace_matrix_transform(
                 publish_request_failure(&mut feedback, &request, Some(message.into()));
                 return;
             }
+            // A fresh anchored-matrix identity is proposed now so the typed build
+            // validates; the resolver re-derives it against whatever is
+            // accepted when the edit runs.
+            let resolved_value = if request.field == MatrixTransformField::KeyAddAnchoredMatrix {
+                let reversible = crate::presentation::parts::reversible_layout(&snapshot.document);
+                MatrixTransformValue::Text(crate::matrix_setup_operation::next_matrix_id(
+                    &snapshot.document.matrices,
+                    &snapshot.document.definitions,
+                    &snapshot.document.parts,
+                    "anchored",
+                    reversible,
+                ))
+            } else {
+                request.value.clone()
+            };
             // Validate the typed value now so a bad entry is explained inline; the resolver
             // repeats the build against whatever is accepted when the edit runs.
             if let Err(message) = build_operation(
                 matrix,
                 &current.fields,
                 request.field,
-                request.value.clone(),
+                resolved_value.clone(),
                 request.splay_affect.clone(),
             ) {
                 publish_request_failure(&mut feedback, &request, Some(message));
@@ -910,6 +989,18 @@ pub fn use_workspace_matrix_transform(
                 && matches!(request.owner.context, TreeContext::Key { .. })
             {
                 selected_keys_delete_resolver(request.owner.matrix_id.clone(), selected_cells)
+            } else if request.field == MatrixTransformField::KeyAddAnchoredMatrix
+                && let TreeContext::Key {
+                    row, column, ..
+                } = &request.owner.context
+                && let MatrixTransformValue::Text(proposed_id) = &resolved_value
+            {
+                add_anchored_matrix_resolver(
+                    request.owner.matrix_id.clone(),
+                    *row,
+                    *column,
+                    proposed_id.clone(),
+                )
             } else if let (MatrixTransformField::KeyEnabled, MatrixTransformValue::Bool(enabled)) =
                 (request.field, &request.value)
             {

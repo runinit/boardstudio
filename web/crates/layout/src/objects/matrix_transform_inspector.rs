@@ -481,6 +481,15 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                 }
+                ResetTransformButton {
+                    label: "Add anchored matrix", owner: owner.clone(), snapshot_token, revision,
+                    field: MatrixTransformField::KeyAddAnchoredMatrix,
+                    pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::KeyAddAnchoredMatrix),
+                    baseline: MatrixTransformValue::Text(String::new()),
+                    value: MatrixTransformValue::Text(String::new()),
+                    request_sequence, editable: props.mount.editable,
+                    feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                }
                 }
                 BoardDisclosure {
                     class: "m1-matrix-transform-section", open: true,
