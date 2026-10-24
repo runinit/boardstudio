@@ -4019,10 +4019,7 @@ mod tests {
                 y: -4.7625
             }
         );
-        assert_eq!(
-            grid_snap_point(point, -0.5, None),
-            Vec2 { x: 4.5, y: -4.5 }
-        );
+        assert_eq!(grid_snap_point(point, -0.5, None), Vec2 { x: 4.5, y: -4.5 });
         assert_eq!(grid_snap_point(point, 0.0, None), point);
         assert_eq!(
             snap_placement_at(

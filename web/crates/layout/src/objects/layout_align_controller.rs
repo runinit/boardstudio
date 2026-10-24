@@ -1107,7 +1107,9 @@ mod resolver_tests {
         document
             .definitions
             .push(serde_json::from_value(switch_definition()).unwrap());
-        document.parts.push(key_part("matrix/m/r0c0", "SW1", 0.0, 0.0));
+        document
+            .parts
+            .push(key_part("matrix/m/r0c0", "SW1", 0.0, 0.0));
         document
             .parts
             .push(key_part("matrix/m/r1c0", "SW2", 0.0, 19.05));
@@ -1381,7 +1383,9 @@ mod resolver_tests {
             assemblies_local: None,
         });
         document.parts.retain(|part| part.id != "matrix/m/r1c0");
-        document.parts.push(key_part("matrix/m/r0c1", "SW2", 19.05, 0.0));
+        document
+            .parts
+            .push(key_part("matrix/m/r0c1", "SW2", 19.05, 0.0));
         document.boards[0].part_ids = vec![
             "matrix/m/r0c0".into(),
             "matrix/m/r0c1".into(),
