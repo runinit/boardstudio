@@ -135,11 +135,11 @@ only. Status remains claimed pending parent-owned fresh baseline and merged gate
 
 The linked-pair constraint-driven rigid Align refusal characterized by
 `production_linked_rigid_translation_retains_membership_refusal` is pre-existing policy,
-and ticket 20 is not scheduled to lift it: ticket 20 acceptance explicitly preserves
-constraint refusals. Ordinary prepared native Align works. The linked case verifies the
-exact refusal and state/history preservation; it is not evidence of native constrained
-Align support. A dedicated unlinked prepared-half/internal-constraint case was not
-added; actual public Core Matrix/Column preview, commit and Undo coverage remains the
-evidence for ordinary representable constraints. Changing linked refusal policy needs
-an explicit future scope decision. Golden deltas are justified by the inverse helper's
-Follow behavior, not by the `3.02e-14` rounding magnitude alone.
+and ticket [20](20-reflect-linked-layouts.md) is not scheduled to lift it: its acceptance
+explicitly preserves constraint refusals. Ordinary prepared native Align works. The
+linked case verifies the exact refusal and state/history preservation; it is not evidence
+of native constrained Align support. A dedicated unlinked prepared-half/internal-constraint
+case was not added; actual public Core Matrix/Column preview, commit and Undo coverage
+remains the evidence for ordinary representable constraints. Changing linked refusal
+policy needs an explicit future scope decision. Golden deltas are justified by the inverse
+helper's Follow behavior, not by the `3.02e-14` rounding magnitude alone.
