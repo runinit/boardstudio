@@ -508,14 +508,25 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
     };
-    // Ticket 21: a Local partner keeps its own dimensions/layout on source
-    // resize; an Omitted partner stays absent. Neither blocks the source edit.
+    // Ticket 21: an independent (Local) or absent (Omitted) edited matrix
+    // never authors its partner; its own record already holds its state.
+    // A Local partner keeps its own dimensions/layout on source resize.
+    // An Omitted partner stays live instead: its record follows the source
+    // (no parts are ever materialized for it) so anchors through it keep a
+    // live logical pose. Neither state blocks the source edit.
     if matches!(
-        exception_state(doc, MirroredItemKind::Matrix, &target_id),
+        exception_state(doc, MirroredItemKind::Matrix, matrix_id),
         Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
     ) {
         return Ok(vec![]);
     }
+    if exception_state(doc, MirroredItemKind::Matrix, &target_id)
+        == Some(MirroredExceptionState::Local)
+    {
+        return Ok(vec![]);
+    }
+    let target_omitted = exception_state(doc, MirroredItemKind::Matrix, &target_id)
+        == Some(MirroredExceptionState::Omitted);
     let source = doc
         .matrices
         .iter()
@@ -546,7 +557,16 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     // Ticket 20: map anchor targets by identity, not list position or the
     // counterpart's stale anchor. Row/column stay the physical key; Follow
     // keeps its subset with source-world transport in the kernel.
-    if let Some(anchor) = &source.anchor {
+    // Ticket 21: an Omitted partner drops the propagated anchor instead of
+    // remapping it. Its record stays live for anchors *through* it, but it
+    // authors nothing while absent; a broken mapping must not block the
+    // source edit, and Rejoin restores the current source anchor anyway.
+    if target_omitted {
+        reflected_matrix.anchor = None;
+    }
+    if let Some(anchor) = &source.anchor
+        && !target_omitted
+    {
         let edited_layout = doc
             .layouts
             .iter()

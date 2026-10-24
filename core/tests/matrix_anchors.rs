@@ -2010,3 +2010,101 @@ fn linked_resize_keeps_local_partner_dimensions_and_poses() {
     assert_eq!(redone_doc.layouts, resized.layouts);
     assert_eq!(redone_doc.parts, resized.parts);
 }
+
+#[test]
+fn linked_resize_keeps_omitted_partner_live_and_absent() {
+    // Ticket 21: source growth with an Omitted partner succeeds; the partner
+    // stays absent (no parts fabricated) while its record follows the source
+    // so anchors through it keep a live logical pose.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    // The Omit transition itself suppresses the inherited parts.
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    assert!(
+        doc.parts
+            .iter()
+            .all(|part| !part.id.starts_with("matrix/main2/")),
+        "omit must suppress inherited parts"
+    );
+    assert!(
+        doc.matrices.iter().any(|matrix| matrix.id == "main2"),
+        "omit keeps the live record"
+    );
+    // Grow the source through the public prepared route.
+    let mut grown = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    grown.columns = 4;
+    let (_, resized) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: grown,
+            definitions: None,
+        },
+    );
+    // The source grew; the Omitted record followed without materializing.
+    assert_eq!(
+        resized
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "main")
+            .expect("grown source")
+            .columns,
+        4
+    );
+    let partner = resized
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("omitted partner");
+    assert_eq!((partner.rows, partner.columns), (1, 4));
+    assert!(
+        resized
+            .parts
+            .iter()
+            .all(|part| !part.id.starts_with("matrix/main2/")),
+        "no mirrored newcomer fabricated for the Omitted partner"
+    );
+    // Anchors through the Omitted record still evaluate at the live pose.
+    assert_eq!(
+        pose_of(&resized, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    // One transaction: Undo restores the pre-resize document.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, doc.matrices);
+    assert_eq!(undone_doc.layouts, doc.layouts);
+    assert_eq!(undone_doc.parts, doc.parts);
+    let redone_doc = redone(&mut engine);
+    assert_eq!(redone_doc.matrices, resized.matrices);
+    assert_eq!(redone_doc.layouts, resized.layouts);
+    assert_eq!(redone_doc.parts, resized.parts);
+}
