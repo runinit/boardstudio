@@ -737,12 +737,11 @@ impl View<'_> {
                 all.clone(),
             ));
             let mut follows = Self::anchor_key_text(anchor);
-            if let Some(member) = self.member_of(&anchor.matrix_id, anchor.row, anchor.column) {
-                if self.exception(MirroredItemKind::Part, member)
+            if let Some(member) = self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
+                && self.exception(MirroredItemKind::Part, member)
                     == Some(MirroredExceptionState::Local)
-                {
-                    follows.push_str("; the anchor key is Local and holds its final pose");
-                }
+            {
+                follows.push_str("; the anchor key is Local and holds its final pose");
             }
             structure.push(item(
                 "Follows",

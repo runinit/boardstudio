@@ -707,16 +707,11 @@ async fn hidden_reference_names_its_layer_and_still_navigates() {
         query(root_id, "li[data-relation-label='Row shift']").is_some()
     })
     .await;
-    probe
-        .hidden
-        .borrow()
-        .clone()
-        .expect("mounted visibility")
-        .set(
-            (0..COLUMNS)
-                .map(|column| format!("matrix/{MATRIX}/r0c{column}"))
-                .collect(),
-        );
+    (*probe.hidden.borrow()).expect("mounted visibility").set(
+        (0..COLUMNS)
+            .map(|column| format!("matrix/{MATRIX}/r0c{column}"))
+            .collect(),
+    );
     wait_until("the hidden row explains its missing highlight", || {
         query(
             root_id,
@@ -825,9 +820,8 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
         note.contains("select one matrix context for detail"),
         "{note}"
     );
-    assert_eq!(
+    assert!(
         query(root_id, "li[data-relation-label='Pitch cell']").is_some(),
-        true,
         "the single key chain still renders"
     );
 }
