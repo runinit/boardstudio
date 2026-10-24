@@ -641,15 +641,15 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                         continue;
                     }
                 }
-                if edited_is_mirror {
-                    if let Ok(next) = remap_anchor_target(
+                if edited_is_mirror
+                    && let Ok(next) = remap_anchor_target(
                         &link.correspondences,
                         &anchor.matrix_id,
                         false,
                         &target_layout,
-                    ) {
-                        mapped = Some(next);
-                    }
+                    )
+                {
+                    mapped = Some(next);
                 }
             }
             if let Some(mapped) = mapped {
