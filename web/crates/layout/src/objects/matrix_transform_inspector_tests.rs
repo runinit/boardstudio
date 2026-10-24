@@ -2375,3 +2375,189 @@ async fn inspector_padding_moves_only_its_own_row_with_one_undo() {
     );
     root.remove();
 }
+
+fn section_named(root: &web_sys::Element, name: &str) -> Option<web_sys::Element> {
+    let headings = root.query_selector_all("summary, h3").unwrap();
+    (0..headings.length())
+        .filter_map(|index| headings.item(index))
+        .find(|node| node.text_content().as_deref() == Some(name))
+        .and_then(|node| node.dyn_into::<web_sys::Element>().ok())
+}
+
+/// Ticket 23: column 0 has no Spread step, and the Inspector says why instead
+/// of leaving a silent gap.
+#[wasm_bindgen_test]
+async fn column_zero_hides_spread_with_an_accessible_reason() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-no-spread-test",
+        document,
+        column_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector("input[aria-label='Spread']")
+            .unwrap()
+            .is_none(),
+        "column 0 has no Spread field"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the structural rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Spread starts at column 1. Column 0 steps by pitch."),
+        "the reason names the rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23: row 0 has no Padding step, and the Inspector says why.
+#[wasm_bindgen_test]
+async fn row_zero_hides_padding_with_an_accessible_reason() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-no-padding-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector("input[aria-label='Padding']")
+            .unwrap()
+            .is_none(),
+        "row 0 has no Padding field"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the structural rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Padding starts at row 1. Row 0 sits at the column base."),
+        "the reason names the rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23: a default Spread reads the pitch with a pitch badge; an explicit
+/// Spread reads its own value with no badge.
+#[wasm_bindgen_test]
+async fn default_spread_shows_the_pitch_badge_and_explicit_spread_does_not() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-spread-badge-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Spread']")
+        .unwrap()
+        .expect("column 1 has a Spread field")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert_eq!(field.value(), "19", "the default Spread reads the pitch");
+    assert!(
+        root.query_selector(".m1-pitch-badge").unwrap().is_some(),
+        "the default Spread carries a pitch badge"
+    );
+
+    set_numeric_field(&root, "Spread", "24");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-pitch-badge").unwrap().is_none(),
+        "an explicit Spread drops the pitch badge"
+    );
+    root.remove();
+}
+
+/// Ticket 23: Carried and This-only sections group the named fields with
+/// scope explanations.
+#[wasm_bindgen_test]
+async fn carried_and_this_only_sections_group_the_named_fields() {
+    let (document, _) = two_key_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-sections-test",
+        document,
+        column_context(1),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        section_named(&root, "Carried").is_some(),
+        "the carried section is mounted"
+    );
+    assert!(
+        section_named(&root, "This column only").is_some(),
+        "the this-only section is mounted"
+    );
+    assert!(
+        root.query_selector("input[aria-label='Spread']")
+            .unwrap()
+            .is_some(),
+        "Spread stays a named field"
+    );
+    assert!(
+        root.query_selector("input[aria-label='Stagger']")
+            .unwrap()
+            .is_some(),
+        "Stagger stays a named field"
+    );
+    root.remove();
+}
+
+/// Ticket 23: a committed edit names its changed field and promises one Undo
+/// entry; the line clears when the next edit submits.
+#[wasm_bindgen_test]
+async fn committed_shift_names_the_changed_field_with_one_undo() {
+    let (document, _) = two_row_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-status-test",
+        document,
+        row_context(0),
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-matrix-change-status")
+            .unwrap()
+            .is_none(),
+        "no change is announced before the first commit"
+    );
+
+    set_numeric_field(&root, "Shift X", "4");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let status = root
+        .query_selector(".m1-matrix-change-status")
+        .unwrap()
+        .expect("the commit names its change");
+    assert_eq!(
+        status.text_content().as_deref(),
+        Some("Changed Shift X · one Undo entry"),
+        "the status names the changed field"
+    );
+
+    set_numeric_field(&root, "Shift X", "5");
+    settle(&probe).await;
+    assert!(
+        root.query_selector(".m1-matrix-change-status")
+            .unwrap()
+            .is_none(),
+        "a newer submit retires the previous announcement"
+    );
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    root.remove();
+}
