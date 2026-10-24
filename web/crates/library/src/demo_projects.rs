@@ -839,6 +839,206 @@ mod demo_rebuild_tests {
         );
     }
 
+    use boardstudio_core::model::Position;
+
+    struct Session {
+        engine: CoreEngine,
+        revision: u64,
+    }
+
+    impl Session {
+        fn open(document: ProjectDoc) -> Self {
+            let mut engine = CoreEngine::new();
+            let revision = match engine.handle(CoreRequest::Open {
+                id: "split-open".into(),
+                document,
+            }) {
+                CoreReply::Scene { scene, .. } => scene.revision,
+                reply => panic!("Split 42 Open failed: {reply:?}"),
+            };
+            Self { engine, revision }
+        }
+
+        fn commit(&mut self, operation: EditOperation) -> ProjectDoc {
+            let revision = self.revision;
+            match self.engine.handle(CoreRequest::Edit {
+                id: "split-edit".into(),
+                command: EditCommand {
+                    base_revision: revision,
+                    transaction_id: format!("split-{revision}"),
+                    phase: EditPhase::Commit,
+                    target_ids: vec![],
+                    operation,
+                },
+            }) {
+                CoreReply::Scene { scene, document, .. } => {
+                    self.revision = scene.revision;
+                    *document
+                }
+                reply => panic!("Split 42 edit failed: {reply:?}"),
+            }
+        }
+
+        fn snapshot(&mut self) -> ProjectDoc {
+            match self.engine.handle(CoreRequest::Snapshot {
+                id: "split-snapshot".into(),
+            }) {
+                CoreReply::Scene { document, .. } => *document,
+                reply => panic!("Split 42 snapshot failed: {reply:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn split42_anchor_edit_moves_thumb_and_counterpart_with_one_undo() {
+        let template = split42();
+        let before = |document: &ProjectDoc, member: &str| {
+            document
+                .parts
+                .iter()
+                .find(|part| part.id == member)
+                .unwrap_or_else(|| panic!("missing member {member}"))
+                .pose
+                .at
+        };
+        let anchor = "matrix/left-main/r2c2";
+        let start = before(&template, anchor);
+        let mut session = Session::open(template.clone());
+        let moved = session.commit(EditOperation::MoveParts {
+            positions: vec![Position {
+                id: anchor.into(),
+                at: Vec2 {
+                    x: start.x + 10.0,
+                    y: start.y,
+                },
+            }],
+        });
+        // The anchored thumb follows its actual anchor key on the same half.
+        let thumb_start = before(&template, "matrix/left-thumb/r0c0");
+        let thumb = before(&moved, "matrix/left-thumb/r0c0");
+        assert!((thumb.x - (thumb_start.x + 10.0)).abs() < 1e-9, "thumb follows X");
+        assert!((thumb.y - thumb_start.y).abs() < 1e-9, "thumb keeps Y");
+        // The linked counterpart moves through the reflection, not a second
+        // formula: +10 X on the left is -10 X on the right.
+        let mirror_start = before(&template, "matrix/right-main/r2c2");
+        let mirror = before(&moved, "matrix/right-main/r2c2");
+        assert!((mirror.x - (mirror_start.x - 10.0)).abs() < 1e-9, "counterpart reflects X");
+        assert!((mirror.y - mirror_start.y).abs() < 1e-9, "counterpart keeps Y");
+        let mirror_thumb_start = before(&template, "matrix/right-thumb/r0c0");
+        let mirror_thumb = before(&moved, "matrix/right-thumb/r0c0");
+        assert!((mirror_thumb.x - (mirror_thumb_start.x - 10.0)).abs() < 1e-9);
+        assert!((mirror_thumb.y - mirror_thumb_start.y).abs() < 1e-9);
+        // One Undo restores every pose; Redo reapplies the same edit.
+        let undone = match session.engine.handle(CoreRequest::Undo {
+            id: "split-undo".into(),
+        }) {
+            CoreReply::Scene { scene, document, .. } => {
+                session.revision = scene.revision;
+                *document
+            }
+            reply => panic!("Split 42 Undo failed: {reply:?}"),
+        };
+        assert_eq!(undone.parts, template.parts, "one Undo restores all poses");
+        let redone = match session.engine.handle(CoreRequest::Redo {
+            id: "split-redo".into(),
+        }) {
+            CoreReply::Scene { scene, document, .. } => {
+                session.revision = scene.revision;
+                *document
+            }
+            reply => panic!("Split 42 Redo failed: {reply:?}"),
+        };
+        assert_eq!(redone.parts, moved.parts, "Redo reapplies the edit");
+    }
+
+    #[test]
+    fn split42_right_half_edit_routes_to_the_left_counterpart() {
+        let template = split42();
+        let start = template
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/right-main/r0c0")
+            .expect("right key")
+            .pose
+            .at;
+        let mut session = Session::open(template.clone());
+        let moved = session.commit(EditOperation::MoveParts {
+            positions: vec![Position {
+                id: "matrix/right-main/r0c0".into(),
+                at: Vec2 {
+                    x: start.x,
+                    y: start.y + 5.0,
+                },
+            }],
+        });
+        let mirror = moved
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/left-main/r0c0")
+            .expect("left counterpart")
+            .pose
+            .at;
+        let mirror_start = template
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/left-main/r0c0")
+            .expect("left key")
+            .pose
+            .at;
+        assert!((mirror.x - mirror_start.x).abs() < 1e-9, "X unchanged");
+        assert!((mirror.y - (mirror_start.y + 5.0)).abs() < 1e-9, "Y follows");
+    }
+
+    #[test]
+    fn split42_preview_cancel_leaves_the_document_unchanged() {
+        let template = split42();
+        let start = template
+            .parts
+            .iter()
+            .find(|part| part.id == "matrix/left-main/r2c2")
+            .expect("anchor key")
+            .pose
+            .at;
+        let mut session = Session::open(template.clone());
+        let revision = session.revision;
+        let preview = session.engine.handle(CoreRequest::Edit {
+            id: "split-preview".into(),
+            command: EditCommand {
+                base_revision: revision,
+                transaction_id: "split-preview".into(),
+                phase: EditPhase::Preview,
+                target_ids: vec![],
+                operation: EditOperation::MoveParts {
+                    positions: vec![Position {
+                        id: "matrix/left-main/r2c2".into(),
+                        at: Vec2 {
+                            x: start.x + 10.0,
+                            y: start.y,
+                        },
+                    }],
+                },
+            },
+        });
+        assert!(
+            matches!(preview, CoreReply::Preview { .. }),
+            "preview does not commit"
+        );
+        assert_eq!(
+            session.snapshot().parts,
+            template.parts,
+            "cancel leaves every pose"
+        );
+        assert!(
+            matches!(
+                session.engine.handle(CoreRequest::Undo {
+                    id: "split-undo".into()
+                }),
+                CoreReply::Error { .. }
+            ),
+            "no Undo entry from a preview"
+        );
+    }
+
     fn left_has(document: &ProjectDoc, left_id: &str, matrix_id: &str) -> bool {
         document
             .layouts
