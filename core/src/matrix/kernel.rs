@@ -548,3 +548,151 @@ fn add(a: Vec2, b: Vec2) -> Vec2 {
         y: a.y + b.y,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Follow, Pose2, Vec2};
+
+    fn input_with_origin(origin: Vec2) -> LayoutInput {
+        LayoutInput {
+            origin,
+            ..LayoutInput::default()
+        }
+    }
+
+    #[test]
+    fn transported_follow_uses_source_world_basis_for_slanted_maps() {
+        // Non-origin, slanted pair map: translation plus 30-degree turn.
+        let mapping = Pose2 {
+            at: Vec2 { x: 100.0, y: 20.0 },
+            rotation: 30.0,
+        };
+        let anchor = Pose2 {
+            at: Vec2 { x: 50.0, y: 0.0 },
+            rotation: 10.0,
+        };
+        let relative = Vec2 { x: 10.0, y: 5.0 };
+        let follow = Follow {
+            x: false,
+            y: true,
+            rotation: true,
+        };
+        let world = evaluate(
+            &input_with_origin(relative),
+            RawAnchorContext::Key {
+                pose: anchor,
+                follow,
+                basis: FollowBasis::World,
+            },
+        )
+        .expect("world basis evaluates")
+        .frame
+        .origin;
+        // Follow X off zeroes X in world coordinates.
+        assert!((world.x).abs() < 1e-9);
+        let transported = evaluate(
+            &input_with_origin(relative),
+            RawAnchorContext::Key {
+                pose: anchor,
+                follow,
+                basis: FollowBasis::Reflected {
+                    translation: mapping.at,
+                    rotation: mapping.rotation,
+                },
+            },
+        )
+        .expect("reflected basis evaluates")
+        .frame
+        .origin;
+        // Transported X is not an independent zero: it is the pair image of
+        // the filtered source frame.
+        let expected = {
+            // Manual T(F(T^-1(candidate))) using the same pair rule the
+            // kernel implements, to pin the transport against independent
+            // partner-world zeroing.
+            let candidate = Vec2 {
+                x: anchor.at.x
+                    + relative.x * (anchor.rotation.to_radians().cos())
+                    - relative.y * (anchor.rotation.to_radians().sin()),
+                y: anchor.at.y
+                    + relative.x * (anchor.rotation.to_radians().sin())
+                    + relative.y * (anchor.rotation.to_radians().cos()),
+            };
+            // T^-1: remove translation, unrotate, reflect X.
+            let dx = candidate.x - mapping.at.x;
+            let dy = candidate.y - mapping.at.y;
+            let angle = (-mapping.rotation).to_radians();
+            let (sin, cos) = angle.sin_cos();
+            let rx = dx * cos - dy * sin;
+            let ry = dx * sin + dy * cos;
+            let pre = Vec2 { x: -rx, y: ry };
+            // Follow X off zeroes X in source-world axes.
+            let filtered = Vec2 { x: 0.0, y: pre.y };
+            // T: reflect, rotate, translate.
+            let rx = -filtered.x;
+            let ry = filtered.y;
+            let angle = mapping.rotation.to_radians();
+            let (sin, cos) = angle.sin_cos();
+            Vec2 {
+                x: rx * cos - ry * sin + mapping.at.x,
+                y: rx * sin + ry * cos + mapping.at.y,
+            }
+        };
+        assert!(
+            (transported.x - expected.x).abs() < 1e-9
+                && (transported.y - expected.y).abs() < 1e-9,
+            "transported {transported:?} vs expected {expected:?}"
+        );
+        assert!(
+            transported.x.abs() > 1e-6,
+            "slanted transport must not be an independent zero: {transported:?}"
+        );
+    }
+
+    #[test]
+    fn unfollowed_rotation_transports_through_slanted_maps() {
+        let mapping = Pose2 {
+            at: Vec2 { x: 100.0, y: 20.0 },
+            rotation: 30.0,
+        };
+        let anchor = Pose2 {
+            at: Vec2 { x: 50.0, y: 0.0 },
+            rotation: 10.0,
+        };
+        let follow = Follow {
+            x: true,
+            y: true,
+            rotation: false,
+        };
+        let world_rotation = evaluate(
+            &input_with_origin(Vec2::default()),
+            RawAnchorContext::Key {
+                pose: anchor,
+                follow,
+                basis: FollowBasis::World,
+            },
+        )
+        .expect("world basis evaluates")
+        .frame
+        .rotation;
+        assert!((world_rotation).abs() < 1e-9);
+        let transported_rotation = evaluate(
+            &input_with_origin(Vec2::default()),
+            RawAnchorContext::Key {
+                pose: anchor,
+                follow,
+                basis: FollowBasis::Reflected {
+                    translation: mapping.at,
+                    rotation: mapping.rotation,
+                },
+            },
+        )
+        .expect("reflected basis evaluates")
+        .frame
+        .rotation;
+        // Unfollowed rotation reads the transported basis rotation (30 deg),
+        // not an independent zero.
+        assert!((transported_rotation - 30.0).abs() < 1e-9);
+    }
+}

@@ -1638,3 +1638,193 @@ fn linked_mirror_originating_shift_bend_reflects_heading_once() {
         "expected opposite headings, got {source_pose:?} vs {mirror_pose:?}"
     );
 }
+
+#[test]
+fn linked_dependent_follows_actual_local_anchor() {
+    // The dependent keeps its own linked parameters but follows the actual
+    // Local anchor key pose, not a substitute invisible pose.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Make the mirror anchor key Local via its Layout link.
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    let link = mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link");
+    link.exceptions.push(MirroredException {
+        kind: MirroredItemKind::Part,
+        mirror_id: member("main2", 0, 2),
+        state: MirroredExceptionState::Local,
+        companion_mode: None,
+        companion_tweak: None,
+        removed_copper: None,
+    });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    assert!(doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .is_some_and(|link| link.exceptions.iter().any(|exception| exception.mirror_id
+            == member("main2", 0, 2)
+            && exception.state == MirroredExceptionState::Local)));
+    // Move the actual Local anchor key independently from the mirror side.
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main2", 0, 2),
+                at: Vec2 { x: -10.0, y: 5.0 },
+            }],
+        },
+    );
+    // Source stays where it was; the mirror anchor moved locally.
+    assert_eq!(
+        pose_of(&moved, &member("main", 0, 2)).at,
+        Vec2 { x: 38.0, y: 0.0 }
+    );
+    assert_eq!(
+        pose_of(&moved, &member("main2", 0, 2)).at,
+        Vec2 { x: -10.0, y: 5.0 }
+    );
+    // The mirror dependent follows its actual Local anchor; its own layout
+    // values stay linked (empty, like the source thumb).
+    assert_eq!(
+        pose_of(&moved, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -10.0, y: -14.0 }
+    );
+    let thumb = moved
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .unwrap();
+    let thumb2 = moved
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb2")
+        .unwrap();
+    assert_eq!(thumb.row_layout, thumb2.row_layout);
+    assert_eq!(thumb.column_layout, thumb2.column_layout);
+}
+
+#[test]
+fn linked_column_zero_hold_still_reflects_compensation_once() {
+    // Column-0 hold-still writes matrix Origin; the follower gets the
+    // reflected Origin once, and both halves hold their keys still.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Give column 0 a splay so the origin edit has something to hold still.
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "main".into(),
+            column: 1,
+            change: MatrixSplayChange::Angle {
+                angle: 15.0,
+                affect: MatrixSplayAffect::Following,
+            },
+        },
+    );
+    let before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    // Hold-still origin edit from the mirror half.
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixSplay {
+            matrix_id: "main2".into(),
+            column: 0,
+            change: MatrixSplayChange::OriginRelative {
+                value: Vec2 { x: 2.0, y: 1.0 },
+            },
+        },
+    );
+    // Stored relative origins copy unchanged; Origins are point reflections.
+    let source_origin = moved
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .unwrap()
+        .column_layout
+        .first()
+        .map(|record| record.splay_origin)
+        .unwrap_or_default();
+    let mirror_origin = moved
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .unwrap()
+        .column_layout
+        .first()
+        .map(|record| record.splay_origin)
+        .unwrap_or_default();
+    assert_eq!(source_origin, Vec2 { x: 2.0, y: 1.0 });
+    assert_eq!(mirror_origin, Vec2 { x: 2.0, y: 1.0 });
+    // Keys held still: every pre-existing pose is unchanged within tolerance.
+    for (id, pose) in &before {
+        let after = pose_of(&moved, id);
+        assert!(
+            (after.at.x - pose.at.x).abs() < 1e-9
+                && (after.at.y - pose.at.y).abs() < 1e-9,
+            "{id} moved: {pose:?} vs {after:?}"
+        );
+    }
+}
+
+#[test]
+fn linked_omitted_anchor_keeps_live_logical_pose() {
+    // Omitted mirrors suppress inherited parts but keep a live logical pose
+    // for anchors, without freezing or detaching. Open with the exception
+    // from the start (removal lifecycle belongs to ticket 21).
+    let (_, doc) = linked_anchored_fixture();
+    let mut omitted = doc.clone();
+    // Drop the omitted matrix's materialized parts; Open must not recreate
+    // them, but anchors through it stay live.
+    omitted.parts.retain(|part| !part.id.starts_with("matrix/main2/"));
+    for board in &mut omitted.boards {
+        board.part_ids.retain(|id| !id.starts_with("matrix/main2/"));
+    }
+    if let Some(layout) = omitted
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == "mirror-layout")
+        && let Some(link) = layout.mirror_link.as_mut()
+    {
+        link.exceptions.push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    }
+    let (_, _, doc) = open(omitted);
+    // No materialized parts for the omitted anchor target.
+    assert!(doc.parts.iter().all(|part| part.id != member("main2", 0, 2)));
+    // Both dependants still evaluate through the live logical anchor: source
+    // thumb at its anchor key plus relative origin, mirror thumb at the
+    // reflected logical pose (axis x=10).
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 0)).at,
+        Vec2 { x: 38.0, y: -19.0 }
+    );
+    assert_eq!(
+        pose_of(&doc, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+}

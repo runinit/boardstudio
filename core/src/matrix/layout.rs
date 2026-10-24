@@ -588,6 +588,34 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
             }
         }
     }
+    // Ticket 20: Local final-pose edits remain local. Independent key
+    // offset/Key rotation stay on their own half; carried Shift/Bend and
+    // layout records still sync. Preserve either side's Local slot, defaulting
+    // to no independent pose when the counterpart has no explicit record.
+    {
+        let target_cells: BTreeMap<_, _> = target
+            .cells
+            .iter()
+            .map(|cell| ((cell.row, cell.column), cell))
+            .collect();
+        for cell in &mut reflected_matrix.cells {
+            let source_part = crate::matrix::member_id(&source.id, cell.row, cell.column);
+            let target_part = crate::matrix::member_id(&target.id, cell.row, cell.column);
+            let local = exception_state(doc, MirroredItemKind::Part, &source_part)
+                == Some(MirroredExceptionState::Local)
+                || exception_state(doc, MirroredItemKind::Part, &target_part)
+                    == Some(MirroredExceptionState::Local);
+            if local {
+                if let Some(previous) = target_cells.get(&(cell.row, cell.column)) {
+                    cell.offset = previous.offset;
+                    cell.rotation = previous.rotation;
+                } else {
+                    cell.offset = None;
+                    cell.rotation = None;
+                }
+            }
+        }
+    }
     if source_is_target {
         let canonical_cells: BTreeMap<_, _> = target
             .cells
