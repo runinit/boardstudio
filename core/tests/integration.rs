@@ -114,5 +114,8 @@ mod matrix_companions;
 #[path = "matrix_anchors.rs"]
 mod matrix_anchors;
 
+#[path = "end_to_end_acceptance.rs"]
+mod end_to_end_acceptance;
+
 #[path = "splay_companions.rs"]
 mod splay_companions;
