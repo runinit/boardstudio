@@ -6,8 +6,8 @@ use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, Matrix, MatrixAssembly, MatrixCell, Part, PartDefinition, PartKind, Pose2, ProjectDoc,
-    Side, Vec2,
+    Board, Follow, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell, Part, PartDefinition,
+    PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use dioxus_web::WebEventExt;
@@ -341,6 +341,76 @@ fn three_key_fixture() -> (ProjectDoc, TreeContext) {
         generator_parameters: None,
     });
     (document, selected)
+}
+
+/// A second 1-key matrix anchored to the first key, with rotation Follow on or
+/// off. The anchor target is the fixture's own first key.
+fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = fixture();
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K2".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Anchored".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: rotation_followed,
+            },
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
 }
 
 /// Open `document` through the real Session and Core, select `selected_ids` the way the
@@ -2561,5 +2631,66 @@ async fn committed_shift_names_the_changed_field_with_one_undo() {
     );
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
+    root.remove();
+}
+
+/// Ticket 23 slice 7a, RED: an anchored matrix that does not follow rotation
+/// disables its Rotation field with an accessible reason instead of letting an
+/// edit hit Core's anchored-frame refusal.
+#[wasm_bindgen_test]
+async fn unfollowed_rotation_disables_the_rotation_field_with_a_reason() {
+    let (document, context) = anchored_matrix_fixture(false);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-rotation-follow-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Rotation']")
+        .unwrap()
+        .expect("the Matrix section names Rotation")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        field.disabled(),
+        "Rotation is unavailable without rotation Follow"
+    );
+    let note = root
+        .query_selector(".m1-matrix-transform-note")
+        .unwrap()
+        .expect("the Follow rule is explained in place");
+    assert_eq!(
+        note.text_content().as_deref(),
+        Some("Rotation is not followed, so turning it changes nothing."),
+        "the reason names the Follow rule"
+    );
+    root.remove();
+}
+
+/// Ticket 23 slice 7a, RED control: a followed rotation stays editable.
+#[wasm_bindgen_test]
+async fn followed_rotation_keeps_the_rotation_field_editable() {
+    let (document, context) = anchored_matrix_fixture(true);
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-rotation-follow-control-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let field = root
+        .query_selector("input[aria-label='Rotation']")
+        .unwrap()
+        .expect("the Matrix section names Rotation")
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(
+        !field.disabled(),
+        "Rotation stays editable with rotation Follow"
+    );
     root.remove();
 }
