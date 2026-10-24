@@ -4031,6 +4031,7 @@ mod tool_tests {
         target: &web_sys::Element,
         kind: &str,
         shift: bool,
+        alt: bool,
         buttons: u16,
         client: (i32, i32),
     ) {
@@ -4044,6 +4045,7 @@ mod tool_tests {
             ("button", 0.into()),
             ("buttons", buttons.into()),
             ("ctrlKey", shift.into()),
+            ("altKey", alt.into()),
             ("clientX", client.0.into()),
             ("clientY", client.1.into()),
         ] {
@@ -4091,14 +4093,14 @@ mod tool_tests {
         to: (i32, i32),
     ) -> (Option<String>, Option<String>) {
         let revision = fixture_revision(runtime);
-        dispatch_pointer(handle, "pointerdown", shift_down, 1, (100, 100));
+        dispatch_pointer(handle, "pointerdown", shift_down, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
         let after_down = handle.get_attribute("data-quick-offset");
         // Shift is released before the first move; the latch must hold.
-        dispatch_pointer(handle, "pointermove", false, 1, to);
+        dispatch_pointer(handle, "pointermove", false, false, 1, to);
         gloo_timers::future::TimeoutFuture::new(40).await;
         let after_move = handle.get_attribute("data-quick-offset");
-        dispatch_pointer(handle, "pointerup", false, 0, to);
+        dispatch_pointer(handle, "pointerup", false, false, 0, to);
         for _ in 0..200 {
             support::run_pending(runtime).await;
             if fixture_revision(runtime) > revision {
@@ -4170,8 +4172,8 @@ mod tool_tests {
             };
             let start = client(origin.x + 20.0, origin.y);
             let end = client(origin.x, origin.y + 20.0);
-            dispatch_pointer(&handle, "pointerdown", false, 1, start);
-            dispatch_pointer(&handle, "pointermove", false, 1, start);
+            dispatch_pointer(&handle, "pointerdown", false, false, 1, start);
+            dispatch_pointer(&handle, "pointermove", false, false, 1, start);
             support::run_pending(&runtime).await;
             assert_eq!(
                 fixture_revision(&runtime),
@@ -4190,7 +4192,7 @@ mod tool_tests {
                 10.0,
                 "zero pointer delta previews the stored Column rotation"
             );
-            dispatch_pointer(&handle, "pointermove", false, 1, end);
+            dispatch_pointer(&handle, "pointermove", false, false, 1, end);
             support::run_pending(&runtime).await;
             assert_eq!(
                 runtime
@@ -4208,7 +4210,7 @@ mod tool_tests {
                 fixture::accepted_matrix(&runtime).column_layout[1].rotation,
                 10.0
             );
-            dispatch_pointer(&handle, "pointerup", false, 0, end);
+            dispatch_pointer(&handle, "pointerup", false, false, 0, end);
             wait_until_editable(&runtime).await;
             let matrix = fixture::accepted_matrix(&runtime);
             assert_eq!(matrix.column_layout[1].rotation, expected);
@@ -4335,9 +4337,9 @@ mod tool_tests {
             "the Spread tool draws its own horizontal handle"
         );
         let revision = fixture_revision(&runtime);
-        dispatch_pointer(&handle, "pointerdown", false, 1, (100, 100));
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
-        dispatch_pointer(&handle, "pointermove", false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
         for _ in 0..100 {
             support::run_pending(&runtime).await;
             if runtime.model().display_preview.is_some() {
@@ -4349,7 +4351,7 @@ mod tool_tests {
             runtime.model().display_preview.is_some(),
             "the drag previews actual later-column movement before commit"
         );
-        dispatch_pointer(&handle, "pointerup", false, 0, (140, 100));
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
         for _ in 0..200 {
             support::run_pending(&runtime).await;
             if fixture_revision(&runtime) > revision {
@@ -4409,7 +4411,7 @@ mod tool_tests {
         let runtime = fixture::open_matrix_runtime().await;
         wait_until_editable(&runtime).await;
         let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Spread).await;
-        dispatch_pointer(&handle, "pointerover", false, 0, (100, 100));
+        dispatch_pointer(&handle, "pointerover", false, false, 0, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
         let live = root
             .query_selector(".m1-transform-handle")
@@ -4463,9 +4465,9 @@ mod tool_tests {
             "no passive hint intercepts the handle: {interceptors:?}"
         );
         let revision = fixture_revision(&runtime);
-        dispatch_pointer(&handle, "pointerdown", false, 1, (100, 100));
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
         gloo_timers::future::TimeoutFuture::new(40).await;
-        dispatch_pointer(&handle, "pointermove", false, 1, (140, 100));
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
         for _ in 0..200 {
             support::run_pending(&runtime).await;
             if fixture_revision(&runtime) > revision || runtime.model().display_preview.is_some() {
@@ -4477,7 +4479,250 @@ mod tool_tests {
             fixture_revision(&runtime) > revision || runtime.model().display_preview.is_some(),
             "the pointer-down after hover still starts the drag"
         );
-        dispatch_pointer(&handle, "pointerup", false, 0, (140, 100));
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
+        root.remove();
+    }
+
+    /// Ticket 23 slice 6, RED: Ctrl at pointer-down on the Splay handle latches a
+    /// swing. The drag writes only the origin through `OriginSwing` (no step
+    /// compensation), never the angle; one Undo restores exactly.
+    #[wasm_bindgen_test]
+    async fn ctrl_splay_drag_swings_the_origin_without_step_compensation() {
+        let mut document = fixture::matrix_document();
+        let matrix = &mut document.matrices[0];
+        matrix.column_layout.resize_with(2, Default::default);
+        matrix.column_layout[1].splay = 17.0;
+        matrix.column_layout[1].stagger = 3.0;
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let before = fixture_revision(&runtime);
+        let origin = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("an accepted document")
+            .scene
+            .matrix_scenes[0]
+            .columns[1]
+            .splay_origin;
+        let (root, _) = mount_overlay(&runtime, LayoutTransformTool::Splay).await;
+        let handle = root
+            .query_selector("[aria-label='Drag to splay']")
+            .unwrap()
+            .unwrap();
+        let stub = js_sys::Function::new_no_args("return true;");
+        for method in [
+            "setPointerCapture",
+            "hasPointerCapture",
+            "releasePointerCapture",
+        ] {
+            js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
+        }
+        let rect = root
+            .query_selector("svg")
+            .unwrap()
+            .unwrap()
+            .get_bounding_client_rect();
+        let client = |x: f64, y: f64| {
+            (
+                (rect.left() + x * 4.0).round() as i32,
+                (rect.top() - y * 4.0).round() as i32,
+            )
+        };
+        let start = client(origin.x + 20.0, origin.y);
+        let end = client(origin.x, origin.y + 20.0);
+        // Ctrl is down for the pointer-down only; the latch must hold the swing.
+        dispatch_pointer(&handle, "pointerdown", true, false, 1, start);
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        assert_eq!(
+            handle.get_attribute("data-swing").as_deref(),
+            Some("true"),
+            "Ctrl at pointer-down shows the swing"
+        );
+        dispatch_pointer(&handle, "pointermove", false, false, 1, end);
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            before,
+            "the swing preview never commits"
+        );
+        let preview = runtime
+            .model()
+            .display_preview
+            .as_ref()
+            .expect("the swing previews")
+            .matrix_scenes[0]
+            .columns[1]
+            .clone();
+        assert_eq!(
+            preview.splay_angle, 17.0,
+            "the swing preview never turns the angle"
+        );
+        assert!(
+            preview.splay_origin != origin,
+            "the swing preview moves the origin"
+        );
+        dispatch_pointer(&handle, "pointerup", false, false, 0, end);
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > before {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            before + 1,
+            "one accepted edit"
+        );
+        let matrix = fixture::accepted_matrix(&runtime);
+        let record = &matrix.column_layout[1];
+        assert_eq!(record.splay, 17.0, "the swing writes no angle");
+        assert!(
+            record.spread.is_none(),
+            "the swing writes no compensating Spread"
+        );
+        assert_eq!(
+            record.stagger, 3.0,
+            "the swing writes no compensating Stagger"
+        );
+        assert!(
+            record.splay_origin != Vec2::default(),
+            "the swing moves the origin"
+        );
+        fixture::undo(&runtime).await;
+        let matrix = fixture::accepted_matrix(&runtime);
+        assert_eq!(
+            matrix.column_layout[1].splay_origin,
+            Vec2::default(),
+            "one Undo restores the origin exactly"
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            before,
+            "one Undo restores the revision"
+        );
+        root.remove();
+    }
+
+    /// Ticket 23 slice 6, RED: an Origin drag snaps to its column base (the
+    /// ergogen-style reset target). Alt disables the snap, and a subsequent
+    /// drag recovers.
+    #[wasm_bindgen_test]
+    async fn origin_drag_snaps_to_the_column_base_without_alt() {
+        let mut document = fixture::matrix_document();
+        let matrix = &mut document.matrices[0];
+        matrix.column_layout.resize_with(2, Default::default);
+        // An off-grid base: the grid alone would land this drop at 23.8125,
+        // never exactly on the base.
+        matrix.column_layout[1].spread = Some(22.0);
+        matrix.column_layout[1].splay_origin = Vec2 { x: 5.0, y: 0.0 };
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, document).await;
+        let scene = runtime
+            .model()
+            .accepted
+            .as_ref()
+            .expect("an accepted document")
+            .scene
+            .clone();
+        let basis = &scene.matrix_scenes[0].columns[1];
+        assert_eq!(basis.base, Vec2 { x: 22.0, y: 0.0 });
+        assert_eq!(basis.splay_origin, Vec2 { x: 27.0, y: 0.0 });
+        let before = fixture_revision(&runtime);
+        let (root, handle) = mount_overlay(&runtime, LayoutTransformTool::Origin).await;
+        assert_eq!(
+            handle.get_attribute("aria-label").as_deref(),
+            Some("Move splay origin")
+        );
+        let rect = root
+            .query_selector("svg")
+            .unwrap()
+            .unwrap()
+            .get_bounding_client_rect();
+        let client = |x: f64, y: f64| {
+            (
+                (rect.left() + x * 4.0).round() as i32,
+                (rect.top() - y * 4.0).round() as i32,
+            )
+        };
+        // Raw drop (23, 1): 1.4 mm from the base, off the grid.
+        dispatch_pointer(
+            &handle,
+            "pointerdown",
+            false,
+            false,
+            1,
+            client(27.0, 0.0),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, client(23.0, 1.0));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the origin drag previews before commit"
+        );
+        dispatch_pointer(&handle, "pointerup", false, false, 0, client(23.0, 1.0));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > before {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let record = &fixture::accepted_matrix(&runtime).column_layout[1];
+        assert!(
+            record.splay_origin.x.abs() < 1e-9 && record.splay_origin.y.abs() < 1e-9,
+            "the drag snaps to the column base, not the grid: {:?}",
+            record.splay_origin
+        );
+        fixture::undo(&runtime).await;
+        assert_eq!(
+            fixture::accepted_matrix(&runtime).column_layout[1].splay_origin,
+            Vec2 { x: 5.0, y: 0.0 },
+            "one Undo restores the custom origin"
+        );
+
+        // Alt disables the snap: the same gesture lands on the raw drop, and
+        // the recovered drag still commits.
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(
+            &handle,
+            "pointerdown",
+            false,
+            false,
+            1,
+            client(27.0, 0.0),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, true, 1, client(23.0, 1.0));
+        dispatch_pointer(&handle, "pointerup", false, true, 0, client(23.0, 1.0));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let record = &fixture::accepted_matrix(&runtime).column_layout[1];
+        assert!(
+            (record.splay_origin.x - 1.0).abs() < 1e-6
+                && (record.splay_origin.y - 1.0).abs() < 1e-6,
+            "Alt lands the raw drop without snapping: {:?}",
+            record.splay_origin
+        );
         root.remove();
     }
 }
