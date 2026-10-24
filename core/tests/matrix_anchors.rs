@@ -489,6 +489,179 @@ fn detach_keeps_world_frame_and_clears_the_anchor() {
     assert_eq!(redone(&mut engine).matrices, moved.matrices);
 }
 
+fn linked_anchored_fixture() -> (CoreEngine, ProjectDoc) {
+    let all = Follow {
+        x: true,
+        y: true,
+        rotation: true,
+    };
+    let mut doc = ProjectDoc::empty("anchors-linked", "Anchors linked");
+    doc.definitions = definitions();
+    let mut main = main_matrix();
+    let mut thumb = Matrix {
+        id: "thumb".into(),
+        name: None,
+        rows: 1,
+        columns: 3,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2 { x: 0.0, y: -19.0 },
+        definition_id: "switch".into(),
+        part_ids: vec![
+            member("thumb", 0, 0),
+            member("thumb", 0, 1),
+            member("thumb", 0, 2),
+        ],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: "main".into(),
+            row: 0,
+            column: 2,
+            follow: all,
+        }),
+        cells: vec![],
+    };
+    let mut main2 = main.clone();
+    main2.id = "main2".into();
+    main2.origin = Vec2 { x: 20.0, y: 0.0 };
+    main2.mirror = Some(Mirror::X);
+    main2.part_ids = vec![
+        member("main2", 0, 0),
+        member("main2", 0, 1),
+        member("main2", 0, 2),
+    ];
+    let mut thumb2 = thumb.clone();
+    thumb2.id = "thumb2".into();
+    thumb2.mirror = Some(Mirror::X);
+    thumb2.part_ids = vec![
+        member("thumb2", 0, 0),
+        member("thumb2", 0, 1),
+        member("thumb2", 0, 2),
+    ];
+    if let Some(anchor) = thumb2.anchor.as_mut() {
+        anchor.matrix_id = "main2".into();
+    }
+    main.part_ids = vec![
+        member("main", 0, 0),
+        member("main", 0, 1),
+        member("main", 0, 2),
+    ];
+    thumb.part_ids = vec![
+        member("thumb", 0, 0),
+        member("thumb", 0, 1),
+        member("thumb", 0, 2),
+    ];
+    doc.parts = vec![
+        key_part(&member("main", 0, 0), 0.0, 0.0),
+        key_part(&member("main", 0, 1), 19.0, 0.0),
+        key_part(&member("main", 0, 2), 38.0, 0.0),
+        key_part(&member("thumb", 0, 0), 38.0, -19.0),
+        key_part(&member("thumb", 0, 1), 57.0, -19.0),
+        key_part(&member("thumb", 0, 2), 76.0, -19.0),
+        key_part(&member("main2", 0, 0), 20.0, 0.0),
+        key_part(&member("main2", 0, 1), 1.0, 0.0),
+        key_part(&member("main2", 0, 2), -18.0, 0.0),
+        key_part(&member("thumb2", 0, 0), -18.0, -19.0),
+        key_part(&member("thumb2", 0, 1), 1.0, -19.0),
+        key_part(&member("thumb2", 0, 2), 20.0, -19.0),
+    ];
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: doc.parts.iter().map(|part| part.id.clone()).collect(),
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    doc.matrices.push(main);
+    doc.matrices.push(thumb);
+    doc.matrices.push(main2);
+    doc.matrices.push(thumb2);
+    doc.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Layout".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main".into(), "thumb".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    doc.layouts.push(Layout {
+        id: "mirror-layout".into(),
+        name: "Mirror".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main2".into(), "thumb2".into()],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "layout".into(),
+            axis_x: 10.0,
+            correspondences: vec![
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "main".into(),
+                    mirror_id: "main2".into(),
+                },
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "thumb".into(),
+                    mirror_id: "thumb2".into(),
+                },
+            ],
+            exceptions: vec![],
+        }),
+    });
+    let (engine, _, doc) = open(doc);
+    (engine, doc)
+}
+
+#[test]
+fn linked_detach_clears_both_anchors_and_keeps_both_poses() {
+    let (mut engine, doc) = linked_anchored_fixture();
+    assert!(anchor_of(&doc, "thumb").is_some());
+    assert!(anchor_of(&doc, "thumb2").is_some());
+    // Mirror sanity: the partner group is the x=10 reflection of the source.
+    assert_eq!(
+        pose_of(&doc, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::DetachMatrixAnchor {
+            matrix_id: "thumb".into(),
+        },
+    );
+    // Group-level detach rides the normal pair sync: both anchors clear.
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    assert_eq!(anchor_of(&detached, "thumb2"), None);
+    // Every materialized pose on both halves is unchanged.
+    for (id, pose) in &poses_before {
+        assert_eq!(pose_of(&detached, id), *pose, "{id}");
+    }
+    // One transaction: Undo restores both anchors, Redo clears both again.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
+    assert_eq!(anchor_of(&undone_doc, "thumb2"), anchor_of(&doc, "thumb2"));
+    let redone_doc = redone(&mut engine);
+    assert_eq!(anchor_of(&redone_doc, "thumb"), None);
+    assert_eq!(anchor_of(&redone_doc, "thumb2"), None);
+}
+
 fn single_matrix(id: &str, board: &str) -> Matrix {
     Matrix {
         id: id.into(),
