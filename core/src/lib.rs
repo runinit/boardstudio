@@ -2321,8 +2321,7 @@ fn apply_with_ledger(
             // Ticket 21: run the same-board exception lifecycle (Local/Omitted
             // transitions, Rejoin materialization) before resolve adopts the
             // current source state.
-            let mut transitioned =
-                layout::apply_exception_transitions(doc, &previous, &incoming)?;
+            let mut transitioned = layout::apply_exception_transitions(doc, &previous, &incoming)?;
             let mut detached = if was_linked_target {
                 layout::unlink_components(doc, &incoming.id)
             } else {

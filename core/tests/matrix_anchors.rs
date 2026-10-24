@@ -2819,10 +2819,7 @@ fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
     // One Undo restores anchors and drops the exception; Redo reapplies all.
     let undone_doc = undone(&mut engine);
     assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
-    assert_eq!(
-        anchor_of(&undone_doc, "thumb2"),
-        anchor_of(&doc, "thumb2")
-    );
+    assert_eq!(anchor_of(&undone_doc, "thumb2"), anchor_of(&doc, "thumb2"));
     assert_eq!(undone_doc.layouts, doc.layouts);
     let redone_doc = redone(&mut engine);
     assert_eq!(anchor_of(&redone_doc, "thumb"), None);
@@ -2950,7 +2947,12 @@ fn linked_source_removal_retains_local_matrix_and_retires_only_defunct_links() {
     assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
     let redone_doc = redone(&mut engine);
     assert!(redone_doc.matrices.iter().all(|matrix| matrix.id != "main"));
-    assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "main2"));
+    assert!(
+        redone_doc
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == "main2")
+    );
 }
 
 #[test]
@@ -3009,14 +3011,19 @@ fn linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair() {
         "unrelated correspondence preserved"
     );
     assert!(
-        link.correspondences.iter().all(|record| {
-            record.source_id != "main" && record.mirror_id != "main2"
-        }),
+        link.correspondences
+            .iter()
+            .all(|record| { record.source_id != "main" && record.mirror_id != "main2" }),
         "defunct records retired"
     );
     let undone_doc = undone(&mut engine);
     assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main"));
-    assert!(undone_doc.matrices.iter().any(|matrix| matrix.id == "main2"));
+    assert!(
+        undone_doc
+            .matrices
+            .iter()
+            .any(|matrix| matrix.id == "main2")
+    );
 }
 
 #[test]

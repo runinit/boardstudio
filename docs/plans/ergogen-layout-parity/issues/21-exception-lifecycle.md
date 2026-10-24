@@ -50,3 +50,73 @@ checks with name retention. No private adapter may become a second authority.
 Implementation lane on branch `docs/ergogen-layout-comparison`, base `eb4e0ac63`.
 Status remains claimed; no resolve, no push. `web/crates/layout/prototype/`
 untouched.
+
+Implementation lane on branch `docs/ergogen-layout-comparison`, base `eb4e0ac63`.
+Status remains claimed; no resolve, no push. `web/crates/layout/prototype/`
+untouched.
+
+Commits (`git log` SHAs):
+
+- `6be9bf2` test-only (RED): public source resize with a Local partner.
+- `dcbd45c` Omitted partners live/absent through source resize.
+- `d1a0f4b` Make-Local detach, Local→Omitted reset, Rejoin materialize.
+- `245aa5f` Rejoin adoption, grouped-edit exclusion, Omitted guards.
+- `14a5e06` confirmed detach for asymmetric linked groups.
+- `4358e55` linked source-removal lifecycle (+ superseded-test update in
+  `core.rs` keeping the name for the baseline).
+
+Proving tests (all via public `Open`/`Edit` routes with preview/cancel/Undo
+where noted; 14 new `matrix_anchors::*` names for the integrator baseline,
+1 updated `core.rs` name retained):
+
+- Resize: `linked_resize_keeps_local_partner_dimensions_and_poses`,
+  `linked_resize_keeps_omitted_partner_live_and_absent`.
+- Make Local / Omit / Local→Omitted:
+  `linked_make_local_on_anchored_matrix_detaches_and_keeps_pose`,
+  `linked_local_to_omitted_key_returns_to_shared_pose`
+  (Omit sheds parts but keeps explicit child exceptions; tested),
+  `linked_compaction_excludes_local_partner`,
+  `omitted_storage_edits_are_refused_with_rejoin_guidance`.
+- Rejoin: `linked_rejoin_adopts_current_source_and_keeps_child_exceptions`,
+  `linked_rejoin_refuses_missing_anchor_atomically` (names `matrix/main2/r0c2`,
+  Local parent and unrelated state byte-identical).
+- Detach: `linked_detach_needing_local_exception_refuses_with_proposal`
+  (RED verified without the guard), `linked_detach_confirmed_applies_..._in_one_entry`
+  (new `DetachMatrixAnchorConfirmed` operation, stale-confirmation refusal).
+- Removal: `linked_source_removal_retains_local_matrix_and_retires_only_defunct_links`,
+  `linked_source_removal_deletes_linked_partner_and_keeps_unrelated_pair`,
+  `linked_source_removal_retires_omitted_records_without_resurrection`.
+- Updated (supersedes pre-decision-11 survival, name kept):
+  `core::mirrored_pair_deletion_keeps_surviving_half_and_cleans_membership`
+  now proves Local survival; linked follow-deletion is proven in
+  `matrix_anchors`.
+
+Production code: `core/src/matrix/layout.rs` (`sync` Local skip / Omitted
+live-update with remap-or-preserve and validity guard, `edits_alone`,
+`refuse_omitted_storage_edit`, `apply_exception_transitions`,
+`add_local_matrix_exception`, `plan_linked_matrix_removal`,
+`synthesize_rejoin_record`), `core/src/matrix/anchors.rs`
+(`linked_detach_needs_local` probe-on-clone, `detach_confirmed`, confirmed
+refusal in `detach`), `core/src/matrix/deletion.rs` (grouped-edit
+exclusion, Omitted refusals, per-group canonicalization),
+`core/src/lib.rs` (SetLayout lifecycle hook, RemoveMatrix removal plan,
+Omitted refusals, confirmed arm), `core/src/model.rs` + native
+`inverse.rs`/`hosted.rs` (confirmed variant mapping).
+
+Residual (native, for a follow-up — same-board contract fully proven):
+native matrix-level Local/Omitted + membership-change transitions
+(expansion, removal) are refused by the reconciliation kernel at
+`validate_matrix_association` (`reconcile.rs:5168`, "The transition matrix
+association disagrees with its actual pair correspondence": the matrix
+association carries `Local explicit=true` where the gate demands
+`Linked`). Native part-level lifecycle is already proven by parent19;
+native origin-only edits with a Local mirror succeed. Repro: matrix-level
+`set-half-exception state=local` on the mirror matrix, then source
+`set-matrix` expansion or `remove-matrix`. Fixing needs kernel-flow work
+(validation + mirror-projection skip + member accounting), deliberately
+not attempted here to avoid risking the mature kernel.
+
+Integrator notes: do NOT edit `scripts/check-native-tests-baseline.json`
+here. New names needing reconciliation: 14 `matrix_anchors::*` listed
+above; `core::mirrored_pair_deletion_...` is name-retained with changed
+body. No shared goldens, fixtures or baselines changed.

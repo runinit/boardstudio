@@ -529,9 +529,7 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
         == Some(MirroredExceptionState::Omitted);
     // Ticket 21: a record-absent Omitted member stays absent; its logical
     // matrix synthesizes from the source during evaluation.
-    if target_omitted
-        && !doc.matrices.iter().any(|matrix| matrix.id == target_id)
-    {
+    if target_omitted && !doc.matrices.iter().any(|matrix| matrix.id == target_id) {
         return Ok(vec![]);
     }
     let source = doc
@@ -1786,9 +1784,9 @@ pub(crate) fn apply_exception_transitions(
     let prev_state = |kind: MirroredItemKind, mirror_id: &str| {
         prev_link
             .and_then(|link| {
-                link.exceptions.iter().find(|exception| {
-                    exception.kind == kind && exception.mirror_id == mirror_id
-                })
+                link.exceptions
+                    .iter()
+                    .find(|exception| exception.kind == kind && exception.mirror_id == mirror_id)
             })
             .map(|exception| exception.state)
     };
@@ -1806,8 +1804,7 @@ pub(crate) fn apply_exception_transitions(
             .exceptions
             .iter()
             .find(|exception| {
-                exception.kind == MirroredItemKind::Matrix
-                    && exception.mirror_id == mirror_id
+                exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_id
             })
             .map(|exception| exception.state);
         if before == after {
@@ -1823,7 +1820,9 @@ pub(crate) fn apply_exception_transitions(
             // keeps its pose; a Local record never authors its partner, so
             // the paired sync inside detach is a no-op for it.
             Some(MirroredExceptionState::Local)
-                if record.as_ref().is_some_and(|matrix| matrix.anchor.is_some()) =>
+                if record
+                    .as_ref()
+                    .is_some_and(|matrix| matrix.anchor.is_some()) =>
             {
                 changed.extend(matrix::anchors::detach(doc, mirror_id)?);
             }
@@ -1864,8 +1863,7 @@ pub(crate) fn apply_exception_transitions(
         for exception in &prev_link.exceptions {
             if exception.kind != MirroredItemKind::Part
                 || next_link.exceptions.iter().any(|next| {
-                    next.kind == MirroredItemKind::Part
-                        && next.mirror_id == exception.mirror_id
+                    next.kind == MirroredItemKind::Part && next.mirror_id == exception.mirror_id
                 })
             {
                 continue;
@@ -1968,8 +1966,7 @@ pub(crate) fn plan_linked_matrix_removal(
                 // A linked partner follows the deletion with its parts.
                 None => {
                     detached.extend(matrix::anchors::detach_dependants(doc, &partner_id)?);
-                    if let Some(record) =
-                        doc.matrices.iter().find(|matrix| matrix.id == partner_id)
+                    if let Some(record) = doc.matrices.iter().find(|matrix| matrix.id == partner_id)
                     {
                         follow.part_ids.extend(record.part_ids.iter().cloned());
                     }
@@ -2046,8 +2043,7 @@ pub(crate) fn add_local_matrix_exception(
         .layouts
         .iter_mut()
         .find(|layout| {
-            layout.matrix_ids.iter().any(|id| id == mirror_id)
-                && layout.mirror_link.is_some()
+            layout.matrix_ids.iter().any(|id| id == mirror_id) && layout.mirror_link.is_some()
         })
         .ok_or_else(|| format!("Matrix {mirror_id} is not a linked mirror member"))?;
     let link = layout.mirror_link.as_mut().expect("linked mirror");
@@ -2117,9 +2113,11 @@ pub(crate) fn edits_alone(doc: &ProjectDoc, matrix_id: &str) -> bool {
 /// The mirror matrix in `layout_id` owning `mirror_id`, by slot identity.
 fn owning_matrix(doc: &ProjectDoc, layout_id: &str, mirror_id: &str) -> Option<String> {
     let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
-    layout.matrix_ids.iter().find(|matrix_id| {
-        mirror_id.starts_with(&format!("matrix/{matrix_id}/r"))
-    }).cloned()
+    layout
+        .matrix_ids
+        .iter()
+        .find(|matrix_id| mirror_id.starts_with(&format!("matrix/{matrix_id}/r")))
+        .cloned()
 }
 
 /// Parse `matrix/<matrix>/r<row>c<column>` keys; companions resolve to their key.
@@ -2128,7 +2126,11 @@ fn split_key_id(id: &str) -> Option<(String, u32, u32)> {
     let (matrix_id, slot) = rest.split_once("/r")?;
     let slot = slot.split('/').next()?;
     let (row, column) = slot.split_once('c')?;
-    Some((matrix_id.to_string(), row.parse().ok()?, column.parse().ok()?))
+    Some((
+        matrix_id.to_string(),
+        row.parse().ok()?,
+        column.parse().ok()?,
+    ))
 }
 
 /// Ensure an Omitted key overlays a part correspondence, adding it by slot
@@ -2148,36 +2150,34 @@ fn ensure_part_correspondence(
         .mirror_link
         .as_ref()
         .ok_or("Linked layout is missing")?;
-    if link.correspondences.iter().any(|record| {
-        record.kind == MirroredItemKind::Part && record.mirror_id == mirror_id
-    }) {
+    if link
+        .correspondences
+        .iter()
+        .any(|record| record.kind == MirroredItemKind::Part && record.mirror_id == mirror_id)
+    {
         return Ok(());
     }
-    let (mirror_matrix, row, column) = split_key_id(mirror_id).ok_or_else(|| {
-        format!("Layout exception {mirror_id:?} overlays no correspondence")
-    })?;
+    let (mirror_matrix, row, column) = split_key_id(mirror_id)
+        .ok_or_else(|| format!("Layout exception {mirror_id:?} overlays no correspondence"))?;
     let source_matrix = link
         .correspondences
         .iter()
-        .find(|record| {
-            record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_matrix
-        })
+        .find(|record| record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_matrix)
         .map(|record| record.source_id.clone())
-        .ok_or_else(|| {
-            format!("Layout exception {mirror_id:?} overlays no correspondence")
-        })?;
-    let source = matrix::evaluation::logical_matrix(&source_matrix, doc).map_err(|_| {
-        format!("Layout exception {mirror_id:?} overlays no correspondence")
-    })?;
+        .ok_or_else(|| format!("Layout exception {mirror_id:?} overlays no correspondence"))?;
+    let source = matrix::evaluation::logical_matrix(&source_matrix, doc)
+        .map_err(|_| format!("Layout exception {mirror_id:?} overlays no correspondence"))?;
     if row >= source.rows || column >= source.columns {
         return Err(format!(
             "Layout exception {mirror_id:?} names a missing counterpart in matrix {source_matrix:?}; resize or Rejoin its parent instead of choosing another key"
         ));
     }
     let source_id = matrix::member_id(&source_matrix, row, column);
-    if link.correspondences.iter().any(|record| {
-        record.kind == MirroredItemKind::Part && record.source_id == source_id
-    }) {
+    if link
+        .correspondences
+        .iter()
+        .any(|record| record.kind == MirroredItemKind::Part && record.source_id == source_id)
+    {
         return Err(format!(
             "Layout exception {mirror_id:?} names a missing counterpart in matrix {source_matrix:?}; resize or Rejoin its parent instead of choosing another key"
         ));
@@ -2219,9 +2219,7 @@ fn synthesize_rejoin_record(
     let source_id = link
         .correspondences
         .iter()
-        .find(|record| {
-            record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_id
-        })
+        .find(|record| record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_id)
         .map(|record| record.source_id.clone())
         .ok_or_else(|| format!("Linked matrix {mirror_id} has no source correspondence"))?;
     let source = matrix::evaluation::logical_matrix(&source_id, doc)
@@ -2276,8 +2274,7 @@ fn reset_key_to_followed(
         .and_then(|layout| layout.mirror_link.as_ref())
         .and_then(|link| {
             link.correspondences.iter().find(|record| {
-                record.kind == MirroredItemKind::Matrix
-                    && record.mirror_id == mirror_matrix
+                record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_matrix
             })
         })
         .and_then(|record| {
