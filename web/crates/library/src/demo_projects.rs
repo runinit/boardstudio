@@ -406,6 +406,132 @@ mod demo_rebuild_tests {
     }
 
     #[test]
+    fn demo_entries_keep_their_identities() {
+        let entries: Vec<_> = DEMO_PROJECTS
+            .iter()
+            .map(|demo| (demo.name, demo.summary))
+            .collect();
+        assert_eq!(
+            entries,
+            vec![
+                (
+                    "Split 42",
+                    "A staggered split layout with a compact thumb cluster."
+                ),
+                ("Studio 60", "A compact staggered layout for everyday typing."),
+                ("Macro 12", "A small 3 × 4 pad for shortcuts and macros."),
+            ]
+        );
+        let counts: Vec<_> = DEMO_PROJECTS
+            .iter()
+            .map(|demo| (demo.name, demo.document().parts.len()))
+            .collect();
+        assert_eq!(
+            counts,
+            vec![("Split 42", 42), ("Studio 60", 60), ("Macro 12", 12)]
+        );
+    }
+
+    fn macro12() -> ProjectDoc {
+        DEMO_PROJECTS
+            .iter()
+            .find(|demo| demo.name == "Macro 12")
+            .expect("Macro 12 entry")
+            .document()
+    }
+
+    #[test]
+    fn macro12_uses_the_single_matrix_recipe_at_3x4() {
+        let document = macro12();
+        assert_eq!(document.format_version, CURRENT_VERSION);
+        assert_eq!(document.matrices.len(), 1, "one matrix");
+        let matrix = &document.matrices[0];
+        assert_eq!((matrix.rows, matrix.columns), (3, 4));
+        assert_eq!(matrix.pitch, Vec2 { x: 19.05, y: 19.05 });
+        assert_eq!(matrix.origin, Vec2 { x: -28.575, y: -19.05 });
+        assert_eq!(document.layouts.len(), 1, "one Layout");
+        assert_eq!(document.layouts[0].matrix_ids, vec![matrix.id.clone()]);
+        let shifts: Vec<_> = matrix
+            .row_layout
+            .iter()
+            .map(|record| record.shift)
+            .collect();
+        assert_eq!(
+            shifts,
+            vec![
+                Vec2 { x: 0.0, y: 0.0 },
+                Vec2 { x: 4.7625, y: 0.0 },
+            ],
+            "only Row 2 carries Shift X"
+        );
+        assert_eq!(document.parts.len(), 12);
+        let expected = legacy_grid(3, 4, 19.05);
+        for (part, at) in document.parts.iter().zip(&expected) {
+            assert!(
+                document.matrices[0].part_ids.contains(&part.id),
+                "{} is a matrix member",
+                part.id
+            );
+            assert!(
+                (part.pose.at.x - at.x).abs() < 1e-9 && (part.pose.at.y - at.y).abs() < 1e-9,
+                "pose of {} drifts: got {:?}, want {at:?}",
+                part.id,
+                part.pose.at
+            );
+            assert_eq!(part.pose.rotation, 0.0, "zero heading");
+        }
+    }
+
+    #[test]
+    fn rebuilt_examples_share_pitch_gap_caps_and_board_intent() {
+        for name in ["Studio 60", "Macro 12"] {
+            let document = DEMO_PROJECTS
+                .iter()
+                .find(|demo| demo.name == name)
+                .expect("demo entry")
+                .document();
+            for matrix in &document.matrices {
+                assert_eq!(matrix.pitch, Vec2 { x: 19.05, y: 19.05 }, "{name} pitch");
+                assert_eq!(
+                    matrix.edge_gap,
+                    Some(Vec2 { x: 1.05, y: 1.05 }),
+                    "{name} edge gap"
+                );
+                assert_eq!(matrix.definition_id, "demo-switch", "{name} switch");
+            }
+            let definition = document
+                .definitions
+                .iter()
+                .find(|definition| definition.id == "demo-switch")
+                .expect("synthetic Demo switch");
+            assert_eq!(
+                definition.keycap,
+                Some(Vec2 { x: 18.0, y: 18.0 }),
+                "{name} 18x18 caps"
+            );
+            for part in &document.parts {
+                let cap = part.keycap.or(definition.keycap);
+                assert_eq!(cap, Some(Vec2 { x: 18.0, y: 18.0 }), "{name} cap resolves");
+            }
+            assert_eq!(document.boards.len(), 1, "{name} one board");
+            assert_eq!(document.boards[0].id, "demo-board", "{name} board identity");
+            assert!(
+                document.boards[0]
+                    .part_ids
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    == document.parts.iter().map(|part| &part.id).collect(),
+                "{name} board owns every member"
+            );
+            assert_eq!(document.materials.len(), 1, "{name} one material");
+            assert_eq!(document.materials[0].id, "pla", "{name} material identity");
+            assert!(document.hardware.is_none(), "{name} no hardware claim");
+            assert!(document.nets.is_empty(), "{name} no wiring");
+            assert!(document.modules.is_empty(), "{name} no controllers");
+        }
+    }
+
+    #[test]
     fn studio60_copies_do_not_share_mutable_state() {
         let mut first = studio60();
         let second = studio60();
