@@ -1889,16 +1889,16 @@ pub(crate) fn apply_exception_transitions(
         // idempotently afterward.
         let shed = after == Some(MirroredExceptionState::Omitted);
         let materialize = before.is_some() && !shed;
-        if shed || materialize {
-            if let Some(owner) = owning_matrix(doc, &incoming.id, &mirror_id) {
-                let record = doc
-                    .matrices
-                    .iter()
-                    .find(|matrix| matrix.id == owner)
-                    .cloned();
-                if let Some(record) = record {
-                    changed.extend(matrix::set_matrix(doc, &record)?);
-                }
+        if (shed || materialize)
+            && let Some(owner) = owning_matrix(doc, &incoming.id, &mirror_id)
+        {
+            let record = doc
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == owner)
+                .cloned();
+            if let Some(record) = record {
+                changed.extend(matrix::set_matrix(doc, &record)?);
             }
         }
     }
