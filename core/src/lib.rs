@@ -895,7 +895,11 @@ impl CoreEngine {
             &self.identity_ledger,
         )
         .and_then(|mut changed| {
-            layout::validate(&self.document)?;
+            // Preview must materialize the same dependant poses the commit
+            // path publishes: anchored matrices follow from the anchor key's
+            // edited pose, and `resolve` (which starts with `validate`)
+            // refreshes every dependant exactly as commit does.
+            layout::resolve(&mut self.document)?;
             changed.extend(constraints::resolve_edit(
                 &mut self.document,
                 &command.operation,
