@@ -22,6 +22,7 @@ struct Probe {
     root_id: &'static str,
     adapter: Rc<RefCell<Option<SelectionAdapter>>>,
     version: Rc<RefCell<Option<Signal<u64>>>>,
+    hidden: Rc<RefCell<Option<Signal<BTreeSet<String>>>>>,
 }
 
 impl Probe {
@@ -228,6 +229,7 @@ fn host() -> Element {
     let hidden = use_signal(BTreeSet::new);
     let modules_hidden = use_signal(BTreeSet::new);
     let footprints = use_signal(|| false);
+    *probe.hidden.borrow_mut() = Some(hidden);
     use_context_provider(|| LayerVisibility {
         hidden,
         modules_hidden,
@@ -259,6 +261,7 @@ async fn mount_with(root_id: &'static str, matrix: serde_json::Value) -> Probe {
         root_id,
         adapter: Rc::default(),
         version: Rc::default(),
+        hidden: Rc::default(),
     };
     let dom_document = web_sys::window().unwrap().document().unwrap();
     let root = dom_document.create_element("div").unwrap();
@@ -504,11 +507,25 @@ fn anchor_command(base_revision: u64, id: &str, anchor: serde_json::Value) -> Ed
     }
 }
 
-/// A Follows reference navigates to its anchor key without writing: the key's
-/// chain then names the matrix following it.
-#[wasm_bindgen_test]
-async fn anchored_follows_navigates_to_its_key_without_writing() {
-    let root_id = "relation-anchored-follows";
+fn remove_cells_command(
+    base_revision: u64,
+    matrix_id: &str,
+    cells: serde_json::Value,
+) -> EditCommand {
+    EditCommand {
+        base_revision,
+        transaction_id: "remove".into(),
+        phase: EditPhase::Commit,
+        target_ids: vec![],
+        operation: serde_json::from_value(json!({
+            "kind": "remove-matrix-cells", "matrixId": matrix_id, "cells": cells,
+        }))
+        .expect("the operation parses"),
+    }
+}
+
+/// Mount main, join it to a layout, and anchor a 1x3 thumb to its key (0, 0).
+async fn mount_anchored_thumb(root_id: &'static str) -> Probe {
     let probe = mount(root_id).await;
     let accepted = probe.runtime.model().accepted.expect("accepted document");
     let mut document = (*accepted.document).clone();
@@ -530,6 +547,15 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
                     "follow": ["x", "y", "rotation"] }),
         ))
         .await;
+    probe
+}
+
+/// A Follows reference navigates to its anchor key without writing: the key's
+/// chain then names the matrix following it.
+#[wasm_bindgen_test]
+async fn anchored_follows_navigates_to_its_key_without_writing() {
+    let root_id = "relation-anchored-follows";
+    let probe = mount_anchored_thumb(root_id).await;
     // The anchor key's own chain names its follower.
     probe.select(objects::TreeContext::Key {
         matrix_id: MATRIX.into(),
@@ -593,6 +619,163 @@ async fn anchored_follows_navigates_to_its_key_without_writing() {
         probe.revision(),
         before,
         "reference navigation writes nothing, so no Undo entry"
+    );
+}
+
+/// A Follows row outlives its anchor key's deletion, but activating it must do
+/// nothing: the target is gone, so no selection, revision or error follows.
+#[wasm_bindgen_test]
+async fn a_removed_anchor_key_leaves_its_follows_reference_inert() {
+    let root_id = "relation-stale-follows";
+    let probe = mount_anchored_thumb(root_id).await;
+    probe.select(objects::TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the anchored matrix names its anchor key", || {
+        query(root_id, "li[data-relation-label='Follows']").is_some()
+    })
+    .await;
+    probe
+        .land(remove_cells_command(
+            probe.revision(),
+            MATRIX,
+            json!([[0, 0]]),
+        ))
+        .await;
+    wait_until(
+        "the Follows row survives on its stored anchor record",
+        || query(root_id, "li[data-relation-label='Follows']").is_some(),
+    )
+    .await;
+    let before = probe.revision();
+    click(root_id, "li[data-relation-label='Follows'] button");
+    // Poll long enough for a stray navigation to land, then assert nothing did.
+    let adapter = probe.adapter.clone();
+    let thumb = objects::TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    };
+    wait_until("the stale reference settles into doing nothing", {
+        let polls = std::rc::Rc::new(std::cell::Cell::new(0u32));
+        move || {
+            polls.set(polls.get() + 1);
+            polls.get() > 30
+        }
+    })
+    .await;
+    assert_eq!(
+        adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .map(|scoped| scoped.context),
+        Some(thumb),
+        "a removed target is never navigated to"
+    );
+    assert_eq!(
+        probe.revision(),
+        before,
+        "a refused reference writes nothing"
+    );
+    assert_eq!(count(root_id, "[role='alert']"), 0, "no error is raised");
+}
+
+/// Hiding every highlighted part explains the missing canvas highlight in
+/// text; the reference still navigates without writing.
+#[wasm_bindgen_test]
+async fn hidden_reference_names_its_layer_and_still_navigates() {
+    let root_id = "relation-hidden-row";
+    let probe = mount(root_id).await;
+    probe.select(objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 0,
+        column: 0,
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the key chain renders", || {
+        query(root_id, "li[data-relation-label='Row shift']").is_some()
+    })
+    .await;
+    probe
+        .hidden
+        .borrow()
+        .clone()
+        .expect("mounted visibility")
+        .set(
+            (0..COLUMNS)
+                .map(|column| format!("matrix/{MATRIX}/r0c{column}"))
+                .collect(),
+        );
+    wait_until("the hidden row explains its missing highlight", || {
+        query(
+            root_id,
+            "li[data-relation-label='Row shift'] small.m1-empty-note",
+        )
+        .is_some_and(|note| {
+            note.text_content()
+                .unwrap_or_default()
+                .contains("(hidden layer)")
+        })
+    })
+    .await;
+    let before = probe.revision();
+    click(root_id, "li[data-relation-label='Row shift'] button");
+    wait_until("activating Row shift opens the Properties tab", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
+            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "parameter navigation writes nothing, so no Undo entry"
+    );
+}
+
+/// Hovering a receiver reference lights up its named keys on the canvas.
+#[wasm_bindgen_test]
+async fn hovering_follows_highlights_the_anchor_key() {
+    let root_id = "relation-follows-hover";
+    let probe = mount_anchored_thumb(root_id).await;
+    probe.select(objects::TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the anchored matrix names its anchor key", || {
+        query(root_id, "li[data-relation-label='Follows']").is_some()
+    })
+    .await;
+    let before = probe.revision();
+    let reference = probe.element("li[data-relation-label='Follows'] button");
+    dispatch(&reference, "pointerenter");
+    wait_until("the anchor key lights up", || {
+        highlighted_columns(root_id) == vec!["0".to_string()]
+    })
+    .await;
+    dispatch(&reference, "pointerleave");
+    wait_until("leaving the reference clears its highlight", || {
+        count(root_id, ".m1-matrix-key.is-relation-highlight") == 0
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "highlighting never writes a document revision, so no Undo entry"
     );
 }
 

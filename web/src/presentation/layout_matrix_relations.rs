@@ -6,6 +6,7 @@ use boardstudio_web_layout::matrix_relations::{
     ConstraintItem, ConstraintKind, Departure, DepartureAction, MatrixRelations, PartReference,
     RelationItem,
 };
+use boardstudio_web_ui_model::state::LayerVisibility;
 use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
@@ -267,6 +268,24 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
         let latest = latest.clone();
         move || highlight.release(&latest.borrow())
     });
+    // Parts behind a hidden layer toggle have no visible canvas shape. The
+    // highlight still names the same parts, but the row says the canvas
+    // cannot show them instead of implying it does.
+    let hidden = match try_use_context::<LayerVisibility>() {
+        Some(visibility) => {
+            !parts.is_empty()
+                && parts.iter().all(|part| {
+                    visibility.hidden.read().contains(part)
+                        || visibility.modules_hidden.read().contains(part)
+                })
+        }
+        None => false,
+    };
+    let description = if hidden {
+        format!("{what} is on a hidden layer; the Layout canvas cannot highlight it.")
+    } else {
+        format!("Highlights the Layout canvas parts for {what}.")
+    };
     rsx! {
         button {
             r#type: "button", class: "m1-inspector-secondary m1-relations-reference",
@@ -279,9 +298,12 @@ fn RelationReference(props: RelationReferenceProps) -> Element {
             onclick: move |_| on_select.call(()),
             "{text}"
         }
+        if hidden {
+            small { class: "m1-empty-note", " (hidden layer)" }
+        }
         if !parts.is_empty() {
             span { id: "{description_id}", class: "m1-visually-hidden",
-                "Highlights the Layout canvas parts for {what}."
+                "{description}"
             }
         }
     }
