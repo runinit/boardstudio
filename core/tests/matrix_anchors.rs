@@ -2678,3 +2678,166 @@ fn linked_rejoin_refuses_missing_anchor_atomically() {
         2
     );
 }
+
+#[test]
+fn linked_detach_needing_local_exception_refuses_with_proposal() {
+    // Ticket 21: a shared detach that would move the partner refuses naming
+    // the required Local exception; cancel (no commit) changes nothing.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // The mirror anchor key goes Local and moves: the dependent follows its
+    // actual Local anchor, so a plain detach would jump the partner.
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Part,
+            mirror_id: member("main2", 0, 2),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main2", 0, 2),
+                at: Vec2 { x: -10.0, y: 5.0 },
+            }],
+        },
+    );
+    assert_eq!(
+        pose_of(&doc, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -10.0, y: -14.0 }
+    );
+    // Plain detach refuses naming the needed Local exception.
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::DetachMatrixAnchor {
+            matrix_id: "thumb".into(),
+        },
+    );
+    assert!(
+        message.contains("thumb2") && message.contains("Local"),
+        "names the required exception: {message:?}"
+    );
+    // Cancel changes nothing: the document is byte-identical.
+    assert_eq!(snapshot(&mut engine), doc);
+    assert!(anchor_of(&doc, "thumb").is_some());
+    assert!(anchor_of(&doc, "thumb2").is_some());
+}
+
+#[test]
+fn linked_detach_confirmed_applies_detach_and_local_in_one_entry() {
+    // Ticket 21: the confirmed detach clears both anchors, keeps both world
+    // poses, and records the Local exception in one Undo entry.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Part,
+            mirror_id: member("main2", 0, 2),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main2", 0, 2),
+                at: Vec2 { x: -10.0, y: 5.0 },
+            }],
+        },
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, detached) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::DetachMatrixAnchorConfirmed {
+            matrix_id: "thumb".into(),
+            local_matrix_id: "thumb2".into(),
+        },
+    );
+    // Both anchors cleared, every world pose kept, exception recorded.
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    assert_eq!(anchor_of(&detached, "thumb2"), None);
+    for (id, pose) in &poses_before {
+        assert_eq!(pose_of(&detached, id), *pose, "{id}");
+    }
+    assert!(
+        detached
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "mirror-layout")
+            .and_then(|layout| layout.mirror_link.as_ref())
+            .is_some_and(|link| link.exceptions.iter().any(|exception| {
+                exception.kind == MirroredItemKind::Matrix
+                    && exception.mirror_id == "thumb2"
+                    && exception.state == MirroredExceptionState::Local
+            }))
+    );
+    // One Undo restores anchors and drops the exception; Redo reapplies all.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb"), anchor_of(&doc, "thumb"));
+    assert_eq!(
+        anchor_of(&undone_doc, "thumb2"),
+        anchor_of(&doc, "thumb2")
+    );
+    assert_eq!(undone_doc.layouts, doc.layouts);
+    let redone_doc = redone(&mut engine);
+    assert_eq!(anchor_of(&redone_doc, "thumb"), None);
+    assert_eq!(anchor_of(&redone_doc, "thumb2"), None);
+    assert_eq!(redone_doc.layouts, detached.layouts);
+    // A stale confirmation (wrong partner) refuses without changes.
+    let current = snapshot(&mut engine);
+    let stale = error(
+        &mut engine,
+        &current,
+        EditOperation::DetachMatrixAnchorConfirmed {
+            matrix_id: "thumb".into(),
+            local_matrix_id: "main2".into(),
+        },
+    );
+    assert!(stale.contains("stale"), "unexpected message: {stale:?}");
+    assert_eq!(snapshot(&mut engine), current);
+}

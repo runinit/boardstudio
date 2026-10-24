@@ -435,11 +435,9 @@ pub(crate) fn set_anchor(
     Ok(changed)
 }
 
-/// Clear one matrix's anchor after writing its current effective world frame to
-/// Origin/Rotation, so every pose is unchanged. A linked partner follows
-/// through the normal pair sync in the same edit; a sync that cannot keep both
-/// poses is refused and names the Local exception instead of changing one side.
-pub(crate) fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
+/// Write one matrix's current effective world frame to Origin/Rotation and
+/// clear its anchor, without any pair sync. The caller owns partner handling.
+fn write_detached_frame(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
     let current = doc
         .matrices
         .iter()
@@ -460,12 +458,113 @@ pub(crate) fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String
     } else {
         Some(frame.rotation)
     };
-    let mut changed = super::set_matrix(doc, &next)?;
+    super::set_matrix(doc, &next)
+}
+
+/// Ticket 21: whether detaching `matrix_id` through the normal pair sync
+/// preserves every linked partner pose. Returns the partner matrix needing
+/// an explicit Local exception, or `None` when poses are preserved: no
+/// partner, an excepted partner, an absent partner, or a symmetric group.
+/// The check replays the production detach on a clone, so it cannot drift
+/// from the behavior it guards.
+pub(crate) fn linked_detach_needs_local(
+    doc: &ProjectDoc,
+    matrix_id: &str,
+) -> Result<Option<String>, String> {
+    let Some((partner_id, _)) = layout::partner(doc, matrix_id) else {
+        return Ok(None);
+    };
+    if matches!(
+        layout::exception_state(doc, MirroredItemKind::Matrix, &partner_id),
+        Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
+    ) {
+        return Ok(None);
+    }
+    let prefix = format!("matrix/{partner_id}/r");
+    let before: std::collections::BTreeMap<&str, &Pose2> = doc
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with(&prefix))
+        .map(|part| (part.id.as_str(), &part.pose))
+        .collect();
+    if before.is_empty() {
+        return Ok(None);
+    }
+    let mut probe = doc.clone();
+    detach_inner(&mut probe, matrix_id)?;
+    let after: std::collections::BTreeMap<&str, &Pose2> = probe
+        .parts
+        .iter()
+        .filter(|part| part.id.starts_with(&prefix))
+        .map(|part| (part.id.as_str(), &part.pose))
+        .collect();
+    if before.len() == after.len()
+        && before
+            .iter()
+            .all(|(id, pose)| after.get(id).is_some_and(|next| next == pose))
+    {
+        return Ok(None);
+    }
+    Ok(Some(partner_id))
+}
+
+/// Clear one matrix's anchor after writing its current effective world frame to
+/// Origin/Rotation, so every pose is unchanged. A linked partner follows
+/// through the normal pair sync in the same edit; a detach that would move
+/// the partner is refused and names the Local exception instead of silently
+/// changing one side.
+pub(crate) fn detach(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
+    if let Some(needed) = linked_detach_needs_local(doc, matrix_id)? {
+        return Err(format!(
+            "Detaching {matrix_id} would move its linked partner {needed}; make {needed} Local to keep its pose and confirm the detach"
+        ));
+    }
+    detach_inner(doc, matrix_id)
+}
+
+fn detach_inner(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
+    let mut changed = write_detached_frame(doc, matrix_id)?;
     changed.extend(
         layout::sync(doc, matrix_id).map_err(|message| {
             format!("{message}; detaching a linked group that cannot keep both poses needs an explicit Local exception (ticket 21)")
         })?,
     );
+    layout::sync_member_pairs(doc, matrix_id)?;
+    Ok(changed)
+}
+
+/// Ticket 21: apply a confirmed linked detach needing one additional Local
+/// matrix exception: clear both anchors, keep both world poses, and record
+/// the named Local exception in the same edit. The named matrix must be the
+/// linked partner that still needs the exception; anything else refuses as a
+/// stale confirmation and changes nothing.
+pub(crate) fn detach_confirmed(
+    doc: &mut ProjectDoc,
+    matrix_id: &str,
+    local_matrix_id: &str,
+) -> Result<Vec<String>, String> {
+    let partner = layout::partner(doc, matrix_id).map(|(id, _)| id);
+    if partner.as_deref() != Some(local_matrix_id) {
+        return Err(format!(
+            "Confirmed detach is stale: {local_matrix_id} is not the linked partner of {matrix_id}"
+        ));
+    }
+    match linked_detach_needs_local(doc, matrix_id)? {
+        Some(needed) if needed == local_matrix_id => {}
+        _ => {
+            return Err(format!(
+                "Confirmed detach is stale: {local_matrix_id} no longer needs a Local exception"
+            ));
+        }
+    }
+    // Both frames are captured before any mutation; no pair sync runs
+    // between the two writes, so neither pose can jump. Resolve skips both
+    // syncs afterward (the partner is Local, the source authors nothing
+    // into a Local partner).
+    let mut changed = write_detached_frame(doc, matrix_id)?;
+    changed.extend(write_detached_frame(doc, local_matrix_id)?);
+    layout::add_local_matrix_exception(doc, local_matrix_id)?;
+    changed.push(local_matrix_id.to_string());
     layout::sync_member_pairs(doc, matrix_id)?;
     Ok(changed)
 }

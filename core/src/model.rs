@@ -1892,6 +1892,17 @@ pub enum EditOperation {
         #[serde(rename = "matrixId")]
         matrix_id: String,
     },
+    /// Applies a confirmed linked detach that needs one additional Local
+    /// matrix exception: clears both anchors, keeps both world poses, and
+    /// records the named Local exception in the same Undo entry. The named
+    /// matrix must be the linked partner needing the exception; anything
+    /// else refuses as a stale confirmation and changes nothing.
+    DetachMatrixAnchorConfirmed {
+        #[serde(rename = "matrixId")]
+        matrix_id: String,
+        #[serde(rename = "localMatrixId")]
+        local_matrix_id: String,
+    },
     SetConstraint {
         constraint: Constraint,
     },

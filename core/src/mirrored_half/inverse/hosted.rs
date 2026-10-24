@@ -185,6 +185,7 @@ pub(super) fn translate(
         | Op::AddAnchoredMatrix { .. }
         | Op::SetMatrixAnchor { .. }
         | Op::DetachMatrixAnchor { .. }
+        | Op::DetachMatrixAnchorConfirmed { .. }
         | Op::SetMatrix { .. }
         | Op::EditKeymap { .. }
         | Op::SetKeyBinding { .. }

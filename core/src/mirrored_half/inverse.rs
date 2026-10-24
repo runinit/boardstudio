@@ -320,6 +320,15 @@ pub(super) fn canonicalize(
                 matrix_id: links.matrix_id(matrix_id)?,
             };
         }
+        Op::DetachMatrixAnchorConfirmed {
+            matrix_id,
+            local_matrix_id,
+        } => {
+            canonical.operation = Op::DetachMatrixAnchorConfirmed {
+                matrix_id: links.matrix_id(matrix_id)?,
+                local_matrix_id: links.matrix_id(local_matrix_id)?,
+            };
+        }
         Op::SetMatrix {
             matrix,
             definitions,

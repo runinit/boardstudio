@@ -2145,6 +2145,14 @@ fn apply_with_ledger(
                 |doc| matrix::anchors::detach(doc, matrix_id),
             )
         }
+        EditOperation::DetachMatrixAnchorConfirmed {
+            matrix_id,
+            local_matrix_id,
+        } => matrix::placement::carrying_authored_companions(
+            doc,
+            matrix::placement::Reported::Moved,
+            |doc| matrix::anchors::detach_confirmed(doc, matrix_id, local_matrix_id),
+        ),
         EditOperation::CreateMirroredPair {
             left,
             right,

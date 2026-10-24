@@ -1909,6 +1909,40 @@ pub(crate) fn apply_exception_transitions(
     Ok(changed)
 }
 
+/// Ticket 21: record a Local matrix exception for a confirmed linked
+/// detach. Refuses when the matrix is not a linked mirror member or the
+/// overlay already exists, so stale confirmations change nothing.
+pub(crate) fn add_local_matrix_exception(
+    doc: &mut ProjectDoc,
+    mirror_id: &str,
+) -> Result<(), String> {
+    let layout = doc
+        .layouts
+        .iter_mut()
+        .find(|layout| {
+            layout.matrix_ids.iter().any(|id| id == mirror_id)
+                && layout.mirror_link.is_some()
+        })
+        .ok_or_else(|| format!("Matrix {mirror_id} is not a linked mirror member"))?;
+    let link = layout.mirror_link.as_mut().expect("linked mirror");
+    if link.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Matrix && exception.mirror_id == mirror_id
+    }) {
+        return Err(format!(
+            "Confirmed detach is stale: {mirror_id} is already excepted"
+        ));
+    }
+    link.exceptions.push(MirroredException {
+        kind: MirroredItemKind::Matrix,
+        mirror_id: mirror_id.to_string(),
+        state: MirroredExceptionState::Local,
+        companion_mode: None,
+        companion_tweak: None,
+        removed_copper: None,
+    });
+    Ok(())
+}
+
 /// Ticket 21: an Omitted matrix has no independent storage state — it
 /// follows its source live and rejoins to adopt it. Refuse direct storage
 /// edits naming it (or its absent members) instead of silently diverging
