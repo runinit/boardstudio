@@ -2,7 +2,7 @@
 use boardstudio_core::model::{
     EditOperation, Follow, Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis,
     MatrixPlacementChange, MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror,
-    PartDefinition, Vec2, convert_offset_available,
+    MirroredItemKind, PartDefinition, Pose2, ProjectDoc, Vec2, convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1083,6 +1083,150 @@ fn set_matrix(matrix: Matrix) -> EditOperation {
         matrix,
         definitions: None,
     }
+}
+
+/// Where a matrix drag's Follow permission is evaluated: the matrix's own
+/// world axes, or the source-world axes transported through the pair map for
+/// a linked partner. Mirrors the kernel's anchor evaluation basis from the
+/// accepted document; Core remains the placement authority and re-validates
+/// the solved Origin on commit.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MatrixDragTransport {
+    World,
+    Reflected { translation: Vec2, rotation: f64 },
+}
+
+/// The Follow basis for dragging a matrix, derived from the accepted document.
+pub fn matrix_drag_transport(document: &ProjectDoc, matrix_id: &str) -> MatrixDragTransport {
+    for layout in &document.layouts {
+        if let Some(link) = &layout.mirror_link
+            && link.correspondences.iter().any(|record| {
+                record.kind == MirroredItemKind::Matrix && record.mirror_id == matrix_id
+            })
+        {
+            return MatrixDragTransport::Reflected {
+                translation: Vec2 {
+                    x: 2.0 * link.axis_x,
+                    y: 0.0,
+                },
+                rotation: 0.0,
+            };
+        }
+    }
+    if let Some(hardware) = &document.hardware {
+        for pair in &hardware.pairs {
+            if pair.halves.as_ref().is_some_and(|halves| {
+                halves.correspondences.iter().any(|record| {
+                    record.kind == MirroredItemKind::Matrix && record.mirror_id == matrix_id
+                })
+            }) {
+                return MatrixDragTransport::Reflected {
+                    translation: pair.mapping.at,
+                    rotation: pair.mapping.rotation,
+                };
+            }
+        }
+    }
+    MatrixDragTransport::World
+}
+
+/// The anchor context a matrix drag inverse-solves through: the anchor key's
+/// final world pose, the Follow subset and the transported basis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MatrixDragAnchor {
+    pub key_pose: Pose2,
+    pub follow: Follow,
+    pub transport: MatrixDragTransport,
+}
+
+/// The anchor key's final world pose from the accepted scene, or `None` when
+/// the anchor target is not laid out and the drag cannot start.
+pub fn matrix_drag_anchor_pose(scenes: &[MatrixScene], anchor: &MatrixAnchor) -> Option<Pose2> {
+    scenes
+        .iter()
+        .find(|scene| scene.matrix_id == anchor.matrix_id)
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == anchor.row && cell.column == anchor.column)
+        })
+        .map(|cell| cell.pose)
+}
+
+fn transport_delta_to_source(transport: MatrixDragTransport, delta: Vec2) -> Vec2 {
+    match transport {
+        MatrixDragTransport::World => delta,
+        MatrixDragTransport::Reflected { rotation, .. } => {
+            let (sin, cos) = rotation.to_radians().sin_cos();
+            Vec2 {
+                x: -(delta.x * cos + delta.y * sin),
+                y: -delta.x * sin + delta.y * cos,
+            }
+        }
+    }
+}
+
+fn transport_delta_from_source(transport: MatrixDragTransport, delta: Vec2) -> Vec2 {
+    match transport {
+        MatrixDragTransport::World => delta,
+        MatrixDragTransport::Reflected { rotation, .. } => {
+            let (sin, cos) = rotation.to_radians().sin_cos();
+            Vec2 {
+                x: -delta.x * cos - delta.y * sin,
+                y: -delta.x * sin + delta.y * cos,
+            }
+        }
+    }
+}
+
+fn zero_unfollowed(follow: &Follow, point: Vec2) -> Vec2 {
+    Vec2 {
+        x: if follow.x { point.x } else { 0.0 },
+        y: if follow.y { point.y } else { 0.0 },
+    }
+}
+
+/// Solve the dragged matrix's new Origin from a world drag delta. Unanchored
+/// matrices move 1:1; anchored matrices inverse-solve through the anchor
+/// frame with the delta constrained to the Follow directions, so an
+/// unfollowed component never moves the frame. Components Follow discards
+/// keep their authored values, so a drag outside every Follow direction is a
+/// no-op that commits nothing.
+pub fn solve_matrix_origin(
+    matrix: &Matrix,
+    anchor: Option<MatrixDragAnchor>,
+    world_delta: Vec2,
+) -> Vec2 {
+    let constrained = match anchor {
+        None => world_delta,
+        Some(anchor) => transport_delta_from_source(
+            anchor.transport,
+            zero_unfollowed(
+                &anchor.follow,
+                transport_delta_to_source(anchor.transport, world_delta),
+            ),
+        ),
+    };
+    // Through the inverse of the anchor frame for anchored matrices; the
+    // identity for unanchored ones, whose Origin is already in world axes.
+    let (sin, cos) = anchor
+        .map(|anchor| anchor.key_pose.rotation.to_radians().sin_cos())
+        .unwrap_or((0.0, 1.0));
+    Vec2 {
+        x: matrix.origin.x + constrained.x * cos + constrained.y * sin,
+        y: matrix.origin.y - constrained.x * sin + constrained.y * cos,
+    }
+}
+
+/// Solve the dragged matrix's new stored rotation, or `None` when rotation is
+/// not followed and the Rotate gesture must stay disabled.
+pub fn solve_matrix_rotation(
+    rotation: f64,
+    follow_rotation: bool,
+    delta_degrees: f64,
+) -> Option<f64> {
+    follow_rotation.then_some(rotation + delta_degrees)
 }
 
 fn set_cell_enabled(matrix: &Matrix, row: u32, column: u32, enabled: bool) -> EditOperation {
@@ -2966,5 +3110,189 @@ mod tests {
             (right.x - 0.1).abs() < 1e-12 && right.y.abs() < 1e-12,
             "{right:?}"
         );
+    }
+
+    fn move_matrix(origin: Vec2, anchor: Option<MatrixAnchor>) -> Matrix {
+        let mut matrix = matrix();
+        matrix.origin = origin;
+        matrix.anchor = anchor;
+        matrix
+    }
+
+    fn drag_anchor(
+        at: Vec2,
+        rotation: f64,
+        follow: Follow,
+        transport: MatrixDragTransport,
+    ) -> MatrixDragAnchor {
+        MatrixDragAnchor {
+            key_pose: Pose2 { at, rotation },
+            follow,
+            transport,
+        }
+    }
+
+    #[test]
+    fn unanchored_matrix_drag_moves_one_to_one() {
+        let matrix = move_matrix(Vec2 { x: 5.0, y: 7.0 }, None);
+        let solved = solve_matrix_origin(&matrix, None, Vec2 { x: 10.0, y: -3.0 });
+        assert!((solved.x - 15.0).abs() < 1e-9 && (solved.y - 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn anchored_drag_inverses_through_the_anchor_frame() {
+        let matrix = move_matrix(
+            Vec2 { x: 3.0, y: 4.0 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow: Follow::default(),
+            }),
+        );
+        let anchor = drag_anchor(
+            Vec2::default(),
+            0.0,
+            Follow::default(),
+            MatrixDragTransport::World,
+        );
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 10.0, y: 5.0 });
+        assert!((solved.x - 13.0).abs() < 1e-9 && (solved.y - 9.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn anchored_drag_solves_through_a_rotated_anchor_frame() {
+        // Anchor key at (100, 200) turned 90 degrees, matrix origin (0, -19.05):
+        // the frame sits at (119.05, 200). Dragging the frame +10 in world Y
+        // must land the origin at (10, -19.05).
+        let matrix = move_matrix(
+            Vec2 { x: 0.0, y: -19.05 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow: Follow::default(),
+            }),
+        );
+        let anchor = drag_anchor(
+            Vec2 { x: 100.0, y: 200.0 },
+            90.0,
+            Follow::default(),
+            MatrixDragTransport::World,
+        );
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 0.0, y: 10.0 });
+        assert!((solved.x - 10.0).abs() < 1e-9 && (solved.y + 19.05).abs() < 1e-9);
+    }
+
+    #[test]
+    fn anchored_drag_ignores_unfollowed_directions() {
+        let matrix = move_matrix(
+            Vec2 { x: 3.0, y: 4.0 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: false,
+                    y: true,
+                    rotation: true,
+                },
+            }),
+        );
+        let anchor = drag_anchor(
+            Vec2::default(),
+            0.0,
+            Follow {
+                x: false,
+                y: true,
+                rotation: true,
+            },
+            MatrixDragTransport::World,
+        );
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 10.0, y: 5.0 });
+        assert!((solved.x - 3.0).abs() < 1e-9 && (solved.y - 9.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn transported_drag_round_trips_through_the_pair_map() {
+        // Linked partner mirrored about x = 50 in the source layout: with
+        // full Follow the world drag applies exactly, round-tripping through
+        // the transported source-world axes.
+        let matrix = move_matrix(
+            Vec2 { x: 0.0, y: 0.0 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow: Follow::default(),
+            }),
+        );
+        let anchor = drag_anchor(
+            Vec2 { x: 100.0, y: 0.0 },
+            0.0,
+            Follow::default(),
+            MatrixDragTransport::Reflected {
+                translation: Vec2 { x: 100.0, y: 0.0 },
+                rotation: 0.0,
+            },
+        );
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 10.0, y: 5.0 });
+        assert!((solved.x - 10.0).abs() < 1e-9 && (solved.y - 5.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn transported_drag_ignores_source_unfollowed_directions() {
+        let follow = Follow {
+            x: false,
+            y: true,
+            rotation: true,
+        };
+        let matrix = move_matrix(
+            Vec2 { x: 0.0, y: 0.0 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow,
+            }),
+        );
+        let anchor = drag_anchor(
+            Vec2 { x: 100.0, y: 0.0 },
+            0.0,
+            follow,
+            MatrixDragTransport::Reflected {
+                translation: Vec2 { x: 100.0, y: 0.0 },
+                rotation: 0.0,
+            },
+        );
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 10.0, y: 5.0 });
+        assert!((solved.x - 0.0).abs() < 1e-9 && (solved.y - 5.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn drag_outside_every_follow_direction_solves_to_the_same_origin() {
+        let follow = Follow {
+            x: false,
+            y: false,
+            rotation: true,
+        };
+        let matrix = move_matrix(
+            Vec2 { x: 3.0, y: 4.0 },
+            Some(MatrixAnchor {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+                follow,
+            }),
+        );
+        let anchor = drag_anchor(Vec2::default(), 0.0, follow, MatrixDragTransport::World);
+        let solved = solve_matrix_origin(&matrix, Some(anchor), Vec2 { x: 10.0, y: 5.0 });
+        assert!((solved.x - 3.0).abs() < 1e-9 && (solved.y - 4.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rotate_solves_only_when_rotation_is_followed() {
+        assert_eq!(solve_matrix_rotation(12.0, true, 30.0), Some(42.0));
+        assert_eq!(solve_matrix_rotation(12.0, false, 30.0), None);
     }
 }

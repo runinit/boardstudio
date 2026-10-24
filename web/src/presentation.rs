@@ -7393,6 +7393,17 @@ fn Editor() -> Element {
                     }
                 }
             });
+            let matrix_rotate_followed =
+                matrix_transform_inspector
+                    .projection
+                    .as_ref()
+                    .and_then(|projection| match &projection.fields {
+                        boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                            rotation_followed,
+                            ..
+                        } => Some(*rotation_followed),
+                        _ => None,
+                    });
             let transform = objects::LayoutTransformMenuMount {
                 properties_available,
                 column_available: toolbar_selection_availability.0,
@@ -7400,6 +7411,7 @@ fn Editor() -> Element {
                 pointer_tools_visible: true,
                 pointer_tools_available,
                 active_tool: layout_transform_tool(),
+                matrix_rotate_followed,
                 on_selection_kind: on_layout_selection_kind_handler,
                 on_show_properties,
                 on_transform_tool,
@@ -7479,6 +7491,7 @@ fn Editor() -> Element {
                 pointer_tools_visible: false,
                 pointer_tools_available: false,
                 active_tool: None,
+                matrix_rotate_followed: None,
                 on_selection_kind: pcb_selection_kind,
                 on_show_properties: EventHandler::new(on_show_properties),
                 on_transform_tool: EventHandler::new(|_| {}),

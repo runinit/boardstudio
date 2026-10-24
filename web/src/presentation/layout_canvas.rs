@@ -24,6 +24,7 @@ pub(super) fn transform_tools(
         return match (context, active) {
             (TreeContext::Column { .. }, Some(tool)) => vec![tool],
             (TreeContext::Row { .. }, Some(Tool::Offset)) => vec![Tool::Offset],
+            (TreeContext::Matrix { .. }, Some(Tool::Move | Tool::Rotate)) => vec![tool],
             _ => Vec::new(),
         };
     }
@@ -35,6 +36,7 @@ pub(super) fn transform_tools(
             _ => vec![Tool::Stagger, Tool::Splay],
         },
         TreeContext::Row { .. } => vec![Tool::Offset],
+        TreeContext::Matrix { .. } => vec![Tool::Move, Tool::Rotate],
         _ => vec![],
     }
 }

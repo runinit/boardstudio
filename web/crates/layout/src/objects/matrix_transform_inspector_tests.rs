@@ -127,7 +127,8 @@ fn matrix_transform_host() -> Element {
                     tools: super::super::LayoutTransformMenuMount {
                         properties_available: true, column_available: true, row_available: true,
                         pointer_tools_visible: true, pointer_tools_available: true,
-                        active_tool: canvas_tool(), on_selection_kind: EventHandler::new(|_| {}),
+                        active_tool: canvas_tool(), matrix_rotate_followed: None,
+                        on_selection_kind: EventHandler::new(|_| {}),
                         on_show_properties: EventHandler::new(|_| {}),
                         on_transform_tool: EventHandler::new(move |tool| canvas_tool.set(Some(tool))),
                     },

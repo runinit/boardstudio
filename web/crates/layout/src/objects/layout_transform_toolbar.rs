@@ -3,8 +3,9 @@ use super::layout_toolbar::LayoutSelectionKind;
 use super::layout_toolbar::{LayoutCommandMenu, close_layout_command_menu};
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
-    ArrowKey, PlacementParameter, PlacementValue, SceneBasis, column_angle, gesture_value,
-    nudge_value, placement_operation,
+    ArrowKey, MatrixDragAnchor, PlacementParameter, PlacementValue, SceneBasis, column_angle,
+    gesture_value, matrix_drag_anchor_pose, matrix_drag_transport, nudge_value,
+    placement_operation, solve_matrix_origin, solve_matrix_rotation,
 };
 use crate::presentation::{
     LayoutOwnerIdentity,
@@ -16,7 +17,7 @@ use boardstudio_application::{
 };
 use boardstudio_core::model::{
     EditOperation, Matrix, MatrixPlacementChange, MatrixScene, MatrixSplayAffect,
-    MatrixSplayChange, Vec2,
+    MatrixSplayChange, Mirror, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEdits;
 use boardstudio_web_ui_shared::controls::{
@@ -45,15 +46,21 @@ pub enum LayoutTransformTool {
     Offset,
     Splay,
     Origin,
+    /// Moves the selected matrix through its Origin.
+    Move,
+    /// Turns the selected matrix through its stored rotation.
+    Rotate,
 }
 
 impl LayoutTransformTool {
-    const ALL: [(Self, &'static str); 5] = [
+    const ALL: [(Self, &'static str); 7] = [
         (Self::Stagger, "Stagger"),
         (Self::Spread, "Spread"),
         (Self::Offset, "Offset"),
         (Self::Splay, "Splay"),
         (Self::Origin, "Origin"),
+        (Self::Move, "Move"),
+        (Self::Rotate, "Rotate"),
     ];
 }
 
@@ -70,7 +77,8 @@ pub struct ToolActivation {
 /// selection into its Column. Stagger is a column parameter: a Row selection becomes the
 /// column of the retained key when there is one (the conversion reads the retained cell)
 /// and otherwise column 1, and every other selection becomes its Column. Splay and Origin
-/// turn the selection into its Column.
+/// turn the selection into its Column. Move and Rotate keep the Matrix selection: they
+/// edit the matrix itself, not one of its parameters.
 pub fn activate_transform_tool(
     active: Option<LayoutTransformTool>,
     tool: LayoutTransformTool,
@@ -82,13 +90,19 @@ pub fn activate_transform_tool(
             selection_kind: None,
         };
     }
-    let selection_kind = match (tool, context) {
-        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => LayoutSelectionKind::Row,
-        _ => LayoutSelectionKind::Column,
-    };
-    ToolActivation {
-        active: Some(tool),
-        selection_kind: Some(selection_kind),
+    match (tool, context) {
+        (LayoutTransformTool::Offset, TreeContext::Row { .. }) => ToolActivation {
+            active: Some(tool),
+            selection_kind: Some(LayoutSelectionKind::Row),
+        },
+        (LayoutTransformTool::Move | LayoutTransformTool::Rotate, _) => ToolActivation {
+            active: Some(tool),
+            selection_kind: None,
+        },
+        _ => ToolActivation {
+            active: Some(tool),
+            selection_kind: Some(LayoutSelectionKind::Column),
+        },
     }
 }
 
@@ -100,6 +114,10 @@ pub struct LayoutTransformMenuMount {
     pub pointer_tools_visible: bool,
     pub pointer_tools_available: bool,
     pub active_tool: Option<LayoutTransformTool>,
+    /// `None` when the selection is not a Matrix; otherwise whether the
+    /// matrix follows rotation, which decides whether the Rotate entry is
+    /// offered enabled or disabled with an explanation.
+    pub matrix_rotate_followed: Option<bool>,
     pub on_selection_kind: EventHandler<LayoutSelectionKind>,
     pub on_show_properties: EventHandler<()>,
     pub on_transform_tool: EventHandler<LayoutTransformTool>,
@@ -146,6 +164,20 @@ enum TransformGesture {
         /// without hold-still compensation.
         swing: bool,
     },
+    /// Moves the selected matrix through its Origin. The anchor context is
+    /// captured at pointer-down from the accepted document; `anchor` is
+    /// `None` exactly when the matrix is unanchored, and an anchored matrix
+    /// whose anchor target is not laid out refuses the drag at start.
+    MatrixMove { anchor: Option<MatrixDragAnchor> },
+    /// Turns the selected matrix through its stored rotation. The anchor
+    /// context is captured at pointer-down like the move; the center, start
+    /// angle and start rotation follow from the accepted matrix then.
+    MatrixRotate {
+        anchor: Option<MatrixDragAnchor>,
+        center: Vec2,
+        start_angle: f64,
+        start_rotation: f64,
+    },
 }
 
 impl TransformGesture {
@@ -158,7 +190,10 @@ impl TransformGesture {
             } => Some(stagger_parameter(column, quick_offset)),
             Self::Spread { column } => Some(PlacementParameter::ColumnSpread { column }),
             Self::Offset { parameter } => Some(parameter),
-            Self::Splay { .. } | Self::Origin { .. } => None,
+            Self::Splay { .. }
+            | Self::Origin { .. }
+            | Self::MatrixMove { .. }
+            | Self::MatrixRotate { .. } => None,
         }
     }
 }
@@ -371,6 +406,22 @@ pub fn LayoutTransformToolOverlay(
         }
         _ => {}
     }
+    // The matrix Move/Rotate handles share one anchor point on the drawn
+    // matrix: the first enabled key's pose. The rotation center captured at
+    // pointer-down uses the same point from the live scene, so the two cannot
+    // drift apart.
+    let matrix_handle_point = projection
+        .cells
+        .iter()
+        .find(|cell| cell.enabled)
+        .or(projection.cells.first())
+        .map(|cell| cell.pose.at)
+        .unwrap_or(matrix.origin);
+    let matrix_rotation_followed = matrix
+        .anchor
+        .as_ref()
+        .map(|anchor| anchor.follow.rotation)
+        .unwrap_or(true);
     let (handle_point, handle_scale, selected_column) = {
         let selected_column = context_column(&context).unwrap_or(0);
         let selected_row = context_row(&context);
@@ -423,6 +474,7 @@ pub fn LayoutTransformToolOverlay(
                 .iter()
                 .find(|basis| basis.column == selected_column)
                 .map(|basis| basis.splay_origin),
+            LayoutTransformTool::Move | LayoutTransformTool::Rotate => Some(matrix_handle_point),
         };
         let scale = svg.0.borrow().as_ref().map_or(3.0, |surface| {
             let rect = surface.get_bounding_client_rect();
@@ -506,6 +558,7 @@ pub fn LayoutTransformToolOverlay(
         .unwrap_or(0.0);
     let projection_for_key = projection.clone();
     let projection_for_start = projection.clone();
+    let matrix_for_start = matrix.clone();
     let owner_for_key = owner.clone();
     let context_for_key = context.clone();
     let runtime_for_start = runtime.0.clone();
@@ -541,6 +594,33 @@ pub fn LayoutTransformToolOverlay(
                 column,
                 swing: pointer.ctrl_key(),
             },
+            TransformGesture::MatrixMove { .. } => {
+                // Capture the anchor context now; the preview and the commit
+                // compose this drag against whatever the matrix becomes. An
+                // anchored matrix whose anchor target is not laid out refuses
+                // the drag before it acquires anything.
+                let Some(accepted) = runtime_for_start.model().accepted.clone() else {
+                    return;
+                };
+                let Ok(anchor) = matrix_drag_anchor(&accepted, &matrix_for_start) else {
+                    return;
+                };
+                TransformGesture::MatrixMove { anchor }
+            }
+            TransformGesture::MatrixRotate { .. } => {
+                let Some(accepted) = runtime_for_start.model().accepted.clone() else {
+                    return;
+                };
+                let Ok(anchor) = matrix_drag_anchor(&accepted, &matrix_for_start) else {
+                    return;
+                };
+                TransformGesture::MatrixRotate {
+                    anchor,
+                    center: Vec2::default(),
+                    start_angle: 0.0,
+                    start_rotation: 0.0,
+                }
+            }
             other => other,
         };
         let basis = gesture
@@ -556,8 +636,8 @@ pub fn LayoutTransformToolOverlay(
             selected_context,
             &current_owner,
             &current_context,
-        ) || context_matrix_id(&current_context) != Some(matrix.id.as_str())
-            || !transform_start_is_editable(&runtime_for_start, &current_owner, &matrix)
+        ) || context_matrix_id(&current_context) != Some(matrix_for_start.id.as_str())
+            || !transform_start_is_editable(&runtime_for_start, &current_owner, &matrix_for_start)
             || !arbiter_for_start.try_acquire(CanvasInteractionOwner::MatrixTransform)
         {
             return;
@@ -609,6 +689,23 @@ pub fn LayoutTransformToolOverlay(
                 start_angle,
                 swing,
             },
+            TransformGesture::MatrixRotate { anchor, .. } => {
+                // The rotation center is the shared handle point: the first
+                // enabled key's pose from the drag's own scene.
+                let center = projection_for_start
+                    .cells
+                    .iter()
+                    .find(|cell| cell.enabled)
+                    .or(projection_for_start.cells.first())
+                    .map(|cell| cell.pose.at)
+                    .unwrap_or(matrix_for_start.origin);
+                TransformGesture::MatrixRotate {
+                    anchor,
+                    center,
+                    start_angle: (start_point.y - center.y).atan2(start_point.x - center.x),
+                    start_rotation: matrix_for_start.rotation.unwrap_or(0.0),
+                }
+            }
             other => other,
         };
         let operation = runtime_for_start.operation();
@@ -626,7 +723,7 @@ pub fn LayoutTransformToolOverlay(
         *drag_for_start.borrow_mut() = Some(TransformDrag {
             pointer_id: pointer.pointer_id(),
             capture,
-            matrix: matrix.clone(),
+            matrix: matrix_for_start.clone(),
             gesture,
             transaction_id: format!("layout-transform-{}", operation.0),
             owner: current_owner.clone(),
@@ -990,6 +1087,10 @@ pub fn LayoutTransformToolOverlay(
                 degrees: delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
                 affect: splay_affect(),
             },
+            Some("Drag to move matrix") => TransformNudge::MatrixMove,
+            Some("Drag to rotate matrix") if delta.x != 0.0 => TransformNudge::MatrixRotate {
+                degrees: delta.x.signum() * if key.shift_key() { 5.0 } else { 1.0 },
+            },
             _ => return,
         };
         key.prevent_default();
@@ -1041,6 +1142,13 @@ pub fn LayoutTransformToolOverlay(
             column: selected_column,
             swing: false,
         },
+        LayoutTransformTool::Move => TransformGesture::MatrixMove { anchor: None },
+        LayoutTransformTool::Rotate => TransformGesture::MatrixRotate {
+            anchor: None,
+            center: Vec2::default(),
+            start_angle: 0.0,
+            start_rotation: 0.0,
+        },
     };
     let stagger_axis = projection
         .columns
@@ -1066,6 +1174,17 @@ pub fn LayoutTransformToolOverlay(
         (LayoutTransformTool::Spread, _) => "Drag to spread",
         _ => "Drag to stagger",
     };
+    // The matrix Move/Rotate handles share one anchor point on the drawn
+    // matrix: the first enabled key's pose. The rotation center captured at
+    // pointer-down uses the same point from the live scene, so the two cannot
+    // drift apart.
+    let matrix_handle_point = projection
+        .cells
+        .iter()
+        .find(|cell| cell.enabled)
+        .or(projection.cells.first())
+        .map(|cell| cell.pose.at)
+        .unwrap_or(matrix.origin);
     let handle_value = match tool {
         LayoutTransformTool::Offset => {
             format!("X {:.2} mm, Y {:.2} mm", offset_now.x, offset_now.y)
@@ -1083,7 +1202,59 @@ pub fn LayoutTransformToolOverlay(
                 circle { cx: "{guide.x}", cy: "{guide.y}", r: "{width / 170.0}" }
             }
         }
-        if tool == LayoutTransformTool::Spread {
+        if matches!(context, TreeContext::Matrix { .. })
+            && matches!(tool, LayoutTransformTool::Move | LayoutTransformTool::Rotate)
+        {
+            g { class: "m1-transform-matrix-handles",
+                path {
+                    class: "m1-transform-rotate-guide",
+                    d: "M{matrix_handle_point.x} {matrix_handle_point.y + 12.0} L{matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}"
+                }
+                g {
+                    class: "m1-transform-handle m1-matrix-move-handle",
+                    transform: "translate({matrix_handle_point.x} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
+                    role: "button", tabindex: "0", "aria-label": "Drag to move matrix",
+                    "aria-description": "X {matrix.origin.x:.2} mm, Y {matrix.origin.y:.2} mm",
+                    onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
+                    onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
+                    onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
+                    onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                    onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                    onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
+                    rect { x: "-8", y: "-8", width: "16", height: "16" }
+                    path { d: "M0 -5v10M-5 0h10M-2.5 -2.5 0 -5l2.5 2.5M-2.5 2.5 0 5l2.5 -2.5" }
+                    title { "Drag to move matrix · X {matrix.origin.x:.2} mm, Y {matrix.origin.y:.2} mm" }
+                }
+                if matrix_rotation_followed {
+                    g {
+                        class: "m1-transform-handle m1-matrix-rotate-handle",
+                        transform: "translate({matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
+                        role: "button", tabindex: "0", "aria-label": "Drag to rotate matrix",
+                        "aria-description": "{matrix.rotation.unwrap_or(0.0):.2} degrees",
+                        onpointerdown: { let start = start_drag.clone(); move |event| start(event, gesture) },
+                        onpointermove: { let handler = move_drag.clone(); move |event| handler(event) },
+                        onpointerup: { let handler = end_drag.clone(); move |event| handler(event) },
+                        onpointercancel: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                        onlostpointercapture: { let handler = cancel_drag.clone(); move |event| handler(event) },
+                        onkeydown: { let handler = on_key_down.clone(); move |event| handler(event) },
+                        circle { r: "8" }
+                        path { d: "M5.5 -2.5 A6 6 0 1 1 -2.5 -5.5M5.5 -5.5v3h-3" }
+                        title { "Drag to rotate matrix · {matrix.rotation.unwrap_or(0.0):.2} degrees" }
+                    }
+                } else {
+                    g {
+                        class: "m1-transform-handle m1-matrix-rotate-handle m1-handle-disabled",
+                        transform: "translate({matrix_handle_point.x + 28.0} {matrix_handle_point.y + 12.0}) scale({handle_scale})",
+                        role: "button", tabindex: "0", "aria-label": "Drag to rotate matrix",
+                        "aria-disabled": "true",
+                        "aria-description": "Follow rotation is off, so turning changes nothing.",
+                        circle { r: "8" }
+                        path { d: "M5.5 -2.5 A6 6 0 1 1 -2.5 -5.5M5.5 -5.5v3h-3" }
+                        title { "Rotate matrix (unavailable: Follow rotation is off)" }
+                    }
+                }
+            }
+        } else if tool == LayoutTransformTool::Spread {
             g {
                 class: "m1-transform-handle m1-spread-handle",
                 transform: "translate({handle_point.x} {handle_point.y}) scale({handle_scale})",
@@ -1212,6 +1383,13 @@ enum TransformNudge {
         degrees: f64,
         affect: MatrixSplayAffect,
     },
+    /// One arrow step of the selected matrix's Origin; the step arrives as
+    /// the nudge delta in world directions.
+    MatrixMove,
+    /// One arrow step of the selected matrix's stored rotation.
+    MatrixRotate {
+        degrees: f64,
+    },
 }
 
 fn accepted_matrix<'a>(accepted: &'a AcceptedSnapshot, matrix_id: &str) -> Option<&'a Matrix> {
@@ -1220,6 +1398,29 @@ fn accepted_matrix<'a>(accepted: &'a AcceptedSnapshot, matrix_id: &str) -> Optio
         .matrices
         .iter()
         .find(|matrix| matrix.id == matrix_id)
+}
+
+/// The anchor context a matrix drag inverse-solves through, or `None` for an
+/// unanchored matrix. Refuses when the matrix is anchored but its anchor
+/// target is not laid out, so the drag never solves through a stale frame.
+fn matrix_drag_anchor(
+    accepted: &AcceptedSnapshot,
+    matrix: &Matrix,
+) -> Result<Option<MatrixDragAnchor>, String> {
+    let Some(anchor) = matrix.anchor.as_ref() else {
+        return Ok(None);
+    };
+    let Some(key_pose) = matrix_drag_anchor_pose(&accepted.scene.matrix_scenes, anchor) else {
+        return Err(format!(
+            "Matrix {} is anchored to {}.r{}c{}, which is not laid out.",
+            matrix.id, anchor.matrix_id, anchor.row, anchor.column
+        ));
+    };
+    Ok(Some(MatrixDragAnchor {
+        key_pose,
+        follow: anchor.follow,
+        transport: matrix_drag_transport(&accepted.document, &matrix.id),
+    }))
 }
 
 fn accepted_basis<'a>(
@@ -1607,6 +1808,48 @@ fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec
                         },
                     }
                 }
+                TransformNudge::MatrixMove => {
+                    let anchor = match matrix_drag_anchor(accepted, matrix) {
+                        Ok(anchor) => anchor,
+                        Err(reason) => return Resolution::Retire(reason),
+                    };
+                    let mut next = matrix.clone();
+                    next.origin = solve_matrix_origin(matrix, anchor, delta);
+                    if next.origin == matrix.origin {
+                        return Resolution::Retire(
+                            "The nudge stays outside the followed directions.".into(),
+                        );
+                    }
+                    EditOperation::SetMatrix {
+                        matrix: next,
+                        definitions: None,
+                    }
+                }
+                TransformNudge::MatrixRotate { degrees } => {
+                    let follow_rotation = matrix
+                        .anchor
+                        .as_ref()
+                        .map(|anchor| anchor.follow.rotation)
+                        .unwrap_or(true);
+                    let Some(rotation) = solve_matrix_rotation(
+                        matrix.rotation.unwrap_or(0.0),
+                        follow_rotation,
+                        *degrees,
+                    ) else {
+                        return Resolution::Retire(
+                            "Rotation is not followed, so turning it changes nothing.".into(),
+                        );
+                    };
+                    let mut next = matrix.clone();
+                    next.rotation = Some(rotation);
+                    if next.rotation == matrix.rotation {
+                        return Resolution::Retire("The nudge turns nothing.".into());
+                    }
+                    EditOperation::SetMatrix {
+                        matrix: next,
+                        definitions: None,
+                    }
+                }
             };
             transform_commit(String::new(), &matrix_id, operation)
         },
@@ -1615,6 +1858,8 @@ fn transform_nudge_resolver(matrix_id: String, nudge: TransformNudge, delta: Vec
 
 /// The net transform a drag produced, captured when it ends: a stagger or offset and the
 /// splay angle as deltas from the drag's start, a splay origin as the point it was dropped on.
+/// A matrix move is the constrained world delta from the drag's start, recovered through the
+/// inverse of the drag's anchor frame; a matrix rotation is the swept degrees.
 #[derive(Clone, Debug, PartialEq)]
 enum TransformDragResult {
     Placement {
@@ -1633,6 +1878,12 @@ enum TransformDragResult {
     SplaySwing {
         column: u32,
         world: Vec2,
+    },
+    MatrixMove {
+        delta: Vec2,
+    },
+    MatrixRotate {
+        delta_degrees: f64,
     },
 }
 
@@ -1697,6 +1948,32 @@ fn transform_drag_result(
             column: *column,
             world: *world,
         }),
+        (
+            TransformGesture::MatrixMove { anchor },
+            EditOperation::SetMatrix { matrix: next, .. },
+        ) => {
+            // Recover the constrained world delta the preview applied: the
+            // commit re-solves it against whatever is accepted when the edit
+            // runs, so queued edits compose instead of restoring this pose.
+            let origin_delta = Vec2 {
+                x: next.origin.x - drag.matrix.origin.x,
+                y: next.origin.y - drag.matrix.origin.y,
+            };
+            let (sin, cos) = anchor
+                .map(|anchor| anchor.key_pose.rotation.to_radians().sin_cos())
+                .unwrap_or((0.0, 1.0));
+            Some(TransformDragResult::MatrixMove {
+                delta: Vec2 {
+                    x: origin_delta.x * cos - origin_delta.y * sin,
+                    y: origin_delta.x * sin + origin_delta.y * cos,
+                },
+            })
+        }
+        (TransformGesture::MatrixRotate { .. }, EditOperation::SetMatrix { matrix: next, .. }) => {
+            Some(TransformDragResult::MatrixRotate {
+                delta_degrees: next.rotation.unwrap_or(0.0) - drag.matrix.rotation.unwrap_or(0.0),
+            })
+        }
         _ => None,
     }
 }
@@ -1756,6 +2033,52 @@ fn transform_drag_resolver(
                         change: MatrixSplayChange::OriginSwing {
                             world: Some(*world),
                         },
+                    }
+                }
+                TransformDragResult::MatrixMove { delta } => {
+                    // Re-solve the drag's constrained world delta against the
+                    // live matrix: an anchor added, retargeted or detached
+                    // while the drag was in flight resolves through the live
+                    // frame, so the gesture composes instead of restoring.
+                    let anchor = match matrix_drag_anchor(accepted, matrix) {
+                        Ok(anchor) => anchor,
+                        Err(reason) => return Resolution::Retire(reason),
+                    };
+                    let mut next = matrix.clone();
+                    next.origin = solve_matrix_origin(matrix, anchor, *delta);
+                    if next.origin == matrix.origin {
+                        return Resolution::Retire(
+                            "The drag stays outside the followed directions.".into(),
+                        );
+                    }
+                    EditOperation::SetMatrix {
+                        matrix: next,
+                        definitions: None,
+                    }
+                }
+                TransformDragResult::MatrixRotate { delta_degrees } => {
+                    let follow_rotation = matrix
+                        .anchor
+                        .as_ref()
+                        .map(|anchor| anchor.follow.rotation)
+                        .unwrap_or(true);
+                    let Some(rotation) = solve_matrix_rotation(
+                        matrix.rotation.unwrap_or(0.0),
+                        follow_rotation,
+                        *delta_degrees,
+                    ) else {
+                        return Resolution::Retire(
+                            "Rotation is not followed, so turning it changes nothing.".into(),
+                        );
+                    };
+                    let mut next = matrix.clone();
+                    next.rotation = Some(rotation);
+                    if next.rotation == matrix.rotation {
+                        return Resolution::Retire("The drag turns nothing.".into());
+                    }
+                    EditOperation::SetMatrix {
+                        matrix: next,
+                        definitions: None,
                     }
                 }
             };
@@ -2142,6 +2465,62 @@ fn sample_transform(
                 change,
             })
         }
+        TransformGesture::MatrixMove { anchor } => {
+            let rect = svg.borrow().as_ref()?.get_bounding_client_rect();
+            if rect.width() <= 0.0 || rect.height() <= 0.0 {
+                return None;
+            }
+            let world_delta = Vec2 {
+                x: (f64::from(pointer.client_x()) - drag.start_client_x) * view_width
+                    / rect.width(),
+                y: -(f64::from(pointer.client_y()) - drag.start_client_y) * view_height
+                    / rect.height(),
+            };
+            guide.set(None);
+            let origin = solve_matrix_origin(matrix, anchor, world_delta);
+            if origin == matrix.origin {
+                // A drag outside every Follow direction changes nothing.
+                return None;
+            }
+            let mut next = matrix.as_ref().clone();
+            next.origin = origin;
+            Some(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
+        }
+        TransformGesture::MatrixRotate {
+            anchor,
+            center,
+            start_angle,
+            start_rotation,
+        } => {
+            let rotation_followed = match anchor {
+                Some(anchor) => anchor.follow.rotation,
+                None => true,
+            };
+            if !rotation_followed {
+                return None;
+            }
+            let angle = (point.y - center.y).atan2(point.x - center.x) - start_angle;
+            let mut delta = angle.sin().atan2(angle.cos()).to_degrees();
+            if matches!(matrix.mirror, Some(Mirror::X | Mirror::Y)) {
+                delta = -delta;
+            }
+            let mut rotation = start_rotation + delta;
+            if !pointer.alt_key() {
+                rotation = rotation.round();
+            }
+            if Some(rotation) == matrix.rotation {
+                return None;
+            }
+            let mut next = matrix.as_ref().clone();
+            next.rotation = Some(rotation);
+            Some(EditOperation::SetMatrix {
+                matrix: next,
+                definitions: None,
+            })
+        }
     }
 }
 
@@ -2212,6 +2591,12 @@ fn same_transform_as_start(drag: &TransformDrag, operation: &EditOperation) -> b
                     .column_layout
                     .get(*column as usize)
                     .is_none_or(|record| record.splay_origin == Vec2::default())
+        }
+        (TransformGesture::MatrixMove { .. }, EditOperation::SetMatrix { matrix: next, .. }) => {
+            next.id == drag.matrix.id && next.origin == drag.matrix.origin
+        }
+        (TransformGesture::MatrixRotate { .. }, EditOperation::SetMatrix { matrix: next, .. }) => {
+            next.id == drag.matrix.id && next.rotation == drag.matrix.rotation
         }
         _ => false,
     }
@@ -2348,25 +2733,71 @@ pub fn LayoutContextActionToolbar(
         LayoutSelectionKind::Key => "Key",
         LayoutSelectionKind::Part => "Part",
     };
+    let rotate_followed = mount.matrix_rotate_followed.unwrap_or(true);
+    let rotate_accessible_label = if rotate_followed {
+        "Activate Rotate for the selected matrix"
+    } else {
+        "Rotate matrix (unavailable: Follow rotation is off)"
+    };
     let tools = match selection_kind {
-        LayoutSelectionKind::Matrix | LayoutSelectionKind::Key | LayoutSelectionKind::Part => vec![
+        LayoutSelectionKind::Matrix => vec![
+            (
+                LayoutTransformTool::Move,
+                "Move matrix",
+                "Activate Move for the selected matrix",
+                true,
+                false,
+            ),
+            (
+                LayoutTransformTool::Rotate,
+                "Rotate matrix",
+                rotate_accessible_label,
+                true,
+                !rotate_followed,
+            ),
             (
                 LayoutTransformTool::Stagger,
                 "Stagger column",
                 "Activate Stagger column; selection changes to Column",
                 mount.column_available,
+                false,
             ),
             (
                 LayoutTransformTool::Offset,
                 "Offset column",
                 "Activate Offset column; selection changes to Column",
                 mount.column_available,
+                false,
             ),
             (
                 LayoutTransformTool::Spread,
                 "Spread column",
                 "Activate Spread column; selection changes to Column",
                 mount.column_available,
+                false,
+            ),
+        ],
+        LayoutSelectionKind::Key | LayoutSelectionKind::Part => vec![
+            (
+                LayoutTransformTool::Stagger,
+                "Stagger column",
+                "Activate Stagger column; selection changes to Column",
+                mount.column_available,
+                false,
+            ),
+            (
+                LayoutTransformTool::Offset,
+                "Offset column",
+                "Activate Offset column; selection changes to Column",
+                mount.column_available,
+                false,
+            ),
+            (
+                LayoutTransformTool::Spread,
+                "Spread column",
+                "Activate Spread column; selection changes to Column",
+                mount.column_available,
+                false,
             ),
         ],
         LayoutSelectionKind::Row => vec![
@@ -2375,18 +2806,21 @@ pub fn LayoutContextActionToolbar(
                 "Offset row",
                 "Activate Offset for the selected row",
                 mount.row_available,
+                false,
             ),
             (
                 LayoutTransformTool::Stagger,
                 "Stagger column",
                 "Activate Stagger column; selection changes to Column",
                 mount.column_available,
+                false,
             ),
             (
                 LayoutTransformTool::Spread,
                 "Spread column",
                 "Activate Spread column; selection changes to Column",
                 mount.column_available,
+                false,
             ),
         ],
         LayoutSelectionKind::Column => vec![
@@ -2395,25 +2829,28 @@ pub fn LayoutContextActionToolbar(
                 "Stagger column",
                 "Activate Stagger for the selected column",
                 mount.column_available,
+                false,
             ),
             (
                 LayoutTransformTool::Offset,
                 "Offset column",
                 "Activate Offset for the selected column",
                 mount.column_available,
+                false,
             ),
             (
                 LayoutTransformTool::Spread,
                 "Spread column",
                 "Activate Spread for the selected column",
                 mount.column_available,
+                false,
             ),
         ],
     };
     let mut visible_tools = if mount.pointer_tools_visible && mount.pointer_tools_available {
         tools
             .into_iter()
-            .filter(|(_, _, _, available)| *available)
+            .filter(|(_, _, _, available, _)| *available)
             .collect::<Vec<_>>()
     } else {
         Vec::new()
@@ -2431,6 +2868,7 @@ pub fn LayoutContextActionToolbar(
             "Splay",
             "Activate Splay for the selected column",
             true,
+            false,
         ));
     }
     if !property_action && visible_tools.is_empty() {
@@ -2473,7 +2911,7 @@ pub fn LayoutContextActionToolbar(
                     span { class: "layout-action-label", "{property_label}" }
                 }
             }
-            for (index, (tool, label, accessible_label, _)) in visible_tools.into_iter().enumerate() {
+            for (index, (tool, label, accessible_label, _, disabled)) in visible_tools.into_iter().enumerate() {
                 LayoutContextToolButton {
                     index: index + usize::from(property_action),
                     mount: mount.clone(),
@@ -2482,6 +2920,7 @@ pub fn LayoutContextActionToolbar(
                     label: label.to_owned(),
                     accessible_label: accessible_label.to_owned(),
                     pressed: mount.active_tool == Some(tool),
+                    disabled,
                 }
             }
         }
@@ -2497,6 +2936,7 @@ fn LayoutContextToolButton(
     label: String,
     accessible_label: String,
     pressed: bool,
+    #[props(default)] disabled: bool,
 ) -> Element {
     let on_transform_tool = mount.on_transform_tool;
     let glyph = match tool {
@@ -2505,6 +2945,8 @@ fn LayoutContextToolButton(
         LayoutTransformTool::Offset => "M2 10h16M6 6l-4 4 4 4M14 6l4 4-4 4",
         LayoutTransformTool::Splay => "M4 16h13M4 16l8-12M7 16a7 7 0 0 0 3-6",
         LayoutTransformTool::Origin => "M10 1v18M1 10h18M5 5h10v10H5z",
+        LayoutTransformTool::Move => "M10 2v16M2 10h16M7 5l3-3 3 3M7 15l3 3 3-3",
+        LayoutTransformTool::Rotate => "M17 10a7 7 0 1 1-2-4.9M17 2v5h-5",
     };
     rsx! {
         BoardToolbarButton {
@@ -2513,6 +2955,7 @@ fn LayoutContextToolButton(
             aria_label: accessible_label.clone(),
             title: accessible_label,
             pressed,
+            disabled,
             on_activate: move |_| {
                 on_transform_tool.call(tool);
                 close_layout_command_menu(open_menu, LayoutCommandMenu::Transform);
@@ -2522,6 +2965,8 @@ fn LayoutContextToolButton(
                 "Stagger column" => "Stagger",
                 "Offset column" | "Offset row" => "Offset",
                 "Spread column" => "Spread",
+                "Move matrix" => "Move",
+                "Rotate matrix" => "Rotate",
                 _ => label.as_str(),
             }} }
         }
@@ -2664,6 +3109,7 @@ mod shortcut_tests {
             pointer_tools_visible: false,
             pointer_tools_available: false,
             active_tool: None,
+            matrix_rotate_followed: None,
             on_selection_kind,
             on_show_properties,
             on_transform_tool: EventHandler::new(|_: LayoutTransformTool| {}),
@@ -2720,6 +3166,7 @@ mod shortcut_tests {
             pointer_tools_visible: props.pointer_tools_visible,
             pointer_tools_available: true,
             active_tool: active_tool(),
+            matrix_rotate_followed: None,
             on_selection_kind: EventHandler::new(move |kind| selection_kind.set(kind)),
             on_show_properties: EventHandler::new(|()| {}),
             on_transform_tool,
@@ -2737,6 +3184,8 @@ mod shortcut_tests {
             Some(LayoutTransformTool::Offset) => "Offset",
             Some(LayoutTransformTool::Splay) => "Splay",
             Some(LayoutTransformTool::Origin) => "Origin",
+            Some(LayoutTransformTool::Move) => "Move",
+            Some(LayoutTransformTool::Rotate) => "Rotate",
             None => "None",
         };
 
@@ -3899,7 +4348,7 @@ mod tool_tests {
     #[wasm_bindgen_test]
     fn activation_changes_the_selection_kind_per_tool() {
         use LayoutSelectionKind::{Column, Row};
-        use LayoutTransformTool::{Offset, Origin, Splay, Stagger};
+        use LayoutTransformTool::{Move, Offset, Origin, Rotate, Splay, Stagger};
         for (tool, selection, expected) in [
             // Offset keeps a Row and turns the rest into their Column.
             (Offset, "row", Row),
@@ -3924,6 +4373,20 @@ mod tool_tests {
                 },
                 "{tool:?} on a {selection} selection"
             );
+        }
+        // Move and Rotate edit the matrix itself, so every selection stays a
+        // Matrix selection: no selection change is requested.
+        for tool in [Move, Rotate] {
+            for selection in ["row", "column", "key", "matrix"] {
+                assert_eq!(
+                    activate_transform_tool(None, tool, &context_of(selection)),
+                    ToolActivation {
+                        active: Some(tool),
+                        selection_kind: None,
+                    },
+                    "{tool:?} on a {selection} selection"
+                );
+            }
         }
         // Choosing the active tool again turns it off and leaves the selection alone.
         assert_eq!(
@@ -3965,6 +4428,7 @@ mod tool_tests {
             pointer_tools_visible: true,
             pointer_tools_available: props.available,
             active_tool: Some(LayoutTransformTool::Offset),
+            matrix_rotate_followed: None,
             on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
             on_show_properties: EventHandler::new(|()| {}),
             on_transform_tool: EventHandler::new(move |tool: LayoutTransformTool| {
@@ -4055,6 +4519,80 @@ mod tool_tests {
         root.remove();
     }
 
+    #[derive(Props, Clone, PartialEq)]
+    struct MatrixMenuHostProps {
+        followed: bool,
+    }
+
+    #[component]
+    fn matrix_menu_host(props: MatrixMenuHostProps) -> Element {
+        let mount = LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: true,
+            pointer_tools_available: true,
+            active_tool: None,
+            matrix_rotate_followed: Some(props.followed),
+            on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool: EventHandler::new(|_: LayoutTransformTool| {}),
+        };
+        rsx! {
+            LayoutTransformToolbar {
+                mount,
+                open_menu: Signal::new(Some(LayoutCommandMenu::Transform)),
+                selection_kind: Some(LayoutSelectionKind::Matrix),
+            }
+        }
+    }
+
+    /// Ticket 23 slice: the Matrix menu offers Move always, and Rotate
+    /// enabled only when the matrix follows rotation; otherwise Rotate stays
+    /// visible but disabled with the reason.
+    #[wasm_bindgen_test]
+    async fn the_matrix_menu_disables_rotate_without_follow_rotation() {
+        for (followed, rotate_enabled) in [(true, true), (false, false)] {
+            let document = web_sys::window().unwrap().document().unwrap();
+            let root = document.create_element("div").unwrap();
+            document.body().unwrap().append_child(&root).unwrap();
+            dioxus_web::launch::launch_virtual_dom(
+                VirtualDom::new_with_props(matrix_menu_host, MatrixMenuHostProps { followed }),
+                dioxus_web::Config::new().rootnode(root.clone().into()),
+            );
+            gloo_timers::future::TimeoutFuture::new(40).await;
+            let buttons = root.query_selector_all("button").unwrap();
+            let labels = (0..buttons.length())
+                .filter_map(|index| buttons.item(index))
+                .filter_map(|node| node.text_content())
+                .collect::<Vec<_>>();
+            assert!(
+                labels.iter().any(|label| label == "Move"),
+                "the Matrix menu offers Move, got {labels:?}"
+            );
+            let rotate = (0..buttons.length())
+                .filter_map(|index| buttons.item(index))
+                .filter_map(|node| node.dyn_into::<web_sys::Element>().ok())
+                .find(|button| button.text_content().as_deref() == Some("Rotate"))
+                .expect("the Matrix menu offers Rotate");
+            assert_eq!(
+                rotate.has_attribute("disabled"),
+                !rotate_enabled,
+                "Rotate follows the rotation Follow"
+            );
+            assert_eq!(
+                rotate.get_attribute("aria-label").as_deref(),
+                Some(if rotate_enabled {
+                    "Activate Rotate for the selected matrix"
+                } else {
+                    "Rotate matrix (unavailable: Follow rotation is off)"
+                }),
+                "the Rotate entry explains itself"
+            );
+            root.remove();
+        }
+    }
+
     #[wasm_bindgen_test]
     async fn the_menu_lists_stagger_offset_splay_origin_and_follows_availability() {
         for available in [true, false] {
@@ -4119,17 +4657,16 @@ mod tool_tests {
         owner: LayoutOwnerIdentity,
         scope: Scope,
         tool: LayoutTransformTool,
+        context: TreeContext,
     }
 
     #[component]
     fn overlay_host(props: OverlayHostProps) -> Element {
+        let context = props.context.clone();
         let selected_context = use_signal(|| {
             Some(ScopedTreeContext {
                 scope: props.scope.clone(),
-                context: TreeContext::Column {
-                    matrix_id: props.matrix.id.clone(),
-                    column: 1,
-                },
+                context: context.clone(),
             })
         });
         let scope_generation = use_signal(|| props.owner.generation);
@@ -4148,7 +4685,7 @@ mod tool_tests {
                     workspace,
                     matrix: props.matrix.clone(),
                     projection: props.projection.clone(),
-                    context: TreeContext::Column { matrix_id: props.matrix.id.clone(), column: 1 },
+                    context: props.context.clone(),
                     tool: props.tool,
                     snap_settings: super::super::layout_toolbar::LayoutSnapSettings::default(),
                     snap_origins: Vec::new(),
@@ -4189,6 +4726,10 @@ mod tool_tests {
         let document = web_sys::window().unwrap().document().unwrap();
         let root = document.create_element("div").unwrap();
         document.body().unwrap().append_child(&root).unwrap();
+        let context = TreeContext::Column {
+            matrix_id: matrix.id.clone(),
+            column: 1,
+        };
         let props = OverlayHostProps {
             runtime: LayoutTransformRuntime(runtime.clone()),
             svg: svg.clone(),
@@ -4197,6 +4738,7 @@ mod tool_tests {
             scope: owner.scope.clone().expect("a scope"),
             owner,
             tool,
+            context,
         };
         dioxus_web::launch::launch_virtual_dom(
             VirtualDom::new_with_props(overlay_host, props),
@@ -4222,6 +4764,84 @@ mod tool_tests {
         ] {
             js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
         }
+        (root, handle)
+    }
+
+    /// Mount the overlay for a named matrix with a Matrix selection, for the
+    /// matrix Move and Rotate tools.
+    async fn mount_matrix_overlay(
+        runtime: &Rc<Runtime>,
+        tool: LayoutTransformTool,
+        matrix_id: &str,
+    ) -> (web_sys::Element, web_sys::Element) {
+        let model = runtime.model();
+        let accepted = model.accepted.as_ref().expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == matrix_id)
+            .cloned()
+            .expect("the named matrix");
+        let projection = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == matrix.id)
+            .cloned()
+            .expect("the matrix scene");
+        let owner = LayoutOwnerIdentity {
+            scope: runtime.scope(),
+            token: Some(accepted.token),
+            revision: Some(accepted.document.revision),
+            generation: 0,
+            workspace: "Layout",
+        };
+        let svg = LayoutTransformSvg(Rc::new(RefCell::new(None)));
+        let document = web_sys::window().unwrap().document().unwrap();
+        let root = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&root).unwrap();
+        let context = TreeContext::Matrix {
+            matrix_id: matrix.id.clone(),
+        };
+        let props = OverlayHostProps {
+            runtime: LayoutTransformRuntime(runtime.clone()),
+            svg: svg.clone(),
+            matrix,
+            projection,
+            scope: owner.scope.clone().expect("a scope"),
+            owner,
+            tool,
+            context,
+        };
+        dioxus_web::launch::launch_virtual_dom(
+            VirtualDom::new_with_props(overlay_host, props),
+            dioxus_web::Config::new().rootnode(root.clone().into()),
+        );
+        gloo_timers::future::TimeoutFuture::new(60).await;
+        *svg.0.borrow_mut() = root
+            .query_selector("#overlay-host-svg")
+            .unwrap()
+            .and_then(|element| element.dyn_into::<SvgElement>().ok());
+        // Every handle needs the capture stubs: synthetic pointer events are
+        // never real active pointers, so the unstubbed capture throws and the
+        // drag refuses to start.
+        let handles = root.query_selector_all(".m1-transform-handle").unwrap();
+        let stub = js_sys::Function::new_no_args("return true;");
+        for index in 0..handles.length() {
+            let handle = handles.item(index).expect("the stubbed handle");
+            for method in [
+                "setPointerCapture",
+                "hasPointerCapture",
+                "releasePointerCapture",
+            ] {
+                js_sys::Reflect::set(handle.as_ref(), &method.into(), stub.as_ref()).unwrap();
+            }
+        }
+        let handle = root
+            .query_selector(".m1-transform-handle")
+            .unwrap()
+            .expect("the tool draws a handle");
         (root, handle)
     }
 
@@ -4599,6 +5219,333 @@ mod tool_tests {
                 .is_none(),
             "one Undo restores the default step"
         );
+        root.remove();
+    }
+
+    /// A second 1x1 matrix anchored to the fixture matrix's first key, with a
+    /// live key part, for the matrix Move and Rotate drags.
+    fn anchored_drag_document(
+        follow: boardstudio_core::model::Follow,
+    ) -> boardstudio_core::model::ProjectDoc {
+        use boardstudio_core::model::*;
+        let mut document = fixture::matrix_document();
+        document.layouts.push(Layout {
+            id: "layout".into(),
+            name: "Main".into(),
+            board_id: fixture::BOARD_ID.into(),
+            matrix_ids: vec![fixture::MATRIX_ID.into(), "dep".into()],
+            part_ids: vec![],
+            mirror_link: None,
+        });
+        let key_id = "matrix/dep/r0c0";
+        document.boards[0].part_ids.push(key_id.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: key_id.into(),
+            definition_id: "switch:base".into(),
+            reference: "K3".into(),
+            pose: Pose2 {
+                at: Vec2 { x: 0.0, y: -19.05 },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+        document.matrices.push(Matrix {
+            id: "dep".into(),
+            name: Some("Dependent".into()),
+            rows: 1,
+            columns: 1,
+            pitch: Vec2 { x: 19.05, y: 19.05 },
+            origin: Vec2 { x: 0.0, y: -19.05 },
+            definition_id: "switch:base".into(),
+            part_ids: vec![key_id.into()],
+            board_id: Some(fixture::BOARD_ID.into()),
+            mirror: None,
+            rotation: None,
+            edge_gap: None,
+            diode_direction: None,
+            row_layout: vec![],
+            column_layout: vec![ColumnLayout::default()],
+            anchor: Some(MatrixAnchor {
+                matrix_id: fixture::MATRIX_ID.into(),
+                row: 0,
+                column: 0,
+                follow,
+            }),
+            cells: vec![MatrixCell {
+                shift: None,
+                bend: None,
+                deleted: false,
+                row: 0,
+                column: 0,
+                enabled: true,
+                definition_id: Some("switch:base".into()),
+                variant: None,
+                offset: None,
+                rotation: None,
+                assemblies: vec![],
+                assemblies_local: None,
+            }],
+        });
+        document
+    }
+
+    async fn open_anchored_drag_runtime(follow: boardstudio_core::model::Follow) -> Rc<Runtime> {
+        let runtime = support::new_runtime();
+        support::open_document(&runtime, anchored_drag_document(follow)).await;
+        wait_until_editable(&runtime).await;
+        runtime
+    }
+
+    /// Ticket 23 slice, RED: dragging an anchored matrix writes its Origin
+    /// through the inverse of the anchor frame as one atomic edit.
+    #[wasm_bindgen_test]
+    async fn anchored_matrix_move_drag_writes_origin_through_anchor_inverse() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let (root, handle) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        assert_eq!(
+            handle.get_attribute("aria-label").as_deref(),
+            Some("Drag to move matrix"),
+            "the Move tool draws its own handle"
+        );
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the drag previews actual matrix movement before commit"
+        );
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let matrix = accepted
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dragged matrix");
+        assert!(
+            (matrix.origin.x - 10.0).abs() < 1e-9 && (matrix.origin.y + 19.05).abs() < 1e-9,
+            "the drag writes the Origin through the anchor inverse, got {:?}",
+            matrix.origin
+        );
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision + 1,
+            "one accepted edit"
+        );
+        fixture::undo(&runtime).await;
+        let matrix = runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .cloned()
+            .expect("the dragged matrix");
+        assert!(
+            matrix.origin.x.abs() < 1e-9 && (matrix.origin.y + 19.05).abs() < 1e-9,
+            "one Undo restores the dragged Origin"
+        );
+        root.remove();
+    }
+
+    /// Ticket 23 slice, RED: the matrix drag is constrained to the Follow
+    /// directions, so an unfollowed component never moves the frame.
+    #[wasm_bindgen_test]
+    async fn anchored_matrix_move_drag_ignores_unfollowed_directions() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: false,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let (root, handle) = mount_matrix_overlay(&runtime, LayoutTransformTool::Move, "dep").await;
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 100));
+        for _ in 0..50 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_none(),
+            "a drag outside every followed direction previews nothing"
+        );
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 100));
+        for _ in 0..50 {
+            support::run_pending(&runtime).await;
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert_eq!(
+            fixture_revision(&runtime),
+            revision,
+            "a drag outside every followed direction commits nothing"
+        );
+        dispatch_pointer(&handle, "pointerdown", false, false, 1, (100, 100));
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(&handle, "pointermove", false, false, 1, (140, 80));
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the followed direction previews before commit"
+        );
+        dispatch_pointer(&handle, "pointerup", false, false, 0, (140, 80));
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let matrix = runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .cloned()
+            .expect("the dragged matrix");
+        assert!(
+            matrix.origin.x.abs() < 1e-9 && (matrix.origin.y + 14.05).abs() < 1e-9,
+            "only the followed direction moves the frame, got {:?}",
+            matrix.origin
+        );
+        root.remove();
+    }
+
+    /// Ticket 23 slice, RED: the Rotate tool turns the selected matrix, and
+    /// the menu disables Rotate with an explanation when Follow rotation is
+    /// off.
+    #[wasm_bindgen_test]
+    async fn matrix_rotate_drag_turns_the_matrix() {
+        use boardstudio_core::model::Follow;
+        let runtime = open_anchored_drag_runtime(Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        })
+        .await;
+        let (root, _) = mount_matrix_overlay(&runtime, LayoutTransformTool::Rotate, "dep").await;
+        let rotate = root
+            .query_selector("[aria-label='Drag to rotate matrix']")
+            .unwrap()
+            .expect("the Rotate tool draws its own handle");
+        let rect = root
+            .query_selector("svg")
+            .unwrap()
+            .unwrap()
+            .get_bounding_client_rect();
+        let accepted = runtime.model().accepted.expect("an accepted document");
+        let center = accepted
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == "dep")
+            .expect("the dragged scene")
+            .cells
+            .iter()
+            .find(|cell| cell.enabled)
+            .expect("the key is laid out")
+            .pose
+            .at;
+        let client = |x: f64, y: f64| {
+            (
+                (rect.left() + x * 4.0).round() as i32,
+                (rect.top() - y * 4.0).round() as i32,
+            )
+        };
+        let revision = fixture_revision(&runtime);
+        dispatch_pointer(
+            &rotate,
+            "pointerdown",
+            false,
+            false,
+            1,
+            client(center.x + 20.0, center.y),
+        );
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        dispatch_pointer(
+            &rotate,
+            "pointermove",
+            false,
+            false,
+            1,
+            client(center.x, center.y + 20.0),
+        );
+        for _ in 0..100 {
+            support::run_pending(&runtime).await;
+            if runtime.model().display_preview.is_some() {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        assert!(
+            runtime.model().display_preview.is_some(),
+            "the rotation previews before commit"
+        );
+        dispatch_pointer(
+            &rotate,
+            "pointerup",
+            false,
+            false,
+            0,
+            client(center.x, center.y + 20.0),
+        );
+        for _ in 0..200 {
+            support::run_pending(&runtime).await;
+            if fixture_revision(&runtime) > revision {
+                break;
+            }
+            gloo_timers::future::TimeoutFuture::new(10).await;
+        }
+        let rotation = runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "dep")
+            .expect("the dragged matrix")
+            .rotation;
+        assert_eq!(rotation, Some(90.0), "a quarter turn sweeps 90 degrees");
         root.remove();
     }
 
