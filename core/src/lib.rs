@@ -2047,6 +2047,9 @@ fn apply_with_ledger(
                     doc.definitions.push(definition.clone());
                     changed.push(definition.id.clone());
                 }
+                // Ticket 21: an absent matrix has no independent storage
+                // state; refuse before any detach side effect.
+                layout::refuse_omitted_storage_edit(doc, &matrix.id, &[])?;
                 if let Some(previous) = doc
                     .matrices
                     .iter()
@@ -2074,6 +2077,8 @@ fn apply_with_ledger(
             column,
             change,
         } => {
+            // Ticket 21: an absent matrix has no independent storage state.
+            layout::refuse_omitted_storage_edit(doc, matrix_id, &[])?;
             let current = doc
                 .matrices
                 .iter()
@@ -2095,6 +2100,8 @@ fn apply_with_ledger(
             )
         }
         EditOperation::SetMatrixPlacement { matrix_id, change } => {
+            // Ticket 21: an absent matrix has no independent storage state.
+            layout::refuse_omitted_storage_edit(doc, matrix_id, &[])?;
             let current = doc
                 .matrices
                 .iter()

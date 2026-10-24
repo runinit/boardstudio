@@ -527,6 +527,13 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     }
     let target_omitted = exception_state(doc, MirroredItemKind::Matrix, &target_id)
         == Some(MirroredExceptionState::Omitted);
+    // Ticket 21: a record-absent Omitted member stays absent; its logical
+    // matrix synthesizes from the source during evaluation.
+    if target_omitted
+        && !doc.matrices.iter().any(|matrix| matrix.id == target_id)
+    {
+        return Ok(vec![]);
+    }
     let source = doc
         .matrices
         .iter()
@@ -612,6 +619,20 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                     anchor.matrix_id, target_layout
                 ));
             }
+        }
+    }
+    if target_omitted {
+        // An absent record must never carry an anchor it cannot resolve:
+        // compaction may have diverged its slots from the source side.
+        // Keep the newest valid anchor (or none); Rejoin restores the
+        // current source anchor and revalidates.
+        let valid = |anchor: &MatrixAnchor| {
+            matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)
+                .ok()
+                .is_some_and(|target| anchor.row < target.rows && anchor.column < target.columns)
+        };
+        if !reflected_matrix.anchor.as_ref().is_some_and(&valid) {
+            reflected_matrix.anchor = target.anchor.clone().filter(|anchor| valid(anchor));
         }
     }
     // Ticket 20: Local final-pose edits remain local. Independent key
@@ -1816,10 +1837,15 @@ pub(crate) fn apply_exception_transitions(
             }
             // Omitted-to-Local and Rejoin materialize parts from the live
             // record now; resolve adopts the current source layout/anchor.
+            // A record-absent Omitted member synthesizes from its source.
             Some(MirroredExceptionState::Local) | None if before.is_some() => {
-                let record = record.ok_or_else(|| {
-                    format!("Linked matrix {mirror_id} is missing")
-                })?;
+                let record = match record {
+                    Some(record) => record,
+                    None if before == Some(MirroredExceptionState::Omitted) => {
+                        synthesize_rejoin_record(doc, incoming, mirror_id)?
+                    }
+                    None => return Err(format!("Linked matrix {mirror_id} is missing")),
+                };
                 changed.extend(matrix::set_matrix(doc, &record)?);
             }
             _ => {}
@@ -1881,6 +1907,51 @@ pub(crate) fn apply_exception_transitions(
     changed.sort();
     changed.dedup();
     Ok(changed)
+}
+
+/// Ticket 21: an Omitted matrix has no independent storage state — it
+/// follows its source live and rejoins to adopt it. Refuse direct storage
+/// edits naming it (or its absent members) instead of silently diverging
+/// the live record or discarding the edit on the next sync.
+pub(crate) fn refuse_omitted_storage_edit(
+    doc: &ProjectDoc,
+    matrix_id: &str,
+    cells: &[(u32, u32)],
+) -> Result<(), String> {
+    if exception_state(doc, MirroredItemKind::Matrix, matrix_id)
+        == Some(MirroredExceptionState::Omitted)
+    {
+        return Err(format!(
+            "Matrix {matrix_id} is Omitted and follows its source; Rejoin it to edit"
+        ));
+    }
+    for (row, column) in cells {
+        let key_id = crate::matrix::member_id(matrix_id, *row, *column);
+        if omitted(doc, matrix_id, &key_id) {
+            return Err(format!(
+                "Key {key_id} is Omitted and follows its source; Rejoin it to edit"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Whether a matrix edits alone: an independent (Local) or absent (Omitted)
+/// matrix neither joins a grouped storage edit nor is joined by one. Its
+/// partner follows through `sync` (live for Omitted, skipped for Local).
+pub(crate) fn edits_alone(doc: &ProjectDoc, matrix_id: &str) -> bool {
+    if matches!(
+        exception_state(doc, MirroredItemKind::Matrix, matrix_id),
+        Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
+    ) {
+        return true;
+    }
+    partner(doc, matrix_id).is_some_and(|(partner, _)| {
+        matches!(
+            exception_state(doc, MirroredItemKind::Matrix, &partner),
+            Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
+        )
+    })
 }
 
 /// The mirror matrix in `layout_id` owning `mirror_id`, by slot identity.
@@ -1970,6 +2041,61 @@ fn link_correspondence(layout: &mut Layout, source_id: String, mirror_id: String
             companion_tweak: None,
         });
     }
+}
+
+/// Ticket 21: materialize a record-absent Omitted member on Rejoin (or
+/// Omitted-to-Local): clone its source record through the pair map and
+/// retarget its anchor by correspondence. A missing counterpart refuses
+/// naming it instead of silently retargeting.
+fn synthesize_rejoin_record(
+    doc: &ProjectDoc,
+    layout: &Layout,
+    mirror_id: &str,
+) -> Result<Matrix, String> {
+    let link = layout
+        .mirror_link
+        .as_ref()
+        .ok_or("Linked layout is missing")?;
+    let source_id = link
+        .correspondences
+        .iter()
+        .find(|record| {
+            record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_id
+        })
+        .map(|record| record.source_id.clone())
+        .ok_or_else(|| format!("Linked matrix {mirror_id} has no source correspondence"))?;
+    let source = matrix::evaluation::logical_matrix(&source_id, doc)
+        .map_err(|_| format!("Linked matrix {mirror_id} has no source correspondence"))?;
+    let owned = source.into_owned();
+    let placeholder = Matrix {
+        id: mirror_id.to_string(),
+        name: None,
+        board_id: Some(layout.board_id.clone()),
+        part_ids: Vec::new(),
+        ..owned.clone()
+    };
+    let mut synthesized = reflected(&owned, &placeholder, axis_mapping(link.axis_x), false)?;
+    synthesized.board_id = Some(layout.board_id.clone());
+    if let Some(anchor) = synthesized.anchor.clone() {
+        let mapped = link
+            .correspondences
+            .iter()
+            .find(|record| {
+                record.kind == MirroredItemKind::Matrix
+                    && record.source_id == anchor.matrix_id
+            })
+            .map(|record| record.mirror_id.clone())
+            .ok_or_else(|| {
+                format!(
+                    "Linked counterpart of anchor target {:?} is missing in layout {:?}; name the missing counterpart instead of silently retargeting",
+                    anchor.matrix_id, layout.id
+                )
+            })?;
+        if let Some(result_anchor) = synthesized.anchor.as_mut() {
+            result_anchor.matrix_id = mapped;
+        }
+    }
+    Ok(synthesized)
 }
 
 /// Return a key leaving Local to the followed cell: copy the counterpart's

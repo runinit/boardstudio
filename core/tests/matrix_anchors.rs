@@ -2275,3 +2275,406 @@ fn linked_local_to_omitted_key_returns_to_shared_pose() {
     let redone_doc = redone(&mut engine);
     assert_eq!(redone_doc.parts, rejoined.parts);
 }
+
+#[test]
+fn linked_rejoin_adopts_current_source_and_keeps_child_exceptions() {
+    // Ticket 21: Rejoin adopts the current source dimensions/layout/anchor
+    // and preserves explicit child exceptions.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Child exception first: the mirror key goes Local and moves.
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Part,
+            mirror_id: member("main2", 0, 0),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main2", 0, 0),
+                at: Vec2 { x: 30.0, y: 5.0 },
+            }],
+        },
+    );
+    // Omit the whole matrix, grow the source while absent, then Rejoin.
+    let mut omitted_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    omitted_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: omitted_layout,
+        },
+    );
+    // Inherited parts shed; the explicit Local child keeps its own state.
+    assert!(
+        doc.parts
+            .iter()
+            .filter(|part| part.id.starts_with("matrix/main2/"))
+            .map(|part| part.id.clone())
+            .collect::<Vec<_>>()
+            == vec![member("main2", 0, 0)],
+        "omit sheds inherited parts but keeps explicit child exceptions"
+    );
+    assert_eq!(
+        pose_of(&doc, &member("main2", 0, 0)).at,
+        Vec2 { x: 30.0, y: 5.0 }
+    );
+    let mut grown = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    grown.columns = 4;
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: grown,
+            definitions: None,
+        },
+    );
+    // Rejoin: remove the matrix overlay, keep the child.
+    let mut rejoined_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    if let Some(link) = rejoined_layout.mirror_link.as_mut() {
+        link.exceptions.retain(|exception| {
+            !(exception.kind == MirroredItemKind::Matrix && exception.mirror_id == "main2")
+        });
+    }
+    let (_, rejoined) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: rejoined_layout,
+        },
+    );
+    // Current source dimensions adopted with materialized parts.
+    let partner = rejoined
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("rejoined partner");
+    assert_eq!((partner.rows, partner.columns), (1, 4));
+    for column in 0..4 {
+        assert!(
+            rejoined
+                .parts
+                .iter()
+                .any(|part| part.id == member("main2", 0, column)),
+            "rejoined part (0,{column}) materialized"
+        );
+    }
+    // Explicit child exception preserved with its Local pose.
+    assert!(
+        rejoined
+            .layouts
+            .iter()
+            .find(|layout| layout.id == "mirror-layout")
+            .and_then(|layout| layout.mirror_link.as_ref())
+            .is_some_and(|link| link.exceptions.iter().any(|exception| {
+                exception.kind == MirroredItemKind::Part
+                    && exception.mirror_id == member("main2", 0, 0)
+                    && exception.state == MirroredExceptionState::Local
+            }))
+    );
+    assert_eq!(
+        pose_of(&rejoined, &member("main2", 0, 0)).at,
+        Vec2 { x: 30.0, y: 5.0 }
+    );
+    // Shared members track the source again.
+    assert_eq!(
+        pose_of(&rejoined, &member("main2", 0, 1)).at,
+        Vec2 { x: 1.0, y: 0.0 }
+    );
+}
+
+#[test]
+fn linked_compaction_excludes_local_partner() {
+    // Ticket 21: a grouped column removal edits the linked source alone; the
+    // Local partner keeps its own dimensions and every world pose.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let (_, compacted) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main".into(),
+            column: 0,
+        },
+    );
+    // Source compacted; Local partner untouched.
+    assert_eq!(
+        compacted
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "main")
+            .expect("compacted source")
+            .columns,
+        2
+    );
+    let partner = compacted
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("local partner");
+    assert_eq!((partner.rows, partner.columns), (1, 3));
+    // The Local partner keeps every world pose; the linked thumb pair
+    // follows the compacted anchor (ticket 19 remap), so only main2 stays.
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/main2/") {
+            assert_eq!(pose_of(&compacted, id), *pose, "{id}");
+        }
+    }
+    assert!(
+        compacted
+            .parts
+            .iter()
+            .any(|part| part.id == member("main2", 0, 2))
+    );
+    // The source anchor compacted onto its surviving physical key.
+    assert_eq!(
+        anchor_of(&compacted, "thumb"),
+        Some(MatrixAnchor {
+            matrix_id: "main".into(),
+            row: 0,
+            column: 1,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        })
+    );
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, doc.matrices);
+}
+
+#[test]
+fn omitted_storage_edits_are_refused_with_rejoin_guidance() {
+    // Ticket 21: an absent matrix has no independent storage state; direct
+    // edits refuse naming Rejoin and change nothing.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let mut attempted = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("omitted record")
+        .clone();
+    attempted.columns = 5;
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: attempted,
+            definitions: None,
+        },
+    );
+    assert!(
+        message.contains("Rejoin"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(snapshot(&mut engine), doc, "refusal changed state");
+}
+
+#[test]
+fn linked_rejoin_refuses_missing_anchor_atomically() {
+    // Ticket 21: Rejoin validates the resulting graph atomically. Shrinking
+    // the Local mirror parent retires the Omitted dependent's anchor; a
+    // later Rejoin adopting the current source anchor refuses naming the
+    // missing counterpart without touching the Local parent or other state.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Omit the mirror dependent first.
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "thumb2".into(),
+            state: MirroredExceptionState::Omitted,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    // Shrink the Local mirror parent; the Omitted dependent detaches.
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main2".into(),
+            column: 2,
+        },
+    );
+    assert_eq!(
+        doc.matrices
+            .iter()
+            .find(|matrix| matrix.id == "main2")
+            .expect("local parent")
+            .columns,
+        2
+    );
+    assert_eq!(anchor_of(&doc, "thumb2"), None);
+    // Rejoin adopts the source anchor (main (0,2)) whose counterpart in the
+    // smaller Local parent is missing: refuse atomically.
+    let mut rejoined_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    if let Some(link) = rejoined_layout.mirror_link.as_mut() {
+        link.exceptions.retain(|exception| {
+            !(exception.kind == MirroredItemKind::Matrix && exception.mirror_id == "thumb2")
+        });
+    }
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: rejoined_layout,
+        },
+    );
+    assert!(
+        message.contains("matrix/main2/r0c2"),
+        "names the missing counterpart: {message:?}"
+    );
+    // Nothing changed: the Local parent keeps its size and state, and the
+    // rest of the document is byte-identical.
+    assert_eq!(snapshot(&mut engine), doc);
+    assert_eq!(
+        doc.matrices
+            .iter()
+            .find(|matrix| matrix.id == "main2")
+            .expect("local parent")
+            .columns,
+        2
+    );
+}
