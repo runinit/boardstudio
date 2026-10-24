@@ -1,6 +1,6 @@
 # 27: Verify the complete cutover and release the integration gate
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [26](26-rebuild-examples-and-fixtures.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
