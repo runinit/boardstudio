@@ -3198,8 +3198,8 @@ async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
         .model()
         .accepted
         .expect("an accepted document");
-    assert_eq!(
-        after
+    assert!(
+        !after
             .document
             .matrices
             .iter()
@@ -3210,7 +3210,6 @@ async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
             .expect("the anchor survives")
             .follow
             .rotation,
-        false,
         "unchecking rotation writes the Follow subset"
     );
     assert_eq!(
