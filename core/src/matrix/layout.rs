@@ -504,6 +504,40 @@ pub(crate) fn reflected(
     Ok(result)
 }
 
+/// Ticket 21: remap an anchor target through matrix correspondences without
+/// silently retargeting. `to_mirror` selects source→mirror (true) or
+/// mirror→source (false); a missing counterpart refuses naming the layout.
+fn remap_anchor_target(
+    correspondences: &[MirroredCorrespondence],
+    anchor_matrix_id: &str,
+    to_mirror: bool,
+    layout_id: &str,
+) -> Result<String, String> {
+    correspondences
+        .iter()
+        .find(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && (if to_mirror {
+                    record.source_id == anchor_matrix_id
+                } else {
+                    record.mirror_id == anchor_matrix_id
+                })
+        })
+        .map(|record| {
+            if to_mirror {
+                record.mirror_id.clone()
+            } else {
+                record.source_id.clone()
+            }
+        })
+        .ok_or_else(|| {
+            format!(
+                "Linked counterpart of anchor target {:?} is missing in layout {:?}; name the missing counterpart instead of silently retargeting",
+                anchor_matrix_id, layout_id
+            )
+        })
+}
+
 pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>, String> {
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
@@ -591,14 +625,30 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 if !edited_is_source && !edited_is_mirror {
                     continue;
                 }
-                for record in &link.correspondences {
-                    if record.kind != MirroredItemKind::Matrix {
+                // Forward wins with a reverse fallback (a self-mirror cannot
+                // pass `validate`); the last matching layout still wins.
+                if edited_is_source {
+                    if let Ok(next) = remap_anchor_target(
+                        &link.correspondences,
+                        &anchor.matrix_id,
+                        true,
+                        &target_layout,
+                    ) {
+                        mapped = Some(next);
                         continue;
                     }
-                    if edited_is_source && record.source_id == anchor.matrix_id {
-                        mapped = Some(record.mirror_id.clone());
-                    } else if edited_is_mirror && record.mirror_id == anchor.matrix_id {
-                        mapped = Some(record.source_id.clone());
+                    if !edited_is_mirror {
+                        continue;
+                    }
+                }
+                if edited_is_mirror {
+                    if let Ok(next) = remap_anchor_target(
+                        &link.correspondences,
+                        &anchor.matrix_id,
+                        false,
+                        &target_layout,
+                    ) {
+                        mapped = Some(next);
                     }
                 }
             }
@@ -2235,20 +2285,8 @@ fn synthesize_rejoin_record(
     let mut synthesized = reflected(&owned, &placeholder, axis_mapping(link.axis_x), false)?;
     synthesized.board_id = Some(layout.board_id.clone());
     if let Some(anchor) = synthesized.anchor.clone() {
-        let mapped = link
-            .correspondences
-            .iter()
-            .find(|record| {
-                record.kind == MirroredItemKind::Matrix
-                    && record.source_id == anchor.matrix_id
-            })
-            .map(|record| record.mirror_id.clone())
-            .ok_or_else(|| {
-                format!(
-                    "Linked counterpart of anchor target {:?} is missing in layout {:?}; name the missing counterpart instead of silently retargeting",
-                    anchor.matrix_id, layout.id
-                )
-            })?;
+        let mapped =
+            remap_anchor_target(&link.correspondences, &anchor.matrix_id, true, &layout.id)?;
         if let Some(result_anchor) = synthesized.anchor.as_mut() {
             result_anchor.matrix_id = mapped;
         }
