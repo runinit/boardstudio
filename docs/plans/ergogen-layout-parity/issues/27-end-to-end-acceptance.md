@@ -1,6 +1,6 @@
 # 27: Verify the complete cutover and release the integration gate
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [26](26-rebuild-examples-and-fixtures.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -207,3 +207,25 @@ native 2249 passed / 0 failed; page suite 88/88):
   revision plus fail-first evidence in-ticket — the RED test `0390a0f82`
   demonstrated the gap before the fix `c3fa78236` turned it green —
   rather than on a comparison against a base revision run.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` at `8c742aa75`. The
+traced case `end_to_end_acceptance::
+preview_commit_scene_archive_reopen_and_undo_carry_the_anchored_mirrored_group`
+(RED `0390a0f82`) walks public edit/preview through materialization, scene,
+saved archive and reopen, including an anchored mirrored group, with Undo
+carrying the group. Its stale-Thumb gap was fixed by routing preview edits
+through layout resolve (`c3fa78236`, one production-path line in
+`core/src/lib.rs`; `052c8fc96` style). The combined spec/standards closure
+review PASSED the code; the gap re-review PASSED the doc fix `8c742aa75`
+(evidence mapping, finding disposition, receipt limits). No open findings:
+anchor-following semantics stay owned by [19](19-anchor-layout-groups.md)
+and preview/handles/inspector behavior by
+[23](23-inspector-toolbar-and-handles.md), both resolved. Native baseline
+`4c205050` (+1 name, 0 removals). Fresh gates green — quick: `check: all
+steps passed: repo, tooling, lint, typecheck, test, browser` (227.9s);
+full: `check: all steps passed: repo, tooling, lint, build, test, browser`
+(302.3s).
+
+No release approval is implied.
