@@ -12,34 +12,37 @@ pub(crate) fn rotate(point: Vec2, degrees: f64, pivot: Vec2) -> Vec2 {
     }
 }
 
-pub(crate) fn origin_world(matrix: &Matrix, column: u32, doc: &ProjectDoc) -> Result<Vec2, String> {
-    evaluated(matrix, doc)?
-        .columns
-        .get(column as usize)
-        .map(|c| c.splay_origin)
-        .ok_or_else(|| "Matrix column is out of bounds".into())
-}
-
-fn compensate(
+fn with_origin(
     matrix: &Matrix,
     column: u32,
     point: Vec2,
+    hold: bool,
     doc: &ProjectDoc,
 ) -> Result<Matrix, String> {
+    let values = matrix
+        .column_layout
+        .get(column as usize)
+        .copied()
+        .unwrap_or_default();
+    if values.splay_origin == point {
+        return Ok(matrix.clone());
+    }
     let mut after = matrix.clone();
     after.column_layout.resize_with(
-        (column as usize + 2)
+        (column as usize + if hold && values.rotation != 0.0 { 2 } else { 1 })
             .min(matrix.columns as usize)
             .max(after.column_layout.len()),
         Default::default,
     );
     let index = column as usize;
-    let values = after.column_layout[index];
     let delta = Vec2 {
         x: point.x - values.splay_origin.x,
         y: point.y - values.splay_origin.y,
     };
     after.column_layout[index].splay_origin = point;
+    if !hold {
+        return Ok(after);
+    }
     let rotated = rotate(delta, values.splay + values.rotation, Vec2::default());
     let correction = Vec2 {
         x: rotated.x - delta.x,
@@ -70,20 +73,6 @@ fn compensate(
     Ok(after)
 }
 
-fn solve(x: Vec2, y: Vec2, delta: Vec2) -> Option<Vec2> {
-    let determinant = x.x * y.y - x.y * y.x;
-    if determinant.abs() < 1e-12 {
-        if delta.x.abs() < 1e-9 && delta.y.abs() < 1e-9 {
-            return Some(Vec2::default());
-        }
-        return None;
-    }
-    Some(Vec2 {
-        x: (delta.x * y.y - delta.y * y.x) / determinant,
-        y: (x.x * delta.y - x.y * delta.x) / determinant,
-    })
-}
-
 pub(crate) fn update(
     matrix: &Matrix,
     column: u32,
@@ -100,33 +89,63 @@ pub(crate) fn update(
         Default::default,
     );
     match change {
+        MatrixSplayChange::OriginRelative { value } => {
+            if !value.x.is_finite() || !value.y.is_finite() {
+                return Err("Matrix splay origin is non-finite".into());
+            }
+            after = with_origin(matrix, column, *value, true, doc)?;
+        }
         MatrixSplayChange::Angle { angle, affect } => {
             if !angle.is_finite() {
                 return Err("Matrix splay angle is non-finite".into());
             }
             let values = &mut after.column_layout[column as usize];
+            let current = match affect {
+                MatrixSplayAffect::Following => values.splay,
+                MatrixSplayAffect::Column => values.rotation,
+            };
+            if current == *angle {
+                return Ok(matrix.clone());
+            }
             match affect {
                 MatrixSplayAffect::Following => values.splay = *angle,
                 MatrixSplayAffect::Column => values.rotation = *angle,
             }
         }
-        MatrixSplayChange::Origin { world } => {
+        MatrixSplayChange::Origin { world } | MatrixSplayChange::OriginSwing { world } => {
+            let hold = matches!(change, MatrixSplayChange::Origin { .. });
             let point = if let Some(target) = world {
                 if !target.x.is_finite() || !target.y.is_finite() {
                     return Err("Matrix splay origin is non-finite".into());
                 }
-                let base = compensate(matrix, column, Vec2::default(), doc)?;
-                let x = compensate(matrix, column, Vec2 { x: 1.0, y: 0.0 }, doc)?;
-                let y = compensate(matrix, column, Vec2 { x: 0.0, y: 1.0 }, doc)?;
-                let origin = origin_world(&base, column, doc)?;
-                let px = origin_world(&x, column, doc)?;
-                let py = origin_world(&y, column, doc)?;
-                solve(Vec2 { x: px.x-origin.x, y: px.y-origin.y }, Vec2 { x: py.x-origin.x, y: py.y-origin.y }, Vec2 { x: target.x-origin.x, y: target.y-origin.y })
-                    .ok_or("Requested splay origin cannot be represented with these turns and Follow permissions")?
+                let layout = evaluated(matrix, doc)?;
+                let current = &layout.columns[column as usize];
+                let delta = Vec2 {
+                    x: target.x - current.splay_origin.x,
+                    y: target.y - current.splay_origin.y,
+                };
+                if delta == Vec2::default() {
+                    return Ok(matrix.clone());
+                }
+                // Hold compensation turns the final origin displacement by this column's full turn.
+                let frame = if hold {
+                    current.frame
+                } else {
+                    super::kernel::ComposedFrame {
+                        axis_x: current.incoming_axis_x,
+                        axis_y: current.stagger_axis,
+                        ..Default::default()
+                    }
+                };
+                let local = frame.inverse_vector(delta);
+                Vec2 {
+                    x: current.relative_origin.x + local.x,
+                    y: current.relative_origin.y + local.y,
+                }
             } else {
                 Vec2::default()
             };
-            after = compensate(matrix, column, point, doc)?;
+            after = with_origin(matrix, column, point, hold, doc)?;
         }
     }
     evaluated(&after, doc)?;
@@ -142,7 +161,10 @@ mod tests {
         super::update(matrix, column, change, &ProjectDoc::empty("test", "Test"))
     }
     fn origin_world(matrix: &Matrix, column: u32) -> Vec2 {
-        super::origin_world(matrix, column, &ProjectDoc::empty("test", "Test")).unwrap()
+        evaluated(matrix, &ProjectDoc::empty("test", "Test"))
+            .unwrap()
+            .columns[column as usize]
+            .splay_origin
     }
 
     fn matrix() -> Matrix {

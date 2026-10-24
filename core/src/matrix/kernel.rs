@@ -130,6 +130,8 @@ pub struct CellContributions {
 }
 
 pub struct ColumnFrame {
+    /// Column 0 still needs its incoming X axis for origin edits, although it has no Spread.
+    pub(crate) incoming_axis_x: Vec2,
     /// Base after preceding Splays, before this column's own turns.
     pub base: Vec2,
     pub splay_origin: Vec2,
@@ -201,20 +203,20 @@ pub fn evaluate(
             )
         };
         let point_world = |v| transform(matrix_frame, reflect(v, input.mirror));
+        let incoming_axis_x = vector_world(rotate(
+            Vec2 { x: 1.0, y: 0.0 },
+            prefix.rotation,
+            Vec2::default(),
+        ));
         columns.push(ColumnFrame {
+            incoming_axis_x,
             base: point_world(carried_base),
             splay_origin: point_world(origin),
             relative_origin: col.splay_origin,
             custom_origin: col.splay_origin != Vec2::default(),
             frame: world_frame(pose, matrix_frame, input.mirror),
             // Moving the step translates both base and relative origin; own turns cancel.
-            spread_axis: (column > 0).then(|| {
-                vector_world(rotate(
-                    Vec2 { x: 1.0, y: 0.0 },
-                    prefix.rotation,
-                    Vec2::default(),
-                ))
-            }),
+            spread_axis: (column > 0).then_some(incoming_axis_x),
             stagger_axis: vector_world(rotate(
                 Vec2 { x: 0.0, y: 1.0 },
                 prefix.rotation,

@@ -712,11 +712,23 @@ impl CoreEngine {
             next = raw_next;
             changed = raw_changed;
         }
+        if let Err(message) =
+            matrix::placement::validate_translation(&self.document.parts, &next, &command.operation)
+        {
+            return self.error(id, &message);
+        }
         // Prepared edits can change document-level fields that have no entity ID. Use the
         // typed document as the no-op oracle rather than treating an empty changed-ID list as
         // proof that nothing changed. Preserve the legacy changed-ID policy outside this route.
         if command.phase == EditPhase::Commit
-            && ((prepared_route && next == self.document)
+            && (((prepared_route
+                || matches!(
+                    command.operation,
+                    EditOperation::SetMatrixPlacement { .. }
+                        | EditOperation::SetMatrixSplay { .. }
+                        | EditOperation::MoveParts { .. }
+                ))
+                && next == self.document)
                 || (!prepared_route
                     && changed.is_empty()
                     && matches!(
@@ -845,6 +857,13 @@ impl CoreEngine {
             Ok(prepared) => prepared,
             Err(message) => return self.error(id, &message),
         };
+        if let Err(message) = matrix::placement::validate_translation(
+            &self.document.parts,
+            &draft,
+            &command.operation,
+        ) {
+            return self.error(id, &message);
+        }
         let (cache, contours, mut findings) = outlines(&draft, None, &changed);
         findings.extend(preview_electrical_loss_findings(&self.document, &draft));
         self.scene(
@@ -889,6 +908,11 @@ impl CoreEngine {
             changed.sort();
             changed.dedup();
             generators::introduced_error(&accepted, &self.document)?;
+            matrix::placement::validate_translation(
+                &before_parts,
+                &self.document,
+                &command.operation,
+            )?;
             Ok(changed)
         });
         let reply = match result {
@@ -2034,6 +2058,9 @@ fn apply_with_ledger(
                 .find(|matrix| &matrix.id == matrix_id)
                 .ok_or("Matrix not found")?;
             let matrix = matrix::splay::update(current, *column, change, doc)?;
+            if matrix == *current {
+                return Ok(Vec::new());
+            }
             // A splay reports every member it touched, not only those that moved.
             matrix::placement::carrying_authored_companions(
                 doc,

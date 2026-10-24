@@ -3173,3 +3173,116 @@ fn queued_stale_fit_setter_retires_after_undo_then_add() {
         "undo/add must mint a fresh identity and the stale setter must not redirect"
     );
 }
+
+#[test]
+fn carried_shift_preview_cancel_commit_and_history_use_the_accepted_matrix() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    let (document, _) = matrix_range_fixture();
+    let effects = session.submit(Event::Open {
+        operation_id: OperationId(1),
+        document,
+    });
+    settle_core_and_save(&mut session, &mut engine, effects);
+    let before = session.read_model().accepted.clone().unwrap();
+    let key = "matrix/main/r1c0";
+    assert_eq!(
+        before
+            .document
+            .parts
+            .iter()
+            .find(|p| p.id == key)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 0.0, y: 19.0 }
+    );
+    let operation = EditOperation::SetMatrixPlacement {
+        matrix_id: "main".into(),
+        change: MatrixPlacementChange::RowShift {
+            row: 1,
+            value: Vec2 { x: 4.0, y: -3.0 },
+        },
+    };
+    let effects = session.submit(Event::PreviewEdit {
+        operation_id: OperationId(2),
+        transaction_id: "shift-preview".into(),
+        target_ids: vec![key.into()],
+        operation: operation.clone(),
+    });
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    assert!(
+        matches!(&request, CoreRequest::Edit { command, .. } if command.phase == EditPhase::Preview)
+    );
+    let reply = engine.handle(request);
+    assert!(matches!(&reply, CoreReply::Preview { .. }));
+    session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let preview = session.read_model().display_preview.clone().unwrap();
+    assert_eq!(
+        preview.matrix_scenes[0]
+            .cells
+            .iter()
+            .find(|c| c.row == 1 && c.column == 0)
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(
+        session.read_model().accepted.as_ref().unwrap().document,
+        before.document
+    );
+    let effects = session.submit(Event::ClearPreview {
+        operation_id: OperationId(3),
+        token: before.token,
+        revision: before.document.revision,
+        board_id: session.read_model().active_board_id.clone(),
+        transaction_id: "shift-preview".into(),
+    });
+    // Clearing a completed preview is view-only and never persists a document.
+    assert!(
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. }))
+    );
+    assert!(session.read_model().display_preview.is_none());
+    let effects = session.submit(Event::ResolveEdit {
+        operation_id: OperationId(4),
+        label: "Shift field".into(),
+        resolver: EditResolver::new("Shift field", move |_| {
+            Resolution::submit(vec![key.into()], operation.clone())
+        }),
+    });
+    let (after, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .scene
+            .matrix_scenes,
+        preview.matrix_scenes
+    );
+    assert_eq!(
+        after.parts.iter().find(|p| p.id == key).unwrap().pose.at,
+        Vec2 { x: 4.0, y: 16.0 }
+    );
+    assert_eq!(after.matrices[0].cells, before.document.matrices[0].cells);
+    let effects = session.submit(Event::Undo {
+        operation_id: OperationId(5),
+    });
+    let (undone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(undone.matrices, before.document.matrices);
+    assert_eq!(undone.parts, before.document.parts);
+    let effects = session.submit(Event::Redo {
+        operation_id: OperationId(6),
+    });
+    let (redone, _) = settle_core_and_save(&mut session, &mut engine, effects);
+    assert_eq!(redone.matrices, after.matrices);
+    assert_eq!(redone.parts, after.parts);
+}

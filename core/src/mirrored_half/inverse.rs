@@ -253,6 +253,11 @@ pub(super) fn canonicalize(
                         world: Some(pair::inverse(mapping, *world)),
                     }
                 }
+                (MatrixSplayChange::OriginSwing { world: Some(world) }, Some(mapping)) => {
+                    MatrixSplayChange::OriginSwing {
+                        world: Some(pair::inverse(mapping, *world)),
+                    }
+                }
                 (change, _) => change.clone(),
             };
             canonical.operation = Op::SetMatrixSplay {

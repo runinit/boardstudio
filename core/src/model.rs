@@ -1596,6 +1596,14 @@ pub enum MatrixSplayChange {
     Origin {
         world: Option<Vec2>,
     },
+    /// Ctrl is captured by the caller at pointer-down. This intent never compensates steps.
+    OriginSwing {
+        world: Option<Vec2>,
+    },
+    /// Fields and nudges edit the stored relative origin and always hold keys still.
+    OriginRelative {
+        value: Vec2,
+    },
     Angle {
         angle: f64,
         affect: MatrixSplayAffect,
@@ -1607,6 +1615,32 @@ pub enum MatrixSplayChange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum MatrixPlacementChange {
+    ColumnSpread {
+        column: u32,
+        value: Option<f64>,
+    },
+    RowPadding {
+        row: u32,
+        value: Option<f64>,
+    },
+    RowBend {
+        row: u32,
+        value: f64,
+    },
+    KeyShift {
+        row: u32,
+        column: u32,
+        value: Vec2,
+    },
+    KeyBend {
+        row: u32,
+        column: u32,
+        value: f64,
+    },
+    RowShift {
+        row: u32,
+        value: Vec2,
+    },
     MatrixTranslation {
         delta: Vec2,
     },
