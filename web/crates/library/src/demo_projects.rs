@@ -1,10 +1,10 @@
+use boardstudio_core::CoreEngine;
 use boardstudio_core::model::{
     Board, ColumnLayout, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Follow,
     Layout, LayoutMirrorLink, Material, Matrix, MatrixAnchor, Mirror, MirroredCorrespondence,
     MirroredItemKind, Operation, OutlineFeature, OutlineSettings, PartDefinition, PartKind,
     ProjectDoc, RowLayout, Vec2,
 };
-use boardstudio_core::CoreEngine;
 
 #[derive(Clone, Copy)]
 pub(crate) struct DemoProject {
@@ -73,7 +73,9 @@ impl DemoBuilder {
             },
         });
         match reply {
-            CoreReply::Scene { scene, document, .. } => {
+            CoreReply::Scene {
+                scene, document, ..
+            } => {
                 self.revision = scene.revision;
                 Ok(*document)
             }
@@ -274,7 +276,10 @@ fn split42_build(name: &str) -> Result<ProjectDoc, String> {
     // negative row Shifts into the legacy positive world-X progression.
     let mut left_main = demo_matrix("left-main", 3, 6);
     left_main.name = Some("Left main".into());
-    left_main.origin = Vec2 { x: -31.0, y: -19.05 };
+    left_main.origin = Vec2 {
+        x: -31.0,
+        y: -19.05,
+    };
     left_main.mirror = Some(Mirror::X);
     left_main.row_layout = vec![
         RowLayout::default(),
@@ -511,7 +516,10 @@ mod demo_rebuild_tests {
             "matrix-coordinate identities, not legacy key-NN ids"
         );
         assert!(
-            !document.parts.iter().any(|part| part.id.starts_with("key-")),
+            !document
+                .parts
+                .iter()
+                .any(|part| part.id.starts_with("key-")),
             "no legacy key-NN ids survive"
         );
     }
@@ -529,7 +537,10 @@ mod demo_rebuild_tests {
                     "Split 42",
                     "A staggered split layout with a compact thumb cluster."
                 ),
-                ("Studio 60", "A compact staggered layout for everyday typing."),
+                (
+                    "Studio 60",
+                    "A compact staggered layout for everyday typing."
+                ),
                 ("Macro 12", "A small 3 × 4 pad for shortcuts and macros."),
             ]
         );
@@ -559,7 +570,13 @@ mod demo_rebuild_tests {
         let matrix = &document.matrices[0];
         assert_eq!((matrix.rows, matrix.columns), (3, 4));
         assert_eq!(matrix.pitch, Vec2 { x: 19.05, y: 19.05 });
-        assert_eq!(matrix.origin, Vec2 { x: -28.575, y: -19.05 });
+        assert_eq!(
+            matrix.origin,
+            Vec2 {
+                x: -28.575,
+                y: -19.05
+            }
+        );
         assert_eq!(document.layouts.len(), 1, "one Layout");
         assert_eq!(document.layouts[0].matrix_ids, vec![matrix.id.clone()]);
         let shifts: Vec<_> = matrix
@@ -569,10 +586,7 @@ mod demo_rebuild_tests {
             .collect();
         assert_eq!(
             shifts,
-            vec![
-                Vec2 { x: 0.0, y: 0.0 },
-                Vec2 { x: 4.7625, y: 0.0 },
-            ],
+            vec![Vec2 { x: 0.0, y: 0.0 }, Vec2 { x: 4.7625, y: 0.0 },],
             "only Row 2 carries Shift X"
         );
         assert_eq!(document.parts.len(), 12);
@@ -710,7 +724,11 @@ mod demo_rebuild_tests {
         for matrix in &document.matrices {
             let in_left = left.matrix_ids.contains(&matrix.id);
             let in_right = right.matrix_ids.contains(&matrix.id);
-            assert!(in_left ^ in_right, "{} owned by exactly one Layout", matrix.id);
+            assert!(
+                in_left ^ in_right,
+                "{} owned by exactly one Layout",
+                matrix.id
+            );
         }
         let mains: Vec<_> = document
             .matrices
@@ -860,7 +878,10 @@ mod demo_rebuild_tests {
             assert_eq!(pose.rotation, 0.0);
         }
         assert!(
-            document.parts.iter().all(|part| part.id.starts_with("matrix/")),
+            document
+                .parts
+                .iter()
+                .all(|part| part.id.starts_with("matrix/")),
             "matrix-coordinate identities only"
         );
     }
@@ -897,7 +918,9 @@ mod demo_rebuild_tests {
                     operation,
                 },
             }) {
-                CoreReply::Scene { scene, document, .. } => {
+                CoreReply::Scene {
+                    scene, document, ..
+                } => {
                     self.revision = scene.revision;
                     *document
                 }
@@ -942,14 +965,23 @@ mod demo_rebuild_tests {
         // The anchored thumb follows its actual anchor key on the same half.
         let thumb_start = before(&template, "matrix/left-thumb/r0c0");
         let thumb = before(&moved, "matrix/left-thumb/r0c0");
-        assert!((thumb.x - (thumb_start.x + 10.0)).abs() < 1e-9, "thumb follows X");
+        assert!(
+            (thumb.x - (thumb_start.x + 10.0)).abs() < 1e-9,
+            "thumb follows X"
+        );
         assert!((thumb.y - thumb_start.y).abs() < 1e-9, "thumb keeps Y");
         // The linked counterpart moves through the reflection, not a second
         // formula: +10 X on the left is -10 X on the right.
         let mirror_start = before(&template, "matrix/right-main/r2c2");
         let mirror = before(&moved, "matrix/right-main/r2c2");
-        assert!((mirror.x - (mirror_start.x - 10.0)).abs() < 1e-9, "counterpart reflects X");
-        assert!((mirror.y - mirror_start.y).abs() < 1e-9, "counterpart keeps Y");
+        assert!(
+            (mirror.x - (mirror_start.x - 10.0)).abs() < 1e-9,
+            "counterpart reflects X"
+        );
+        assert!(
+            (mirror.y - mirror_start.y).abs() < 1e-9,
+            "counterpart keeps Y"
+        );
         let mirror_thumb_start = before(&template, "matrix/right-thumb/r0c0");
         let mirror_thumb = before(&moved, "matrix/right-thumb/r0c0");
         assert!((mirror_thumb.x - (mirror_thumb_start.x - 10.0)).abs() < 1e-9);
@@ -958,7 +990,9 @@ mod demo_rebuild_tests {
         let undone = match session.engine.handle(CoreRequest::Undo {
             id: "split-undo".into(),
         }) {
-            CoreReply::Scene { scene, document, .. } => {
+            CoreReply::Scene {
+                scene, document, ..
+            } => {
                 session.revision = scene.revision;
                 *document
             }
@@ -968,7 +1002,9 @@ mod demo_rebuild_tests {
         let redone = match session.engine.handle(CoreRequest::Redo {
             id: "split-redo".into(),
         }) {
-            CoreReply::Scene { scene, document, .. } => {
+            CoreReply::Scene {
+                scene, document, ..
+            } => {
                 session.revision = scene.revision;
                 *document
             }
@@ -1012,7 +1048,10 @@ mod demo_rebuild_tests {
             .pose
             .at;
         assert!((mirror.x - mirror_start.x).abs() < 1e-9, "X unchanged");
-        assert!((mirror.y - (mirror_start.y + 5.0)).abs() < 1e-9, "Y follows");
+        assert!(
+            (mirror.y - (mirror_start.y + 5.0)).abs() < 1e-9,
+            "Y follows"
+        );
     }
 
     #[test]
@@ -1084,4 +1123,3 @@ mod demo_rebuild_tests {
         assert_eq!(first.parts.len(), second.parts.len());
     }
 }
-
