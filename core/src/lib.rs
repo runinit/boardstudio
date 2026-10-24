@@ -2282,7 +2282,13 @@ fn apply_with_ledger(
                         .map(|link| link.source_id.clone())
                 })
                 .flatten();
+            let previous = current.clone();
             *current = incoming.clone();
+            // Ticket 21: run the same-board exception lifecycle (Local/Omitted
+            // transitions, Rejoin materialization) before resolve adopts the
+            // current source state.
+            let mut transitioned =
+                layout::apply_exception_transitions(doc, &previous, &incoming)?;
             let mut detached = if was_linked_target {
                 layout::unlink_components(doc, &incoming.id)
             } else {
@@ -2292,9 +2298,10 @@ fn apply_with_ledger(
                 detached.extend(layout::unlink_components(doc, &source_layout_id));
             }
             layout::resolve(doc)?;
+            transitioned.append(&mut detached);
             Ok([
                 [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
-                detached,
+                transitioned,
             ]
             .concat())
         }

@@ -557,16 +557,12 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     // Ticket 20: map anchor targets by identity, not list position or the
     // counterpart's stale anchor. Row/column stay the physical key; Follow
     // keeps its subset with source-world transport in the kernel.
-    // Ticket 21: an Omitted partner drops the propagated anchor instead of
-    // remapping it. Its record stays live for anchors *through* it, but it
-    // authors nothing while absent; a broken mapping must not block the
-    // source edit, and Rejoin restores the current source anchor anyway.
-    if target_omitted {
-        reflected_matrix.anchor = None;
-    }
-    if let Some(anchor) = &source.anchor
-        && !target_omitted
-    {
+    // Ticket 21: an Omitted partner follows source re-anchors when the
+    // counterpart exists, keeps its last valid anchor when it does not, and
+    // never blocks the source edit while absent; Rejoin restores the
+    // current source anchor anyway. `reflected` already preserved the old
+    // anchor identity; only a successful remap overwrites it here.
+    if let Some(anchor) = &source.anchor {
         let edited_layout = doc
             .layouts
             .iter()
@@ -605,6 +601,11 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 if let Some(result_anchor) = reflected_matrix.anchor.as_mut() {
                     result_anchor.matrix_id = mapped;
                 }
+            } else if target_omitted {
+                // No counterpart while absent: keep the last valid anchor
+                // (or none) instead of a cross-layout pointer. Rejoin
+                // restores the current source anchor and revalidates.
+                reflected_matrix.anchor = target.anchor.clone();
             } else {
                 return Err(format!(
                     "Linked counterpart of anchor target {:?} is missing in layout {:?}; name the missing counterpart instead of silently retargeting",
@@ -1736,6 +1737,292 @@ pub(crate) fn reconcile_constraint_keys(
         }
     }
     Ok(changed)
+}
+
+/// Ticket 21: same-board exception lifecycle for matrix/key overlays.
+///
+/// Runs on the accepted layout after it replaces the current one, before
+/// `resolve()`. Added Omitted matrices shed their inherited parts here so
+/// the scene delta names them; resolve keeps the live record in sync.
+/// Making an anchored matrix Local detaches its own anchor keeping its
+/// pose. Rejoin and Omitted-to-Local materialize parts from the live
+/// record; resolve then adopts the current source layout and anchor. Local
+/// keys returning to a shared state reset their independent offset and
+/// rotation to the followed cell. Explicit child exceptions are otherwise
+/// preserved untouched.
+pub(crate) fn apply_exception_transitions(
+    doc: &mut ProjectDoc,
+    previous: &Layout,
+    incoming: &Layout,
+) -> Result<Vec<String>, String> {
+    let Some(next_link) = incoming.mirror_link.as_ref() else {
+        return Ok(vec![]);
+    };
+    let prev_link = previous.mirror_link.as_ref();
+    if prev_link.is_some_and(|link| link.source_id != next_link.source_id) {
+        return Ok(vec![]);
+    }
+    let prev_state = |kind: MirroredItemKind, mirror_id: &str| {
+        prev_link
+            .and_then(|link| {
+                link.exceptions.iter().find(|exception| {
+                    exception.kind == kind && exception.mirror_id == mirror_id
+                })
+            })
+            .map(|exception| exception.state)
+    };
+    let mut changed = Vec::new();
+    // Matrix records and parts first, so key resets below see live cells.
+    let matrix_ids: BTreeSet<&str> = incoming
+        .matrix_ids
+        .iter()
+        .chain(previous.matrix_ids.iter())
+        .map(String::as_str)
+        .collect();
+    for mirror_id in matrix_ids {
+        let before = prev_state(MirroredItemKind::Matrix, mirror_id);
+        let after = next_link
+            .exceptions
+            .iter()
+            .find(|exception| {
+                exception.kind == MirroredItemKind::Matrix
+                    && exception.mirror_id == mirror_id
+            })
+            .map(|exception| exception.state);
+        if before == after {
+            continue;
+        }
+        let record = doc
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == mirror_id)
+            .cloned();
+        match after {
+            // Making an anchored matrix Local detaches its own anchor and
+            // keeps its pose; a Local record never authors its partner, so
+            // the paired sync inside detach is a no-op for it.
+            Some(MirroredExceptionState::Local)
+                if record.as_ref().is_some_and(|matrix| matrix.anchor.is_some()) =>
+            {
+                changed.extend(matrix::anchors::detach(doc, mirror_id)?);
+            }
+            // An absent matrix sheds (or keeps shed) its inherited parts
+            // now so the scene delta names them; resolve keeps the live
+            // record following the source.
+            Some(MirroredExceptionState::Omitted) => {
+                if let Some(record) = record {
+                    changed.extend(matrix::set_matrix(doc, &record)?);
+                }
+            }
+            // Omitted-to-Local and Rejoin materialize parts from the live
+            // record now; resolve adopts the current source layout/anchor.
+            Some(MirroredExceptionState::Local) | None if before.is_some() => {
+                let record = record.ok_or_else(|| {
+                    format!("Linked matrix {mirror_id} is missing")
+                })?;
+                changed.extend(matrix::set_matrix(doc, &record)?);
+            }
+            _ => {}
+        }
+    }
+    // Key overlays: an Omitted key needs its correspondence overlay, and a
+    // key leaving Local returns to the followed cell instead of freezing
+    // its former Local placement.
+    let mut part_transitions: Vec<(String, Option<MirroredExceptionState>)> = next_link
+        .exceptions
+        .iter()
+        .filter(|exception| exception.kind == MirroredItemKind::Part)
+        .map(|exception| (exception.mirror_id.clone(), Some(exception.state)))
+        .collect();
+    if let Some(prev_link) = prev_link {
+        for exception in &prev_link.exceptions {
+            if exception.kind != MirroredItemKind::Part
+                || next_link.exceptions.iter().any(|next| {
+                    next.kind == MirroredItemKind::Part
+                        && next.mirror_id == exception.mirror_id
+                })
+            {
+                continue;
+            }
+            // A removed overlay rejoins the shared layout.
+            part_transitions.push((exception.mirror_id.clone(), None));
+        }
+    }
+    for (mirror_id, after) in part_transitions {
+        let before = prev_state(MirroredItemKind::Part, &mirror_id);
+        if before == after {
+            continue;
+        }
+        if after == Some(MirroredExceptionState::Omitted) {
+            ensure_part_correspondence(doc, &incoming.id, &mirror_id)?;
+        }
+        if before == Some(MirroredExceptionState::Local) && after != before {
+            reset_key_to_followed(doc, &incoming.id, &mirror_id)?;
+        }
+        // Shed the part when the key becomes absent; materialize it when
+        // the key returns from an excepted state. `set_matrix` reports the
+        // shed/created part, so the scene delta names it; resolve converges
+        // idempotently afterward.
+        let shed = after == Some(MirroredExceptionState::Omitted);
+        let materialize = before.is_some() && !shed;
+        if shed || materialize {
+            if let Some(owner) = owning_matrix(doc, &incoming.id, &mirror_id) {
+                let record = doc
+                    .matrices
+                    .iter()
+                    .find(|matrix| matrix.id == owner)
+                    .cloned();
+                if let Some(record) = record {
+                    changed.extend(matrix::set_matrix(doc, &record)?);
+                }
+            }
+        }
+    }
+    changed.sort();
+    changed.dedup();
+    Ok(changed)
+}
+
+/// The mirror matrix in `layout_id` owning `mirror_id`, by slot identity.
+fn owning_matrix(doc: &ProjectDoc, layout_id: &str, mirror_id: &str) -> Option<String> {
+    let layout = doc.layouts.iter().find(|layout| layout.id == layout_id)?;
+    layout.matrix_ids.iter().find(|matrix_id| {
+        mirror_id.starts_with(&format!("matrix/{matrix_id}/r"))
+    }).cloned()
+}
+
+/// Parse `matrix/<matrix>/r<row>c<column>` keys; companions resolve to their key.
+fn split_key_id(id: &str) -> Option<(String, u32, u32)> {
+    let rest = id.strip_prefix("matrix/")?;
+    let (matrix_id, slot) = rest.split_once("/r")?;
+    let slot = slot.split('/').next()?;
+    let (row, column) = slot.split_once('c')?;
+    Some((matrix_id.to_string(), row.parse().ok()?, column.parse().ok()?))
+}
+
+/// Ensure an Omitted key overlays a part correspondence, adding it by slot
+/// when the source slot exists. Refuses naming the missing counterpart
+/// instead of overlaying nothing.
+fn ensure_part_correspondence(
+    doc: &mut ProjectDoc,
+    layout_id: &str,
+    mirror_id: &str,
+) -> Result<(), String> {
+    let layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == layout_id)
+        .ok_or("Linked layout is missing")?;
+    let link = layout
+        .mirror_link
+        .as_ref()
+        .ok_or("Linked layout is missing")?;
+    if link.correspondences.iter().any(|record| {
+        record.kind == MirroredItemKind::Part && record.mirror_id == mirror_id
+    }) {
+        return Ok(());
+    }
+    let (mirror_matrix, row, column) = split_key_id(mirror_id).ok_or_else(|| {
+        format!("Layout exception {mirror_id:?} overlays no correspondence")
+    })?;
+    let source_matrix = link
+        .correspondences
+        .iter()
+        .find(|record| {
+            record.kind == MirroredItemKind::Matrix && record.mirror_id == mirror_matrix
+        })
+        .map(|record| record.source_id.clone())
+        .ok_or_else(|| {
+            format!("Layout exception {mirror_id:?} overlays no correspondence")
+        })?;
+    let source = matrix::evaluation::logical_matrix(&source_matrix, doc).map_err(|_| {
+        format!("Layout exception {mirror_id:?} overlays no correspondence")
+    })?;
+    if row >= source.rows || column >= source.columns {
+        return Err(format!(
+            "Layout exception {mirror_id:?} names a missing counterpart in matrix {source_matrix:?}; resize or Rejoin its parent instead of choosing another key"
+        ));
+    }
+    let source_id = matrix::member_id(&source_matrix, row, column);
+    if link.correspondences.iter().any(|record| {
+        record.kind == MirroredItemKind::Part && record.source_id == source_id
+    }) {
+        return Err(format!(
+            "Layout exception {mirror_id:?} names a missing counterpart in matrix {source_matrix:?}; resize or Rejoin its parent instead of choosing another key"
+        ));
+    }
+    let layout = doc
+        .layouts
+        .iter_mut()
+        .find(|layout| layout.id == layout_id)
+        .ok_or("Linked layout is missing")?;
+    link_correspondence(layout, source_id, mirror_id.to_string());
+    Ok(())
+}
+
+fn link_correspondence(layout: &mut Layout, source_id: String, mirror_id: String) {
+    if let Some(link) = layout.mirror_link.as_mut() {
+        link.correspondences.push(MirroredCorrespondence {
+            kind: MirroredItemKind::Part,
+            source_id,
+            mirror_id,
+            companion_mode: None,
+            companion_tweak: None,
+        });
+    }
+}
+
+/// Return a key leaving Local to the followed cell: copy the counterpart's
+/// independent offset/rotation, or clear them when the key follows no
+/// counterpart. The next resolve then materializes the shared pose.
+fn reset_key_to_followed(
+    doc: &mut ProjectDoc,
+    layout_id: &str,
+    mirror_id: &str,
+) -> Result<(), String> {
+    let Some((mirror_matrix, row, column)) = split_key_id(mirror_id) else {
+        return Ok(());
+    };
+    let source_cell = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == layout_id)
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .and_then(|link| {
+            link.correspondences.iter().find(|record| {
+                record.kind == MirroredItemKind::Matrix
+                    && record.mirror_id == mirror_matrix
+            })
+        })
+        .and_then(|record| {
+            doc.matrices
+                .iter()
+                .find(|matrix| matrix.id == record.source_id)
+        })
+        .and_then(|source| {
+            source
+                .cells
+                .iter()
+                .find(|cell| cell.row == row && cell.column == column)
+        })
+        .map(|cell| (cell.offset, cell.rotation));
+    let Some(mirror) = doc
+        .matrices
+        .iter_mut()
+        .find(|matrix| matrix.id == mirror_matrix)
+    else {
+        return Ok(());
+    };
+    if let Some(cell) = mirror
+        .cells
+        .iter_mut()
+        .find(|cell| cell.row == row && cell.column == column)
+    {
+        let (offset, rotation) = source_cell.unwrap_or((None, None));
+        cell.offset = offset;
+        cell.rotation = rotation;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

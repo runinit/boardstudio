@@ -2108,3 +2108,170 @@ fn linked_resize_keeps_omitted_partner_live_and_absent() {
     assert_eq!(redone_doc.layouts, resized.layouts);
     assert_eq!(redone_doc.parts, resized.parts);
 }
+
+#[test]
+fn linked_make_local_on_anchored_matrix_detaches_and_keeps_pose() {
+    // Ticket 21: making an anchored matrix Local detaches its own anchor and
+    // keeps its world pose; its future layout stays its own.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "thumb2".into(),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, local) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    // Its own anchor cleared, every pose kept.
+    assert_eq!(anchor_of(&local, "thumb2"), None);
+    assert!(anchor_of(&local, "thumb").is_some());
+    for (id, pose) in &poses_before {
+        assert_eq!(pose_of(&local, id), *pose, "{id}");
+    }
+    // One Undo restores the anchor and the exception state together.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(anchor_of(&undone_doc, "thumb2"), anchor_of(&doc, "thumb2"));
+    assert_eq!(undone_doc.layouts, doc.layouts);
+    let redone_doc = redone(&mut engine);
+    assert_eq!(anchor_of(&redone_doc, "thumb2"), None);
+    assert_eq!(redone_doc.layouts, local.layouts);
+}
+
+#[test]
+fn linked_local_to_omitted_key_returns_to_shared_pose() {
+    // Ticket 21: Local->Omitted replaces Local state instead of freezing the
+    // former Local placement: the key's logical pose returns to the current
+    // shared layout while explicit child exceptions are preserved.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Make the mirror anchor key Local, then move it independently.
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Part,
+            mirror_id: member("main2", 0, 2),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main2", 0, 2),
+                at: Vec2 { x: -10.0, y: 5.0 },
+            }],
+        },
+    );
+    assert_eq!(
+        pose_of(&moved, &member("main2", 0, 2)).at,
+        Vec2 { x: -10.0, y: 5.0 }
+    );
+    // Switch the same key from Local to Omitted via the public route.
+    let mut omitted_layout = moved
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    if let Some(link) = omitted_layout.mirror_link.as_mut() {
+        for exception in &mut link.exceptions {
+            if exception.mirror_id == member("main2", 0, 2) {
+                exception.state = MirroredExceptionState::Omitted;
+            }
+        }
+    }
+    let (_, omitted) = edit(
+        &mut engine,
+        &moved,
+        EditOperation::SetLayout {
+            layout: omitted_layout,
+        },
+    );
+    // The Omitted key's part is suppressed, not frozen at its Local pose.
+    assert!(
+        omitted
+            .parts
+            .iter()
+            .all(|part| part.id != member("main2", 0, 2)),
+        "omit must suppress the key part, not freeze its Local placement"
+    );
+    // The dependent still follows the live shared anchor: the x=10
+    // reflection of main(0,2) at (38,0), not the former Local (-10,5).
+    assert_eq!(
+        pose_of(&omitted, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    // Rejoin restores the part at the shared pose in the same transaction.
+    let mut rejoined_layout = omitted
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    if let Some(link) = rejoined_layout.mirror_link.as_mut() {
+        link.exceptions
+            .retain(|exception| exception.mirror_id != member("main2", 0, 2));
+    }
+    let (_, rejoined) = edit(
+        &mut engine,
+        &omitted,
+        EditOperation::SetLayout {
+            layout: rejoined_layout,
+        },
+    );
+    assert_eq!(
+        pose_of(&rejoined, &member("main2", 0, 2)).at,
+        Vec2 { x: -18.0, y: 0.0 }
+    );
+    assert_eq!(
+        pose_of(&rejoined, &member("thumb2", 0, 0)).at,
+        Vec2 { x: -18.0, y: -19.0 }
+    );
+    // Rejoin is one Undo entry: Undo returns to the Omitted state.
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.layouts, omitted.layouts);
+    assert_eq!(undone_doc.parts, omitted.parts);
+    let redone_doc = redone(&mut engine);
+    assert_eq!(redone_doc.parts, rejoined.parts);
+}
