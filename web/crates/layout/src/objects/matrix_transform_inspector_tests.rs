@@ -6,8 +6,9 @@ use crate::runtime::Runtime;
 use crate::runtime::project_name_test_support as support;
 use boardstudio_application::{Event, SelectionMode};
 use boardstudio_core::model::{
-    Board, Follow, Layout, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell, Part, PartDefinition,
-    PartKind, Pose2, ProjectDoc, Side, Vec2,
+    Board, Follow, Layout, LayoutMirrorLink, Matrix, MatrixAnchor, MatrixAssembly, MatrixCell,
+    MirroredCorrespondence, MirroredException, MirroredExceptionState, MirroredItemKind, Part,
+    PartDefinition, PartKind, Pose2, ProjectDoc, Side, Vec2,
 };
 use boardstudio_web_ui_shared::test_wait::wait_until;
 use dioxus_web::WebEventExt;
@@ -418,6 +419,158 @@ fn anchored_matrix_fixture(rotation_followed: bool) -> (ProjectDoc, TreeContext)
         document,
         TreeContext::Matrix {
             matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
+/// A linked pair with an asymmetric Local exception: `thumb` is anchored to
+/// `main`, `thumb2` to the mirrored `main2`, and the mirror anchor key is
+/// Local with a moved pose. Detaching `thumb` would move its linked partner,
+/// so Core refuses naming `thumb2` — the confirmed-detach proposal case.
+fn linked_detach_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = fixture();
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main".into(), "thumb".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    document.layouts.push(Layout {
+        id: "mirror-layout".into(),
+        name: "Mirror".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["main2".into(), "thumb2".into()],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "layout".into(),
+            axis_x: 10.0,
+            correspondences: vec![
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "main".into(),
+                    mirror_id: "main2".into(),
+                },
+                MirroredCorrespondence {
+                    companion_mode: None,
+                    companion_tweak: None,
+                    kind: MirroredItemKind::Matrix,
+                    source_id: "thumb".into(),
+                    mirror_id: "thumb2".into(),
+                },
+            ],
+            exceptions: vec![MirroredException {
+                kind: MirroredItemKind::Part,
+                mirror_id: "matrix/main2/r0c0".into(),
+                state: MirroredExceptionState::Local,
+                companion_mode: None,
+                companion_tweak: None,
+                removed_copper: None,
+            }],
+        }),
+    });
+    let mut key = |id: &str, reference: &str, x: f64, y: f64| {
+        document.boards[0].part_ids.push(id.into());
+        document.parts.push(Part {
+            keycap: None,
+            outline: None,
+            id: id.into(),
+            definition_id: "key-definition".into(),
+            reference: reference.into(),
+            pose: Pose2 {
+                at: Vec2 { x, y },
+                rotation: 0.0,
+            },
+            side: Side::Front,
+            locked: Some(false),
+            properties: None,
+            generator_parameters: None,
+        });
+    };
+    key("matrix/main/r0c0", "K1", 0.0, 0.0);
+    // The mirror anchor key is Local with a moved pose.
+    key("matrix/main2/r0c0", "K2", 12.0, 5.0);
+    key("matrix/thumb/r0c0", "K3", 0.0, -19.0);
+    key("matrix/thumb2/r0c0", "K4", 12.0, -14.0);
+    let matrix = |id: &str, key_id: &str, mirror: Option<boardstudio_core::model::Mirror>, origin: Vec2, anchor_target: &str| Matrix {
+        id: id.into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin,
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: anchor_target.into(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    };
+    document.matrices.push(matrix(
+        "main",
+        "matrix/main/r0c0",
+        None,
+        Vec2::default(),
+        "main",
+    ));
+    document.matrices.push(matrix(
+        "main2",
+        "matrix/main2/r0c0",
+        Some(boardstudio_core::model::Mirror::X),
+        Vec2 { x: 20.0, y: 0.0 },
+        "main2",
+    ));
+    document.matrices.push(matrix(
+        "thumb",
+        "matrix/thumb/r0c0",
+        None,
+        Vec2 { x: 0.0, y: -19.0 },
+        "main",
+    ));
+    document.matrices.push(matrix(
+        "thumb2",
+        "matrix/thumb2/r0c0",
+        Some(boardstudio_core::model::Mirror::X),
+        Vec2 { x: 20.0, y: -19.0 },
+        "main2",
+    ));
+    // `main` carries no anchor: it places itself.
+    document.matrices[1].anchor = None;
+    document.matrices[2].anchor = None;
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "thumb".into(),
         },
     )
 }
@@ -2808,5 +2961,176 @@ async fn detach_clears_the_anchor_keeping_every_pose_with_one_undo() {
             .is_some(),
         "one Undo restores the anchor"
     );
+    root.remove();
+}
+
+/// Ticket 23 slice 7b-ii, RED: when Detach would move the linked partner, the
+/// Inspector names the required Local exception and confirms it in one atomic
+/// Core intent; Cancel leaves everything unchanged.
+#[wasm_bindgen_test]
+async fn detach_proposal_confirms_the_named_local_exception_atomically() {
+    let (document, context) = linked_detach_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-detach-confirm-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let detach = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Detach"))
+        .expect("an anchored matrix offers Detach")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    let poses_before: Vec<(String, Pose2)> = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose.clone()))
+        .collect();
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    // The refusal changed nothing: both anchors stay, no new revision.
+    let refused = probe.runtime.model().accepted.expect("an accepted document");
+    assert!(
+        refused
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb survives")
+            .anchor
+            .is_some()
+            && refused
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == "thumb2")
+                .expect("thumb2 survives")
+                .anchor
+                .is_some(),
+        "the refused Detach changes nothing"
+    );
+    assert_eq!(
+        refused.document.revision, revision_before,
+        "the refused Detach commits nothing"
+    );
+    let confirm_block = root
+        .query_selector(".m1-matrix-detach-confirm")
+        .unwrap()
+        .expect("the refusal names its proposal in place");
+    assert!(
+        confirm_block
+            .text_content()
+            .as_deref()
+            .is_some_and(|text| text.contains("thumb2")),
+        "the proposal names the required Local exception"
+    );
+    // Cancel leaves the whole edit unchanged.
+    let buttons = root.query_selector_all("button").unwrap();
+    let cancel = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Cancel"))
+        .expect("the proposal offers Cancel")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    cancel.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "thumb")
+            .expect("thumb survives")
+            .anchor
+            .is_some(),
+        "Cancel leaves the anchor"
+    );
+    // Confirm clears both anchors, keeps every pose, in one Undo entry.
+    detach.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let buttons = root.query_selector_all("button").unwrap();
+    let confirm = (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some("Confirm detach"))
+        .expect("the proposal offers Confirm")
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap();
+    confirm.click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let confirmed = probe.runtime.model().accepted.expect("an accepted document");
+    for id in ["thumb", "thumb2"] {
+        assert!(
+            confirmed
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+                .expect("the matrix survives")
+                .anchor
+                .is_none(),
+            "confirmed Detach clears {id}"
+        );
+    }
+    for (id, pose) in &poses_before {
+        assert_eq!(
+            confirmed
+                .document
+                .parts
+                .iter()
+                .find(|part| &part.id == id)
+                .expect("the part survives")
+                .pose,
+            *pose,
+            "confirmed Detach keeps every pose"
+        );
+    }
+    assert_eq!(
+        confirmed.document.revision,
+        revision_before + 1,
+        "confirmed Detach is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe.runtime.model().accepted.expect("an accepted document");
+    for id in ["thumb", "thumb2"] {
+        assert!(
+            undone
+                .document
+                .matrices
+                .iter()
+                .find(|matrix| matrix.id == id)
+                .expect("the matrix survives")
+                .anchor
+                .is_some(),
+            "one Undo restores {id}"
+        );
+    }
     root.remove();
 }
