@@ -1,7 +1,8 @@
 use boardstudio_core::model::{
-    Board, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Layout, Material,
-    Matrix, Operation, OutlineFeature, OutlineSettings, Part, PartDefinition, PartKind, Pose2,
-    ProjectDoc, RowLayout, Side, Vec2,
+    Board, ColumnLayout, CoreReply, CoreRequest, EditCommand, EditOperation, EditPhase, Follow,
+    Layout, LayoutMirrorLink, Material, Matrix, MatrixAnchor, Mirror, MirroredCorrespondence,
+    MirroredItemKind, Operation, OutlineFeature, OutlineSettings, PartDefinition, PartKind,
+    ProjectDoc, RowLayout, Vec2,
 };
 use boardstudio_core::CoreEngine;
 
@@ -85,6 +86,16 @@ impl DemoBuilder {
         self.commit(EditOperation::ReplaceDocument {
             document: Box::new(document),
         })
+    }
+
+    fn snapshot(&mut self) -> Result<ProjectDoc, String> {
+        match self.engine.handle(CoreRequest::Snapshot {
+            id: "demo-snapshot".into(),
+        }) {
+            CoreReply::Scene { document, .. } => Ok(*document),
+            CoreReply::Error { message, .. } => Err(message),
+            reply => Err(format!("demo snapshot failed: {reply:?}")),
+        }
     }
 }
 
@@ -182,13 +193,7 @@ fn single_matrix_document(
         },
         definitions: None,
     })?;
-    let mut document = match builder.engine.handle(CoreRequest::Snapshot {
-        id: "demo-snapshot".into(),
-    }) {
-        CoreReply::Scene { document, .. } => *document,
-        CoreReply::Error { message, .. } => return Err(message),
-        reply => return Err(format!("demo snapshot failed: {reply:?}")),
-    };
+    let mut document = builder.snapshot()?;
     document.layouts.push(Layout {
         id: "layout".into(),
         name: "Main".into(),
@@ -231,94 +236,185 @@ fn macro12_document(name: &str) -> ProjectDoc {
     .expect("Macro 12 demo builds through Core")
 }
 
-impl DemoProject {
-    pub(crate) fn document(self) -> ProjectDoc {
-        match self.layout {
-            DemoLayout::Studio60 => return studio60_document(self.name),
-            DemoLayout::Macro12 => return macro12_document(self.name),
-            DemoLayout::Split42 => {}
-        }
-        let mut document = ProjectDoc::empty("demo-template", self.name);
-        let positions = match self.layout {
-            DemoLayout::Split42 => split42_positions(),
-            DemoLayout::Studio60 => grid_positions(5, 12, 19.05),
-            DemoLayout::Macro12 => grid_positions(3, 4, 19.05),
-        };
-        let part_ids: Vec<_> = (0..positions.len())
-            .map(|index| format!("key-{:02}", index + 1))
-            .collect();
-        document.definitions.push(PartDefinition {
-            hardware_profile: None,
-            input_profile: None,
-            id: "demo-switch".into(),
-            name: "Demo switch".into(),
-            kind: PartKind::Switch,
-            keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
-            envelope_source: None,
-            kicad_source: None,
-            terminals: Default::default(),
-            matrix_terminals: None,
-            envelope_notice: None,
-            courtyard: Vec::new(),
-            pads: Vec::new(),
-            models: None,
-            generator: None,
-            mechanical_profile: None,
-        });
-        document.parts = positions
-            .into_iter()
-            .zip(&part_ids)
-            .enumerate()
-            .map(|(index, (at, id))| Part {
-                keycap: Some(Vec2 { x: 18.0, y: 18.0 }),
-                outline: None,
-                id: id.clone(),
-                definition_id: "demo-switch".into(),
-                reference: format!("SW{}", index + 1),
-                pose: Pose2 { at, rotation: 0.0 },
-                side: Side::Front,
-                locked: None,
-                properties: None,
-                generator_parameters: None,
-            })
-            .collect();
-        document.outline.push(OutlineFeature::PartEnvelope {
-            connections: Vec::new(),
-            settings: OutlineSettings::default(),
-            id: "demo-outline".into(),
-            part_ids: part_ids.clone(),
-            margin: 4.0,
-            operation: Operation::Add,
-        });
-        document.boards.push(Board {
-            id: "demo-board".into(),
-            name: "Main board".into(),
-            outline_ids: vec!["demo-outline".into()],
-            part_ids,
-            net_ids: Vec::new(),
-            thickness: 1.6,
-            traces: Vec::new(),
-            vias: Vec::new(),
-        });
-        document.materials.push(Material {
-            id: "pla".into(),
-            name: "PLA".into(),
-            thickness: 3.0,
-        });
-        document
+fn demo_matrix(id: &str, rows: u32, columns: u32) -> Matrix {
+    Matrix {
+        id: id.into(),
+        name: None,
+        rows,
+        columns,
+        pitch: Vec2 {
+            x: DEMO_PITCH_MM,
+            y: DEMO_PITCH_MM,
+        },
+        origin: Vec2 { x: 0.0, y: 0.0 },
+        definition_id: "demo-switch".into(),
+        part_ids: Vec::new(),
+        board_id: None,
+        mirror: None,
+        rotation: None,
+        edge_gap: Some(Vec2 {
+            x: DEMO_EDGE_GAP_MM,
+            y: DEMO_EDGE_GAP_MM,
+        }),
+        diode_direction: None,
+        column_layout: Vec::new(),
+        row_layout: Vec::new(),
+        anchor: None,
+        cells: Vec::new(),
     }
 }
 
-fn grid_positions(rows: usize, columns: usize, pitch: f64) -> Vec<Vec2> {
-    (0..rows)
-        .flat_map(|row| {
-            (0..columns).map(move |column| Vec2 {
-                x: (column as f64 - (columns - 1) as f64 / 2.0) * pitch
-                    + if row > 0 { pitch * 0.25 } else { 0.0 },
-                y: (row as f64 - (rows - 1) as f64 / 2.0) * pitch,
-            })
-        })
-        .collect()
+fn split42_document(name: &str) -> ProjectDoc {
+    split42_build(name).expect("Split 42 demo builds through Core")
+}
+
+fn split42_build(name: &str) -> Result<ProjectDoc, String> {
+    let mut builder = DemoBuilder::open(demo_shell(name))?;
+    // Left main group: the authored source. Its local X mirror turns the
+    // negative row Shifts into the legacy positive world-X progression.
+    let mut left_main = demo_matrix("left-main", 3, 6);
+    left_main.name = Some("Left main".into());
+    left_main.origin = Vec2 { x: -31.0, y: -19.05 };
+    left_main.mirror = Some(Mirror::X);
+    left_main.row_layout = vec![
+        RowLayout::default(),
+        RowLayout {
+            shift: Vec2 { x: -2.5, y: 0.0 },
+            ..Default::default()
+        },
+        RowLayout {
+            shift: Vec2 { x: -2.5, y: 0.0 },
+            ..Default::default()
+        },
+    ];
+    builder.commit(EditOperation::SetMatrix {
+        matrix: left_main,
+        definitions: None,
+    })?;
+    let mut document = builder.snapshot()?;
+    document.layouts.push(Layout {
+        id: "left".into(),
+        name: "Left".into(),
+        board_id: "demo-board".into(),
+        matrix_ids: vec!["left-main".into()],
+        part_ids: Vec::new(),
+        mirror_link: None,
+    });
+    builder.replace(document)?;
+
+    // Left thumb cluster: anchored to Main Row 3, Column 3 with a relative
+    // authored offset, staggered outward like the legacy cluster.
+    let thumb_anchor = MatrixAnchor {
+        matrix_id: "left-main".into(),
+        row: 2,
+        column: 2,
+        follow: Follow {
+            x: true,
+            y: true,
+            rotation: true,
+        },
+    };
+    builder.commit(EditOperation::AddAnchoredMatrix {
+        id: "left-thumb".into(),
+        anchor: thumb_anchor.clone(),
+    })?;
+    let mut left_thumb = demo_matrix("left-thumb", 1, 3);
+    left_thumb.name = Some("Left thumb".into());
+    left_thumb.board_id = Some("demo-board".into());
+    left_thumb.origin = Vec2 { x: 0.1, y: 20.95 };
+    left_thumb.mirror = Some(Mirror::X);
+    left_thumb.anchor = Some(thumb_anchor);
+    left_thumb.column_layout = vec![
+        ColumnLayout::default(),
+        ColumnLayout {
+            stagger: 3.0,
+            ..Default::default()
+        },
+        ColumnLayout {
+            stagger: 3.0,
+            ..Default::default()
+        },
+    ];
+    builder.commit(EditOperation::SetMatrix {
+        matrix: left_thumb,
+        definitions: None,
+    })?;
+
+    // Right-side records carry identities and dimensions only. Core's
+    // linked-layout sync derives every right-side pose from the left source
+    // when the link lands, so no second right-side formula is authored here.
+    let mut right_main = demo_matrix("right-main", 3, 6);
+    right_main.name = Some("Right main".into());
+    builder.commit(EditOperation::SetMatrix {
+        matrix: right_main,
+        definitions: None,
+    })?;
+    let mut right_thumb = demo_matrix("right-thumb", 1, 3);
+    right_thumb.name = Some("Right thumb".into());
+    builder.commit(EditOperation::SetMatrix {
+        matrix: right_thumb,
+        definitions: None,
+    })?;
+
+    let mut correspondences = vec![
+        MirroredCorrespondence {
+            kind: MirroredItemKind::Matrix,
+            source_id: "left-main".into(),
+            mirror_id: "right-main".into(),
+            companion_mode: None,
+            companion_tweak: None,
+        },
+        MirroredCorrespondence {
+            kind: MirroredItemKind::Matrix,
+            source_id: "left-thumb".into(),
+            mirror_id: "right-thumb".into(),
+            companion_mode: None,
+            companion_tweak: None,
+        },
+    ];
+    for (source_id, mirror_id, rows, columns) in [
+        ("left-main", "right-main", 3u32, 6u32),
+        ("left-thumb", "right-thumb", 1u32, 3u32),
+    ] {
+        for row in 0..rows {
+            for column in 0..columns {
+                correspondences.push(MirroredCorrespondence {
+                    kind: MirroredItemKind::Part,
+                    source_id: format!("matrix/{source_id}/r{row}c{column}"),
+                    mirror_id: format!("matrix/{mirror_id}/r{row}c{column}"),
+                    companion_mode: None,
+                    companion_tweak: None,
+                });
+            }
+        }
+    }
+    let mut document = builder.snapshot()?;
+    document.layouts.push(Layout {
+        id: "right".into(),
+        name: "Right".into(),
+        board_id: "demo-board".into(),
+        matrix_ids: vec!["right-main".into(), "right-thumb".into()],
+        part_ids: Vec::new(),
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: "left".into(),
+            axis_x: 0.0,
+            correspondences,
+            exceptions: Vec::new(),
+        }),
+    });
+    let mut document = builder.replace(document)?;
+    document.revision = 0;
+    Ok(document)
+}
+
+impl DemoProject {
+    pub(crate) fn document(self) -> ProjectDoc {
+        match self.layout {
+            DemoLayout::Studio60 => studio60_document(self.name),
+            DemoLayout::Macro12 => macro12_document(self.name),
+            DemoLayout::Split42 => split42_document(self.name),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -763,23 +859,3 @@ mod demo_rebuild_tests {
     }
 }
 
-fn split42_positions() -> Vec<Vec2> {
-    let mut positions = Vec::with_capacity(42);
-    for side in [-1.0, 1.0] {
-        for row in 0..3 {
-            for column in 0..6 {
-                positions.push(Vec2 {
-                    x: side * (31.0 + column as f64 * 19.05) + row as f64 * 2.5,
-                    y: (row as f64 - 1.0) * 19.05,
-                });
-            }
-        }
-        for thumb in 0..3 {
-            positions.push(Vec2 {
-                x: side * (64.0 + thumb as f64 * 19.05),
-                y: 40.0 + thumb as f64 * 3.0,
-            });
-        }
-    }
-    positions
-}
