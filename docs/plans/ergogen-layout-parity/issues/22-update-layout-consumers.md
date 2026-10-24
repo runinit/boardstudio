@@ -1,6 +1,6 @@
 # 22: Adapt setup, alignment, selection and geometry consumers
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [21](21-exception-lifecycle.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
