@@ -23,8 +23,8 @@ Resolved on 2026-10-23 by [10](issues/10-slice-the-build.md#answer): the consoli
 planning, not implementation. No shipped version-7 product behavior is claimed; [27](issues/27-end-to-end-acceptance.md)
 is the implementation release gate. Tooling [15](issues/15-generate-parity-fixtures.md#answer)
 is complete; the unshipped [17 cutover](issues/17-cut-over-format-and-model.md#answer)
-and all five subtickets are resolved. The next build frontier is [20](issues/20-reflect-linked-layouts.md) (READY-FOR-AGENT),
-now unblocked by resolved [19](issues/19-anchor-layout-groups.md); parent-owned handoff remains
+and all five subtickets are resolved. The next build frontier is [21](issues/21-exception-lifecycle.md) (READY-FOR-AGENT),
+now unblocked by resolved [20](issues/20-reflect-linked-layouts.md); parent-owned handoff remains
 pending. [25](issues/25-project-format-recovery.md) remains RESOLVED independently.
 The first-build parity claim excludes aggregate anchors explicitly, not silently.
 
@@ -115,7 +115,7 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [17e: Fixtures and final gate](issues/17e-fixtures-and-final-gate.md#answer) | 17b, 17c, 17d | Resolved: minimum fixture repairs, quick/full gates and independent Standards/Spec re-reviews passed. |
 | [18: Core placement edits](issues/18-core-placement-edits.md#answer) | 17 | Resolved: named edits, exact inverses, origin compensation and rigid Column Align; linked constraint-driven Align retains its existing refusal. |
 | [19: Anchor/Layout groups](issues/19-anchor-layout-groups.md#answer) | 18 | Resolved: dependency-order evaluation, typed anchor Add/change/Detach with Undo, atomic refusals and frame-preserving lifecycle. |
-| [20: Linked group reflection](issues/20-reflect-linked-layouts.md) | 19 | Both linking systems, actual/transported frames and inverse edits. |
+| [20: Linked group reflection](issues/20-reflect-linked-layouts.md#answer) | 19 | Resolved: linked Add with transported Follow, anchor-by-identity, actual Local, column-0 hold-still, Omitted live pose and Y-mirror refusal proof. |
 | [21: Exception lifecycle](issues/21-exception-lifecycle.md) | 20 | Local/Omitted resize, Rejoin, confirmed detach and source removal. |
 | [22: Consumers](issues/22-update-layout-consumers.md) | 21 | Setup, Align, selection, size/snap and downstream geometry contracts. |
 | [23: Inspector/tools/handles](issues/23-inspector-toolbar-and-handles.md) | 22 | Accepted D interaction through real controls and trusted pointer input. |

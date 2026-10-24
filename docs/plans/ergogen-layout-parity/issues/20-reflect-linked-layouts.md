@@ -1,6 +1,6 @@
 # 20: Reflect complete layout groups and inverse-edit their actual frames
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [19](19-anchor-layout-groups.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
@@ -115,3 +115,64 @@ Integrator notes: do NOT edit `scripts/check-native-tests-baseline.json` here. N
 reconciliation: 6 `matrix_anchors::linked_*` + `adding_to_a_linked_layout_is_refused_until_ticket_20`
 (body changed, name retained) + 2 `matrix::kernel::tests::*`. Zero removals or renames in existing
 `matrix_anchors` (21 retained). No shared goldens, fixtures or baselines changed.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` over base `b75b0c805` (ticket 19 closure).
+Implementation commits: `e7a31c3` (claim), `9f2a520` (linked-group Add, Follow transport,
+anchor-by-identity, mirror-originating placement), `6aff97c` (actual Local anchors, column-0
+hold-still, Omitted live pose, slanted Follow), `7240761` (rustfmt + collapsible-if,
+quick-green), `fce9af7` (implementation evidence, kept claimed), `d7ecaa8` (linked Y-mirror
+refusal proof: test-only, no production change). Supported native-baseline update `9b4dce8`:
+`integration` grew 795 to 802 (+7: 6 `linked_*` + Y-mirror), `boardstudio_core` grew 806 to 808
+(+2 kernel), total 2193 to 2202. Baseline diff is 9 insertions, 0 deletions:
+`matrix_anchors::linked_follow_transports_source_basis_with_non_origin_axis`,
+`matrix_anchors::linked_anchor_retarget_maps_by_identity_not_list_position`,
+`matrix_anchors::linked_mirror_originating_shift_bend_reflects_heading_once`,
+`matrix_anchors::linked_dependent_follows_actual_local_anchor`,
+`matrix_anchors::linked_column_zero_hold_still_reflects_compensation_once`,
+`matrix_anchors::linked_omitted_anchor_keeps_live_logical_pose`,
+`matrix_anchors::linked_y_mirror_change_is_refused`,
+`matrix::kernel::tests::transported_follow_uses_source_world_basis_for_slanted_maps`,
+`matrix::kernel::tests::unfollowed_rotation_transports_through_slanted_maps`; name-retained
+repurposed `matrix_anchors::adding_to_a_linked_layout_is_refused_until_ticket_20` (body now
+proves success, not counted as new). Zero removals or renames. Receipt:
+`.evidence/ergogen-20-integration/native-baseline.json`.
+
+- What delivered: same-board Layout links and native mirrored halves share one reflection
+  rule set with distinct ownership. Linked Add creates the mirrored counterpart with
+  identity-mapped anchors (`-mirror` identities, matrix correspondences, part pairs) and
+  single-entry Undo/Redo. Anchor targets remap by correspondence in `layout.rs::sync`
+  (replacing stale target-anchor reuse); relative negate stays in `reflected`. Either-side
+  Local keeps its offset/rotation while carried Shift/Bend still sync; column-0 compensation
+  reflects once with pre-existing poses held still. Follow applies after the candidate with
+  source-world basis transport (non-origin axis, slanted maps, unfollowed rotation proven in
+  kernel). Mirror-originating Shift/Bend/Key edits copy unchanged with world poses reflected
+  once and headings opposite-signed once. Omitted anchors evaluate through the live logical
+  pose. Native mirror-side Add/SetAnchor keep row/column as the physical key. Preserved:
+  linked-Y refusal (`layout.rs:381-382` guard, proving test leaves state unchanged and is
+  Y-specific via exact message + succeeding X-toggle), ambiguous-alias/simultaneous-target,
+  constraint-driven refusals. Same-board Local/Omitted geometry proven here; resize/Rejoin/
+  confirmed-detach/source-removal lifecycle stays with ticket 21.
+- Reviews: Standards read-only review of `b75b0c8..fce9af7` was Clean with no blockers (one
+  documented non-blocking stale-name exception for
+  `adding_to_a_linked_layout_is_refused_until_ticket_20`, deliberate baseline-stability
+  tradeoff; rename recommended at reconciliation). First Spec review of the same range
+  returned FAIL with one should-fix (unproven linked Y-mirror refusal) plus four notes.
+  The fix `fce9af7..d7ecaa8` (test-only, guard intact) passed independent Spec re-review
+  read-only with no builds, closing the FAIL item. No production change in the fix delta.
+- Tests: `cargo test -p boardstudio_core --lib`: `ok. 808 passed; 0 failed` (806 + 2 kernel).
+  `cargo test -p boardstudio_core --test integration`: `ok. 802 passed; 0 failed`
+  (795 + 7 `matrix_anchors`: 6 `linked_*` + Y-mirror). Capped pre-integration
+  `python3 scripts/check.py quick --files core/src/matrix/anchors.rs
+  core/src/matrix/kernel.rs core/src/matrix/layout.rs core/src/mirrored_half/inverse.rs
+  core/tests/matrix_anchors.rs` (22G cap): all steps passed (repo, lint, typecheck, test,
+  layout-test-css, browser) in 263.5s. Fresh integration gates ran at `9b4dce8` with these
+  docs applied: quick 26/26 commands, scoped native 2046 passed with the retention list
+  clean; full 55/55 commands, native 2202 passed with 2202 retained names matched and zero
+  missing/new, page suite 77/77, drag/provider/CAD smokes passed. Receipts:
+  `.evidence/ergogen-20-integration/quick.json` and `full.json` (plus `.md` summaries).
+
+Known limit: Local/Omitted resize, Rejoin, confirmed detach and source removal belong to
+ticket 21; this ticket proves only the live-pose geometry plus refusal preservation. No release
+approval is implied.
