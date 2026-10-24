@@ -1,7 +1,8 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
 use boardstudio_core::model::{
-    EditOperation, Matrix, MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene,
-    MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2, convert_offset_available,
+    EditOperation, Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis, MatrixPlacementChange,
+    MatrixScene, MatrixSplayAffect, MatrixSplayChange, Mirror, PartDefinition, Vec2,
+    convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,6 +42,8 @@ pub enum MatrixTransformField {
     KeyAttached,
     KeyAssembliesLocal,
     DeleteSelection,
+    MatrixDetach,
+    MatrixDetachConfirm,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +69,7 @@ pub enum MatrixTransformFields {
         /// False when the matrix is anchored without rotation Follow: Core
         /// would refuse the no-op edit, so the Inspector disables the field.
         rotation_followed: bool,
+        anchor: Option<MatrixAnchor>,
     },
     Row {
         row: u32,
@@ -267,6 +271,19 @@ pub fn build_operation(
         ) => Ok(EditOperation::RemoveMatrixCells {
             matrix_id: matrix.id.clone(),
             cells: vec![(*row, *column)],
+        }),
+        (MatrixTransformFields::Matrix { .. }, Field::MatrixDetach, Value::Bool(true)) => {
+            Ok(EditOperation::DetachMatrixAnchor {
+                matrix_id: matrix.id.clone(),
+            })
+        }
+        (
+            MatrixTransformFields::Matrix { .. },
+            Field::MatrixDetachConfirm,
+            Value::Text(local_matrix_id),
+        ) => Ok(EditOperation::DetachMatrixAnchorConfirmed {
+            matrix_id: matrix.id.clone(),
+            local_matrix_id,
         }),
         (MatrixTransformFields::Matrix { .. }, Field::OriginX, Value::Number(x)) => {
             let mut next = matrix.clone();
@@ -1681,6 +1698,58 @@ mod tests {
     }
 
     #[test]
+    fn detach_maps_to_one_atomic_core_intent() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Matrix {
+            origin: matrix.origin,
+            rotation: 0.0,
+            mirror: None,
+            mirror_y_locked: false,
+            rotation_followed: true,
+            anchor: None,
+        };
+        assert!(matches!(
+            build_operation(
+                &matrix,
+                &fields,
+                MatrixTransformField::MatrixDetach,
+                MatrixTransformValue::Bool(true),
+                MatrixSplayAffect::Following,
+            )
+            .unwrap(),
+            EditOperation::DetachMatrixAnchor { matrix_id }
+                if matrix_id == "matrix-1"
+        ));
+    }
+
+    #[test]
+    fn confirmed_detach_carries_the_named_local_exception() {
+        let matrix = matrix();
+        let fields = MatrixTransformFields::Matrix {
+            origin: matrix.origin,
+            rotation: 0.0,
+            mirror: None,
+            mirror_y_locked: false,
+            rotation_followed: true,
+            anchor: None,
+        };
+        assert!(matches!(
+            build_operation(
+                &matrix,
+                &fields,
+                MatrixTransformField::MatrixDetachConfirm,
+                MatrixTransformValue::Text("partner-mirror".into()),
+                MatrixSplayAffect::Following,
+            )
+            .unwrap(),
+            EditOperation::DetachMatrixAnchorConfirmed {
+                matrix_id,
+                local_matrix_id,
+            } if matrix_id == "matrix-1" && local_matrix_id == "partner-mirror"
+        ));
+    }
+
+    #[test]
     fn key_reset_preserves_assembly_and_cell_identity() {
         let matrix = matrix();
         let fields = MatrixTransformFields::Key {
@@ -2136,6 +2205,7 @@ mod tests {
             mirror: None,
             mirror_y_locked: true,
             rotation_followed: true,
+            anchor: None,
         };
         let error = build_operation(
             &matrix,
@@ -2157,6 +2227,7 @@ mod tests {
             mirror: None,
             mirror_y_locked: false,
             rotation_followed: true,
+            anchor: None,
         };
         for (field, value, expected) in [
             (

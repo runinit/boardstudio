@@ -334,6 +334,8 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::KeyAttached => "Attached components",
         MatrixTransformField::KeyAssembliesLocal => "Use mirrored components",
         MatrixTransformField::DeleteSelection => "Delete",
+        MatrixTransformField::MatrixDetach => "Detach",
+        MatrixTransformField::MatrixDetachConfirm => "Confirm detach",
     }
 }
 
@@ -509,6 +511,8 @@ pub fn use_workspace_matrix_transform(
             MatrixTransformField::ColumnOffsetReset,
             MatrixTransformField::ColumnOffsetConvert,
             MatrixTransformField::KeyTransformReset,
+            MatrixTransformField::MatrixDetach,
+            MatrixTransformField::MatrixDetachConfirm,
             MatrixTransformField::KeyAssembliesLocal,
             MatrixTransformField::KeyAttached,
             MatrixTransformField::DeleteSelection,
@@ -1110,6 +1114,7 @@ fn transform_fields(
                 .anchor
                 .as_ref()
                 .is_none_or(|anchor| anchor.follow.rotation),
+            anchor: matrix.anchor.clone(),
         },
         TreeContext::Row { row, .. } => MatrixTransformFields::Row {
             row: *row,

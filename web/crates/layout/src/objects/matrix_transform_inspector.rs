@@ -3,7 +3,7 @@ use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{MatrixSplayAffect, Mirror, Vec2};
+use boardstudio_core::model::{Follow, MatrixSplayAffect, Mirror, Vec2};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
 };
@@ -124,6 +124,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             mirror,
             mirror_y_locked,
             rotation_followed,
+            anchor,
         } => (
             "Position & orientation",
             rsx! {
@@ -160,6 +161,24 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     mirror_y_locked: *mirror_y_locked, request_sequence,
                     editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                }
+                h3 { class: "m1-matrix-subtitle", "Anchor" }
+                if let Some(anchor) = anchor {
+                    p { class: "m1-matrix-anchor-target",
+                        "Anchored to {anchor.matrix_id} · row {anchor.row} · column {anchor.column}"
+                    }
+                    p { class: "m1-matrix-anchor-follow", "{follows_label(&anchor.follow)}" }
+                    ResetTransformButton {
+                        label: "Detach", owner: owner.clone(), snapshot_token, revision,
+                        field: MatrixTransformField::MatrixDetach,
+                        pending_disabled: props.mount.one_shot_disabled(MatrixTransformField::MatrixDetach),
+                        baseline: MatrixTransformValue::Bool(false),
+                        value: MatrixTransformValue::Bool(true),
+                        request_sequence, editable: props.mount.editable,
+                        feedback: props.mount.feedback.clone(), splay_affect, on_edit,
+                    }
+                } else {
+                    p { class: "m1-empty-note", "No anchor. The matrix places itself." }
                 }
             },
         ),
@@ -1203,6 +1222,26 @@ fn ResetTransformButton(props: ResetTransformButtonProps) -> Element {
         }
         if let Some(reason) = props.blocked.as_deref() { small { class: "m1-empty-note m1-matrix-transform-unavailable", "{reason}" } }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+    }
+}
+
+/// The Follow subset an anchor carries, in the Inspector's words.
+fn follows_label(follow: &Follow) -> String {
+    let mut kept = Vec::new();
+    if follow.x {
+        kept.push("X");
+    }
+    if follow.y {
+        kept.push("Y");
+    }
+    if follow.rotation {
+        kept.push("rotation");
+    }
+    match kept.as_slice() {
+        [] => "Follows nothing".to_owned(),
+        [only] => format!("Follows {only}"),
+        [first, second] => format!("Follows {first} and {second}"),
+        _ => format!("Follows {}, {} and {}", kept[0], kept[1], kept[2]),
     }
 }
 
