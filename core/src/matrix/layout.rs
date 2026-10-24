@@ -508,9 +508,12 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     let Some((target_id, axis_x)) = partner(doc, matrix_id) else {
         return Ok(vec![]);
     };
-    if exception_state(doc, MirroredItemKind::Matrix, &target_id)
-        == Some(MirroredExceptionState::Omitted)
-    {
+    // Ticket 21: a Local partner keeps its own dimensions/layout on source
+    // resize; an Omitted partner stays absent. Neither blocks the source edit.
+    if matches!(
+        exception_state(doc, MirroredItemKind::Matrix, &target_id),
+        Some(MirroredExceptionState::Local | MirroredExceptionState::Omitted)
+    ) {
         return Ok(vec![]);
     }
     let source = doc

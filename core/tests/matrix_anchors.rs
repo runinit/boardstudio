@@ -1916,3 +1916,97 @@ fn linked_y_mirror_change_is_refused() {
         Some(Mirror::X)
     );
 }
+
+#[test]
+fn linked_resize_keeps_local_partner_dimensions_and_poses() {
+    // Ticket 21 first slice: a public source resize must not rewrite a Local
+    // partner matrix. Source `main` grows 3 -> 4 columns; Local `main2` keeps
+    // its own 1x3 dimensions and every world pose, with valid correspondences.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Make the mirror matrix Local via its Layout link (public route).
+    let mut mirror_layout = doc
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "mirror-layout")
+        .expect("mirror layout")
+        .clone();
+    mirror_layout
+        .mirror_link
+        .as_mut()
+        .expect("mirror link")
+        .exceptions
+        .push(MirroredException {
+            kind: MirroredItemKind::Matrix,
+            mirror_id: "main2".into(),
+            state: MirroredExceptionState::Local,
+            companion_mode: None,
+            companion_tweak: None,
+            removed_copper: None,
+        });
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetLayout {
+            layout: mirror_layout,
+        },
+    );
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    // Grow the source through the public prepared route.
+    let mut grown = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    grown.columns = 4;
+    let (_, resized) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: grown,
+            definitions: None,
+        },
+    );
+    // The source grew; the Local partner kept its own dimensions.
+    assert_eq!(
+        resized
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "main")
+            .expect("grown source")
+            .columns,
+        4
+    );
+    let partner = resized
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .expect("local partner");
+    assert_eq!(partner.rows, 1);
+    assert_eq!(partner.columns, 3);
+    // Every pre-existing pose is unchanged, including the Local partner's.
+    for (id, pose) in &poses_before {
+        assert_eq!(pose_of(&resized, id), *pose, "{id}");
+    }
+    // No mirrored newcomer was fabricated for the Local partner.
+    assert!(
+        resized
+            .parts
+            .iter()
+            .all(|part| part.id != member("main2", 0, 3))
+    );
+    // One transaction: Undo restores the pre-resize matrices, Redo restores
+    // the resize (revision bumps, so compare content, not whole docs).
+    let undone_doc = undone(&mut engine);
+    assert_eq!(undone_doc.matrices, doc.matrices);
+    assert_eq!(undone_doc.layouts, doc.layouts);
+    assert_eq!(undone_doc.parts, doc.parts);
+    let redone_doc = redone(&mut engine);
+    assert_eq!(redone_doc.matrices, resized.matrices);
+    assert_eq!(redone_doc.layouts, resized.layouts);
+    assert_eq!(redone_doc.parts, resized.parts);
+}

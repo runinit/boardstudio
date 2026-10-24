@@ -44,3 +44,9 @@ and same-board layout lifecycle. Regressions must enter Core/Session production
 preparation; cite the helper/production discrepancy from [decision 11](11-mirrored-halves-rules.md#answer) but do not treat
 those helper tests as proof. Run focused lifecycle/mirror tests, then quick/native
 checks with name retention. No private adapter may become a second authority.
+
+## Progress
+
+Implementation lane on branch `docs/ergogen-layout-comparison`, base `eb4e0ac63`.
+Status remains claimed; no resolve, no push. `web/crates/layout/prototype/`
+untouched.
