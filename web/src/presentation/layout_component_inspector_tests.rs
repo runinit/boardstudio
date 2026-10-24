@@ -3076,6 +3076,103 @@ mod matrix_relations_panel {
         root.remove();
     }
 
+    /// A splayed column keeps its Column offset departure, but Convert is
+    /// disabled with the Core-owned reason wired through `aria-describedby`.
+    /// Rendering the refusal writes nothing.
+    #[wasm_bindgen_test]
+    async fn a_blocked_convert_in_relations_names_the_core_reason() {
+        let (probe, root) = mount(
+            "relations-blocked-convert-test",
+            base(),
+            Some(matrix_json(
+                2,
+                3,
+                json!({ "columnLayout": [{"offset": {"x": 0.0, "y": 0.0}}, {"offset": {"x": 1.5, "y": 2.0}, "splay": 10.0}]
+}),
+            )),
+        )
+        .await;
+        let before = probe
+            .runtime
+            .model()
+            .accepted
+            .expect("accepted document")
+            .document
+            .revision;
+        probe.select(column_ctx(1));
+        probe.land().await;
+        probe.open_relations_tab().await;
+        assert!(
+            probe.exists("[data-relation-departure='Column offset']"),
+            "the departure is listed: {}",
+            probe.text()
+        );
+        let button = root
+            .query_selector("[data-relation-action='convert']")
+            .unwrap()
+            .expect("Convert is mounted");
+        assert!(
+            button.has_attribute("disabled"),
+            "splay blocks Convert in Relations too"
+        );
+        let reason = root
+            .query_selector(".m1-matrix-transform-unavailable")
+            .unwrap()
+            .expect("the Core reason is shown");
+        assert_eq!(
+            reason.text_content().as_deref(),
+            Some("Converting requires zero Splay, Column rotation and carried Bend")
+        );
+        assert_eq!(
+            button.get_attribute("aria-describedby").as_deref(),
+            reason.get_attribute("id").as_deref(),
+            "the refusal is programmatically named"
+        );
+        assert!(
+            button
+                .get_attribute("aria-describedby")
+                .as_deref()
+                .is_some_and(|id| !id.is_empty()),
+            "the description reference is not empty"
+        );
+        assert_eq!(
+            probe
+                .runtime
+                .model()
+                .accepted
+                .expect("accepted document")
+                .document
+                .revision,
+            before,
+            "rendering a refusal writes nothing, so no Undo entry"
+        );
+        root.remove();
+    }
+
+    /// The `tie` offset constraint wins over its companion's attachment to its
+    /// key: Core derives the Constrained mode, and Relations names that
+    /// precedence in text.
+    #[wasm_bindgen_test]
+    async fn a_won_constraint_names_its_priority_over_the_key_attachment() {
+        let (document, _) = constrained_companion_document();
+        let (probe, root) = mount("relations-precedence-test", document, None).await;
+        probe.select(matrix_ctx());
+        probe.land().await;
+        probe.open_relations_tab().await;
+        let row = root
+            .query_selector("[data-relation-constraint='tie']")
+            .unwrap()
+            .expect("the constraint is listed");
+        assert!(
+            row.text_content()
+                .unwrap_or_default()
+                .contains("Takes priority over the attachment to its key."),
+            "Core-owned precedence is explained: {}",
+            probe.text()
+        );
+        root.remove();
+    }
+
     /// Two keys' companions, one tied to the first key by an explicit constraint. Core
     /// generates the part ids, so a scratch engine does the work and the document that
     /// results opens in the Session.
