@@ -438,3 +438,324 @@ fn detach_keeps_world_frame_and_clears_the_anchor() {
     assert_eq!(redone(&mut engine).matrices, detached.matrices);
     assert_eq!(redone(&mut engine).matrices, moved.matrices);
 }
+
+fn single_matrix(id: &str, board: &str) -> Matrix {
+    Matrix {
+        id: id.into(),
+        name: None,
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "switch".into(),
+        part_ids: vec![member(id, 0, 0)],
+        board_id: Some(board.into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: None,
+        cells: vec![],
+    }
+}
+
+fn rich_fixture() -> (CoreEngine, ProjectDoc) {
+    let mut doc = ProjectDoc::empty("anchors-rich", "Anchors rich");
+    doc.definitions = definitions();
+    doc.parts = vec![
+        key_part(&member("main", 0, 0), 0.0, 0.0),
+        key_part(&member("main", 0, 1), 19.0, 0.0),
+        key_part(&member("main", 0, 2), 38.0, 0.0),
+        key_part(&member("aux", 0, 0), 0.0, 0.0),
+        key_part(&member("far", 0, 0), 0.0, 0.0),
+    ];
+    for (board, ids) in [
+        (
+            "board",
+            vec![
+                member("main", 0, 0),
+                member("main", 0, 1),
+                member("main", 0, 2),
+                member("aux", 0, 0),
+            ],
+        ),
+        ("board2", vec![member("far", 0, 0)]),
+    ] {
+        doc.boards.push(Board {
+            id: board.into(),
+            name: board.into(),
+            outline_ids: vec![],
+            part_ids: ids,
+            net_ids: vec![],
+            thickness: 1.6,
+            traces: vec![],
+            vias: vec![],
+        });
+    }
+    let mut main = main_matrix();
+    main.part_ids = vec![
+        member("main", 0, 0),
+        member("main", 0, 1),
+        member("main", 0, 2),
+    ];
+    main.board_id = Some("board".into());
+    doc.matrices.push(main);
+    doc.matrices.push(single_matrix("aux", "board"));
+    doc.matrices.push(single_matrix("far", "board2"));
+    for (id, board, matrices) in [
+        ("layout", "board", vec!["main"]),
+        ("other", "board", vec!["aux"]),
+        ("far-layout", "board2", vec!["far"]),
+    ] {
+        doc.layouts.push(Layout {
+            id: id.into(),
+            name: id.into(),
+            board_id: board.into(),
+            matrix_ids: matrices.into_iter().map(str::to_string).collect(),
+            part_ids: vec![],
+            mirror_link: None,
+        });
+    }
+    let (engine, _, doc) = open(doc);
+    (engine, doc)
+}
+
+fn anchored_rich_fixture() -> (CoreEngine, ProjectDoc) {
+    let (mut engine, doc) = rich_fixture();
+    let doc = add_thumb(&mut engine, &doc);
+    (engine, doc)
+}
+
+#[test]
+fn anchor_graph_refusals_leave_state_unchanged() {
+    let (mut engine, doc) = anchored_rich_fixture();
+    let all = || Follow {
+        x: true,
+        y: true,
+        rotation: true,
+    };
+    let anchor = |matrix: &str, row: u32, column: u32| MatrixAnchor {
+        matrix_id: matrix.into(),
+        row,
+        column,
+        follow: all(),
+    };
+    let cases: Vec<(&str, EditOperation, &str)> = vec![
+        (
+            "self",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor: anchor("thumb", 0, 0),
+            },
+            "cannot anchor to itself",
+        ),
+        (
+            "cycle",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "main".into(),
+                anchor: anchor("thumb", 0, 0),
+            },
+            "anchor cycle",
+        ),
+        (
+            "missing-target",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor: anchor("ghost", 0, 0),
+            },
+            "anchor target ghost is missing",
+        ),
+        (
+            "out-of-range",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor: anchor("main", 0, 9),
+            },
+            "anchor key matrix/main/r0c9 is missing",
+        ),
+        (
+            "cross-layout",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor: anchor("aux", 0, 0),
+            },
+            "same board and Layout",
+        ),
+        (
+            "cross-board",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "thumb".into(),
+                anchor: anchor("far", 0, 0),
+            },
+            "same board and Layout",
+        ),
+        (
+            "duplicate-id",
+            EditOperation::AddAnchoredMatrix {
+                id: "thumb".into(),
+                anchor: anchor("main", 0, 0),
+            },
+            "Duplicate matrix identity",
+        ),
+        (
+            "bad-id",
+            EditOperation::AddAnchoredMatrix {
+                id: "bad id".into(),
+                anchor: anchor("main", 0, 0),
+            },
+            "letters, digits",
+        ),
+        (
+            "missing-matrix",
+            EditOperation::SetMatrixAnchor {
+                matrix_id: "ghost".into(),
+                anchor: anchor("main", 0, 0),
+            },
+            "Matrix not found",
+        ),
+        (
+            "detach-unanchored",
+            EditOperation::DetachMatrixAnchor {
+                matrix_id: "main".into(),
+            },
+            "has no anchor",
+        ),
+        (
+            "constrain-anchor-key",
+            EditOperation::SetConstraint {
+                constraint: Constraint::Offset {
+                    id: "drive".into(),
+                    source_part_id: member("main", 0, 0),
+                    target_part_id: member("main", 0, 2),
+                    offset: Vec2 { x: 19.0, y: 0.0 },
+                    rotation: 0.0,
+                },
+            },
+            "anchors to it",
+        ),
+    ];
+    for (name, operation, reason) in cases {
+        let message = error(&mut engine, &doc, operation);
+        assert!(
+            message.contains(reason),
+            "{name}: expected refusal containing {reason:?}, got {message:?}"
+        );
+        assert_eq!(snapshot(&mut engine), doc, "{name}: refusal changed state");
+    }
+}
+
+#[test]
+fn anchoring_to_a_constraint_driven_key_is_refused() {
+    let (mut engine, doc) = rich_fixture();
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetConstraint {
+            constraint: Constraint::Offset {
+                id: "drive".into(),
+                source_part_id: member("main", 0, 1),
+                target_part_id: member("main", 0, 0),
+                offset: Vec2 { x: -19.0, y: 0.0 },
+                rotation: 0.0,
+            },
+        },
+    );
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::AddAnchoredMatrix {
+            id: "thumb".into(),
+            anchor: MatrixAnchor {
+                matrix_id: "main".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: true,
+                    y: true,
+                    rotation: true,
+                },
+            },
+        },
+    );
+    assert!(
+        message.contains("constraint-driven"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(snapshot(&mut engine), doc);
+}
+
+#[test]
+fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
+    let (mut engine, doc) = fixture();
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::CreateMirroredPair {
+            left: Layout {
+                id: "left-layout".into(),
+                name: "Left half".into(),
+                board_id: "board".into(),
+                matrix_ids: vec!["left-matrix".into()],
+                part_ids: vec![],
+                mirror_link: None,
+            },
+            right: Layout {
+                id: "right-layout".into(),
+                name: "Right half".into(),
+                board_id: "board".into(),
+                matrix_ids: vec!["right-matrix".into()],
+                part_ids: vec![],
+                mirror_link: Some(LayoutMirrorLink {
+                    source_id: "left-layout".into(),
+                    axis_x: 10.0,
+                    correspondences: vec![],
+                    exceptions: vec![],
+                }),
+            },
+            matrix: Box::new(Matrix {
+                id: "left-matrix".into(),
+                name: None,
+                rows: 1,
+                columns: 1,
+                pitch: Vec2 { x: 19.0, y: 19.0 },
+                origin: Vec2::default(),
+                definition_id: "switch".into(),
+                part_ids: vec![],
+                board_id: Some("board".into()),
+                mirror: None,
+                rotation: None,
+                edge_gap: None,
+                diode_direction: None,
+                row_layout: vec![],
+                column_layout: vec![],
+                anchor: None,
+                cells: vec![],
+            }),
+            definitions: None,
+        },
+    );
+    let message = error(
+        &mut engine,
+        &doc,
+        EditOperation::AddAnchoredMatrix {
+            id: "claw".into(),
+            anchor: MatrixAnchor {
+                matrix_id: "left-matrix".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: true,
+                    y: true,
+                    rotation: true,
+                },
+            },
+        },
+    );
+    assert!(
+        message.contains("ticket 20"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(snapshot(&mut engine), doc);
+}
