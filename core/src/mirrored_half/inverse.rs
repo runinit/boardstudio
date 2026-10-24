@@ -287,18 +287,13 @@ pub(super) fn canonicalize(
                 change,
             };
         }
-        // Ticket 19: anchor intents translate their matrix identity like any
-        // other matrix edit. Relative anchor Origin/Rotation reflection through
-        // the pair map is ticket 20's job, so a mirrored anchor payload is
-        // refused instead of silently keeping source-world values.
+        // Ticket 20: anchor intents map their matrix identities to the source.
+        // Row/column stay the physical key and Follow keeps its subset with
+        // source-world transport in the kernel; anchored relative Origin X
+        // and Rotation negate while Y stays, via the stored relative values
+        // in `reflected`/`sync`, not by negating cell turns twice.
         Op::AddAnchoredMatrix { id, anchor } => {
-            let (source_id, mapping) = links.matrix_frame(&anchor.matrix_id)?;
-            if mapping.is_some() {
-                return Err(Refusal::Request(format!(
-                    "Adding an anchored matrix through mirrored half {} needs its reflected counterpart (ticket 20)",
-                    anchor.matrix_id
-                )));
-            }
+            let (source_id, _) = links.matrix_frame(&anchor.matrix_id)?;
             canonical.operation = Op::AddAnchoredMatrix {
                 id: id.clone(),
                 anchor: MatrixAnchor {
@@ -308,13 +303,8 @@ pub(super) fn canonicalize(
             };
         }
         Op::SetMatrixAnchor { matrix_id, anchor } => {
-            let (id, mapping) = links.matrix_frame(matrix_id)?;
-            let (source_id, target_mapping) = links.matrix_frame(&anchor.matrix_id)?;
-            if mapping.is_some() || target_mapping.is_some() {
-                return Err(Refusal::Request(format!(
-                    "Changing an anchor through mirrored half {matrix_id} needs reflected relative values (ticket 20)"
-                )));
-            }
+            let (id, _) = links.matrix_frame(matrix_id)?;
+            let (source_id, _) = links.matrix_frame(&anchor.matrix_id)?;
             canonical.operation = Op::SetMatrixAnchor {
                 matrix_id: id,
                 anchor: MatrixAnchor {

@@ -910,6 +910,9 @@ fn anchoring_to_a_constraint_driven_key_is_refused() {
 }
 
 #[test]
+// Ticket 20: Adding to a linked group now creates the mirrored counterpart
+// in the same edit. The name is retained for the native baseline so the new
+// `matrix_anchors` names stay purely additive.
 fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     let (mut engine, doc) = fixture();
     let (_, doc) = edit(
@@ -959,7 +962,7 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
             definitions: None,
         },
     );
-    let message = error(
+    let (_, doc) = edit(
         &mut engine,
         &doc,
         EditOperation::AddAnchoredMatrix {
@@ -976,11 +979,52 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
             },
         },
     );
-    assert!(
-        message.contains("ticket 20"),
-        "unexpected message: {message:?}"
+    // Both halves gain a 1x3 thumb; the mirror anchors to the counterpart.
+    let claw = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "claw")
+        .expect("claw matrix");
+    let mirror = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "claw-mirror")
+        .expect("claw mirror");
+    assert_eq!(
+        claw.anchor.as_ref().expect("claw anchor").matrix_id,
+        "left-matrix"
     );
-    assert_eq!(snapshot(&mut engine), doc);
+    assert_eq!(
+        mirror.anchor.as_ref().expect("mirror anchor").matrix_id,
+        "right-matrix"
+    );
+    // Relative Origin X negates while Y stays; the default (0,-19) is fixed.
+    assert_eq!(claw.origin, Vec2 { x: 0.0, y: -19.0 });
+    assert_eq!(mirror.origin, Vec2 { x: -0.0, y: -19.0 });
+    // Partner poses are the x=10 reflection of the source.
+    assert_eq!(pose_of(&doc, &member("claw", 0, 0)).at, Vec2 { x: 0.0, y: -19.0 });
+    assert_eq!(
+        pose_of(&doc, &member("claw-mirror", 0, 0)).at,
+        Vec2 { x: 20.0, y: -19.0 }
+    );
+    // Layout membership and matrix correspondences cover both.
+    let left = doc.layouts.iter().find(|layout| layout.id == "left-layout").unwrap();
+    let right = doc.layouts.iter().find(|layout| layout.id == "right-layout").unwrap();
+    assert!(left.matrix_ids.contains(&"claw".to_string()));
+    assert!(right.matrix_ids.contains(&"claw-mirror".to_string()));
+    let link = right.mirror_link.as_ref().expect("mirror link");
+    assert!(link.correspondences.iter().any(|record| {
+        record.kind == MirroredItemKind::Matrix
+            && record.source_id == "claw"
+            && record.mirror_id == "claw-mirror"
+    }));
+    // One Undo removes both, Redo restores both.
+    let undone_doc = undone(&mut engine);
+    assert!(undone_doc.matrices.iter().all(|matrix| matrix.id != "claw"));
+    assert!(undone_doc.matrices.iter().all(|matrix| matrix.id != "claw-mirror"));
+    let redone_doc = redone(&mut engine);
+    assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "claw"));
+    assert!(redone_doc.matrices.iter().any(|matrix| matrix.id == "claw-mirror"));
 }
 
 fn set_follow(
@@ -1393,5 +1437,204 @@ fn column_align_moves_through_the_actual_anchor_frame() {
     assert_eq!(
         pose_of(&moved, &member("thumb", 0, 2)).at,
         Vec2 { x: 76.0, y: -19.0 }
+    );
+}
+
+#[test]
+fn linked_follow_transports_source_basis_with_non_origin_axis() {
+    // Axis x=10 is not the origin: Follow X off keeps source X=0 while the
+    // partner keeps the transported X=20, not an independent zero.
+    let (mut engine, doc) = linked_anchored_fixture();
+    // Drop Follow X on the source thumb; sync carries the subset to the mirror.
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: MatrixAnchor {
+                matrix_id: "main".into(),
+                row: 0,
+                column: 2,
+                follow: Follow {
+                    x: false,
+                    y: true,
+                    rotation: true,
+                },
+            },
+        },
+    );
+    assert!(!doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb2")
+        .and_then(|matrix| matrix.anchor.clone())
+        .expect("thumb2 anchor")
+        .follow
+        .x);
+    let (_, moved) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main", 0, 2),
+                at: Vec2 { x: 43.0, y: 7.0 },
+            }],
+        },
+    );
+    // Source keeps world-zero X, partner keeps the transported axis image.
+    assert_eq!(
+        pose_of(&moved, &member("thumb", 0, 0)).at,
+        Vec2 { x: 0.0, y: -12.0 }
+    );
+    assert_eq!(
+        pose_of(&moved, &member("thumb2", 0, 0)).at,
+        Vec2 { x: 20.0, y: -12.0 }
+    );
+    // Preview leaves the document unchanged and Undo restores one entry.
+    let before = snapshot(&mut engine);
+    let _ = preview(
+        &mut engine,
+        &moved,
+        EditOperation::MoveParts {
+            positions: vec![Position {
+                id: member("main", 0, 2),
+                at: Vec2 { x: 44.0, y: 8.0 },
+            }],
+        },
+    );
+    assert_eq!(snapshot(&mut engine), before);
+}
+
+#[test]
+fn linked_anchor_retarget_maps_by_identity_not_list_position() {
+    let (_, doc) = linked_anchored_fixture();
+    // Reorder both the stored matrices and the Layout membership lists; the
+    // group must still resolve by identity and physical key.
+    let mut reordered = doc.clone();
+    reordered.matrices.reverse();
+    for layout in &mut reordered.layouts {
+        layout.matrix_ids.reverse();
+    }
+    let (mut engine, _, doc) = open(reordered);
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: MatrixAnchor {
+                matrix_id: "main".into(),
+                row: 0,
+                column: 0,
+                follow: Follow {
+                    x: true,
+                    y: true,
+                    rotation: true,
+                },
+            },
+        },
+    );
+    // Mirror follows via the matrix correspondence, not the stale anchor.
+    assert_eq!(
+        anchor_of(&doc, "thumb2").expect("thumb2 anchor").matrix_id,
+        "main2"
+    );
+    assert_eq!(anchor_of(&doc, "thumb2").expect("thumb2 anchor").row, 0);
+    assert_eq!(anchor_of(&doc, "thumb2").expect("thumb2 anchor").column, 0);
+    // Poses track the new anchor keys on both halves.
+    assert_eq!(
+        pose_of(&doc, &member("thumb", 0, 0)).at,
+        Vec2 { x: 0.0, y: -19.0 }
+    );
+    // main2(0,0) mirrors main(0,0) about x=10: 2*10-0=20.
+    assert_eq!(
+        pose_of(&doc, &member("thumb2", 0, 0)).at,
+        Vec2 { x: 20.0, y: -19.0 }
+    );
+}
+
+#[test]
+fn linked_mirror_originating_shift_bend_reflects_heading_once() {
+    // Edit from the mirror half: stored layout values copy unchanged while
+    // the kernel negates the whole local heading exactly once.
+    let (mut engine, doc) = linked_anchored_fixture();
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "main2".into(),
+            change: MatrixPlacementChange::RowShift {
+                row: 0,
+                value: Vec2 { x: 5.0, y: 3.0 },
+            },
+        },
+    );
+    let source_shift = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .and_then(|matrix| matrix.row_layout.first().map(|record| record.shift))
+        .unwrap_or_default();
+    let mirror_shift = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .and_then(|matrix| matrix.row_layout.first().map(|record| record.shift))
+        .unwrap_or_default();
+    // Stored values copy unchanged; the mirror does not negate them twice.
+    assert_eq!(source_shift, Vec2 { x: 5.0, y: 3.0 });
+    assert_eq!(mirror_shift, Vec2 { x: 5.0, y: 3.0 });
+    // World poses are exact reflections about x=10 (sum 20), not copies.
+    let source_pose = pose_of(&doc, &member("main", 0, 1));
+    let mirror_pose = pose_of(&doc, &member("main2", 0, 1));
+    assert!(
+        (source_pose.at.x + mirror_pose.at.x - 20.0).abs() < 1e-9
+            && (source_pose.at.y - mirror_pose.at.y).abs() < 1e-9,
+        "expected reflection, got {source_pose:?} vs {mirror_pose:?}"
+    );
+    // Key Bend from the mirror half copies too, with single heading negation.
+    let (_, doc) = edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixPlacement {
+            matrix_id: "main2".into(),
+            change: MatrixPlacementChange::KeyBend {
+                row: 0,
+                column: 1,
+                value: 15.0,
+            },
+        },
+    );
+    let source_bend = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .and_then(|matrix| {
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 1)
+                .and_then(|cell| cell.bend)
+        })
+        .unwrap_or_default();
+    let mirror_bend = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main2")
+        .and_then(|matrix| {
+            matrix
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 1)
+                .and_then(|cell| cell.bend)
+        })
+        .unwrap_or_default();
+    assert_eq!(source_bend, 15.0);
+    assert_eq!(mirror_bend, 15.0);
+    // Headings are opposite-signed (single negation), not equal or doubled.
+    let source_pose = pose_of(&doc, &member("main", 0, 1));
+    let mirror_pose = pose_of(&doc, &member("main2", 0, 1));
+    assert!(
+        (source_pose.rotation + mirror_pose.rotation).abs() < 1e-9,
+        "expected opposite headings, got {source_pose:?} vs {mirror_pose:?}"
     );
 }

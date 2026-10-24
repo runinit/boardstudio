@@ -402,12 +402,13 @@ pub(crate) fn reflected(
     result.column_layout = source.column_layout.clone();
     result.anchor = source.anchor.clone();
     if let Some(anchor) = &mut result.anchor {
-        anchor.matrix_id = target
-            .anchor
-            .as_ref()
-            .ok_or("Linked counterpart anchor is missing")?
-            .matrix_id
-            .clone();
+        // Relative Origin X and Rotation negate; Y stays. When the receiver
+        // already carries a mapped anchor (Omitted logical matrices), keep
+        // it; `sync` remaps via correspondences immediately after and
+        // overwrites any stale identity there.
+        if let Some(mapped) = target.anchor.as_ref().map(|a| a.matrix_id.clone()) {
+            anchor.matrix_id = mapped;
+        }
         result.origin = Vec2 {
             x: -source.origin.x,
             y: source.origin.y,
@@ -539,6 +540,54 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
         .collect();
     let mapping = axis_mapping(axis_x);
     let mut reflected_matrix = reflected(source, target, mapping, false)?;
+    // Ticket 20: map anchor targets by identity, not list position or the
+    // counterpart's stale anchor. Row/column stay the physical key; Follow
+    // keeps its subset with source-world transport in the kernel.
+    if let Some(anchor) = &source.anchor {
+        let edited_layout = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.matrix_ids.iter().any(|id| id == &source.id))
+            .map(|layout| layout.id.clone());
+        let target_layout = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.matrix_ids.iter().any(|id| id == &target.id))
+            .map(|layout| layout.id.clone());
+        if let (Some(edited_layout), Some(target_layout)) = (edited_layout, target_layout) {
+            let mut mapped: Option<String> = None;
+            for layout in &doc.layouts {
+                let Some(link) = &layout.mirror_link else {
+                    continue;
+                };
+                let edited_is_source = link.source_id == edited_layout && layout.id == target_layout;
+                let edited_is_mirror = layout.id == edited_layout && link.source_id == target_layout;
+                if !edited_is_source && !edited_is_mirror {
+                    continue;
+                }
+                for record in &link.correspondences {
+                    if record.kind != MirroredItemKind::Matrix {
+                        continue;
+                    }
+                    if edited_is_source && record.source_id == anchor.matrix_id {
+                        mapped = Some(record.mirror_id.clone());
+                    } else if edited_is_mirror && record.mirror_id == anchor.matrix_id {
+                        mapped = Some(record.source_id.clone());
+                    }
+                }
+            }
+            if let Some(mapped) = mapped {
+                if let Some(result_anchor) = reflected_matrix.anchor.as_mut() {
+                    result_anchor.matrix_id = mapped;
+                }
+            } else {
+                return Err(format!(
+                    "Linked counterpart of anchor target {:?} is missing in layout {:?}; name the missing counterpart instead of silently retargeting",
+                    anchor.matrix_id, target_layout
+                ));
+            }
+        }
+    }
     if source_is_target {
         let canonical_cells: BTreeMap<_, _> = target
             .cells
