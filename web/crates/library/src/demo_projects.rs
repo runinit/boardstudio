@@ -218,10 +218,25 @@ fn studio60_document(name: &str) -> ProjectDoc {
     .expect("Studio 60 demo builds through Core")
 }
 
+fn macro12_document(name: &str) -> ProjectDoc {
+    single_matrix_document(
+        name,
+        3,
+        4,
+        Vec2 {
+            x: -28.575,
+            y: -19.05,
+        },
+    )
+    .expect("Macro 12 demo builds through Core")
+}
+
 impl DemoProject {
     pub(crate) fn document(self) -> ProjectDoc {
-        if matches!(self.layout, DemoLayout::Studio60) {
-            return studio60_document(self.name);
+        match self.layout {
+            DemoLayout::Studio60 => return studio60_document(self.name),
+            DemoLayout::Macro12 => return macro12_document(self.name),
+            DemoLayout::Split42 => {}
         }
         let mut document = ProjectDoc::empty("demo-template", self.name);
         let positions = match self.layout {
