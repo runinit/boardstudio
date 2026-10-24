@@ -3173,13 +3173,8 @@ async fn detach_proposal_confirms_the_named_local_exception_atomically() {
 #[wasm_bindgen_test]
 async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
     let (document, context) = anchored_matrix_fixture(true);
-    let (probe, root) = mount_selection_probe(
-        "matrix-transform-follow-test",
-        document,
-        context,
-        &[],
-    )
-    .await;
+    let (probe, root) =
+        mount_selection_probe("matrix-transform-follow-test", document, context, &[]).await;
     settle(&probe).await;
     let rotation = root
         .query_selector("input[aria-label='Follow rotation']")
@@ -3187,10 +3182,7 @@ async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
         .expect("the anchor names rotation Follow")
         .dyn_into::<HtmlInputElement>()
         .unwrap();
-    assert!(
-        rotation.checked(),
-        "the anchored matrix follows rotation"
-    );
+    assert!(rotation.checked(), "the anchored matrix follows rotation");
     let revision_before = probe
         .runtime
         .model()
@@ -3201,7 +3193,11 @@ async fn follow_rotation_toggle_updates_the_anchor_with_one_undo() {
     rotation.click();
     support::run_pending(&probe.runtime).await;
     settle(&probe).await;
-    let after = probe.runtime.model().accepted.expect("an accepted document");
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
     assert_eq!(
         after
             .document
