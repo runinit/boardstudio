@@ -1,6 +1,6 @@
 # 23: Deliver the accepted Inspector, toolbar and working canvas handles
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: [22](22-update-layout-consumers.md)
 Parent: [10](10-slice-the-build.md) · Spec: [spec.md](../spec.md)
