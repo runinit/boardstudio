@@ -122,3 +122,6 @@ mod splay_companions;
 
 #[path = "native_matrix_exceptions.rs"]
 mod native_matrix_exceptions;
+
+#[path = "matrix_aggregate_anchors.rs"]
+mod matrix_aggregate_anchors;
