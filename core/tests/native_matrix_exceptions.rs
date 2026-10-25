@@ -1085,3 +1085,566 @@ fn native_rejoin_from_omitted_recreates_mirror() {
     assert_eq!(redone, expected_redo, "Redo must restore the rejoin");
     assert_eq!(snapshot(&mut engine), redone);
 }
+
+// ---- Ticket 29 gaps: B4 confirmed-detach, B3 missing anchors, B5 proofs ----
+
+/// Source-side anchored matrix and its expected native mirror (board-prefix rule).
+const DEP_SOURCE_ID: &str = "left-dep-keys";
+const DEP_MIRROR_ID: &str = "right-dep-keys";
+const DEP_ANCHOR_KEY: &str = "matrix/left-synthetic-keys/r0c1";
+const DEP_MIRROR_ANCHOR_KEY: &str = "matrix/right-synthetic-keys/r0c1";
+
+fn create_pair(engine: &mut CoreEngine, before: &Value, id: &str, pair_id: &str) -> Value {
+    request(
+        engine,
+        json!({"id":id,"kind":"edit","command":{
+            "baseRevision":before["revision"],"transactionId":id,"phase":"commit",
+            "targetIds":[],
+            "operation":{
+                "kind":"create-mirrored-half","pairId":pair_id,
+                "sourceInstanceId":"left",
+                "mode":{"kind":"new-board","boardId":"right","instanceId":"right"},
+                "mapping":{"at":{"x":200.0,"y":0.0},"rotation":0.0},
+                "idRule":"board-prefix"}}}),
+    )
+}
+
+/// Pair built over a source board that already carries an anchored matrix:
+/// the anchored add must be reflected to the mirror half (spec §4), so the
+/// dependent exists on both sides with a mapped anchor.
+fn anchored_pair(pair_id: &str) -> (CoreEngine, Value) {
+    let (mut engine, seed) = seed(&runtime_supported_document());
+    let added = request(
+        &mut engine,
+        json!({"id":"gap-add-dep","kind":"edit","command":{
+            "baseRevision":seed["revision"],"transactionId":"gap-add-dep","phase":"commit",
+            "targetIds":[],
+            "operation":{"kind":"add-anchored-matrix","id":DEP_SOURCE_ID,
+                "anchor":{"matrixId":SOURCE_MATRIX,"row":0,"column":1,
+                    "follow":["x","y","rotation"]}}}}),
+    );
+    assert_eq!(added["kind"], "scene", "{added}");
+    let created = create_pair(&mut engine, &added["document"], "gap-half", pair_id);
+    assert_eq!(created["kind"], "scene", "{created}");
+    let document = created["document"].clone();
+    // The anchored add is reflected: a paired mirror matrix anchored to the
+    // mirrored key, with matrix and member correspondences.
+    assert!(
+        matrix(&document, DEP_MIRROR_ID).is_object(),
+        "anchored add reflects its counterpart when linked"
+    );
+    let halves = &pair(&document, pair_id)["halves"];
+    assert!(
+        halves["correspondences"].as_array().unwrap().iter().any(|record| {
+            record["kind"] == "matrix"
+                && record["sourceId"] == DEP_SOURCE_ID
+                && record["mirrorId"] == DEP_MIRROR_ID
+        }),
+        "dependent pair correspondence is recorded"
+    );
+    assert_eq!(
+        matrix(&document, DEP_MIRROR_ID)["anchor"]["matrixId"],
+        json!(MIRROR_MATRIX),
+        "mirror anchor follows the mirrored key"
+    );
+    (engine, document)
+}
+
+/// The exact Core refusal the ticket-23 confirmation UI parses verbatim:
+/// `detach_proposal` splits on `;` and expects the confirm tail.
+fn expected_detach_proposal(detach_id: &str, partner_id: &str) -> String {
+    format!(
+        "Detaching {detach_id} would move its linked partner {partner_id}; \
+         make {partner_id} Local to keep its pose and confirm the detach"
+    )
+}
+
+fn preview(engine: &mut CoreEngine, before: &Value, id: &str, operation: Value) -> Value {
+    let reply: Value = serde_json::from_str(
+        &engine
+            .request(
+                &json!({"id":id,"kind":"edit","command":{
+                    "baseRevision":before["revision"],
+                    "transactionId":id,
+                    "phase":"preview",
+                    "targetIds":[],
+                    "operation":operation
+                }})
+                .to_string(),
+            )
+            .to_string(),
+    )
+    .unwrap();
+    assert_eq!(reply["kind"], "preview", "{reply}");
+    assert_eq!(
+        snapshot(engine),
+        *before,
+        "preview publishes nothing"
+    );
+    reply
+}
+
+fn make_part_local(engine: &mut CoreEngine, before: &Value, id: &str, mirror_id: &str) -> Value {
+    commit(
+        engine,
+        before,
+        id,
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"part","mirrorId":mirror_id,"state":"local"}),
+        &[mirror_id],
+    )
+}
+
+#[test]
+fn native_detach_needing_local_exception_refuses_with_proposal() {
+    // Ticket 29 slice B4 (mirrors ticket 21's shared detach natively): the
+    // dependent follows its actual Local anchor key, so detaching it would
+    // move its native partner. The detach refuses with the ticket-23
+    // confirmation proposal and changes nothing.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    // Diverge the mirror anchor key: Local plus an independent move, authored
+    // from the mirror half.
+    let made = make_part_local(&mut engine, &before, "gap-key-local", DEP_MIRROR_ANCHOR_KEY);
+    assert_eq!(made["kind"], "scene", "{made}");
+    let moved = commit(
+        &mut engine,
+        &made["document"],
+        "gap-move-anchor-key",
+        json!({"kind":"move-parts","positions":[{"id":DEP_MIRROR_ANCHOR_KEY,
+            "at":{"x":-33.0,"y":17.0},"rotation":5.0}]}),
+        &[DEP_MIRROR_ANCHOR_KEY],
+    );
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    let diverged = moved["document"].clone();
+    // The dependent follows its actual Local key.
+    assert_ne!(
+        part(&diverged, &format!("matrix/{DEP_MIRROR_ID}/r0c0"))["pose"],
+        part(&before, &format!("matrix/{DEP_MIRROR_ID}/r0c0"))["pose"],
+        "dependent follows the moved anchor key"
+    );
+    // A plain detach refuses with the confirmable proposal; cancel (no
+    // commit) leaves the document byte-identical.
+    let refused = try_commit(
+        &mut engine,
+        &diverged,
+        "gap-detach",
+        json!({"kind":"detach-matrix-anchor","matrixId":DEP_SOURCE_ID}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert_eq!(
+        refused["message"],
+        expected_detach_proposal(DEP_SOURCE_ID, DEP_MIRROR_ID),
+        "proposal reuses the ticket-23 confirmation shape verbatim"
+    );
+    assert_eq!(snapshot(&mut engine), diverged);
+}
+
+#[test]
+fn native_detach_confirmed_applies_detach_and_local_in_one_entry() {
+    // Ticket 29 slice B4: the confirmed detach clears both anchors, keeps
+    // every world pose, and records the named Local exception in one Undo
+    // entry. A stale confirmation refuses without changes.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    let made = make_part_local(&mut engine, &before, "gap-key-local", DEP_MIRROR_ANCHOR_KEY);
+    assert_eq!(made["kind"], "scene", "{made}");
+    let moved = commit(
+        &mut engine,
+        &made["document"],
+        "gap-move-anchor-key",
+        json!({"kind":"move-parts","positions":[{"id":DEP_MIRROR_ANCHOR_KEY,
+            "at":{"x":-33.0,"y":17.0},"rotation":5.0}]}),
+        &[DEP_MIRROR_ANCHOR_KEY],
+    );
+    assert_eq!(moved["kind"], "scene", "{moved}");
+    let diverged = moved["document"].clone();
+    let poses_before = poses(&diverged);
+    let confirmed = commit(
+        &mut engine,
+        &diverged,
+        "gap-detach-confirmed",
+        json!({"kind":"detach-matrix-anchor-confirmed",
+            "matrixId":DEP_SOURCE_ID,"localMatrixId":DEP_MIRROR_ID}),
+        &[],
+    );
+    assert_eq!(confirmed["kind"], "scene", "{confirmed}");
+    let after = &confirmed["document"];
+    assert_eq!(
+        matrix(after, DEP_SOURCE_ID).get("anchor"),
+        None,
+        "source anchor cleared"
+    );
+    assert_eq!(
+        matrix(after, DEP_MIRROR_ID).get("anchor"),
+        None,
+        "mirror anchor cleared"
+    );
+    assert_poses_unchanged(&poses_before, after);
+    assert!(
+        pair(after, PAIR_ID)["halves"]["exceptions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|exception| exception["kind"] == "matrix"
+                && exception["mirrorId"] == DEP_MIRROR_ID
+                && exception["state"] == "local"),
+        "confirmed detach records the Local exception"
+    );
+    // One transaction: Undo restores anchors and drops the exception, Redo
+    // reapplies everything.
+    let mut expected_undo = diverged.clone();
+    let undone = undo(&mut engine, "gap-detach-confirmed-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the anchored pair");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "gap-detach-confirmed-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the confirmed detach");
+    assert_eq!(snapshot(&mut engine), redone);
+    // A stale confirmation (wrong partner) refuses without changes.
+    let current = snapshot(&mut engine);
+    let stale = try_commit(
+        &mut engine,
+        &current,
+        "gap-detach-stale",
+        json!({"kind":"detach-matrix-anchor-confirmed",
+            "matrixId":DEP_SOURCE_ID,"localMatrixId":MIRROR_MATRIX}),
+    );
+    assert_eq!(stale["kind"], "error", "{stale}");
+    assert!(
+        stale["message"].as_str().unwrap().contains("stale"),
+        "stale confirmation is named: {stale}"
+    );
+    assert_eq!(snapshot(&mut engine), current);
+}
+
+#[test]
+fn native_rejoin_refuses_missing_anchor_atomically() {
+    // Ticket 29 slice B3 (mirrors ticket 21's missing-anchor Rejoin
+    // natively): the smaller Local parent lost the anchor counterpart, so
+    // Rejoin — which would adopt the source anchor — refuses naming the
+    // missing key with the document unchanged. Distinct from the
+    // missing-source refusal: the source record is present.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    // Omit the dependent first.
+    let omitted = commit(
+        &mut engine,
+        &before,
+        "gap-omit-dep",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":DEP_MIRROR_ID,"state":"omitted"}),
+        &[DEP_MIRROR_ID],
+    );
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    // Shrink the Local parent past the anchor slot: the counterpart key is
+    // gone while the source anchor still names it.
+    let made = commit(
+        &mut engine,
+        &omitted["document"],
+        "gap-make-parent-local",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"local"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(made["kind"], "scene", "{made}");
+    let shrunk = commit(
+        &mut engine,
+        &made["document"],
+        "gap-shrink-parent",
+        json!({"kind":"set-matrix","matrix":shrunk_parent(&made["document"])}),
+        &[],
+    );
+    assert_eq!(shrunk["kind"], "scene", "{shrunk}");
+    let small = shrunk["document"].clone();
+    assert!(
+        find_part(&small, DEP_MIRROR_ANCHOR_KEY).is_none(),
+        "counterpart key is gone from the smaller parent"
+    );
+    // Rejoin adopts the source anchor whose counterpart is missing: refuse.
+    let refused = try_commit(
+        &mut engine,
+        &small,
+        "gap-rejoin-dep",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":DEP_MIRROR_ID,"state":"linked"}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert!(
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .contains(DEP_MIRROR_ANCHOR_KEY),
+        "refusal names the missing counterpart: {refused}"
+    );
+    assert_eq!(snapshot(&mut engine), small);
+}
+
+/// The Local mirror parent shrunk past the dependent's anchor slot: one
+/// column, with explicit cell coverage for the kernel's dense rule.
+/// Source growth on a paired matrix must carry explicit new cells: the setter
+/// leaves sparse cells unfilled, and the reconciliation kernel requires dense
+/// cell coverage (`source_members`). Mirror-half edition: grows the mirror
+/// record from its own cells so the inverse sees mirror-frame assemblies.
+fn expanded_mirror(document: &Value) -> Value {
+    let mut expanded = matrix(document, MIRROR_MATRIX).clone();
+    expanded["columns"] = json!(3);
+    let additions: Vec<Value> = [0, 1]
+        .iter()
+        .map(|row| {
+            let mut cell = expanded["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|cell| cell["row"] == *row && cell["column"] == 1)
+                .unwrap()
+                .clone();
+            cell["column"] = json!(2);
+            cell
+        })
+        .collect();
+    expanded["cells"].as_array_mut().unwrap().extend(additions);
+    expanded
+}
+
+/// The Local mirror parent shrunk past the dependent's anchor slot: one
+/// column, with explicit cell coverage for the kernel's dense rule.
+/// Sort every matrix's cells by coordinate for cross-route comparison.
+fn sort_matrix_cells(document: &mut Value) {
+    for matrix in document["matrices"].as_array_mut().unwrap() {
+        matrix["cells"]
+            .as_array_mut()
+            .unwrap()
+            .sort_by_key(|cell| (cell["row"].as_u64().unwrap(), cell["column"].as_u64().unwrap()));
+    }
+}
+
+fn shrunk_parent(document: &Value) -> Value {
+    let mut shrunk = matrix(document, MIRROR_MATRIX).clone();
+    shrunk["columns"] = json!(1);
+    let kept: Vec<Value> = shrunk["cells"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|cell| cell["column"] == 0)
+        .cloned()
+        .collect();
+    shrunk["cells"] = Value::Array(kept);
+    shrunk
+}
+
+#[test]
+fn native_mirror_authored_growth_matches_source_authored() {
+    // Ticket 29 slice B5 (identity remaps): authoring a linked growth from
+    // the mirror half maps to the source and lands byte-identical to the
+    // source-authored edit.
+    let (mut engine_a, before_a) = accepted_pair(PAIR_ID);
+    let grown_a = commit(
+        &mut engine_a,
+        &before_a,
+        "gap-grow-source",
+        json!({"kind":"set-matrix","matrix":expanded_source(&before_a)}),
+        &[],
+    );
+    assert_eq!(grown_a["kind"], "scene", "{grown_a}");
+    let (mut engine_b, before_b) = accepted_pair(PAIR_ID);
+    // The mirror-authored payload carries the mirror's own cells (mirror-frame
+    // assemblies); the inverse maps them back to the source.
+    let grown_payload = expanded_mirror(&before_b);
+    let grown_b = commit(
+        &mut engine_b,
+        &before_b,
+        "gap-grow-mirror",
+        json!({"kind":"set-matrix","matrix":grown_payload}),
+        &[],
+    );
+    assert_eq!(grown_b["kind"], "scene", "{grown_b}");
+    let mut doc_a = grown_a["document"].clone();
+    let mut doc_b = grown_b["document"].clone();
+    doc_a["revision"] = Value::Null;
+    doc_b["revision"] = Value::Null;
+    // Cell storage order is not semantic (keyed by row/column): the direct
+    // route preserves payload order while the inverse projection emits
+    // coordinate order. Normalize the order, keep byte-identity elsewhere.
+    sort_matrix_cells(&mut doc_a);
+    sort_matrix_cells(&mut doc_b);
+    assert_eq!(doc_a, doc_b, "mirror-authored growth lands identically");
+}
+
+#[test]
+fn native_preview_exception_transitions_publish_nothing() {
+    // Ticket 29 slice B5 (preview/cancel): previewing Local, Omitted and
+    // Rejoin transitions publishes nothing; only the commit applies.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    preview(
+        &mut engine,
+        &before,
+        "gap-preview-local",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"local"}),
+    );
+    let local_doc = make_local(&mut engine, &before);
+    preview(
+        &mut engine,
+        &local_doc,
+        "gap-preview-rejoin",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+    );
+    // Omitted half runs on a fresh pairing so every commit chains its own
+    // accepted revision.
+    let (mut engine, before) = accepted_pair("gap-preview-omitted");
+    preview(
+        &mut engine,
+        &before,
+        "gap-preview-omitted",
+        json!({"kind":"set-half-exception","pairId":"gap-preview-omitted",
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"omitted"}),
+    );
+    let omitted_doc = make_omitted_pair(&mut engine, &before, "gap-preview-omitted");
+    preview(
+        &mut engine,
+        &omitted_doc,
+        "gap-preview-rejoin-omitted",
+        json!({"kind":"set-half-exception","pairId":"gap-preview-omitted",
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+    );
+}
+
+/// Matrix-level Omit on a non-default pair id (the shared helper is pinned
+/// to `PAIR_ID`).
+fn make_omitted_pair(engine: &mut CoreEngine, before: &Value, pair_id: &str) -> Value {
+    let omitted = commit(
+        engine,
+        before,
+        "gap-make-omitted",
+        json!({"kind":"set-half-exception","pairId":pair_id,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"omitted"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(omitted["kind"], "scene", "{omitted}");
+    omitted["document"].clone()
+}
+
+#[test]
+fn native_constrain_anchor_target_refuses_from_both_halves() {
+    // Ticket 29 slice B5 (frame restrictions): driving the dependent's
+    // anchor key with a constraint refuses on the source half and, once the
+    // dependent is paired, on the mirror half through its own anchor.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    let drive = |id: &str, target: &str| {
+        json!({"kind":"set-constraint","constraint":{
+            "kind":"offset","id":id,
+            "sourcePartId":format!("matrix/{SOURCE_MATRIX}/r0c0"),
+            "targetPartId":target,
+            "offset":{"x":19.0,"y":0.0},"rotation":0.0}})
+    };
+    let refused = try_commit(
+        &mut engine,
+        &before,
+        "gap-drive-source-key",
+        drive("gap-drive", DEP_ANCHOR_KEY),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert!(
+        refused["message"].as_str().unwrap().contains("anchors to it"),
+        "source-half refusal: {refused}"
+    );
+    assert_eq!(snapshot(&mut engine), before);
+    let refused_mirror = try_commit(
+        &mut engine,
+        &before,
+        "gap-drive-mirror-key",
+        drive("gap-drive-mirror", DEP_MIRROR_ANCHOR_KEY),
+    );
+    assert_eq!(refused_mirror["kind"], "error", "{refused_mirror}");
+    assert!(
+        refused_mirror["message"].as_str().unwrap().contains("anchors to it"),
+        "mirror-half refusal: {refused_mirror}"
+    );
+    assert_eq!(snapshot(&mut engine), before);
+}
+
+#[test]
+fn native_mirror_authored_move_maps_to_source() {
+    // Ticket 29 slice B5 (identity remaps): moving a linked mirror key maps
+    // to the source-authored move with an identical document.
+    let (mut engine_a, before_a) = accepted_pair(PAIR_ID);
+    let source_key = format!("matrix/{SOURCE_MATRIX}/r0c0");
+    let at = json!({"x": 7.5, "y": -3.0});
+    let moved_a = commit(
+        &mut engine_a,
+        &before_a,
+        "gap-move-source",
+        json!({"kind":"move-parts","positions":[{"id":source_key,"at":at}]}),
+        &[source_key.as_str()],
+    );
+    assert_eq!(moved_a["kind"], "scene", "{moved_a}");
+    let (mut engine_b, before_b) = accepted_pair(PAIR_ID);
+    let mirror_key = format!("matrix/{MIRROR_MATRIX}/r0c0");
+    // The authored point is a world point: the mirror half transports it
+    // through the inverse pair map, so the identical end state needs the
+    // reflected point.
+    let at_mirror = json!({"x": 200.0 - 7.5, "y": -3.0});
+    let moved_b = commit(
+        &mut engine_b,
+        &before_b,
+        "gap-move-mirror",
+        json!({"kind":"move-parts","positions":[{"id":mirror_key,"at":at_mirror}]}),
+        &[mirror_key.as_str()],
+    );
+    assert_eq!(moved_b["kind"], "scene", "{moved_b}");
+    let mut doc_a = moved_a["document"].clone();
+    let mut doc_b = moved_b["document"].clone();
+    doc_a["revision"] = Value::Null;
+    doc_b["revision"] = Value::Null;
+    assert_eq!(doc_a, doc_b, "mirror-authored move lands identically");
+}
+
+#[test]
+fn native_unfollowed_origin_edit_refuses_then_detach_applies() {
+    // Ticket 29 slice B5 (Follow restrictions): a stored Origin change the
+    // dependent's Follow subset cannot express refuses; detaching still
+    // applies once the anchor chain is undisputed.
+    let (mut engine, before) = anchored_pair(PAIR_ID);
+    // Narrow the dependent's Follow to X only.
+    let mut anchor = matrix(&before, DEP_SOURCE_ID)["anchor"].clone();
+    anchor["follow"] = json!(["x"]);
+    let narrowed = commit(
+        &mut engine,
+        &before,
+        "gap-narrow-follow",
+        json!({"kind":"set-matrix-anchor","matrixId":DEP_SOURCE_ID,"anchor":anchor}),
+        &[],
+    );
+    assert_eq!(narrowed["kind"], "scene", "{narrowed}");
+    // A stored Y change is not followed: refuse.
+    let mut stored = matrix(&narrowed["document"], DEP_SOURCE_ID).clone();
+    stored["origin"]["y"] = json!(stored["origin"]["y"].as_f64().unwrap() + 4.0);
+    let refused = try_commit(
+        &mut engine,
+        &narrowed["document"],
+        "gap-origin-unfollowed",
+        json!({"kind":"set-matrix","matrix":stored}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert!(
+        refused["message"].as_str().unwrap().contains("not followed"),
+        "Follow restriction: {refused}"
+    );
+    assert_eq!(snapshot(&mut engine), narrowed["document"]);
+    // The same stored edit from the mirror half refuses identically.
+    let mut stored_mirror = matrix(&narrowed["document"], DEP_MIRROR_ID).clone();
+    stored_mirror["origin"]["y"] =
+        json!(stored_mirror["origin"]["y"].as_f64().unwrap() + 4.0);
+    let refused_mirror = try_commit(
+        &mut engine,
+        &narrowed["document"],
+        "gap-origin-unfollowed-mirror",
+        json!({"kind":"set-matrix","matrix":stored_mirror}),
+    );
+    assert_eq!(refused_mirror["kind"], "error", "{refused_mirror}");
+    assert!(
+        refused_mirror["message"].as_str().unwrap().contains("not followed"),
+        "mirror-half Follow restriction: {refused_mirror}"
+    );
+    assert_eq!(snapshot(&mut engine), narrowed["document"]);
+}
