@@ -151,7 +151,11 @@ fn fixture_layouts(case: &Value, matrices: &Value) -> BTreeMap<String, MatrixLay
                     .iter()
                     .map(part_pose)
                     .collect();
-                match aggregate.get("method").and_then(Value::as_str).unwrap_or("average") {
+                match aggregate
+                    .get("method")
+                    .and_then(Value::as_str)
+                    .unwrap_or("average")
+                {
                     "average" => aggregate_average(&poses).unwrap(),
                     "intersect" => {
                         assert_eq!(poses.len(), 2);
