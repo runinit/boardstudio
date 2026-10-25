@@ -1,6 +1,6 @@
 # 07: Prototype split editing view
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: prototype
 Blocked by: [04](04-decide-adaptive-split-gap.md), [05](05-decide-dim-and-focus-interaction.md), [06](06-decide-relationship-highlighting-home.md)
 Map: [map.md](../map.md)

@@ -62,13 +62,13 @@ editable board during layout work. That means:
 - Round 2 Q8 (clearance): minimum clearance = 2x outline margin, islands separate by construction — see [04](issues/04-decide-adaptive-split-gap.md).
 - Round 2 Q9 (dim scope): dimming is Layout mode only — see [05](issues/05-decide-dim-and-focus-interaction.md).
 - Round 2 Q10 (focus): focus changes only on canvas click of the dimmed half; tree/Inspector selection does not steal focus — see [05](issues/05-decide-dim-and-focus-interaction.md).
+- Round 3 Q11 (adjust trigger): auto-adjust fires on ANY committed edit (placement, moves, matrix growth, rotation) whose result would make halves' envelopes touch; widening is part of that same Undo entry — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 3 Q12 (no cap): no cap on widening; never refuse for size — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 3 Q13 (dim preserved): spacing adjust never changes focus/dim state — see [05](issues/05-decide-dim-and-focus-interaction.md).
 
 ## Not yet specified (fog)
 
-- Exact clearance formula (stored gap vs derived).
-- Whether existing saved boards get re-spaced or keep their gap.
-- Dimming in PCB/Case modes vs Layout only.
-- MCU placement snap/clearance during onboarding drags.
+- MCU placement snap during onboarding drags (pre-commit preview vs commit-time adjust).
 - Whether relationship highlighting needs canvas handles or Inspector-only.
 
 ## Out of scope
