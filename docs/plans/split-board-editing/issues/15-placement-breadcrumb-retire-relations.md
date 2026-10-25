@@ -41,3 +41,16 @@ dashed outline, which stays distinct from amber edit previews.
   ticket file; from `presentation.rs`, `layout_matrix_relations.rs`
   (presentation), `m1.css` take only hunks without `FieldPreview`,
   `field_preview`, `is-field-preview` or `field-preview-hint` added lines.
+- 2026-10-25 (ticket-15 agent): committed via an isolated index as
+  `1ff5e4c6` (feature) after HEAD moved past the contested shared index; the
+  commit holds ticket-15 hunks only (verified: no foreign markers; foreign
+  hunks in `presentation.rs`, `layout_matrix_relations.rs`, `m1.css` left
+  uncommitted). Follow-up `26663852` removes two bare `{ }` rsx blocks the
+  tab removal left behind (bare blocks are not valid rsx children; the page
+  binary failed macro expansion) plus the now-unused `mut` on the inspector
+  input. After the fix the only page-binary compile error is ticket 16's
+  in-flight `field_previews` E0618; `cargo fmt --check` is clean tree-wide
+  and `check.py repo` passes. `check.py quick` still fails at lint on that
+  E0618 (clippy `-D warnings`); build/test/browser could not run past it.
+  Ticket-15 browser coverage (chip navigation, chip violet hover, tab gone)
+  is written but awaits a compilable tree to execute.
