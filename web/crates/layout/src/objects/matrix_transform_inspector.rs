@@ -449,6 +449,7 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
             rotation,
             shift,
             bend,
+            half_exception,
         } => (
             "Key properties",
             rsx! {
@@ -459,6 +460,13 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                     owner: owner.clone(), snapshot_token, revision, value: *enabled,
                     request_sequence, editable: props.mount.editable,
                     feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                }
+                if let Some(exception) = half_exception {
+                    OmitTransformField {
+                        owner: owner.clone(), snapshot_token, revision, omitted: exception.omitted,
+                        request_sequence, editable: props.mount.editable,
+                        feedback: props.mount.feedback.clone(), on_edit, splay_affect,
+                    }
                 }
                 h3 { class: "m1-matrix-subtitle", "Carried" }
                 p { class: "m1-matrix-field-context", "Moves or turns this key and the keys above it." }
@@ -1005,6 +1013,72 @@ fn EnabledTransformField(props: EnabledTransformFieldProps) -> Element {
                 },
             }
             " Enabled"
+        }
+        if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
+    }
+}
+
+#[derive(Props, Clone, PartialEq)]
+struct OmitTransformFieldProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    omitted: bool,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    feedback: Vec<MatrixTransformFeedback>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    splay_affect: Signal<MatrixSplayAffect>,
+}
+
+/// Ticket 34: per-key Omit/Rejoin for a mirrored key. Omitting hides the key
+/// from the matrix surface but keeps its logical pose; clearing the omission
+/// rejoins the key. One Undo entry either way.
+#[component]
+fn OmitTransformField(props: OmitTransformFieldProps) -> Element {
+    let mut submitted = use_signal(|| None::<u64>);
+    let error = props
+        .feedback
+        .iter()
+        .rev()
+        .find(|item| {
+            item.owner == props.owner
+                && item.field == MatrixTransformField::KeyOmit
+                && submitted() == Some(item.request_id)
+                && item.message.is_some()
+        })
+        .and_then(|item| item.message.clone());
+    let disabled = !props.editable;
+    let mut sequence = props.request_sequence;
+    let owner = props.owner.clone();
+    let current = props.omitted;
+    let token = props.snapshot_token;
+    let revision = props.revision;
+    let on_edit = props.on_edit;
+    let affect = props.splay_affect;
+    rsx! {
+        label { class: "m1-matrix-key-omit",
+            BoardCheckbox {
+                aria_label: "Omit from mirror", checked: current, disabled,
+                onchange: move |event: FormEvent| {
+                    let Some(id) = sequence().checked_add(1) else { return; };
+                    sequence.set(id);
+                    submitted.set(Some(id));
+                    on_edit.call(MatrixTransformRequest {
+                        owner: owner.clone(), request_id: id, snapshot_token: token, revision,
+                        field: MatrixTransformField::KeyOmit,
+                        baseline: MatrixTransformValue::Bool(current),
+                        value: MatrixTransformValue::Bool(event.checked()),
+                        splay_affect: affect(),
+                        draft: None, failure: None, submitted_text: None,
+            one_shot: false,
+                    });
+                },
+            }
+            " Omit from mirror"
+        }
+        p { class: "m1-matrix-field-context",
+            "Hides the key from the matrix surface but keeps its logical pose, in one Undo entry. Clearing the omission rejoins the key."
         }
         if let Some(message) = error.as_deref() { small { role: "alert", class: "m1-matrix-transform-error", "{message}" } }
     }

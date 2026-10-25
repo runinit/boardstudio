@@ -56,3 +56,65 @@ affected quick/browser checks.
   report; and no new Core contract without an explicit ticket decision),
   stopping here for parent decision on the intended Core variant and owning
   surface. No code changed; ticket stays claimed for parent review.
+
+## Implementation record (2026-10-25)
+
+- Parent decision (from task brief): contract is
+  `SetHalfException{pairId, kind: Part, mirrorId, state: Omitted}` to omit and
+  `state: Linked` to rejoin, owned by the Matrix-inspector Key context
+  (TreeContext::Key in the matrix transform inspector). No variant change was
+  needed: Core keeps the omitted key's live pose while it leaves the scan grid
+  (verified natively: scene cell member gone, doc part shed, pose retained in
+  the scene/source; Relations already documents "live logical pose only").
+- Scan-grid vs pose check: no different variant required. A Part-level Omitted
+  overlay is exactly "leave the live pose, leave the scan grid"; cell-enabled
+  toggles (KeyEnabled/SetMatrix) were NOT used (different semantics: scan-grid
+  membership, not mirror exception).
+- Web (`matrix_transform_operation.rs`, native): `KeyHalfException{pair_id,
+  mirror_id, omitted}` + `key_half_exception()` projection helper +
+  `key_half_exception_resolver(pair_id, mirror_id, omit)` (atomic, single Undo;
+  Unchanged on same state, Retire on missing pair/correspondence) +
+  `key_half_exception_at_resolver(matrix_id, row, column, omit)` (re-resolves
+  member+pair at execution; Omitted names the canonical derived member when
+  the scene cell is gone) + `MatrixTransformField::KeyOmit` + `build_operation`
+  arm (validation gate).
+- Web (controller/inspector, wasm): `Fields::Key.half_exception` computed from
+  the scene member with Omitted fallback; KeyOmit dispatch; "Omitted from
+  mirror" label; `Value::Bool` mapping; `OmitTransformField` checkbox with
+  one-Undo consequence text + inline errors; shown only for pair-mirrored keys.
+- Relations (`matrix_relations.rs`): Omitted-key item now names the rejoin
+  affordance ("Clear the omission in the Key inspector to rejoin").
+- RED: native `key_omit_tests` (failed to compile pre-resolver, then asserted
+  the Submit/unchanged/retire contract); mounted
+  `mirror_key_omit_rejoin_round_trip` + `mirror_key_omit_checkbox_toggles_half_exception`
+  (failed pre-implementation: no Omit UI, resolver retired).
+- New test names: `omit_submits_part_omitted_and_rejoin_submits_linked`,
+  `rejoin_clears_an_omitted_overlay`,
+  `same_state_is_unchanged_and_unknown_members_retire`,
+  `rejoin_resolves_an_omitted_key_without_a_scene_cell`,
+  `projection_helper_reports_pair_and_omitted_state`,
+  `mirror_key_omit_rejoin_round_trip`,
+  `mirror_key_omit_checkbox_toggles_half_exception`.
+- Open-validation notes (for future pair fixtures): mirrored matrix members
+  must use derived ids (`matrix/{id}/r{row}c{column}`); the pair needs
+  `constructionSource`; matrix-level Part correspondences are required.
+- Environment note: `~/.config/chromium` reports "Transport endpoint is not
+  connected" (stale user FUSE mount, predates this session; left untouched).
+  Browser tests were run with `XDG_CONFIG_HOME` redirected to a scratch dir
+  to avoid the dead mount; renderer timeouts under shared-box CPU saturation
+  (gortex ~270%) required retries, and one stray chromium was killed.
+
+- Verify (so far): native `cargo test -p boardstudio-web-layout --lib`
+  (6G, RUST_TEST_THREADS=4): 112 passed, incl. 6 new omit tests +
+  `an_omitted_key_keeps_a_logical_pose_without_resurrecting_parts` (updated
+  text). `cargo check --workspace --all-targets` clean; layout clippy
+  `-D warnings` clean (one pre-existing `iter_next_slice` in untouched
+  `mirror_existing_half.rs`); rustfmt clean on touched files.
+- Mounted: `mirror_key_omit_rejoin_round_trip` + `mirror_key_omit_checkbox_...`
+  pass in isolation (direct runner, XDG redirect): omit records Omitted, hides
+  the key from the surface (scene member gone), keeps the logical pose, one
+  Undo restores, rejoin clears. Full layout browser suite in this environment:
+  `setup_guide desktop viewport` fails (environmental; no viewport overlap
+  with this ticket) and poisons later tests via the panic-hook cascade; the
+  omit tests pass when run directly.
+- Commits: (this ticket, to be filled at commit). Status: done (claimed through close).
