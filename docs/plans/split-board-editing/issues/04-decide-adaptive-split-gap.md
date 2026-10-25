@@ -15,3 +15,5 @@ existing-board behavior, and MCU clearance during onboarding.
 A decision: clearance formula, stored-vs-derived, whether existing saved boards
 get re-spaced or keep their gap, and MCU snap/clearance during onboarding drags.
 Record under the map's Decisions so far with a link here.
+
+Round 1 settled: Q1/Q2 gap default + no migration and Q5 CHANGED (MCU adjusts spacing) recorded in map; round 2 pending.

@@ -14,3 +14,5 @@ promote to source? just undim?), and per-mode scope (PCB/Case vs Layout only).
 
 A decision on the dim model, click semantics, and mode scope. Record under the
 map's Decisions so far with a link here.
+
+Round 1 settled: Q3 dim focus recorded in map; round 2 pending.

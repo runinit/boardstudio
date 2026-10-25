@@ -14,3 +14,5 @@ highlights, or both? What default anchoring is shown at a glance?
 
 A decision on the home for relationship highlighting and the default at-a-glance
 view. Record under the map's Decisions so far with a link here.
+
+Round 1 settled: Q4 highlight home recorded in map; round 2 pending.

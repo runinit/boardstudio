@@ -52,6 +52,11 @@ editable board during layout work. That means:
 - 01 resolved: 40mm default gap, key-edge gap mechanics, MCU bridging, outline-merge trigger mapped — see [01](issues/01-split-gap-and-outline-merge.md).
 - 02 resolved: lost variant-D prototype inventoried, delta vs ticket 24 mapped — see [02](issues/02-recover-prototype-anchor-highlighting.md).
 - 03 resolved: identical half rendering, view-only focused_half recommended — see [03](issues/03-dim-mirrored-half-editing-focus.md).
+- Round 1 Q1 (gap default): gap default adapts at creation from projected key envelopes; stored + editable; never auto re-spaces after — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 1 Q2 (no migration): existing saved boards keep stored gap on open; no migration — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 1 Q3 (dim focus): dim is view-only focus (Handles precedent), default source half; click right half focuses/undims; no document write, no unlink — see [05](issues/05-decide-dim-and-focus-interaction.md).
+- Round 1 Q4 (highlight home): relationship visibility lives beside the selection (Inspector chain + restored per-field hover amber preview); Relations facts stay, tab presentation retired — see [06](issues/06-decide-relationship-highlighting-home.md).
+- Round 1 Q5 CHANGED (MCU spacing): MCU drop does NOT refuse; spacing adjusts to accommodate (details = round 2) — see [04](issues/04-decide-adaptive-split-gap.md).
 
 ## Not yet specified (fog)
 
