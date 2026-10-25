@@ -340,6 +340,106 @@ fn matrix_context() -> TreeContext {
     }
 }
 
+/// Ticket 32 slice, RED: an aggregate anchor renders one chain entry per part
+/// from Core facts; part entries navigate to their key and hovering one
+/// highlights exactly that part key.
+fn aggregate_pair() -> (World, World) {
+    let main = matrix(1, 3, json!({}));
+    let thumb = matrix(
+        1,
+        1,
+        json!({"id": "thumb",
+               "anchor": {"follow": ["x", "y", "rotation"],
+                          "aggregate": {"method": "average",
+                              "parts": [{"matrixId": "main", "row": 0, "column": 0},
+                                        {"matrixId": "main", "row": 0, "column": 2}]}}}),
+    );
+    let mut document = serde_json::to_value(base()).unwrap();
+    document["matrices"] = json!([main, thumb]);
+    document["layouts"] = json!([{ "id": "layout", "name": "Layout",
+        "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
+    let mut engine = CoreEngine::new();
+    let (scene, document) = scene_of(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: serde_json::from_value(document).unwrap(),
+    }));
+    (
+        world_of(scene.clone(), document.clone(), MATRIX),
+        world_of(scene, document, "thumb"),
+    )
+}
+
+#[test]
+fn aggregate_anchors_render_one_chain_entry_per_part() {
+    let (main, thumb) = aggregate_pair();
+    let chain = relations(&thumb, matrix_in("thumb")).unwrap();
+    assert_eq!(value(&chain.structure, "Anchor"), "Average of 2 keys");
+    let anchor = chain
+        .structure
+        .iter()
+        .find(|item| item.label == "Anchor")
+        .expect("the aggregate names its method");
+    assert!(anchor.opens_editor, "the Anchor entry opens the Inspector");
+    let parts: Vec<&RelationItem> = chain
+        .structure
+        .iter()
+        .filter(|item| item.label == "Anchor part")
+        .collect();
+    assert_eq!(parts.len(), 2, "one chain entry per part");
+    assert_eq!(parts[0].value, "row 1, column 1 of matrix main");
+    assert_eq!(parts[0].target, Some(key_in(MATRIX, 0, 0)));
+    assert_eq!(parts[0].highlight, vec!["matrix/main/r0c0"]);
+    assert!(!parts[0].opens_editor, "part entries navigate");
+    assert_eq!(parts[1].value, "row 1, column 3 of matrix main");
+    assert_eq!(parts[1].target, Some(key_in(MATRIX, 0, 2)));
+    assert_eq!(parts[1].highlight, vec!["matrix/main/r0c2"]);
+    let follows = chain
+        .structure
+        .iter()
+        .find(|item| item.label == "Follows")
+        .expect("the aggregate names its Follow subset");
+    assert_eq!(follows.value, "X, Y, rotation");
+    assert_eq!(follows.target, None, "no single key to navigate to");
+    assert_eq!(
+        follows.highlight,
+        vec!["matrix/main/r0c0", "matrix/main/r0c2"],
+        "the Follow subset highlights every part"
+    );
+
+    let followed = relations(&main, matrix_context()).unwrap();
+    assert!(
+        followed.structure.iter().any(|item| item.label == "Followed by"
+            && item.value == "Matrix thumb"),
+        "a matrix depended on through a part names its dependant"
+    );
+    let key_chain = relations(&main, key(0, 0)).unwrap();
+    assert!(
+        key_chain.structure.iter().any(|item| item.label == "Followed by"
+            && item.value == "Matrix thumb"),
+        "a part key names the aggregate depending on it"
+    );
+    let row_chain = relations(&thumb, row_in("thumb", 0)).unwrap();
+    let frames: Vec<&RelationItem> = row_chain
+        .structure
+        .iter()
+        .filter(|item| item.label == "Anchor frame")
+        .collect();
+    assert_eq!(frames.len(), 2, "the row chain carries one frame per part");
+    assert_eq!(
+        frames[0].value,
+        "row 1, column 1 of matrix main (follows X, Y, rotation)"
+    );
+    assert_eq!(frames[0].target, Some(key_in(MATRIX, 0, 0)));
+    assert_eq!(frames[0].highlight, vec!["matrix/main/r0c0"]);
+}
+
+fn row_in(matrix_id: &str, row: u32) -> TreeContext {
+    TreeContext::Row {
+        matrix_id: matrix_id.into(),
+        row,
+    }
+}
+
 fn column(column: u32) -> TreeContext {
     TreeContext::Column {
         matrix_id: MATRIX.into(),
