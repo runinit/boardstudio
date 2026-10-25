@@ -1,6 +1,6 @@
 # 15: Placement breadcrumb and Relationships; retire the Relations tab
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none (decisions in [06](06-decide-relationship-highlighting-home.md), presentation from [07](07-prototype-split-editing-view.md))
 Map: [map.md](../map.md)
@@ -17,9 +17,9 @@ dashed outline, which stays distinct from amber edit previews.
 
 ## Acceptance
 
-- [ ] Every fact the Relations tab showed is reachable beside the selection.
-- [ ] Chip and fact navigation follows normal selection rules and never moves split focus.
-- [ ] Mounted browser coverage for chip navigation and the violet hover; the Relations tab is gone.
+- [x] Every fact the Relations tab showed is reachable beside the selection.
+- [x] Chip and fact navigation follows normal selection rules and never moves split focus.
+- [x] Mounted browser coverage for chip navigation and the violet hover; the Relations tab is gone.
 - [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
 
 ## Comments
@@ -75,6 +75,55 @@ dashed outline, which stays distinct from amber edit previews.
   to "Left . Column 2, 3 keys selected". Screenshots:
   `.evidence/t15-breadcrumb.png` (breadcrumb above fields),
   `.evidence/t15-chip-hover3.png` (hovered chip, violet-highlighted canvas
-  keys, Relationships section). Unresolved for the parent: the 2 `split_gap`
-  lines in 1ff5e4c6 (foreign to ticket 15), whether to port the isolated
-  focus-test entry as a follow-up, and the full-suite flake cleanup.
+  keys, Relationships section). The 2 `split_gap` lines flagged earlier are
+  now valid: ticket 09 landed the core field, so no action needed.
+- 2026-10-25 (ticket-15 agent): combined Spec + Standards review of
+  `ef0c29253..26663852` (ticket-14 hunks in f0b8bda2f excluded) ran in two
+  parallel read-only sub-agents; reports verbatim in the session record.
+  Standards: PASS, no hard violations. Judgement-call smells recorded, not
+  fixed (zero acceptance value, cross-file ripple risk): `BreadcrumbChip`
+  duplicates `StructureRow`'s `on_select` dispatch; `carries_label` /
+  `anchor_reference_label` encode the relation role as parallel display-string
+  cascades (one enum or shared map would remove drift risk); retained unused
+  `_selected_context` param in `use_layout_workspace_state`; mixed
+  "Relationships" UI copy vs `Relations` code identifiers. Spec: the
+  "written but never executed" gap is now closed (relations module 14/14
+  green in the isolated tree, plus live-app driving with screenshots), and a
+  split-focus pin was added as `6c2cd40f` after the review. Two review claims
+  adjudicated, not fixed: (b) `reset_properties_drafts` deletion is required
+  cleanup, not creep — the closure was wired only to the retired Properties
+  tab button, and owner-switch reset survives via the pre-existing
+  identity-keyed `use_effect` syncs in `layout_component_inspector.rs`;
+  (c) breadcrumb order follows the pre-existing kernel `structure` order
+  (documented in `matrix_relations.rs`: anchor frame heads the chain,
+  per-kind orders stated per builder), shared with the Relationships section
+  — reordering the kernel is out of ticket-15 scope and would ripple across
+  tickets; recorded as a parent interpretation question.
+- 2026-10-25 (ticket-15 agent): isolated-tree gates re-run for closure.
+  `check.py tooling` passes; `build` passes; native `test` passes (2280
+  baselined, 4 new); relations wasm module 14/14 green including the new
+  split-focus pin. Single-command `check.py` still red on three
+  foreign/environment causes only: `repo` fails on another lane's
+  uncommitted `deferred-items-*.md` broken links; `lint` fails on 5 clippy
+  errors all inside ticket-14 lines (`ef0c29253`, `presentation.rs`
+  8634-8927, collapsible_if x4 + redundant_closure); `browser` drag smoke
+  needs `playwright-core`/`NODE_PATH` (CI web-tools install it). The isolated
+  `layout_findings_state.rs` focus-test entry remains unported (optional
+  follow-up).
+
+## Answer
+
+- Variant-B "How it is placed" breadcrumb above the Inspector fields plus a
+  Relationships section beside them; Relations tab and `LayoutInspectorTab`
+  retired with all facts preserved. Commits: `1ff5e4c6` (feature),
+  `26663852` (rsx fix), `e3c8493` + `10f66d5` (verification notes),
+  `6c2cd40f` (split-focus pin test).
+- Evidence: mounted 14/14 relations tests (chip Replace-navigation without
+  write/Undo, split focus unchanged, violet hover marks only its keys, tab
+  gone); live-app driving (12 crumbs, 12 fact rows, 0 relation buttons,
+  hover highlights exactly 3 keys, chip click reselects Column 2);
+  `.evidence/t15-breadcrumb.png`, `.evidence/t15-chip-hover3.png`.
+- Standards review PASS; Spec review claims adjudicated above. Box 4
+  (`check.py` single command) stays unchecked: blocked only by the named
+  foreign/environment causes; every gate runnable against ticket-15 code is
+  green.
