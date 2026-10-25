@@ -55,9 +55,10 @@ fn validate_target(
     anchor: &MatrixAnchor,
 ) -> Result<(), String> {
     // Every guard runs per part: the single key, or each aggregate part.
-    // Empty lists, arity and ref+aggregate coexistence belong to the part
-    // validation slice; the cycle walk below already covers part edges so a
-    // 2-cycle or self-part through any part refuses atomically here.
+    // Empty lists and arity belong to the part validation slice (ref+aggregate
+    // coexistence is already refused at admission); the cycle walk below
+    // already covers part edges so a 2-cycle or self-part through any part
+    // refuses atomically here.
     for part in anchor.targets() {
         if part.matrix_id == owner_id {
             return Err(format!("Matrix {owner_id} cannot anchor to itself"));
@@ -275,30 +276,29 @@ pub(crate) fn add(
         group_layouts.extend(mirrors.clone());
         group_layouts.sort();
         group_layouts.dedup();
-        // Map every anchor part into every member layout before mutating.
-        // The single-key fields stay inert under an aggregate arm; only the
-        // parts travel through the correspondences.
+        // Ticket 28 defers aggregate reflection (A6) to a later ticket: a
+        // linked group maps one single-key target through the pair
+        // correspondence, exactly as before this lane.
+        if anchor.is_aggregate() {
+            return Err(format!(
+                "Matrix {id} aggregate anchor in a linked layout belongs to a later ticket; add it to a plain layout first"
+            ));
+        }
+        // Map the anchor target into every member layout before mutating.
         let mut anchors_by_layout = std::collections::BTreeMap::new();
         for member in &group_layouts {
-            let mut mapped_anchor = anchor.clone();
-            if let Some(aggregate) = mapped_anchor.aggregate.as_mut() {
-                for part in &mut aggregate.parts {
-                    part.matrix_id = counterpart_in_layout(
-                        doc,
-                        &part.matrix_id,
-                        &layout_id,
-                        member,
-                        &source_id,
-                    )?;
-                }
-                mapped_anchor.matrix_id.clear();
-                mapped_anchor.row = 0;
-                mapped_anchor.column = 0;
-            } else {
-                mapped_anchor.matrix_id =
-                    counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
-            }
-            anchors_by_layout.insert(member.clone(), mapped_anchor);
+            let mapped =
+                counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
+            anchors_by_layout.insert(
+                member.clone(),
+                MatrixAnchor {
+                    matrix_id: mapped,
+                    row: anchor.row,
+                    column: anchor.column,
+                    follow: anchor.follow,
+                    aggregate: None,
+                },
+            );
         }
         // Reserve every counterpart identity before any mutation so a clash
         // leaves the document unchanged.
@@ -334,16 +334,14 @@ pub(crate) fn add(
             let counterpart_id = &ids_by_layout[member];
             let counterpart_anchor = &anchors_by_layout[member];
             validate_target(doc, counterpart_id, None, counterpart_anchor)?;
-            // Every mapped part must live in the same member layout the new
+            // The mapped anchor must live in the same member layout the new
             // matrix joins; otherwise the group would silently retarget.
-            for part in counterpart_anchor.targets() {
-                let anchor_layout =
-                    owning_layout(doc, &part.matrix_id).map(|layout| layout.id.clone());
-                if anchor_layout.as_deref() != Some(member.as_str()) {
-                    return Err(format!(
-                        "Matrix {counterpart_id} anchor must stay on the same board and Layout"
-                    ));
-                }
+            let anchor_layout =
+                owning_layout(doc, &counterpart_anchor.matrix_id).map(|layout| layout.id.clone());
+            if anchor_layout.as_deref() != Some(member.as_str()) {
+                return Err(format!(
+                    "Matrix {counterpart_id} anchor must stay on the same board and Layout"
+                ));
             }
         }
         let pitch = target.pitch;
@@ -640,14 +638,7 @@ pub(crate) fn detach_out_of_range(
 ) -> Result<Vec<String>, String> {
     let mut changed = vec![];
     for (id, anchor) in dependants(doc, matrix_id) {
-        // A wholesale replacement never retargets: the dependant detaches
-        // when any of its parts on the resized matrix leaves the grid.
-        let out_of_range = anchor
-            .targets()
-            .iter()
-            .filter(|part| part.matrix_id == matrix_id)
-            .any(|part| part.row >= rows || part.column >= columns);
-        if out_of_range {
+        if anchor.row >= rows || anchor.column >= columns {
             changed.extend(detach(doc, &id)?);
         }
     }
@@ -665,22 +656,8 @@ pub(crate) fn remap_compacted(
     let mut changed = vec![];
     for target in matrix_ids {
         for (id, anchor) in dependants(doc, target) {
-            // Single-key dependants detach only at the removed slot; the
-            // lifecycle slice owns per-part aggregate remap, so an aggregate
-            // detaches whenever compaction touches its parts at or past the
-            // removed slot instead of silently following shifted keys.
-            let detach_at = if anchor.is_aggregate() {
-                anchor
-                    .targets()
-                    .iter()
-                    .filter(|part| part.matrix_id == *target)
-                    .map(|part| if row_axis { part.row } else { part.column })
-                    .any(|axis| axis >= index)
-            } else {
-                let axis = if row_axis { anchor.row } else { anchor.column };
-                axis == index
-            };
-            if detach_at {
+            let axis = if row_axis { anchor.row } else { anchor.column };
+            if axis == index {
                 changed.extend(detach(doc, &id)?);
             }
         }
@@ -700,11 +677,6 @@ pub(crate) fn shift_compacted(
     let mut moved: Vec<(String, MatrixAnchor)> = vec![];
     for target in matrix_ids {
         for (id, mut anchor) in dependants(doc, target) {
-            // Aggregate part refs are remapped by the lifecycle slice;
-            // `remap_compacted` above already detached the affected ones.
-            if anchor.is_aggregate() {
-                continue;
-            }
             let axis = if row_axis {
                 &mut anchor.row
             } else {
