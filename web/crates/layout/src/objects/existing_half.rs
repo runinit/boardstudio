@@ -1,10 +1,11 @@
 //! Owner-checked Layout action for linking copies of existing unpaired matrices.
+use crate::mirror_existing_half::prepare_existing_half;
 use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
 use boardstudio_core::model::{
-    EditOperation, Layout, LayoutMirrorLink, PartKind, ProjectDoc, Vec2,
+    EditOperation, PartKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::controls::{
@@ -334,139 +335,6 @@ pub fn use_existing_half(
         on_cancel,
         on_create,
     }
-}
-
-#[derive(Clone)]
-struct PreparedExistingHalf {
-    document: ProjectDoc,
-}
-
-fn prepare_existing_half(
-    document: &ProjectDoc,
-    board_id: &str,
-    matrix_ids: &[String],
-    axis_x: f64,
-    new_id: &mut impl FnMut() -> Result<String, String>,
-) -> Result<PreparedExistingHalf, String> {
-    if matrix_ids.is_empty() || !axis_x.is_finite() {
-        return Err("Select a layout and a finite mirror axis.".into());
-    }
-    let mut next = document.clone();
-    let mut used_ids = document
-        .boards
-        .iter()
-        .map(|item| item.id.clone())
-        .chain(document.matrices.iter().map(|item| item.id.clone()))
-        .chain(document.layouts.iter().map(|item| item.id.clone()))
-        .chain(document.parts.iter().map(|item| item.id.clone()))
-        .collect::<std::collections::BTreeSet<_>>();
-
-    for matrix_id in matrix_ids {
-        let source = next
-            .matrices
-            .iter()
-            .find(|matrix| matrix.id == *matrix_id)
-            .cloned()
-            .ok_or_else(|| "The selected matrix no longer exists.".to_string())?;
-        if source.board_id.as_deref() != Some(board_id) {
-            return Err("The layout must belong to the active board.".into());
-        }
-        if source.mirror == Some(boardstudio_core::model::Mirror::Y) {
-            return Err(
-                "Y-mirrored layouts cannot be linked. Use an independent layout or an X-mirrored source."
-                    .into(),
-            );
-        }
-        if source
-            .part_ids
-            .iter()
-            .any(|part_id| next.constraint_driving_part(part_id) != Ok(None))
-        {
-            return Err("Remove key placement constraints before linking this layout.".into());
-        }
-        let existing = next
-            .layouts
-            .iter()
-            .find(|layout| {
-                layout.matrix_ids.iter().any(|id| id == &source.id) && layout.board_id == board_id
-            })
-            .cloned();
-        if existing.as_ref().is_some_and(|layout| {
-            layout.mirror_link.is_some()
-                || next.layouts.iter().any(|candidate| {
-                    candidate
-                        .mirror_link
-                        .as_ref()
-                        .is_some_and(|link| link.source_id == layout.id)
-                })
-        }) {
-            return Err("This layout already belongs to a linked pair.".into());
-        }
-        let source_layout = if let Some(layout) = existing {
-            layout
-        } else {
-            let id = fresh_id(&mut used_ids, new_id)?;
-            let name = source
-                .name
-                .as_deref()
-                .filter(|name| !name.is_empty())
-                .unwrap_or("Original half")
-                .to_owned();
-            let layout = Layout {
-                id,
-                name,
-                board_id: board_id.to_owned(),
-                matrix_ids: vec![source.id.clone()],
-                part_ids: Vec::new(),
-                mirror_link: None,
-            };
-            next.layouts.push(layout.clone());
-            layout
-        };
-
-        let target_matrix_id = fresh_id(&mut used_ids, new_id)?;
-        let target_layout_id = fresh_id(&mut used_ids, new_id)?;
-        let target_name = format!("{} · mirrored", source_layout.name);
-        let mut target_matrix = source.clone();
-        target_matrix.id = target_matrix_id.clone();
-        target_matrix.name = Some(target_name.clone());
-        target_matrix.part_ids.clear();
-        for cell in &mut target_matrix.cells {
-            for assembly in &mut cell.assemblies {
-                assembly.offset.x = -assembly.offset.x;
-                assembly.rotation = assembly.rotation.map(|rotation| -rotation);
-            }
-        }
-        next.matrices.push(target_matrix);
-        next.layouts.push(Layout {
-            id: target_layout_id.clone(),
-            name: target_name,
-            board_id: board_id.to_owned(),
-            matrix_ids: vec![target_matrix_id.clone()],
-            part_ids: Vec::new(),
-            mirror_link: Some(LayoutMirrorLink {
-                correspondences: vec![],
-                exceptions: vec![],
-                source_id: source_layout.id,
-                axis_x,
-            }),
-        });
-    }
-
-    Ok(PreparedExistingHalf { document: next })
-}
-
-fn fresh_id(
-    used: &mut std::collections::BTreeSet<String>,
-    new_id: &mut impl FnMut() -> Result<String, String>,
-) -> Result<String, String> {
-    for _ in 0..8 {
-        let id = new_id()?;
-        if !id.trim().is_empty() && used.insert(id.clone()) {
-            return Ok(id);
-        }
-    }
-    Err("Could not allocate a unique layout identity.".into())
 }
 
 fn eligible_options(document: &ProjectDoc, board_id: &str) -> Vec<ExistingHalfOption> {
