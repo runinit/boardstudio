@@ -1,6 +1,6 @@
 # 33: Keycap size through typed edits
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (all dependencies resolved; the Inspector keycap surface and the typed-edit Core contract already exist)
 Parent: [map.md](../map.md)
@@ -33,3 +33,19 @@ prior keycap size with nothing else changed.
 
 Mounted browser tests for the typed keycap commit, refusal, and Undo/Redo
 round-trip; affected quick/browser checks.
+
+## Progress
+
+- Investigated 2026-10-25: the Layout key-size surface (`keycap_size_controller.rs`
+  `resize_resolver` + `keycap_resize.rs::plan_resize`) submits
+  `EditOperation::ReplaceDocument` for every keycap resize. No Core typed
+  variant writes `Part.keycap` size: `SetKeycapBoard/Matrix/Key` cover keycap
+  *settings* (`KeycapKeyChange::Units` etc. in `core/src/keycaps/edits.rs`),
+  not the physical `Part.keycap: Option<Vec2>` size tied to pitch minus edge
+  gap. `grep` for `part.keycap =` shows only `ReplaceDocument`, matrix
+  creation, and mirrored-half lifecycle writers; no typed size edit exists.
+- Ticket requires a new named typed keycap-size Core edit (model.rs type
+  change) to replace the whole-document path. Per task rules (no model.rs
+  type changes unless a ticket requires it — if so, stop and report), stopping
+  implementation here and reporting to parent. No code changed; ticket stays
+  claimed for parent review.
