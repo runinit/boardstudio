@@ -8631,15 +8631,14 @@ fn Editor() -> Element {
             };
             // Ticket 14: clicking the dimmed half on the canvas moves the
             // view-only editing focus and still performs normal selection.
-            if let Some(accepted) = current.accepted.as_ref() {
-                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
                     &accepted.document,
                     &hit_context,
-                ) {
-                    if half != split_focus() {
-                        split_focus.set(half);
-                    }
-                }
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
             }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
@@ -8793,15 +8792,14 @@ fn Editor() -> Element {
             };
             // Ticket 14: clicking the dimmed half on the canvas moves the
             // view-only editing focus and still performs normal selection.
-            if let Some(accepted) = current.accepted.as_ref() {
-                if let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
+            if let Some(accepted) = current.accepted.as_ref()
+                && let Some(half) = boardstudio_web_ui_model::split_focus::context_half(
                     &accepted.document,
                     &hit_context,
-                ) {
-                    if half != split_focus() {
-                        split_focus.set(half);
-                    }
-                }
+                )
+                && half != split_focus()
+            {
+                split_focus.set(half);
             }
             update_tree_cell_anchor(&tree_cell_anchor, &owner, &current, Some(&hit_context));
             let retained = tree_cell_anchor_for_owner(&tree_cell_anchor, &owner);
@@ -8923,8 +8921,11 @@ fn Editor() -> Element {
     // Ticket 14: Layout-only dim. Without a linked split there is no
     // unfocused half, so the canvas draws solid; PCB/Case never mount this
     // Scene. The signal survives workspace switches and spacing edits.
-    let split_focused_half =
-        boardstudio_web_ui_model::split_focus::has_split(&document).then(|| split_focus());
+    let split_focused_half = if boardstudio_web_ui_model::split_focus::has_split(&document) {
+        Some(split_focus())
+    } else {
+        None
+    };
 
     rsx! {
         section { class: "m1-editor", "aria-label": "Keyboard editor",
