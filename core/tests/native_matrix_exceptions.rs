@@ -295,7 +295,7 @@ fn exceptions(document: &Value) -> Vec<&Value> {
         .unwrap_or_default()
 }
 
-fn matrix_exception<'a>(document: &'a Value) -> Option<&'a Value> {
+fn matrix_exception(document: &Value) -> Option<&Value> {
     exceptions(document)
         .into_iter()
         .find(|exception| {
