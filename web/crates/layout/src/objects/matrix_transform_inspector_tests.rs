@@ -1,4 +1,5 @@
 use super::*;
+use crate::matrix_transform_operation::key_half_exception_at_resolver;
 use crate::presentation::objects::{
     ScopedTreeContext, TreeContext, use_workspace_matrix_transform,
 };
@@ -4386,6 +4387,677 @@ async fn aggregate_commit_with_self_part_refuses_through_core() {
                 .text_content()
                 .is_some_and(|text| text.contains("cannot anchor to itself"))),
         "the Core refusal surfaces inline"
+    );
+    root.remove();
+}
+
+fn aggregate_dependant_pose(probe: &Probe) -> Pose2 {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == "matrix-b")
+        .and_then(|scene| {
+            scene
+                .cells
+                .iter()
+                .find(|cell| cell.row == 0 && cell.column == 0)
+                .map(|cell| cell.pose)
+        })
+        .expect("the aggregate dependant is laid out")
+}
+
+fn aggregate_method_of(probe: &Probe) -> AggregateMethod {
+    probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix-b")
+        .expect("the matrix survives")
+        .anchor
+        .as_ref()
+        .expect("the anchor survives")
+        .aggregate
+        .as_ref()
+        .expect("the anchor stays aggregate")
+        .method
+}
+
+/// Ticket 36, RED: committing an aggregate method switch through the mounted
+/// Inspector surface writes one Core intent, and Undo restores the prior
+/// method with poses unchanged while Redo restores the committed method.
+/// Expected poses come from Core-published scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_method_switch_commits_with_redo_and_pose_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-method-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let method = root
+        .query_selector("select[aria-label='Method']")
+        .unwrap()
+        .expect("the Anchor section offers the aggregate method")
+        .dyn_into::<HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(
+        method.value(),
+        "average",
+        "the method shows the admitted value"
+    );
+    method.set_value("intersect");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    method
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "the switch writes the new method"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before + 1,
+        "the switch is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Average,
+        "one Undo restores the previous method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    probe.runtime.submit(Event::Redo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        aggregate_method_of(&probe),
+        AggregateMethod::Intersect,
+        "one Redo restores the committed method"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_after,
+        "one Redo restores the Core-published committed pose exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 36, RED: committing an aggregate parts change through the mounted
+/// Inspector surface updates the Core-published dependant pose, and Undo
+/// restores the parts and the pose. Expected poses come from Core-published
+/// scene values only.
+#[wasm_bindgen_test]
+async fn aggregate_part_remove_updates_dependant_pose_with_undo_round_trip() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-36-parts-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let pose_before = aggregate_dependant_pose(&probe);
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let removes: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        removes.len(),
+        2,
+        "each part offers Remove while more than one part remains"
+    );
+    removes[0].click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        1,
+        "Remove drops the part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the removal is one atomic Core intent"
+    );
+    let pose_after = aggregate_dependant_pose(&probe);
+    assert_ne!(
+        (pose_after.at.x, pose_after.at.y, pose_after.rotation),
+        (pose_before.at.x, pose_before.at.y, pose_before.rotation),
+        "the Core-published dependant pose follows the surviving part"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let undone = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        undone
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the removed part"
+    );
+    assert_eq!(
+        aggregate_dependant_pose(&probe),
+        pose_before,
+        "one Undo restores the Core-published dependant pose exactly"
+    );
+    root.remove();
+}
+
+/// Ticket 34: native-pair source fixture. The pair itself is created through
+/// Core (`CreateMirroredHalf`), so the Key-context Omit/Rejoin flow under test
+/// starts from a genuine Core-built pair with canonical correspondences.
+fn native_pair_source_fixture() -> ProjectDoc {
+    let (mut document, _) = fixture();
+    // Mirrored matrix members carry derived identities.
+    for part in document
+        .parts
+        .iter_mut()
+        .filter(|part| part.id == "key-part")
+    {
+        part.id = "matrix/matrix/r0c0".into();
+    }
+    for board in document.boards.iter_mut() {
+        for id in board
+            .part_ids
+            .iter_mut()
+            .filter(|id| id.as_str() == "key-part")
+        {
+            *id = "matrix/matrix/r0c0".into();
+        }
+    }
+    for matrix in document.matrices.iter_mut() {
+        for id in matrix
+            .part_ids
+            .iter_mut()
+            .filter(|id| id.as_str() == "key-part")
+        {
+            *id = "matrix/matrix/r0c0".into();
+        }
+        for cell in matrix.cells.iter_mut() {
+            cell.assemblies.clear();
+        }
+    }
+    document.hardware = Some(
+        serde_json::from_value(serde_json::json!({
+            "topology": "split", "transport": "wired", "boards": [],
+            "instances": [
+                {"id": "left", "name": "Left", "boardId": "board",
+                 "half": "left", "role": "central", "flipped": false,
+                 "controllerPartId": null,
+                 "mechanical": {
+                    "boardId": "board", "method": "printed", "mount": "rigid",
+                    "integratedPlateFrame": false, "bottomStyle": "shell",
+                    "plateThickness": 1.5, "plateFoamThickness": 0.0,
+                    "pcbThickness": 1.6, "bottomFoamThickness": 0.0, "batteryHeight": 0.0,
+                    "bottomThickness": 2.0, "plateToPcb": 3.5,
+                    "wallThickness": 2.0, "clearance": 0.2,
+                    "profiles": [], "mounts": [], "closureMounts": [], "openings": []}}
+            ],
+            "pairs": []
+        }))
+        .unwrap(),
+    );
+    document
+}
+
+fn create_mirrored_half_operation() -> serde_json::Value {
+    serde_json::json!({
+        "kind": "create-mirrored-half", "pairId": "pair",
+        "sourceInstanceId": "left",
+        "mode": {"kind": "new-board", "boardId": "right", "instanceId": "right"},
+        "mapping": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0},
+        "idRule": "board-prefix", "companionMode": "literal-mirror",
+        "mountingHole": {
+            "id": "generator:ceoloide/mounting_hole_npth", "name": "mounting hole npth",
+            "kind": "custom",
+            "pads": [{"id": "pad-0", "number": "", "at": {"x": 0, "y": 0},
+                "size": {"x": 2.2, "y": 2.2}, "shape": "circle", "drill": 2.2,
+                "plated": false, "rotation": 0}],
+            "courtyard": [{"x": -1.1, "y": -1.1}, {"x": 1.1, "y": -1.1},
+                {"x": 1.1, "y": 1.1}, {"x": -1.1, "y": 1.1}],
+            "envelopeSource": {"courtyard": "generated"},
+            "envelopeNotice": "No closed courtyard is available.",
+            "generator": {"source": "ceoloide/mounting_hole_npth", "version": "bundled-1", "parameters": {}}
+        }
+    })
+}
+
+/// Open the source document and create its mirror half through the Session.
+/// Returns the runtime plus the created mirror matrix and part ids.
+async fn open_created_pair() -> (Rc<Runtime>, String, String) {
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let runtime = support::new_runtime();
+    support::open_document(&runtime, native_pair_source_fixture()).await;
+    let created = EditTicket::begin(
+        &runtime,
+        "layout-create-mirror",
+        Some("create".into()),
+        boardstudio_application::EditResolver::new(
+            "layout-create-mirror",
+            |_accepted: &boardstudio_application::AcceptedSnapshot| {
+                boardstudio_application::Resolution::submit(
+                    vec!["pair".into()],
+                    serde_json::from_value(create_mirrored_half_operation())
+                        .expect("the pair creation is a typed Core edit"),
+                )
+            },
+        ),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(created.settlement(true), Settlement::Landed { .. }),
+        "the mirror half is created"
+    );
+    let document = runtime.model().accepted.expect("the pair opens").document;
+    let mirror_matrix = document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.board_id.as_deref() == Some("right"))
+        .expect("the mirror matrix exists");
+    let mirror_part = mirror_matrix
+        .part_ids
+        .first()
+        .expect("the mirror key exists")
+        .clone();
+    (runtime, mirror_matrix.id.clone(), mirror_part)
+}
+
+/// Ticket 34: omitting the mirror key submits the typed Part/Omitted intent,
+/// hides the key from the matrix surface while keeping its logical pose, and
+/// one Undo restores it.
+#[wasm_bindgen_test]
+async fn mirror_key_omit_rejoin_round_trip() {
+    use boardstudio_web_runtime::edit_ticket::{EditTicket, Settlement};
+
+    let (runtime, mirror_matrix, mirror_part) = open_created_pair().await;
+    let before = runtime.model().accepted.expect("the pair opens").document;
+    let before_revision = before.revision;
+    let before_pose = before
+        .parts
+        .iter()
+        .find(|part| part.id == mirror_part)
+        .expect("the mirror part exists")
+        .pose;
+
+    let omit = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("omit".into()),
+        key_half_exception_at_resolver(mirror_matrix.clone(), 0, 0, true),
+    );
+    support::run_pending(&runtime).await;
+    let settlement = omit.settlement(true);
+    assert!(
+        matches!(settlement, Settlement::Landed { .. }),
+        "the omit intent lands, got {settlement:?}"
+    );
+    let omitted = runtime.model().accepted.expect("an accepted document");
+    assert_eq!(
+        omitted.document.revision,
+        before_revision + 1,
+        "omit is one Undo entry"
+    );
+    let overlay = omitted
+        .document
+        .hardware
+        .as_ref()
+        .unwrap()
+        .pairs
+        .iter()
+        .find(|pair| pair.id == "pair")
+        .unwrap()
+        .halves
+        .as_ref()
+        .unwrap()
+        .exceptions
+        .iter()
+        .find(|exception| {
+            exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_part
+        })
+        .expect("the Omitted overlay is recorded");
+    assert_eq!(overlay.state, MirroredExceptionState::Omitted);
+    assert!(
+        omitted
+            .document
+            .parts
+            .iter()
+            .all(|part| part.id != mirror_part),
+        "the omitted key leaves the matrix surface record"
+    );
+    let omitted_cell = omitted
+        .scene
+        .matrix_scenes
+        .iter()
+        .find(|scene| scene.matrix_id == mirror_matrix)
+        .unwrap()
+        .cells
+        .iter()
+        .find(|cell| cell.row == 0 && cell.column == 0);
+    assert!(
+        omitted_cell.is_none_or(|cell| cell.member_id.as_deref() != Some(mirror_part.as_str())),
+        "the omitted key leaves the matrix surface"
+    );
+    if let Some(cell) = omitted_cell {
+        assert_eq!(
+            cell.pose.at, before_pose.at,
+            "the omitted key keeps its logical pose"
+        );
+    }
+
+    runtime.submit(boardstudio_application::Event::Undo {
+        operation_id: runtime.operation(),
+    });
+    support::run_pending(&runtime).await;
+    let undone = runtime.model().accepted.expect("an accepted document");
+    assert!(
+        undone
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "one Undo clears the overlay"
+    );
+    assert_eq!(
+        undone
+            .document
+            .parts
+            .iter()
+            .find(|part| part.id == mirror_part)
+            .unwrap()
+            .pose,
+        before_pose
+    );
+    assert!(
+        undone
+            .scene
+            .matrix_scenes
+            .iter()
+            .find(|scene| scene.matrix_id == mirror_matrix)
+            .unwrap()
+            .cells
+            .iter()
+            .any(|cell| cell.member_id.as_deref() == Some(mirror_part.as_str())),
+        "one Undo brings the key back to the surface"
+    );
+
+    let rejoin = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("rejoin".into()),
+        key_half_exception_at_resolver(mirror_matrix.clone(), 0, 0, true),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(rejoin.settlement(true), Settlement::Landed { .. }),
+        "re-omitting after Undo lands again"
+    );
+    let rejoin_back = EditTicket::begin(
+        &runtime,
+        "layout-matrix-key-omit",
+        Some("rejoin".into()),
+        key_half_exception_at_resolver(mirror_matrix, 0, 0, false),
+    );
+    support::run_pending(&runtime).await;
+    assert!(
+        matches!(rejoin_back.settlement(true), Settlement::Landed { .. }),
+        "rejoin lands"
+    );
+    let rejoined = runtime.model().accepted.expect("an accepted document");
+    assert!(
+        rejoined
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "rejoin clears the overlay"
+    );
+}
+
+/// Ticket 34: the Key inspector shows the Omit control for a mirrored key and
+/// toggling it omits/rejoins with one Undo entry each.
+#[wasm_bindgen_test]
+async fn mirror_key_omit_checkbox_toggles_half_exception() {
+    use web_sys::EventInit;
+
+    let (runtime, mirror_matrix, mirror_part) = open_created_pair().await;
+    support::navigate(&runtime, "right").await;
+    runtime.submit(Event::SelectParts {
+        operation_id: runtime.operation(),
+        part_ids: vec![mirror_part.clone()],
+        range_part_ids: Vec::new(),
+        mode: SelectionMode::Replace,
+    });
+    support::run_pending(&runtime).await;
+    let scope = runtime.scope().expect("the opened project has a scope");
+    let probe = Probe {
+        canvas_controls: false,
+        runtime: runtime.clone(),
+        selected: ScopedTreeContext {
+            scope,
+            context: TreeContext::Key {
+                matrix_id: mirror_matrix.clone(),
+                row: 0,
+                column: 0,
+            },
+        },
+        root_id: "matrix-transform-key-omit-test",
+        version: Rc::default(),
+        selected_context: Rc::default(),
+        adapter: Rc::default(),
+        mount: Rc::default(),
+        render_count: Rc::default(),
+        navigated: Rc::default(),
+    };
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id(probe.root_id);
+    document.body().unwrap().append_child(&root).unwrap();
+    let dom = VirtualDom::new(matrix_transform_host);
+    dom.provide_root_context(probe.clone());
+    dioxus_web::launch::launch_virtual_dom(
+        dom,
+        dioxus_web::Config::new().rootnode(root.clone().into()),
+    );
+    settle(&probe).await;
+    let before_revision = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    let key_enabled = root
+        .query_selector("input[aria-label='Key enabled']")
+        .unwrap()
+        .is_some();
+    let omit = root
+        .query_selector("input[aria-label='Omit from mirror']")
+        .unwrap()
+        .unwrap_or_else(|| {
+            panic!("a mirrored key offers Omit (key section present: {key_enabled})")
+        })
+        .dyn_into::<HtmlInputElement>()
+        .unwrap();
+    assert!(!omit.checked(), "the linked key starts rejoined");
+    omit.set_checked(true);
+    let event = EventInit::new();
+    event.set_bubbles(true);
+    omit.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let feedback = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .map(|mount| format!("{:?}", mount.feedback))
+        .unwrap_or_default();
+    let omitted = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        omitted.document.revision,
+        before_revision + 1,
+        "omit is one Undo entry, feedback={feedback}"
+    );
+    assert!(
+        omitted
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .iter()
+            .any(|exception| {
+                exception.kind == MirroredItemKind::Part
+                    && exception.mirror_id == mirror_part
+                    && exception.state == MirroredExceptionState::Omitted
+            }),
+        "checking Omit records the Omitted overlay"
+    );
+    omit.set_checked(false);
+    omit.dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &event).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let rejoined = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert!(
+        rejoined
+            .document
+            .hardware
+            .as_ref()
+            .unwrap()
+            .pairs
+            .iter()
+            .find(|pair| pair.id == "pair")
+            .unwrap()
+            .halves
+            .as_ref()
+            .unwrap()
+            .exceptions
+            .is_empty(),
+        "clearing Omit rejoins the key"
     );
     root.remove();
 }

@@ -87,14 +87,22 @@ fn stored_document() -> (String, Vec<ArchiveAssetBuffer>, Vec<Vec<u8>>) {
         &mut engine,
         opened.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "refined", "name": "Linked refinement"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "refined", "name": "Linked refinement"}},
+                "seed": 31, "reviewed": null
+            }
         }),
     );
     edit(
         &mut engine,
         linked.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "edited", "name": "Edited outline"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "edited", "name": "Edited outline"}},
+                "seed": 32, "reviewed": null
+            }
         }),
     );
     let mut stored = serde_json::to_value(accepted(&mut engine)).unwrap();
@@ -256,7 +264,11 @@ fn a_document_this_build_writes_is_at_the_current_integrated_format_version() {
         &mut engine,
         opened.revision,
         &serde_json::json!({
-            "kind": "copy-outline", "boardId": "main", "versionId": "fresh", "name": "Fresh"
+            "kind": "apply-outline-edit", "edit": {
+                "target": {"kind": "board", "boardId": "main"},
+                "change": {"copy": {"version_id": "fresh", "name": "Fresh"}},
+                "seed": 33, "reviewed": null
+            }
         }),
     );
     assert!(

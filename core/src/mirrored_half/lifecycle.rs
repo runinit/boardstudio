@@ -1677,41 +1677,6 @@ pub(super) fn prepare_edit_transition(
         return Ok(Some(prepared));
     }
 
-    if let EditOperation::SetMechanical {
-        configuration: None,
-        target: Some(crate::mechanical::MechanicalTarget::Instance { instance_id }),
-    } = operation
-    {
-        let hardware = before
-            .hardware
-            .as_ref()
-            .ok_or("Physical instances are unavailable")?;
-        let mut pairs = hardware.pairs.iter().filter(|pair| pair.id == pair_id);
-        let Some(pair) = pairs.next() else {
-            return Ok(None);
-        };
-        if pairs.next().is_some() {
-            return Err("The exact lifecycle pair is ambiguous".into());
-        }
-        if !pair.members.iter().any(|member| member == instance_id) || pair.halves.is_none() {
-            return Ok(None);
-        }
-
-        let records = lifecycle_constraint_records(before)?;
-        let delta = prepare_constraint_lifecycle_delta(
-            &records,
-            &[ConstraintLifecycleEffect::Unlink {
-                pair_id: pair.id.clone(),
-            }],
-        )?;
-        let mut draft = post_source.clone();
-        apply_constraint_lifecycle_delta(&mut draft, delta);
-        return Ok(Some(super::PreparedLifecycleDraft {
-            draft,
-            changed_document_ids: Vec::new(),
-        }));
-    }
-
     if let EditOperation::UnlinkHalves {
         pair_id: requested_pair_id,
     } = operation

@@ -1,9 +1,10 @@
 //! Private, pure mapping from accepted matrix transform fields to existing edit operations.
+use boardstudio_application::{AcceptedSnapshot, EditResolver, Resolution};
 use boardstudio_core::model::{
-    AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, Matrix, MatrixAnchor,
-    MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene, MatrixSplayAffect,
-    MatrixSplayChange, Mirror, MirroredItemKind, PartDefinition, Pose2, ProjectDoc, Vec2,
-    convert_offset_available,
+    AggregateAnchor, AggregateMethod, AnchorPart, EditOperation, Follow, HalfExceptionState,
+    Matrix, MatrixAnchor, MatrixCell, MatrixColumnBasis, MatrixPlacementChange, MatrixScene,
+    MatrixSplayAffect, MatrixSplayChange, Mirror, MirroredExceptionState, MirroredItemKind,
+    PartDefinition, Pose2, ProjectDoc, Vec2, convert_offset_available,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +40,9 @@ pub enum MatrixTransformField {
     KeyRotation,
     KeyTransformReset,
     KeyEnabled,
+    /// Omit one mirrored key from the matrix surface (or rejoin it). The toggle
+    /// submits SetHalfException{Part, Omitted/Linked}; Core keeps the live pose.
+    KeyOmit,
     KeyAssembly,
     KeyAttached,
     KeyAssembliesLocal,
@@ -125,6 +129,9 @@ pub enum MatrixTransformFields {
         rotation: f64,
         shift: Vec2,
         bend: f64,
+        /// Native-pair mirror exception state for this key, when the key
+        /// resolves to a mirror-side part with a Part correspondence.
+        half_exception: Option<KeyHalfException>,
     },
 }
 
@@ -135,8 +142,16 @@ pub(crate) fn column_angle(splay: f64, rotation: f64, affect: &MatrixSplayAffect
     }
 }
 
-/// Produce the choices for one attached-component selector while preserving
+/// Native-pair mirror exception context for one matrix key, resolved from the
+/// accepted document at projection time and re-resolved at execution time.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeyHalfException {
+    pub pair_id: String,
+    pub mirror_id: String,
+    pub omitted: bool,
+}
 /// only its own assembly snapshot from the accepted document.
+/// Produce the choices for one attached-component selector while preserving
 pub fn attachment_component_choices(
     definitions: &[PartDefinition],
     current_id: &str,
@@ -768,6 +783,21 @@ pub fn build_operation(
             Field::KeyEnabled,
             Value::Bool(enabled),
         ) => Ok(set_cell_enabled(matrix, *row, *column, enabled)),
+        (MatrixTransformFields::Key { half_exception, .. }, Field::KeyOmit, Value::Bool(omit)) => {
+            let Some(exception) = half_exception else {
+                return Err("The key is not a mirrored key with a linked counterpart.".into());
+            };
+            Ok(EditOperation::SetHalfException {
+                pair_id: exception.pair_id.clone(),
+                kind: MirroredItemKind::Part,
+                mirror_id: exception.mirror_id.clone(),
+                state: if omit {
+                    HalfExceptionState::Omitted
+                } else {
+                    HalfExceptionState::Linked
+                },
+            })
+        }
         (
             MatrixTransformFields::Key { row, column, .. },
             Field::KeyAddAnchoredMatrix,
@@ -1449,6 +1479,147 @@ fn set_cell_transform(
     set_matrix(next)
 }
 
+/// Read one mirror-side key's native-pair exception context, if the member
+/// part is the mirror side of a Part correspondence. Pure: unit-tested beside
+/// the resolver it feeds.
+pub fn key_half_exception(document: &ProjectDoc, member_id: &str) -> Option<KeyHalfException> {
+    let hardware = document.hardware.as_ref()?;
+    let (pair, halves) = hardware
+        .pairs
+        .iter()
+        .filter_map(|pair| pair.halves.as_ref().map(|halves| (pair, halves)))
+        .find(|(_, halves)| {
+            halves
+                .correspondences
+                .iter()
+                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == member_id)
+        })?;
+    let omitted = halves.exceptions.iter().any(|exception| {
+        exception.kind == MirroredItemKind::Part
+            && exception.mirror_id == member_id
+            && exception.state == MirroredExceptionState::Omitted
+    });
+    Some(KeyHalfException {
+        pair_id: pair.id.clone(),
+        mirror_id: member_id.to_owned(),
+        omitted,
+    })
+}
+
+/// Resolve one key's Omit/Rejoin toggle against the accepted document by
+/// Resolve one key's Omit/Rejoin toggle against the accepted document by
+/// matrix coordinates. The member and pair re-resolve at execution time, so a
+/// queued omit never lands on a reindexed key. An omitted key left the scene:
+/// its Omitted overlay names the canonical member.
+pub fn key_half_exception_at_resolver(
+    matrix_id: String,
+    row: u32,
+    column: u32,
+    omit: bool,
+) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-key-omit",
+        move |accepted: &AcceptedSnapshot| {
+            // A live key resolves through its scene cell; an omitted key left
+            // the scene, so its Omitted overlay names the canonical member.
+            let member = accepted
+                .scene
+                .matrix_scenes
+                .iter()
+                .find(|scene| scene.matrix_id == matrix_id)
+                .and_then(|scene| {
+                    scene
+                        .cells
+                        .iter()
+                        .find(|cell| cell.row == row && cell.column == column)
+                })
+                .and_then(|cell| cell.member_id.clone());
+            let member = match member {
+                Some(member) => member,
+                None => {
+                    match key_half_exception_omitted(&accepted.document, &matrix_id, row, column) {
+                        Some(exception) => exception.mirror_id,
+                        None => {
+                            return Resolution::Retire("The selected key no longer exists.".into());
+                        }
+                    }
+                }
+            };
+            let Some(exception) = key_half_exception(&accepted.document, &member) else {
+                return Resolution::Retire(
+                    "The key is not a mirrored key with a linked counterpart.".into(),
+                );
+            };
+            key_half_exception_resolver(exception.pair_id, exception.mirror_id, omit)
+                .resolve(accepted)
+        },
+    )
+}
+
+/// Omitted-only half-exception lookup by matrix coordinates, for keys that
+/// left the scene. Mirrored matrix members carry derived identities, so the
+/// canonical id names the exact member an Omitted overlay suppresses; the
+/// overlay itself is the authority, never the constructed id alone.
+pub fn key_half_exception_omitted(
+    document: &ProjectDoc,
+    matrix_id: &str,
+    row: u32,
+    column: u32,
+) -> Option<KeyHalfException> {
+    let candidate = format!("matrix/{matrix_id}/r{row}c{column}");
+    key_half_exception(document, &candidate).filter(|exception| exception.omitted)
+}
+/// Resolve one key's Omit/Rejoin toggle against the accepted document. Only the
+/// pair/correspondence identity is captured; the overlay is read at execution
+/// time, so omitting one key is a single atomic edit with one Undo entry that
+/// composes with other field edits.
+pub fn key_half_exception_resolver(pair_id: String, mirror_id: String, omit: bool) -> EditResolver {
+    EditResolver::new(
+        "layout-matrix-key-omit",
+        move |accepted: &AcceptedSnapshot| {
+            let Some(halves) = accepted
+                .document
+                .hardware
+                .as_ref()
+                .and_then(|hardware| hardware.pairs.iter().find(|pair| pair.id == pair_id))
+                .and_then(|pair| pair.halves.as_ref())
+            else {
+                return Resolution::Retire("The mirrored pair no longer exists.".into());
+            };
+            if !halves
+                .correspondences
+                .iter()
+                .any(|link| link.kind == MirroredItemKind::Part && link.mirror_id == mirror_id)
+            {
+                return Resolution::Retire("The linked key no longer exists.".into());
+            }
+            let omitted = halves
+                .exceptions
+                .iter()
+                .find(|exception| {
+                    exception.kind == MirroredItemKind::Part && exception.mirror_id == mirror_id
+                })
+                .is_some_and(|exception| exception.state == MirroredExceptionState::Omitted);
+            if omitted == omit {
+                return Resolution::Unchanged;
+            }
+            Resolution::submit(
+                vec![pair_id.clone(), mirror_id.clone()],
+                EditOperation::SetHalfException {
+                    pair_id: pair_id.clone(),
+                    kind: MirroredItemKind::Part,
+                    mirror_id: mirror_id.clone(),
+                    state: if omit {
+                        HalfExceptionState::Omitted
+                    } else {
+                        HalfExceptionState::Linked
+                    },
+                },
+            )
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1566,6 +1737,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -1840,6 +2012,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2131,6 +2304,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2174,6 +2348,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2230,6 +2405,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2281,6 +2457,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2313,6 +2490,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target,
             assemblies_local,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2436,6 +2614,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 0,
             column: 1,
             offset: Vec2 { x: 0.0, y: 0.0 },
@@ -2489,6 +2668,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -2793,6 +2973,7 @@ mod tests {
             component_choices: Vec::new(),
             mirror_target: false,
             assemblies_local: false,
+            half_exception: None,
             row: 1,
             column: 2,
             offset: Vec2 { x: 6.0, y: 7.0 },
@@ -3363,5 +3544,278 @@ mod tests {
     fn rotate_solves_only_when_rotation_is_followed() {
         assert_eq!(solve_matrix_rotation(12.0, true, 30.0), Some(42.0));
         assert_eq!(solve_matrix_rotation(12.0, false, 30.0), None);
+    }
+}
+
+/// Ticket 34 RED: per-key Omit/Rejoin resolves to the typed half-exception
+/// intents with atomicity and Undo. Native: no browser needed.
+#[cfg(test)]
+mod key_omit_tests {
+    use super::{key_half_exception, key_half_exception_at_resolver, key_half_exception_resolver};
+    use boardstudio_application::{AcceptedSnapshot, Resolution, SessionEpoch, SnapshotToken};
+    use boardstudio_core::model::{
+        EditOperation, HalfExceptionState, MirroredItemKind, ProjectDoc, SceneDelta,
+    };
+    use std::sync::Arc;
+
+    pub(crate) fn pair_doc() -> ProjectDoc {
+        serde_json::from_value(serde_json::json!({
+            "id": "omit", "name": "Omit", "format": "boardstudio/v2", "revision": 0,
+            "parameters": {},
+            "formatVersion": boardstudio_core::migrate::CURRENT_VERSION,
+            "boards": [
+                {"id": "source-board", "name": "Source", "partIds": ["source-key"],
+                 "outlineIds": [], "netIds": [], "thickness": 1.6},
+                {"id": "mirror-board", "name": "Mirror", "partIds": ["mirror-key"],
+                 "outlineIds": [], "netIds": [], "thickness": 1.6}
+            ],
+            "parts": [
+                {"id": "source-key", "definitionId": "sw", "reference": "S1",
+                 "pose": {"at": {"x": 0.0, "y": 0.0}, "rotation": 0.0}, "side": "front"},
+                {"id": "mirror-key", "definitionId": "sw", "reference": "S2",
+                 "pose": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0}, "side": "front"}
+            ],
+            "definitions": [{"id": "sw", "name": "SW", "kind": "switch",
+                "courtyard": [], "pads": []}],
+            "matrices": [], "layouts": [], "nets": [], "outline": [],
+            "boardOutlines": [], "caseBodies": [], "materials": [], "assets": [],
+            "scripts": [], "constraints": [],
+            "hardware": {"topology": "split", "transport": "wired", "instances": [
+                {"id": "s", "name": "Source", "boardId": "source-board",
+                 "half": "left", "role": "central", "flipped": false,
+                 "controllerPartId": null, "mechanical": null},
+                {"id": "m", "name": "Mirror", "boardId": "mirror-board",
+                 "half": "right", "role": "central", "flipped": false,
+                 "controllerPartId": null, "mechanical": null}
+            ], "pairs": [{
+                "id": "pair", "members": ["s", "m"],
+                "constructionSource": "s",
+                "mapping": {"at": {"x": 200.0, "y": 0.0}, "rotation": 0.0},
+                "construction": {
+                    "method": "printed", "mount": "rigid",
+                    "integratedPlateFrame": false, "plateThickness": 1.5,
+                    "plateFoamThickness": 0.0, "bottomFoamThickness": 0.0,
+                    "bottomThickness": 2.0, "plateToPcb": 3.5,
+                    "wallThickness": 0.2, "clearance": 0.2
+                },
+                "halves": {
+                    "sourceBoardId": "source-board", "mirrorBoardId": "mirror-board",
+                    "correspondences": [
+                        {"kind": "matrix", "sourceId": "source-m", "mirrorId": "m"},
+                        {"kind": "part", "sourceId": "source-key", "mirrorId": "mirror-key"}
+                    ],
+                    "exceptions": []
+                }
+            }]}
+        }))
+        .unwrap()
+    }
+
+    fn snapshot(document: ProjectDoc) -> AcceptedSnapshot {
+        AcceptedSnapshot {
+            token: SnapshotToken(1),
+            session_epoch: SessionEpoch(1),
+            document: Arc::new(document),
+            scene: Arc::new(SceneDelta {
+                module_scenes: vec![],
+                revision: 0,
+                transaction_id: "key-omit-test".into(),
+                changed_ids: vec![],
+                transforms: vec![],
+                matrix_scenes: vec![],
+                contours: vec![],
+                board_contours: vec![],
+                board_readiness: vec![],
+                board_outline_scenes: vec![],
+                finding_markers: vec![],
+                findings: vec![],
+                readiness: boardstudio_core::model::Readiness {
+                    layout: false,
+                    outline: false,
+                    pcb: false,
+                    case_ready: false,
+                },
+            }),
+        }
+    }
+
+    fn submit(accepted: &AcceptedSnapshot, mirror_id: &str, omit: bool) -> EditOperation {
+        match key_half_exception_resolver("pair".into(), mirror_id.into(), omit).resolve(accepted) {
+            Resolution::Submit(command) => command.operation,
+            Resolution::Unchanged => panic!("the omit intent must submit"),
+            Resolution::Retire(message) => panic!("the omit intent must not retire: {message}"),
+        }
+    }
+
+    #[test]
+    fn omit_submits_part_omitted_and_rejoin_submits_linked() {
+        let accepted = snapshot(pair_doc());
+        assert_eq!(
+            submit(&accepted, "mirror-key", true),
+            EditOperation::SetHalfException {
+                pair_id: "pair".into(),
+                kind: MirroredItemKind::Part,
+                mirror_id: "mirror-key".into(),
+                state: HalfExceptionState::Omitted,
+            }
+        );
+        // Rejoining a linked key changes nothing.
+        assert!(matches!(
+            key_half_exception_resolver("pair".into(), "mirror-key".into(), false)
+                .resolve(&accepted),
+            Resolution::Unchanged
+        ));
+    }
+
+    #[test]
+    fn rejoin_clears_an_omitted_overlay() {
+        let mut document = pair_doc();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(
+                serde_json::from_value(serde_json::json!(
+                    {"kind": "part", "mirrorId": "mirror-key", "state": "omitted"}
+                ))
+                .unwrap(),
+            );
+        let accepted = snapshot(document);
+        assert_eq!(
+            submit(&accepted, "mirror-key", false),
+            EditOperation::SetHalfException {
+                pair_id: "pair".into(),
+                kind: MirroredItemKind::Part,
+                mirror_id: "mirror-key".into(),
+                state: HalfExceptionState::Linked,
+            }
+        );
+    }
+
+    #[test]
+    fn projection_helper_reports_pair_and_omitted_state() {
+        use super::key_half_exception;
+        let accepted = snapshot(pair_doc());
+        assert_eq!(
+            key_half_exception(&accepted.document, "mirror-key"),
+            Some(super::KeyHalfException {
+                pair_id: "pair".into(),
+                mirror_id: "mirror-key".into(),
+                omitted: false,
+            })
+        );
+        assert_eq!(key_half_exception(&accepted.document, "source-key"), None);
+        assert_eq!(key_half_exception(&accepted.document, "ghost"), None);
+        let mut omitted_doc = pair_doc();
+        omitted_doc.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(
+                serde_json::from_value(serde_json::json!(
+                    {"kind": "part", "mirrorId": "mirror-key", "state": "omitted"}
+                ))
+                .unwrap(),
+            );
+        let omitted = snapshot(omitted_doc);
+        assert!(
+            key_half_exception(&omitted.document, "mirror-key")
+                .is_some_and(|exception| exception.omitted),
+            "the projection surfaces the Omitted overlay"
+        );
+    }
+
+    #[test]
+    fn rejoin_resolves_an_omitted_key_without_a_scene_cell() {
+        // Mirrored matrix members carry derived identities, so the Omitted
+        // overlay names the canonical member the scene no longer shows.
+        let mut document = pair_doc();
+        for part in document
+            .parts
+            .iter_mut()
+            .filter(|part| part.id == "mirror-key")
+        {
+            part.id = "matrix/m/r0c0".into();
+        }
+        for board in document.boards.iter_mut() {
+            for id in board
+                .part_ids
+                .iter_mut()
+                .filter(|id| id.as_str() == "mirror-key")
+            {
+                *id = "matrix/m/r0c0".into();
+            }
+        }
+        for link in document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .correspondences
+            .iter_mut()
+            .filter(|link| link.mirror_id == "mirror-key")
+        {
+            link.mirror_id = "matrix/m/r0c0".into();
+        }
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(
+                serde_json::from_value(serde_json::json!(
+                    {"kind": "part", "mirrorId": "matrix/m/r0c0", "state": "omitted"}
+                ))
+                .unwrap(),
+            );
+        let accepted = snapshot(document);
+        // No scene cells exist, yet the Omitted overlay resolves the member.
+        let operation =
+            match key_half_exception_at_resolver("m".into(), 0, 0, false).resolve(&accepted) {
+                Resolution::Submit(command) => command.operation,
+                Resolution::Unchanged => panic!("rejoin must submit"),
+                Resolution::Retire(message) => panic!("rejoin must not retire: {message}"),
+            };
+        assert_eq!(
+            operation,
+            EditOperation::SetHalfException {
+                pair_id: "pair".into(),
+                kind: MirroredItemKind::Part,
+                mirror_id: "matrix/m/r0c0".into(),
+                state: HalfExceptionState::Linked,
+            }
+        );
+    }
+
+    #[test]
+    fn same_state_is_unchanged_and_unknown_members_retire() {
+        let mut document = pair_doc();
+        document.hardware.as_mut().unwrap().pairs[0]
+            .halves
+            .as_mut()
+            .unwrap()
+            .exceptions
+            .push(
+                serde_json::from_value(serde_json::json!(
+                    {"kind": "part", "mirrorId": "mirror-key", "state": "omitted"}
+                ))
+                .unwrap(),
+            );
+        let accepted = snapshot(document);
+        assert!(matches!(
+            key_half_exception_resolver("pair".into(), "mirror-key".into(), true)
+                .resolve(&accepted),
+            Resolution::Unchanged
+        ));
+        assert!(matches!(
+            key_half_exception_resolver("pair".into(), "ghost".into(), true).resolve(&accepted),
+            Resolution::Retire(_)
+        ));
+        assert!(matches!(
+            key_half_exception_resolver("ghost".into(), "mirror-key".into(), true)
+                .resolve(&accepted),
+            Resolution::Retire(_)
+        ));
     }
 }

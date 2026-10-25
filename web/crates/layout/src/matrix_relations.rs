@@ -1492,7 +1492,7 @@ impl View<'_> {
                     insert_at,
                     item(
                         "Omitted key",
-                        "live logical pose only; inherited parts stay suppressed".into(),
+                        "live logical pose only; inherited parts stay suppressed. Clear the omission in the Key inspector to rejoin.".into(),
                         None,
                         Vec::new(),
                     ),

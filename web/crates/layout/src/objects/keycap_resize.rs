@@ -1,5 +1,7 @@
 //! Private accepted-document planner for the Layout key-size interaction.
-use boardstudio_core::model::{Layout, Matrix, MatrixCell, MatrixScene, ProjectDoc, Vec2};
+use boardstudio_core::model::{
+    KeycapCellOffset, Layout, Matrix, MatrixCell, MatrixScene, Position, ProjectDoc, Vec2,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,6 +25,12 @@ pub struct KeycapPlacement {
 pub struct KeycapResizePlan {
     pub document: ProjectDoc,
     pub target_ids: Vec<String>,
+    /// Ticket 33: the same resize expressed as a typed Core edit payload.
+    pub sizes: BTreeMap<String, Vec2>,
+    /// Absolute poses after the reflow, in sorted part-id order.
+    pub moves: Vec<Position>,
+    /// Cell offsets that changed, in matrix/row/column order.
+    pub offsets: Vec<KeycapCellOffset>,
 }
 
 /// Returns overlapping oriented keycap-envelope pairs in input order.
@@ -353,9 +361,48 @@ pub fn plan_resize(input: KeycapResizeInput<'_>) -> Option<KeycapResizePlan> {
     targets.extend(updated_sizes.keys().cloned());
     targets.extend(deltas.keys().cloned());
     targets.extend(updated_matrices.keys().cloned());
+    // Ticket 33: expose the same resize as explicit typed-edit payloads so the
+    // controller submits SetKeycapSize instead of a document replacement.
+    let mut moves = Vec::new();
+    for (id, delta) in &deltas {
+        let Some(part) = document.parts.iter().find(|part| &part.id == id) else {
+            continue;
+        };
+        moves.push(Position {
+            id: id.clone(),
+            at: Vec2 {
+                x: part.pose.at.x + delta.x,
+                y: part.pose.at.y + delta.y,
+            },
+        });
+    }
+    let mut offsets = Vec::new();
+    for (matrix_id, updated) in &updated_matrices {
+        let original = matrix_by_id.get(matrix_id.as_str()).copied();
+        for cell in &updated.cells {
+            let before = original.and_then(|matrix| {
+                matrix
+                    .cells
+                    .iter()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                    .and_then(|candidate| candidate.offset)
+            });
+            if cell.offset != before {
+                offsets.push(KeycapCellOffset {
+                    matrix_id: (*matrix_id).clone(),
+                    row: cell.row,
+                    column: cell.column,
+                    offset: cell.offset,
+                });
+            }
+        }
+    }
     Some(KeycapResizePlan {
         document: next_document,
         target_ids: targets.into_iter().collect(),
+        sizes: updated_sizes,
+        moves,
+        offsets,
     })
 }
 
@@ -847,6 +894,74 @@ mod tests {
         assert_eq!(plan.target_ids, vec!["a", "b", "c", "m"]);
     }
 
+    /// Ticket 33: the planner exposes the same resize as typed-edit payloads,
+    /// so the controller submits SetKeycapSize instead of ReplaceDocument.
+    #[test]
+    fn resize_plan_exposes_typed_keycap_size_sizes_moves_and_offsets() {
+        let matrix = matrix();
+        let document = document(&matrix);
+        let matrix_scene = scene();
+        let placements = placements();
+        let selected_ids = BTreeSet::from(["b".into()]);
+        let plan = plan_resize(KeycapResizeInput {
+            document: &document,
+            matrices: &[matrix],
+            scenes: &[matrix_scene],
+            layouts: &[],
+            placements: &placements,
+            selected_ids: &selected_ids,
+            units: point(2.0, 1.0),
+            axis: None,
+        })
+        .expect("supported accepted selection should make one plan");
+
+        assert_eq!(
+            plan.sizes,
+            BTreeMap::from([("b".to_owned(), point(37.0, 18.0))])
+        );
+        // Absolute poses match the planned document exactly, in sorted id order.
+        let expected_moves: Vec<(String, Vec2)> = plan
+            .document
+            .parts
+            .iter()
+            .filter(|part| {
+                document
+                    .parts
+                    .iter()
+                    .find(|before| before.id == part.id)
+                    .is_some_and(|before| before.pose.at != part.pose.at)
+            })
+            .map(|part| (part.id.clone(), part.pose.at))
+            .collect();
+        assert_eq!(
+            plan.moves
+                .iter()
+                .map(|position| (position.id.clone(), position.at))
+                .collect::<Vec<_>>(),
+            expected_moves
+        );
+        // Every changed cell offset matches the planned matrix exactly.
+        let planned: Vec<_> = plan
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "m")
+            .unwrap()
+            .cells
+            .iter()
+            .filter(|cell| cell.offset.is_some())
+            .map(|cell| (cell.row, cell.column, cell.offset.unwrap()))
+            .collect();
+        assert_eq!(
+            plan.offsets
+                .iter()
+                .map(|offset| (offset.row, offset.column, offset.offset.unwrap()))
+                .collect::<Vec<_>>(),
+            planned
+        );
+        assert!(plan.offsets.iter().all(|offset| offset.matrix_id == "m"));
+    }
+
     #[test]
     fn axis_resize_preserves_other_axis_for_each_mixed_selected_key() {
         let matrix = matrix();
@@ -1230,9 +1345,12 @@ mod tests {
                     base_revision: accepted.revision,
                     transaction_id: "resize".into(),
                     phase: EditPhase::Commit,
-                    target_ids: plan.target_ids,
-                    operation: EditOperation::ReplaceDocument {
-                        document: Box::new(plan.document),
+                    // Ticket 33: the planner output commits as the typed edit.
+                    target_ids: plan.target_ids.clone(),
+                    operation: EditOperation::SetKeycapSize {
+                        sizes: plan.sizes.clone(),
+                        moves: plan.moves.clone(),
+                        offsets: plan.offsets.clone(),
                     },
                 },
             }));
@@ -1433,11 +1551,14 @@ mod tests {
         .expect("linked source selection should make a plan");
         let command = EditCommand {
             base_revision: accepted.revision,
-            transaction_id: "keycaps-replace-document-mirror".into(),
+            transaction_id: "keycaps-typed-mirror".into(),
             phase: EditPhase::Commit,
             target_ids: plan.target_ids.clone(),
-            operation: EditOperation::ReplaceDocument {
-                document: Box::new(plan.document.clone()),
+            // Ticket 33: the linked planner output commits as the typed edit.
+            operation: EditOperation::SetKeycapSize {
+                sizes: plan.sizes.clone(),
+                moves: plan.moves.clone(),
+                offsets: plan.offsets.clone(),
             },
         };
         let committed = engine.handle(CoreRequest::Edit {
@@ -1448,7 +1569,7 @@ mod tests {
             CoreReply::Scene {
                 document, scene, ..
             } => (*document, scene),
-            other => panic!("ReplaceDocument resize was rejected: {other:?}"),
+            other => panic!("typed keycap-size resize was rejected: {other:?}"),
         };
         assert_eq!(saved.revision, accepted.revision + 1);
         let partner_layout = saved

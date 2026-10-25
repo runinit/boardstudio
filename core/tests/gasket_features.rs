@@ -292,24 +292,25 @@ fn adoption_reachability_case(id: &str) -> (Value, Value, PreparedCaseIR) {
         serde_json::to_value(serde_json::from_value::<ProjectDoc>(internal_document()).unwrap())
             .unwrap();
     original["formatVersion"] = json!(boardstudio_core::migrate::CURRENT_VERSION);
+    // Ticket 37: raw SetMechanical is deleted. The case mechanical is setup, not
+    // behavior: open the document with it in place instead of writing it by edit.
+    let mut authored = original.clone();
+    authored["mechanical"] = case["request"]["document"]["mechanical"].clone();
     let mut engine = CoreEngine::new();
     let call = |engine: &mut CoreEngine, input: Value| {
         serde_json::from_str::<Value>(&engine.request(&input.to_string())).unwrap()
     };
     let opened = call(
         &mut engine,
-        json!({"kind":"open","id":"open","document":original}),
+        json!({"kind":"open","id":"open","document":authored}),
     );
     assert_eq!(opened["kind"], "scene", "{opened}");
-    let edited = call(
-        &mut engine,
-        json!({"kind":"edit","id":"adopt","command":{
-            "baseRevision":0,"transactionId":id,"phase":"commit","targetIds":[],
-            "operation":{"kind":"set-mechanical","configuration":case["request"]["document"]["mechanical"]}
-        }}),
-    );
+    let edited = opened;
     assert_eq!(edited["kind"], "scene", "{edited}");
-    assert_eq!(edited["document"], case["request"]["document"]);
+    assert_eq!(
+        edited["document"]["mechanical"], case["request"]["document"]["mechanical"],
+        "the authored mechanical is established"
+    );
     let resolved = call(&mut engine, case["request"].clone());
     assert_eq!(resolved["kind"], "mechanical-resolved", "{resolved}");
     let assembly = &resolved["assembly"];

@@ -576,6 +576,7 @@ impl CoreEngine {
             && matches!(
                 &command.operation,
                 EditOperation::MoveParts { .. }
+                    | EditOperation::SetKeycapSize { .. }
                     | EditOperation::SetMatrix { .. }
                     | EditOperation::SetMatrixSplay { .. }
                     | EditOperation::SetMatrixPlacement { .. }
@@ -615,24 +616,18 @@ impl CoreEngine {
         let changed;
         if prepared_route {
             let accepted_contours;
-            let board_contours: &[BoardContours] = if matches!(
-                command.operation,
-                EditOperation::ApplyMechanicalEdit { .. }
-                    | EditOperation::SetMechanical {
-                        target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                        ..
+            let board_contours: &[BoardContours] =
+                if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                    if let Some(board_contours) = &prepared_mechanical_contours {
+                        board_contours
+                    } else {
+                        accepted_contours =
+                            geometry::board_contours(&self.document, &self.outline_cache).0;
+                        &accepted_contours
                     }
-            ) {
-                if let Some(board_contours) = &prepared_mechanical_contours {
-                    board_contours
                 } else {
-                    accepted_contours =
-                        geometry::board_contours(&self.document, &self.outline_cache).0;
-                    &accepted_contours
-                }
-            } else {
-                &[]
-            };
+                    &[]
+                };
             match mirrored_half::prepare_transaction_with_ledger(
                 &self.document,
                 board_contours,
@@ -838,19 +833,13 @@ impl CoreEngine {
 
     fn preview_prepared_edit(&self, id: String, command: EditCommand) -> CoreReply {
         let accepted_contours;
-        let board_contours: &[BoardContours] = if matches!(
-            command.operation,
-            EditOperation::ApplyMechanicalEdit { .. }
-                | EditOperation::SetMechanical {
-                    target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                    ..
-                }
-        ) {
-            accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
-            &accepted_contours
-        } else {
-            &[]
-        };
+        let board_contours: &[BoardContours] =
+            if matches!(command.operation, EditOperation::ApplyMechanicalEdit { .. }) {
+                accepted_contours = geometry::board_contours(&self.document, &self.outline_cache).0;
+                &accepted_contours
+            } else {
+                &[]
+            };
         let (draft, changed) = match mirrored_half::prepare_transaction_with_ledger(
             &self.document,
             board_contours,
@@ -1501,10 +1490,6 @@ fn uses_prepared_transaction(document: &ProjectDoc, operation: &EditOperation) -
             | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::SetHalfException { .. }
             | EditOperation::UnlinkHalves { .. }
-            | EditOperation::SetMechanical {
-                target: Some(mechanical::MechanicalTarget::Instance { .. }),
-                ..
-            }
     ) {
         return true;
     }
@@ -1530,10 +1515,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             host_connector_definition: Some(_),
             ..
         } | EditOperation::MoveParts { .. }
-            | EditOperation::SetOutline { .. }
-            | EditOperation::CopyOutline { .. }
-            | EditOperation::SelectOutline { .. }
-            | EditOperation::RemoveOutline { .. }
+            | EditOperation::SetKeycapSize { .. }
             | EditOperation::AddPart { .. }
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::RemoveParts { .. }
@@ -1789,6 +1771,96 @@ fn apply_with_ledger(
         | EditOperation::SetKeycapBoard { .. }
         | EditOperation::SetMatrixKeycaps { .. }
         | EditOperation::SetKeycapKey { .. } => keycaps::apply_edit(doc, op),
+        EditOperation::SetKeycapSize {
+            sizes,
+            moves,
+            offsets,
+        } => {
+            // Validate every entry before writing anything: one atomic typed
+            // entry or nothing.
+            for (id, size) in sizes {
+                doc.parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .ok_or_else(|| format!("Unknown key {id}"))?;
+                if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+                    return Err(format!("Keycap size for {id} must be positive and finite"));
+                }
+            }
+            for position in moves {
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == position.id)
+                    .ok_or_else(|| format!("Unknown key {}", position.id))?;
+                if !position.at.x.is_finite() || !position.at.y.is_finite() {
+                    return Err(format!("Keycap pose for {} must be finite", position.id));
+                }
+            }
+            for cell in offsets {
+                doc.matrices
+                    .iter()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .ok_or_else(|| format!("Unknown matrix {}", cell.matrix_id))?;
+                if let Some(offset) = &cell.offset
+                    && (!offset.x.is_finite() || !offset.y.is_finite())
+                {
+                    return Err(format!(
+                        "Keycap cell offset for {} is not finite",
+                        cell.matrix_id
+                    ));
+                }
+            }
+            let mut changed = BTreeSet::new();
+            for (id, size) in sizes {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| &part.id == id)
+                    .expect("validated");
+                part.keycap = Some(*size);
+                changed.insert(id.clone());
+            }
+            for position in moves {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.id == position.id)
+                    .expect("validated");
+                part.pose.at = position.at;
+                changed.insert(position.id.clone());
+            }
+            for cell in offsets {
+                let matrix = doc
+                    .matrices
+                    .iter_mut()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .expect("validated");
+                if let Some(existing) = matrix
+                    .cells
+                    .iter_mut()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                {
+                    existing.offset = cell.offset;
+                } else {
+                    matrix.cells.push(MatrixCell {
+                        shift: None,
+                        bend: None,
+                        deleted: false,
+                        row: cell.row,
+                        column: cell.column,
+                        enabled: true,
+                        definition_id: None,
+                        variant: None,
+                        offset: cell.offset,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    });
+                }
+                changed.insert(cell.matrix_id.clone());
+            }
+            Ok(changed.into_iter().collect())
+        }
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = layout::move_keys(doc, positions)?;
             for position in positions {
@@ -1839,26 +1911,6 @@ fn apply_with_ledger(
             }
             Ok(changed)
         }
-        EditOperation::SetOutline { feature } => {
-            let id = feature.id().to_string();
-            let current = doc
-                .board_outlines
-                .iter_mut()
-                .flat_map(|state| &mut state.versions)
-                .flat_map(|version| &mut version.geometry.features)
-                .find(|item| item.id() == id)
-                .or_else(|| doc.outline.iter_mut().find(|item| item.id() == id));
-            if let Some(current) = current {
-                *current = feature.clone();
-            } else {
-                doc.outline.push(feature.clone());
-            }
-            Ok(vec![id])
-        }
-        operation @ (EditOperation::CopyOutline { .. }
-        | EditOperation::SelectOutline { .. }
-        | EditOperation::RenameOutline { .. }
-        | EditOperation::RemoveOutline { .. }) => outline_versions::apply(doc, operation),
         EditOperation::AddPart { .. } | EditOperation::AddMirrorOnlyPart { .. } => match op {
             EditOperation::AddPart {
                 part,
@@ -1989,54 +2041,6 @@ fn apply_with_ledger(
                 changed.extend(layout::sync(doc, &matrix_id)?);
             }
             Ok(changed)
-        }
-        EditOperation::SetNet { net } => {
-            if let Some(current) = doc.nets.iter_mut().find(|item| item.id == net.id) {
-                *current = net.clone();
-            } else {
-                doc.nets.push(net.clone());
-            }
-            if let Some(board) = doc.boards.first_mut()
-                && !board.net_ids.contains(&net.id)
-            {
-                board.net_ids.push(net.id.clone());
-            }
-            Ok(vec![net.id.clone()])
-        }
-        EditOperation::SetMechanical {
-            configuration,
-            target,
-        } => {
-            let configuration = configuration.as_deref().cloned();
-            match target {
-                None => doc.mechanical = configuration,
-                Some(mechanical::MechanicalTarget::Board { board_id }) => {
-                    if !doc.boards.iter().any(|board| board.id == *board_id) {
-                        return Err(format!("Board {board_id:?} is unavailable"));
-                    }
-                    if configuration
-                        .as_ref()
-                        .is_some_and(|configuration| configuration.board_id != *board_id)
-                    {
-                        return Err("The mechanical configuration belongs to another board.".into());
-                    }
-                    if configuration.is_some()
-                        || doc
-                            .mechanical
-                            .as_ref()
-                            .is_some_and(|current| current.board_id == *board_id)
-                    {
-                        doc.mechanical = configuration;
-                    }
-                }
-                Some(mechanical::MechanicalTarget::Instance { .. }) => {
-                    return Err(
-                        "A targeted instance SetMechanical operation must run through transaction preparation."
-                            .into(),
-                    );
-                }
-            }
-            Ok(vec![])
         }
         EditOperation::SetCase { body } => {
             if let Some(current) = doc.case_bodies.iter_mut().find(|item| item.id == body.id) {
@@ -2941,15 +2945,11 @@ mod mechanical_edit_engine_tests {
         document.mechanical = Some(configuration("board"));
         let before = document.clone();
 
+        // Ticket 37: raw SetMechanical is deleted; Disable is the live typed clear.
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: Some(MechanicalTarget::Board {
-                    board_id: "other".into(),
-                }),
-            },
+            &edit_op("other", MechanicalChange::Disable, false),
         )
         .expect("clearing another board is an unchanged explicit target");
         assert_eq!(
@@ -2960,12 +2960,7 @@ mod mechanical_edit_engine_tests {
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
+            &edit_op("board", MechanicalChange::Disable, false),
         )
         .expect("clearing the slot's own board removes its configuration");
         assert!(document.mechanical.is_none());
@@ -2977,19 +2972,24 @@ mod mechanical_edit_engine_tests {
         document.boards.push(board());
         let before = document.clone();
 
+        // Ticket 37: raw SetMechanical is deleted; an instance-targeted typed
+        // edit through raw apply must not activate instance configuration.
         let refusal = apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(configuration("board"))),
-                target: Some(MechanicalTarget::Instance {
-                    instance_id: "physical-half".into(),
+            &EditOperation::ApplyMechanicalEdit {
+                edit: Box::new(MechanicalEdit {
+                    target: MechanicalTarget::Instance {
+                        instance_id: "physical-half".into(),
+                    },
+                    change: MechanicalChange::Disable,
+                    mounting_hole: None,
                 }),
             },
         )
-        .expect_err("the private preparation connection must not activate raw apply");
+        .expect_err("a missing instance stays refused through raw apply");
 
-        assert!(refusal.contains("must run through transaction preparation"));
+        assert!(refusal.contains("Physical instances are unavailable"));
         assert_eq!(document, before);
     }
 
@@ -2997,35 +2997,32 @@ mod mechanical_edit_engine_tests {
     fn explicit_board_set_mechanical_keeps_board_slot_semantics() {
         let mut document = ProjectDoc::empty("doc", "Fixture");
         document.boards.push(board());
-        document.mechanical = Some(configuration("board"));
-        let mut replacement = configuration("board");
-        replacement.wall_thickness = 3.0;
-
+        let mut other = board();
+        other.id = "other".into();
+        document.boards.push(other);
+        // Ticket 37: raw SetMechanical is deleted; Enable/Disable are the live
+        // typed board-slot writes.
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(replacement.clone())),
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
+            &edit_op("board", MechanicalChange::Enable, false),
         )
         .expect("an explicit Board target uses the existing board slot");
-        assert_eq!(document.mechanical, Some(replacement));
+        assert_eq!(
+            document
+                .mechanical
+                .as_ref()
+                .map(|item| item.board_id.as_str()),
+            Some("board")
+        );
 
         let before = document.clone();
-        let mismatch = apply(
+        apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: Some(Box::new(configuration("other"))),
-                target: Some(MechanicalTarget::Board {
-                    board_id: "board".into(),
-                }),
-            },
-        );
-        assert!(mismatch.is_err());
+            &edit_op("other", MechanicalChange::Disable, false),
+        )
+        .expect("disabling another board leaves this slot alone");
         assert_eq!(
             document, before,
             "a target mismatch leaves the document alone"
@@ -3034,12 +3031,9 @@ mod mechanical_edit_engine_tests {
         apply(
             &mut document,
             &[],
-            &EditOperation::SetMechanical {
-                configuration: None,
-                target: None,
-            },
+            &edit_op("board", MechanicalChange::Disable, false),
         )
-        .expect("an omitted target retains legacy board-slot clearing");
+        .expect("disabling the slot's own board clears its configuration");
         assert!(document.mechanical.is_none());
     }
 

@@ -148,10 +148,6 @@ const HALF_CREATION_DELEGATED: &str =
     "CreateMirroredHalf derives both halves through the Core mirror lifecycle";
 const REPLACE_DOCUMENT_DELEGATED: &str =
     "ticket 116 owns source-authoritative Open and ReplaceDocument repair";
-const SET_MECHANICAL_BOARD_SLOT: &str =
-    "an omitted target preserves the legacy singleton board-slot behavior";
-const SET_MECHANICAL_TARGETED: &str =
-    "the explicit target selects the mechanical replacement lifecycle without inverse mapping";
 
 /// Rewrites `operation` so that every linked mirror target names its authored source value.
 pub(super) fn canonicalize(
@@ -392,13 +388,17 @@ pub(super) fn canonicalize(
         Op::ReplaceDocument { .. } => {
             canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
         }
+        // Ticket 33: the key-size planner pre-computes both halves of a linked
+        // pair, so the typed resize travels exactly as written.
+        Op::SetKeycapSize { .. } => {
+            canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
+        }
         // Ticket 112: hosted, electrical, keycap and shared-definition families.
         Op::SetModuleDefinition { .. }
         | Op::SetMountedModule { .. }
         | Op::RemoveMountedModule { .. }
         | Op::EmbedModuleCircuit { .. }
         | Op::RemoveEmbeddedCircuit { .. }
-        | Op::SetNet { .. }
         | Op::SetInputScanMode { .. }
         | Op::SetWiringMode { .. }
         | Op::SetKeycapBoard { .. }
@@ -406,13 +406,9 @@ pub(super) fn canonicalize(
         | Op::SetKeycapKey { .. } => {
             hosted::translate(&links, operation, &mut canonical)?;
         }
-        // Ticket 113: outline and reviewed geometry.
-        Op::SetOutline { .. }
-        | Op::CopyOutline { .. }
-        | Op::SelectOutline { .. }
-        | Op::RenameOutline { .. }
-        | Op::RemoveOutline { .. }
-        | Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
+        // Ticket 113: outline and reviewed geometry. Ticket 37 deleted the raw
+        // outline family; ApplyOutlineEdit is the live translated outline edit.
+        Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
         // Ticket 114: native SetLayout compatibility and raw mechanical configuration.
         Op::SetLayout { layout } => match layout::translate(&links, layout)? {
             layout::Outcome::Translated(source) => {
@@ -423,13 +419,6 @@ pub(super) fn canonicalize(
                 canonical.coverage = Coverage::DeliberatelyUnchanged(reason);
             }
         },
-        Op::SetMechanical { target, .. } => {
-            canonical.coverage = if target.is_some() {
-                Coverage::Delegated(SET_MECHANICAL_TARGETED)
-            } else {
-                Coverage::DeliberatelyUnchanged(SET_MECHANICAL_BOARD_SLOT)
-            };
-        }
         Op::SetHalfException { .. }
         | Op::SetCompanionPlacement { .. }
         | Op::UnlinkHalves { .. } => {

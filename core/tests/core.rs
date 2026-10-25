@@ -127,18 +127,49 @@ fn preview_does_not_commit_and_stale_edit_fails() {
 #[test]
 fn undo_redo_increments_revision() {
     let mut engine = CoreEngine::new();
-    let feature = rect("outer", 0.0, 0.0, 20.0, 20.0, Operation::Add);
-    scene(engine.handle(edit(
-        0,
-        EditPhase::Commit,
-        EditOperation::SetOutline { feature },
-    )));
+    // Ticket 37: raw SetOutline is deleted; the typed case write is the live
+    // op for this undo/redo accounting.
+    let mut doc = ProjectDoc::empty("p", "Project");
+    doc.boards.push(Board {
+        id: "board".into(),
+        name: "Board".into(),
+        outline_ids: vec![],
+        part_ids: vec![],
+        net_ids: vec![],
+        thickness: 1.6,
+        traces: vec![],
+        vias: vec![],
+    });
+    scene(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: doc,
+    }));
+    let add = || EditOperation::SetCase {
+        body: CaseBody {
+            features: None,
+            openings: None,
+            id: "case".into(),
+            name: "Case".into(),
+            board_id: "board".into(),
+            kind: CaseKind::Plate,
+            thickness: 2.0,
+            clearance: 0.0,
+            material_id: None,
+            z: None,
+            wall_height: None,
+            wall_thickness: None,
+            mounts: None,
+            pcb_source: None,
+            gasket: None,
+        },
+    };
+    scene(engine.handle(edit(0, EditPhase::Commit, add())));
     let (undo, doc) = scene(engine.handle(CoreRequest::Undo { id: "undo".into() }));
     assert_eq!(undo.revision, 2);
-    assert!(doc.outline.is_empty());
+    assert!(doc.case_bodies.is_empty());
     let (redo, doc) = scene(engine.handle(CoreRequest::Redo { id: "redo".into() }));
     assert_eq!(redo.revision, 3);
-    assert_eq!(doc.outline.len(), 1);
+    assert_eq!(doc.case_bodies.len(), 1);
 }
 
 #[test]

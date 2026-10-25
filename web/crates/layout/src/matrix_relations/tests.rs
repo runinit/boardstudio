@@ -182,7 +182,7 @@ fn an_omitted_key_keeps_a_logical_pose_without_resurrecting_parts() {
         .expect("logical inspection still projects an Omitted key");
     assert_eq!(
         value(&key.structure, "Omitted key"),
-        "live logical pose only; inherited parts stay suppressed"
+        "live logical pose only; inherited parts stay suppressed. Clear the omission in the Key inspector to rejoin."
     );
     let suppressed = "matrix/right-matrix/r0c0";
     let names_suppressed = |ids: &[String]| ids.iter().any(|id| id == suppressed);

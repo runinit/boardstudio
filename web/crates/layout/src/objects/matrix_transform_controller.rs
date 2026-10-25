@@ -6,7 +6,8 @@ use super::matrix_transform_inspector::{
 use super::{ScopedTreeContext, TreeContext};
 use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, build_operation,
-    catalogue_retry_due, column_angle, component_edit_admitted_by_catalogue,
+    catalogue_retry_due, column_angle, component_edit_admitted_by_catalogue, key_half_exception,
+    key_half_exception_at_resolver, key_half_exception_omitted,
 };
 use crate::runtime::Runtime;
 use boardstudio_application::{
@@ -393,6 +394,7 @@ pub(super) fn transform_field_label(field: MatrixTransformField) -> &'static str
         MatrixTransformField::KeyRotation => "Key rotation",
         MatrixTransformField::KeyTransformReset => "Reset local transform",
         MatrixTransformField::KeyEnabled => "Enabled",
+        MatrixTransformField::KeyOmit => "Omitted from mirror",
         MatrixTransformField::KeyAssembly => "Key assembly",
         MatrixTransformField::KeyAttached => "Attached components",
         MatrixTransformField::KeyAssembliesLocal => "Use mirrored components",
@@ -1111,6 +1113,18 @@ pub fn use_workspace_matrix_transform(
                     selected_cells,
                     *enabled,
                 )
+            } else if let (MatrixTransformField::KeyOmit, MatrixTransformValue::Bool(omit)) =
+                (request.field, &request.value)
+                && let TreeContext::Key { row, column, .. } = &request.owner.context
+            {
+                // Ticket 34: the member and pair re-resolve at execution time, so
+                // a queued omit never lands on a reindexed key.
+                key_half_exception_at_resolver(
+                    request.owner.matrix_id.clone(),
+                    *row,
+                    *column,
+                    *omit,
+                )
             } else {
                 transform_edit_resolver(
                     request.owner.matrix_id.clone(),
@@ -1372,18 +1386,33 @@ fn transform_fields(
             }
         }
         TreeContext::Key { row, column, .. } => {
-            snapshot
+            let scene = snapshot
                 .scene
                 .matrix_scenes
                 .iter()
-                .find(|scene| scene.matrix_id == matrix.id)?
+                .find(|scene| scene.matrix_id == matrix.id)?;
+            let scene_cell = scene
                 .cells
                 .iter()
-                .find(|cell| cell.row == *row && cell.column == *column)?;
+                .find(|cell| cell.row == *row && cell.column == *column);
+            // Ticket 34: an omitted key left the scene cell behind; its
+            // Omitted overlay still names the canonical member for the Key
+            // context, so the rejoin affordance keeps working.
+            let member_id = scene_cell
+                .and_then(|cell| cell.member_id.clone())
+                .or_else(|| {
+                    key_half_exception_omitted(&snapshot.document, &matrix.id, *row, *column)
+                        .map(|exception| exception.mirror_id)
+                });
             let cell = matrix
                 .cells
                 .iter()
                 .find(|cell| cell.row == *row && cell.column == *column);
+            // Ticket 34: per-key Omit/Rejoin is owned by the Key context. The
+            // member resolves here; the pair and overlay re-resolve at execution.
+            let half_exception = member_id
+                .as_deref()
+                .and_then(|member| key_half_exception(&snapshot.document, member));
             MatrixTransformFields::Key {
                 row: *row,
                 column: *column,
@@ -1414,6 +1443,7 @@ fn transform_fields(
                     .and_then(|cell| cell.shift)
                     .unwrap_or(Vec2 { x: 0.0, y: 0.0 }),
                 bend: cell.and_then(|cell| cell.bend).unwrap_or(0.0),
+                half_exception,
             }
         }
         _ => return None,
@@ -1603,6 +1633,9 @@ fn field_value(
         (MatrixTransformFields::Key { enabled, .. }, Field::KeyEnabled) => {
             Some(Value::Bool(*enabled))
         }
+        (MatrixTransformFields::Key { half_exception, .. }, Field::KeyOmit) => half_exception
+            .as_ref()
+            .map(|exception| Value::Bool(exception.omitted)),
         (MatrixTransformFields::Key { assemblies, .. }, Field::KeyAttached) => {
             Some(Value::Attached(assemblies.clone()))
         }

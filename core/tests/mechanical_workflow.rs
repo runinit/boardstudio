@@ -31,10 +31,12 @@ fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
     );
     let changed = request(
         &mut engine,
-        json!({"kind":"edit","id":"edit","command":{"baseRevision":0,"transactionId":"configure","phase":"commit","targetIds":[],"operation":{"kind":"set-mechanical","configuration":configuration()}}}),
+        // Ticket 37: raw SetMechanical is deleted; Enable is the live typed establish.
+        json!({"kind":"edit","id":"edit","command":{"baseRevision":0,"transactionId":"configure","phase":"commit","targetIds":[],"operation":{"kind":"apply-mechanical-edit","edit":{"target":{"kind":"board","boardId":"board"},"change":"enable"}}}}),
     );
     assert_eq!(changed["kind"], "scene");
-    assert_eq!(changed["document"]["mechanical"], configuration());
+    let established = changed["document"]["mechanical"].clone();
+    assert!(established.is_object(), "{established}");
     let saved = changed["document"].clone();
     let resolved = request(
         &mut engine,
@@ -46,12 +48,12 @@ fn configuration_is_undoable_persistent_and_resolution_is_stateless() {
     let undone = request(&mut engine, json!({"kind":"undo","id":"undo"}));
     assert!(undone["document"].get("mechanical").is_none());
     let redone = request(&mut engine, json!({"kind":"redo","id":"redo"}));
-    assert_eq!(redone["document"]["mechanical"], configuration());
+    assert_eq!(redone["document"]["mechanical"], established);
     let reopened = request(
         &mut CoreEngine::new(),
         json!({"kind":"open","id":"reopen","document":saved}),
     );
-    assert_eq!(reopened["document"]["mechanical"], configuration());
+    assert_eq!(reopened["document"]["mechanical"], established);
 }
 
 #[test]

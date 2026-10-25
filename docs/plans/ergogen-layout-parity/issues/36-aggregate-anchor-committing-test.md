@@ -1,6 +1,6 @@
 # 36: Committing test for aggregate anchors
 
-Status: ready-for-agent
+Status: claimed
 Type: build
 Blocked by: None (all dependencies resolved; aggregate evaluation and the Inspector aggregate surface already exist)
 Parent: [map.md](../map.md)
@@ -33,3 +33,18 @@ restores the prior method with poses unchanged.
 
 Mounted browser tests for the committing aggregate coverage; affected
 quick/browser checks.
+
+## Progress
+
+- New tests (no baseline edits):
+  - `aggregate_method_switch_commits_with_redo_and_pose_round_trip`
+  - `aggregate_part_remove_updates_dependant_pose_with_undo_round_trip`
+- Proving tests: 8/8 `aggregate_*` layout browser tests pass, including the 2
+  new tests plus the existing navigate-only, method-switch, part-remove,
+  multi-pick commit and self-part refusal tests.
+- Counts: targeted 2/2 new tests pass; aggregate suite 8/8 pass.
+- Quick: `cargo fmt --all --check` clean for the changed test file; workspace
+  `repo` (pre-existing broken `../deferred-items-plan.md` links in 28-32) and
+  unrelated `mirror_existing_half`/`mirrored_pair_geometry`/`existing_half`
+  rustfmt drift fail on base too, so full `check.py quick` cannot go green
+  from this ticket alone.
