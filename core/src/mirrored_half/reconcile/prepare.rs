@@ -686,6 +686,15 @@ pub(crate) fn prepare_transaction_with_ledger(
         operation_positions(&canonical.operation),
     )?);
     changed.extend(reconcile_pairs(accepted, &mut draft, &canonical)?);
+    // Ticket 29: a plain detach that moved its linked native partner
+    // refuses with the ticket-23 confirmation proposal instead of silently
+    // jumping geometry; the draft is discarded unchanged.
+    if let EditOperation::DetachMatrixAnchor { matrix_id } = &canonical.operation
+        && let Some(proposal) =
+            super::lifecycle::native_detach_proposal(accepted, &draft, matrix_id)
+    {
+        return Err(proposal);
+    }
     changed.extend(add_target_layout_memberships(
         &mut draft,
         &canonical.additions,
@@ -1104,6 +1113,25 @@ fn apply_canonical(
         EditOperation::SetHalfException { .. } | EditOperation::UnlinkHalves { .. }
     ) {
         return Ok(Vec::new());
+    }
+    // The confirmed native detach runs entirely in the lifecycle arm below;
+    // anything else (same-board links, unpaired matrices) keeps the shared
+    // apply path so its behavior is unchanged.
+    if let EditOperation::DetachMatrixAnchorConfirmed { matrix_id, .. } = &canonical.operation {
+        use crate::model::MirroredItemKind;
+        let paired = draft
+            .hardware
+            .as_ref()
+            .into_iter()
+            .flat_map(|hardware| &hardware.pairs)
+            .filter_map(|pair| pair.halves.as_ref())
+            .flat_map(|halves| &halves.correspondences)
+            .any(|record| {
+                record.kind == MirroredItemKind::Matrix && record.source_id == *matrix_id
+            });
+        if paired {
+            return Ok(Vec::new());
+        }
     }
     if let EditOperation::SetCompanionPlacement {
         pair_id,

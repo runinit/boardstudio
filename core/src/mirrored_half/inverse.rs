@@ -330,9 +330,26 @@ pub(super) fn canonicalize(
             matrix_id,
             local_matrix_id,
         } => {
+            // The detach executes on the source, but the Local exception
+            // belongs on the mirror half: a currently linked mirror keeps
+            // its authored identity so the kernel records the exception
+            // against it (ticket 23's confirmation names the mirror).
+            // Anything else maps as before for the stale downstream checks.
+            let keep_local = links.pairs.iter().any(|pair| {
+                pair.halves.correspondences.iter().any(|record| {
+                    record.kind == MirroredItemKind::Matrix && record.mirror_id == *local_matrix_id
+                }) && !pair.halves.exceptions.iter().any(|exception| {
+                    exception.kind == MirroredItemKind::Matrix
+                        && exception.mirror_id == *local_matrix_id
+                })
+            });
             canonical.operation = Op::DetachMatrixAnchorConfirmed {
                 matrix_id: links.matrix_id(matrix_id)?,
-                local_matrix_id: links.matrix_id(local_matrix_id)?,
+                local_matrix_id: if keep_local {
+                    local_matrix_id.clone()
+                } else {
+                    links.matrix_id(local_matrix_id)?
+                },
             };
         }
         Op::SetMatrix {
@@ -791,8 +808,7 @@ impl<'a> Links<'a> {
             }
         }
         taken.insert(id.to_owned());
-        let mut mirror_id =
-            super::mirror_id(&source_board, &mirror_board, id);
+        let mut mirror_id = super::mirror_id(&source_board, &mirror_board, id);
         let mut index = 2;
         while taken.contains(&mirror_id) {
             mirror_id = format!("{mirror_id}-{index}");
@@ -801,9 +817,7 @@ impl<'a> Links<'a> {
         // The anchored add always materializes a bare 1x3: `set_matrix`
         // generates key members for every slot, with companions only from
         // explicit cells (of which the add carries none).
-        let key = |matrix: &str, row: u32, column: u32| {
-            format!("matrix/{matrix}/r{row}c{column}")
-        };
+        let key = |matrix: &str, row: u32, column: u32| format!("matrix/{matrix}/r{row}c{column}");
         let mut members = Vec::new();
         for row in 0..1 {
             for column in 0..3 {

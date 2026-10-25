@@ -298,17 +298,13 @@ fn exceptions(document: &Value) -> Vec<&Value> {
 fn matrix_exception(document: &Value) -> Option<&Value> {
     exceptions(document)
         .into_iter()
-        .find(|exception| {
-            exception["kind"] == "matrix" && exception["mirrorId"] == MIRROR_MATRIX
-        })
+        .find(|exception| exception["kind"] == "matrix" && exception["mirrorId"] == MIRROR_MATRIX)
 }
 
 fn part_exception<'a>(document: &'a Value, mirror_id: &str) -> Option<&'a Value> {
     exceptions(document)
         .into_iter()
-        .find(|exception| {
-            exception["kind"] == "part" && exception["mirrorId"] == mirror_id
-        })
+        .find(|exception| exception["kind"] == "part" && exception["mirrorId"] == mirror_id)
 }
 
 fn assert_live_correspondences(document: &Value, slots: &[(u32, u32)], label: &str) {
@@ -428,7 +424,10 @@ fn native_resize_keeps_local_mirror_dimensions_and_poses() {
     let mut expected_undo = local_doc.clone();
     let undone = undo(&mut engine, "native-resize-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Local document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Local document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-resize-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -461,7 +460,10 @@ fn native_omit_then_expand_keeps_mirror_live_yet_absent() {
     let mut expected_undo = omitted_doc.clone();
     let undone = undo(&mut engine, "native-omit-expand-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Omitted document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-omit-expand-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -490,7 +492,10 @@ fn native_omit_then_shrink_keeps_mirror_following() {
     let mut expected_undo = omitted_doc.clone();
     let undone = undo(&mut engine, "native-omit-shrink-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Omitted document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-omit-shrink-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -593,7 +598,10 @@ fn native_rejoin_adopts_source_and_keeps_explicit_child_exceptions() {
     let mut expected_undo = keyed_doc.clone();
     let undone = undo(&mut engine, "native-rejoin-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Local document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Local document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-rejoin-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -684,10 +692,7 @@ fn native_source_removal_retains_local_matrix() {
             .iter()
             .all(|record| !(record["kind"] == "matrix"
                 || (record["kind"] == "part"
-                    && record["sourceId"]
-                        .as_str()
-                        .unwrap()
-                        .starts_with("matrix/")))),
+                    && record["sourceId"].as_str().unwrap().starts_with("matrix/")))),
         "defunct matrix/member links retire"
     );
     // Only the defunct source-layout link retires; the mirror layout keeps
@@ -708,13 +713,26 @@ fn native_source_removal_retains_local_matrix() {
         .expect("mirror layout survives");
     assert_eq!(shell["matrixIds"], json!([MIRROR_MATRIX]));
     // Unrelated parts on both boards are preserved.
-    for id in ["left/U1", "left/RST", "left/TRRS", "right/U1", "right/RST", "right/TRRS"] {
-        assert!(find_part(after, id).is_some(), "unrelated {id} is preserved");
+    for id in [
+        "left/U1",
+        "left/RST",
+        "left/TRRS",
+        "right/U1",
+        "right/RST",
+        "right/TRRS",
+    ] {
+        assert!(
+            find_part(after, id).is_some(),
+            "unrelated {id} is preserved"
+        );
     }
     let mut expected_undo = local_doc.clone();
     let undone = undo(&mut engine, "native-removal-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Local document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Local document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-removal-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -775,10 +793,7 @@ fn native_source_removal_retires_omitted_without_resurrection() {
             .iter()
             .all(|record| !(record["kind"] == "matrix"
                 || (record["kind"] == "part"
-                    && record["sourceId"]
-                        .as_str()
-                        .unwrap()
-                        .starts_with("matrix/")))),
+                    && record["sourceId"].as_str().unwrap().starts_with("matrix/")))),
         "omitted links retire"
     );
     // The orphaned mirror shell goes with the removal: with no resolvable
@@ -897,8 +912,14 @@ fn native_explicit_child_survives_omitted_rejoin() {
     assert_eq!(rejoined["kind"], "scene", "{rejoined}");
     let after = &rejoined["document"];
     assert!(matrix_exception(after).is_none());
-    assert!(find_part(after, key).is_none(), "explicit child stays suppressed");
-    assert!(part_exception(after, key).is_some(), "explicit child keeps its exception");
+    assert!(
+        find_part(after, key).is_none(),
+        "explicit child stays suppressed"
+    );
+    assert!(
+        part_exception(after, key).is_some(),
+        "explicit child keeps its exception"
+    );
     for key in ["r0c1", "r1c0", "r1c1"] {
         assert!(
             find_part(after, &format!("matrix/{MIRROR_MATRIX}/{key}")).is_some(),
@@ -923,7 +944,11 @@ fn native_omitted_mirror_edits_refuse_with_rejoin_guidance() {
     );
     assert_eq!(refused["kind"], "error", "{refused}");
     assert!(
-        refused["message"].as_str().unwrap().to_lowercase().contains("rejoin"),
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("rejoin"),
         "refusal must name Rejoin: {refused}"
     );
     assert_eq!(snapshot(&mut engine), omitted_doc);
@@ -1078,7 +1103,10 @@ fn native_rejoin_from_omitted_recreates_mirror() {
     let mut expected_undo = omitted_doc.clone();
     let undone = undo(&mut engine, "native-rejoin-omitted-undo");
     expected_undo["revision"] = undone["revision"].clone();
-    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Omitted document"
+    );
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "native-rejoin-omitted-redo");
     expected_redo["revision"] = redone["revision"].clone();
@@ -1115,8 +1143,11 @@ fn native_anchored_add_reflects_counterpart_when_linked() {
     // One transaction: Undo removes the dependent pair, Redo restores it.
     let undone = undo(&mut engine, "gap-add-dep-undo");
     assert!(
-        undone["matrices"].as_array().unwrap().iter().all(|matrix| matrix["id"]
-            != DEP_MIRROR_ID),
+        undone["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != DEP_MIRROR_ID),
         "Undo removes the reflected dependent"
     );
     let redone = redo(&mut engine, "gap-add-dep-redo");
@@ -1142,8 +1173,11 @@ fn native_anchored_add_stays_source_only_without_pair() {
     let document = &added["document"];
     assert!(matrix(document, DEP_SOURCE_ID).is_object());
     assert!(
-        document["matrices"].as_array().unwrap().iter().all(|matrix| matrix["id"]
-            != DEP_MIRROR_ID),
+        document["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != DEP_MIRROR_ID),
         "no mirror counterpart without a pair"
     );
 }
@@ -1180,11 +1214,15 @@ fn anchored_pair(pair_id: &str) -> (CoreEngine, Value) {
     );
     let halves = &pair(&document, pair_id)["halves"];
     assert!(
-        halves["correspondences"].as_array().unwrap().iter().any(|record| {
-            record["kind"] == "matrix"
-                && record["sourceId"] == DEP_SOURCE_ID
-                && record["mirrorId"] == DEP_MIRROR_ID
-        }),
+        halves["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|record| {
+                record["kind"] == "matrix"
+                    && record["sourceId"] == DEP_SOURCE_ID
+                    && record["mirrorId"] == DEP_MIRROR_ID
+            }),
         "dependent pair correspondence is recorded"
     );
     assert_eq!(
@@ -1221,11 +1259,7 @@ fn preview(engine: &mut CoreEngine, before: &Value, id: &str, operation: Value) 
     )
     .unwrap();
     assert_eq!(reply["kind"], "preview", "{reply}");
-    assert_eq!(
-        snapshot(engine),
-        *before,
-        "preview publishes nothing"
-    );
+    assert_eq!(snapshot(engine), *before, "preview publishes nothing");
     reply
 }
 
@@ -1343,7 +1377,10 @@ fn native_detach_confirmed_applies_detach_and_local_in_one_entry() {
     let mut expected_redo = after.clone();
     let redone = redo(&mut engine, "gap-detach-confirmed-redo");
     expected_redo["revision"] = redone["revision"].clone();
-    assert_eq!(redone, expected_redo, "Redo must restore the confirmed detach");
+    assert_eq!(
+        redone, expected_redo,
+        "Redo must restore the confirmed detach"
+    );
     assert_eq!(snapshot(&mut engine), redone);
     // A stale confirmation (wrong partner) refuses without changes.
     let current = snapshot(&mut engine);
@@ -1380,8 +1417,9 @@ fn native_rejoin_refuses_missing_anchor_atomically() {
         &[DEP_MIRROR_ID],
     );
     assert_eq!(omitted["kind"], "scene", "{omitted}");
-    // Shrink the Local parent past the anchor slot: the counterpart key is
-    // gone while the source anchor still names it.
+    // Freeze the parent small: a matrix-Local mirror keeps its dimensions
+    // while the source grows (mirror-authored storage always maps to the
+    // source, so the parent can only stay behind, never shrink itself).
     let made = commit(
         &mut engine,
         &omitted["document"],
@@ -1391,18 +1429,30 @@ fn native_rejoin_refuses_missing_anchor_atomically() {
         &[MIRROR_MATRIX],
     );
     assert_eq!(made["kind"], "scene", "{made}");
-    let shrunk = commit(
+    let grown = commit(
         &mut engine,
         &made["document"],
-        "gap-shrink-parent",
-        json!({"kind":"set-matrix","matrix":shrunk_parent(&made["document"])}),
+        "gap-grow-source",
+        json!({"kind":"set-matrix","matrix":expanded_source(&made["document"])}),
         &[],
     );
-    assert_eq!(shrunk["kind"], "scene", "{shrunk}");
-    let small = shrunk["document"].clone();
+    assert_eq!(grown["kind"], "scene", "{grown}");
+    // Re-anchor the dependent onto the grown region.
+    let reanchored = commit(
+        &mut engine,
+        &grown["document"],
+        "gap-reanchor-dep",
+        json!({"kind":"set-matrix-anchor","matrixId":DEP_SOURCE_ID,
+            "anchor":{"matrixId":SOURCE_MATRIX,"row":0,"column":2,
+                "follow":["x","y","rotation"]}}),
+        &[],
+    );
+    assert_eq!(reanchored["kind"], "scene", "{reanchored}");
+    let small = reanchored["document"].clone();
+    const MISSING_KEY: &str = "matrix/right-synthetic-keys/r0c2";
     assert!(
-        find_part(&small, DEP_MIRROR_ANCHOR_KEY).is_none(),
-        "counterpart key is gone from the smaller parent"
+        find_part(&small, MISSING_KEY).is_none(),
+        "counterpart key is missing from the smaller parent"
     );
     // Rejoin adopts the source anchor whose counterpart is missing: refuse.
     let refused = try_commit(
@@ -1414,17 +1464,12 @@ fn native_rejoin_refuses_missing_anchor_atomically() {
     );
     assert_eq!(refused["kind"], "error", "{refused}");
     assert!(
-        refused["message"]
-            .as_str()
-            .unwrap()
-            .contains(DEP_MIRROR_ANCHOR_KEY),
+        refused["message"].as_str().unwrap().contains(MISSING_KEY),
         "refusal names the missing counterpart: {refused}"
     );
     assert_eq!(snapshot(&mut engine), small);
 }
 
-/// The Local mirror parent shrunk past the dependent's anchor slot: one
-/// column, with explicit cell coverage for the kernel's dense rule.
 /// Source growth on a paired matrix must carry explicit new cells: the setter
 /// leaves sparse cells unfilled, and the reconciliation kernel requires dense
 /// cell coverage (`source_members`). Mirror-half edition: grows the mirror
@@ -1455,25 +1500,13 @@ fn expanded_mirror(document: &Value) -> Value {
 /// Sort every matrix's cells by coordinate for cross-route comparison.
 fn sort_matrix_cells(document: &mut Value) {
     for matrix in document["matrices"].as_array_mut().unwrap() {
-        matrix["cells"]
-            .as_array_mut()
-            .unwrap()
-            .sort_by_key(|cell| (cell["row"].as_u64().unwrap(), cell["column"].as_u64().unwrap()));
+        matrix["cells"].as_array_mut().unwrap().sort_by_key(|cell| {
+            (
+                cell["row"].as_u64().unwrap(),
+                cell["column"].as_u64().unwrap(),
+            )
+        });
     }
-}
-
-fn shrunk_parent(document: &Value) -> Value {
-    let mut shrunk = matrix(document, MIRROR_MATRIX).clone();
-    shrunk["columns"] = json!(1);
-    let kept: Vec<Value> = shrunk["cells"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|cell| cell["column"] == 0)
-        .cloned()
-        .collect();
-    shrunk["cells"] = Value::Array(kept);
-    shrunk
 }
 
 #[test]
@@ -1590,7 +1623,10 @@ fn native_constrain_anchor_target_refuses_from_both_halves() {
     );
     assert_eq!(refused["kind"], "error", "{refused}");
     assert!(
-        refused["message"].as_str().unwrap().contains("anchors to it"),
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .contains("anchors to it"),
         "source-half refusal: {refused}"
     );
     assert_eq!(snapshot(&mut engine), before);
@@ -1602,7 +1638,10 @@ fn native_constrain_anchor_target_refuses_from_both_halves() {
     );
     assert_eq!(refused_mirror["kind"], "error", "{refused_mirror}");
     assert!(
-        refused_mirror["message"].as_str().unwrap().contains("anchors to it"),
+        refused_mirror["message"]
+            .as_str()
+            .unwrap()
+            .contains("anchors to it"),
         "mirror-half refusal: {refused_mirror}"
     );
     assert_eq!(snapshot(&mut engine), before);
@@ -1672,14 +1711,16 @@ fn native_unfollowed_origin_edit_refuses_then_detach_applies() {
     );
     assert_eq!(refused["kind"], "error", "{refused}");
     assert!(
-        refused["message"].as_str().unwrap().contains("not followed"),
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .contains("not followed"),
         "Follow restriction: {refused}"
     );
     assert_eq!(snapshot(&mut engine), narrowed["document"]);
     // The same stored edit from the mirror half refuses identically.
     let mut stored_mirror = matrix(&narrowed["document"], DEP_MIRROR_ID).clone();
-    stored_mirror["origin"]["y"] =
-        json!(stored_mirror["origin"]["y"].as_f64().unwrap() + 4.0);
+    stored_mirror["origin"]["y"] = json!(stored_mirror["origin"]["y"].as_f64().unwrap() + 4.0);
     let refused_mirror = try_commit(
         &mut engine,
         &narrowed["document"],
@@ -1688,7 +1729,10 @@ fn native_unfollowed_origin_edit_refuses_then_detach_applies() {
     );
     assert_eq!(refused_mirror["kind"], "error", "{refused_mirror}");
     assert!(
-        refused_mirror["message"].as_str().unwrap().contains("not followed"),
+        refused_mirror["message"]
+            .as_str()
+            .unwrap()
+            .contains("not followed"),
         "mirror-half Follow restriction: {refused_mirror}"
     );
     assert_eq!(snapshot(&mut engine), narrowed["document"]);

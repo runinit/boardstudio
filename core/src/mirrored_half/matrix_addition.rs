@@ -564,9 +564,7 @@ fn remap_mirrored_anchor(
         halves
             .correspondences
             .iter()
-            .find(|record| {
-                record.kind == MirroredItemKind::Matrix && record.source_id == matrix_id
-            })
+            .find(|record| record.kind == MirroredItemKind::Matrix && record.source_id == matrix_id)
             .map(|record| record.mirror_id.clone())
     };
     match &mut anchor.aggregate {
@@ -791,9 +789,7 @@ impl<'a> Follow<'a> {
             .correspondences
             .iter()
             .chain(added)
-            .find(|item| {
-                item.kind == MirroredItemKind::Layout && item.source_id == source_id
-            })
+            .find(|item| item.kind == MirroredItemKind::Layout && item.source_id == source_id)
             .map(|item| item.mirror_id.clone())
     }
 
