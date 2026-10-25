@@ -403,26 +403,140 @@ impl Default for Follow {
         }
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+/// Stored anchor target: the `single | aggregate` union from ticket 28
+/// (`anchor.target: { single: {matrixId,row,column} } | { aggregate: {...} }`
+/// with top-level `follow` unchanged). The untagged document grammar keeps
+/// the flat shape so saved single-key anchors open byte-identical: a bare
+/// `{matrixId,row,column,follow}` document is the single arm, a
+/// `{follow,aggregate}` document is the aggregate arm, and a document naming
+/// both arms is refused at admission, matching upstream's ref+aggregate
+/// throw. The arms are matched explicitly (rather than with an untagged
+/// enum) so each arm's inner refusal — e.g. the unknown aggregate method —
+/// keeps its own error instead of collapsing into an untagged mismatch.
+#[derive(Clone, Debug, PartialEq)]
 pub struct MatrixAnchor {
-    /// Single-key target. Inert while `aggregate` is present; kept required
-    /// (with serde defaults) so saved single-key anchors open byte-identical.
-    /// Aggregate documents may omit these fields.
-    #[serde(default)]
+    /// Single-key target. Inert while the aggregate arm is present: the
+    /// admission grammar never populates both arms, so in-memory single
+    /// fields on an aggregate anchor stay empty/zero and `targets()` never
+    /// reads them. Inert fields are also omitted when an aggregate anchor
+    /// serializes, so saved aggregate anchors reopen.
     pub matrix_id: String,
-    #[serde(default)]
     pub row: u32,
-    #[serde(default)]
     pub column: u32,
-    #[serde(default)]
     pub follow: Follow,
     /// Aggregate arm (average / intersection over single-key parts). When
     /// present, evaluation resolves every part and combines the poses before
     /// Origin/Rotation and Follow apply; the single-key fields above are
     /// ignored. Parts are single-key refs only: nesting is unrepresentable.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aggregate: Option<AggregateAnchor>,
+}
+
+impl serde::Serialize for MatrixAnchor {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        match &self.aggregate {
+            None => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 4)?;
+                anchor.serialize_field("matrixId", &self.matrix_id)?;
+                anchor.serialize_field("row", &self.row)?;
+                anchor.serialize_field("column", &self.column)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.end()
+            }
+            Some(aggregate) => {
+                let mut anchor = serializer.serialize_struct("MatrixAnchor", 2)?;
+                anchor.serialize_field("follow", &self.follow)?;
+                anchor.serialize_field("aggregate", aggregate)?;
+                anchor.end()
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MatrixAnchor {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(AnchorUnionVisitor)
+    }
+}
+
+struct AnchorUnionVisitor;
+
+impl<'de> serde::de::Visitor<'de> for AnchorUnionVisitor {
+    type Value = MatrixAnchor;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            "a single-key anchor {matrixId, row, column, follow} or an aggregate anchor {follow, aggregate}",
+        )
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(
+        self,
+        mut map: A,
+    ) -> Result<MatrixAnchor, A::Error> {
+        use serde::de::Error;
+        let mut matrix_id: Option<String> = None;
+        let mut row: Option<u32> = None;
+        let mut column: Option<u32> = None;
+        let mut follow = Follow::default();
+        let mut follow_seen = false;
+        let mut aggregate: Option<AggregateAnchor> = None;
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "matrixId" => {
+                    if matrix_id.is_some() {
+                        return Err(A::Error::duplicate_field("matrixId"));
+                    }
+                    matrix_id = Some(map.next_value()?);
+                }
+                "row" => {
+                    if row.is_some() {
+                        return Err(A::Error::duplicate_field("row"));
+                    }
+                    row = Some(map.next_value()?);
+                }
+                "column" => {
+                    if column.is_some() {
+                        return Err(A::Error::duplicate_field("column"));
+                    }
+                    column = Some(map.next_value()?);
+                }
+                "follow" => {
+                    if follow_seen {
+                        return Err(A::Error::duplicate_field("follow"));
+                    }
+                    follow_seen = true;
+                    follow = map.next_value()?;
+                }
+                "aggregate" => {
+                    if aggregate.is_some() {
+                        return Err(A::Error::duplicate_field("aggregate"));
+                    }
+                    aggregate = Some(map.next_value()?);
+                }
+                other => {
+                    return Err(A::Error::unknown_field(
+                        other,
+                        &["matrixId", "row", "column", "follow", "aggregate"],
+                    ));
+                }
+            }
+        }
+        if aggregate.is_some()
+            && (matrix_id.is_some() || row.is_some() || column.is_some())
+        {
+            return Err(A::Error::custom(
+                "Matrix anchor cannot combine a single-key target (matrixId/row/column) with an aggregate arm; name one target",
+            ));
+        }
+        Ok(MatrixAnchor {
+            matrix_id: matrix_id.unwrap_or_default(),
+            row: row.unwrap_or_default(),
+            column: column.unwrap_or_default(),
+            follow,
+            aggregate,
+        })
+    }
 }
 
 impl MatrixAnchor {

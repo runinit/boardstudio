@@ -63,12 +63,13 @@ fn main_matrix(document: &mut Value, cells: Value) {
 }
 
 fn thumb(document: &mut Value, aggregate: Value) {
+    // Aggregate-arm documents name only the aggregate arm: the union grammar
+    // refuses a real single key alongside `aggregate`.
     document["matrices"].as_array_mut().unwrap().push(json!({
         "id": "thumb", "rows": 1, "columns": 3,
         "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": -19},
         "definitionId": "def", "partIds": [], "boardId": "board",
         "anchor": {
-            "matrixId": "main", "row": 0, "column": 0,
             "follow": ["x", "y", "rotation"],
             "aggregate": aggregate
         }
@@ -633,4 +634,83 @@ fn aggregate_unknown_method_is_refused() {
             .contains("unknown variant"),
         "unknown methods must be refused at admission, got {reply}"
     );
+}
+
+#[test]
+fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
+    // Upstream throws on ref+aggregate (anchor.js:96-98): a document naming a
+    // real single key AND an aggregate arm must be refused at admission.
+    let mut document = document();
+    main_matrix(&mut document, json!([]));
+    thumb(
+        &mut document,
+        json!({
+            "method": "average",
+            "parts": [
+                {"matrixId": "main", "row": 0, "column": 0},
+                {"matrixId": "main", "row": 0, "column": 2}
+            ]
+        }),
+    );
+    board(
+        &mut document,
+        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
+    );
+    // A real single key next to the aggregate arm: both arms are populated,
+    // so the union grammar must refuse the document.
+    document["matrices"][1]["anchor"]["matrixId"] = json!("main");
+    document["matrices"][1]["anchor"]["row"] = json!(0);
+    document["matrices"][1]["anchor"]["column"] = json!(2);
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "both-arms", &document);
+    assert_eq!(reply["kind"], "error", "{reply}");
+    assert!(
+        reply["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("aggregate"),
+        "both-arms refusal must name the aggregate arm, got {reply}"
+    );
+}
+
+#[test]
+fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
+    // Saved flat single-key anchors predate the aggregate arm and must keep
+    // opening byte-identical under the union grammar.
+    let saved = r#"{"matrixId":"main","row":0,"column":2,"follow":["x","y","rotation"]}"#;
+    let anchor: MatrixAnchor = serde_json::from_str(saved).unwrap();
+    assert_eq!(anchor.matrix_id, "main");
+    assert_eq!((anchor.row, anchor.column), (0, 2));
+    assert!(anchor.aggregate.is_none());
+    assert_eq!(
+        serde_json::to_string(&anchor).unwrap(),
+        saved,
+        "single-arm serialization must stay byte-identical"
+    );
+
+    // And end to end: a document carrying that saved anchor opens, and the
+    // stored anchor still serializes back to the saved bytes.
+    let mut document = document();
+    main_matrix(&mut document, json!([]));
+    document["matrices"].as_array_mut().unwrap().push(json!({
+        "id": "thumb", "rows": 1, "columns": 3,
+        "pitch": {"x": 19, "y": 19}, "origin": {"x": 0, "y": -19},
+        "definitionId": "def", "partIds": [], "boardId": "board",
+        "anchor": serde_json::from_str::<Value>(saved).unwrap()
+    }));
+    board(
+        &mut document,
+        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
+    );
+    let mut engine = CoreEngine::new();
+    let reply = open(&mut engine, "legacy-single", &document);
+    assert_eq!(reply["kind"], "scene", "{reply}");
+    let stored = typed_snapshot(&mut engine);
+    let stored_anchor = stored
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .and_then(|matrix| matrix.anchor.as_ref())
+        .expect("stored thumb anchor");
+    assert_eq!(serde_json::to_string(stored_anchor).unwrap(), saved);
 }
