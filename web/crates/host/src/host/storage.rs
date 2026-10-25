@@ -484,11 +484,7 @@ impl BrowserStore {
             }
             if let Ok(window) = window()
                 && let Ok(Some(storage)) = window.local_storage()
-                && storage
-                    .get_item(&active_key)
-                    .ok()
-                    .flatten()
-                    .as_deref()
+                && storage.get_item(&active_key).ok().flatten().as_deref()
                     == Some(project_id.as_str())
             {
                 let _ = storage.remove_item(&active_key);
@@ -773,10 +769,7 @@ async fn delete_key_inner(database_name: &str, key: &JsValue) -> Result<(), Pers
 }
 
 #[cfg(any(test, feature = "test-support"))]
-async fn put_raw_record_inner(
-    database_name: &str,
-    value: JsValue,
-) -> Result<(), PersistError> {
+async fn put_raw_record_inner(database_name: &str, value: JsValue) -> Result<(), PersistError> {
     let database = open_database(database_name).await?;
     let transaction = database
         .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)

@@ -1521,14 +1521,9 @@ fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() 
     let (save_attempt_id, oversized) = save_effect(&effects);
     session.complete(Completion::Persist {
         save_attempt_id,
-        result: SaveResult::Aborted(
-            "QuotaExceededError: origin storage is full".into(),
-        ),
+        result: SaveResult::Aborted("QuotaExceededError: origin storage is full".into()),
     });
-    assert_eq!(
-        session.read_model().lifecycle,
-        Lifecycle::RecoveryRequired
-    );
+    assert_eq!(session.read_model().lifecycle, Lifecycle::RecoveryRequired);
 
     let fresh = ProjectDoc::empty("quota-escape-fresh", "Untitled keyboard");
     let effects = session.submit(Event::RecoverWithDocument {
@@ -1536,7 +1531,9 @@ fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() 
         document: fresh.clone(),
     });
     assert!(
-        !effects.iter().any(|effect| matches!(effect, Effect::Persist { document, .. } if **document == oversized)),
+        !effects.iter().any(
+            |effect| matches!(effect, Effect::Persist { document, .. } if **document == oversized)
+        ),
         "recovery must not recommit the quota-exceeding candidate"
     );
     let (request_id, executor_epoch, request) = core_effect(&effects);
@@ -1573,7 +1570,9 @@ fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() 
         "after the escape hatch there is no retained save left to retry"
     );
     assert!(
-        !effects.iter().any(|effect| matches!(effect, Effect::Persist { .. })),
+        !effects
+            .iter()
+            .any(|effect| matches!(effect, Effect::Persist { .. })),
         "no automatic save retries the discarded document"
     );
 }

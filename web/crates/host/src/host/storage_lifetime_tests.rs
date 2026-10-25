@@ -1424,8 +1424,7 @@ async fn tokenless_unreadable_record_deletes_by_key_where_guarded_delete_refuses
         &JsValue::from_str("unreadable-tokenless"),
     )
     .unwrap();
-    let huge =
-        js_sys::BigInt::new(&JsValue::from_str("1267650600228229401496703205376")).unwrap();
+    let huge = js_sys::BigInt::new(&JsValue::from_str("1267650600228229401496703205376")).unwrap();
     Reflect::set(&raw, &"marker".into(), &huge).unwrap();
     let transaction = database
         .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
@@ -1482,8 +1481,7 @@ async fn delete_project_by_key_removes_one_record_without_a_token() {
     let database_name = format!("boardstudio-idb-by-key-{}", js_sys::Date::now());
     let store = BrowserStore::new(database_name.clone()).unwrap();
     let kept = boardstudio_core::model::ProjectDoc::empty("by-key-kept", "Kept board");
-    let removed =
-        boardstudio_core::model::ProjectDoc::empty("by-key-removed", "Removed board");
+    let removed = boardstudio_core::model::ProjectDoc::empty("by-key-removed", "Removed board");
     store
         .save_document(&kept, &Default::default())
         .await

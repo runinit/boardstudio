@@ -9800,10 +9800,7 @@ mod quota_recovery_deletion_tests {
             "Active board",
             "the durable active copy is untouched"
         );
-        assert_eq!(
-            runtime.model().accepted.unwrap().document.id,
-            active_id
-        );
+        assert_eq!(runtime.model().accepted.unwrap().document.id, active_id);
         assert_eq!(runtime.model().lifecycle, Lifecycle::RecoveryRequired);
         assert!(
             runtime.has_pending_edits(),
@@ -9811,7 +9808,9 @@ mod quota_recovery_deletion_tests {
         );
         let remaining = runtime.store.list_documents().await.unwrap();
         assert!(
-            remaining.iter().all(|document| document.id != "quota-delete-fresh"),
+            remaining
+                .iter()
+                .all(|document| document.id != "quota-delete-fresh"),
             "no replacement keyboard is created by the delete"
         );
     }
