@@ -5002,23 +5002,47 @@ fn production_linked_diode_move_refuses_in_preview_and_commit_without_history_lo
 fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_instances() {
     for initially_disabled in [false, true] {
         let mut document = runtime_supported_document();
-        let mut configuration = document["hardware"]["instances"][0]["mechanical"].clone();
-        configuration["wallThickness"] = json!(3.0);
         if initially_disabled {
             document["hardware"]["instances"][0]["mechanical"] = Value::Null;
         }
         let (mut engine, before) = open(&document);
+        // Ticket 37: raw SetMechanical is deleted. A disabled instance is
+        // established with Enable before the typed dimension write.
+        let mut base = before["revision"].clone();
+        if initially_disabled {
+            let hole = mounting_hole();
+            let enabled = request(
+                &mut engine,
+                json!({"id":"runtime-instance-mechanical-enable","kind":"edit","command":{
+                    "baseRevision":base,
+                    "transactionId":"runtime-instance-mechanical-enable",
+                    "phase":"commit",
+                    "targetIds":[],
+                    "operation":{
+                        "kind":"apply-mechanical-edit",
+                        "edit":{"target":{"kind":"instance","instanceId":"left"},
+                            "change":"enable", "mountingHole": hole}}
+                }}),
+            );
+            assert_eq!(
+                enabled["kind"], "scene",
+                "disabled={initially_disabled}: {enabled}"
+            );
+            base = enabled["document"]["revision"].clone();
+        }
         let configured = request(
             &mut engine,
             json!({"id":"runtime-instance-mechanical-configure","kind":"edit","command":{
-                "baseRevision":before["revision"],
+                "baseRevision":base,
                 "transactionId":format!("runtime-instance-mechanical-configure-{initially_disabled}"),
                 "phase":"commit",
                 "targetIds":[],
+                // Ticket 37: raw SetMechanical is deleted; SetDimension on the
+                // instance is the live typed wall-thickness write.
                 "operation":{
-                    "kind":"set-mechanical",
-                    "configuration":configuration,
-                    "target":{"kind":"instance","instanceId":"left"}
+                    "kind":"apply-mechanical-edit",
+                    "edit":{"target":{"kind":"instance","instanceId":"left"},
+                        "change":{"set-dimension":{"field":"wall-thickness","value":3.0}}}
                 }
             }}),
         );
@@ -5032,7 +5056,7 @@ fn production_targeted_instance_set_mechanical_uses_preparation_for_unpaired_ins
         );
         assert_eq!(
             configured["document"]["revision"],
-            before["revision"].as_u64().unwrap() + 1
+            base.as_u64().unwrap() + 1
         );
     }
 }

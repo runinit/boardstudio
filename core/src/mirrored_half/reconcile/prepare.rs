@@ -635,23 +635,12 @@ pub(crate) fn prepare_transaction_with_ledger(
     let mut draft = accepted.clone();
     let mut changed =
         apply_canonical(&mut draft, accepted, board_contours, &canonical, identities)?;
-    let lifecycle_before_resolution = matches!(
-        canonical.operation,
-        EditOperation::SetMechanical {
-            configuration: None,
-            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-        }
-    );
 
     if let Some(keymap) = &draft.keymap {
         crate::keymap::validate(keymap)?;
     }
     crate::electrical::preserve_handoff(accepted, &mut draft);
     crate::matrix::layout::validate(&draft)?;
-
-    if lifecycle_before_resolution {
-        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
-    }
 
     let positions = operation_positions(&canonical.operation);
     let mut framed = initial_framed_constraints(&canonical);
@@ -661,9 +650,7 @@ pub(crate) fn prepare_transaction_with_ledger(
     )?);
     changed.extend(crate::matrix::layout::sync_components(&mut draft)?);
 
-    if !lifecycle_before_resolution {
-        changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
-    }
+    changed.extend(prepare_lifecycle_pairs(accepted, &mut draft, &canonical)?);
 
     for addition in &canonical.matrix_additions {
         let mirrored =
@@ -1018,11 +1005,6 @@ fn prepare_lifecycle_pairs(
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::SetCompanionPlacement { .. }
             | EditOperation::ApplyMechanicalEdit { .. }
-            | EditOperation::SetMechanical {
-                configuration: Some(_),
-                target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-                ..
-            }
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1043,13 +1025,6 @@ fn prepare_lifecycle_pairs(
             return Err("The exact lifecycle pair is unavailable or ambiguous".into());
         }
     }
-    let pair_removed_by_operation = matches!(
-        &canonical.operation,
-        EditOperation::SetMechanical {
-            configuration: None,
-            target: Some(crate::mechanical::MechanicalTarget::Instance { .. }),
-        }
-    );
     let pair_ids: Vec<_> = accepted
         .hardware
         .as_ref()
@@ -1060,11 +1035,10 @@ fn prepare_lifecycle_pairs(
         .collect();
     let mut changed = Vec::new();
     for pair_id in pair_ids {
-        if !pair_removed_by_operation
-            && !document
-                .hardware
-                .as_ref()
-                .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
+        if !document
+            .hardware
+            .as_ref()
+            .is_some_and(|hardware| hardware.pairs.iter().any(|pair| pair.id == pair_id))
         {
             continue;
         }
@@ -1151,18 +1125,6 @@ fn apply_canonical(
     {
         let pair_id = pair_for_instance(accepted, instance_id)?;
         return crate::mechanical::halves::unlink_pair(draft, &pair_id);
-    }
-    if let EditOperation::SetMechanical {
-        configuration,
-        target: Some(target @ crate::mechanical::MechanicalTarget::Instance { .. }),
-    } = &canonical.operation
-    {
-        return crate::mechanical::edit::apply_instance_configuration(
-            draft,
-            board_contours,
-            target,
-            configuration.as_deref().cloned(),
-        );
     }
     let mut changed =
         crate::apply_with_ledger(draft, board_contours, &canonical.operation, identities)?;

@@ -64,6 +64,11 @@ contract was not re-audited here.
 
 ## Progress
 
+- Implemented 2026-10-25 (worktree `t3-18fae8db`, base `76c2bb1c5`, parent approval
+  recorded in the task brief): deleted the 7 dead variants
+  (`SelectOutline`, `RenameOutline`, `RemoveOutline`, `CopyOutline`, `SetNet`,
+  `SetMechanical`, `SetOutline`) plus dependents.
+
 - Triage table above is the RED artifact: it names every dead variant in the
   ticket's scope with a delete verdict and the live counterpart for each.
   No wire-to-surface candidate was found — every family is superseded.
@@ -73,3 +78,67 @@ contract was not re-audited here.
   per task rules ("if so, stop and report"). No code changed; ticket stays
   claimed for parent review/approval before any deletion lands.
 - New test names: none (no code changed; no baseline edits).
+
+### Implementation record (2026-10-25)
+
+- Parent approval line (from task brief): APPROVED deletion of the 7 dead variants
+  (SelectOutline, RenameOutline, RemoveOutline, CopyOutline, SetNet,
+  SetMechanical-superseded, SetOutline-superseded) + dependents in
+  lib.rs/mirrored_half/outline_versions.rs. Live counterparts are
+  ApplyOutlineEdit/ApplyMechanicalEdit (verified each deletion site has one before
+  removing). Pre-delete `grep -rn EditOperation::<Variant> web/` showed zero live
+  callers for all 7 (the two `web/src` `SetOutline` hits are a local UI action enum,
+  not the Core op; `SetMirroredHalfState` there already submits live SetHalfException).
+- RED: `contracts::removed_outline_net_and_raw_mechanical_kinds_refuse_deserialization`
+  (new) failed pre-deletion (`select-outline` deserialized), passes post-deletion.
+- Removed: 7 variants from `core/src/model.rs`; `outline_versions::apply` (helpers kept:
+  `outline_edit.rs` still uses `snapshot`/`name`/`version_identity_problem`, and
+  `refresh_recovery` + `geometry.rs` use the rest); `lib.rs` apply arms +
+  `affects_outline`/`uses_prepared_transaction`/prepared-contour guards;
+  `inverse.rs` dead arms + `SET_MECHANICAL_*` consts; `inverse/outline.rs` 5 dead
+  translate arms + now-unused `feature_context` (kept `Context::feature`, still used
+  by ApplyOutlineEdit); `inverse/hosted.rs` `set_net` + `net_target` + `Op::SetNet`
+  arm + hosted-exhaustiveness arms; `prepare.rs` 3 SetMechanical sites (pre/post
+  `prepare_lifecycle_pairs` unified to the post-resolution call);
+  `lifecycle.rs` instance-SetMechanical unlink arm (superseded by
+  `UnlinkMirrorPair`/`UnlinkHalves`); orphaned `mechanical/edit/replacement.rs`
+  whole-config instance-replacement module + `edit.rs` wrapper (live instance
+  writes go through `edit.rs` patch path, proven by repurposed tests).
+- Kept intentionally: `OutlineContourEdit` (used by wasm test imports),
+  `MechanicalTarget`/`MechanicalConfiguration` (used by MechanicalEdit),
+  `MirroredItemKind::Net/Outline/OutlineVersion` (used by live mirror records).
+- Repurposed (same names, live counterparts): lib.rs 3 mechanical tests (Disable/
+  Enable on Board/Instance targets); contracts `boxed_public_payloads...`
+  (ApplyMechanicalEdit JSON shape); case `case_preparation...` (SetCase history
+  setup); core `undo_redo_increments_revision` (SetCase); inverse
+  `set_outline_on_a_linked_mirror...` (set-feature); settings
+  `reconciling_twice...` (legend-only); mirrored_half.rs production instance test
+  (Enable+mounting-hole then SetDimension); edit_family outline rename/feature
+  tests (set-feature/rename); noop test (set-feature); gasket helper (JSON setup);
+  mechanical_workflow establish test (Enable); 6 outline_versions + 6 ownership +
+  persistence/linked-resolution suites (Copy/Activate/Rename/Delete/SetFeature/
+  EditGeneratedPerimeter/AddFeature, incl. JSON-setup for authored generated state).
+- Deleted dead-transport tests (no live op drives them; list for baseline update):
+  prepare/tests.rs 11 `targeted_set_mechanical_*`; replacement.rs 20 tests;
+  hosted_tests.rs 6 (`a_mirror_net_edit_is_a_pin_delta_on_the_source_net`,
+  `an_unchanged_mirror_net_translates_to_the_unchanged_source_net`,
+  `a_renamed_mirror_net_renames_the_source_net_and_pad_ids_are_kept`,
+  `a_net_edit_that_changes_the_mirrors_own_pins_is_refused`,
+  `source_local_omitted_and_new_nets_follow_the_established_rules`,
+  `a_pin_on_a_member_of_a_local_circuit_is_the_mirrors_own_pin`) + `net_pins`;
+  settings_tests.rs 5 (`a_source_net_pin_edit...`, `a_mirror_side_net_edit...`,
+  `a_local_part_keeps_its_own_pins...`, `a_source_pin_removed...`,
+  `a_local_net_keeps_its_own_pins...`); inverse/tests.rs
+  `targeted_raw_set_mechanical_is_delegated_without_inverse_mapping`,
+  `outline_local_exception_runs_as_written_and_omission_is_refused`,
+  `legacy_outline_version_commands_map_linked_versions_and_keep_their_other_inputs`;
+  edit_family_acceptance.rs `parent19_plain_net_membership_commits_from_either_half`.
+- New test names: `removed_outline_net_and_raw_mechanical_kinds_refuse_deserialization`.
+  Renamed: none (repurposed bodies kept names; `first_point_edit...` still accurate).
+- Verify: `cargo test -p boardstudio_core` 772 lib + 864 integration, 0 failed;
+  `cargo check --workspace --all-targets` clean; `cargo clippy -p boardstudio_core
+  --all-targets -- -D warnings` clean; rustfmt applied to touched files only
+  (pre-existing `web/crates` drift untouched).
+- Notes for parent: typed-core-edits tickets 147/149 referenced SetNet/SetMechanical;
+  both are resolved and superseded per this deletion. Baseline JSONs were NOT edited;
+  the deleted test names above need baseline update.

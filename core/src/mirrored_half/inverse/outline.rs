@@ -9,8 +9,7 @@ use super::{Canonical, Links, Target};
 use crate::mechanical::pair;
 use crate::model::{
     Contour, EditOperation, MirroredHalves, MirroredItemKind, OutlineConnection,
-    OutlineContourEdit, OutlineControlPoint, OutlineFeature, OutlineSettings, ProtectedOutlineGap,
-    Vec2,
+    OutlineControlPoint, OutlineFeature, OutlineSettings, ProtectedOutlineGap, Vec2,
 };
 use crate::outline_edit::{OutlineChange, OutlineEditTarget};
 
@@ -262,97 +261,6 @@ pub(super) fn translate(
 ) -> Result<(), String> {
     use EditOperation as Op;
     match operation {
-        Op::SetOutline { feature } => {
-            let Some(context) = feature_context(links, feature.id())? else {
-                return Ok(());
-            };
-            canonical.operation = Op::SetOutline {
-                feature: context.feature(feature),
-            };
-        }
-        Op::CopyOutline {
-            board_id,
-            version_id,
-            name,
-            edit,
-            feature,
-        } => {
-            let (board_id, context) = mapped_board(links, board_id)?;
-            let Some(context) = context else {
-                return Ok(());
-            };
-            canonical.operation = Op::CopyOutline {
-                board_id,
-                version_id: context.version(version_id),
-                name: name.clone(),
-                edit: edit.as_ref().map(|edit| OutlineContourEdit {
-                    contour: edit.contour,
-                    points: context.points(&edit.points),
-                }),
-                feature: feature.as_ref().map(|feature| context.feature(feature)),
-            };
-        }
-        Op::SelectOutline {
-            board_id,
-            version_id,
-        } => {
-            if let Some(id) = version_id {
-                let Some(context) = version_context(links, id)? else {
-                    return Ok(());
-                };
-                if context.mirror_board != board_id {
-                    return Err(format!(
-                        "Outline version {id:?} belongs to a different mirrored board"
-                    ));
-                }
-                canonical.operation = Op::SelectOutline {
-                    board_id: context.source_board.to_owned(),
-                    version_id: Some(context.version(id)),
-                };
-                return Ok(());
-            }
-            let (board_id, _context) = mapped_board(links, board_id)?;
-            canonical.operation = Op::SelectOutline {
-                board_id,
-                version_id: None,
-            };
-        }
-        Op::RenameOutline {
-            board_id,
-            version_id,
-            name,
-        } => {
-            let Some(context) = version_context(links, version_id)? else {
-                return Ok(());
-            };
-            if context.mirror_board != board_id {
-                return Err(format!(
-                    "Outline version {version_id:?} belongs to a different mirrored board"
-                ));
-            }
-            canonical.operation = Op::RenameOutline {
-                board_id: context.source_board.to_owned(),
-                version_id: context.version(version_id),
-                name: name.clone(),
-            };
-        }
-        Op::RemoveOutline {
-            board_id,
-            version_id,
-        } => {
-            let Some(context) = version_context(links, version_id)? else {
-                return Ok(());
-            };
-            if context.mirror_board != board_id {
-                return Err(format!(
-                    "Outline version {version_id:?} belongs to a different mirrored board"
-                ));
-            }
-            canonical.operation = Op::RemoveOutline {
-                board_id: context.source_board.to_owned(),
-                version_id: context.version(version_id),
-            };
-        }
         Op::ApplyOutlineEdit { edit } => {
             let mut edit = (**edit).clone();
             let board_id = edit.target.board_id().to_owned();
@@ -397,20 +305,6 @@ pub(super) fn translate(
         _ => unreachable!("outline translator only receives outline operations"),
     }
     Ok(())
-}
-
-fn feature_context<'a>(links: &'a Links<'a>, id: &str) -> Result<Option<Context<'a>>, String> {
-    match links.target(MirroredItemKind::Outline, id)? {
-        Target::NotMirror | Target::Local => Ok(None),
-        Target::Omitted => Err(format!(
-            "{id:?} is omitted on its mirror half and has no geometry; rejoin it before editing it"
-        )),
-        Target::Linked(link) => Ok(Some(Context::new(
-            links.document,
-            link.pair.mapping,
-            link.pair.halves,
-        ))),
-    }
 }
 
 fn version_context<'a>(links: &'a Links<'a>, id: &str) -> Result<Option<Context<'a>>, String> {

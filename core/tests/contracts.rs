@@ -22,41 +22,24 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
     assert_eq!(operation["document"]["id"], "boxed-contract");
     assert_eq!(operation["document"]["format"], "boardstudio/v2");
 
-    let mechanical = serde_json::to_value(EditOperation::SetMechanical {
-        configuration: None,
-        target: None,
-    })
-    .unwrap();
-    assert_eq!(
-        mechanical,
-        json!({ "kind": "set-mechanical", "configuration": null })
-    );
-    let legacy: EditOperation = serde_json::from_value(mechanical.clone()).unwrap();
-    assert!(matches!(
-        legacy,
-        EditOperation::SetMechanical {
-            target: None,
-            configuration: None
-        }
-    ));
-
-    let targeted = serde_json::to_value(EditOperation::SetMechanical {
-        configuration: None,
-        target: Some(boardstudio_core::mechanical::MechanicalTarget::Instance {
-            instance_id: "right".into(),
+    // Ticket 37: raw SetMechanical is deleted; the typed mechanical edit keeps a
+    // stable JSON shape for the board-slot write path.
+    let mechanical = serde_json::to_value(EditOperation::ApplyMechanicalEdit {
+        edit: Box::new(boardstudio_core::mechanical::MechanicalEdit {
+            target: boardstudio_core::mechanical::MechanicalTarget::Board {
+                board_id: "board".into(),
+            },
+            change: boardstudio_core::mechanical::MechanicalChange::Disable,
+            mounting_hole: None,
         }),
     })
     .unwrap();
-    assert_eq!(targeted["target"]["kind"], "instance");
-    assert_eq!(targeted["target"]["instanceId"], "right");
-    let parsed: EditOperation = serde_json::from_value(targeted).unwrap();
-    assert!(matches!(
-        parsed,
-        EditOperation::SetMechanical {
-            target: Some(boardstudio_core::mechanical::MechanicalTarget::Instance { instance_id }),
-            ..
-        } if instance_id == "right"
-    ));
+    assert_eq!(mechanical["kind"], "apply-mechanical-edit");
+    assert_eq!(mechanical["edit"]["target"]["kind"], "board");
+    assert_eq!(mechanical["edit"]["target"]["boardId"], "board");
+    assert_eq!(mechanical["edit"]["change"], "disable");
+    let parsed: EditOperation = serde_json::from_value(mechanical).unwrap();
+    assert!(matches!(parsed, EditOperation::ApplyMechanicalEdit { .. }));
 
     let mirrored_pair = serde_json::to_value(EditOperation::CreateMirroredPair {
         left: Layout {
@@ -363,4 +346,34 @@ fn artifact_import_protocol_preserves_authoritative_source_in_document_json() {
         redone.definitions[0].kicad_source.as_ref().unwrap().source,
         source
     );
+}
+
+/// Ticket 37 RED: the seven dead variants (SelectOutline family, SetNet, raw
+/// SetMechanical/SetOutline) must not deserialize. Live counterparts are
+/// ApplyOutlineEdit/ApplyMechanicalEdit; nets are Core-maintained internally.
+#[test]
+fn removed_outline_net_and_raw_mechanical_kinds_refuse_deserialization() {
+    let feature = json!({
+        "kind": "rect",
+        "id": "o",
+        "center": {"x": 0.0, "y": 0.0},
+        "size": {"x": 20.0, "y": 10.0},
+        "radius": 0.0,
+        "operation": "add"
+    });
+    let payloads = [
+        json!({"kind": "select-outline", "boardId": "b", "versionId": "v"}),
+        json!({"kind": "rename-outline", "boardId": "b", "versionId": "v", "name": "n"}),
+        json!({"kind": "remove-outline", "boardId": "b", "versionId": "v"}),
+        json!({"kind": "copy-outline", "boardId": "b", "versionId": "v", "name": "n"}),
+        json!({"kind": "set-net", "net": {"id": "n", "name": "N", "pins": []}}),
+        json!({"kind": "set-mechanical", "configuration": null}),
+        json!({"kind": "set-outline", "feature": feature}),
+    ];
+    for payload in payloads {
+        assert!(
+            serde_json::from_value::<EditOperation>(payload.clone()).is_err(),
+            "dead variant must not deserialize: {payload}"
+        );
+    }
 }

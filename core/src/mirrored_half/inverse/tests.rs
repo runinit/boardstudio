@@ -1132,24 +1132,6 @@ fn pair_creation_mechanical_lifecycle_half_creation_and_replace_are_passed_throu
 }
 
 #[test]
-fn targeted_raw_set_mechanical_is_delegated_without_inverse_mapping() {
-    let document = fixture();
-    let operation = EditOperation::SetMechanical {
-        configuration: None,
-        target: Some(crate::mechanical::MechanicalTarget::Instance {
-            instance_id: "left".into(),
-        }),
-    };
-    let canonical = canonicalize(&document, &operation)
-        .expect("the explicit target delegates to the mechanical replacement lifecycle");
-    assert_eq!(
-        canonical.coverage,
-        Coverage::Delegated(SET_MECHANICAL_TARGETED)
-    );
-    assert_eq!(canonical.operation, operation);
-}
-
-#[test]
 fn set_layout_on_native_mirror_maps_linked_members_and_preserves_hidden_and_local_members() {
     let document = native_layout_fixture();
     let request = EditOperation::SetLayout {
@@ -1559,17 +1541,23 @@ fn set_outline_on_a_linked_mirror_maps_feature_geometry_and_identity_back_to_sou
         .unwrap()
         .correspondences
         .push(serde_json::from_value(corr("outline", "left/cutout", "right/cutout")).unwrap());
-    let request = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/cutout",
-        "anchorPartId": null, "points": [{"x": 3, "y": 9}, {"x": 3, "y": 6}, {"x": 7, "y": 6}],
-        "operation": "subtract"}});
+    let request = json!({"kind": "apply-outline-edit", "edit": {
+        "target": {"kind": "board", "boardId": "right"},
+        "change": {"set-feature": {"feature": {"kind": "polygon", "id": "right/cutout",
+            "anchorPartId": null, "points": [{"x": 3, "y": 9}, {"x": 3, "y": 6}, {"x": 7, "y": 6}],
+            "operation": "subtract"}}},
+        "seed": 5, "reviewed": null}});
     let translated =
         canonical(&document, &request).expect("a linked mirror outline edit translates");
     assert_eq!(translated.coverage, Coverage::Translated);
     assert_close(
         &serde_json::to_value(translated.operation).unwrap(),
-        &json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "left/cutout",
-            "points": [{"x": 193, "y": 6}, {"x": 197, "y": 6}, {"x": 197, "y": 9}],
-            "operation": "subtract"}}),
+        &json!({"kind": "apply-outline-edit", "edit": {
+            "target": {"kind": "board", "boardId": "left"},
+            "change": {"set-feature": {"feature": {"kind": "polygon", "id": "left/cutout",
+                "points": [{"x": 193, "y": 6}, {"x": 197, "y": 6}, {"x": 197, "y": 9}],
+                "operation": "subtract"}}},
+            "seed": 5}}),
         "operation",
     );
 }
@@ -1882,78 +1870,6 @@ fn legacy_matrix_membership_without_board_id_uses_matrix_frame_rule() {
         value["edit"]["change"]["add-feature"]["feature"]["points"],
         json!([{"x": -12.0, "y": 14.0}, {"x": -8.0, "y": 10.0}, {"x": -4.0, "y": 6.0}])
     );
-}
-
-#[test]
-fn outline_local_exception_runs_as_written_and_omission_is_refused() {
-    let mut document = fixture();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("outline", "left/local", "right/local")).unwrap(),
-            serde_json::from_value(corr("outline", "left/omitted", "right/omitted")).unwrap(),
-        ]);
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .exceptions
-        .extend([
-            serde_json::from_value(
-                json!({"kind": "outline", "mirrorId": "right/local", "state": "local"}),
-            )
-            .unwrap(),
-            serde_json::from_value(
-                json!({"kind": "outline", "mirrorId": "right/omitted", "state": "omitted"}),
-            )
-            .unwrap(),
-        ]);
-    let local = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/local", "points": [], "operation": "add"}});
-    expect_operation(&document, local.clone(), local);
-    let omitted = json!({"kind": "set-outline", "feature": {"kind": "polygon", "id": "right/omitted", "points": [], "operation": "add"}});
-    assert!(refusal(&document, omitted).contains("omitted"));
-}
-
-#[test]
-fn legacy_outline_version_commands_map_linked_versions_and_keep_their_other_inputs() {
-    let mut document = rotated_fixture();
-    document.hardware.as_mut().unwrap().pairs[0]
-        .halves
-        .as_mut()
-        .unwrap()
-        .correspondences
-        .extend([
-            serde_json::from_value(corr("outline-version", "left-fixed", "right-fixed")).unwrap(),
-            serde_json::from_value(corr("outline-version", "left-linked", "right-linked")).unwrap(),
-        ]);
-    let cases = [
-        (
-            json!({"kind": "select-outline", "boardId": "right", "versionId": "right-fixed"}),
-            json!({"kind": "select-outline", "boardId": "left", "versionId": "left-fixed"}),
-        ),
-        (
-            json!({"kind": "rename-outline", "boardId": "right", "versionId": "right-linked", "name": "Name"}),
-            json!({"kind": "rename-outline", "boardId": "left", "versionId": "left-linked", "name": "Name"}),
-        ),
-        (
-            json!({"kind": "remove-outline", "boardId": "right", "versionId": "right-fixed"}),
-            json!({"kind": "remove-outline", "boardId": "left", "versionId": "left-fixed"}),
-        ),
-        (
-            json!({"kind": "copy-outline", "boardId": "right", "versionId": "right-new", "name": "Copy",
-            "edit": {"contour": 1, "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}]},
-            "feature": {"kind": "polygon", "id": "right/feature", "points": [{"x": 80, "y": -25}, {"x": 70, "y": -20}, {"x": 65, "y": -18}], "operation": "subtract"}}),
-            json!({"kind": "copy-outline", "boardId": "left", "versionId": "left-new", "name": "Copy",
-            "edit": {"contour": 1, "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}]},
-            "feature": {"kind": "polygon", "id": "left/feature", "points": [{"x": -12, "y": 35}, {"x": -10, "y": 30}, {"x": -5, "y": 20}], "operation": "subtract"}}),
-        ),
-    ];
-    for (request, expected) in cases {
-        expect_operation(&document, request, expected);
-    }
 }
 
 #[test]
