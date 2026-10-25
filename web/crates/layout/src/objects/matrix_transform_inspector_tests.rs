@@ -3687,6 +3687,101 @@ fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
     )
 }
 
+/// A 1x3 variant of the aggregate fixture: the third key is pickable but not
+/// yet a part, so canvas multi-Pick and commit have somewhere to go.
+fn aggregate_anchor_three_key_fixture() -> (ProjectDoc, TreeContext) {
+    let (mut document, _) = three_key_fixture(false);
+    // Non-parallel part headings so the intersection method stays evaluable.
+    document.matrices[0].cells[1].rotation = Some(90.0);
+    document.layouts.push(Layout {
+        id: "layout".into(),
+        name: "Main".into(),
+        board_id: "board".into(),
+        matrix_ids: vec!["matrix".into(), "matrix-b".into()],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    let key_id = "matrix/matrix-b/r0c0";
+    document.boards[0].part_ids.push(key_id.into());
+    document.parts.push(Part {
+        keycap: None,
+        outline: None,
+        id: key_id.into(),
+        definition_id: "key-definition".into(),
+        reference: "K3".into(),
+        pose: Pose2 {
+            at: Vec2 { x: 60.0, y: 0.0 },
+            rotation: 0.0,
+        },
+        side: Side::Front,
+        locked: Some(false),
+        properties: None,
+        generator_parameters: None,
+    });
+    document.matrices.push(Matrix {
+        id: "matrix-b".into(),
+        name: Some("Aggregated".into()),
+        rows: 1,
+        columns: 1,
+        pitch: Vec2 { x: 19.0, y: 19.0 },
+        origin: Vec2::default(),
+        definition_id: "key-definition".into(),
+        part_ids: vec![key_id.into()],
+        board_id: Some("board".into()),
+        mirror: None,
+        rotation: None,
+        edge_gap: None,
+        diode_direction: None,
+        row_layout: vec![],
+        column_layout: vec![],
+        anchor: Some(MatrixAnchor {
+            matrix_id: String::new(),
+            row: 0,
+            column: 0,
+            follow: Follow {
+                x: true,
+                y: true,
+                rotation: true,
+            },
+            aggregate: Some(AggregateAnchor {
+                method: AggregateMethod::Average,
+                parts: vec![
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 0,
+                    },
+                    AnchorPart {
+                        matrix_id: "matrix".into(),
+                        row: 0,
+                        column: 1,
+                    },
+                ],
+            }),
+        }),
+        cells: vec![MatrixCell {
+            shift: None,
+            bend: None,
+            deleted: false,
+            row: 0,
+            column: 0,
+            enabled: true,
+            definition_id: Some("key-definition".into()),
+            variant: None,
+            offset: None,
+            rotation: None,
+            assemblies: vec![],
+            assemblies_local: None,
+        }],
+    });
+    (
+        document,
+        TreeContext::Matrix {
+            matrix_id: "matrix-b".into(),
+        },
+    )
+}
+
 /// Ticket 32 slice, RED: opening the Anchor section of an average-anchored
 /// matrix lists its two part links, and activating a part link navigates to
 /// the part key with the revision unchanged and no Undo entry.
@@ -3958,6 +4053,299 @@ async fn aggregate_part_remove_writes_one_intent_with_one_undo() {
             .len(),
         2,
         "one Undo restores the removed part"
+    );
+    root.remove();
+}
+
+fn click_button(root: &web_sys::Element, text: &str) {
+    let buttons = root.query_selector_all("button").unwrap();
+    (0..buttons.length())
+        .filter_map(|index| buttons.item(index))
+        .find(|node| node.text_content().as_deref() == Some(text))
+        .unwrap_or_else(|| panic!("the Inspector offers {text}"))
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+}
+
+fn canvas_key(root: &web_sys::Element, index: u32) -> web_sys::Element {
+    root.query_selector_all("[data-part-id]")
+        .unwrap()
+        .item(index)
+        .expect("the canvas stub renders the picked key")
+}
+
+fn dispatch_canvas_pick(node: &web_sys::Element) {
+    let init = web_sys::PointerEventInit::new();
+    init.set_bubbles(true);
+    node.dispatch_event(
+        &web_sys::PointerEvent::new_with_pointer_event_init_dict("pointerdown", &init).unwrap(),
+    )
+    .unwrap();
+}
+
+fn dispatch_escape() {
+    let options = web_sys::KeyboardEventInit::new();
+    options.set_key("Escape");
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .dispatch_event(
+            &web_sys::KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &options)
+                .unwrap(),
+        )
+        .unwrap();
+}
+
+fn picked_text(root: &web_sys::Element) -> Option<String> {
+    let notes = root.query_selector_all(".m1-empty-note").unwrap();
+    (0..notes.length())
+        .filter_map(|index| notes.item(index))
+        .filter_map(|node| node.text_content())
+        .find(|text| text.ends_with("picked"))
+}
+
+/// Ticket 32 slice, RED: canvas multi-Pick adds parts to the pending aggregate
+/// without writing — duplicates are a no-op — and Esc cancels with nothing
+/// written.
+#[wasm_bindgen_test]
+async fn aggregate_multi_pick_adds_pending_parts_and_esc_cancels_without_writing() {
+    let (document, context) = aggregate_anchor_three_key_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-pick-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 0));
+    settle(&probe).await;
+    assert_eq!(
+        picked_text(&root).as_deref(),
+        Some("1 picked"),
+        "one fresh key is pending; repeats and existing parts are a no-op"
+    );
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "pending picks write nothing"
+    );
+    dispatch_escape();
+    settle(&probe).await;
+    assert!(
+        picked_text(&root).is_none(),
+        "Esc drops the pending draft"
+    );
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .revision,
+        revision_before,
+        "Esc cancels with nothing written"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: committing the pending multi-Pick writes one Core
+/// intent with one Undo entry.
+#[wasm_bindgen_test]
+async fn aggregate_multi_pick_commit_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_three_key_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-commit-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    dispatch_canvas_pick(&canvas_key(&root, 2));
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    click_button(&root, "Add 1 part");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts,
+        vec![
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 1,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 2,
+            },
+        ],
+        "the commit appends the picked part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the commit is one atomic Core intent"
+    );
+    assert!(
+        picked_text(&root).is_none(),
+        "the commit clears the pending draft"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the parts before the commit"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: committing a part Core refuses surfaces the Core
+/// reason inline with nothing written.
+#[wasm_bindgen_test]
+async fn aggregate_commit_with_self_part_refuses_through_core() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-refusal-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    click_button(&root, "Pick parts");
+    settle(&probe).await;
+    let submitted = probe
+        .mount
+        .borrow()
+        .as_ref()
+        .expect("the Inspector mount exists")
+        .clone()
+        .pick_aggregate_part("matrix-b".into(), 0, 0);
+    assert!(submitted, "the self part reaches Core validation");
+    settle(&probe).await;
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    click_button(&root, "Add 1 part");
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after.document.revision, revision_before,
+        "a refused commit writes nothing"
+    );
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "a refused commit keeps the parts"
+    );
+    let alerts = root.query_selector_all("[role='alert']").unwrap();
+    assert!(
+        (0..alerts.length())
+            .filter_map(|index| alerts.item(index))
+            .any(|node| node
+                .text_content()
+                .is_some_and(|text| text.contains("cannot anchor to itself"))),
+        "the Core refusal surfaces inline"
     );
     root.remove();
 }
