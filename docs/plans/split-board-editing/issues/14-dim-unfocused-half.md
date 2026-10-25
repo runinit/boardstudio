@@ -37,7 +37,9 @@ never dim.
   (native: 2280 baselined + 4 new tolerated, no baseline change; full `check.py browser`
   incl. the drag smoke needs CI playwright, unavailable in this env). Live-app visual pass:
   guide-created split board dims right with label, real mouse click flips focus with selection,
-  tree select and PCB roundtrip keep focus, 4 flips in 0.63 s wall.
+  tree select and PCB roundtrip keep focus, 4 flips in 0.63 s wall. Second live pass: Inspector
+  "Left half, Row 1, Column 4" reference click moves selection cross-half without moving focus;
+  Inspector Local-X nudge commits with focus and dim intact.
 - Note for tickets 09/10: the test fixture constructs `LayoutMirrorLink` without your new
   fields; adopt it when your contract lands (you already patched it twice in passing).
 
