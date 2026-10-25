@@ -1501,6 +1501,83 @@ fn recovery_reopen_discards_failed_save_and_ignores_stale_executor_restart() {
     assert_eq!(next_epoch, active_epoch);
 }
 
+// Characterization for the IDB-quota UI escape hatch: after a quota-aborted save
+// latches RecoveryRequired, opening a fresh document discards the retained oversized
+// candidate without recommitting it, and RetrySave stays an explicit-only action.
+// The Runtime create-new/delete recovery flows rely on this Session contract.
+#[test]
+fn quota_escape_recover_discards_oversized_candidate_and_retry_stays_explicit() {
+    let mut session = Session::new();
+    let mut engine = CoreEngine::new();
+    open_ready(&mut session, &mut engine);
+    let effects = session.submit(move_edit(70, 0, 4.0));
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let reply = engine.handle(request);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(reply),
+    });
+    let (save_attempt_id, oversized) = save_effect(&effects);
+    session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Aborted(
+            "QuotaExceededError: origin storage is full".into(),
+        ),
+    });
+    assert_eq!(
+        session.read_model().lifecycle,
+        Lifecycle::RecoveryRequired
+    );
+
+    let fresh = ProjectDoc::empty("quota-escape-fresh", "Untitled keyboard");
+    let effects = session.submit(Event::RecoverWithDocument {
+        operation_id: OperationId(71),
+        document: fresh.clone(),
+    });
+    assert!(
+        !effects.iter().any(|effect| matches!(effect, Effect::Persist { document, .. } if **document == oversized)),
+        "recovery must not recommit the quota-exceeding candidate"
+    );
+    let (request_id, executor_epoch, request) = core_effect(&effects);
+    let effects = session.complete(Completion::Core {
+        request_id,
+        executor_epoch,
+        reply: Box::new(engine.handle(request)),
+    });
+    let (save_attempt_id, persisted) = save_effect(&effects);
+    assert_eq!(
+        persisted, fresh,
+        "the only persistence after escape carries the fresh document"
+    );
+    let effects = session.complete(Completion::Persist {
+        save_attempt_id,
+        result: SaveResult::Committed,
+    });
+    assert_eq!(
+        session
+            .read_model()
+            .accepted
+            .as_ref()
+            .unwrap()
+            .document
+            .as_ref(),
+        &fresh
+    );
+
+    let effects = session.submit(Event::RetrySave {
+        operation_id: OperationId(72),
+    });
+    assert!(
+        matches!(settled_landing(&effects, OperationId(72)).0, TerminalOutcome::Rejected(reason) if reason == "there is no retained save to retry"),
+        "after the escape hatch there is no retained save left to retry"
+    );
+    assert!(
+        !effects.iter().any(|effect| matches!(effect, Effect::Persist { .. })),
+        "no automatic save retries the discarded document"
+    );
+}
+
 #[test]
 fn selection_navigation_and_camera_updates_are_session_only() {
     let mut session = Session::new();
