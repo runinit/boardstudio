@@ -4,9 +4,7 @@ use crate::runtime::Runtime;
 use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Event, Lifecycle, Resolution, Scope, SnapshotToken,
 };
-use boardstudio_core::model::{
-    EditOperation, PartKind, ProjectDoc, Vec2,
-};
+use boardstudio_core::model::{EditOperation, PartKind, ProjectDoc, Vec2};
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardButtonVariant, BoardDialog, BoardSelectField,

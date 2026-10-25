@@ -98,18 +98,6 @@ fn composition() -> Element {
                 parts_query: Signal::new(String::new()),
                 on_browse_parts: EventHandler::default(),
                 matrix_setup: None,
-                mirrored_pair: Some(MirroredPairMount {
-                    form: Some(current()),
-                    placement: None,
-                    can_open: true,
-                    owns_canvas: false,
-                    on_open: EventHandler::default(),
-                    on_cancel: EventHandler::default(),
-                    on_preview: EventHandler::default(),
-                    on_move: EventHandler::default(),
-                    on_commit: EventHandler::default(),
-                    on_created: EventHandler::default(),
-                }),
                 existing_half: super::super::ExistingHalfMount {
                     projection: None,
                     visible: false,
@@ -216,22 +204,41 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .unwrap()
         .length()
         == 1;
-    let paired_fields = [
-        "Left layout name",
-        "Right layout name",
-        "Rows per half",
-        "Columns per half",
-    ]
-    .into_iter()
-    .all(|label| {
-        document
-            .query_selector(&format!(
-                "#mirror-overlay-workspace .m1-mirrored-pair-fields > label input[aria-label='{label}']"
-            ))
-            .unwrap()
-            .is_some()
-    });
-    let assembly_options = element("#mirror-overlay-workspace select[aria-label='Key assembly']")
+    let paired_fields = ["Left layout name", "Right layout name"]
+        .into_iter()
+        .all(|label| {
+            document
+                .query_selector(&format!(
+                    "#mirror-overlay-workspace .m1-mirrored-pair-fields > label input[aria-label='{label}']"
+                ))
+                .unwrap()
+                .is_some()
+        });
+    let shared_sliders = ["Rows per half", "Columns per half"]
+        .into_iter()
+        .all(|label| {
+            document
+                .query_selector(&format!(
+                    "#mirror-overlay-workspace [role='slider'][aria-label='{label}']"
+                ))
+                .unwrap()
+                .is_some()
+        });
+    let shared_assembly = ["New matrix assembly", "Switch mounting", "Key lighting"]
+        .into_iter()
+        .all(|label| {
+            document
+                .query_selector(&format!(
+                    "#mirror-overlay-workspace div[aria-label='{label}']"
+                ))
+                .unwrap()
+                .is_some()
+        });
+    let shared_preview = document
+        .query_selector("#mirror-overlay-workspace figure.wb-matrix-preview svg[aria-label='3 rows by 5 columns matrix preview']")
+        .unwrap()
+        .is_some();
+    let assembly_options = element("#mirror-overlay-workspace div[aria-label='Switch mounting']")
         .text_content()
         .unwrap();
     set_input(
@@ -240,13 +247,8 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     );
     rendered().await;
     set_input(
-        "#mirror-overlay-workspace input[aria-label='Rows per half']",
-        "4",
-    );
-    rendered().await;
-    set_input(
-        "#mirror-overlay-workspace input[aria-label='Columns per half']",
-        "6",
+        "#mirror-overlay-workspace input[aria-label='Gap between key edges (mm)']",
+        "24",
     );
     rendered().await;
     element("#mirror-overlay-workspace button[type='submit']").click();
@@ -261,10 +263,11 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
         .dyn_into::<web_sys::HtmlInputElement>()
         .unwrap()
         .value();
-    let retained_rows = element("#mirror-overlay-workspace input[aria-label='Rows per half']")
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .unwrap()
-        .value();
+    let retained_gap =
+        element("#mirror-overlay-workspace input[aria-label='Gap between key edges (mm)']")
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .unwrap()
+            .value();
 
     let left = element("#mirror-overlay-workspace input[aria-label='Left layout name']");
     let escape_options = web_sys::KeyboardEventInit::new();
@@ -301,16 +304,27 @@ async fn canvas_overlay_preserves_preview_values_and_routes_owner_cancel_escape(
     );
     assert!(
         paired_fields,
-        "the four name and dimension controls must remain mounted in the explicit paired field group"
+        "the left and right layout name controls must remain mounted in the paired field group"
     );
-    assert!(assembly_options.contains("MX Solder"));
-    assert!(assembly_options.contains("MX Hotswap"));
-    assert!(assembly_options.contains("MX Hotswap RGB"));
+    assert!(
+        shared_sliders,
+        "pair mode must reuse the shared rows/columns sliders"
+    );
+    assert!(
+        shared_assembly,
+        "pair mode must reuse the shared assembly toggle groups"
+    );
+    assert!(
+        shared_preview,
+        "pair mode must reuse the shared SVG matrix preview"
+    );
+    assert!(assembly_options.contains("Solder"));
+    assert!(assembly_options.contains("Hotswap"));
     assert_eq!(preview_owner, "1:11:19");
-    assert_eq!(preview_values, "Kept left draft|4|6|40");
+    assert_eq!(preview_values, "Kept left draft|3|5|24");
     assert_eq!(
-        (retained_left.as_str(), retained_rows.as_str()),
-        ("Kept left draft", "4")
+        (retained_left.as_str(), retained_gap.as_str()),
+        ("Kept left draft", "24")
     );
     assert!(
         hidden_after_escape,

@@ -7195,25 +7195,10 @@ fn Editor() -> Element {
                 layout_assembly_3d,
                 matrix_setup.on_open,
             );
-            let mut pcb_mirrored_pair = mirrored_pair.clone();
-            pcb_mirrored_pair.can_open = pcb_add_is_current
-                && pcb_mirrored_pair.form.is_none()
-                && pcb_mirrored_pair.placement.is_none()
-                && !pcb_mirrored_pair.owns_canvas
-                && canvas_interaction.current().is_none();
-            pcb_mirrored_pair.on_open = pcb_add_layout_open_handler(
-                runtime.clone(),
-                workspace,
-                adapter.clone(),
-                pcb_add_owner,
-                layout_assembly_3d,
-                mirrored_pair.on_open,
-            );
             workspace_composition::WorkspaceObjectsInput::Pcb(Box::new(
                 pcb_workspace::ObjectsInput {
                     shared: pcb_shared_objects,
                     matrix_setup: pcb_matrix_setup,
-                    mirrored_pair: pcb_mirrored_pair,
                     on_place_component: part_placement.on_place_component,
                     layout_target,
                     parts_query,
@@ -7279,7 +7264,6 @@ fn Editor() -> Element {
                 shared: shared_objects,
                 matrix_setup: matrix_setup.clone(),
                 matrix_inspector: matrix_inspector.clone(),
-                mirrored_pair: mirrored_pair.clone(),
                 pair_created: pair_created_selection,
                 on_place_component: part_placement.on_place_component,
                 layout_target,
@@ -9022,25 +9006,14 @@ fn Editor() -> Element {
                             }
                         }
                     },
-                    if guide.is_none() && active_workspace == "Layout"
-                        && let Some(projection) = matrix_setup.projection.clone()
-                    {
-                        objects::MatrixSetup {
-                            projection,
-                            on_cancel: matrix_setup.on_cancel,
-                            on_create: matrix_setup.on_create,
+                    if active_workspace == "Layout" {
+                        objects::AddMatrixSurface {
+                            matrix_setup: matrix_setup.clone(),
+                            mirrored_pair: mirrored_pair.clone(),
+                            guide_covering_single: guide.is_some(),
                         }
                     }
                     {workspace_composition::toolbar(toolbar_input)}
-                    if active_workspace == "Layout"
-                        && let Some(projection) = mirrored_pair.form.clone()
-                    {
-                        objects::MirroredPairCanvasOverlay {
-                            projection,
-                            on_cancel: mirrored_pair.on_cancel,
-                            on_preview: mirrored_pair.on_preview,
-                        }
-                    }
                     if guide.as_ref().is_some_and(|guide| guide.current_stage == SetupGuideStage::Project) {
                         setup_guide::SetupHardwarePreview {
                             split: physical_setup_mount.projection.topology == boardstudio_core::model::HardwareTopology::Split,

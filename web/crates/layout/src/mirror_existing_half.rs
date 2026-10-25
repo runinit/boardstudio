@@ -194,8 +194,14 @@ mod tests {
             counter += 1;
             Ok(format!("fresh-{counter}"))
         };
-        prepare_existing_half(document, "board", &["matrix-source".into()], 10.0, &mut new_id)
-            .expect("mirror-existing-half prepares a linked copy")
+        prepare_existing_half(
+            document,
+            "board",
+            &["matrix-source".into()],
+            10.0,
+            &mut new_id,
+        )
+        .expect("mirror-existing-half prepares a linked copy")
     }
 
     fn mirror_matrix_id(prepared: &PreparedExistingHalf) -> String {
@@ -206,8 +212,7 @@ mod tests {
             .find(|layout| layout.mirror_link.is_some())
             .expect("mirror layout exists")
             .matrix_ids
-            .iter()
-            .next()
+            .first()
             .expect("mirror layout carries its matrix")
             .clone()
     }
@@ -243,9 +248,7 @@ mod tests {
             .document
             .layouts
             .iter()
-            .filter(|layout| {
-                layout.mirror_link.is_none() && layout.matrix_ids == ["matrix-source"]
-            })
+            .filter(|layout| layout.mirror_link.is_none() && layout.matrix_ids == ["matrix-source"])
             .count();
         assert_eq!(
             sources, 1,

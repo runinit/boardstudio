@@ -1,7 +1,7 @@
 //! Private geometry for projecting a mirrored pair before Core commits the source matrix.
 use boardstudio_core::model::{
-    Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence, MirroredItemKind,
-    Vec2,
+    Layout, LayoutMirrorLink, Matrix, MatrixScene, Mirror, MirroredCorrespondence,
+    MirroredItemKind, Vec2,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -302,9 +302,8 @@ mod tests {
 
     #[test]
     fn projection_emits_one_explicit_matrix_correspondence_for_the_pair() {
-        let pair =
-            project_mirrored_pair(matrix(), &ids(), &request(), Vec2 { x: 100.0, y: 50.0 })
-                .unwrap();
+        let pair = project_mirrored_pair(matrix(), &ids(), &request(), Vec2 { x: 100.0, y: 50.0 })
+            .unwrap();
 
         let link = pair
             .right
