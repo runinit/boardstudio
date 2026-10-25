@@ -4693,10 +4693,16 @@ fn prepare_membership_transition_kernel(
             .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
         let correspondence = correspondence
             .ok_or_else(|| "The pair matrix correspondence is unavailable".to_owned())?;
+        // A matrix-level Local exception is an explicit overlay on the retained
+        // correspondence (spec §5): the mirror owns its descriptor and geometry
+        // while the pair record stays intact. Omitted stays refused here until
+        // its own slice wires the absent-mirror accounting.
+        let linked = association.state == TransitionState::Linked && !association.explicit_state;
+        let matrix_local = association.state == TransitionState::Local
+            && association.explicit_state;
         if association.source_id != matrix_pair.source_id.as_str()
             || association.mirror_id != matrix_pair.mirror_id.as_str()
-            || association.state != TransitionState::Linked
-            || association.explicit_state
+            || !(linked || matrix_local)
             || association.parent_source_id.is_some()
             || association.parent_mirror_id.is_some()
             || correspondence.source_id != association.source_id
@@ -5637,16 +5643,39 @@ fn prepare_membership_transition_kernel(
             .iter()
             .map(|addition| addition.source_id.clone())
             .collect();
-        if planned_source_ids.len() != input.planned_additions.len()
-            || mapped_source_ids
-                .union(&planned_source_ids)
-                .cloned()
-                .collect::<BTreeSet<_>>()
-                != post_source_members
-        {
+        if planned_source_ids.len() != input.planned_additions.len() {
             return Err(
                 "The source operation map does not describe the post-operation matrix".into(),
             );
+        }
+        let mapped_or_planned: BTreeSet<_> = mapped_source_ids
+            .union(&planned_source_ids)
+            .cloned()
+            .collect();
+        if mapped_or_planned != post_source_members {
+            // A detached Local mirror takes no projected members (spec §5): the
+            // only permitted gap is genuine source-side growth under it.
+            let uncovered: Vec<_> = post_source_members
+                .difference(&mapped_or_planned)
+                .collect();
+            let matrix_detached_local = context.associations.iter().any(|association| {
+                association.kind == MirroredItemKind::Matrix
+                    && association.source_id == matrix_pair.source_id.as_str()
+                    && association.mirror_id == matrix_pair.mirror_id.as_str()
+                    && association.state == TransitionState::Local
+                    && association.explicit_state
+            });
+            let source_growth = matrix_detached_local
+                && !uncovered.is_empty()
+                && uncovered.iter().all(|id| {
+                    matrix_identity_slot(id, matrix_pair.source_id.as_str()).is_some()
+                        && !before_source_members.contains(*id)
+                });
+            if !source_growth {
+                return Err(
+                    "The source operation map does not describe the post-operation matrix".into(),
+                );
+            }
         }
 
         let association_keys: BTreeSet<_> = context
@@ -6130,7 +6159,27 @@ fn prepare_membership_transition_kernel(
         && shifted_slots.is_empty()
         && input.planned_additions.is_empty()
         && (!context.pending_rejoins.is_empty() || !context.pending_pair_transitions.is_empty());
-    if !is_compaction && !is_trim && !is_expansion && !is_rejoin {
+    // A detached Local mirror owns its membership (spec §5): source-side growth
+    // projects nothing, so the map carries no additions for the kernel to
+    // materialize. The map check above already proved the residual change is
+    // genuine source growth; every other arm keeps its shape.
+    let matrix_detached_local = context.pending_rejoins.is_empty()
+        && context.pending_pair_transitions.is_empty()
+        && context.associations.iter().any(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id.as_str()
+                && association.mirror_id == matrix_pair.mirror_id.as_str()
+                && association.state == TransitionState::Local
+                && association.explicit_state
+        });
+    if matrix_detached_local && !input.planned_additions.is_empty() {
+        return Err("A detached Local mirror takes no projected additions".into());
+    }
+    let is_detached_expansion = removed_slots.is_empty()
+        && shifted_slots.is_empty()
+        && input.planned_additions.is_empty()
+        && matrix_detached_local;
+    if !is_compaction && !is_trim && !is_expansion && !is_rejoin && !is_detached_expansion {
         return Err("The source operation is not a supported identity, trim, expansion, or single-axis compaction".into());
     }
     let compaction_axis = if is_compaction {
@@ -6222,14 +6271,18 @@ fn prepare_membership_transition_kernel(
             properties.remove("layoutOverride");
         }
     }
-    if let Some((axis_row, removed_index)) = compaction_axis {
+    // A detached Local mirror owns its descriptor: membership staging never
+    // rewrites it, whatever the source operation removed or compacted.
+    if let Some((axis_row, removed_index)) =
+        compaction_axis.filter(|_| !matrix_detached_local)
+    {
         crate::matrix::deletion::remove_axis(
             &mut staged,
             matrix_pair.mirror_id.as_str(),
             removed_index,
             axis_row,
         )?;
-    } else if is_trim {
+    } else if is_trim && !matrix_detached_local {
         let old_mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?;
         let mut removed_cells: BTreeSet<_> = removed_slots
             .iter()
@@ -6302,20 +6355,32 @@ fn prepare_membership_transition_kernel(
     }
     let source = matrix_by_id(&staged, matrix_pair.source_id.as_str())?.clone();
     let mirror = matrix_by_id(&staged, matrix_pair.mirror_id.as_str())?.clone();
-    let matrix_correspondence = context
-        .pair_right
-        .correspondences
-        .iter()
-        .find(|association| {
-            association.kind == MirroredItemKind::Matrix
-                && association.source_id == matrix_pair.source_id.as_str()
-                && association.mirror_id == matrix_pair.mirror_id.as_str()
-        })
-        .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
-    let mut projected = project_matrix(&source, &mirror, matrix_correspondence, context.mapping)?;
+    // Detached Local: the mirror owns its descriptor and geometry, so the
+    // projection below is skipped and the owned descriptor is reused verbatim.
+    // (The per-cell loop carries a no-op filter to keep this diff flat; the
+    // preservation pass stays empty, so no compensation dirties the mirror.)
+    let mut projected = mirror.clone();
     let mut local_key_preservations = Vec::new();
     let mut omitted_target_parts = BTreeSet::new();
-    for cell in &mut projected.cells {
+    if !matrix_detached_local {
+        let matrix_correspondence = context
+            .pair_right
+            .correspondences
+            .iter()
+            .find(|association| {
+                association.kind == MirroredItemKind::Matrix
+                    && association.source_id == matrix_pair.source_id.as_str()
+                    && association.mirror_id == matrix_pair.mirror_id.as_str()
+            })
+            .ok_or_else(|| "The transition matrix association is unavailable".to_owned())?;
+        projected =
+            project_matrix(&source, &mirror, matrix_correspondence, context.mapping)?;
+    }
+    for cell in projected
+        .cells
+        .iter_mut()
+        .filter(|_| !matrix_detached_local)
+    {
         if !cell.enabled || cell.deleted {
             continue;
         }
@@ -6522,6 +6587,9 @@ fn prepare_membership_transition_kernel(
             });
         }
     }
+    // Detached Local keeps the mapped (identity) members: rejoins cannot be
+    // pending here by construction, and additions are refused above, so both
+    // extensions below are naturally empty on the detached path.
     let mut expected_final_mirror_members = mapped_mirror_ids.clone();
     expected_final_mirror_members.extend(context.pending_rejoins.iter().filter_map(
         |(source_id, previous_state)| {
@@ -6573,7 +6641,11 @@ fn prepare_membership_transition_kernel(
         .cloned()
         .collect();
     let _pruned_ids = crate::matrix::deletion::remove_parts_by_id(&mut staged, &removed_target_ids);
-    crate::matrix::set_matrix(&mut staged, &projected)?;
+    // Detached Local reuses the owned descriptor verbatim: writing the
+    // projection back would dirty it, and the prune set above is empty here.
+    if !matrix_detached_local {
+        crate::matrix::set_matrix(&mut staged, &projected)?;
+    }
     remove_omitted_matrix_parts(
         &mut staged,
         matrix_pair.mirror_id.as_str(),

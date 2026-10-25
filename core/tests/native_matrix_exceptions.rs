@@ -182,6 +182,30 @@ fn assert_mirror_correspondences(document: &Value, label: &str) {
     }
 }
 
+/// Source growth on a paired matrix must carry explicit new cells: the setter
+/// leaves sparse cells unfilled, and the reconciliation kernel requires dense
+/// cell coverage (`source_members`).
+fn expanded_source(document: &Value) -> Value {
+    let mut expanded = matrix(document, SOURCE_MATRIX).clone();
+    expanded["columns"] = json!(3);
+    let additions: Vec<Value> = [0, 1]
+        .iter()
+        .map(|row| {
+            let mut cell = expanded["cells"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|cell| cell["row"] == *row && cell["column"] == 1)
+                .unwrap()
+                .clone();
+            cell["column"] = json!(2);
+            cell
+        })
+        .collect();
+    expanded["cells"].as_array_mut().unwrap().extend(additions);
+    expanded
+}
+
 #[test]
 fn native_resize_keeps_local_mirror_dimensions_and_poses() {
     // Ticket 29 slice B1 (mirrors ticket 21's first slice natively): a public
@@ -205,13 +229,11 @@ fn native_resize_keeps_local_mirror_dimensions_and_poses() {
     assert_eq!(mirror_before["columns"], json!(2));
     let poses_before = poses(&local_doc);
     // Grow the source through the public prepared route.
-    let mut grown = matrix(&local_doc, SOURCE_MATRIX).clone();
-    grown["columns"] = json!(3);
     let resized = commit(
         &mut engine,
         &local_doc,
         "native-grow-source",
-        json!({"kind":"set-matrix","matrix":grown}),
+        json!({"kind":"set-matrix","matrix":expanded_source(&local_doc)}),
         &[],
     );
     assert_eq!(resized["kind"], "scene", "{resized}");

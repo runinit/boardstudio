@@ -2332,10 +2332,23 @@ fn prepare_matrix_membership_edit(
     }
 
     let mapped_sources: BTreeSet<_> = source_identity_map.values().flatten().cloned().collect();
-    let planned_source_ids: BTreeSet<_> = source_after_ids
-        .difference(&mapped_sources)
-        .cloned()
-        .collect();
+    // A matrix-level Local mirror owns its membership (spec §5): source growth
+    // stays source-only, so no mirror additions are planned for it.
+    let matrix_detached_local = context.associations.iter().any(|association| {
+        association.kind == MirroredItemKind::Matrix
+            && association.source_id == matrix_pair.source_id.as_str()
+            && association.mirror_id == matrix_pair.mirror_id.as_str()
+            && association.state == TransitionState::Local
+            && association.explicit_state
+    });
+    let planned_source_ids: BTreeSet<_> = if matrix_detached_local {
+        BTreeSet::new()
+    } else {
+        source_after_ids
+            .difference(&mapped_sources)
+            .cloned()
+            .collect()
+    };
     let mut used_references: BTreeSet<_> = before
         .parts
         .iter()
