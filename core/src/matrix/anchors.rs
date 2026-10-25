@@ -257,8 +257,12 @@ pub(crate) fn add(
         ));
     }
     let template = anchor.targets()[0].clone();
-    let target = evaluation::logical_matrix(&template.matrix_id, doc)
-        .map_err(|_| format!("Matrix {id} anchor target {} is missing", template.matrix_id))?;
+    let target = evaluation::logical_matrix(&template.matrix_id, doc).map_err(|_| {
+        format!(
+            "Matrix {id} anchor target {} is missing",
+            template.matrix_id
+        )
+    })?;
     let layout_id = owning_layout(doc, &target.id)
         .expect("validated target layout")
         .id
@@ -279,8 +283,13 @@ pub(crate) fn add(
             let mut mapped_anchor = anchor.clone();
             if let Some(aggregate) = mapped_anchor.aggregate.as_mut() {
                 for part in &mut aggregate.parts {
-                    part.matrix_id =
-                        counterpart_in_layout(doc, &part.matrix_id, &layout_id, member, &source_id)?;
+                    part.matrix_id = counterpart_in_layout(
+                        doc,
+                        &part.matrix_id,
+                        &layout_id,
+                        member,
+                        &source_id,
+                    )?;
                 }
                 mapped_anchor.matrix_id.clear();
                 mapped_anchor.row = 0;

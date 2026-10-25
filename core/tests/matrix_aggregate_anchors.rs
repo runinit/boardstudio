@@ -390,10 +390,7 @@ fn aggregate_average_follows_part_moves_through_the_mean() {
         },
     );
     assert_eq!(at(&doc, &member("main", 0, 2)), Vec2 { x: 43.0, y: 7.0 });
-    assert_eq!(
-        at(&doc, &member("thumb", 0, 0)),
-        Vec2 { x: 21.5, y: -15.5 }
-    );
+    assert_eq!(at(&doc, &member("thumb", 0, 0)), Vec2 { x: 21.5, y: -15.5 });
 }
 
 #[test]
@@ -621,7 +618,10 @@ fn aggregate_unknown_method_is_refused() {
             "parts": [{"matrixId": "main", "row": 0, "column": 0}]
         }),
     );
-    board(&mut document, json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]));
+    board(
+        &mut document,
+        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]),
+    );
     document["matrices"][1]["anchor"]["aggregate"]["method"] = json!("median");
     let mut engine = CoreEngine::new();
     let reply = open(&mut engine, "median", &document);
