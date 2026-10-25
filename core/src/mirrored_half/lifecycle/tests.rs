@@ -2287,6 +2287,10 @@ fn independent_screen_local_omit_and_rejoin_commit_current_source() {
         &target.definition_id,
         &target.reference,
         context.mapping,
+        crate::mirrored_half::derive::is_controller(
+            &rejoined.draft.definitions,
+            &source.definition_id,
+        ),
     );
     assert_eq!(target, &expected);
     assert!(rejoined.context.pair_right.exceptions.is_empty());
@@ -4124,6 +4128,10 @@ fn electrical_copper_fixture() -> (ProjectDoc, MembershipContext) {
             &target.definition_id,
             &target.reference,
             context.mapping,
+            crate::mirrored_half::derive::is_controller(
+                &document.definitions,
+                &source.definition_id,
+            ),
         );
     }
     let nets: [(&str, &[(&str, &str)]); 3] = [
@@ -4956,6 +4964,10 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
+                crate::mirrored_half::derive::is_controller(
+                    &edited_source.definitions,
+                    &source.definition_id,
+                ),
             )
         );
         assert_eq!(edited.draft.matrices, matrices_before);
@@ -5012,6 +5024,10 @@ fn independent_part_exception_intents_keep_exact_matrix_owners_and_children() {
                 &mirror.definition_id,
                 &mirror.reference,
                 fixture_context.mapping,
+                crate::mirrored_half::derive::is_controller(
+                    &rejoined.draft.definitions,
+                    &source.definition_id,
+                ),
             )
         );
         assert_eq!(rejoined.draft.matrices, matrices_before);

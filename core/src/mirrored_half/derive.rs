@@ -2,13 +2,31 @@
 //! these helpers only project existing values into the supplied identity space.
 
 use crate::mechanical::pair;
-use crate::model::{MirroredCompanionMode, MirroredCompanionTweak, Part, Pose2, Vec2};
+use crate::model::{
+    MirroredCompanionMode, MirroredCompanionTweak, Part, PartDefinition, PartKind, Pose2, Vec2,
+};
 
-/// Reflect an independent part's pose through the pair map using ADR-0010's full heading rule.
-pub(super) fn pose(mapping: Pose2, pose: Pose2) -> Pose2 {
+/// Whether a part definition makes its parts controllers, which keep the reflected heading.
+pub(super) fn is_controller(definitions: &[PartDefinition], definition_id: &str) -> bool {
+    definitions
+        .iter()
+        .any(|definition| definition.id == definition_id && definition.kind == PartKind::Controller)
+}
+
+/// Reflect an independent part's pose through the pair map.
+///
+/// Matrix-owned parts take the switch rule elsewhere; here every part takes ADR-0010's full
+/// heading rule `forward_angle + 180`, except controllers, which keep the reflected heading
+/// without the half turn so a mirrored MCU faces the same way as its source.
+pub(super) fn pose(mapping: Pose2, pose: Pose2, is_controller: bool) -> Pose2 {
+    let reflected = pair::forward_angle(mapping, pose.rotation);
     Pose2 {
         at: pair::forward(mapping, pose.at),
-        rotation: (pair::forward_angle(mapping, pose.rotation) + 180.0).rem_euclid(360.0),
+        rotation: if is_controller {
+            reflected.rem_euclid(360.0)
+        } else {
+            (reflected + 180.0).rem_euclid(360.0)
+        },
     }
 }
 
@@ -19,12 +37,13 @@ pub(super) fn part(
     definition_id: &str,
     reference: &str,
     mapping: Pose2,
+    is_controller: bool,
 ) -> Part {
     let mut mirrored = source.clone();
     mirrored.id = mirror_id.to_owned();
     mirrored.definition_id = definition_id.to_owned();
     mirrored.reference = reference.to_owned();
-    mirrored.pose = pose(mapping, source.pose);
+    mirrored.pose = pose(mapping, source.pose, is_controller);
     mirrored
 }
 
@@ -99,6 +118,50 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn controller_pose_keeps_the_reflected_heading_without_the_half_turn() {
+        // An axis map: `forward_angle` is `-r`. A controller keeps it, so an MCU facing the
+        // same way on the source still faces that way on the mirror.
+        let mapping = Pose2 {
+            at: Vec2 { x: 200.0, y: 0.0 },
+            rotation: 0.0,
+        };
+        let at = Vec2 { x: -24.0, y: 5.0 };
+        let expected_at = pair::forward(mapping, at);
+        for heading in [0.0, 90.0, 180.0, 270.0] {
+            let controller = pose(
+                mapping,
+                Pose2 {
+                    at,
+                    rotation: heading,
+                },
+                true,
+            );
+            assert_eq!(controller.at, expected_at, "heading {heading}");
+            assert_eq!(
+                controller.rotation,
+                (0.0 - heading).rem_euclid(360.0),
+                "controller heading {heading} mirrors to rotation - r"
+            );
+            // Every other independent part keeps the full rule: the reflected heading
+            // turned by 180 degrees.
+            let independent = pose(
+                mapping,
+                Pose2 {
+                    at,
+                    rotation: heading,
+                },
+                false,
+            );
+            assert_eq!(independent.at, expected_at, "heading {heading}");
+            assert_eq!(
+                independent.rotation,
+                (180.0 - heading).rem_euclid(360.0),
+                "independent heading {heading} keeps the half turn"
+            );
+        }
+    }
+
+    #[test]
     fn part_derivation_reuses_supplied_identities_without_a_board_or_pair() {
         let source: Part = serde_json::from_value(json!({
             "id": "source/part", "definitionId": "source/definition", "reference": "U1",
@@ -133,6 +196,7 @@ mod tests {
                 "existing/definition",
                 "J42",
                 mapping,
+                false,
             );
             assert!((mirrored.pose.at.x - at.x).abs() < 1e-9);
             assert!((mirrored.pose.at.y - at.y).abs() < 1e-9);
@@ -175,6 +239,7 @@ mod tests {
                 at: Vec2 { x: 20.0, y: -3.0 },
                 rotation: 0.0,
             },
+            false,
         );
         let existing_companion = part(
             &companion,
@@ -185,6 +250,7 @@ mod tests {
                 at: Vec2 { x: 20.0, y: -3.0 },
                 rotation: 0.0,
             },
+            false,
         );
         assert_eq!(existing_key.id, "existing/mirror-key");
         assert_eq!(existing_companion.id, "existing/mirror-diode");

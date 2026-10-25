@@ -7464,6 +7464,8 @@ fn changed_source_part_pose_keeps_existing_mirror_identity_and_source_parameters
             at: Vec2 { x: 200.0, y: 0.0 },
             rotation: 0.0,
         },
+        // The fixture definitions are custom, so the full heading rule applies.
+        false,
     )
     .expect("the existing part correspondence can be projected");
 

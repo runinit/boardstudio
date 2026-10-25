@@ -248,11 +248,17 @@ fn followed(
 }
 
 /// The pose the source takes so that the independent-part rule lands the mirror on `at` and
-/// `rotation`: the exact inverse of `derive::pose` (the heading rule is its own inverse).
-fn source_pose(mapping: Pose2, at: Vec2, rotation: f64) -> Pose2 {
+/// `rotation`: the exact inverse of `derive::pose` (each heading rule is its own inverse).
+/// Controllers keep the reflected heading without the half turn, like the forward rule.
+fn source_pose(mapping: Pose2, at: Vec2, rotation: f64, is_controller: bool) -> Pose2 {
+    let reflected = pair::inverse_angle(mapping, rotation);
     Pose2 {
         at: pair::inverse(mapping, at),
-        rotation: (pair::inverse_angle(mapping, rotation) + 180.0).rem_euclid(360.0),
+        rotation: if is_controller {
+            reflected.rem_euclid(360.0)
+        } else {
+            (reflected + 180.0).rem_euclid(360.0)
+        },
     }
 }
 
@@ -432,7 +438,8 @@ fn source_module(
     source.host_board_id = pair.halves.source_board_id.clone();
     source.host_instance_id =
         source_instance_pin(links, pair, &payload.id, payload.host_instance_id.as_ref())?;
-    let pose = source_pose(pair.mapping, payload.at, payload.rotation);
+    // Mounted modules take the full heading rule, like every non-controller independent part.
+    let pose = source_pose(pair.mapping, payload.at, payload.rotation, false);
     source.at = pose.at;
     source.rotation = pose.rotation;
     source.connection = payload
@@ -811,8 +818,9 @@ fn embed_circuit(
         source_joins.insert(port.clone(), source_net);
     }
 
+    // The circuit record itself is not a part, so the embed pose takes the full heading rule.
     let source_embed_pose = if mirror_authored {
-        source_pose(pair.mapping, pose.at, pose.rotation)
+        source_pose(pair.mapping, pose.at, pose.rotation, false)
     } else {
         pose
     };
@@ -886,6 +894,7 @@ fn embed_circuit(
     // exactly when the source member sits at the inverse image of its typed world pose. Typed
     // poses are what `modules::embed` gives the members on the mirror board: the back side
     // negates the member's x and heading (and flips its side, which the source embed repeats).
+    // Controller members keep the reflected heading, matching the forward part rule.
     let member_poses = if mirror_authored {
         let back = *side == Side::Back;
         let (sin, cos) = pose.rotation.to_radians().sin_cos();
@@ -908,9 +917,13 @@ fn embed_circuit(
                     } else {
                         member.pose.rotation
                     };
+                let is_controller = circuit.definitions.iter().any(|definition| {
+                    definition.id == member.definition_id
+                        && definition.kind == crate::model::PartKind::Controller
+                });
                 (
                     format!("{source_prefix}{}", member.id),
-                    source_pose(pair.mapping, typed_at, typed_rotation),
+                    source_pose(pair.mapping, typed_at, typed_rotation, is_controller),
                 )
             })
             .collect()

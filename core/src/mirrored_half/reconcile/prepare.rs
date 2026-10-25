@@ -404,6 +404,10 @@ fn seed_missing_independent_parts(
             &definition,
             &reference,
             mapping,
+            crate::mirrored_half::derive::is_controller(
+                &document.definitions,
+                &source.definition_id,
+            ),
         );
         document.parts.push(target);
         if !already_registered {

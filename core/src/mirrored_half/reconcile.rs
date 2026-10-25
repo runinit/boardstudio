@@ -2576,7 +2576,13 @@ fn reconcile(
                 correspondence.mirror_id
             ));
         }
-        let projected = project_part(source, mirror, correspondence, pair.mapping)?;
+        let projected = project_part(
+            source,
+            mirror,
+            correspondence,
+            pair.mapping,
+            super::derive::is_controller(&document.definitions, &source.definition_id),
+        )?;
         let mut staged_mirrors = staged
             .parts
             .iter_mut()
@@ -2742,7 +2748,13 @@ fn reconcile(
             properties: None,
             generator_parameters: None,
         });
-        let projected = project_part(source, &target_seed, &correspondence, pair.mapping)?;
+        let projected = project_part(
+            source,
+            &target_seed,
+            &correspondence,
+            pair.mapping,
+            super::derive::is_controller(&document.definitions, &source.definition_id),
+        )?;
         if let Some(staged_target) = staged.parts.iter_mut().find(|part| part.id == *mirror_id) {
             *staged_target = projected;
         } else {
@@ -3128,7 +3140,13 @@ fn reconcile(
                 source_id: member_id.clone(),
                 mirror_id: target_id.clone(),
             };
-            *target_part = project_part(source_part, target_part, &correspondence, pair.mapping)?;
+            *target_part = project_part(
+                source_part,
+                target_part,
+                &correspondence,
+                pair.mapping,
+                super::derive::is_controller(&document.definitions, &source_part.definition_id),
+            )?;
         }
         for source_member_id in &source.part_ids {
             let Some(target_id) = part_targets.get(source_member_id) else {
@@ -3332,6 +3350,7 @@ fn reconcile(
                     &staged.parts[index],
                     &correspondence,
                     pair.mapping,
+                    super::derive::is_controller(&document.definitions, &source_part.definition_id),
                 )?
             } else {
                 let seed = Part {
@@ -3349,7 +3368,13 @@ fn reconcile(
                     properties: None,
                     generator_parameters: None,
                 };
-                project_part(source_part, &seed, &correspondence, pair.mapping)?
+                project_part(
+                    source_part,
+                    &seed,
+                    &correspondence,
+                    pair.mapping,
+                    super::derive::is_controller(&document.definitions, &source_part.definition_id),
+                )?
             };
             if let Some(index) = existing {
                 staged.parts[index] = target_part;
@@ -4280,6 +4305,7 @@ fn project_part(
     mirror: &Part,
     correspondence: &MirroredCorrespondence,
     mapping: Pose2,
+    is_controller: bool,
 ) -> Result<Part, String> {
     if correspondence.kind != crate::model::MirroredItemKind::Part
         || correspondence.source_id != source.id
@@ -4294,6 +4320,7 @@ fn project_part(
         &mirror.definition_id,
         &mirror.reference,
         mapping,
+        is_controller,
     ))
 }
 

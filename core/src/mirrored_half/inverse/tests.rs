@@ -2391,6 +2391,41 @@ fn a_part_added_on_the_mirror_board_becomes_a_source_addition_with_its_mirror_pl
 }
 
 #[test]
+fn a_controller_added_on_the_mirror_lands_on_the_source_without_the_half_turn() {
+    // A controller definition in the document switches the AddPart inverse to the reflected
+    // heading. The axis map sends (x, y) to (200 - x, y): the authored mirror pose (230, 12)
+    // at heading 30 lands on the source (-30, 12) at heading -30 = 330, not 150.
+    let mut document = fixture();
+    document.definitions.push(
+        serde_json::from_value(json!({
+            "id": "mcu", "name": "MCU", "kind": "controller",
+            "courtyard": [{"x":-5,"y":-4},{"x":5,"y":-4},{"x":5,"y":4},{"x":-5,"y":4}],
+            "pads": []
+        }))
+        .unwrap(),
+    );
+    let request = json!({"kind": "add-part", "boardId": "right", "part": {
+        "id": "right/MCU", "definitionId": "mcu", "reference": "right-MCU",
+        "pose": {"at": {"x": 230, "y": 12}, "rotation": 30}, "side": "front"}});
+    let result = canonical(&document, &request).unwrap();
+    let EditOperation::AddPart { part, .. } = result.operation else {
+        panic!("an addition is expected");
+    };
+    assert_close(
+        &serde_json::to_value(part.pose).unwrap(),
+        &json!({"at": {"x": -30, "y": 12}, "rotation": 330}),
+        "pose",
+    );
+    assert_eq!(result.additions[0].source_id, "left/MCU");
+    assert_eq!(result.additions[0].mirror_id, "right/MCU");
+    // The controller rule is its own inverse: the source addition reflects back to exactly
+    // what was authored on the mirror, (200 - -30, 12) at (0 - 330) mod 360 = 30.
+    assert_eq!(200.0 - part.pose.at.x, 230.0);
+    assert_eq!(part.pose.at.y, 12.0);
+    assert_eq!((0.0 - part.pose.rotation).rem_euclid(360.0), 30.0);
+}
+
+#[test]
 fn a_rotated_pair_map_places_and_turns_an_added_part_back_on_the_source() {
     let request = json!({"kind": "add-part", "boardId": "right", "part": {
         "id": "right/LED", "definitionId": "u", "reference": "right-D9",

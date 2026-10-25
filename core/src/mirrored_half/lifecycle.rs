@@ -3377,7 +3377,16 @@ fn prepare_lifecycle_transition(
                 companion_mode: association.raw_mode_override,
                 companion_tweak: association.raw_tweak,
             };
-            let projected = super::project_part(source, &seed, &record, context.mapping)?;
+            let projected = super::project_part(
+                source,
+                &seed,
+                &record,
+                context.mapping,
+                super::super::derive::is_controller(
+                    &post_source.definitions,
+                    &source.definition_id,
+                ),
+            )?;
             if let Some(target) = draft
                 .parts
                 .iter_mut()

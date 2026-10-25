@@ -20,6 +20,7 @@ struct Context<'a> {
     mirror_board: &'a str,
     halves: &'a MirroredHalves,
     matrix_owned_parts: std::collections::BTreeSet<String>,
+    controller_parts: std::collections::BTreeSet<String>,
 }
 
 impl<'a> Context<'a> {
@@ -30,12 +31,14 @@ impl<'a> Context<'a> {
     ) -> Self {
         let mirror_board = &halves.mirror_board_id;
         let matrix_owned_parts = super::super::matrix_owned_parts(document, mirror_board);
+        let controller_parts = super::super::controller_parts(document, mirror_board);
         Self {
             mapping,
             source_board: &halves.source_board_id,
             mirror_board,
             halves,
             matrix_owned_parts,
+            controller_parts,
         }
     }
 
@@ -78,7 +81,7 @@ impl<'a> Context<'a> {
     }
 
     fn full_rule_part(&self, id: &str) -> bool {
-        !self.matrix_owned_parts.contains(id)
+        !self.matrix_owned_parts.contains(id) && !self.controller_parts.contains(id)
     }
 
     fn anchored(&self, point: Vec2, part_id: &str) -> Vec2 {

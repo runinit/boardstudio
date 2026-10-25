@@ -43,7 +43,7 @@ use crate::mechanical::pair;
 use crate::model::{
     EditOperation, Matrix, MatrixAnchor, MatrixSplayChange, Mirror, MirroredCompanionMode,
     MirroredCompanionTweak, MirroredCorrespondence, MirroredExceptionState, MirroredHalves,
-    MirroredItemKind, Part, Pose2, Position, ProjectDoc, Vec2,
+    MirroredItemKind, Part, PartKind, Pose2, Position, ProjectDoc, Vec2,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -1133,12 +1133,23 @@ impl<'a> Links<'a> {
         let mut source = part.clone();
         source.id = source_id.clone();
         source.reference = reference;
-        // The position takes the exact inverse; the heading rule `map - r + 180` is its own
-        // inverse over the full circle.
+        // The position takes the exact inverse; each heading rule is its own inverse over the
+        // full circle. Controllers keep the reflected heading without the half turn, like the
+        // forward rule, so a mirrored MCU lands as authored.
+        let is_controller = definition
+            .map(|definition| definition.kind == PartKind::Controller)
+            .unwrap_or(false)
+            || self.document.definitions.iter().any(|candidate| {
+                candidate.id == part.definition_id && candidate.kind == PartKind::Controller
+            });
+        let reflected = pair::inverse_angle(pair.mapping, part.pose.rotation);
         source.pose = Pose2 {
             at: pair::inverse(pair.mapping, part.pose.at),
-            rotation: (pair::inverse_angle(pair.mapping, part.pose.rotation) + 180.0)
-                .rem_euclid(360.0),
+            rotation: if is_controller {
+                reflected.rem_euclid(360.0)
+            } else {
+                (reflected + 180.0).rem_euclid(360.0)
+            },
         };
         Ok(Some((
             EditOperation::AddPart {

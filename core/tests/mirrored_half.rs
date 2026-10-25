@@ -289,7 +289,17 @@ fn assert_reflects_every_part(document: &Value, pair_id: &str, label: &str) {
                 })
             });
         let source_heading = source["pose"]["rotation"].as_f64().unwrap();
-        let expected_heading = if in_matrix {
+        // Controllers keep the reflected heading without the half turn, so both halves
+        // share the MCU heading; every other independent part takes the full rule.
+        let definition_id = source["definitionId"].as_str().unwrap();
+        let is_controller = document["definitions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|definition| {
+                definition["id"] == definition_id && definition["kind"] == "controller"
+            });
+        let expected_heading = if in_matrix || is_controller {
             turn - source_heading
         } else {
             turn + 180.0 - source_heading
@@ -363,6 +373,63 @@ fn a_vertical_axis_map_reflects_every_part_by_the_pair_rule() {
 }
 
 #[test]
+fn a_mirrored_mcu_keeps_its_source_heading_and_intended_origin() {
+    // Issue 3: the MCU (a controller) must mirror to the plain reflection, not the +180
+    // independent-part rule, so both halves share its heading and its intended origin.
+    let synthetic_input = synthetic_half::document();
+    let (mut engine, seed) = seed(&synthetic_input, "left");
+    let reply = create(
+        &mut engine,
+        &seed,
+        "pair-mcu",
+        "left",
+        new_board("mirror", "mirror"),
+        mapping(300.0),
+    )
+    .unwrap();
+    let document = &reply["document"];
+    let source = part(document, "left/U1");
+    let mirror = part(document, "mirror/U1");
+    // The axis map at x = 300 sends (-24, 0) to (324, 0).
+    assert_point(
+        (
+            mirror["pose"]["at"]["x"].as_f64().unwrap(),
+            mirror["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (324.0, 0.0),
+        "mirror MCU origin",
+    );
+    assert!(
+        angles_match(
+            mirror["pose"]["rotation"].as_f64().unwrap(),
+            source["pose"]["rotation"].as_f64().unwrap()
+        ),
+        "mirror MCU shares its source heading: {} against {}",
+        mirror["pose"]["rotation"],
+        source["pose"]["rotation"]
+    );
+    // A genuine independent (the TRRS connector) still takes the half turn.
+    let source_trrs = part(document, "left/TRRS");
+    let mirror_trrs = part(document, "mirror/TRRS");
+    assert_point(
+        (
+            mirror_trrs["pose"]["at"]["x"].as_f64().unwrap(),
+            mirror_trrs["pose"]["at"]["y"].as_f64().unwrap(),
+        ),
+        (324.0, -16.0),
+        "mirror TRRS origin",
+    );
+    assert!(
+        angles_match(
+            mirror_trrs["pose"]["rotation"].as_f64().unwrap(),
+            180.0 - source_trrs["pose"]["rotation"].as_f64().unwrap()
+        ),
+        "mirror TRRS keeps the half turn: {}",
+        mirror_trrs["pose"]["rotation"]
+    );
+}
+
+#[test]
 fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
     let synthetic_input = synthetic_half::document();
     for (pair_id, map) in [
@@ -403,8 +470,9 @@ fn creation_derives_independent_part_poses_for_axis_and_rotated_maps() {
             pair_id,
         );
         let source_heading = source["pose"]["rotation"].as_f64().unwrap();
+        // U1 is a controller, so it keeps the reflected heading without the half turn.
         let expected_heading =
-            (map["rotation"].as_f64().unwrap() + 180.0 - source_heading).rem_euclid(360.0);
+            (map["rotation"].as_f64().unwrap() - source_heading).rem_euclid(360.0);
         assert!(angles_match(
             mirrored["pose"]["rotation"].as_f64().unwrap(),
             expected_heading
@@ -1377,12 +1445,12 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             .clone()
     };
 
-    // Live outline, in the part frame: U1 is an independent part, so the mirror turns it by 180
-    // degrees (ticket 30) and its attached point is (x, -y) in that frame; the free one maps.
+    // Live outline, in the part frame: U1 is a controller, so it keeps the reflected heading
+    // and its attached point is (-x, y) in that frame; the free one maps.
     let live = find(&out["outline"], "right/synthetic-envelope");
     let connection = &live["connections"][0];
     assert_eq!(connection["points"][0]["partId"], "right/U1");
-    assert_eq!(connection["points"][0]["at"], json!({"x": 4.0, "y": -2.0}));
+    assert_eq!(connection["points"][0]["at"], json!({"x": -4.0, "y": 2.0}));
     assert_point(
         world_of(out, "right/U1", &connection["points"][0]["at"]),
         reflected_point(&map, world_of(out, "left/U1", &json!({"x": 4.0, "y": 2.0}))),
@@ -1449,9 +1517,9 @@ fn outlines_reflect_anchored_geometry_in_the_part_frame_and_keep_unique_identiti
             "{x},{y}"
         );
     }
-    // Reflection reverses the winding, so the points come back in the reverse order. U1 is an
-    // independent part turned by 180 degrees, so the local point is (x, -y), not (-x, y).
-    assert_eq!(polygon["points"][0], json!({"x": 5.0, "y": -7.0}));
+    // Reflection reverses the winding, so the points come back in the reverse order. U1 is a
+    // controller with the reflected heading, so the local point is (-x, y), not (x, -y).
+    assert_eq!(polygon["points"][0], json!({"x": -5.0, "y": 7.0}));
     let fixed_gap = &geometry["protectedGaps"]
         .as_array()
         .unwrap()
@@ -2800,8 +2868,10 @@ fn anchored_geometry_lands_on_the_mapped_world_point_at_every_heading_and_map() 
         3,
     );
     let companion = "left/TRRS";
+    // U1 is a controller, so it shares the switch rule with matrix keys: only RST still
+    // takes the full independent rule.
     let anchors = [
-        ("left/U1", true),
+        ("left/U1", false),
         ("left/RST", true),
         ("matrix/left-synthetic-keys/r0c0", false),
         (companion, false),
@@ -4208,9 +4278,11 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         part(&accepted, "left/U1")["pose"],
         json!({"at":{"x":-24.0,"y":0.0},"rotation":0.0})
     );
+    // U1 is a controller: the rotated map reflects its heading without the half turn
+    // (90 - 0 = 90), while the position still goes through the pair map.
     assert_eq!(
         part(&accepted, "right/U1")["pose"],
-        json!({"at":{"x":200.0,"y":54.0},"rotation":270.0})
+        json!({"at":{"x":200.0,"y":54.0},"rotation":90.0})
     );
 
     let move_from_mirror = json!({
@@ -4255,7 +4327,7 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         (186.0, 46.0),
         "literal mirror Preview pose",
     );
-    assert_eq!(mirror_preview_pose["rotation"], 270.0);
+    assert_eq!(mirror_preview_pose["rotation"], 90.0);
     assert_eq!(snapshot(&mut engine), accepted, "Preview must not publish");
 
     let committed = request(
@@ -4293,7 +4365,7 @@ fn production_rotated_pair_map_mirror_move_preview_commit_and_history() {
         (186.0, 46.0),
         "literal committed mirror pose",
     );
-    assert_eq!(mirror_committed_pose["rotation"], 270.0);
+    assert_eq!(mirror_committed_pose["rotation"], 90.0);
 
     let undone = request(
         &mut engine,
@@ -4383,10 +4455,11 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
             .find(|transform| transform["id"] == id)
             .unwrap_or_else(|| panic!("preview transform for {id} is missing: {preview}"))
     };
+    // right/U1 is a controller, so it keeps heading 0 while the connector J2 keeps the turn.
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
@@ -4416,7 +4489,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
@@ -4460,7 +4533,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -24.0, 0.0, 0.0),
         ("left/J2", -14.0, 5.0, 0.0),
-        ("right/U1", 224.0, 0.0, 180.0),
+        ("right/U1", 224.0, 0.0, 0.0),
         ("right/J2", 214.0, 5.0, 180.0),
     ] {
         assert_eq!(
@@ -4492,7 +4565,7 @@ fn production_mirror_move_retunes_constraint_chain_through_preview_and_history()
     for (id, x, y, rotation) in [
         ("left/U1", -16.0, 14.0, 0.0),
         ("left/J2", -6.0, 19.0, 0.0),
-        ("right/U1", 216.0, 14.0, 180.0),
+        ("right/U1", 216.0, 14.0, 0.0),
         ("right/J2", 206.0, 19.0, 180.0),
     ] {
         assert_eq!(
