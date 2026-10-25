@@ -119,3 +119,6 @@ mod end_to_end_acceptance;
 
 #[path = "splay_companions.rs"]
 mod splay_companions;
+
+#[path = "native_matrix_exceptions.rs"]
+mod native_matrix_exceptions;
