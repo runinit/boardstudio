@@ -3551,7 +3551,7 @@ mod tests {
 /// intents with atomicity and Undo. Native: no browser needed.
 #[cfg(test)]
 mod key_omit_tests {
-    use super::{key_half_exception, key_half_exception_at_resolver, key_half_exception_resolver};
+    use super::{key_half_exception_at_resolver, key_half_exception_resolver};
     use boardstudio_application::{AcceptedSnapshot, Resolution, SessionEpoch, SnapshotToken};
     use boardstudio_core::model::{
         EditOperation, HalfExceptionState, MirroredItemKind, ProjectDoc, SceneDelta,
