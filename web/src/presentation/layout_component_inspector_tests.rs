@@ -2894,6 +2894,7 @@ mod matrix_relations_panel {
                 on_select_context: EventHandler::new(move |request: objects::TreeSelectRequest| {
                     selection::submit_context(&select_runtime, &select_adapter, request.into());
                 }),
+                on_navigate_anchor_part: EventHandler::new(|_| {}),
                 outline_inspector: None,
                 findings_return_available: false,
                 on_findings_return: EventHandler::new(|()| {}),

@@ -857,20 +857,30 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
 #[wasm_bindgen_test]
 async fn hovering_an_aggregate_part_highlights_only_its_key() {
     let root_id = "relation-aggregate-part-hover";
-    let mut probe = mount(root_id).await;
-    probe.open_relations().await;
-    let accepted = probe.current();
-    let revision = accepted.revision;
+    let probe = mount(root_id).await;
+    probe.select(objects::TreeContext::Matrix {
+        matrix_id: MATRIX.into(),
+    });
+    wait_until("the Relations tab button renders", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(2)").is_some()
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the Relations tab lists the matrix", || {
+        query(root_id, "li[data-relation-label='Matrix']").is_some()
+    })
+    .await;
+    let accepted = probe.runtime.model().accepted.expect("accepted document");
     let mut document = (*accepted.document).clone();
     document.layouts.push(
         serde_json::from_value(json!({ "id": "layout", "name": "Layout", "boardId": "board",
             "matrixIds": ["main"], "partIds": [] }))
         .unwrap(),
     );
-    probe.land(replace_command(revision, document)).await;
+    probe.land(replace_command(document.revision, document)).await;
     probe
         .land(anchor_command(
-            revision + 1,
+            probe.revision(),
             "thumb",
             json!({ "follow": ["x", "y", "rotation"],
                     "aggregate": { "method": "average",
@@ -935,16 +945,36 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
         before,
         "hovering and leaving never write, so no Undo entry"
     );
-    second
+    web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector_all(&format!(
+            "#{root_id} li[data-relation-label='Anchor part'] button"
+        ))
+        .unwrap()
+        .item(1)
+        .unwrap()
         .dyn_into::<web_sys::HtmlElement>()
         .unwrap()
         .click();
+    // The reference navigates by changing the selection; selecting another
+    // object returns to Properties, so poll the selection itself.
+    let adapter = probe.adapter.clone();
+    let part_key = objects::TreeContext::Key {
+        matrix_id: MATRIX.into(),
+        row: 1,
+        column: 4,
+    };
     wait_until("the part entry navigates to its key", || {
-        query(root_id, "li[data-relation-label='Followed by']").is_some_and(|item| {
-            item.text_content()
-                .unwrap_or_default()
-                .contains("Matrix thumb")
-        })
+        adapter
+            .borrow()
+            .clone()
+            .expect("mounted adapter")
+            .selected_context
+            .read()
+            .clone()
+            .is_some_and(|scoped| scoped.context == part_key)
     })
     .await;
     assert_eq!(
