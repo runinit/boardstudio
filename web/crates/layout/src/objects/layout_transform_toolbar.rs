@@ -4699,7 +4699,8 @@ mod tool_tests {
             .filter_map(|node| node.text_content())
             .collect::<Vec<_>>();
         assert_eq!(
-            labels, ["Position"],
+            labels,
+            ["Position"],
             "unavailable pointer tools are omitted, leaving only the Position action"
         );
         root.remove();

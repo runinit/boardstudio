@@ -230,21 +230,20 @@ mod tests {
     fn pill_duplicate_probe_host(props: PillDuplicateProbeProps) -> Element {
         let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
         let target = props.open;
-        let transform =
-            super::super::layout_transform_toolbar::LayoutTransformMenuMount {
-                properties_available: true,
-                column_available: true,
-                row_available: true,
-                pointer_tools_visible: true,
-                pointer_tools_available: true,
-                active_tool: None,
-                matrix_rotate_followed: None,
-                on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
-                on_show_properties: EventHandler::new(|()| {}),
-                on_transform_tool: EventHandler::new(
-                    |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
-                ),
-            };
+        let transform = super::super::layout_transform_toolbar::LayoutTransformMenuMount {
+            properties_available: true,
+            column_available: true,
+            row_available: true,
+            pointer_tools_visible: true,
+            pointer_tools_available: true,
+            active_tool: None,
+            matrix_rotate_followed: None,
+            on_selection_kind: EventHandler::new(|_: LayoutSelectionKind| {}),
+            on_show_properties: EventHandler::new(|()| {}),
+            on_transform_tool: EventHandler::new(
+                |_: super::super::layout_transform_toolbar::LayoutTransformTool| {},
+            ),
+        };
         let align = super::super::layout_align::LayoutAlignMount {
             references: Vec::new(),
             selected_reference: None,
@@ -341,7 +340,9 @@ mod tests {
             .unwrap()
             .expect("the open scope popover keeps a hint pointing at the toolbar tools");
         assert!(
-            hint.text_content().unwrap_or_default().contains("tools in the toolbar"),
+            hint.text_content()
+                .unwrap_or_default()
+                .contains("tools in the toolbar"),
             "the scope hint points at the toolbar instead of duplicating its tools"
         );
         root.remove();
