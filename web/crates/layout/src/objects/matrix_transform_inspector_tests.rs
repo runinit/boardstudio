@@ -19,7 +19,7 @@ use std::{
 };
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::wasm_bindgen_test;
-use web_sys::{Event as DomEvent, HtmlInputElement};
+use web_sys::{Event as DomEvent, HtmlInputElement, HtmlSelectElement};
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -3595,6 +3595,9 @@ async fn key_selection_adds_an_anchored_matrix_with_one_undo() {
 /// validation requires; the dependant follows the parts' mean.
 fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
     let (mut document, _) = two_key_fixture(false);
+    // Non-parallel part headings so the intersection method stays evaluable:
+    // the second part key turns 90 degrees.
+    document.matrices[0].cells[1].rotation = Some(90.0);
     document.layouts.push(Layout {
         id: "layout".into(),
         name: "Main".into(),
@@ -3738,6 +3741,113 @@ async fn aggregate_anchor_section_lists_part_links_that_navigate_without_writing
             .revision,
         revision_before,
         "navigation writes nothing: no new revision, no Undo entry"
+    );
+    root.remove();
+}
+
+/// Ticket 32 slice, RED: switching the aggregate method writes one Core
+/// intent with one Undo entry, keeping parts and Follow.
+#[wasm_bindgen_test]
+async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-method-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let method = root
+        .query_selector("select[aria-label='Method']")
+        .unwrap()
+        .expect("the Anchor section offers the aggregate method")
+        .dyn_into::<HtmlSelectElement>()
+        .unwrap();
+    assert_eq!(method.value(), "average", "the method shows the admitted value");
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    method.set_value("intersect");
+    let change = web_sys::EventInit::new();
+    change.set_bubbles(true);
+    method
+        .dispatch_event(&web_sys::Event::new_with_event_init_dict("change", &change).unwrap())
+        .unwrap();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    let aggregate = after
+        .document
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "matrix-b")
+        .expect("the matrix survives")
+        .anchor
+        .as_ref()
+        .expect("the anchor survives")
+        .aggregate
+        .as_ref()
+        .expect("the anchor stays aggregate");
+    assert_eq!(
+        aggregate.method,
+        AggregateMethod::Intersect,
+        "the switch writes the new method"
+    );
+    assert_eq!(
+        aggregate.parts,
+        vec![
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 0,
+            },
+            AnchorPart {
+                matrix_id: "matrix".into(),
+                row: 0,
+                column: 1,
+            },
+        ],
+        "the switch keeps every part"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the switch is one atomic Core intent"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .method,
+        AggregateMethod::Average,
+        "one Undo restores the previous method"
     );
     root.remove();
 }
