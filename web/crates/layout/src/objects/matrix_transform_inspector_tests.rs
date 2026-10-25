@@ -3851,3 +3851,117 @@ async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
     );
     root.remove();
 }
+
+/// Ticket 32 slice, RED: removing a part writes one Core intent with one
+/// Undo entry; the last remaining part cannot be removed.
+#[wasm_bindgen_test]
+async fn aggregate_part_remove_writes_one_intent_with_one_undo() {
+    let (document, context) = aggregate_anchor_fixture();
+    let (probe, root) = mount_selection_probe(
+        "matrix-transform-aggregate-remove-test",
+        document,
+        context,
+        &[],
+    )
+    .await;
+    settle(&probe).await;
+    let removes: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        removes.len(),
+        2,
+        "each part offers Remove while more than one part remains"
+    );
+    let revision_before = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document")
+        .document
+        .revision;
+    removes[0].click();
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    let after = probe
+        .runtime
+        .model()
+        .accepted
+        .expect("an accepted document");
+    assert_eq!(
+        after
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts,
+        vec![AnchorPart {
+            matrix_id: "matrix".into(),
+            row: 0,
+            column: 1,
+        }],
+        "Remove drops the part in one Core intent"
+    );
+    assert_eq!(
+        after.document.revision,
+        revision_before + 1,
+        "the removal is one atomic Core intent"
+    );
+    let remaining: Vec<web_sys::HtmlElement> = {
+        let buttons = root.query_selector_all("button").unwrap();
+        (0..buttons.length())
+            .filter_map(|index| buttons.item(index))
+            .filter(|node| node.text_content().as_deref() == Some("Remove"))
+            .map(|node| node.dyn_into::<web_sys::HtmlElement>().unwrap())
+            .collect()
+    };
+    assert_eq!(remaining.len(), 1, "one part link remains");
+    assert!(
+        remaining[0]
+            .clone()
+            .dyn_into::<web_sys::HtmlButtonElement>()
+            .unwrap()
+            .disabled(),
+        "the last remaining part cannot be removed"
+    );
+    probe.runtime.submit(Event::Undo {
+        operation_id: probe.runtime.operation(),
+    });
+    support::run_pending(&probe.runtime).await;
+    settle(&probe).await;
+    assert_eq!(
+        probe
+            .runtime
+            .model()
+            .accepted
+            .expect("an accepted document")
+            .document
+            .matrices
+            .iter()
+            .find(|matrix| matrix.id == "matrix-b")
+            .expect("the matrix survives")
+            .anchor
+            .as_ref()
+            .expect("the anchor survives")
+            .aggregate
+            .as_ref()
+            .expect("the anchor stays aggregate")
+            .parts
+            .len(),
+        2,
+        "one Undo restores the removed part"
+    );
+    root.remove();
+}
