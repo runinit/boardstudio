@@ -22,10 +22,10 @@ that spacing widens and both copies keep their half-frame values.
 
 ## Acceptance
 
-- [ ] Dragging either copy edits both; neither crosses the axis.
-- [ ] The "Mirror on both halves" toggle is one Undo entry each way; making a part local removes the partner.
-- [ ] A local (unmirrored) part at the axis pushes the other half out by its overhang (07 carried point; note it in the ADR).
-- [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+- [x] Dragging either copy edits both; neither crosses the axis.
+- [x] The "Mirror on both halves" toggle is one Undo entry each way; making a part local removes the partner.
+- [x] A local (unmirrored) part at the axis pushes the other half out by its overhang (07 carried point; note it in the ADR).
+- [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames. (repo/tooling/build/test/typecheck pass; workspace lint stays red on sibling ticket-18's untracked ghost-tests file, which this ticket must not touch; the browser step cannot run here — Chromium core-dumps on launch — so the mounted toggle test is committed but unverified in this environment.)
 
 ## Answer
 
@@ -59,11 +59,17 @@ so the mirror half moves out symmetrically.
 - Checks: 6 new `core/tests/split_half_frame_parts.rs` tests (mirror on add,
   clamp+widen keeping half-frame values, mirror-copy drag, toggle both ways +
   undo, legacy adoption + undo, local overhang) plus updated offset/constraint
-  expectations; full core suite 888/888, clippy clean, rustfmt clean. `check.py`
-  repo/tooling/lint/build/test green; browser step not runnable in this
-  environment (no playwright-core module), as with 09/10/11 — the mounted
-  toggle test (`mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo`)
-  is committed but unverified here.
+  expectations; full core suite lib 772 + integration 888 pass, core clippy
+  `-D warnings` clean, touched files rustfmt clean. `check.py`
+  repo/tooling/build/test/typecheck pass (713.9 s total); workspace lint stays
+  red on sibling ticket-18's untracked `layout_spacing_ghost_tests.rs`
+  (dead code + needless returns), which this ticket must not touch —
+  ticket-12 files are clippy/rustfmt clean. The browser step cannot run in this environment
+  (system Chromium exits 133/core-dumps, so chromedriver cannot start a
+  session); the mounted toggle test
+  (`mounted_part_mirror_toggle_mirrors_and_unmirrors_with_undo`) compiles for
+  wasm but is unverified here. Mutation check 3/3 killed
+  (default-mirror, split-clamp extent, toggle-off partner removal).
 
 Prototype comparison: the Core run matches variant B on every carried point —
 parts keep half-local coordinates, cannot cross the split ("Stopped at the
