@@ -1527,13 +1527,37 @@ fn projection_for(
         .ok_or("The mirror matrix has no board owner")?;
     let mut parts = Vec::new();
     let mut locally_protected_mirror_parts = BTreeSet::new();
+    // Members introduced under a detached matrix have no mirror target yet;
+    // an explicit Rejoin adopts them. Any other missing correspondence stays
+    // a refusal.
+    let matrix_detached = halves
+        .correspondences
+        .iter()
+        .find(|record| {
+            record.kind == MirroredItemKind::Matrix
+                && record.source_id == source_matrix_id
+                && record.mirror_id == mirror_matrix_id
+        })
+        .is_some_and(|record| {
+            halves.overlay_of(record).is_some_and(|exception| {
+                matches!(
+                    exception.state,
+                    crate::model::MirroredExceptionState::Local
+                        | crate::model::MirroredExceptionState::Omitted
+                )
+            })
+        });
     for cell in source_matrix
         .cells
         .iter()
         .filter(|cell| cell.enabled && !cell.deleted)
     {
         let source_id = format!("matrix/{source_matrix_id}/r{}c{}", cell.row, cell.column);
-        let association = part_association(halves, &source_id)?;
+        let association = match part_association(halves, &source_id) {
+            Ok(association) => association,
+            Err(_) if matrix_detached => continue,
+            Err(error) => return Err(error),
+        };
         if association.mirror_id
             != format!("matrix/{mirror_matrix_id}/r{}c{}", cell.row, cell.column)
         {

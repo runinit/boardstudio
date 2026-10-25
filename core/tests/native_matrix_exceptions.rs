@@ -264,6 +264,53 @@ fn assert_mirror_absent(document: &Value, label: &str) {
     );
 }
 
+fn make_local(engine: &mut CoreEngine, before: &Value) -> Value {
+    let made = commit(
+        engine,
+        before,
+        "native-make-local",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"local"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(made["kind"], "scene", "{made}");
+    let document = made["document"].clone();
+    assert!(
+        pair(&document, PAIR_ID)["halves"]["exceptions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|exception| exception["kind"] == "matrix"
+                && exception["mirrorId"] == MIRROR_MATRIX
+                && exception["state"] == "local"),
+        "make-local must record a matrix-level exception"
+    );
+    document
+}
+
+fn exceptions(document: &Value) -> Vec<&Value> {
+    pair(document, PAIR_ID)["halves"]["exceptions"]
+        .as_array()
+        .map(|list| list.iter().collect())
+        .unwrap_or_default()
+}
+
+fn matrix_exception<'a>(document: &'a Value) -> Option<&'a Value> {
+    exceptions(document)
+        .into_iter()
+        .find(|exception| {
+            exception["kind"] == "matrix" && exception["mirrorId"] == MIRROR_MATRIX
+        })
+}
+
+fn part_exception<'a>(document: &'a Value, mirror_id: &str) -> Option<&'a Value> {
+    exceptions(document)
+        .into_iter()
+        .find(|exception| {
+            exception["kind"] == "part" && exception["mirrorId"] == mirror_id
+        })
+}
+
 fn assert_live_correspondences(document: &Value, slots: &[(u32, u32)], label: &str) {
     // The Omitted record stays live: surviving source members keep exact
     // correspondences even though no mirror part is materialized.
@@ -448,5 +495,154 @@ fn native_omit_then_shrink_keeps_mirror_following() {
     let redone = redo(&mut engine, "native-omit-shrink-redo");
     expected_redo["revision"] = redone["revision"].clone();
     assert_eq!(redone, expected_redo, "Redo must restore the shrink");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_make_local_detach_keeps_pose_in_one_entry() {
+    // Ticket 29 slice B3: making the mirror matrix Local detaches it keeping
+    // every world pose, in a single Undo entry.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let poses_before = poses(&before);
+    let local_doc = make_local(&mut engine, &before);
+    assert_poses_unchanged(&poses_before, &local_doc);
+    assert_eq!(
+        matrix(&local_doc, MIRROR_MATRIX),
+        matrix(&before, MIRROR_MATRIX),
+        "detach keeps the owned descriptor"
+    );
+    let mut expected_undo = before.clone();
+    let undone = undo(&mut engine, "native-detach-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the linked pair");
+    assert!(matrix_exception(&undone).is_none());
+    let mut expected_redo = local_doc.clone();
+    let redone = redo(&mut engine, "native-detach-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the detach");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_rejoin_adopts_source_and_keeps_explicit_child_exceptions() {
+    // Ticket 29 slice B3 (mirrors ticket 21's Rejoin natively): after Local
+    // plus source growth, Rejoin adopts the current source dimensions keeping
+    // an explicit child exception, in a single Undo entry.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let local_doc = make_local(&mut engine, &before);
+    let grown = commit(
+        &mut engine,
+        &local_doc,
+        "native-grow-local-source",
+        json!({"kind":"set-matrix","matrix":expanded_source(&local_doc)}),
+        &[],
+    );
+    assert_eq!(grown["kind"], "scene", "{grown}");
+    let grown_doc = grown["document"].clone();
+    // An explicit child exception on one mirror key.
+    let explicit_key = "matrix/right-synthetic-keys/r0c0";
+    let keyed = commit(
+        &mut engine,
+        &grown_doc,
+        "native-explicit-child",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"part","mirrorId":explicit_key,"state":"local"}),
+        &[explicit_key],
+    );
+    assert_eq!(keyed["kind"], "scene", "{keyed}");
+    let keyed_doc = keyed["document"].clone();
+    assert!(part_exception(&keyed_doc, explicit_key).is_some());
+    let explicit_pose = part(&keyed_doc, explicit_key)["pose"].clone();
+    // Rejoin the matrix.
+    let rejoined = commit(
+        &mut engine,
+        &keyed_doc,
+        "native-rejoin",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
+    let after = &rejoined["document"];
+    // The mirror adopts the current source dimensions, including the grown
+    // column that has no prior correspondence.
+    assert_eq!(matrix(after, MIRROR_MATRIX)["rows"], json!(2));
+    assert_eq!(matrix(after, MIRROR_MATRIX)["columns"], json!(3));
+    assert!(matrix_exception(after).is_none());
+    for key in ["r0c0", "r0c1", "r0c2", "r1c0", "r1c1", "r1c2"] {
+        assert!(
+            find_part(after, &format!("matrix/{MIRROR_MATRIX}/{key}")).is_some(),
+            "rejoin materializes {key}"
+        );
+    }
+    // The explicit child keeps its exception and pose.
+    assert!(part_exception(after, explicit_key).is_some());
+    assert_eq!(part(after, explicit_key)["pose"], explicit_pose);
+    // A rejoined sibling follows the source projection again.
+    let source_key = "matrix/left-synthetic-keys/r0c1";
+    let mirror_key = "matrix/right-synthetic-keys/r0c1";
+    assert_eq!(
+        part(after, mirror_key)["pose"]["at"]["x"],
+        json!(200.0 - part(after, source_key)["pose"]["at"]["x"].as_f64().unwrap())
+    );
+    assert_eq!(
+        part(after, mirror_key)["pose"]["at"]["y"],
+        part(after, source_key)["pose"]["at"]["y"]
+    );
+    // One transaction: Undo restores the pre-rejoin document exactly.
+    let mut expected_undo = keyed_doc.clone();
+    let undone = undo(&mut engine, "native-rejoin-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the Local document");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-rejoin-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the rejoin");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_rejoin_from_omitted_recreates_mirror() {
+    // Ticket 29 slice B3: Rejoin from Omitted recreates the mirror record
+    // from the current source and clears the exception, in one Undo entry.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let rejoined = commit(
+        &mut engine,
+        &omitted_doc,
+        "native-rejoin-omitted",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+        &[MIRROR_MATRIX],
+    );
+    assert_eq!(rejoined["kind"], "scene", "{rejoined}");
+    let after = &rejoined["document"];
+    assert!(matrix_exception(after).is_none());
+    assert_eq!(matrix(after, MIRROR_MATRIX)["rows"], json!(2));
+    assert_eq!(matrix(after, MIRROR_MATRIX)["columns"], json!(2));
+    // Every member is materialized again at the projected pose.
+    for (row, column) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+        let source_id = format!("matrix/{SOURCE_MATRIX}/r{row}c{column}");
+        let mirror_id = format!("matrix/{MIRROR_MATRIX}/r{row}c{column}");
+        assert_eq!(
+            part(after, &mirror_id)["pose"]["at"]["x"],
+            json!(200.0 - part(after, &source_id)["pose"]["at"]["x"].as_f64().unwrap()),
+            "{mirror_id}"
+        );
+        assert_eq!(
+            part(after, &mirror_id)["pose"]["at"]["y"],
+            part(after, &source_id)["pose"]["at"]["y"],
+            "{mirror_id}"
+        );
+    }
+    assert_live_correspondences(after, &[(0, 0), (0, 1), (1, 0), (1, 1)], "rejoin");
+    let mut expected_undo = omitted_doc.clone();
+    let undone = undo(&mut engine, "native-rejoin-omitted-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the Omitted document");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-rejoin-omitted-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the rejoin");
     assert_eq!(snapshot(&mut engine), redone);
 }
