@@ -251,14 +251,9 @@ fn followed(
 /// `rotation`: the exact inverse of `derive::pose` (each heading rule is its own inverse).
 /// Controllers keep the reflected heading without the half turn, like the forward rule.
 fn source_pose(mapping: Pose2, at: Vec2, rotation: f64, is_controller: bool) -> Pose2 {
-    let reflected = pair::inverse_angle(mapping, rotation);
     Pose2 {
         at: pair::inverse(mapping, at),
-        rotation: if is_controller {
-            reflected.rem_euclid(360.0)
-        } else {
-            (reflected + 180.0).rem_euclid(360.0)
-        },
+        rotation: pair::mirrored_part_heading(is_controller, mapping, rotation),
     }
 }
 

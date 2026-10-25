@@ -1142,14 +1142,11 @@ impl<'a> Links<'a> {
             || self.document.definitions.iter().any(|candidate| {
                 candidate.id == part.definition_id && candidate.kind == PartKind::Controller
             });
-        let reflected = pair::inverse_angle(pair.mapping, part.pose.rotation);
+        let reflected =
+            pair::mirrored_part_heading(is_controller, pair.mapping, part.pose.rotation);
         source.pose = Pose2 {
             at: pair::inverse(pair.mapping, part.pose.at),
-            rotation: if is_controller {
-                reflected.rem_euclid(360.0)
-            } else {
-                (reflected + 180.0).rem_euclid(360.0)
-            },
+            rotation: reflected,
         };
         Ok(Some((
             EditOperation::AddPart {

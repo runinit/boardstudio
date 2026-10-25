@@ -1036,12 +1036,29 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                     }
                 }
             };
+            // One rule for every mirrored part heading: controllers keep the plain reflection
+            // so both halves share the world rotation; the axis map is `forward_angle = -r`
+            // with `mapping.rotation == 0`.
+            let is_controller = doc.definitions.iter().any(|definition| {
+                definition.id == source.definition_id && definition.kind == PartKind::Controller
+            });
+            let axis_mapping = crate::model::Pose2 {
+                at: Vec2 {
+                    x: 2.0 * axis_x,
+                    y: 0.0,
+                },
+                rotation: 0.0,
+            };
             let mut target_pose = crate::model::Pose2 {
                 at: Vec2 {
                     x: 2.0 * axis_x - source.pose.at.x,
                     y: source.pose.at.y,
                 },
-                rotation: 180.0 - source.pose.rotation,
+                rotation: pair::mirrored_part_heading(
+                    is_controller,
+                    axis_mapping,
+                    source.pose.rotation,
+                ),
             };
             let target_exists = doc.parts.iter().any(|part| part.id == target_id);
             if let Some(target) = doc
@@ -1060,7 +1077,11 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                         x: 2.0 * axis_x - target.pose.at.x,
                         y: target.pose.at.y,
                     },
-                    rotation: 180.0 - target.pose.rotation,
+                    rotation: pair::mirrored_part_heading(
+                        is_controller,
+                        axis_mapping,
+                        target.pose.rotation,
+                    ),
                 };
                 set_component_pose(doc, &source_id, source_pose)?;
                 source = doc
@@ -1075,7 +1096,11 @@ pub(crate) fn sync_components(doc: &mut ProjectDoc) -> Result<Vec<String>, Strin
                         x: 2.0 * axis_x - source.pose.at.x,
                         y: source.pose.at.y,
                     },
-                    rotation: 180.0 - source.pose.rotation,
+                    rotation: pair::mirrored_part_heading(
+                        is_controller,
+                        axis_mapping,
+                        source.pose.rotation,
+                    ),
                 };
             }
 
@@ -1182,7 +1207,17 @@ pub(crate) fn move_linked_component(
         .as_ref()
         .ok_or("Linked component target layout is missing")?
         .axis_x;
-    let rotation = 180.0 - target.pose.rotation;
+    let is_controller = doc.definitions.iter().any(|definition| {
+        definition.id == target.definition_id && definition.kind == PartKind::Controller
+    });
+    let axis_mapping = crate::model::Pose2 {
+        at: Vec2 {
+            x: 2.0 * axis_x,
+            y: 0.0,
+        },
+        rotation: 0.0,
+    };
+    let rotation = pair::mirrored_part_heading(is_controller, axis_mapping, target.pose.rotation);
     set_component_pose(
         doc,
         &source_id,
@@ -2391,6 +2426,81 @@ mod case_hardware_tests {
         doc.layouts = serde_json::from_value(serde_json::json!([{"id":"left","name":"Left","boardId":"board","matrixIds":["matrix"],"partIds":[]}])).unwrap();
         adopt_unassigned_components(&mut doc, "left", 100.0, &mut vec![]).unwrap();
         assert!(doc.layouts[0].part_ids.is_empty());
+    }
+
+    #[test]
+    fn linked_controller_mirror_keeps_world_heading() {
+        // Setup "Place controller": one controller source part at rotation 0 on a linked
+        // source layout. The derived mirror must share world rotation 0 (plain reflection
+        // `-r = 0`), not ADR-0010's `180 - r` half turn.
+        let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
+        doc.definitions = serde_json::from_value(serde_json::json!([
+            {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
+        ]))
+        .unwrap();
+        doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
+        doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":0.0},"side":"front"}])).unwrap();
+        doc.matrices = serde_json::from_value(serde_json::json!([
+            {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
+            {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
+        ])).unwrap();
+        doc.layouts = serde_json::from_value(serde_json::json!([
+            {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
+            {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
+        ])).unwrap();
+        sync_components(&mut doc).unwrap();
+        let mirrored = doc
+            .parts
+            .iter()
+            .find(|part| {
+                part.properties
+                    .as_ref()
+                    .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("source/U1")
+            })
+            .expect("the linked controller mirror is materialized");
+        assert_eq!(mirrored.pose.at, Vec2 { x: 90.0, y: 5.0 });
+        assert!(
+            (mirrored.pose.rotation - 0.0).abs() < 1e-9,
+            "controller mirror keeps world heading 0, got {}",
+            mirrored.pose.rotation
+        );
+        for heading in [90.0f64, 180.0, 270.0] {
+            let mut doc = ProjectDoc::empty("linked-controller", "Linked controller");
+            doc.definitions = serde_json::from_value(serde_json::json!([
+                {"id":"mcu","name":"MCU","kind":"controller","courtyard":[],"pads":[]}
+            ]))
+            .unwrap();
+            doc.boards = serde_json::from_value(serde_json::json!([{"id":"board","name":"Board","outlineIds":[],"partIds":["source/U1"],"netIds":[],"thickness":1.6}])).unwrap();
+            doc.parts = serde_json::from_value(serde_json::json!([{"id":"source/U1","definitionId":"mcu","reference":"U1","pose":{"at":{"x":10.0,"y":5.0},"rotation":heading},"side":"front"}])).unwrap();
+            doc.matrices = serde_json::from_value(serde_json::json!([
+                {"id":"source-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]},
+                {"id":"mirror-matrix","boardId":"board","rows":1,"columns":1,"pitch":{"x":19,"y":19},"origin":{"x":0,"y":0},"definitionId":"key","partIds":[]}
+            ])).unwrap();
+            doc.layouts = serde_json::from_value(serde_json::json!([
+                {"id":"source-layout","name":"Source","boardId":"board","matrixIds":["source-matrix"],"partIds":["source/U1"]},
+                {"id":"mirror-layout","name":"Mirror","boardId":"board","matrixIds":["mirror-matrix"],"partIds":[],"mirrorLink":{"sourceId":"source-layout","axisX":50.0}}
+            ])).unwrap();
+            sync_components(&mut doc).unwrap();
+            let mirrored = doc
+                .parts
+                .iter()
+                .find(|part| {
+                    part.properties
+                        .as_ref()
+                        .and_then(|properties| properties.get(MIRRORED_COMPONENT_SOURCE))
+                        .and_then(serde_json::Value::as_str)
+                        == Some("source/U1")
+                })
+                .expect("the linked controller mirror is materialized");
+            let expected = (0.0 - heading).rem_euclid(360.0);
+            assert!(
+                (mirrored.pose.rotation - expected).abs() < 1e-9,
+                "controller heading {heading} mirrors to {expected}, got {}",
+                mirrored.pose.rotation
+            );
+        }
     }
 
     fn matrix_with_companion() -> Matrix {

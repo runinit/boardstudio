@@ -19,14 +19,9 @@ pub(super) fn is_controller(definitions: &[PartDefinition], definition_id: &str)
 /// heading rule `forward_angle + 180`, except controllers, which keep the reflected heading
 /// without the half turn so a mirrored MCU faces the same way as its source.
 pub(super) fn pose(mapping: Pose2, pose: Pose2, is_controller: bool) -> Pose2 {
-    let reflected = pair::forward_angle(mapping, pose.rotation);
     Pose2 {
         at: pair::forward(mapping, pose.at),
-        rotation: if is_controller {
-            reflected.rem_euclid(360.0)
-        } else {
-            (reflected + 180.0).rem_euclid(360.0)
-        },
+        rotation: pair::mirrored_part_heading(is_controller, mapping, pose.rotation),
     }
 }
 
