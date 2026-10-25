@@ -291,8 +291,9 @@ _Avoid_: row offset, pitch (when a single row's step is meant)
 
 **Matrix anchor**:
 A key of another matrix in the same layout whose final pose a matrix's frame follows, such as
-a thumb cluster following the main matrix. The matrix may follow the key's X, Y and rotation,
-or only some of them.
+a thumb cluster following the main matrix — or the average or intersection of several such
+keys, whose combined pose the frame follows instead. The matrix may follow the target's X, Y
+and rotation, or only some of them.
 _Avoid_: parent, reference (unqualified)
 
 **Row offset**:
