@@ -320,6 +320,34 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    async fn column_tools_appear_once_when_scope_popover_opens() {
+        let root = mount_pill(Some(LayoutCommandMenu::Select)).await;
+        root.query_selector("#pill-probe-open")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::HtmlElement>()
+            .unwrap()
+            .click();
+        gloo_timers::future::TimeoutFuture::new(40).await;
+        for label in ["Stagger", "Spread", "Offset"] {
+            assert_eq!(
+                tool_button_count(&root, label),
+                1,
+                "{label} must appear exactly once: inline in the toolbar, not duplicated in the scope popover"
+            );
+        }
+        let hint = root
+            .query_selector("#m1-layout-scope-panel-Column .m1-layout-scope-hint")
+            .unwrap()
+            .expect("the open scope popover keeps a hint pointing at the toolbar tools");
+        assert!(
+            hint.text_content().unwrap_or_default().contains("tools in the toolbar"),
+            "the scope hint points at the toolbar instead of duplicating its tools"
+        );
+        root.remove();
+    }
+
+    #[wasm_bindgen_test]
     fn retained_cell_survives_key_row_column_and_key_mode_changes() {
         let anchor = TreeCellAnchor {
             matrix_id: "matrix-1".to_owned(),
@@ -883,11 +911,7 @@ fn LayoutSelectionToolbar(
                         open_menu, menu: LayoutCommandMenu::Select,
                     }
                     if has_actions {
-                        if let Some(mount) = transform.clone() {
-                            super::layout_transform_toolbar::LayoutContextActionToolbar {
-                                mount, open_menu, selection_kind: kind,
-                            }
-                        }
+                        p { class: "m1-layout-scope-hint", "Use the {kind.label().to_lowercase()} tools in the toolbar to edit the selection." }
                     } else {
                         p { class: "m1-layout-scope-hint", "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
                         if let Some(mount) = transform.clone() {
