@@ -198,10 +198,7 @@ fn make_omitted(engine: &mut CoreEngine, before: &Value) -> Value {
                 .starts_with("matrix/right-synthetic-keys/")),
         "omit must suppress inherited parts"
     );
-    assert!(
-        matrix(&document, MIRROR_MATRIX).is_object(),
-        "omit keeps the live record"
-    );
+    assert_mirror_absent(&document, "omit");
     document
 }
 
@@ -220,25 +217,18 @@ fn shrunk_source(document: &Value) -> Value {
     shrunk
 }
 
-fn assert_mirror_absent(document: &Value, rows: u64, columns: u64, label: &str) {
-    let mirror = matrix(document, MIRROR_MATRIX);
-    assert_eq!(mirror["rows"], json!(rows), "{label}");
-    assert_eq!(mirror["columns"], json!(columns), "{label}");
+fn assert_mirror_absent(document: &Value, label: &str) {
+    // Live-yet-absent: no mirror matrix record and no mirror parts, while the
+    // layout shell survives matrix-less so the pair correspondence stays
+    // valid (slot liveness is asserted separately per surviving member).
     assert!(
-        mirror["partIds"].as_array().unwrap().is_empty(),
-        "{label}: omitted mirror keeps no members"
+        document["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != MIRROR_MATRIX),
+        "{label}: omitted mirror keeps no record"
     );
-    for cell in mirror["cells"].as_array().unwrap() {
-        assert_eq!(cell["enabled"], json!(false), "{label}: {cell}");
-        assert_eq!(cell["deleted"], json!(true), "{label}: {cell}");
-        assert!(
-            cell.get("assemblies").is_none_or(|a| a
-                .as_array()
-                .unwrap()
-                .is_empty()),
-            "{label}: omitted cells carry no companions: {cell}"
-        );
-    }
     assert!(
         document["parts"]
             .as_array()
@@ -249,6 +239,28 @@ fn assert_mirror_absent(document: &Value, rows: u64, columns: u64, label: &str) 
                 .unwrap()
                 .starts_with("matrix/right-synthetic-keys/")),
         "{label}: no omitted part is materialized"
+    );
+    assert!(
+        pair(document, PAIR_ID)["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|record| record["kind"] == "matrix"
+                && record["sourceId"] == SOURCE_MATRIX
+                && record["mirrorId"] == MIRROR_MATRIX),
+        "{label}: matrix correspondence stays live"
+    );
+    let shell = document["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+        .unwrap_or_else(|| panic!("{label}: mirror layout shell is missing"));
+    assert_eq!(shell["boardId"], json!("right"), "{label}");
+    assert_eq!(
+        shell["matrixIds"],
+        json!([MIRROR_MATRIX]),
+        "{label}: layout shell keeps following the matrix pair"
     );
 }
 
@@ -395,7 +407,7 @@ fn native_omit_then_expand_keeps_mirror_live_yet_absent() {
     let after = &resized["document"];
     assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(3));
     // The Omitted record followed without materializing.
-    assert_mirror_absent(after, 2, 3, "expand");
+    assert_mirror_absent(after, "expand");
     assert_live_correspondences(after, &[(0, 0), (0, 1), (1, 0), (1, 1)], "expand");
     // One transaction: Undo restores the pre-resize document, Redo restores
     // the resize.
@@ -426,7 +438,7 @@ fn native_omit_then_shrink_keeps_mirror_following() {
     assert_eq!(shrunk["kind"], "scene", "{shrunk}");
     let after = &shrunk["document"];
     assert_eq!(matrix(after, SOURCE_MATRIX)["columns"], json!(1));
-    assert_mirror_absent(after, 2, 1, "shrink");
+    assert_mirror_absent(after, "shrink");
     assert_live_correspondences(after, &[(0, 0), (1, 0)], "shrink");
     let mut expected_undo = omitted_doc.clone();
     let undone = undo(&mut engine, "native-omit-shrink-undo");

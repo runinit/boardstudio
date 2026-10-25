@@ -622,6 +622,10 @@ fn project_lifecycle_matrix(
         })
         .ok_or("The exact lifecycle Matrix association is unavailable")?;
     if owner.state == TransitionState::Omitted {
+        // A matrix-level Omitted mirror is record-absent by design (the
+        // halves record requires it): nothing projects onto it. A stale
+        // record would only survive outside this lifecycle; leave it for the
+        // kernel's member accounting to refuse rather than rewriting it here.
         return Ok(());
     }
     if owner.state == TransitionState::Local {
@@ -1794,6 +1798,16 @@ fn lifecycle_context(
                     }
                     return (None, None);
                 }
+                // A top-level key with an aligned slot inherits its matrix
+                // pair's state (spec §5): the matrix correspondence is its
+                // parent, so whole-matrix Local/Omitted transitions reach
+                // every member without per-key exception records.
+                if suffix == mirror_suffix {
+                    return (
+                        Some(matrix.source_id.clone()),
+                        Some(matrix.mirror_id.clone()),
+                    );
+                }
                 return (None, None);
             }
         }
@@ -2223,6 +2237,20 @@ fn prepare_matrix_membership_edit(
     let post_source = &filtered_post_source;
     let context = &filtered_context;
 
+    // A detached matrix-level mirror owns its membership (spec §5): source
+    // growth stays source-only, so no mirror additions are planned for it. A
+    // Local mirror keeps its members; an Omitted mirror stays absent (its
+    // record is gone by design, so its member view is empty).
+    let matrix_detached = context.associations.iter().any(|association| {
+        association.kind == MirroredItemKind::Matrix
+            && association.source_id == matrix_pair.source_id.as_str()
+            && association.mirror_id == matrix_pair.mirror_id.as_str()
+            && matches!(
+                association.state,
+                TransitionState::Local | TransitionState::Omitted
+            )
+            && association.explicit_state
+    });
     let source_before = before
         .matrices
         .iter()
@@ -2231,8 +2259,12 @@ fn prepare_matrix_membership_edit(
     let mirror_before = before
         .matrices
         .iter()
-        .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str())
-        .ok_or("The mirror transition Matrix is unavailable")?;
+        .find(|matrix| matrix.id == matrix_pair.mirror_id.as_str());
+    let mirror_before = match mirror_before {
+        Some(matrix) => Some(matrix),
+        None if matrix_detached => None,
+        None => return Err("The mirror transition Matrix is unavailable".into()),
+    };
     let source_after_ids: BTreeSet<_> = post_source
         .matrices
         .iter()
@@ -2299,7 +2331,11 @@ fn prepare_matrix_membership_edit(
         .map(|association| (association.mirror_id.as_str(), association))
         .collect();
     let mut mirror_identity_map = BTreeMap::new();
-    for old_mirror_id in &mirror_before.part_ids {
+    // An Omitted-absent mirror has no record, so its member view is empty.
+    let mirror_before_part_ids: &[String] = mirror_before
+        .map(|matrix| matrix.part_ids.as_slice())
+        .unwrap_or(&[]);
+    for old_mirror_id in mirror_before_part_ids {
         let association = association_by_mirror
             .get(old_mirror_id.as_str())
             .ok_or_else(|| {
@@ -2332,16 +2368,7 @@ fn prepare_matrix_membership_edit(
     }
 
     let mapped_sources: BTreeSet<_> = source_identity_map.values().flatten().cloned().collect();
-    // A matrix-level Local mirror owns its membership (spec §5): source growth
-    // stays source-only, so no mirror additions are planned for it.
-    let matrix_detached_local = context.associations.iter().any(|association| {
-        association.kind == MirroredItemKind::Matrix
-            && association.source_id == matrix_pair.source_id.as_str()
-            && association.mirror_id == matrix_pair.mirror_id.as_str()
-            && association.state == TransitionState::Local
-            && association.explicit_state
-    });
-    let planned_source_ids: BTreeSet<_> = if matrix_detached_local {
+    let planned_source_ids: BTreeSet<_> = if matrix_detached {
         BTreeSet::new()
     } else {
         source_after_ids
@@ -2419,6 +2446,28 @@ fn prepare_matrix_membership_edit(
             .iter()
             .filter_map(|(id, mapped)| mapped.is_none().then_some(id.clone())),
     );
+    // A matrix-level Omitted mirror never materializes members, so its mirror
+    // map carries no entries for them. Retiring a source-removed Omitted child
+    // still needs its canonical mirror slot as closure evidence.
+    if matrix_detached {
+        for association in &context.associations {
+            if association.kind == MirroredItemKind::Part
+                && association.state == TransitionState::Omitted
+                && source_identity_map.get(&association.source_id) == Some(&None)
+            {
+                let suffix = association.source_id.strip_prefix(&format!(
+                    "matrix/{}/",
+                    matrix_pair.source_id.as_str()
+                ));
+                if let Some(suffix) = suffix {
+                    explicit_removal_closure.insert(format!(
+                        "matrix/{}/{suffix}",
+                        matrix_pair.mirror_id.as_str()
+                    ));
+                }
+            }
+        }
+    }
 
     let retained_mirror_ids: BTreeSet<_> = mirror_identity_map
         .values()
@@ -2843,10 +2892,24 @@ fn prepare_lifecycle_transition(
             .iter()
             .any(|matrix| matrix.id == matrix_pair.source_id)
     });
+    // A matrix-level Omitted mirror with a live source goes live-yet-absent
+    // (spec §5): the mirror record is dropped while its correspondences stay
+    // live. The layout shell keeps naming the absent matrix so the pair's
+    // layout correspondence keeps following the reconciled matrix pair;
+    // Rejoin recreates the matrix from source. A source removal with a
+    // non-Local mirror still retires the whole pair side through the full
+    // removal cascade below.
     if let (Some(_owner), Some(matrix_pair)) = (
         matrix_owner.filter(|owner| {
-            owner.state == TransitionState::Omitted
-                || (source_matrix_removed && owner.state != TransitionState::Local)
+            owner.state == TransitionState::Omitted && !source_matrix_removed
+        }),
+        context.matrix_pair.as_ref(),
+    ) {
+        draft.matrices.retain(|m| m.id != matrix_pair.mirror_id);
+    }
+    if let (Some(_owner), Some(matrix_pair)) = (
+        matrix_owner.filter(|owner| {
+            source_matrix_removed && owner.state != TransitionState::Local
         }),
         context.matrix_pair.as_ref(),
     ) {
