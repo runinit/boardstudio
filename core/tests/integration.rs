@@ -134,3 +134,6 @@ mod split_half_frame;
 
 #[path = "split_adaptive_spacing.rs"]
 mod split_adaptive_spacing;
+
+#[path = "split_creation_gap.rs"]
+mod split_creation_gap;

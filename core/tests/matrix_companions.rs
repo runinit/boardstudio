@@ -562,15 +562,17 @@ fn linked_halves_list_their_own_companions() {
         .find(|matrix| matrix.id == "left-matrix")
         .unwrap()
         .clone();
-    // Ticket 09: creation stored the half frame (gap 2 mm, source frame at
-    // x = 9), so the board intent (4, 2) is authored as (-5, 2) in storage.
+    // Ticket 09: creation stored the half frame (source frame at x = 9), so
+    // the board intent (4, 2) is authored as (-5, 2) in storage. Ticket 11:
+    // creation stores max(requested 2 mm, 40 mm default, minimum), so the
+    // stored gap is 40 mm while the origins still convert with the request.
     let stored_gap = authored
         .layouts
         .iter()
         .find(|layout| layout.id == "right-layout")
         .and_then(|layout| layout.mirror_link.as_ref())
         .and_then(|link| link.split_gap);
-    assert_eq!(stored_gap, Some(2.0));
+    assert_eq!(stored_gap, Some(40.0));
     moved_matrix.origin = Vec2 { x: -5.0, y: 2.0 };
     let (_, carried) = edit(
         &mut engine,
@@ -581,20 +583,22 @@ fn linked_halves_list_their_own_companions() {
         },
     );
     // Ticket 10: the authored placement overlaps the halves (key envelopes
-    // meet at clear -8 mm), so the committed edit widens spacing to the
-    // 20 mm minimum in the same Undo entry. The carried diode and the mirror
-    // key ride their halves: (-5, 2) + (8, 9), and the axis reflection.
+    // meet at clear -8 mm), so the committed edit re-spaces in the same Undo
+    // entry. Ticket 11: the floor is now the stored 40 mm, which already
+    // covers the 20 mm minimum, so no spacing is stored. The authored diode
+    // was placed at (8, 9) against the creation key, which now evaluates 19
+    // mm farther out, so the rigidly carried offset grows by the same 19 mm.
     let carried_gap = carried
         .layouts
         .iter()
         .find(|layout| layout.id == "right-layout")
         .and_then(|layout| layout.mirror_link.as_ref())
         .and_then(|link| link.spacing);
-    assert_eq!(carried_gap, Some(20.0));
-    assert_eq!(pose(&carried, &source_diode).at, Vec2 { x: 3.0, y: 11.0 });
+    assert_eq!(carried_gap, None);
+    assert_eq!(pose(&carried, &source_diode).at, Vec2 { x: 12.0, y: 11.0 });
     assert_eq!(
         pose(&carried, &member("right-matrix", 0, 0)).at,
-        Vec2 { x: 25.0, y: 2.0 }
+        Vec2 { x: 35.0, y: 2.0 }
     );
     assert!(
         carried

@@ -216,8 +216,8 @@ async fn breadcrumb_carries_chip_selects_its_column_without_writing() {
         .is_some()
     })
     .await;
-    let focus_before = query(root_id, ".m1-split-focus-label")
-        .and_then(|label| label.text_content());
+    let focus_before =
+        query(root_id, ".m1-split-focus-label").and_then(|label| label.text_content());
     let before = probe.revision();
     click(
         root_id,

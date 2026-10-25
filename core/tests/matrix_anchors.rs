@@ -1013,14 +1013,16 @@ fn adding_to_a_linked_layout_is_refused_until_ticket_20() {
     // Relative Origin X negates while Y stays; the default (0,-19) is fixed.
     assert_eq!(claw.origin, Vec2 { x: 0.0, y: -19.0 });
     assert_eq!(mirror.origin, Vec2 { x: -0.0, y: -19.0 });
-    // Partner poses are the x=10 reflection of the source.
+    // Partner poses are the x=10 reflection of the source. Ticket 11: the
+    // 1x1 creation requested a 2 mm gap, so the stored gap is the 40 mm
+    // default and both anchored thumbs ride 19 mm farther out.
     assert_eq!(
         pose_of(&doc, &member("claw", 0, 0)).at,
-        Vec2 { x: 0.0, y: -19.0 }
+        Vec2 { x: -19.0, y: -19.0 }
     );
     assert_eq!(
         pose_of(&doc, &member("claw-mirror", 0, 0)).at,
-        Vec2 { x: 20.0, y: -19.0 }
+        Vec2 { x: 39.0, y: -19.0 }
     );
     // Layout membership and matrix correspondences cover both.
     let left = doc

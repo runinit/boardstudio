@@ -433,7 +433,11 @@ fn created_pair_stores_gap_with_half_frame_origins() {
         },
     );
     // Requested board placement was center 40, inset 24: gap 2 * (40 - 16) - 18 = 30.
-    assert_eq!(gap_of(&created), Some(30.0));
+    // Ticket 11 stores max(requested, 40 mm default, minimum): the inner keys
+    // overlap (clear -8 mm against a 12 mm need), so the minimum is 50 mm and
+    // the halves evaluate widened to it. Origins still convert with the
+    // requested placement.
+    assert_eq!(gap_of(&created), Some(50.0));
     assert_eq!(origin_of(&created, "main"), Vec2 { x: -9.0, y: 0.0 });
     assert_eq!(origin_of(&created, "main-mirror"), Vec2 { x: 9.0, y: 0.0 });
     let current = scene(engine.handle(CoreRequest::Snapshot {
@@ -442,10 +446,10 @@ fn created_pair_stores_gap_with_half_frame_origins() {
     .0;
     assert_eq!(
         key_poses(&current, "main"),
-        vec![Vec2 { x: 16.0, y: 0.0 }, Vec2 { x: 35.0, y: 0.0 }]
+        vec![Vec2 { x: 6.0, y: 0.0 }, Vec2 { x: 25.0, y: 0.0 }]
     );
     assert_eq!(
         key_poses(&current, "main-mirror"),
-        vec![Vec2 { x: 45.0, y: 0.0 }, Vec2 { x: 64.0, y: 0.0 }]
+        vec![Vec2 { x: 55.0, y: 0.0 }, Vec2 { x: 74.0, y: 0.0 }]
     );
 }

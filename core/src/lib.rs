@@ -32,6 +32,7 @@ use geometry::{OutlineCache, outlines};
 pub use matrix::kernel as layout_kernel;
 use matrix::layout;
 pub use matrix::layout::is_matrix_key;
+pub use matrix::layout::proposed_creation_gap;
 use model::*;
 use std::collections::{BTreeMap, BTreeSet};
 use wasm_bindgen::prelude::*;
@@ -2248,7 +2249,10 @@ fn apply_with_ledger(
             // Split gap change moves both halves without rewriting storage.
             // Anchored matrices stay legacy (no stored gap); their first edit
             // adopts only when an unanchored source matrix exists.
-            let stored_gap = if matrix.anchor.is_none() {
+            // Ticket 11: the conversion still uses the requested placement,
+            // while the stored gap is max(requested, 40 mm, minimum), so the
+            // halves widen symmetrically to the stored gap on evaluation.
+            let requested_gap = if matrix.anchor.is_none() {
                 let gap = layout::implied_gap(link.axis_x, matrix);
                 if !gap.is_finite() {
                     return Err("Split gap must be finite".into());
@@ -2257,8 +2261,12 @@ fn apply_with_ledger(
             } else {
                 None
             };
+            let stored_gap = match requested_gap {
+                Some(_) => Some(layout::proposed_creation_gap(doc, matrix, link.axis_x)?),
+                None => None,
+            };
             let mut source_half = matrix.as_ref().clone();
-            if let Some(gap) = stored_gap {
+            if let Some(gap) = requested_gap {
                 source_half.origin.x -= link.axis_x - gap / 2.0;
             }
             let mut changed = apply(

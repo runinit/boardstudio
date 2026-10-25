@@ -21,8 +21,10 @@ ticket 12 moves them into the half frame.
 - **Stored gap.** `LayoutMirrorLink` gains an optional `splitGap`: the key-edge to
   key-edge distance between the halves, measured at the half-origin column
   (`2 * (axisX - origin.x) - (pitch.x - edgeGap.x)`). It is set at mirrored-pair
-  creation from the requested placement and changes through one typed
-  `set-split-gap` edit (or an equivalent `SetLayout`), each a single Undo entry.
+  creation to `max(requested placement, 40 mm default, ticket-10 minimum)`
+  ([ticket 11](../plans/split-board-editing/issues/11-adaptive-gap-at-creation.md))
+  and changes through one typed `set-split-gap` edit (or an equivalent
+  `SetLayout`), each a single Undo entry.
   The edit refuses a non-finite or negative gap; storage itself only requires a
   finite number so an adopted touching board keeps its honest implied value.
 - **Half frame.** A stored gap switches both halves' unanchored matrix origins to

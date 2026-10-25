@@ -630,6 +630,11 @@ pub(crate) fn set_pair_gap(
 /// pair's board carries no PartEnvelope outline feature. Matches the
 /// prototype's clearance feel; recorded in ADR-0036.
 pub(crate) const DEFAULT_SPACING_MARGIN_MM: f64 = 3.0;
+/// Ticket 11: default Split gap (mm) proposed at mirrored-pair creation. The
+/// stored gap is `max(requested, default, minimum)`: an explicit wider
+/// placement is kept, anything below the default or the ticket-10 minimum is
+/// raised so the placed pair already shows the adapted gap.
+pub(crate) const DEFAULT_CREATION_GAP_MM: f64 = 40.0;
 /// Deficits at or below this (mm) count as clear.
 const SPACING_EPSILON: f64 = 1e-9;
 /// Backstop for the minimum search; the rigid-halves case converges in one step.
@@ -715,6 +720,80 @@ pub(crate) fn adapt_spacing(
     changed.sort();
     changed.dedup();
     Ok(changed)
+}
+
+/// Ticket 11: stored gap proposed for a mirrored pair about to be created from
+/// `matrix` about `axis_x`, without mutating `doc`: `max(requested placement
+/// gap, 40 mm default, ticket-10 minimum)`. The pair is staged in a scratch
+/// copy (origins converted exactly like the commit path, mirror reflected,
+/// temporary link) so the minimum sees the geometry the committed pair
+/// evaluates to at the requested gap. An unsatisfiable minimum (a key
+/// spanning the axis, a fixed part pinning an extent) falls back to the
+/// default floor instead of widening into the red, like the adaptive pass
+/// keeps the current spacing. Anchored matrices stay legacy: the request is
+/// returned unchanged and creation stores no gap.
+pub fn proposed_creation_gap(
+    doc: &ProjectDoc,
+    matrix: &Matrix,
+    axis_x: f64,
+) -> Result<f64, String> {
+    let requested = implied_gap(axis_x, matrix);
+    if !requested.is_finite() {
+        return Err("Split gap must be finite".into());
+    }
+    if matrix.anchor.is_some() {
+        return Ok(requested);
+    }
+    let board_id = matrix
+        .board_id
+        .clone()
+        .ok_or("A new mirrored pair must be on a board")?;
+    let mut scratch = doc.clone();
+    let mut source = matrix.clone();
+    source.origin.x -= axis_x - requested / 2.0;
+    let mut mirror_shell = source.clone();
+    mirror_shell.id = format!("{}-creation-mirror", source.id);
+    let mirror = reflected(&source, &mirror_shell, axis_mapping(axis_x), false, true)?;
+    let source_layout_id = format!("{}-creation-source", source.id);
+    let target_layout_id = format!("{}-creation-target", source.id);
+    let source_id = source.id.clone();
+    let mirror_id = mirror.id.clone();
+    scratch.matrices.push(source);
+    scratch.matrices.push(mirror);
+    scratch.layouts.push(Layout {
+        id: source_layout_id.clone(),
+        name: "Creation source".into(),
+        board_id: board_id.clone(),
+        matrix_ids: vec![source_id],
+        part_ids: vec![],
+        mirror_link: None,
+    });
+    scratch.layouts.push(Layout {
+        id: target_layout_id.clone(),
+        name: "Creation target".into(),
+        board_id: board_id.clone(),
+        matrix_ids: vec![mirror_id],
+        part_ids: vec![],
+        mirror_link: Some(LayoutMirrorLink {
+            source_id: source_layout_id.clone(),
+            axis_x,
+            split_gap: Some(requested),
+            spacing: None,
+            correspondences: vec![],
+            exceptions: vec![],
+        }),
+    });
+    let margin = spacing_margin(&scratch, &board_id);
+    let minimum = minimum_gap(
+        &mut scratch,
+        &source_layout_id,
+        &target_layout_id,
+        axis_x,
+        margin,
+    )?;
+    Ok(requested
+        .max(DEFAULT_CREATION_GAP_MM)
+        .max(minimum.unwrap_or(f64::NEG_INFINITY)))
 }
 
 /// The clearance basis for one pair's board: the widest PartEnvelope margin on
