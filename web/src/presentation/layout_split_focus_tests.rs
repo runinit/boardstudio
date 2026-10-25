@@ -239,5 +239,25 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
         revision,
         "focus is view-only: no document revision and no Undo entry"
     );
+
+    // A committed document revision (what spacing changes ride on) keeps focus.
+    support::replace_document(&runtime, "split-focus-revision", "split-focus", split_document())
+        .await;
+    wait_until("the revision lands and focus is still on the right half", || {
+        runtime.model().accepted.as_ref().unwrap().document.revision == revision + 1
+            && count(&root, ".m1-matrix-key") == 2
+            && dim_label(&root).contains("Left half · linked mirror · click to edit here")
+    })
+    .await;
+    // The tree selection survived the revision on the dimmed half, so the
+    // dimmed key correctly shows selection instead of the dim outline.
+    // Re-select the focused half on the canvas: the unfocused key must dim.
+    canvas_pointer_down(&root, ".m1-matrix-key[data-matrix-id='right']");
+    wait_until("the unfocused half dims again after the revision", || {
+        runtime.model().selected_part_ids == vec!["matrix/right/r0c0".to_owned()]
+            && count(&root, ".m1-matrix-key.is-dimmed") == 1
+            && dim_label(&root).contains("Left half · linked mirror · click to edit here")
+    })
+    .await;
     root.remove();
 }
