@@ -1537,10 +1537,8 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
             disabled: !editable,
             onchange: {
                 let owner = owner.clone();
-                let on_edit = on_edit;
                 let mut sequence = sequence;
                 let mut submitted = submitted;
-                let affect = affect;
                 move |event: FormEvent| {
                     let next = if event.value() == "intersect" {
                         AggregateMethod::Intersect
@@ -1596,10 +1594,8 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
                         disabled: !editable || parts.len() <= 1,
                         onclick: {
                             let owner = owner.clone();
-                            let on_edit = on_edit;
                             let mut sequence = sequence;
                             let mut submitted = submitted;
-                            let affect = affect;
                             let mut next_parts = aggregate.parts.clone();
                             next_parts.remove(index);
                             let baseline_parts = aggregate.parts.clone();
