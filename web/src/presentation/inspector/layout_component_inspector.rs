@@ -1074,7 +1074,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                 h2 { "{projection.reference}" }
                 if projection.locked { span { class: "m1-inspector-lock", "Locked" } }
             }
-            {
                 if group_selection {
                     p { class: "m1-layout-component-selection-note", "{projection.selection_count} parts selected. Position edits apply to the selection." }
                 } else {
@@ -1318,7 +1317,6 @@ pub fn LayoutComponentInspector(props: LayoutComponentInspectorProps) -> Element
                     p { class: "m1-layout-component-relation-summary", "{projection.relationship_summary}" }
                     p { class: "m1-layout-component-matrix-note", "Matrix rows and columns share pitch, stagger and splay. Edit those in Properties." }
                 }
-            }
         }
     }
 }

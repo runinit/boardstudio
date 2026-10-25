@@ -641,7 +641,7 @@ mod workspace_state_tests {
     }
 }
 
-pub(super) fn inspector(mut input: InspectorInput) -> Element {
+pub(super) fn inspector(input: InspectorInput) -> Element {
     let mut matrix_relationship_escape_target = use_signal(|| None::<objects::TreeSelectRequest>);
     let component_owner = input
         .component_inspector
@@ -787,7 +787,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                 }
             }
         }
-        {
             if input.outline_inspector.is_none() {
                 if let Some(projection) = input.component_inspector {
                     super::inspector::LayoutComponentInspector {
@@ -870,7 +869,6 @@ pub(super) fn inspector(mut input: InspectorInput) -> Element {
                     on_open_owner: on_open_owner_relation,
                 }
             }
-        }
     }
 }
 
