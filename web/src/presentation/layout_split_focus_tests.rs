@@ -242,13 +242,21 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     );
 
     // A committed document revision (what spacing changes ride on) keeps focus.
-    support::replace_document(&runtime, "split-focus-revision", "split-focus", split_document())
-        .await;
-    wait_until("the revision lands and focus is still on the right half", || {
-        runtime.model().accepted.as_ref().unwrap().document.revision == revision + 1
-            && count(&root, ".m1-matrix-key") == 2
-            && dim_label(&root).contains("Left half · linked mirror · click to edit here")
-    })
+    support::replace_document(
+        &runtime,
+        "split-focus-revision",
+        "split-focus",
+        split_document(),
+    )
+    .await;
+    wait_until(
+        "the revision lands and focus is still on the right half",
+        || {
+            runtime.model().accepted.as_ref().unwrap().document.revision == revision + 1
+                && count(&root, ".m1-matrix-key") == 2
+                && dim_label(&root).contains("Left half · linked mirror · click to edit here")
+        },
+    )
     .await;
     // The tree selection survived the revision on the dimmed half, so the
     // dimmed key correctly shows selection instead of the dim outline.
