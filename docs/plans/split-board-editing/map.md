@@ -49,7 +49,9 @@ editable board during layout work. That means:
 
 ## Decisions so far
 
-(none yet)
+- 01 resolved: 40mm default gap, key-edge gap mechanics, MCU bridging, outline-merge trigger mapped — see [01](issues/01-split-gap-and-outline-merge.md).
+- 02 resolved: lost variant-D prototype inventoried, delta vs ticket 24 mapped — see [02](issues/02-recover-prototype-anchor-highlighting.md).
+- 03 resolved: identical half rendering, view-only focused_half recommended — see [03](issues/03-dim-mirrored-half-editing-focus.md).
 
 ## Not yet specified (fog)
 

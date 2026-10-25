@@ -1,6 +1,6 @@
 # 06: Decide relationship highlighting home
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: grilling
 Blocked by: [02](02-recover-prototype-anchor-highlighting.md)
 Map: [map.md](../map.md)

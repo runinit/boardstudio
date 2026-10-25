@@ -1,6 +1,6 @@
 # 04: Decide adaptive split gap
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: grilling
 Blocked by: [01](01-split-gap-and-outline-merge.md)
 Map: [map.md](../map.md)

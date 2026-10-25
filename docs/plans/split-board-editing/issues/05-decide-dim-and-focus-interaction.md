@@ -1,6 +1,6 @@
 # 05: Decide dim and focus interaction
 
-Status: ready-for-agent
+Status: ready-for-human
 Type: grilling
 Blocked by: [03](03-dim-mirrored-half-editing-focus.md)
 Map: [map.md](../map.md)
