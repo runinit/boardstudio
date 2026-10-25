@@ -366,10 +366,7 @@ fn aggregate_pair() -> (World, World) {
                     "side": "front" })
         })
         .collect();
-    let part_ids: Vec<serde_json::Value> = parts
-        .iter()
-        .map(|part| part["id"].clone())
-        .collect();
+    let part_ids: Vec<serde_json::Value> = parts.iter().map(|part| part["id"].clone()).collect();
     let mut document = serde_json::to_value(base()).unwrap();
     document["matrices"] = json!([main, thumb]);
     document["matrices"][0]["partIds"] =
@@ -429,14 +426,18 @@ fn aggregate_anchors_render_one_chain_entry_per_part() {
 
     let followed = relations(&main, matrix_context()).unwrap();
     assert!(
-        followed.structure.iter().any(|item| item.label == "Followed by"
-            && item.value == "Matrix thumb"),
+        followed
+            .structure
+            .iter()
+            .any(|item| item.label == "Followed by" && item.value == "Matrix thumb"),
         "a matrix depended on through a part names its dependant"
     );
     let key_chain = relations(&main, key(0, 0)).unwrap();
     assert!(
-        key_chain.structure.iter().any(|item| item.label == "Followed by"
-            && item.value == "Matrix thumb"),
+        key_chain
+            .structure
+            .iter()
+            .any(|item| item.label == "Followed by" && item.value == "Matrix thumb"),
         "a part key names the aggregate depending on it"
     );
     let row_chain = relations(&thumb, row_in("thumb", 0)).unwrap();

@@ -73,18 +73,18 @@ fn matrix_transform_host() -> Element {
         let Some(document) = web_sys::window().and_then(|window| window.document()) else {
             return;
         };
-        let callback = wasm_bindgen::closure::Closure::wrap(Box::new(
-            move |event: web_sys::KeyboardEvent| {
+        let callback =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::KeyboardEvent| {
                 if event.key() == "Escape" && esc_armed() {
                     esc_armed.set(false);
                     if let Some(mount) = esc_probe.mount.borrow().as_ref() {
                         mount.clear_aggregate_pick();
                     }
                 }
-            },
-        ) as Box<dyn FnMut(web_sys::KeyboardEvent)>);
-        let _ = document
-            .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+            })
+                as Box<dyn FnMut(web_sys::KeyboardEvent)>);
+        let _ =
+            document.add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
         std::mem::forget(callback);
     });
     let mut canvas_tool = use_signal(|| Some(super::super::LayoutTransformTool::Stagger));
@@ -3898,7 +3898,11 @@ async fn aggregate_method_switch_writes_one_intent_with_one_undo() {
         .expect("the Anchor section offers the aggregate method")
         .dyn_into::<HtmlSelectElement>()
         .unwrap();
-    assert_eq!(method.value(), "average", "the method shows the admitted value");
+    assert_eq!(
+        method.value(),
+        "average",
+        "the method shows the admitted value"
+    );
     let revision_before = probe
         .runtime
         .model()
@@ -4192,10 +4196,7 @@ async fn aggregate_multi_pick_adds_pending_parts_and_esc_cancels_without_writing
     );
     dispatch_escape();
     settle(&probe).await;
-    assert!(
-        picked_text(&root).is_none(),
-        "Esc drops the pending draft"
-    );
+    assert!(picked_text(&root).is_none(), "Esc drops the pending draft");
     click_button(&root, "Pick parts");
     settle(&probe).await;
     assert_eq!(

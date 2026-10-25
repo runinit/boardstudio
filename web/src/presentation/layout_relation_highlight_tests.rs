@@ -171,9 +171,7 @@ fn highlighted_keys(root_id: &str) -> Vec<(String, String)> {
         .unwrap()
         .document()
         .unwrap()
-        .query_selector_all(&format!(
-            "#{root_id} .m1-matrix-key.is-relation-highlight"
-        ))
+        .query_selector_all(&format!("#{root_id} .m1-matrix-key.is-relation-highlight"))
         .unwrap();
     (0..list.length())
         .map(|index| {
@@ -873,11 +871,15 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
     let accepted = probe.runtime.model().accepted.expect("accepted document");
     let mut document = (*accepted.document).clone();
     document.layouts.push(
-        serde_json::from_value(json!({ "id": "layout", "name": "Layout", "boardId": "board",
-            "matrixIds": ["main"], "partIds": [] }))
+        serde_json::from_value(
+            json!({ "id": "layout", "name": "Layout", "boardId": "board",
+            "matrixIds": ["main"], "partIds": [] }),
+        )
         .unwrap(),
     );
-    probe.land(replace_command(document.revision, document)).await;
+    probe
+        .land(replace_command(document.revision, document))
+        .await;
     probe
         .land(anchor_command(
             probe.revision(),
@@ -913,8 +915,16 @@ async fn hovering_an_aggregate_part_highlights_only_its_key() {
         ))
         .unwrap();
     assert_eq!(rows.length(), 2, "one entry per part");
-    let first = rows.item(0).unwrap().dyn_into::<web_sys::Element>().unwrap();
-    let second = rows.item(1).unwrap().dyn_into::<web_sys::Element>().unwrap();
+    let first = rows
+        .item(0)
+        .unwrap()
+        .dyn_into::<web_sys::Element>()
+        .unwrap();
+    let second = rows
+        .item(1)
+        .unwrap()
+        .dyn_into::<web_sys::Element>()
+        .unwrap();
     dispatch(&first, "pointerenter");
     wait_until("hovering the first part highlights its key", || {
         highlighted_keys(root_id) == vec![("0".to_owned(), "0".to_owned())]

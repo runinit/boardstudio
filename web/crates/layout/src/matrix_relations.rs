@@ -312,9 +312,7 @@ impl View<'_> {
             .filter(|matrix| {
                 matrix.anchor.as_ref().is_some_and(|anchor| {
                     anchor.targets().iter().any(|part| {
-                        part.matrix_id == self.matrix.id
-                            && part.row == row
-                            && part.column == column
+                        part.matrix_id == self.matrix.id && part.row == row && part.column == column
                     })
                 })
             })
@@ -828,9 +826,7 @@ impl View<'_> {
                     let members: Vec<String> = aggregate
                         .parts
                         .iter()
-                        .filter_map(|part| {
-                            self.member_of(&part.matrix_id, part.row, part.column)
-                        })
+                        .filter_map(|part| self.member_of(&part.matrix_id, part.row, part.column))
                         .map(str::to_owned)
                         .collect();
                     structure.push(parameter(
@@ -860,16 +856,13 @@ impl View<'_> {
                         .parts
                         .iter()
                         .filter(|part| {
-                            self.member_of(&part.matrix_id, part.row, part.column).is_some_and(
-                                |member| {
+                            self.member_of(&part.matrix_id, part.row, part.column)
+                                .is_some_and(|member| {
                                     self.exception(MirroredItemKind::Part, member)
                                         == Some(MirroredExceptionState::Local)
-                                },
-                            )
+                                })
                         })
-                        .map(|part| {
-                            Self::anchor_part_text(&part.matrix_id, part.row, part.column)
-                        })
+                        .map(|part| Self::anchor_part_text(&part.matrix_id, part.row, part.column))
                         .collect();
                     local.sort();
                     local.dedup();

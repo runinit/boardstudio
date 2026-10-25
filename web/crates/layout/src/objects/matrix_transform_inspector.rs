@@ -1510,7 +1510,10 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
                     row: part.row,
                     column: part.column,
                 },
-                format!("{} · row {} · column {}", part.matrix_id, part.row, part.column),
+                format!(
+                    "{} · row {} · column {}",
+                    part.matrix_id, part.row, part.column
+                ),
                 format!("{}-{}-{}", part.matrix_id, part.row, part.column),
             )
         })
