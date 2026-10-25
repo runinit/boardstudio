@@ -125,3 +125,6 @@ mod native_matrix_exceptions;
 
 #[path = "matrix_aggregate_anchors.rs"]
 mod matrix_aggregate_anchors;
+
+#[path = "matrix_aggregate_reflection.rs"]
+mod matrix_aggregate_reflection;
