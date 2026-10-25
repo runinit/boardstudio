@@ -144,7 +144,7 @@ contract was not re-audited here.
   the deleted test names above need baseline update.
 
 - Commits: `c0f6b7e06` test(ergogen-37) deletion + coverage; `309304a9d`
-  docs(ergogen-37) reservation-link repoint. Status: done (claimed through close).
+  docs(ergogen-37) reservation-link repoint. Status: claimed (implementation complete; awaiting parent review/close).
 - Verify: targeted `cargo test -p boardstudio_core` (6G, RUST_TEST_THREADS=4): lib
   772 passed/0 failed, integration 864 passed/0 failed. `cargo check --workspace
   --all-targets` clean. `cargo clippy -p boardstudio_core --all-targets

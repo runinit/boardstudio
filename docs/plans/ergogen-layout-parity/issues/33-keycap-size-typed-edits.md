@@ -84,4 +84,4 @@ round-trip; affected quick/browser checks.
   107 passed. Mounted `wasm-pack test ... layout -- keycap`: 13 passed including
   new resolver test + selector undo/redo + queued retire. `cargo check --workspace
   --all-targets` clean; core clippy `-D warnings` clean; rustfmt on touched files.
-- Commits: `d489f5798` feat(ergogen-33). Status: done (claimed through close).
+- Commits: `d489f5798` feat(ergogen-33). Status: claimed (implementation complete; awaiting parent review/close).

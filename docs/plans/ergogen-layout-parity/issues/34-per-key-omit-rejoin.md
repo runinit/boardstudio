@@ -118,4 +118,4 @@ affected quick/browser checks.
   `setup_guide desktop viewport` fails (environmental: headless viewport
   detection; no viewport overlap with this ticket) and poisons later tests
   via the panic-hook cascade; the omit tests pass when run directly.
-- Commits: `3b71398fd` feat(ergogen-34). Status: done (claimed through close).
+- Commits: `3b71398fd` feat(ergogen-34). Status: claimed (implementation complete; awaiting parent review/close).
