@@ -64,6 +64,29 @@ fn matrix_transform_host() -> Element {
         "Layout",
     );
     *probe.mount.borrow_mut() = Some(mount.clone());
+    // The ticket-23 armed-pick pattern, mirrored for the test host: arming is
+    // host state, the draft lives on the mount, and Esc clears both.
+    let mut armed = use_signal(|| false);
+    let mut esc_armed = armed;
+    let esc_probe = probe.clone();
+    use_hook(move || {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        let callback = wasm_bindgen::closure::Closure::wrap(Box::new(
+            move |event: web_sys::KeyboardEvent| {
+                if event.key() == "Escape" && esc_armed() {
+                    esc_armed.set(false);
+                    if let Some(mount) = esc_probe.mount.borrow().as_ref() {
+                        mount.clear_aggregate_pick();
+                    }
+                }
+            },
+        ) as Box<dyn FnMut(web_sys::KeyboardEvent)>);
+        let _ = document
+            .add_event_listener_with_callback("keydown", callback.as_ref().unchecked_ref());
+        std::mem::forget(callback);
+    });
     let mut canvas_tool = use_signal(|| Some(super::super::LayoutTransformTool::Stagger));
     let matrix_id = "matrix".to_owned();
     let canvas_adapter = probe.adapter.borrow().as_ref().unwrap().clone();
@@ -78,10 +101,18 @@ fn matrix_transform_host() -> Element {
                     let scope = canvas_scope.clone();
                     let adapter = canvas_adapter.clone();
                     let runtime = canvas_runtime.clone();
+                    let pick_armed = armed;
+                    let pick_probe = probe.clone();
                     rsx! {
                         g {
                             "data-part-id": "{target_part_id}",
                             onpointerdown: move |event: PointerEvent| {
+                                if pick_armed() {
+                                    if let Some(mount) = pick_probe.mount.borrow().as_ref() {
+                                        mount.pick_aggregate_part(target_matrix.clone(), 0, column);
+                                    }
+                                    return;
+                                }
                                 let Some(pointer) = event.data().try_as_web_event() else { return; };
                                 let model = runtime.model();
                                 let hit_context = TreeContext::Key {
@@ -141,9 +172,17 @@ fn matrix_transform_host() -> Element {
             MatrixTransformInspector {
                 mount,
                 on_pick_splay_origin: |_| {},
-                on_pick_anchor: |_| {},
-                anchor_pick_pending: false,
-                on_cancel_anchor_pick: |_| {},
+                on_pick_anchor: EventHandler::new(move |()| armed.set(true)),
+                anchor_pick_pending: armed(),
+                on_cancel_anchor_pick: {
+                    let probe = probe.clone();
+                    EventHandler::new(move |_| {
+                        if let Some(mount) = probe.mount.borrow().as_ref() {
+                            mount.clear_aggregate_pick();
+                        }
+                        armed.set(false);
+                    })
+                },
                 on_navigate_anchor_part: EventHandler::new(move |context: TreeContext| {
                     probe
                         .navigated
@@ -3690,7 +3729,7 @@ fn aggregate_anchor_fixture() -> (ProjectDoc, TreeContext) {
 /// A 1x3 variant of the aggregate fixture: the third key is pickable but not
 /// yet a part, so canvas multi-Pick and commit have somewhere to go.
 fn aggregate_anchor_three_key_fixture() -> (ProjectDoc, TreeContext) {
-    let (mut document, _) = three_key_fixture(false);
+    let (mut document, _) = three_key_fixture();
     // Non-parallel part headings so the intersection method stays evaluable.
     document.matrices[0].cells[1].rotation = Some(90.0);
     document.layouts.push(Layout {
@@ -4068,18 +4107,18 @@ fn click_button(root: &web_sys::Element, text: &str) {
         .click();
 }
 
-fn canvas_key(root: &web_sys::Element, index: u32) -> web_sys::Element {
+fn canvas_key(root: &web_sys::Element, index: u32) -> web_sys::Node {
     root.query_selector_all("[data-part-id]")
         .unwrap()
         .item(index)
         .expect("the canvas stub renders the picked key")
 }
 
-fn dispatch_canvas_pick(node: &web_sys::Element) {
+fn dispatch_canvas_pick(node: &web_sys::Node) {
     let init = web_sys::PointerEventInit::new();
     init.set_bubbles(true);
     node.dispatch_event(
-        &web_sys::PointerEvent::new_with_pointer_event_init_dict("pointerdown", &init).unwrap(),
+        &web_sys::PointerEvent::new_with_event_init_dict("pointerdown", &init).unwrap(),
     )
     .unwrap();
 }

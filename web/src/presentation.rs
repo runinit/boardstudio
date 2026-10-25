@@ -6333,6 +6333,7 @@ fn Editor() -> Element {
         let snap_settings = layout_snap_settings;
         let mut pending_splay_pick = pending_splay_origin_pick;
         let mut pending_anchor_pick = pending_anchor_pick;
+        let transform_inspector = matrix_transform_inspector.clone();
         move |event: KeyboardEvent| {
             let key = event.data().key().to_string();
             let code = event.data().code().to_string();
@@ -6496,6 +6497,7 @@ fn Editor() -> Element {
             }
             if key == "Escape" && pending_anchor_pick.peek().is_some() {
                 pending_anchor_pick.set(None);
+                transform_inspector.clear_aggregate_pick();
                 event.prevent_default();
                 return;
             }
@@ -7971,14 +7973,19 @@ fn Editor() -> Element {
                         ) && mount.editable
                         {
                             splay_pending.set(None);
+                            mount.clear_aggregate_pick();
                             pending.set(Some(projection.owner.clone()));
                         }
                     })
                 },
                 anchor_pick_pending: pending_anchor_pick().is_some(),
                 on_cancel_anchor_pick: {
+                    let mount = matrix_transform_inspector.clone();
                     let mut pending = pending_anchor_pick;
-                    EventHandler::new(move |()| pending.set(None))
+                    EventHandler::new(move |()| {
+                        mount.clear_aggregate_pick();
+                        pending.set(None);
+                    })
                 },
                 splay_origin_pick_pending: pending_splay_origin_pick().is_some(),
                 on_cancel_splay_origin_pick: {
@@ -8526,9 +8533,32 @@ fn Editor() -> Element {
             }
             if pending_anchor_pick.peek().is_some() {
                 // Key-identity hits retarget the anchor; the world point is
-                // irrelevant, so no coordinate resolution can fail here.
+                // irrelevant, so no coordinate resolution can fail here. An
+                // aggregate-armed pick appends to the pending parts instead and
+                // stays armed for the next key.
                 pointer.prevent_default();
                 pointer.stop_propagation();
+                let aggregate_armed = transform_inspector.projection.as_ref().is_some_and(
+                    |projection| {
+                        matches!(
+                            &projection.fields,
+                            boardstudio_web_layout::matrix_transform_operation::MatrixTransformFields::Matrix {
+                                anchor: Some(anchor),
+                                ..
+                            } if anchor.aggregate.is_some()
+                        )
+                    },
+                );
+                if aggregate_armed {
+                    if !transform_inspector.pick_aggregate_part(
+                        request.matrix_id.clone(),
+                        request.row,
+                        request.column,
+                    ) {
+                        runtime.report("Matrix selection changed. Pick the anchor parts again.");
+                    }
+                    return;
+                }
                 apply_pending_anchor_pick(
                     &runtime,
                     workspace,

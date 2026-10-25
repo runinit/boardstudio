@@ -3,7 +3,10 @@ use crate::matrix_transform_operation::{
     MatrixTransformField, MatrixTransformFields, MatrixTransformValue, column_angle,
 };
 use boardstudio_application::{Scope, SnapshotToken};
-use boardstudio_core::model::{AggregateMethod, Follow, MatrixAnchor, MatrixSplayAffect, Mirror, Vec2};
+use boardstudio_core::model::{
+    AggregateAnchor, AggregateMethod, AnchorPart, Follow, MatrixAnchor, MatrixSplayAffect, Mirror,
+    Vec2,
+};
 use boardstudio_web_ui_shared::controls::{
     BoardButton, BoardCheckbox, BoardDisclosure, BoardNumberField, BoardSelectField,
 };
@@ -177,6 +180,10 @@ pub fn MatrixTransformInspector(props: MatrixTransformInspectorProps) -> Element
                             request_sequence, editable: props.mount.editable,
                             feedback: props.mount.feedback.clone(), splay_affect, on_edit,
                             on_navigate_anchor_part: props.on_navigate_anchor_part,
+                            mount: props.mount.clone(),
+                            aggregate_pick_pending: props.anchor_pick_pending,
+                            on_pick_anchor: props.on_pick_anchor,
+                            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
                         }
                     } else {
                         p { class: "m1-matrix-anchor-target",
@@ -1443,6 +1450,10 @@ struct AggregateAnchorSectionProps {
     splay_affect: Signal<MatrixSplayAffect>,
     on_edit: EventHandler<MatrixTransformRequest>,
     on_navigate_anchor_part: EventHandler<TreeContext>,
+    mount: MatrixTransformInspectorMount,
+    aggregate_pick_pending: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
 }
 
 /// The aggregate arm of the Anchor section: the Core-admitted method over N
@@ -1618,6 +1629,129 @@ fn AggregateAnchorSection(props: AggregateAnchorSectionProps) -> Element {
         }
         if let Some(message) = parts_error.as_deref() {
             p { role: "alert", class: "m1-matrix-transform-error", "{message}" }
+        }
+        AggregateMultiPick {
+            owner: owner.clone(), snapshot_token: token, revision,
+            aggregate: aggregate.clone(),
+            request_sequence: sequence, editable,
+            splay_affect: affect, on_edit,
+            mount: props.mount.clone(),
+            armed: props.aggregate_pick_pending,
+            on_pick_anchor: props.on_pick_anchor,
+            on_cancel_anchor_pick: props.on_cancel_anchor_pick,
+            submitted,
+        }
+    }
+}
+
+/// The canvas multi-Pick for aggregate parts, reusing the ticket-23 armed-pick
+/// pattern: arming is presentation state, the draft lives on the mount, and
+/// committing writes one `SetMatrixAnchor` Core intent. Cancelling or Esc
+/// drops the draft with nothing written.
+#[derive(Props, Clone, PartialEq)]
+struct AggregateMultiPickProps {
+    owner: MatrixTransformInspectorOwner,
+    snapshot_token: SnapshotToken,
+    revision: u64,
+    aggregate: AggregateAnchor,
+    request_sequence: Signal<u64>,
+    editable: bool,
+    splay_affect: Signal<MatrixSplayAffect>,
+    on_edit: EventHandler<MatrixTransformRequest>,
+    mount: MatrixTransformInspectorMount,
+    armed: bool,
+    on_pick_anchor: EventHandler<()>,
+    on_cancel_anchor_pick: EventHandler<()>,
+    submitted: Signal<Option<(MatrixTransformField, u64)>>,
+}
+
+#[component]
+fn AggregateMultiPick(props: AggregateMultiPickProps) -> Element {
+    let draft_parts = props
+        .mount
+        .aggregate_pick_draft
+        .read()
+        .clone()
+        .filter(|(draft_owner, _)| *draft_owner == props.owner)
+        .map(|(_, parts)| parts)
+        .unwrap_or_default();
+    let fresh_parts: Vec<AnchorPart> = draft_parts
+        .into_iter()
+        .filter(|part| !props.aggregate.parts.contains(part))
+        .collect();
+    if !props.armed {
+        return rsx! {
+            BoardButton {
+                r#type: "button", class: "m1-inspector-secondary",
+                disabled: !props.editable,
+                onclick: move |_| props.on_pick_anchor.call(()),
+                "Pick parts"
+            }
+        };
+    }
+    let count = fresh_parts.len();
+    let noun = if count == 1 { "part" } else { "parts" };
+    rsx! {
+        p { class: "m1-empty-note",
+            "Click keys on the canvas to add parts."
+        }
+        if count > 0 {
+            p { class: "m1-empty-note",
+                "{count} picked"
+            }
+            button {
+                r#type: "button",
+                class: "m1-inspector-secondary",
+                disabled: !props.editable,
+                onclick: {
+                    let owner = props.owner.clone();
+                    let on_edit = props.on_edit;
+                    let mut sequence = props.request_sequence;
+                    let mut submitted = props.submitted;
+                    let affect = props.splay_affect;
+                    let token = props.snapshot_token;
+                    let revision = props.revision;
+                    let mount = props.mount.clone();
+                    let aggregate = props.aggregate.clone();
+                    move |_| {
+                        let mut next_parts = aggregate.parts.clone();
+                        next_parts.extend(fresh_parts.clone());
+                        let Some(request_id) = sequence().checked_add(1) else {
+                            return;
+                        };
+                        sequence.set(request_id);
+                        submitted.set(Some((MatrixTransformField::MatrixAnchorParts, request_id)));
+                        on_edit.call(MatrixTransformRequest {
+                            owner: owner.clone(),
+                            request_id,
+                            snapshot_token: token,
+                            revision,
+                            field: MatrixTransformField::MatrixAnchorParts,
+                            baseline: MatrixTransformValue::AnchorParts(aggregate.parts.clone()),
+                            value: MatrixTransformValue::AnchorParts(next_parts),
+                            splay_affect: affect(),
+                            draft: None,
+                            failure: None,
+                            submitted_text: None,
+                            one_shot: false,
+                        });
+                        mount.clear_aggregate_pick();
+                    }
+                },
+                "Add {count} {noun}"
+            }
+        }
+        BoardButton {
+            r#type: "button", class: "m1-inspector-secondary",
+            onclick: {
+                let mount = props.mount.clone();
+                let on_cancel = props.on_cancel_anchor_pick;
+                move |_| {
+                    mount.clear_aggregate_pick();
+                    on_cancel.call(());
+                }
+            },
+            "Cancel anchor pick"
         }
     }
 }

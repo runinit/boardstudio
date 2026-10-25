@@ -13,7 +13,7 @@ use boardstudio_application::{
     AcceptedSnapshot, Durability, EditResolver, Lifecycle, Resolution, Scope,
 };
 use boardstudio_core::model::{
-    EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
+    AnchorPart, EditOperation, Matrix, MatrixSplayAffect, PartDefinition, ProjectDoc, Vec2,
     convert_offset_available,
 };
 use boardstudio_web_runtime::pending_edits::PendingEditResult;
@@ -424,6 +424,11 @@ pub struct MatrixTransformInspectorMount {
         Vec<(MatrixTransformField, Signal<String>, Signal<Option<String>>)>,
     one_shot_fields: Vec<(MatrixTransformField, Signal<bool>)>,
     pub(super) change_status: Signal<Option<TransformChangeAnnouncement>>,
+    /// The pending canvas multi-Pick draft: the owner it was armed for and the
+    /// picked parts. Owner-tagged so a selection change orphans it instead of
+    /// committing stale parts to another matrix; the armed flag itself stays in
+    /// workspace state beside the ticket-23 single pick.
+    pub aggregate_pick_draft: Signal<Option<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>>,
 }
 
 impl MatrixTransformInspectorMount {
@@ -490,6 +495,53 @@ impl MatrixTransformInspectorMount {
             one_shot: false,
         });
         true
+    }
+
+    /// A canvas multi-Pick of one aggregate part: appends the picked key to the
+    /// pending draft without writing, staying armed for the next pick. Core
+    /// validates the whole list at commit; duplicates are a no-op. Returns
+    /// false when there is no aggregate-anchored projection to pick for.
+    pub fn pick_aggregate_part(&self, matrix_id: String, row: u32, column: u32) -> bool {
+        let Some(projection) = self.projection.as_ref() else {
+            return false;
+        };
+        let MatrixTransformFields::Matrix {
+            anchor: Some(anchor),
+            ..
+        } = &projection.fields
+        else {
+            return false;
+        };
+        if anchor.aggregate.is_none() || !self.editable {
+            return false;
+        }
+        let part = AnchorPart {
+            matrix_id,
+            row,
+            column,
+        };
+        let mut draft = self.aggregate_pick_draft;
+        let current = draft.read().clone();
+        match current {
+            Some((owner, parts)) if owner == projection.owner => {
+                if parts.contains(&part) {
+                    return true;
+                }
+                let mut next = parts.clone();
+                next.push(part);
+                draft.set(Some((projection.owner.clone(), next)));
+            }
+            _ => {
+                draft.set(Some((projection.owner.clone(), vec![part])));
+            }
+        }
+        true
+    }
+
+    /// Drop the pending multi-Pick draft without writing.
+    pub fn clear_aggregate_pick(&self) {
+        let mut draft = self.aggregate_pick_draft;
+        draft.set(None);
     }
 
     /// A canvas pick of the splay origin. With Ctrl held the pick swings the
@@ -639,6 +691,8 @@ pub fn use_workspace_matrix_transform(
     });
     let feedback = use_signal(Vec::<MatrixTransformFeedback>::new);
     let change_status = use_signal(|| None::<TransformChangeAnnouncement>);
+    let aggregate_pick_draft =
+        use_signal(|| None::<(MatrixTransformInspectorOwner, Vec<AnchorPart>)>);
     let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
     let inspector_mounted = use_signal(|| false);
     let canvas_mounted = use_signal(|| false);
@@ -1126,6 +1180,7 @@ pub fn use_workspace_matrix_transform(
         numeric_fields,
         one_shot_fields,
         change_status,
+        aggregate_pick_draft,
     }
 }
 
