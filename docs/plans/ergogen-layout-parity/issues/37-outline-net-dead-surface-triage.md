@@ -74,10 +74,9 @@ contract was not re-audited here.
   No wire-to-surface candidate was found — every family is superseded.
 - Deletion (model.rs variant removal + `lib.rs` arms + `mirrored_half`
   inverse/reconcile/lifecycle + `outline_versions.rs` dependents + baseline
-  test-name updates) requires model.rs type changes and is therefore STOPPED
-  per task rules ("if so, stop and report"). No code changed; ticket stays
-  claimed for parent review/approval before any deletion lands.
-- New test names: none (no code changed; no baseline edits).
+  test-name updates) required model.rs type changes and proceeded under parent
+  approval. Deletion landed in `c0f6b7e06`
+  (see Implementation record below).
 
 ### Implementation record (2026-10-25)
 

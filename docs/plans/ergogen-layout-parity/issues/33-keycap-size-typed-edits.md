@@ -44,11 +44,6 @@ round-trip; affected quick/browser checks.
   not the physical `Part.keycap: Option<Vec2>` size tied to pitch minus edge
   gap. `grep` for `part.keycap =` shows only `ReplaceDocument`, matrix
   creation, and mirrored-half lifecycle writers; no typed size edit exists.
-- Ticket requires a new named typed keycap-size Core edit (model.rs type
-  change) to replace the whole-document path. Per task rules (no model.rs
-  type changes unless a ticket requires it — if so, stop and report), stopping
-  implementation here and reporting to parent. No code changed; ticket stays
-  claimed for parent review.
 
 ## Implementation record (2026-10-25)
 
