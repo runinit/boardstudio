@@ -60,7 +60,7 @@ pub(crate) use boardstudio_web_ui_model::state::{
 };
 pub(crate) use boardstudio_web_ui_model::state::{PreferenceStorageWarning, ThemeState};
 pub(crate) use boardstudio_web_ui_model::svg_coordinates::{
-    coordinates, coordinates_at, pointer_location,
+    PointerLocation, coordinates, coordinates_at, pointer_location,
 };
 pub(crate) use boardstudio_web_ui_model::{canvas_interaction, instance_selection, selection};
 pub(crate) use boardstudio_web_ui_shared::panels::browse_parts_workspace;
@@ -6855,6 +6855,12 @@ fn Editor() -> Element {
         let svg = svg.clone();
         let scope = render_scope.clone();
         let adapter = adapter.clone();
+        // Wheel bursts (trackpads emit dozens of ticks per gesture) coalesce
+        // into one zoom application per animation frame: ticks only add to
+        // this burst, and the single rAF flush submits once. Without this,
+        // every tick ran Runtime::submit -> changed()/notify() plus a DOM
+        // rect read, re-rendering the full scene per tick (Issue 2).
+        let pending = Rc::new(RefCell::new(layout_camera::WheelZoomCoalescer::new()));
         move |event: WheelEvent| {
             if runtime.scope().as_ref() != Some(&scope)
                 || (adapter.generation)() != render_generation
@@ -6884,15 +6890,53 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
-            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap share the
-            // reference 0.25..4 limits.
-            CanvasNavigationState::apply_wheel_zoom(
-                &runtime,
-                (min_x, max_x, min_y, max_y),
-                location,
-                keymap_scale_ratio,
+            let schedule_flush = pending.borrow_mut().push(
                 wheel.delta_y(),
+                layout_camera::WheelAnchor {
+                    world: location.world,
+                    x_fraction: location.x_fraction,
+                    y_fraction: location.y_fraction,
+                },
             );
+            if !schedule_flush {
+                // A flush is already queued for this frame; this tick rides it.
+                return;
+            }
+            let Some(window) = web_sys::window() else {
+                return;
+            };
+            let flush_pending = pending.clone();
+            let flush_runtime = runtime.clone();
+            let flush_scope = scope.clone();
+            let flush_generation = adapter.generation;
+            // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap
+            // share the reference 0.25..4 limits.
+            let flush = move || {
+                let Some(batch) = flush_pending.borrow_mut().take_batch() else {
+                    return;
+                };
+                if batch.total_delta_y == 0.0 {
+                    return;
+                }
+                if flush_runtime.scope().as_ref() != Some(&flush_scope)
+                    || (flush_generation)() != render_generation
+                {
+                    return;
+                }
+                CanvasNavigationState::apply_wheel_zoom(
+                    &flush_runtime,
+                    (min_x, max_x, min_y, max_y),
+                    PointerLocation {
+                        world: batch.anchor.world,
+                        x_fraction: batch.anchor.x_fraction,
+                        y_fraction: batch.anchor.y_fraction,
+                    },
+                    keymap_scale_ratio,
+                    batch.total_delta_y,
+                );
+            };
+            let callback = Closure::once_into_js(flush);
+            let _ = window.request_animation_frame(callback.unchecked_ref());
         }
     };
     let undo = runtime.clone();
