@@ -1,6 +1,6 @@
 # 29: Native matrix-level exception transitions
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none (decisions locked in [deferred-items-plan.md](../deferred-items-plan.md))
 Parent: [deferred plan](../deferred-items-plan.md) · Research: [deferred-items-research.md](../deferred-items-research.md) · Spec: [spec.md](../spec.md)
@@ -48,3 +48,19 @@ change yet.
 Core integration tests via public routes (spec §11 seam rule); affected
 quick/browser checks; full-gate evidence for the batch. Normal tests do not
 invoke Ergogen/Node.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` jointly with tickets 28
+and 30–32. Slices B1–B5 landed as RED `c39c02af4` / `bfbddaf05` /
+`5697114b0` then GREEN `260a954d5` (Local survives expansion), `28c8e17af`
+(Omitted live-yet-absent), `f59c54b7c` (Make-Local detach/Rejoin),
+`d13bf7d3c` (source removal), `51c07e8dd` (part-level Omitted,
+shrink-after-growth), `52321e773` (anchored additions) and `c2424ec50`
+(confirmed detach, rejoin adoption; style `0c1d069e4`). The standards review
+and the spec re-review both PASSED, and the fix check PASSED, with no open
+findings. Joint native baseline `6c0e4f30` (+53/−0). Joint gates green: quick
+`check: all steps passed: repo, tooling, lint, typecheck, test, browser`
+(468.3s) and full
+`check: all steps passed: repo, tooling, lint, build, test, browser`
+(419.5s).

@@ -1,6 +1,6 @@
 # 28: Aggregate anchor Core (shape, evaluation, Follow)
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none (decisions locked in [deferred-items-plan.md](../deferred-items-plan.md))
 Parent: [deferred plan](../deferred-items-plan.md) · Research: [deferred-items-research.md](../deferred-items-research.md) · Spec: [spec.md](../spec.md)
@@ -70,3 +70,20 @@ do not invoke Ergogen/Node.
   kernel unit test on both sides of the threshold.
 - Reorder test drives both `doc.matrices` and layout member order reversed
   end to end and asserts dependency order in both scenes.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` jointly with tickets
+29–32. Slices A1/A3/A4/A7 landed as RED `b8ec8c9c7` then GREEN `4665c5fb0`
+(shape, average/intersection evaluation, Follow over aggregates; docs
+`f2e75b10e`, style `750ff680a`), followed by the lane-1 spec-review fixes
+`e7b7d062d` (single|aggregate union enforced as the admission grammar),
+`c15ec34bc` (A5 lifecycle hunks reverted out of the core lane) and
+`6bcee0ea8` (upstream partial-x golden pinned, local 1e-9 intersect guard),
+recorded in `436b5dbc6`. The spec re-review and the standards re-review both
+PASSED with no open findings. Joint native baseline `6c0e4f30` (+53/−0).
+Joint gates green: quick
+`check: all steps passed: repo, tooling, lint, typecheck, test, browser`
+(468.3s) and full
+`check: all steps passed: repo, tooling, lint, build, test, browser`
+(419.5s).

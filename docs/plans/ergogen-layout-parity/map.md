@@ -124,6 +124,14 @@ unshipped cutover lane in the spec; do not promote intermediate version-7 writer
 | [25: Project recovery](issues/25-project-format-recovery.md#answer) | 17 | Resolved: safe unsupported-project recovery preserves records, drafts, saves and history; full merged gate passed. |
 | [26: Examples/fixture finish](issues/26-rebuild-examples-and-fixtures.md#answer) | 24, 25 | Resolved: Studio 60, Macro 12 and Split 42 rebuilt through Core matrix materialization with approved poses; both re-reviews passed. |
 | [27: End-to-end acceptance](issues/27-end-to-end-acceptance.md#answer) | 26 | Resolved: traced preview/commit/scene/archive/reopen with anchored mirrored group through production paths; combined closure review passed, gap fixed in-ticket. |
+| [28: Aggregate anchor Core](issues/28-aggregate-anchor-core.md#answer) | — | Resolved: aggregate arm on `MatrixAnchor`, average/intersection evaluation, Follow over aggregates (plan slices A1, A3, A4, A7); spec + standards re-reviews passed. |
+| [29: Native exception transitions](issues/29-native-exception-transitions.md#answer) | — | Resolved: full ticket-21 mirror on the native pair (plan slices B1–B5); standards + spec re-review + fix check passed. |
+| [30: Aggregate validation/lifecycle](issues/30-aggregate-validation-lifecycle.md#answer) | 28 | Resolved: part refusals plus compaction-remap/detach lifecycle (plan slices A2, A5); standards + spec gap re-review passed. |
+| [31: Aggregate reflection/fixtures](issues/31-aggregate-reflection-fixtures.md#answer) | 28 | Resolved: linked reflection plus pinned goldens (plan slices A6, A8); dual review passed. |
+| [32: Aggregate anchor UI](issues/32-aggregate-anchor-ui.md#answer) | 28 | Resolved: Inspector editing, multi-Pick, Relations chains (plan slice A9); dual review passed. |
+
+Frontier: tickets 28–32 are all resolved — every deferred-items plan lane is
+integrated and no further tickets are planned.
 
 ## Ownership
 

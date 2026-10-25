@@ -5059,8 +5059,7 @@ fn prepare_membership_transition_kernel(
             } else {
                 let mirror = matrix_by_id(&draft, matrix_pair.mirror_id.as_str())?;
                 crate::matrix::valid_matrix(mirror, &draft)?;
-                let actual_mirror_members: BTreeSet<_> =
-                    mirror.part_ids.iter().cloned().collect();
+                let actual_mirror_members: BTreeSet<_> = mirror.part_ids.iter().cloned().collect();
                 if actual_mirror_members.len() != mirror.part_ids.len()
                     || actual_mirror_members != *expected_mirror_members
                 {
@@ -5923,9 +5922,7 @@ fn prepare_membership_transition_kernel(
         if mapped_or_planned != post_source_members {
             // A detached mirror takes no projected members (spec §5): the only
             // permitted gap is genuine source-side growth under it.
-            let uncovered: Vec<_> = post_source_members
-                .difference(&mapped_or_planned)
-                .collect();
+            let uncovered: Vec<_> = post_source_members.difference(&mapped_or_planned).collect();
             let matrix_detached = context.associations.iter().any(|association| {
                 association.kind == MirroredItemKind::Matrix
                     && association.source_id == matrix_pair.source_id.as_str()
@@ -6007,9 +6004,7 @@ fn prepare_membership_transition_kernel(
                                 "The transition association has an invalid parent source".into()
                             );
                         }
-                        if !association.explicit_state
-                            && association.state != matrix_parent.state
-                        {
+                        if !association.explicit_state && association.state != matrix_parent.state {
                             return Err(
                                 "An inherited child state disagrees with its parent association"
                                     .into(),
@@ -6316,9 +6311,8 @@ fn prepare_membership_transition_kernel(
         // The source removal itself is the change when the mirror is
         // retained or already absent; only an executed mirror removal must
         // report its own changes below.
-        let skip_mirror_removal = validated.already_removed
-            || matrix_retained_local
-            || (matrix_omitted && mirror_absent);
+        let skip_mirror_removal =
+            validated.already_removed || matrix_retained_local || (matrix_omitted && mirror_absent);
         let mirror_removal = if skip_mirror_removal {
             Vec::new()
         } else {
@@ -6667,8 +6661,8 @@ fn prepare_membership_transition_kernel(
     // A detached Local mirror owns its descriptor, and an absent mirror has
     // no record at all: membership staging never rewrites either, whatever
     // the source operation removed or compacted.
-    if let Some((axis_row, removed_index)) = compaction_axis
-        .filter(|_| !matrix_detached_local && !mirror_absent)
+    if let Some((axis_row, removed_index)) =
+        compaction_axis.filter(|_| !matrix_detached_local && !mirror_absent)
     {
         crate::matrix::deletion::remove_axis(
             &mut staged,
@@ -6785,8 +6779,7 @@ fn prepare_membership_transition_kernel(
                 matrix_pair.mirror_id
             )
         })?;
-        projected =
-            project_matrix(&source, &present, matrix_correspondence, context.mapping)?;
+        projected = project_matrix(&source, &present, matrix_correspondence, context.mapping)?;
     }
     // The loop only executes with a present mirror (see its filter); the owned
     // snapshot keeps the body total without re-proving presence per cell.

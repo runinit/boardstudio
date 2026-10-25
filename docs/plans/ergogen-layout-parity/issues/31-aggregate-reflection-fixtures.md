@@ -1,6 +1,6 @@
 # 31: Aggregate reflection and fixtures
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: [28](28-aggregate-anchor-core.md) (aggregate shape and evaluation)
 Parent: [deferred plan](../deferred-items-plan.md) · Research: [deferred-items-research.md](../deferred-items-research.md) · Spec: [spec.md](../spec.md)
@@ -66,3 +66,22 @@ poses are distinct per part so intersect never sees a spurious parallel pair
 before the refresh corrects them. Known limit: Open of a hand-authored doc
 with stale part poses plus an intersect anchor can refuse on the stale poses;
 production docs always carry refreshed poses.
+
+## Answer
+
+Resolved on branch `docs/ergogen-layout-comparison` jointly with tickets 28–
+30 and 32. Slice A6 landed as RED `7e383e7d7` then GREEN in the shared
+lane-2/3 commit `b7dd85794`, whose linked-add counterpart-mapping hunk
+(`anchors.rs::add` maps every aggregate part through the pair correspondence
+by identity) and `layout.rs` whole-candidate remap (`remap_anchor`,
+`reflected`/`sync` transport) belong to this ticket (the same commit's
+validation/remap/shift hunks belong to
+[30](30-aggregate-validation-lifecycle.md#answer)). Slice A8 landed as the
+upstream-pinned average/intersection parity goldens `f1e38c56d` (style
+`2778899e5`; progress recorded in `313975ab3`). The dual review (spec +
+standards) PASSED with no open findings. Joint native baseline `6c0e4f30`
+(+53/−0). Joint gates green: quick
+`check: all steps passed: repo, tooling, lint, typecheck, test, browser`
+(468.3s) and full
+`check: all steps passed: repo, tooling, lint, build, test, browser`
+(419.5s).

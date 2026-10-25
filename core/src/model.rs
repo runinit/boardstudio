@@ -470,10 +470,7 @@ impl<'de> serde::de::Visitor<'de> for AnchorUnionVisitor {
         )
     }
 
-    fn visit_map<A: serde::de::MapAccess<'de>>(
-        self,
-        mut map: A,
-    ) -> Result<MatrixAnchor, A::Error> {
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<MatrixAnchor, A::Error> {
         use serde::de::Error;
         let mut matrix_id: Option<String> = None;
         let mut row: Option<u32> = None;
@@ -522,9 +519,7 @@ impl<'de> serde::de::Visitor<'de> for AnchorUnionVisitor {
                 }
             }
         }
-        if aggregate.is_some()
-            && (matrix_id.is_some() || row.is_some() || column.is_some())
-        {
+        if aggregate.is_some() && (matrix_id.is_some() || row.is_some() || column.is_some()) {
             return Err(A::Error::custom(
                 "Matrix anchor cannot combine a single-key target (matrixId/row/column) with an aggregate arm; name one target",
             ));
