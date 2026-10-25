@@ -1,6 +1,6 @@
 # 36: Committing test for aggregate anchors
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (all dependencies resolved; aggregate evaluation and the Inspector aggregate surface already exist)
 Parent: [map.md](../map.md)
@@ -47,4 +47,23 @@ quick/browser checks.
   `repo` (pre-existing broken `../deferred-items-plan.md` links in 28-32) and
   unrelated `mirror_existing_half`/`mirrored_pair_geometry`/`existing_half`
   rustfmt drift fail on base too, so full `check.py quick` cannot go green
-  from this ticket alone.
+  from this ticket alone. Full-ticket coverage lands in the joint closing gates.
+- Commits: `e598b97b8` test(ergogen-36). Status: resolved.
+
+## Answer
+
+Resolved on `docs/ergogen-layout-comparison` via merge `21d16e2db`
+(`feat/ergogen-tickets-33-37`). Implementation `e598b97b8`.
+
+- 2 new committing tests (no baseline edits):
+  `aggregate_method_switch_commits_with_redo_and_pose_round_trip` +
+  `aggregate_part_remove_updates_dependant_pose_with_undo_round_trip`;
+  aggregate suite 8/8 pass (2 new + navigate-only, method-switch, part-remove,
+  multi-pick commit, self-part refusal). Expected poses come from
+  Core-published values only.
+- Baseline `73fd27ea` (+24/-46, including the 14 absorbed stale main-side names,
+  each green in the 2280 gate and tracing to a reviewed commit); native gate
+  2280 passed / 0 failed
+  (receipt `.evidence/ergogen-33-37-integration/native-baseline.json.md`).
+- Closing verification: fresh `quick` + `full` gates green; logs under
+  `.evidence/ergogen-33-37-integration/`, last lines in the closing commit.

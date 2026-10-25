@@ -1,6 +1,6 @@
 # 33: Keycap size through typed edits
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (all dependencies resolved; the Inspector keycap surface and the typed-edit Core contract already exist)
 Parent: [map.md](../map.md)
@@ -79,4 +79,25 @@ round-trip; affected quick/browser checks.
   107 passed. Mounted `wasm-pack test ... layout -- keycap`: 13 passed including
   new resolver test + selector undo/redo + queued retire. `cargo check --workspace
   --all-targets` clean; core clippy `-D warnings` clean; rustfmt on touched files.
-- Commits: `d489f5798` feat(ergogen-33). Status: claimed (implementation complete; awaiting parent review/close).
+- Commits: `d489f5798` feat(ergogen-33); record `826da8e23`. Status: resolved.
+
+## Answer
+
+Resolved on `docs/ergogen-layout-comparison` via merge `21d16e2db`
+(`feat/ergogen-tickets-33-37`). Implementation `d489f5798`, record `826da8e23`.
+
+- Parent-approved model.rs change for this ticket only: new typed
+  `SetKeycapSize{sizes,moves,offsets}` writing `Part.keycap` with
+  validate-before-write and one Undo entry; `keycap_size_controller`
+  `plan_resize` submits it instead of `ReplaceDocument`. The ticket's earlier
+  no-model.rs stop is lifted by parent decision.
+- 4 new tests (2 core typed keycap, 1 native resize plan, 1 mounted resolver);
+  rotated/mirrored resize + linked mirror tests repurposed onto the typed path.
+- In-ticket verification: core lib 772 + integration 866, web-layout lib 107,
+  mounted keycap 13 pass; workspace check + core clippy clean.
+- Baseline `73fd27ea` (+24/-46, including the 14 absorbed stale main-side names,
+  each green in the 2280 gate and tracing to a reviewed commit); native gate
+  2280 passed / 0 failed
+  (receipt `.evidence/ergogen-33-37-integration/native-baseline.json.md`).
+- Closing verification: fresh `quick` + `full` gates green; logs under
+  `.evidence/ergogen-33-37-integration/`, last lines in the closing commit.

@@ -1,6 +1,6 @@
 # 37: Outline and Net dead-surface triage
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (all dependencies resolved; the live outline and net surfaces are established, so each dead variant can be judged against them)
 Parent: [map.md](../map.md)
@@ -143,7 +143,31 @@ contract was not re-audited here.
   the deleted test names above need baseline update.
 
 - Commits: `c0f6b7e06` test(ergogen-37) deletion + coverage; `309304a9d`
-  docs(ergogen-37) reservation-link repoint. Status: claimed (implementation complete; awaiting parent review/close).
+  docs(ergogen-37) reservation-link repoint. Status: resolved.
+
+## Answer
+
+Resolved on `docs/ergogen-layout-comparison` via merge `21d16e2db`
+(`feat/ergogen-tickets-33-37`). Implementation `c0f6b7e06`, repoint `309304a9d`.
+
+- Parent-approved model.rs deletion for this ticket only: removed the 7 dead
+  variants (`SelectOutline`, `RenameOutline`, `RemoveOutline`, `CopyOutline`,
+  `SetNet`, superseded `SetMechanical`/`SetOutline`) + dependents (`lib.rs`
+  arms, `mirrored_half` inverse/reconcile/lifecycle, `outline_versions.rs`).
+  Live counterparts verified per deletion site (`ApplyOutlineEdit` /
+  `ApplyMechanicalEdit`); `grep` showed zero live `web/` callers for all 7.
+- 1 new test (`contracts::removed_outline_net_and_raw_mechanical_kinds_refuse_deserialization`);
+  dead-transport tests deleted (list in Triage/Implementation record);
+  survivors repurposed onto live counterparts under kept names.
+- In-ticket verification: core lib 772 + integration 864, workspace check +
+  core clippy clean, rustfmt clean on touched files.
+- Baseline `73fd27ea` (+24/-46: -46 ticket-37 deletions incl. the 45 core +
+  1 parent19 names above, +10 ticket additions, +14 absorbed stale main-side
+  names each green in the 2280 gate and tracing to a reviewed commit);
+  native gate 2280 passed / 0 failed
+  (receipt `.evidence/ergogen-33-37-integration/native-baseline.json.md`).
+- Closing verification: fresh `quick` + `full` gates green; logs under
+  `.evidence/ergogen-33-37-integration/`, last lines in the closing commit.
 - Verify: targeted `cargo test -p boardstudio_core` (6G, RUST_TEST_THREADS=4): lib
   772 passed/0 failed, integration 864 passed/0 failed. `cargo check --workspace
   --all-targets` clean. `cargo clippy -p boardstudio_core --all-targets

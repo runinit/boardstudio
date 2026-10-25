@@ -1,6 +1,6 @@
 # 34: Per-key Omit and Rejoin in the matrix surface
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: None (all dependencies resolved; the Local, Omitted and Rejoin Core lifecycle already exists)
 Parent: [map.md](../map.md)
@@ -118,4 +118,29 @@ affected quick/browser checks.
   `setup_guide desktop viewport` fails (environmental: headless viewport
   detection; no viewport overlap with this ticket) and poisons later tests
   via the panic-hook cascade; the omit tests pass when run directly.
-- Commits: `3b71398fd` feat(ergogen-34). Status: claimed (implementation complete; awaiting parent review/close).
+- Commits: `3b71398fd` feat(ergogen-34); records `b36cfb8d4`, `0f7235bc2`. Status: resolved.
+
+## Answer
+
+Resolved on `docs/ergogen-layout-comparison` via merge `21d16e2db`
+(`feat/ergogen-tickets-33-37`). Implementation `3b71398fd`, records `b36cfb8d4`
++ `0f7235bc2`.
+
+- Parent-decided contract (no new Core variant needed): per-key Omit/Rejoin via
+  `SetHalfException{kind: Part, state: Omitted/Linked}`, owned by the
+  Matrix-inspector Key context (`key_half_exception` projection + resolvers,
+  `MatrixTransformField::KeyOmit`, Relations rejoin note). Omitted keys keep the
+  live logical pose while leaving the scan grid; cell-enabled toggles were not
+  used (different semantics).
+- 7 new tests (5 native `key_omit_tests` + 2 mounted: round-trip +
+  checkbox-toggle); neighboring Key-section tests pass in isolation.
+- In-ticket verification: web-layout lib green incl. the 5 native omit tests;
+  workspace check + layout clippy clean; omit tests pass when run directly
+  (full layout browser suite in this environment is poisoned by an unrelated
+  `setup_guide desktop viewport` headless-viewport failure).
+- Baseline `73fd27ea` (+24/-46, including the 14 absorbed stale main-side names,
+  each green in the 2280 gate and tracing to a reviewed commit); native gate
+  2280 passed / 0 failed
+  (receipt `.evidence/ergogen-33-37-integration/native-baseline.json.md`).
+- Closing verification: fresh `quick` + `full` gates green; logs under
+  `.evidence/ergogen-33-37-integration/`, last lines in the closing commit.
