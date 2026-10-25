@@ -601,6 +601,238 @@ fn native_rejoin_adopts_source_and_keeps_explicit_child_exceptions() {
     assert_eq!(snapshot(&mut engine), redone);
 }
 
+fn remove_matrix(engine: &mut CoreEngine, before: &Value, id: &str, matrix_id: &str) -> Value {
+    commit(
+        engine,
+        before,
+        id,
+        json!({"kind":"remove-matrix","id":matrix_id}),
+        &[],
+    )
+}
+
+fn try_commit(engine: &mut CoreEngine, before: &Value, id: &str, operation: Value) -> Value {
+    serde_json::from_str(
+        &engine
+            .request(
+                &json!({"id":id,"kind":"edit","command":{
+                    "baseRevision":before["revision"],
+                    "transactionId":id,
+                    "phase":"commit",
+                    "targetIds":[],
+                    "operation":operation
+                }})
+                .to_string(),
+            )
+            .to_string(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn native_source_removal_retains_local_matrix() {
+    // Ticket 29 slice B4 (mirrors ticket 21's Local source removal
+    // natively): removing the source retains the complete Local mirror,
+    // retires only the defunct source-layout link, and preserves unrelated
+    // parts, in a single Undo entry.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let local_doc = make_local(&mut engine, &before);
+    let mirror_before = matrix(&local_doc, MIRROR_MATRIX).clone();
+    let poses_before = poses(&local_doc);
+    let removed = remove_matrix(
+        &mut engine,
+        &local_doc,
+        "native-remove-source",
+        SOURCE_MATRIX,
+    );
+    assert_eq!(removed["kind"], "scene", "{removed}");
+    let after = &removed["document"];
+    // The source side is gone; the Local mirror is complete and untouched.
+    assert!(
+        after["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != SOURCE_MATRIX),
+        "source record is gone"
+    );
+    assert_eq!(
+        matrix(after, MIRROR_MATRIX),
+        &mirror_before,
+        "Local mirror stays complete"
+    );
+    // Only source members disappear; every surviving pose is unchanged.
+    let (removed, surviving): (Vec<_>, Vec<_>) = poses_before
+        .into_iter()
+        .partition(|(id, _)| find_part(after, id).is_none());
+    for (id, _) in &removed {
+        assert!(
+            id.starts_with("matrix/left-synthetic-keys/"),
+            "only source members disappear, found {id}"
+        );
+    }
+    assert_poses_unchanged(&surviving, after);
+    // Every defunct link retires with the source: the matrix and member
+    // correspondences and their overlays go, leaving a plain standalone
+    // matrix (remove_exact retires overlays with their correspondences).
+    // Unrelated board-part links stay.
+    assert!(matrix_exception(after).is_none());
+    assert!(
+        pair(after, PAIR_ID)["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| !(record["kind"] == "matrix"
+                || (record["kind"] == "part"
+                    && record["sourceId"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("matrix/")))),
+        "defunct matrix/member links retire"
+    );
+    // Only the defunct source-layout link retires; the mirror layout keeps
+    // following its matrix.
+    assert!(
+        pair(after, PAIR_ID)["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| record["sourceId"] != "left-synthetic-keys-layout"),
+        "defunct layout link retires"
+    );
+    let shell = after["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|layout| layout["id"] == "right-synthetic-keys-layout")
+        .expect("mirror layout survives");
+    assert_eq!(shell["matrixIds"], json!([MIRROR_MATRIX]));
+    // Unrelated parts on both boards are preserved.
+    for id in ["left/U1", "left/RST", "left/TRRS", "right/U1", "right/RST", "right/TRRS"] {
+        assert!(find_part(after, id).is_some(), "unrelated {id} is preserved");
+    }
+    let mut expected_undo = local_doc.clone();
+    let undone = undo(&mut engine, "native-removal-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(undone, expected_undo, "Undo must restore the Local document");
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-removal-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the removal");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_source_removal_retires_omitted_without_resurrection() {
+    // Ticket 29 slice B4: removing the source over an Omitted mirror retires
+    // the Omitted records instead of resurrecting the mirror, in one Undo
+    // entry. The mirror layout shell remains as ordinary geometry.
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let omitted_doc = make_omitted(&mut engine, &before);
+    let removed = remove_matrix(
+        &mut engine,
+        &omitted_doc,
+        "native-remove-omitted-source",
+        SOURCE_MATRIX,
+    );
+    assert_eq!(removed["kind"], "scene", "{removed}");
+    let after = &removed["document"];
+    assert!(
+        after["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != SOURCE_MATRIX),
+        "source record is gone"
+    );
+    // No resurrection: no mirror record and no mirror parts.
+    assert!(
+        after["matrices"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|matrix| matrix["id"] != MIRROR_MATRIX),
+        "omitted-removal: mirror stays record-absent"
+    );
+    assert!(
+        after["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|part| !part["id"]
+                .as_str()
+                .unwrap()
+                .starts_with("matrix/right-synthetic-keys/")),
+        "omitted-removal: no part is resurrected"
+    );
+    // The Omitted records retire: no matrix/member correspondence, no
+    // exception. Unrelated board-part links stay.
+    assert!(matrix_exception(after).is_none());
+    assert!(
+        pair(after, PAIR_ID)["halves"]["correspondences"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| !(record["kind"] == "matrix"
+                || (record["kind"] == "part"
+                    && record["sourceId"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("matrix/")))),
+        "omitted links retire"
+    );
+    // The orphaned mirror shell goes with the removal: with no resolvable
+    // matrix left, layout validation could never keep it. (An empty layout
+    // list serializes as null.)
+    assert!(
+        after["layouts"]
+            .as_array()
+            .map(|layouts| layouts
+                .iter()
+                .all(|layout| layout["id"] != "right-synthetic-keys-layout"))
+            .unwrap_or(true),
+        "omitted-removal: orphaned shell is gone"
+    );
+    let mut expected_undo = omitted_doc.clone();
+    let undone = undo(&mut engine, "native-omitted-removal-undo");
+    expected_undo["revision"] = undone["revision"].clone();
+    assert_eq!(
+        undone, expected_undo,
+        "Undo must restore the Omitted document"
+    );
+    let mut expected_redo = after.clone();
+    let redone = redo(&mut engine, "native-omitted-removal-redo");
+    expected_redo["revision"] = redone["revision"].clone();
+    assert_eq!(redone, expected_redo, "Redo must restore the removal");
+    assert_eq!(snapshot(&mut engine), redone);
+}
+
+#[test]
+fn native_rejoin_missing_source_refuses_atomically() {
+    // Ticket 29 slices B3/B4: Rejoin cannot adopt a removed source. The
+    // refusal changes nothing: the retained Local document is byte-identical
+    // afterwards (modulo revision, which only advances on success).
+    let (mut engine, before) = accepted_pair(PAIR_ID);
+    let local_doc = make_local(&mut engine, &before);
+    let removed = remove_matrix(
+        &mut engine,
+        &local_doc,
+        "native-remove-source-rejoin",
+        SOURCE_MATRIX,
+    );
+    assert_eq!(removed["kind"], "scene", "{removed}");
+    let retained = removed["document"].clone();
+    let refused = try_commit(
+        &mut engine,
+        &retained,
+        "native-rejoin-missing",
+        json!({"kind":"set-half-exception","pairId":PAIR_ID,
+            "itemKind":"matrix","mirrorId":MIRROR_MATRIX,"state":"linked"}),
+    );
+    assert_eq!(refused["kind"], "error", "{refused}");
+    assert_eq!(snapshot(&mut engine), retained);
+}
+
 #[test]
 fn native_rejoin_from_omitted_recreates_mirror() {
     // Ticket 29 slice B3: Rejoin from Omitted recreates the mirror record

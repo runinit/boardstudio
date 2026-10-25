@@ -1132,8 +1132,49 @@ fn apply_canonical(
             configuration.as_deref().cloned(),
         );
     }
-    let changed =
+    let mut changed =
         crate::apply_with_ledger(draft, board_contours, &canonical.operation, identities)?;
+    // Ticket 29 B4: removing a halves-pair source over an Omitted mirror
+    // orphans the mirror layout shell — its matrix is absent by design and
+    // its source is gone, so layout validation could never resolve it. Drop
+    // shells left naming only such mirrors here; the kernel retires the pair
+    // records. Anything else is untouched.
+    if let EditOperation::RemoveMatrix { id } = &canonical.operation {
+        let mut orphaned_mirrors = BTreeSet::new();
+        for pair in accepted
+            .hardware
+            .iter()
+            .flat_map(|hardware| &hardware.pairs)
+        {
+            let Some(halves) = pair.halves.as_ref() else {
+                continue;
+            };
+            for record in &halves.correspondences {
+                if record.kind == MirroredItemKind::Matrix && record.source_id == *id {
+                    let omitted = halves.exceptions.iter().any(|exception| {
+                        exception.kind == MirroredItemKind::Matrix
+                            && exception.mirror_id == record.mirror_id
+                            && exception.state == crate::model::MirroredExceptionState::Omitted
+                    });
+                    if omitted {
+                        orphaned_mirrors.insert(record.mirror_id.clone());
+                    }
+                }
+            }
+        }
+        if !orphaned_mirrors.is_empty() {
+            for layout in &mut draft.layouts {
+                layout
+                    .matrix_ids
+                    .retain(|matrix_id| !orphaned_mirrors.contains(matrix_id));
+            }
+            let before_layouts = draft.layouts.len();
+            draft.layouts.retain(|layout| !layout.matrix_ids.is_empty());
+            if draft.layouts.len() != before_layouts {
+                changed.push(id.clone());
+            }
+        }
+    }
     for addition in &canonical.hosted.circuits {
         for (member_id, pose) in &addition.member_poses {
             let member = draft

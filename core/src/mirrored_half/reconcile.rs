@@ -4867,10 +4867,20 @@ fn prepare_membership_transition_kernel(
         let input = validated.input;
         let matrix_pair = require_matrix_pair(input.context)?;
         validate_matrix_association(input.context, !validated.already_removed)?;
+        // A retained Local mirror keeps its record across its source removal,
+        // so only the complete-removal arm is skipped below; the gate still
+        // validates the retired pair side as absent.
+        let matrix_retained_local = input.context.associations.iter().any(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id.as_str()
+                && association.mirror_id == matrix_pair.mirror_id.as_str()
+                && association.state == TransitionState::Local
+                && association.explicit_state
+        });
         validate_matrix_association(&next_context, !validated.removes_paired_matrices)?;
         validate_association_settings(input.context)?;
         validate_association_settings(&next_context)?;
-        if validated.removes_paired_matrices {
+        if validated.removes_paired_matrices && !matrix_retained_local {
             if draft.matrices.iter().any(|matrix| {
                 matrix.id == matrix_pair.source_id.as_str()
                     || matrix.id == matrix_pair.mirror_id.as_str()
@@ -4879,14 +4889,19 @@ fn prepare_membership_transition_kernel(
                 return Err("The emitted whole-matrix removal is incomplete".into());
             }
         } else {
-            let source = matrix_by_id(&draft, matrix_pair.source_id.as_str())?;
-            crate::matrix::valid_matrix(source, &draft)?;
-            if source_members(&draft, matrix_pair.source_id.as_str(), &next_context, false)?
-                != validated.post_source_members
-            {
-                return Err(
-                    "The emitted source matrix disagrees with its validated operation map".into(),
-                );
+            // A retained Local mirror has no source left to check; its mirror
+            // must match the validated plan below.
+            if !validated.removes_paired_matrices {
+                let source = matrix_by_id(&draft, matrix_pair.source_id.as_str())?;
+                crate::matrix::valid_matrix(source, &draft)?;
+                if source_members(&draft, matrix_pair.source_id.as_str(), &next_context, false)?
+                    != validated.post_source_members
+                {
+                    return Err(
+                        "The emitted source matrix disagrees with its validated operation map"
+                            .into(),
+                    );
+                }
             }
             // A matrix-level Omitted mirror is record-absent by design: an
             // absent record must pair with an empty member plan.
@@ -5033,10 +5048,21 @@ fn prepare_membership_transition_kernel(
                     )),
                 )
             };
-            if (
+            // A top-level key owned by its matrix pair names that pair (spec
+            // §5) instead of standing parentless.
+            let expected_matrix_parents = (
+                Some(matrix_pair.source_id.clone()),
+                Some(matrix_pair.mirror_id.clone()),
+            );
+            if ((
                 association.parent_source_id.clone(),
                 association.parent_mirror_id.clone(),
             ) != expected_parents
+                && !(child.is_empty()
+                    && (
+                        association.parent_source_id.clone(),
+                        association.parent_mirror_id.clone(),
+                    ) == expected_matrix_parents))
                 || (child.is_empty() && association.mirror_id != expected_mirror)
             {
                 return Err(format!(
@@ -6111,7 +6137,35 @@ fn prepare_membership_transition_kernel(
 
     if validated.removes_paired_matrices {
         let mut draft = input.post_source.clone();
-        let mirror_removal = if validated.already_removed {
+        // A matrix-level Local mirror survives its source removal as a
+        // complete standalone matrix (spec §5): the mirror record, its
+        // members, and their associations are all retained. A matrix-level
+        // Omitted mirror is already absent and stays that way.
+        let matrix_retained_local = context.associations.iter().any(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id.as_str()
+                && association.mirror_id == matrix_pair.mirror_id.as_str()
+                && association.state == TransitionState::Local
+                && association.explicit_state
+        });
+        let matrix_omitted = context.associations.iter().any(|association| {
+            association.kind == MirroredItemKind::Matrix
+                && association.source_id == matrix_pair.source_id.as_str()
+                && association.mirror_id == matrix_pair.mirror_id.as_str()
+                && association.state == TransitionState::Omitted
+                && association.explicit_state
+        });
+        let mirror_absent = draft
+            .matrices
+            .iter()
+            .all(|matrix| matrix.id != matrix_pair.mirror_id.as_str());
+        // The source removal itself is the change when the mirror is
+        // retained or already absent; only an executed mirror removal must
+        // report its own changes below.
+        let skip_mirror_removal = validated.already_removed
+            || matrix_retained_local
+            || (matrix_omitted && mirror_absent);
+        let mirror_removal = if skip_mirror_removal {
             Vec::new()
         } else {
             let retained_local_parts: BTreeSet<_> = input
@@ -6180,26 +6234,48 @@ fn prepare_membership_transition_kernel(
             .map(|association| association.mirror_id.clone())
             .collect();
         let mut next_context = context.clone();
-        let retired: Vec<_> = next_context
-            .associations
-            .iter()
-            .filter(|association| {
-                removed_sources.contains(&association.source_id)
-                    && removed_mirrors.contains(&association.mirror_id)
-            })
-            .cloned()
-            .collect();
-        next_context.associations.retain(|association| {
-            !removed_sources.contains(&association.source_id)
-                || !removed_mirrors.contains(&association.mirror_id)
-        });
+        // A source removal over a detached mirror retires every record of
+        // the pair: with the source gone, the halves record cannot excuse
+        // surviving correspondences, so all of them go. A retained Local
+        // mirror keeps its record and members but loses its links, landing
+        // as a plain standalone matrix; an Omitted mirror stays absent
+        // without resurrection. Only defunct links retire — the defunct
+        // source-layout link already retired before the kernel.
+        let (retired, retained): (Vec<_>, Vec<_>) = if matrix_omitted || matrix_retained_local {
+            (next_context.associations.clone(), Vec::new())
+        } else {
+            let retired: Vec<_> = next_context
+                .associations
+                .iter()
+                .filter(|association| {
+                    removed_sources.contains(&association.source_id)
+                        && removed_mirrors.contains(&association.mirror_id)
+                })
+                .cloned()
+                .collect();
+            let retained: Vec<_> = next_context
+                .associations
+                .iter()
+                .filter(|association| {
+                    !removed_sources.contains(&association.source_id)
+                        || !removed_mirrors.contains(&association.mirror_id)
+                })
+                .cloned()
+                .collect();
+            (retired, retained)
+        };
+        next_context.associations = retained;
         next_context.owners = input.final_owners.clone();
         let context_delta = MembershipContextDelta {
             retired,
             owners: input.final_owners.clone(),
             ..MembershipContextDelta::default()
         };
-        let expected_mirror_members = BTreeSet::new();
+        let expected_mirror_members = if matrix_retained_local {
+            validated.mapped_mirror_ids.clone()
+        } else {
+            BTreeSet::new()
+        };
         let output = emit_validated_transition(
             &validated,
             draft,
@@ -6207,7 +6283,7 @@ fn prepare_membership_transition_kernel(
             context_delta,
             &expected_mirror_members,
         )?;
-        if !validated.already_removed && mirror_removal.is_empty() {
+        if !skip_mirror_removal && mirror_removal.is_empty() {
             return Err("The paired mirror matrix removal produced no document changes".into());
         }
         return Ok(output);
