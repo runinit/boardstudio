@@ -1409,3 +1409,123 @@ async fn storage_tokens_survive_javascript_integer_float_normalization() {
         "Renamed"
     );
 }
+
+/// Quota-recovery RED: an unreadable record whose value JSON cannot represent
+/// (out-of-range BigInt) leaves no comparable token, so the guarded delete
+/// refuses it. The token-independent single-key delete must remove it anyway.
+#[wasm_bindgen_test]
+async fn tokenless_unreadable_record_deletes_by_key_where_guarded_delete_refuses() {
+    let database_name = format!("boardstudio-idb-tokenless-{}", js_sys::Date::now());
+    let database = open_database(&database_name).await.unwrap();
+    let raw = js_sys::Object::new();
+    Reflect::set(
+        &raw,
+        &"id".into(),
+        &JsValue::from_str("unreadable-tokenless"),
+    )
+    .unwrap();
+    let huge =
+        js_sys::BigInt::new(&JsValue::from_str("1267650600228229401496703205376")).unwrap();
+    Reflect::set(&raw, &"marker".into(), &huge).unwrap();
+    let transaction = database
+        .transaction_with_str_and_mode(PROJECT_STORE, IdbTransactionMode::Readwrite)
+        .map_err(js_error)
+        .unwrap();
+    let completion = transaction_completion(&transaction, Rc::new(RefCell::new(None)));
+    let projects = transaction
+        .object_store(PROJECT_STORE)
+        .map_err(js_error)
+        .unwrap();
+    request_result(projects.put(&raw.into()).map_err(js_error).unwrap())
+        .await
+        .unwrap();
+    completion.await.unwrap();
+    database.close();
+
+    let store = BrowserStore::new(database_name.clone()).unwrap();
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert_eq!(listing.unreadable.len(), 1);
+    let record = &listing.unreadable[0];
+    assert_eq!(record.label, "unreadable-tokenless");
+    assert!(
+        record.token.is_none(),
+        "an out-of-range BigInt leaves no comparable token"
+    );
+    assert!(
+        store.delete_unreadable(record).await.is_err(),
+        "the guarded delete refuses tokenless records; that refusal is why the bypass exists"
+    );
+    store
+        .delete_unreadable_by_key(record)
+        .await
+        .expect("token-independent single-key delete must remove the unreadable record");
+    let listing = store.list_projects().await.unwrap();
+    assert!(listing.documents.is_empty());
+    assert!(
+        listing.unreadable.is_empty(),
+        "the unreadable record is gone after the by-key delete"
+    );
+    let _ = window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}
+
+/// The quota-recovery single-key project delete removes exactly one record,
+/// needs no observed token, and is idempotent for missing keys.
+#[wasm_bindgen_test]
+async fn delete_project_by_key_removes_one_record_without_a_token() {
+    let database_name = format!("boardstudio-idb-by-key-{}", js_sys::Date::now());
+    let store = BrowserStore::new(database_name.clone()).unwrap();
+    let kept = boardstudio_core::model::ProjectDoc::empty("by-key-kept", "Kept board");
+    let removed =
+        boardstudio_core::model::ProjectDoc::empty("by-key-removed", "Removed board");
+    store
+        .save_document(&kept, &Default::default())
+        .await
+        .unwrap();
+    store
+        .save_document(&removed, &Default::default())
+        .await
+        .unwrap();
+    store
+        .delete_project_by_key(removed.id.clone())
+        .await
+        .unwrap();
+    assert!(
+        store
+            .load_document(removed.id.clone())
+            .await
+            .unwrap()
+            .is_none(),
+        "the deleted key is gone"
+    );
+    assert_eq!(
+        store
+            .load_document(kept.id.clone())
+            .await
+            .unwrap()
+            .unwrap()
+            .name,
+        "Kept board"
+    );
+    assert!(
+        store.observed_token(&removed.id).is_none(),
+        "the observed token is dropped with the record"
+    );
+    store
+        .delete_project_by_key("missing-key".into())
+        .await
+        .expect("deleting a missing key stays a no-op");
+    let _ = window()
+        .unwrap()
+        .indexed_db()
+        .unwrap()
+        .unwrap()
+        .delete_database(&database_name)
+        .unwrap();
+}
