@@ -504,6 +504,43 @@ pub(crate) fn reflected(
     Ok(result)
 }
 
+/// Ticket 31: remap a whole anchor through matrix correspondences without
+/// silently retargeting: the single key, or every aggregate part by identity
+/// (row/column stay the physical key). Method and Follow cross unchanged; the
+/// relative-negate rules apply to the resolved aggregate pose, never per
+/// part. A missing counterpart for any part refuses naming the layout.
+fn remap_anchor(
+    correspondences: &[MirroredCorrespondence],
+    anchor: &MatrixAnchor,
+    to_mirror: bool,
+    layout_id: &str,
+) -> Result<MatrixAnchor, String> {
+    let mut next = anchor.clone();
+    if let Some(aggregate) = &anchor.aggregate {
+        let mut parts = Vec::with_capacity(aggregate.parts.len());
+        for part in &aggregate.parts {
+            parts.push(AnchorPart {
+                matrix_id: remap_anchor_target(
+                    correspondences,
+                    &part.matrix_id,
+                    to_mirror,
+                    layout_id,
+                )?,
+                row: part.row,
+                column: part.column,
+            });
+        }
+        next.aggregate = Some(AggregateAnchor {
+            method: aggregate.method,
+            parts,
+        });
+    } else {
+        next.matrix_id =
+            remap_anchor_target(correspondences, &anchor.matrix_id, to_mirror, layout_id)?;
+    }
+    Ok(next)
+}
+
 /// Ticket 21: remap an anchor target through matrix correspondences without
 /// silently retargeting. `to_mirror` selects source→mirror (true) or
 /// mirror→source (false); a missing counterpart refuses naming the layout.
@@ -596,6 +633,9 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
     // Ticket 20: map anchor targets by identity, not list position or the
     // counterpart's stale anchor. Row/column stay the physical key; Follow
     // keeps its subset with source-world transport in the kernel.
+    // Ticket 31: aggregate parts map one by one through the same
+    // correspondence; the mirror resolves the whole candidate, never a
+    // per-part reflection.
     // Ticket 21: an Omitted partner follows source re-anchors when the
     // counterpart exists, keeps its last valid anchor when it does not, and
     // never blocks the source edit while absent; Rejoin restores the
@@ -613,7 +653,7 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
             .find(|layout| layout.matrix_ids.iter().any(|id| id == &target.id))
             .map(|layout| layout.id.clone());
         if let (Some(edited_layout), Some(target_layout)) = (edited_layout, target_layout) {
-            let mut mapped: Option<String> = None;
+            let mut mapped: Option<MatrixAnchor> = None;
             for layout in &doc.layouts {
                 let Some(link) = &layout.mirror_link else {
                     continue;
@@ -628,12 +668,9 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                 // Forward wins with a reverse fallback (a self-mirror cannot
                 // pass `validate`); the last matching layout still wins.
                 if edited_is_source {
-                    if let Ok(next) = remap_anchor_target(
-                        &link.correspondences,
-                        &anchor.matrix_id,
-                        true,
-                        &target_layout,
-                    ) {
+                    if let Ok(next) =
+                        remap_anchor(&link.correspondences, anchor, true, &target_layout)
+                    {
                         mapped = Some(next);
                         continue;
                     }
@@ -642,19 +679,18 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
                     }
                 }
                 if edited_is_mirror
-                    && let Ok(next) = remap_anchor_target(
-                        &link.correspondences,
-                        &anchor.matrix_id,
-                        false,
-                        &target_layout,
-                    )
+                    && let Ok(next) =
+                        remap_anchor(&link.correspondences, anchor, false, &target_layout)
                 {
                     mapped = Some(next);
                 }
             }
             if let Some(mapped) = mapped {
                 if let Some(result_anchor) = reflected_matrix.anchor.as_mut() {
-                    result_anchor.matrix_id = mapped;
+                    result_anchor.matrix_id = mapped.matrix_id;
+                    result_anchor.row = mapped.row;
+                    result_anchor.column = mapped.column;
+                    result_anchor.aggregate = mapped.aggregate;
                 }
             } else if target_omitted {
                 // No counterpart while absent: keep the last valid anchor

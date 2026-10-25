@@ -55,10 +55,24 @@ fn validate_target(
     anchor: &MatrixAnchor,
 ) -> Result<(), String> {
     // Every guard runs per part: the single key, or each aggregate part.
-    // Empty lists and arity belong to the part validation slice (ref+aggregate
-    // coexistence is already refused at admission); the cycle walk below
-    // already covers part edges so a 2-cycle or self-part through any part
-    // refuses atomically here.
+    // Empty lists and intersect arity refuse here, before any mutation, in
+    // the ticket-19 atomic style (ref+aggregate coexistence and unknown
+    // methods stay refused at admission, which every public route passes
+    // through); the cycle walk below already covers part edges so a 2-cycle
+    // or self-part through any part refuses atomically here.
+    if let Some(aggregate) = &anchor.aggregate {
+        if aggregate.parts.is_empty() {
+            return Err(format!(
+                "Matrix {owner_id} aggregate anchor needs at least one part"
+            ));
+        }
+        if aggregate.method == AggregateMethod::Intersect && aggregate.parts.len() != 2 {
+            return Err(format!(
+                "Matrix {owner_id} intersect aggregate needs exactly two parts, got {}",
+                aggregate.parts.len()
+            ));
+        }
+    }
     for part in anchor.targets() {
         if part.matrix_id == owner_id {
             return Err(format!("Matrix {owner_id} cannot anchor to itself"));
@@ -249,14 +263,8 @@ pub(crate) fn add(
     }
     validate_target(doc, id, None, anchor)?;
     // The board/pitch/template come from the first part; validation above
-    // already proved every part lives on the same board and Layout. An empty
-    // part list parses but cannot template: refuse here (the part-validation
-    // slice owns the earlier validation-time refusal).
-    if anchor.targets().is_empty() {
-        return Err(format!(
-            "Matrix {id} aggregate anchor needs at least one part"
-        ));
-    }
+    // already proved every part lives on the same board and Layout (and that
+    // an aggregate list is non-empty).
     let template = anchor.targets()[0].clone();
     let target = evaluation::logical_matrix(&template.matrix_id, doc).map_err(|_| {
         format!(
@@ -276,29 +284,50 @@ pub(crate) fn add(
         group_layouts.extend(mirrors.clone());
         group_layouts.sort();
         group_layouts.dedup();
-        // Ticket 28 defers aggregate reflection (A6) to a later ticket: a
-        // linked group maps one single-key target through the pair
-        // correspondence, exactly as before this lane.
-        if anchor.is_aggregate() {
-            return Err(format!(
-                "Matrix {id} aggregate anchor in a linked layout belongs to a later ticket; add it to a plain layout first"
-            ));
-        }
         // Map the anchor target into every member layout before mutating.
+        // Aggregate parts map one by one through the pair correspondence by
+        // identity (row/column stay the physical key); method and Follow
+        // cross unchanged. The relative-negate rules then apply to the
+        // resolved aggregate pose, never per part.
         let mut anchors_by_layout = std::collections::BTreeMap::new();
         for member in &group_layouts {
-            let mapped =
-                counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
-            anchors_by_layout.insert(
-                member.clone(),
+            let mapped_anchor = if let Some(aggregate) = &anchor.aggregate {
+                let mut parts = Vec::with_capacity(aggregate.parts.len());
+                for part in &aggregate.parts {
+                    parts.push(AnchorPart {
+                        matrix_id: counterpart_in_layout(
+                            doc,
+                            &part.matrix_id,
+                            &layout_id,
+                            member,
+                            &source_id,
+                        )?,
+                        row: part.row,
+                        column: part.column,
+                    });
+                }
+                MatrixAnchor {
+                    matrix_id: String::new(),
+                    row: 0,
+                    column: 0,
+                    follow: anchor.follow,
+                    aggregate: Some(AggregateAnchor {
+                        method: aggregate.method,
+                        parts,
+                    }),
+                }
+            } else {
+                let mapped =
+                    counterpart_in_layout(doc, &anchor.matrix_id, &layout_id, member, &source_id)?;
                 MatrixAnchor {
                     matrix_id: mapped,
                     row: anchor.row,
                     column: anchor.column,
                     follow: anchor.follow,
                     aggregate: None,
-                },
-            );
+                }
+            };
+            anchors_by_layout.insert(member.clone(), mapped_anchor);
         }
         // Reserve every counterpart identity before any mutation so a clash
         // leaves the document unchanged.
@@ -336,9 +365,14 @@ pub(crate) fn add(
             validate_target(doc, counterpart_id, None, counterpart_anchor)?;
             // The mapped anchor must live in the same member layout the new
             // matrix joins; otherwise the group would silently retarget.
-            let anchor_layout =
-                owning_layout(doc, &counterpart_anchor.matrix_id).map(|layout| layout.id.clone());
-            if anchor_layout.as_deref() != Some(member.as_str()) {
+            // The mapped anchor must live in the same member layout the new
+            // matrix joins; for aggregates every part must live there,
+            // otherwise the group would silently retarget. The single key
+            // is `targets()[0]`, so this covers both arms uniformly.
+            let in_member = counterpart_anchor.targets().iter().all(|part| {
+                owning_layout(doc, &part.matrix_id).is_some_and(|layout| layout.id == *member)
+            });
+            if !in_member {
                 return Err(format!(
                     "Matrix {counterpart_id} anchor must stay on the same board and Layout"
                 ));
@@ -628,7 +662,9 @@ pub(crate) fn detach_dependants(
     Ok(changed)
 }
 
-/// Detach dependants whose anchor slot leaves the grid. A wholesale replacement
+/// Detach dependants with any part past the shrunk grid: a single key out of
+/// range, or any aggregate part. Parts naming other matrices keep their own
+/// grid, so only parts on the shrunk matrix count. A wholesale replacement
 /// never retargets an anchor onto a new key at an old coordinate.
 pub(crate) fn detach_out_of_range(
     doc: &mut ProjectDoc,
@@ -638,15 +674,21 @@ pub(crate) fn detach_out_of_range(
 ) -> Result<Vec<String>, String> {
     let mut changed = vec![];
     for (id, anchor) in dependants(doc, matrix_id) {
-        if anchor.row >= rows || anchor.column >= columns {
+        let stranded = anchor.targets().iter().any(|part| {
+            part.matrix_id == matrix_id && (part.row >= rows || part.column >= columns)
+        });
+        if stranded {
             changed.extend(detach(doc, &id)?);
         }
     }
     Ok(changed)
 }
 
-/// Remap anchors into a compacted matrix: the removed slot detaches with its
-/// frame first, then later slots follow their surviving physical key.
+/// Remap anchors into a compacted matrix: any dependant with a part exactly
+/// on the removed slot detaches with its frame first, then parts past the
+/// slot follow their surviving physical key in `shift_compacted`. Only the
+/// `==`-slot detaches, never `>=`: parts past the slot remap, per research
+/// §1.4.5. Only parts on the compacted matrix count.
 pub(crate) fn remap_compacted(
     doc: &mut ProjectDoc,
     matrix_ids: &[String],
@@ -656,8 +698,11 @@ pub(crate) fn remap_compacted(
     let mut changed = vec![];
     for target in matrix_ids {
         for (id, anchor) in dependants(doc, target) {
-            let axis = if row_axis { anchor.row } else { anchor.column };
-            if axis == index {
+            let removed = anchor.targets().iter().any(|part| {
+                part.matrix_id == *target
+                    && (if row_axis { part.row } else { part.column }) == index
+            });
+            if removed {
                 changed.extend(detach(doc, &id)?);
             }
         }
@@ -666,7 +711,9 @@ pub(crate) fn remap_compacted(
 }
 
 /// Shift stored anchors past a removed axis onto the surviving key, then
-/// refresh their poses. Call after the axis removal is stored.
+/// refresh their poses. Every part past the slot on a compacted matrix
+/// follows its physical key down by one; parts before the slot stay. Call
+/// after the axis removal is stored.
 pub(crate) fn shift_compacted(
     doc: &mut ProjectDoc,
     matrix_ids: &[String],
@@ -676,15 +723,39 @@ pub(crate) fn shift_compacted(
     let mut changed = vec![];
     let mut moved: Vec<(String, MatrixAnchor)> = vec![];
     for target in matrix_ids {
-        for (id, mut anchor) in dependants(doc, target) {
-            let axis = if row_axis {
-                &mut anchor.row
-            } else {
-                &mut anchor.column
+        for (id, anchor) in dependants(doc, target) {
+            if moved.iter().any(|(moved_id, _)| moved_id == &id) {
+                continue;
+            }
+            let mut next = anchor.clone();
+            let mut shifted = false;
+            let shift_part = |row: &mut u32, column: &mut u32| {
+                let axis = if row_axis { row } else { column };
+                if *axis > index {
+                    *axis -= 1;
+                    true
+                } else {
+                    false
+                }
             };
-            if *axis > index {
-                *axis -= 1;
-                moved.push((id, anchor));
+            match &mut next.aggregate {
+                Some(aggregate) => {
+                    for part in &mut aggregate.parts {
+                        if matrix_ids.iter().any(|id| id == &part.matrix_id)
+                            && shift_part(&mut part.row, &mut part.column)
+                        {
+                            shifted = true;
+                        }
+                    }
+                }
+                None => {
+                    if shift_part(&mut next.row, &mut next.column) {
+                        shifted = true;
+                    }
+                }
+            }
+            if shifted {
+                moved.push((id, next));
             }
         }
     }
