@@ -8,9 +8,9 @@
 //! decide precedence.
 
 use boardstudio_core::model::{
-    Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix, MatrixAnchor,
-    MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror, MirroredExceptionState,
-    MirroredItemKind, ProjectDoc, Vec2,
+    AggregateMethod, Constraint, ConstraintEndpoint, ConstraintRelation, Follow, Matrix,
+    MatrixAnchor, MatrixCompanionMode, MatrixCompanionPlacement, MatrixScene, Mirror,
+    MirroredExceptionState, MirroredItemKind, ProjectDoc, Vec2,
 };
 use boardstudio_web_ui_model::tree::TreeContext;
 
@@ -286,30 +286,36 @@ impl View<'_> {
         self.exception(MirroredItemKind::Part, &member)
     }
 
-    /// Matrices directly anchored to this matrix, in document order.
+    /// Matrices directly anchored to this matrix in document order: through the
+    /// single key, or through any aggregate part.
     fn dependants(&self) -> Vec<&Matrix> {
         self.document
             .matrices
             .iter()
             .filter(|matrix| {
-                matrix
-                    .anchor
-                    .as_ref()
-                    .is_some_and(|anchor| anchor.matrix_id == self.matrix.id)
+                matrix.anchor.as_ref().is_some_and(|anchor| {
+                    anchor
+                        .targets()
+                        .iter()
+                        .any(|part| part.matrix_id == self.matrix.id)
+                })
             })
             .collect()
     }
 
     /// Matrices directly anchored to this key; their poses follow its result.
+    /// Aggregate parts count: a part anchored to this key moves with it.
     fn key_dependants(&self, row: u32, column: u32) -> Vec<&Matrix> {
         self.document
             .matrices
             .iter()
             .filter(|matrix| {
                 matrix.anchor.as_ref().is_some_and(|anchor| {
-                    anchor.matrix_id == self.matrix.id
-                        && anchor.row == row
-                        && anchor.column == column
+                    anchor.targets().iter().any(|part| {
+                        part.matrix_id == self.matrix.id
+                            && part.row == row
+                            && part.column == column
+                    })
                 })
             })
             .collect()
@@ -334,15 +340,38 @@ impl View<'_> {
         }
     }
 
+    /// "row 2, column 2 of matrix main".
+    fn anchor_part_text(matrix_id: &str, row: u32, column: u32) -> String {
+        format!(
+            "row {}, column {} of matrix {}",
+            row + 1,
+            column + 1,
+            matrix_id,
+        )
+    }
+
     /// "row 2, column 2 of matrix main (follows X, Y)".
     fn anchor_key_text(anchor: &MatrixAnchor) -> String {
         format!(
-            "row {}, column {} of matrix {} (follows {})",
-            anchor.row + 1,
-            anchor.column + 1,
-            anchor.matrix_id,
+            "{} (follows {})",
+            Self::anchor_part_text(&anchor.matrix_id, anchor.row, anchor.column),
             Self::follow_text(&anchor.follow),
         )
+    }
+
+    /// "Average of 2 keys" or "Intersection of 2 keys", from the Core-admitted
+    /// aggregate method. `None` for single-key anchors.
+    fn aggregate_kind_text(anchor: &MatrixAnchor) -> Option<String> {
+        let aggregate = anchor.aggregate.as_ref()?;
+        let method = match aggregate.method {
+            AggregateMethod::Average => "Average",
+            AggregateMethod::Intersect => "Intersection",
+        };
+        let count = aggregate.parts.len();
+        Some(format!(
+            "{method} of {count} {}",
+            if count == 1 { "key" } else { "keys" }
+        ))
     }
 
     fn anchor_target(&self, anchor: &MatrixAnchor) -> TreeContext {
@@ -368,6 +397,42 @@ impl View<'_> {
             Some(self.anchor_target(anchor)),
             highlight,
         ))
+    }
+
+    /// The anchor frame items for row/column/key chains: the single anchor key
+    /// this matrix follows, or one entry per aggregate part. Every target and
+    /// highlight resolves against the live accepted scenes, never fabricated
+    /// coordinates.
+    fn anchor_frame_items(&self) -> Vec<RelationItem> {
+        let Some(anchor) = self.matrix.anchor.as_ref() else {
+            return Vec::new();
+        };
+        let Some(aggregate) = anchor.aggregate.as_ref() else {
+            return self.anchor_frame_item().into_iter().collect();
+        };
+        aggregate
+            .parts
+            .iter()
+            .map(|part| {
+                item(
+                    "Anchor frame",
+                    format!(
+                        "{} (follows {})",
+                        Self::anchor_part_text(&part.matrix_id, part.row, part.column),
+                        Self::follow_text(&anchor.follow),
+                    ),
+                    Some(TreeContext::Key {
+                        matrix_id: part.matrix_id.clone(),
+                        row: part.row,
+                        column: part.column,
+                    }),
+                    self.member_of(&part.matrix_id, part.row, part.column)
+                        .map(str::to_owned)
+                        .into_iter()
+                        .collect(),
+                )
+            })
+            .collect()
     }
 
     fn members(&self, keep: impl Fn(u32, u32) -> bool) -> Vec<String> {
@@ -726,32 +791,94 @@ impl View<'_> {
             _ => {}
         }
         // The anchor frame comes first in kernel order: an anchored matrix
-        // derives its world frame from its anchor key, then follows it.
+        // derives its world frame from its anchor key, then follows it. An
+        // aggregate anchor derives one combined frame from N part poses, so
+        // the chain names one entry per part from Core-published values only.
         if let Some(anchor) = &matrix.anchor {
-            structure.push(parameter(
-                "Anchor",
-                Self::anchor_key_text(anchor),
-                Some(TreeContext::Matrix {
-                    matrix_id: matrix.id.clone(),
-                }),
-                all.clone(),
-            ));
-            let mut follows = Self::anchor_key_text(anchor);
-            if let Some(member) = self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
-                && self.exception(MirroredItemKind::Part, member)
-                    == Some(MirroredExceptionState::Local)
-            {
-                follows.push_str("; the anchor key is Local and holds its final pose");
+            let matrix_context = Some(TreeContext::Matrix {
+                matrix_id: matrix.id.clone(),
+            });
+            match anchor.aggregate.as_ref() {
+                None => {
+                    structure.push(parameter(
+                        "Anchor",
+                        Self::anchor_key_text(anchor),
+                        matrix_context,
+                        all.clone(),
+                    ));
+                    let mut follows = Self::anchor_key_text(anchor);
+                    if let Some(member) =
+                        self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
+                        && self.exception(MirroredItemKind::Part, member)
+                            == Some(MirroredExceptionState::Local)
+                    {
+                        follows.push_str("; the anchor key is Local and holds its final pose");
+                    }
+                    structure.push(item(
+                        "Follows",
+                        follows,
+                        Some(self.anchor_target(anchor)),
+                        self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
+                            .map(str::to_owned)
+                            .into_iter()
+                            .collect(),
+                    ));
+                }
+                Some(aggregate) => {
+                    let members: Vec<String> = aggregate
+                        .parts
+                        .iter()
+                        .filter_map(|part| {
+                            self.member_of(&part.matrix_id, part.row, part.column)
+                        })
+                        .map(str::to_owned)
+                        .collect();
+                    structure.push(parameter(
+                        "Anchor",
+                        Self::aggregate_kind_text(anchor)
+                            .expect("the aggregate arm names its method"),
+                        matrix_context,
+                        all.clone(),
+                    ));
+                    for part in &aggregate.parts {
+                        structure.push(item(
+                            "Anchor part",
+                            Self::anchor_part_text(&part.matrix_id, part.row, part.column),
+                            Some(TreeContext::Key {
+                                matrix_id: part.matrix_id.clone(),
+                                row: part.row,
+                                column: part.column,
+                            }),
+                            self.member_of(&part.matrix_id, part.row, part.column)
+                                .map(str::to_owned)
+                                .into_iter()
+                                .collect(),
+                        ));
+                    }
+                    let mut follows = Self::follow_text(&anchor.follow);
+                    let mut local: Vec<String> = aggregate
+                        .parts
+                        .iter()
+                        .filter(|part| {
+                            self.member_of(&part.matrix_id, part.row, part.column).is_some_and(
+                                |member| {
+                                    self.exception(MirroredItemKind::Part, member)
+                                        == Some(MirroredExceptionState::Local)
+                                },
+                            )
+                        })
+                        .map(|part| {
+                            Self::anchor_part_text(&part.matrix_id, part.row, part.column)
+                        })
+                        .collect();
+                    local.sort();
+                    local.dedup();
+                    for text in local {
+                        follows.push_str(&format!("; {text} is Local and holds its final pose"));
+                    }
+                    structure.push(item("Follows", follows, None, members));
+                }
             }
-            structure.push(item(
-                "Follows",
-                follows,
-                Some(self.anchor_target(anchor)),
-                self.member_of(&anchor.matrix_id, anchor.row, anchor.column)
-                    .map(str::to_owned)
-                    .into_iter()
-                    .collect(),
-            ));
         }
         for dependant in self.dependants() {
             structure.push(item(
@@ -1033,8 +1160,8 @@ impl View<'_> {
         }
         let mut structure = vec![item("Keys", keys_text, None, members.clone())];
         // The anchor frame heads the chain: this row inherits a frame derived
-        // from the anchor key.
-        if let Some(frame) = self.anchor_frame_item() {
+        // from the anchor key, or one entry per aggregate part.
+        for frame in self.anchor_frame_items() {
             structure.push(frame);
         }
         structure.push(parameter(
@@ -1128,8 +1255,8 @@ impl View<'_> {
         let keys = self.column_keys(column);
         let mut structure = vec![item("Stagger", value, None, members.clone())];
         // The anchor frame heads the chain: this column inherits a frame
-        // derived from the anchor key.
-        if let Some(frame) = self.anchor_frame_item() {
+        // derived from the anchor key, or one entry per aggregate part.
+        for frame in self.anchor_frame_items() {
             structure.push(frame);
         }
         structure.push(parameter(
@@ -1350,7 +1477,7 @@ impl View<'_> {
             .position(|item| item.label == "Matrix frame")
             .map(|index| index + 1)
             .unwrap_or(1);
-        if let Some(frame) = self.anchor_frame_item() {
+        for frame in self.anchor_frame_items() {
             structure.insert(insert_at, frame);
             insert_at += 1;
         }

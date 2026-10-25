@@ -342,7 +342,8 @@ fn matrix_context() -> TreeContext {
 
 /// Ticket 32 slice, RED: an aggregate anchor renders one chain entry per part
 /// from Core facts; part entries navigate to their key and hovering one
-/// highlights exactly that part key.
+/// highlights exactly that part key. The pair is built through Core edits so
+/// member parts materialize the way the canvas sees them.
 fn aggregate_pair() -> (World, World) {
     let main = matrix(1, 3, json!({}));
     let thumb = matrix(
@@ -354,8 +355,28 @@ fn aggregate_pair() -> (World, World) {
                               "parts": [{"matrixId": "main", "row": 0, "column": 0},
                                         {"matrixId": "main", "row": 0, "column": 2}]}}}),
     );
+    // Member parts materialize the scene identities the chain highlights.
+    let parts: Vec<serde_json::Value> = ["main/r0c0", "main/r0c1", "main/r0c2", "thumb/r0c0"]
+        .iter()
+        .enumerate()
+        .map(|(index, key)| {
+            json!({ "id": format!("matrix/{key}"), "definitionId": "switch",
+                    "reference": format!("K{}", index + 1),
+                    "pose": { "at": { "x": 0.0, "y": 0.0 }, "rotation": 0.0 },
+                    "side": "front" })
+        })
+        .collect();
+    let part_ids: Vec<serde_json::Value> = parts
+        .iter()
+        .map(|part| part["id"].clone())
+        .collect();
     let mut document = serde_json::to_value(base()).unwrap();
     document["matrices"] = json!([main, thumb]);
+    document["matrices"][0]["partIds"] =
+        json!(["matrix/main/r0c0", "matrix/main/r0c1", "matrix/main/r0c2"]);
+    document["matrices"][1]["partIds"] = json!(["matrix/thumb/r0c0"]);
+    document["boards"][0]["partIds"] = serde_json::Value::Array(part_ids);
+    document["parts"] = serde_json::Value::Array(parts);
     document["layouts"] = json!([{ "id": "layout", "name": "Layout",
         "boardId": "board", "matrixIds": ["main", "thumb"], "partIds": [] }]);
     let mut engine = CoreEngine::new();

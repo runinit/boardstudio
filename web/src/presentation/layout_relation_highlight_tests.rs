@@ -165,6 +165,31 @@ fn count(root_id: &str, selector: &str) -> u32 {
         .length()
 }
 
+/// The `(row, column)` of every highlighted canvas key.
+fn highlighted_keys(root_id: &str) -> Vec<(String, String)> {
+    let list = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector_all(&format!(
+            "#{root_id} .m1-matrix-key.is-relation-highlight"
+        ))
+        .unwrap();
+    (0..list.length())
+        .map(|index| {
+            let key = list
+                .item(index)
+                .unwrap()
+                .dyn_into::<web_sys::Element>()
+                .unwrap();
+            (
+                key.get_attribute("data-row").unwrap_or_default(),
+                key.get_attribute("data-column").unwrap_or_default(),
+            )
+        })
+        .collect()
+}
+
 /// The `data-column` of every highlighted canvas key.
 fn highlighted_columns(root_id: &str) -> Vec<String> {
     let list = web_sys::window()
@@ -823,5 +848,108 @@ async fn selecting_parts_in_two_matrices_explains_the_single_context_chain() {
     assert!(
         query(root_id, "li[data-relation-label='Pitch cell']").is_some(),
         "the single key chain still renders"
+    );
+}
+
+/// Ticket 32 slice, RED: hovering an aggregate part entry highlights exactly
+/// that part key and leaving clears it; activating the entry navigates to the
+/// part key with the revision unchanged and no Undo entry.
+#[wasm_bindgen_test]
+async fn hovering_an_aggregate_part_highlights_only_its_key() {
+    let root_id = "relation-aggregate-part-hover";
+    let mut probe = mount(root_id).await;
+    probe.open_relations().await;
+    let accepted = probe.current();
+    let revision = accepted.revision;
+    let mut document = (*accepted.document).clone();
+    document.layouts.push(
+        serde_json::from_value(json!({ "id": "layout", "name": "Layout", "boardId": "board",
+            "matrixIds": ["main"], "partIds": [] }))
+        .unwrap(),
+    );
+    probe.land(replace_command(revision, document)).await;
+    probe
+        .land(anchor_command(
+            revision + 1,
+            "thumb",
+            json!({ "follow": ["x", "y", "rotation"],
+                    "aggregate": { "method": "average",
+                        "parts": [{ "matrixId": "main", "row": 0, "column": 0 },
+                                  { "matrixId": "main", "row": 1, "column": 4 }] } }),
+        ))
+        .await;
+    // Selecting another object returns to Properties, so wait for the reset
+    // to settle before re-opening Relations.
+    probe.select(objects::TreeContext::Matrix {
+        matrix_id: "thumb".into(),
+    });
+    wait_until("the tab resets to Properties for the new selection", || {
+        query(root_id, ".m1-layout-component-tabs button:nth-child(1)")
+            .is_some_and(|tab| tab.get_attribute("aria-selected").unwrap_or_default() == "true")
+    })
+    .await;
+    click(root_id, ".m1-layout-component-tabs button:nth-child(2)");
+    wait_until("the aggregate names one entry per part", || {
+        count(root_id, "li[data-relation-label='Anchor part']") == 2
+    })
+    .await;
+    let before = probe.revision();
+    let rows = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .query_selector_all(&format!(
+            "#{root_id} li[data-relation-label='Anchor part'] button"
+        ))
+        .unwrap();
+    assert_eq!(rows.length(), 2, "one entry per part");
+    let first = rows.item(0).unwrap().dyn_into::<web_sys::Element>().unwrap();
+    let second = rows.item(1).unwrap().dyn_into::<web_sys::Element>().unwrap();
+    dispatch(&first, "pointerenter");
+    wait_until("hovering the first part highlights its key", || {
+        highlighted_keys(root_id) == vec![("0".to_owned(), "0".to_owned())]
+    })
+    .await;
+    dispatch(&first, "pointerleave");
+    wait_until("leaving the first part clears its highlight", || {
+        highlighted_keys(root_id).is_empty()
+    })
+    .await;
+    dispatch(&second, "pointerenter");
+    wait_until("hovering the second part highlights its key", || {
+        highlighted_keys(root_id) == vec![("1".to_owned(), "4".to_owned())]
+    })
+    .await;
+    dispatch(&second, "pointerleave");
+    wait_until("leaving the second part clears its highlight", || {
+        highlighted_keys(root_id).is_empty()
+    })
+    .await;
+    assert_eq!(
+        highlighted_keys(root_id),
+        Vec::<(String, String)>::new(),
+        "no part stays highlighted"
+    );
+    assert_eq!(
+        probe.revision(),
+        before,
+        "hovering and leaving never write, so no Undo entry"
+    );
+    second
+        .dyn_into::<web_sys::HtmlElement>()
+        .unwrap()
+        .click();
+    wait_until("the part entry navigates to its key", || {
+        query(root_id, "li[data-relation-label='Followed by']").is_some_and(|item| {
+            item.text_content()
+                .unwrap_or_default()
+                .contains("Matrix thumb")
+        })
+    })
+    .await;
+    assert_eq!(
+        probe.revision(),
+        before,
+        "navigation writes nothing: no new revision, no Undo entry"
     );
 }
