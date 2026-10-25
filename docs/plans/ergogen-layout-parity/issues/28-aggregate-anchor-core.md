@@ -48,3 +48,25 @@ dependant follows the mean. Build it through the real seams
 Core integration tests via public `Open`/`Edit` routes (spec §11 seam rule);
 affected quick/browser checks; full-gate evidence for the batch. Normal tests
 do not invoke Ergogen/Node.
+
+## Lane-1 spec-review fixes (on top of `750ff680a`)
+
+- MUST-FIX 1 (specified target union): the union is enforced as the document
+  grammar in `core/src/model.rs` — a flat `{matrixId,row,column,follow}` arm
+  and an aggregate `{follow,aggregate}` arm with deny-guarded arms matched
+  explicitly (an untagged enum would swallow each arm's inner refusal, e.g.
+  the unknown-method error). Both-arms documents refuse at admission;
+  saved single-key anchors reopen byte-identical. No `targets()` consumer
+  changes were needed (struct shape preserved, so `layout.rs`,
+  `geometry.rs`, `mirrored_half` keep compiling untouched).
+- MUST-FIX 2 (A5 lifecycle): `detach_out_of_range`, `remap_compacted`,
+  `shift_compacted` and the per-part counterpart mapping in linked `add`
+  are reverted to the pre-lane single-key rules; linked `add` with an
+  aggregate anchor refuses explicitly until the later reflection ticket.
+  No A5 tests existed. Lifecycle remap per research §1.4.5 stays with A5.
+- MUST-FIX 3 (golden + tolerance): the Follow test pins literal
+  `(14.330127,0,0)` (x at the upstream 1e-6 precedent; y/r exact zeros) and
+  the intersect guard uses the BoardStudio-only 1e-9 precedent, pinned by a
+  kernel unit test on both sides of the threshold.
+- Reorder test drives both `doc.matrices` and layout member order reversed
+  end to end and asserts dependency order in both scenes.
