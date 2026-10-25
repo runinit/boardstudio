@@ -16,3 +16,5 @@ A decision on the home for relationship highlighting and the default at-a-glance
 view. Record under the map's Decisions so far with a link here.
 
 Round 1 settled: Q4 highlight home recorded in map; round 2 pending.
+
+Round 2 settled (no Q6–Q10 questions on this ticket); round 3 pending.

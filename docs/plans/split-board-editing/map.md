@@ -57,6 +57,11 @@ editable board during layout work. That means:
 - Round 1 Q3 (dim focus): dim is view-only focus (Handles precedent), default source half; click right half focuses/undims; no document write, no unlink — see [05](issues/05-decide-dim-and-focus-interaction.md).
 - Round 1 Q4 (highlight home): relationship visibility lives beside the selection (Inspector chain + restored per-field hover amber preview); Relations facts stay, tab presentation retired — see [06](issues/06-decide-relationship-highlighting-home.md).
 - Round 1 Q5 CHANGED (MCU spacing): MCU drop does NOT refuse; spacing adjusts to accommodate (details = round 2) — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 2 Q6 (MCU bridging): MCU drop widens gap symmetrically around split axis, MCU unmoved, one Undo entry, status names new gap — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 2 Q7 (auto-adjust scope): auto-adjust applies ALWAYS when space is needed, any placement, not onboarding-only (supersedes onboarding-only recommendation) — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 2 Q8 (clearance): minimum clearance = 2x outline margin, islands separate by construction — see [04](issues/04-decide-adaptive-split-gap.md).
+- Round 2 Q9 (dim scope): dimming is Layout mode only — see [05](issues/05-decide-dim-and-focus-interaction.md).
+- Round 2 Q10 (focus): focus changes only on canvas click of the dimmed half; tree/Inspector selection does not steal focus — see [05](issues/05-decide-dim-and-focus-interaction.md).
 
 ## Not yet specified (fog)
 

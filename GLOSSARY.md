@@ -351,6 +351,10 @@ source part's own axes. Turning the source swings the target around it, as a fol
 companion moves with its key.
 _Avoid_: attach constraint (an attached companion is one that follows its key)
 
+**Split gap**:
+The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and widens symmetrically around the split axis when a placed part needs the space.
+_Avoid_: spacing (when the stored half distance is meant)
+
 ### Editing
 
 **Format reset**:
