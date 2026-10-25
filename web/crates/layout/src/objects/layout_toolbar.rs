@@ -5,6 +5,7 @@ use boardstudio_core::model::Vec2;
 pub use boardstudio_web_ui_model::state::{LayoutSnapSettings, TreeCellAnchor};
 use boardstudio_web_ui_shared::controls::{BoardButton, BoardCheckbox, BoardPopover, BoardToolbar};
 use dioxus::prelude::*;
+use dioxus_primitives::toolbar::ToolbarButton;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{JsCast, closure::Closure};
 use web_sys::{Document, HtmlElement, Node, PointerEvent as WebPointerEvent};
@@ -394,7 +395,7 @@ mod tests {
     fn scope_reselect_probe_host() -> Element {
         let mut kind = use_signal(|| LayoutSelectionKind::Key);
         let mut has_selection = use_signal(|| false);
-        let mut open_menu = use_signal(|| None::<LayoutCommandMenu>);
+        let open_menu = use_signal(|| None::<LayoutCommandMenu>);
         let transform = has_selection().then(|| {
             super::super::layout_transform_toolbar::LayoutTransformMenuMount {
                 properties_available: true,
@@ -1008,9 +1009,33 @@ fn LayoutSelectionToolbar(
     let has_actions = transform
         .as_ref()
         .is_some_and(|mount| mount.properties_available || mount.pointer_tools_available);
+    // While a selection backs the inline tools, scope triggers only switch kind:
+    // opening a panel here would cover the pill the panel points at. A canvas
+    // selection arriving under an open hint panel lands here as well.
+    use_effect(use_reactive((&has_actions,), move |(has_actions,)| {
+        if has_actions {
+            open_menu.set(None);
+        }
+    }));
     rsx! {
         BoardToolbar { class: "layout-selection-actions", label: "Selection scope",
             for (index, kind) in LayoutSelectionKind::ALL.into_iter().enumerate() {
+                if has_actions {
+                    ToolbarButton {
+                        index,
+                        id: format!("m1-layout-scope-{}", kind.label()),
+                        class: "board-popover-trigger layout-selection-action",
+                        title: format!("Select {}", kind.label()),
+                        aria_label: format!("Select {}", kind.label()),
+                        aria_pressed: kind == selection_kind,
+                        on_click: move |_| {
+                            on_selection_kind.call(kind);
+                            open_menu.set(None);
+                        },
+                        LayoutSelectionIcon { kind }
+                        span { class: "layout-action-label", "{kind.label()}" }
+                    }
+                } else {
                 BoardPopover {
                     open: open_menu() == Some(LayoutCommandMenu::Select) && kind == selection_kind,
                     on_open_change: move |next| {
@@ -1041,20 +1066,17 @@ fn LayoutSelectionToolbar(
                         close_label: format!("Close {} actions", kind.label()),
                         open_menu, menu: LayoutCommandMenu::Select,
                     }
-                    if has_actions {
-                        p { class: "m1-layout-scope-hint", "Use the {kind.label().to_lowercase()} tools in the toolbar to edit the selection." }
-                    } else {
-                        p { class: "m1-layout-scope-hint", "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
-                        if let Some(mount) = transform.clone() {
-                            BoardButton {
-                                onclick: move |_| {
-                                    mount.on_show_properties.call(());
-                                    close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
-                                },
-                                "Open Inspector"
-                            }
+                    p { class: "m1-layout-scope-hint", "Select a {kind.label().to_lowercase()} on the canvas to edit it." }
+                    if let Some(mount) = transform.clone() {
+                        BoardButton {
+                            onclick: move |_| {
+                                mount.on_show_properties.call(());
+                                close_layout_command_menu(open_menu, LayoutCommandMenu::Select);
+                            },
+                            "Open Inspector"
                         }
                     }
+                }
                 }
             }
         }
