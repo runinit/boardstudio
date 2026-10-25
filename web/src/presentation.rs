@@ -8535,7 +8535,7 @@ fn Editor() -> Element {
         let transform_inspector = matrix_transform_inspector.clone();
         let canvas_interaction = canvas_interaction.clone();
         let mirrored_pair = mirrored_pair.clone();
-        let split_focus = split_focus;
+        let mut split_focus = split_focus;
         move |request: layout_canvas::MatrixPointerDown| {
             let Some(pointer) = request.event.data().try_as_web_event() else {
                 return;
@@ -8707,7 +8707,7 @@ fn Editor() -> Element {
         let mut pending_splay_pick = pending_splay_origin_pick;
         let transform_inspector = matrix_transform_inspector.clone();
         let mut selected_context = adapter.selected_context;
-        let split_focus = split_focus;
+        let mut split_focus = split_focus;
         move |request: layout_canvas::PartPointerDown| {
             let id = request.part_id;
             let Some(pointer) = request.event.data().try_as_web_event() else {

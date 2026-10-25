@@ -128,7 +128,14 @@ fn host() -> Element {
         footprints,
     });
     boardstudio_web_ui_model::state::use_test_case_generation_state();
-    rsx! { Editor {} }
+    // The header workspace tabs live above `Editor` and write this same
+    // signal; these buttons drive the identical switch for the test.
+    let mut workspace_switch = workspace;
+    rsx! {
+        button { id: "split-focus-go-pcb", onclick: move |_| workspace_switch.set("PCB"), "Go PCB" }
+        button { id: "split-focus-go-layout", onclick: move |_| workspace_switch.set("Layout"), "Go Layout" }
+        Editor {}
+    }
 }
 
 fn count(root: &web_sys::Element, selector: &str) -> u32 {
@@ -210,7 +217,7 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     );
 
     // PCB never dims.
-    click(&root, "#m1-workspace-PCB");
+    click(&root, "#split-focus-go-pcb");
     wait_until("the PCB workspace shows", || {
         root.query_selector("#m1-workspace-panel[aria-label='PCB workspace']")
             .unwrap()
@@ -221,7 +228,7 @@ async fn dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus() {
     assert_eq!(count(&root, ".m1-matrix-key.is-dimmed"), 0);
 
     // Switching back keeps focus.
-    click(&root, "#m1-workspace-Layout");
+    click(&root, "#split-focus-go-layout");
     wait_until("returning to Layout keeps focus on the right half", || {
         dim_label(&root).contains("Left half · linked mirror · click to edit here")
     })
