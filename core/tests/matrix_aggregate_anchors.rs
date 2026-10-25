@@ -704,6 +704,246 @@ fn aggregate_anchor_refuses_a_real_single_key_alongside_aggregate() {
     );
 }
 
+fn intersect_anchor(parts: Vec<AnchorPart>) -> MatrixAnchor {
+    MatrixAnchor {
+        matrix_id: String::new(),
+        row: 0,
+        column: 0,
+        follow: all(),
+        aggregate: Some(AggregateAnchor {
+            method: AggregateMethod::Intersect,
+            parts,
+        }),
+    }
+}
+
+fn anchor_of(doc: &ProjectDoc, id: &str) -> Option<MatrixAnchor> {
+    doc.matrices
+        .iter()
+        .find(|matrix| matrix.id == id)
+        .and_then(|matrix| matrix.anchor.clone())
+}
+
+fn undone(engine: &mut CoreEngine) -> ProjectDoc {
+    match engine.handle(CoreRequest::Undo { id: "undo".into() }) {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene: {other:?}"),
+    }
+}
+
+fn added_thumb(engine: &mut CoreEngine, doc: &ProjectDoc) -> (SceneDelta, ProjectDoc) {
+    typed_edit(
+        engine,
+        doc,
+        EditOperation::AddAnchoredMatrix {
+            id: "thumb".into(),
+            anchor: average_anchor(vec![part("main", 0, 0), part("main", 0, 2)]),
+        },
+    )
+}
+
+#[test]
+fn aggregate_add_refuses_unknown_part_matrix_atomically() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let message = typed_error(
+        &mut engine,
+        &doc,
+        EditOperation::AddAnchoredMatrix {
+            id: "thumb".into(),
+            anchor: average_anchor(vec![part("main", 0, 0), part("ghost", 0, 0)]),
+        },
+    );
+    assert!(
+        message.contains("anchor target ghost is missing"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(typed_snapshot(&mut engine), doc);
+}
+
+#[test]
+fn aggregate_add_refuses_out_of_range_part_key_atomically() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let message = typed_error(
+        &mut engine,
+        &doc,
+        EditOperation::AddAnchoredMatrix {
+            id: "thumb".into(),
+            anchor: average_anchor(vec![part("main", 0, 0), part("main", 0, 9)]),
+        },
+    );
+    assert!(
+        message.contains("anchor key matrix/main/r0c9 is missing"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(typed_snapshot(&mut engine), doc);
+}
+
+#[test]
+fn aggregate_set_anchor_refuses_empty_parts_atomically() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    let message = typed_error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: average_anchor(vec![]),
+        },
+    );
+    assert!(
+        message.contains("needs at least one part"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(typed_snapshot(&mut engine), doc);
+}
+
+#[test]
+fn aggregate_set_anchor_refuses_intersect_with_one_part_atomically() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    let message = typed_error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: intersect_anchor(vec![part("main", 0, 0)]),
+        },
+    );
+    assert!(
+        message.contains("intersect aggregate needs exactly two parts, got 1"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(typed_snapshot(&mut engine), doc);
+}
+
+#[test]
+fn aggregate_set_anchor_refuses_intersect_with_three_parts_atomically() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    let message = typed_error(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrixAnchor {
+            matrix_id: "thumb".into(),
+            anchor: intersect_anchor(vec![
+                part("main", 0, 0),
+                part("main", 0, 1),
+                part("main", 0, 2),
+            ]),
+        },
+    );
+    assert!(
+        message.contains("intersect aggregate needs exactly two parts, got 3"),
+        "unexpected message: {message:?}"
+    );
+    assert_eq!(typed_snapshot(&mut engine), doc);
+}
+
+#[test]
+fn aggregate_compaction_remaps_every_part_onto_surviving_keys() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    // Removing the middle column strands no part: (0,0) stays, (0,2) follows
+    // its physical key to (0,1). Nothing detaches.
+    let (_, compacted) = typed_edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main".into(),
+            column: 1,
+        },
+    );
+    assert_eq!(
+        anchor_of(&compacted, "thumb"),
+        Some(average_anchor(vec![part("main", 0, 0), part("main", 0, 1)]))
+    );
+    // Mean of (0,0) and (19,0) is (9.5,0); the (0,-19) relative origin hangs
+    // below it.
+    assert_eq!(
+        at(&compacted, &member("thumb", 0, 0)),
+        Vec2 { x: 9.5, y: -19.0 }
+    );
+    assert_eq!(
+        at(&compacted, &member("thumb", 0, 2)),
+        Vec2 { x: 47.5, y: -19.0 }
+    );
+}
+
+#[test]
+fn aggregate_removing_a_part_slot_detaches_keeping_the_world_frame() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    let poses_before: Vec<(String, Pose2)> = doc
+        .parts
+        .iter()
+        .map(|part| (part.id.clone(), part.pose))
+        .collect();
+    // Column 2 carries part (0,2): removal past any part detaches the whole
+    // dependant, keeping its world frame like the single-key slot removal.
+    let (_, detached) = typed_edit(
+        &mut engine,
+        &doc,
+        EditOperation::RemoveMatrixColumn {
+            matrix_id: "main".into(),
+            column: 2,
+        },
+    );
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    let thumb = detached
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "thumb")
+        .expect("thumb matrix");
+    assert_eq!(thumb.origin, Vec2 { x: 19.0, y: -19.0 });
+    for (id, pose) in &poses_before {
+        if id.starts_with("matrix/thumb/") {
+            assert_eq!(
+                detached
+                    .parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .unwrap()
+                    .pose,
+                *pose,
+                "{id}"
+            );
+        }
+    }
+    // The detach rides the same edit: one Undo restores the aggregate anchor.
+    assert_eq!(
+        anchor_of(&undone(&mut engine), "thumb"),
+        anchor_of(&doc, "thumb")
+    );
+}
+
+#[test]
+fn aggregate_shrink_past_a_part_detaches_keeping_the_world_frame() {
+    let (mut engine, _, doc) = typed_open(typed_doc(typed_main(vec![]), vec![], vec!["main"]));
+    let (_, doc) = added_thumb(&mut engine, &doc);
+    let mut shrunk = doc
+        .matrices
+        .iter()
+        .find(|matrix| matrix.id == "main")
+        .expect("main matrix")
+        .clone();
+    shrunk.columns = 2;
+    let (_, detached) = typed_edit(
+        &mut engine,
+        &doc,
+        EditOperation::SetMatrix {
+            matrix: shrunk,
+            definitions: None,
+        },
+    );
+    // Part (0,2) leaves the grid, so the dependant detaches with its frame:
+    // the (19,0) mean with the (0,-19) relative origin below it.
+    assert_eq!(anchor_of(&detached, "thumb"), None);
+    assert_eq!(
+        at(&detached, &member("thumb", 0, 0)),
+        Vec2 { x: 19.0, y: -19.0 }
+    );
+}
+
 #[test]
 fn aggregate_union_keeps_saved_single_key_anchors_byte_identical() {
     // Saved flat single-key anchors predate the aggregate arm and must keep
