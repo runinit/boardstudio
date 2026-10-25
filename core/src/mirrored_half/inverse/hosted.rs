@@ -188,6 +188,7 @@ pub(super) fn translate(
         | Op::EditKeymap { .. }
         | Op::SetKeyBinding { .. }
         | Op::ApplyMechanicalEdit { .. }
+        | Op::SetKeycapSize { .. }
         | Op::ApplyOutlineEdit { .. }
         | Op::SetLayout { .. }
         | Op::CreateMirroredPair { .. }

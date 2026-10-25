@@ -576,6 +576,7 @@ impl CoreEngine {
             && matches!(
                 &command.operation,
                 EditOperation::MoveParts { .. }
+                    | EditOperation::SetKeycapSize { .. }
                     | EditOperation::SetMatrix { .. }
                     | EditOperation::SetMatrixSplay { .. }
                     | EditOperation::SetMatrixPlacement { .. }
@@ -1514,6 +1515,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             host_connector_definition: Some(_),
             ..
         } | EditOperation::MoveParts { .. }
+            | EditOperation::SetKeycapSize { .. }
             | EditOperation::AddPart { .. }
             | EditOperation::AddMirrorOnlyPart { .. }
             | EditOperation::RemoveParts { .. }
@@ -1769,6 +1771,96 @@ fn apply_with_ledger(
         | EditOperation::SetKeycapBoard { .. }
         | EditOperation::SetMatrixKeycaps { .. }
         | EditOperation::SetKeycapKey { .. } => keycaps::apply_edit(doc, op),
+        EditOperation::SetKeycapSize {
+            sizes,
+            moves,
+            offsets,
+        } => {
+            // Validate every entry before writing anything: one atomic typed
+            // entry or nothing.
+            for (id, size) in sizes {
+                doc.parts
+                    .iter()
+                    .find(|part| &part.id == id)
+                    .ok_or_else(|| format!("Unknown key {id}"))?;
+                if !size.x.is_finite() || !size.y.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+                    return Err(format!("Keycap size for {id} must be positive and finite"));
+                }
+            }
+            for position in moves {
+                doc.parts
+                    .iter()
+                    .find(|part| part.id == position.id)
+                    .ok_or_else(|| format!("Unknown key {}", position.id))?;
+                if !position.at.x.is_finite() || !position.at.y.is_finite() {
+                    return Err(format!("Keycap pose for {} must be finite", position.id));
+                }
+            }
+            for cell in offsets {
+                doc.matrices
+                    .iter()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .ok_or_else(|| format!("Unknown matrix {}", cell.matrix_id))?;
+                if let Some(offset) = &cell.offset
+                    && (!offset.x.is_finite() || !offset.y.is_finite())
+                {
+                    return Err(format!(
+                        "Keycap cell offset for {} is not finite",
+                        cell.matrix_id
+                    ));
+                }
+            }
+            let mut changed = BTreeSet::new();
+            for (id, size) in sizes {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| &part.id == id)
+                    .expect("validated");
+                part.keycap = Some(*size);
+                changed.insert(id.clone());
+            }
+            for position in moves {
+                let part = doc
+                    .parts
+                    .iter_mut()
+                    .find(|part| part.id == position.id)
+                    .expect("validated");
+                part.pose.at = position.at;
+                changed.insert(position.id.clone());
+            }
+            for cell in offsets {
+                let matrix = doc
+                    .matrices
+                    .iter_mut()
+                    .find(|matrix| matrix.id == cell.matrix_id)
+                    .expect("validated");
+                if let Some(existing) = matrix
+                    .cells
+                    .iter_mut()
+                    .find(|candidate| candidate.row == cell.row && candidate.column == cell.column)
+                {
+                    existing.offset = cell.offset;
+                } else {
+                    matrix.cells.push(MatrixCell {
+                        shift: None,
+                        bend: None,
+                        deleted: false,
+                        row: cell.row,
+                        column: cell.column,
+                        enabled: true,
+                        definition_id: None,
+                        variant: None,
+                        offset: cell.offset,
+                        rotation: None,
+                        assemblies: vec![],
+                        assemblies_local: None,
+                    });
+                }
+                changed.insert(cell.matrix_id.clone());
+            }
+            Ok(changed.into_iter().collect())
+        }
         EditOperation::MoveParts { positions } => {
             let (mut changed, handled) = layout::move_keys(doc, positions)?;
             for position in positions {

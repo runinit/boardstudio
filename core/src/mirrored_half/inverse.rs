@@ -388,6 +388,11 @@ pub(super) fn canonicalize(
         Op::ReplaceDocument { .. } => {
             canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
         }
+        // Ticket 33: the key-size planner pre-computes both halves of a linked
+        // pair, so the typed resize travels exactly as written.
+        Op::SetKeycapSize { .. } => {
+            canonical.coverage = Coverage::Delegated(REPLACE_DOCUMENT_DELEGATED);
+        }
         // Ticket 112: hosted, electrical, keycap and shared-definition families.
         Op::SetModuleDefinition { .. }
         | Op::SetMountedModule { .. }

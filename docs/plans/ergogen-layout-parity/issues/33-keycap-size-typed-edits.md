@@ -49,3 +49,39 @@ round-trip; affected quick/browser checks.
   type changes unless a ticket requires it — if so, stop and report), stopping
   implementation here and reporting to parent. No code changed; ticket stays
   claimed for parent review.
+
+## Implementation record (2026-10-25)
+
+- Parent approval line (from task brief): APPROVED model.rs change for this
+  ticket only — added typed `SetKeycapSize` writing `Part.keycap` + wired
+  `keycap_size_controller` `plan_resize` through it instead of `ReplaceDocument`.
+  Earlier no-model.rs rule lifted FOR THIS TICKET by parent decision.
+- Core (`core/src/model.rs`, `lib.rs`, `mirrored_half/inverse.rs`,
+  `mirrored_half/inverse/hosted.rs`): new `SetKeycapSize{sizes,moves,offsets}` +
+  `KeycapCellOffset`; apply arm validates everything (known part/matrix, finite
+  positive sizes, finite poses/offsets) before writing, one Undo entry; Preview
+  routes through `preview_edit` like MoveParts; `affects_outline` includes it
+  (plate openings follow size); mirror pass-through as Delegated (planner
+  pre-computes both halves; hosted bucket extended for exhaustiveness).
+- Web (`keycap_resize.rs`): plan exposes `sizes`/`moves`/`offsets` derived from
+  the same computation (absolute poses, changed cell offsets); controller
+  submits `SetKeycapSize` with `plan.target_ids`. `plan.document` kept for
+  existing planner assertions. Existing `rapid_*`/queued/selector mounted tests
+  pass through the typed path unchanged.
+- RED: `keycaps::typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step`
+  + `typed_keycap_size_refuses_invalid_writes_atomically` (failed compile
+  pre-variant); `resize_plan_exposes_typed_keycap_size_sizes_moves_and_offsets`
+  (native planner); `resize_resolver_submits_a_typed_keycap_size_edit` (mounted:
+  would fail pre-wire with ReplaceDocument).
+- Repurposed (same names): `accepted_rotated_and_mirrored_resize...` and linked
+  mirror test now commit the typed edit (assemblies/poses/history proof kept).
+- New test names: `typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step`,
+  `typed_keycap_size_refuses_invalid_writes_atomically`,
+  `resize_plan_exposes_typed_keycap_size_sizes_moves_and_offsets`,
+  `resize_resolver_submits_a_typed_keycap_size_edit`.
+- Verify: `cargo test -p boardstudio_core` (6G, RUST_TEST_THREADS=4): lib 772 +
+  integration 866 (2 new), 0 failed. `cargo test -p boardstudio-web-layout --lib`:
+  107 passed. Mounted `wasm-pack test ... layout -- keycap`: 13 passed including
+  new resolver test + selector undo/redo + queued retire. `cargo check --workspace
+  --all-targets` clean; core clippy `-D warnings` clean; rustfmt on touched files.
+- Commits: (this ticket, to be filled at commit).

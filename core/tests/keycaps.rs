@@ -210,3 +210,171 @@ fn support_solids_are_checked_even_when_the_case_shell_is_below_the_cap() {
             .any(|finding| finding.id.ends_with("feature/post"))
     );
 }
+
+fn size_doc() -> ProjectDoc {
+    let mut value = serde_json::to_value(ProjectDoc::empty("caps", "Caps")).unwrap();
+    value["definitions"] =
+        json!([{"id":"mx","name":"MX","kind":"switch","courtyard":[],"pads":[]}]);
+    value["parts"] = json!([
+        {"id":"a","definitionId":"mx","reference":"SW1","pose":{"at":{"x":0.0,"y":0.0},"rotation":0.0},"side":"front"},
+        {"id":"b","definitionId":"mx","reference":"SW2","pose":{"at":{"x":19.0,"y":0.0},"rotation":0.0},"side":"front"}
+    ]);
+    value["matrices"] = json!([{"id":"m","rows":1,"columns":2,"pitch":{"x":19.0,"y":19.0},"origin":{"x":0.0,"y":0.0},"definitionId":"mx","partIds":["a","b"],"boardId":"board",
+        "cells":[{"row":0,"column":0,"enabled":true},{"row":0,"column":1,"enabled":true}]}]);
+    value["boards"] = json!([{"id":"board","name":"Board","partIds":["a","b"],"outlineIds":[],"netIds":[],"thickness":1.6}]);
+    serde_json::from_value(value).unwrap()
+}
+
+fn commit_size(engine: &mut CoreEngine, base: u64, operation: EditOperation) -> CoreReply {
+    engine.handle(CoreRequest::Edit {
+        id: "keycap-size".into(),
+        command: EditCommand {
+            base_revision: base,
+            transaction_id: "keycap-size".into(),
+            phase: EditPhase::Commit,
+            target_ids: vec![],
+            operation,
+        },
+    })
+}
+
+fn scene_doc(reply: CoreReply) -> ProjectDoc {
+    match reply {
+        CoreReply::Scene { document, .. } => *document,
+        other => panic!("expected scene, got {other:?}"),
+    }
+}
+
+/// Ticket 33 RED: a typed keycap-size edit writes sizes, reflow poses and cell
+/// offsets atomically in one history entry with Undo/Redo round-trip.
+#[test]
+fn typed_keycap_size_writes_sizes_moves_and_offsets_in_one_undo_step() {
+    let mut engine = CoreEngine::new();
+    scene_doc(engine.handle(CoreRequest::Open {
+        id: "open".into(),
+        document: size_doc(),
+    }));
+    let committed = scene_doc(commit_size(
+        &mut engine,
+        0,
+        EditOperation::SetKeycapSize {
+            sizes: [("a".to_owned(), Vec2 { x: 37.0, y: 18.0 })].into(),
+            moves: vec![Position {
+                id: "b".into(),
+                at: Vec2 { x: 28.5, y: 0.0 },
+            }],
+            offsets: vec![KeycapCellOffset {
+                matrix_id: "m".into(),
+                row: 0,
+                column: 1,
+                offset: Some(Vec2 { x: 9.5, y: 0.0 }),
+            }],
+        },
+    ));
+    assert_eq!(
+        committed
+            .parts
+            .iter()
+            .find(|part| part.id == "a")
+            .unwrap()
+            .keycap,
+        Some(Vec2 { x: 37.0, y: 18.0 })
+    );
+    assert_eq!(
+        committed
+            .parts
+            .iter()
+            .find(|part| part.id == "b")
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 28.5, y: 0.0 }
+    );
+    assert_eq!(
+        committed.matrices[0]
+            .cells
+            .iter()
+            .find(|cell| cell.row == 0 && cell.column == 1)
+            .unwrap()
+            .offset,
+        Some(Vec2 { x: 9.5, y: 0.0 })
+    );
+    assert_eq!(committed.revision, 1);
+    let undone = scene_doc(engine.handle(CoreRequest::Undo { id: "undo".into() }));
+    assert_eq!(undone.revision, 2);
+    assert!(
+        undone
+            .parts
+            .iter()
+            .find(|part| part.id == "a")
+            .unwrap()
+            .keycap
+            .is_none()
+    );
+    assert_eq!(
+        undone
+            .parts
+            .iter()
+            .find(|part| part.id == "b")
+            .unwrap()
+            .pose
+            .at,
+        Vec2 { x: 19.0, y: 0.0 }
+    );
+    let mut redone = scene_doc(engine.handle(CoreRequest::Redo { id: "redo".into() }));
+    assert_eq!(redone.revision, 3);
+    redone.revision = committed.revision;
+    assert_eq!(redone, committed);
+}
+
+/// Ticket 33: invalid keycap sizes refuse atomically and change nothing.
+#[test]
+fn typed_keycap_size_refuses_invalid_writes_atomically() {
+    for operation in [
+        EditOperation::SetKeycapSize {
+            sizes: [("ghost".to_owned(), Vec2 { x: 37.0, y: 18.0 })].into(),
+            moves: vec![],
+            offsets: vec![],
+        },
+        EditOperation::SetKeycapSize {
+            sizes: [(
+                "a".to_owned(),
+                Vec2 {
+                    x: f64::NAN,
+                    y: 18.0,
+                },
+            )]
+            .into(),
+            moves: vec![],
+            offsets: vec![],
+        },
+        EditOperation::SetKeycapSize {
+            sizes: [("a".to_owned(), Vec2 { x: 0.0, y: 18.0 })].into(),
+            moves: vec![Position {
+                id: "b".into(),
+                at: Vec2 { x: 28.5, y: 0.0 },
+            }],
+            offsets: vec![],
+        },
+        EditOperation::SetKeycapSize {
+            sizes: [("a".to_owned(), Vec2 { x: 37.0, y: 18.0 })].into(),
+            moves: vec![],
+            offsets: vec![KeycapCellOffset {
+                matrix_id: "ghost".into(),
+                row: 0,
+                column: 0,
+                offset: None,
+            }],
+        },
+    ] {
+        let mut engine = CoreEngine::new();
+        let before = scene_doc(engine.handle(CoreRequest::Open {
+            id: "open".into(),
+            document: size_doc(),
+        }));
+        let reply = commit_size(&mut engine, 0, operation);
+        assert!(matches!(reply, CoreReply::Error { .. }), "got {reply:?}");
+        let after = scene_doc(engine.handle(CoreRequest::Snapshot { id: "snap".into() }));
+        assert_eq!(after, before, "a refused keycap size changes nothing");
+    }
+}

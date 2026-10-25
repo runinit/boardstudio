@@ -1934,6 +1934,18 @@ pub enum EditOperation {
         key_id: String,
         change: KeycapKeyChange,
     },
+    /// One typed keycap-size resize. Core validates every entry before writing
+    /// anything, so a keycap resize commits the typed sizes, the reflow poses
+    /// and the cell offsets atomically with one Undo entry instead of a
+    /// whole-document replacement.
+    SetKeycapSize {
+        /// part_id to its new physical keycap size in mm.
+        sizes: BTreeMap<String, Vec2>,
+        /// Absolute pose updates from the key-size reflow.
+        moves: Vec<Position>,
+        /// Cell offset updates from the key-size reflow.
+        offsets: Vec<KeycapCellOffset>,
+    },
     MoveParts {
         positions: Vec<Position>,
     },
@@ -2153,6 +2165,15 @@ pub struct OutlineContourEdit {
 pub struct Position {
     pub id: String,
     pub at: Vec2,
+}
+/// One matrix cell offset update carried by a typed keycap-size resize.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeycapCellOffset {
+    pub matrix_id: String,
+    pub row: u32,
+    pub column: u32,
+    pub offset: Option<Vec2>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
