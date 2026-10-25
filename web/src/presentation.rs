@@ -6890,6 +6890,9 @@ fn Editor() -> Element {
             ) else {
                 return;
             };
+            let Some(window) = web_sys::window() else {
+                return;
+            };
             let schedule_flush = pending.borrow_mut().push(
                 wheel.delta_y(),
                 layout_camera::WheelAnchor {
@@ -6902,9 +6905,6 @@ fn Editor() -> Element {
                 // A flush is already queued for this frame; this tick rides it.
                 return;
             }
-            let Some(window) = web_sys::window() else {
-                return;
-            };
             let flush_pending = pending.clone();
             let flush_runtime = runtime.clone();
             let flush_scope = scope.clone();
@@ -6912,10 +6912,20 @@ fn Editor() -> Element {
             // keymap_scale_ratio is 1.0 outside Keymap, so Layout and Keymap
             // share the reference 0.25..4 limits.
             let flush = move || {
+                let start_zoom = flush_runtime.model().camera.zoom;
+                // Replay the burst tick-by-tick through the clamp: a burst
+                // that hits a limit mid-burst then backs off ends exactly
+                // where sequential application ends.
+                let final_zoom = flush_pending
+                    .borrow()
+                    .coalesced_zoom(start_zoom, keymap_scale_ratio);
                 let Some(batch) = flush_pending.borrow_mut().take_batch() else {
                     return;
                 };
-                if batch.total_delta_y == 0.0 {
+                let Some(final_zoom) = final_zoom else {
+                    return;
+                };
+                if final_zoom == start_zoom {
                     return;
                 }
                 if flush_runtime.scope().as_ref() != Some(&flush_scope)
@@ -6923,16 +6933,20 @@ fn Editor() -> Element {
                 {
                     return;
                 }
-                CanvasNavigationState::apply_wheel_zoom(
+                CanvasNavigationState::apply_zoom_target(
                     &flush_runtime,
-                    (min_x, max_x, min_y, max_y),
-                    PointerLocation {
-                        world: batch.anchor.world,
-                        x_fraction: batch.anchor.x_fraction,
-                        y_fraction: batch.anchor.y_fraction,
+                    boardstudio_web_ui_shared::canvas_navigation::ZoomTarget {
+                        center: CanvasNavigationState::zoom_center_at(
+                            (min_x, max_x, min_y, max_y),
+                            PointerLocation {
+                                world: batch.anchor.world,
+                                x_fraction: batch.anchor.x_fraction,
+                                y_fraction: batch.anchor.y_fraction,
+                            },
+                            final_zoom,
+                        ),
+                        zoom: final_zoom,
                     },
-                    keymap_scale_ratio,
-                    batch.total_delta_y,
                 );
             };
             let callback = Closure::once_into_js(flush);

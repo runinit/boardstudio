@@ -41,11 +41,16 @@ pub struct WheelZoomBatch {
 
 /// Accumulates the wheel ticks of one frame into a single zoom application.
 /// The wheel handler pushes every tick and schedules one rAF flush while
-/// `push` reports one is already pending; the flush takes the batch and
-/// applies it once, so a burst of N ticks costs one `Runtime::submit`.
+/// `push` reports one is already pending; the flush replays the stored ticks
+/// through `wheel_zoom` and applies the final zoom once, so a burst of N
+/// ticks costs one `Runtime::submit`. The replay (not the summed delta)
+/// defines the final zoom: per-tick clamping is history-dependent, so a
+/// burst that hits a limit mid-burst then backs off ends exactly where
+/// sequential application ends, where clamping the sum once would not.
 #[derive(Debug, Default)]
 pub struct WheelZoomCoalescer {
     pending_delta_y: f64,
+    deltas: Vec<f64>,
     samples: u32,
     anchor: Option<WheelAnchor>,
     flush_scheduled: bool,
@@ -64,6 +69,7 @@ impl WheelZoomCoalescer {
         self.anchor = Some(anchor);
         if delta_y.is_finite() {
             self.pending_delta_y += delta_y;
+            self.deltas.push(delta_y);
             self.samples += 1;
         }
         if self.samples == 0 || self.flush_scheduled {
@@ -86,9 +92,24 @@ impl WheelZoomCoalescer {
             samples: self.samples,
         };
         self.pending_delta_y = 0.0;
+        self.deltas.clear();
         self.samples = 0;
         self.anchor = None;
         Some(batch)
+    }
+
+    /// Replay the burst's ticks through `wheel_zoom` from `start_zoom`, so
+    /// the coalesced final zoom equals sequential per-tick application,
+    /// including mid-burst clamps. `None` means no flush is pending.
+    pub fn coalesced_zoom(&self, start_zoom: f64, basis_ratio: f64) -> Option<f64> {
+        if self.samples == 0 {
+            return None;
+        }
+        let mut zoom = start_zoom;
+        for delta in &self.deltas {
+            zoom = wheel_zoom(zoom, basis_ratio, *delta);
+        }
+        Some(zoom)
     }
 
     pub fn pending_samples(&self) -> u32 {
@@ -273,6 +294,32 @@ mod wheel_coalescing_tests {
         let coalesced = wheel_zoom(OLD_ZOOM, RATIO, batch.total_delta_y);
         assert_eq!(coalesced, super::MAX_ZOOM);
         assert_eq!(sequential_zoom(&[-400.0; 32]), super::MAX_ZOOM);
+    }
+
+    #[test]
+    fn burst_crossing_the_clamp_mid_burst_matches_sequential_zoom() {
+        // Start at max: a huge zoom-out slams into the min clamp, then a
+        // small zoom-in steps back off it. Summing then clamping once stays
+        // pinned at min; per-tick clamping ends just above min.
+        let start = super::MAX_ZOOM;
+        let deltas = [100_000.0, -50.0];
+        let mut burst = WheelZoomCoalescer::new();
+        for delta in deltas {
+            burst.push(delta, anchor_at(10.0, -5.0));
+        }
+        let mut expected = start;
+        for delta in deltas {
+            expected = wheel_zoom(expected, RATIO, delta);
+        }
+        let coalesced = burst
+            .coalesced_zoom(start, RATIO)
+            .expect("burst holds pending ticks");
+        let batch = burst.take_batch().expect("burst holds one pending batch");
+        assert_eq!(batch.samples as usize, deltas.len());
+        assert!(
+            (coalesced - expected).abs() < 1e-9,
+            "coalesced {coalesced} != sequential {expected}"
+        );
     }
 
     #[test]
