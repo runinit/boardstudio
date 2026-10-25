@@ -3929,11 +3929,7 @@ async fn aggregate_part_remove_writes_one_intent_with_one_undo() {
     };
     assert_eq!(remaining.len(), 1, "one part link remains");
     assert!(
-        remaining[0]
-            .clone()
-            .dyn_into::<web_sys::HtmlButtonElement>()
-            .unwrap()
-            .disabled(),
+        remaining[0].has_attribute("disabled"),
         "the last remaining part cannot be removed"
     );
     probe.runtime.submit(Event::Undo {
