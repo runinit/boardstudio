@@ -61,6 +61,7 @@ fn boxed_public_payloads_keep_their_existing_json_shape() {
                 exceptions: vec![],
                 source_id: "left".into(),
                 axis_x: 0.0,
+                split_gap: None,
             }),
         },
         matrix: Box::new(Matrix {

@@ -39,6 +39,7 @@ gets the next number and a row here; `scripts/check-adr-index.py` (part of
 | [0032](0032-recreated-inputs-start-unassigned.md) | Recreated inputs do not inherit removed inputs' bindings, even when coordinates or IDs are reused. | key deletion/recreation, matrix shrink/regrow and binding cleanup |
 | [0033](0033-include-license-information-in-exported-packages.md) | Include `license.md` in exported packages so known licence and attribution information travels with their contents. | package export/import, attribution and source notices |
 | [0034](0034-matrices-follow-ergogen-point-layout.md) | Matrices follow ergogen's point-layout model with deliberate exceptions; saved projects are not migrated. | matrix layout parameters, ergogen parity, format version |
+| [0035](0035-split-half-frame-and-stored-gap.md) | Split halves share one stored gap and each half keeps its own frame; legacy boards open unchanged and adopt on first edit. | mirrored pair links, split gap, half-frame origins |
 
 ## Deprecated records
 

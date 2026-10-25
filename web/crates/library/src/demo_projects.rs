@@ -404,6 +404,7 @@ fn split42_build(name: &str) -> Result<ProjectDoc, String> {
         mirror_link: Some(LayoutMirrorLink {
             source_id: "left".into(),
             axis_x: 0.0,
+            split_gap: None,
             correspondences,
             exceptions: Vec::new(),
         }),

@@ -882,7 +882,12 @@ fn split_x(doc: &ProjectDoc, part: &Part) -> Result<f64, String> {
     let mut root = crate::matrix::evaluation::logical_matrix(&owner.id, doc)?;
     for _ in 0..=doc.matrices.len() {
         let Some(anchor) = root.anchor.as_ref() else {
-            return Ok(root.origin.x);
+            // Half-frame origins are relative to the half offset; compare in
+            // board space so each half still groups on its own side.
+            return Ok(match crate::matrix::layout::half_offset(doc, &root.id) {
+                Some(offset) => root.origin.x + offset.x,
+                None => root.origin.x,
+            });
         };
         root = crate::matrix::evaluation::logical_matrix(&anchor.matrix_id, doc)?;
     }

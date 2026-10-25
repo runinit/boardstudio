@@ -135,6 +135,7 @@ pub fn project_mirrored_pair(
             exceptions: vec![],
             source_id: left_layout.id.clone(),
             axis_x: center.x,
+            split_gap: None,
         }),
     };
 

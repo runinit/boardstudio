@@ -2241,6 +2241,7 @@ mod tests {
                 exceptions: vec![],
                 source_id: "left-layout".into(),
                 axis_x: 12.0,
+                split_gap: None,
             }),
         });
         let accepted = doc.clone();

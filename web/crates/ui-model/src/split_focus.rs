@@ -225,6 +225,7 @@ mod tests {
                 exceptions: vec![],
                 source_id: "source-layout".into(),
                 axis_x: 0.0,
+                split_gap: None,
             }),
         });
         document

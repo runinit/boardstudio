@@ -191,6 +191,7 @@ pub(super) fn translate(
         | Op::SetKeycapSize { .. }
         | Op::ApplyOutlineEdit { .. }
         | Op::SetLayout { .. }
+        | Op::SetSplitGap { .. }
         | Op::CreateMirroredPair { .. }
         | Op::SetConstraint { .. }
         | Op::RemoveConstraint { .. }

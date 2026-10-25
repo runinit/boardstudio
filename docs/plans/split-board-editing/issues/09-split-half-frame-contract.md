@@ -1,6 +1,6 @@
 # 09: Split half frame and stored gap (contract prefactor)
 
-Status: ready-for-agent
+Status: resolved
 Type: build
 Blocked by: none (decisions in [04](04-decide-adaptive-split-gap.md) and [07](07-prototype-split-editing-view.md))
 Map: [map.md](../map.md)
@@ -34,3 +34,12 @@ unchanged, and the partner still reflects exactly.
 - [ ] A fixture saved before this change reopens with byte-identical evaluated geometry.
 - [ ] PCB, Case and exports that consume half geometry see identical output for an unchanged gap.
 - [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+
+## Answer
+
+Built 2026-10-25 on the half-frame contract. A mirrored pair stores its Split gap on the link (`splitGap`, optional); each half's unanchored matrix origins are half-frame values offset from the split axis by half the gap at evaluation, anchored matrices inherit through their anchors, and the mirror keeps the negated half-frame Origin/Rotation so the axis reflection holds for any gap.
+
+- Legacy documents (no stored gap) open with byte-identical evaluated geometry and no migration; the first committed matrix-geometry edit adopts the frame (stores the implied gap, re-expresses unanchored origins, moves nothing). Fully anchored pairs stay legacy until 10.
+- `set-split-gap` (or an equivalent `SetLayout`) moves both halves symmetrically in one Undo entry without rewriting stored origins; member part poses follow through the refresh. Unlinking or clearing a stored gap restores board coordinates the same pose-preserving way.
+- Record: [ADR-0035](../../adr/0035-split-half-frame-and-stored-gap.md) and the GLOSSARY Half frame term. Display and spacing policy stay with 10/11: the Inspector still shows within-half origins, and independent parts stay board-absolute until 12.
+- Checks: new `core/tests/split_half_frame.rs` (5 tests: legacy open identical, adopt-without-moving, symmetric gap change + undo, validation, creation stores gap) RED first then GREEN; full core suite 871 integration + 772 unit green; scoped clippy clean; `cargo fmt` clean; `check.py repo` and `tooling` pass. The workspace `lint`/`browser` steps currently fail on sibling in-progress presentation work (tickets 14–16), not on these files.

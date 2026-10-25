@@ -84,6 +84,7 @@ Build (from 08):
 - Round 3 Q13 (dim preserved): spacing adjust never changes focus/dim state — see [05](issues/05-decide-dim-and-focus-interaction.md).
 - 07 resolved (prototype approved): variant B. Spacing = max(stored gap, minimum) after every committed edit, both directions (supersedes Q1 "never auto re-spaces"). Parts keep half-local coordinates, cannot cross the split, controller mirrored by default, and parts use column-style anchor placement. The canvas shows selection anchors. Archived on `prototype/split-board-editing` — see [07](issues/07-prototype-split-editing-view.md).
 - 08 resolved: build sliced into 09–18 (frontier 09, 14, 15, 16) — see [08](issues/08-slice-the-build.md).
+- 09 resolved: per-half frame and stored Split gap contract ([ADR-0035](../adr/0035-split-half-frame-and-stored-gap.md)); legacy boards open unchanged, first matrix-geometry edit adopts, gap change is one Undo — see [09](issues/09-split-half-frame-contract.md).
 
 ## Not yet specified (fog)
 

@@ -1153,6 +1153,12 @@ pub struct Layout {
 pub struct LayoutMirrorLink {
     pub source_id: String,
     pub axis_x: f64,
+    /// Stored Split gap: the key-edge to key-edge distance between the halves,
+    /// measured at the half-origin column. Absent on documents saved before the
+    /// half-frame contract; those keep board-coordinate placement until their
+    /// first committed geometry edit adopts the half frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_gap: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub correspondences: Vec<MirroredCorrespondence>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2148,6 +2154,15 @@ pub enum EditOperation {
     },
     SetLayout {
         layout: Layout,
+    },
+    /// Sets the stored Split gap of a mirrored pair in one Undo entry. The
+    /// halves move apart symmetrically about the split axis; matrix origins
+    /// keep their half-frame values and the partner still reflects exactly.
+    SetSplitGap {
+        #[serde(rename = "layoutId")]
+        layout_id: String,
+        #[serde(rename = "splitGap")]
+        split_gap: f64,
     },
     RemoveConstraint {
         id: String,

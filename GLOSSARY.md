@@ -355,6 +355,10 @@ _Avoid_: attach constraint (an attached companion is one that follows its key)
 The stored editable distance between the two halves of a split board, measured key-edge to key-edge. It defaults from projected key envelopes at creation and widens symmetrically around the split axis when a placed part needs the space.
 _Avoid_: spacing (when the stored half distance is meant)
 
+**Half frame**:
+Each half's own placement frame for its matrices, positioned from the split axis by half the Split gap. A matrix origin on a stored-gap half is a within-half value; changing the gap moves both halves symmetrically without rewriting it.
+_Avoid_: board coordinates (when a stored-gap half's within-half placement is meant)
+
 ### Editing
 
 **Format reset**:

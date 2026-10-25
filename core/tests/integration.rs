@@ -128,3 +128,6 @@ mod matrix_aggregate_anchors;
 
 #[path = "matrix_aggregate_reflection.rs"]
 mod matrix_aggregate_reflection;
+
+#[path = "split_half_frame.rs"]
+mod split_half_frame;

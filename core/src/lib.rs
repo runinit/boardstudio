@@ -1531,6 +1531,7 @@ fn affects_outline(op: &EditOperation) -> bool {
             | EditOperation::CreateMirroredPair { .. }
             | EditOperation::CreateMirroredHalf { .. }
             | EditOperation::SetLayout { .. }
+            | EditOperation::SetSplitGap { .. }
             | EditOperation::SetConstraint { .. }
             | EditOperation::RemoveConstraint { .. }
             | EditOperation::ReplaceDocument { .. }
@@ -1695,7 +1696,7 @@ fn apply_with_ledger(
     op: &EditOperation,
     identities: &mechanical::edit::MechanicalIdentityLedger,
 ) -> Result<Vec<String>, String> {
-    match op {
+    let mut changed = match op {
         EditOperation::SetModuleDefinition { definition } => {
             modules::set_definition(doc, definition)
         }
@@ -2214,15 +2215,33 @@ fn apply_with_ledger(
                         .into(),
                 );
             }
+            // New pairs store the half frame directly: the source origin is
+            // re-expressed half-local and the mirror reflects it, so a later
+            // Split gap change moves both halves without rewriting storage.
+            // Anchored matrices stay legacy (no stored gap); their first edit
+            // adopts only when an unanchored source matrix exists.
+            let stored_gap = if matrix.anchor.is_none() {
+                let gap = layout::implied_gap(link.axis_x, matrix);
+                if !gap.is_finite() {
+                    return Err("Split gap must be finite".into());
+                }
+                Some(gap)
+            } else {
+                None
+            };
+            let mut source_half = matrix.as_ref().clone();
+            if let Some(gap) = stored_gap {
+                source_half.origin.x -= link.axis_x - gap / 2.0;
+            }
             let mut changed = apply(
                 doc,
                 &[],
                 &EditOperation::SetMatrix {
-                    matrix: matrix.as_ref().clone(),
+                    matrix: source_half.clone(),
                     definitions: definitions.clone(),
                 },
             )?;
-            let mut target = matrix.as_ref().clone();
+            let mut target = source_half.clone();
             target.id = right.matrix_ids[0].clone();
             target.name = Some(right.name.clone());
             for cell in &mut target.cells {
@@ -2231,14 +2250,20 @@ fn apply_with_ledger(
                     assembly.rotation = assembly.rotation.map(|angle| -angle);
                 }
             }
-            let target =
-                layout::reflected(matrix, &target, layout::axis_mapping(link.axis_x), false)?;
+            let target = layout::reflected(
+                &source_half,
+                &target,
+                layout::axis_mapping(link.axis_x),
+                false,
+                stored_gap.is_some(),
+            )?;
             changed.extend(matrix::set_matrix(doc, &target)?);
             let mut follower = right.clone();
             let link = follower
                 .mirror_link
                 .as_mut()
                 .ok_or("A new mirrored pair must be linked")?;
+            link.split_gap = stored_gap;
             link.correspondences.clear();
             link.correspondences.push(MirroredCorrespondence {
                 kind: MirroredItemKind::Matrix,
@@ -2307,23 +2332,54 @@ fn apply_with_ledger(
             {
                 layout::populate_new_link(doc, &mut incoming)?;
             }
+            let (old_gap, was_linked_target, source_layout_id) = {
+                let current = doc
+                    .layouts
+                    .iter()
+                    .find(|layout| layout.id == incoming.id)
+                    .ok_or("Layout does not exist")?;
+                if current.board_id != incoming.board_id
+                    || current.matrix_ids != incoming.matrix_ids
+                {
+                    return Err("Layout ownership cannot be reassigned".into());
+                }
+                let was_linked_target =
+                    current.mirror_link.is_some() && incoming.mirror_link.is_none();
+                let source_layout_id = was_linked_target
+                    .then(|| {
+                        current
+                            .mirror_link
+                            .as_ref()
+                            .map(|link| link.source_id.clone())
+                    })
+                    .flatten();
+                (
+                    current.mirror_link.as_ref().and_then(|link| link.split_gap),
+                    was_linked_target,
+                    source_layout_id,
+                )
+            };
+            // Half-frame gap transitions run before the record is replaced so
+            // the conversion still sees the previous gap: adding a gap adopts
+            // the board placement first, clearing one restores it.
+            let new_gap = incoming
+                .mirror_link
+                .as_ref()
+                .and_then(|link| link.split_gap);
+            match (old_gap, new_gap) {
+                (None, Some(_)) => {
+                    layout::adopt_half_frames(doc)?;
+                }
+                (Some(_), None) => {
+                    layout::unadopt_pair(doc, &incoming.id)?;
+                }
+                _ => {}
+            }
             let current = doc
                 .layouts
                 .iter_mut()
                 .find(|layout| layout.id == incoming.id)
                 .ok_or("Layout does not exist")?;
-            if current.board_id != incoming.board_id || current.matrix_ids != incoming.matrix_ids {
-                return Err("Layout ownership cannot be reassigned".into());
-            }
-            let was_linked_target = current.mirror_link.is_some() && incoming.mirror_link.is_none();
-            let source_layout_id = was_linked_target
-                .then(|| {
-                    current
-                        .mirror_link
-                        .as_ref()
-                        .map(|link| link.source_id.clone())
-                })
-                .flatten();
             let previous = current.clone();
             *current = incoming.clone();
             // Ticket 21: run the same-board exception lifecycle (Local/Omitted
@@ -2339,12 +2395,70 @@ fn apply_with_ledger(
                 detached.extend(layout::unlink_components(doc, &source_layout_id));
             }
             layout::resolve(doc)?;
+            if !matches!((old_gap, new_gap), (Some(_), None)) {
+                transitioned.extend(layout::adopt_half_frames(doc)?);
+            }
             transitioned.append(&mut detached);
             Ok([
                 [vec![incoming.id.clone()], incoming.matrix_ids.clone()].concat(),
                 transitioned,
             ]
             .concat())
+        }
+        EditOperation::SetSplitGap {
+            layout_id,
+            split_gap,
+        } => {
+            if !split_gap.is_finite() || *split_gap < 0.0 {
+                return Err("The Split gap must be a finite non-negative distance".into());
+            }
+            let paired = doc.layouts.iter().any(|layout| {
+                layout.id == *layout_id && layout.mirror_link.is_some()
+                    || layout
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == *layout_id)
+            });
+            if !paired {
+                return Err(format!("Layout {layout_id} is not part of a mirrored pair"));
+            }
+            // A legacy board-coordinate pair adopts the half frame first, so
+            // the gap change itself moves the halves without rewriting them.
+            let mut changed = layout::adopt_half_frames(doc)?;
+            changed.extend(layout::set_pair_gap(doc, layout_id, *split_gap)?);
+            layout::resolve(doc)?;
+            let root = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == *layout_id)
+                .and_then(|layout| {
+                    layout
+                        .mirror_link
+                        .as_ref()
+                        .map(|link| link.source_id.clone())
+                })
+                .unwrap_or(layout_id.clone());
+            for layout in doc.layouts.iter() {
+                let in_pair = layout.id == root
+                    || layout
+                        .mirror_link
+                        .as_ref()
+                        .is_some_and(|link| link.source_id == root);
+                if in_pair {
+                    changed.push(layout.id.clone());
+                    for matrix_id in &layout.matrix_ids {
+                        changed.push(matrix_id.clone());
+                        if let Some(matrix) =
+                            doc.matrices.iter().find(|matrix| matrix.id == *matrix_id)
+                        {
+                            changed.extend(matrix.part_ids.iter().cloned());
+                        }
+                    }
+                }
+            }
+            changed.sort();
+            changed.dedup();
+            Ok(changed)
         }
         EditOperation::ConvertOffsetConstraint { constraint_id, to } => {
             constraints::convert_offset(doc, constraint_id, *to)
@@ -2403,7 +2517,31 @@ fn apply_with_ledger(
             changed.dedup();
             Ok(changed)
         }
+    }?;
+    // The first committed geometry edit adopts the half frame: legacy
+    // board-coordinate pairs store their implied Split gap and re-express
+    // unanchored origins as half-frame values, preserving every world pose.
+    // SetLayout and SetSplitGap manage their own gap transitions;
+    // CreateMirroredPair stores the frame directly; parts adopt with 12.
+    if matches!(
+        op,
+        EditOperation::SetMatrix { .. }
+            | EditOperation::SetMatrixSplay { .. }
+            | EditOperation::SetMatrixPlacement { .. }
+            | EditOperation::AddAnchoredMatrix { .. }
+            | EditOperation::SetMatrixAnchor { .. }
+            | EditOperation::DetachMatrixAnchor { .. }
+            | EditOperation::DetachMatrixAnchorConfirmed { .. }
+            | EditOperation::RemoveMatrix { .. }
+            | EditOperation::SetMatrixCellsEnabled { .. }
+            | EditOperation::RemoveMatrixCells { .. }
+            | EditOperation::RemoveMatrixRow { .. }
+            | EditOperation::RemoveMatrixColumn { .. }
+            | EditOperation::RemoveSelectedMatrixCells { .. }
+    ) {
+        changed.extend(layout::adopt_half_frames(doc)?);
     }
+    Ok(changed)
 }
 
 fn changed_ids(a: &ProjectDoc, b: &ProjectDoc) -> Vec<String> {

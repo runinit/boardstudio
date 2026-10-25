@@ -516,6 +516,7 @@ fn linked_halves_list_their_own_companions() {
                     exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
+                    split_gap: None,
                 }),
             },
             matrix: Box::new(matrix),
@@ -560,7 +561,16 @@ fn linked_halves_list_their_own_companions() {
         .find(|matrix| matrix.id == "left-matrix")
         .unwrap()
         .clone();
-    moved_matrix.origin = Vec2 { x: 4.0, y: 2.0 };
+    // Ticket 09: creation stored the half frame (gap 2 mm, source frame at
+    // x = 9), so the board intent (4, 2) is authored as (-5, 2) in storage.
+    let stored_gap = authored
+        .layouts
+        .iter()
+        .find(|layout| layout.id == "right-layout")
+        .and_then(|layout| layout.mirror_link.as_ref())
+        .and_then(|link| link.split_gap);
+    assert_eq!(stored_gap, Some(2.0));
+    moved_matrix.origin = Vec2 { x: -5.0, y: 2.0 };
     let (_, carried) = edit(
         &mut engine,
         &authored,

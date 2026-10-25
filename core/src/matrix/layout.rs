@@ -61,6 +61,9 @@ pub(crate) fn validate(doc: &ProjectDoc) -> Result<(), String> {
             {
                 return Err("A mirrored pair must link two distinct layouts on one board".into());
             }
+            if link.split_gap.is_some_and(|gap| !gap.is_finite()) {
+                return Err("Split gap must be finite".into());
+            }
             validate_link(doc, source, layout, link)?;
         }
     }
@@ -358,6 +361,266 @@ pub(crate) fn axis_mapping(axis_x: f64) -> Pose2 {
     }
 }
 
+/// Key-edge to key-edge distance implied by board-coordinate geometry, measured
+/// at the half-origin column: the source origin's key edge to its reflection.
+/// This is the stored Split gap a legacy pair adopts on its first edit.
+pub(crate) fn implied_gap(axis_x: f64, matrix: &Matrix) -> f64 {
+    gap_from_origin(axis_x, matrix.origin.x, matrix.pitch.x, matrix.edge_gap)
+}
+
+fn gap_from_origin(axis_x: f64, origin_x: f64, pitch_x: f64, edge_gap: Option<Vec2>) -> f64 {
+    let edge = edge_gap
+        .map(|gap| gap.x)
+        .unwrap_or(super::DEFAULT_EDGE_GAP_MM);
+    2.0 * (axis_x - origin_x) - (pitch_x - edge)
+}
+
+/// The link, axis, stored gap and side of the pair a matrix belongs to: `true`
+/// when the matrix lives on the mirror layout. Record-absent mirror members
+/// resolve through their correspondence.
+fn pair_frame(doc: &ProjectDoc, matrix_id: &str) -> Option<(f64, Option<f64>, bool)> {
+    for layout in &doc.layouts {
+        if let Some(link) = layout.mirror_link.as_ref()
+            && layout.matrix_ids.iter().any(|id| id == matrix_id)
+        {
+            return Some((link.axis_x, link.split_gap, true));
+        }
+    }
+    for layout in &doc.layouts {
+        if layout.mirror_link.is_some() || !layout.matrix_ids.iter().any(|id| id == matrix_id) {
+            continue;
+        }
+        let link = doc
+            .layouts
+            .iter()
+            .filter_map(|other| other.mirror_link.as_ref())
+            .find(|link| link.source_id == layout.id)?;
+        return Some((link.axis_x, link.split_gap, false));
+    }
+    for layout in &doc.layouts {
+        if let Some(link) = layout.mirror_link.as_ref()
+            && link.correspondences.iter().any(|record| {
+                record.kind == MirroredItemKind::Matrix && record.mirror_id == matrix_id
+            })
+        {
+            return Some((link.axis_x, link.split_gap, true));
+        }
+    }
+    None
+}
+
+/// The stored Split gap of the pair a matrix belongs to, if the pair has one.
+pub(crate) fn pair_gap(doc: &ProjectDoc, matrix_id: &str) -> Option<f64> {
+    pair_frame(doc, matrix_id).and_then(|(_, gap, _)| gap)
+}
+
+/// Board-space position of the half frame a matrix is placed in: the split
+/// axis offset by half the stored gap. `None` for unlinked matrices and legacy
+/// pairs without a stored gap, whose origins stay board-coordinate.
+pub(crate) fn half_offset(doc: &ProjectDoc, matrix_id: &str) -> Option<Vec2> {
+    let (axis_x, gap, mirror_side) = pair_frame(doc, matrix_id)?;
+    let gap = gap?;
+    Some(Vec2 {
+        x: if mirror_side {
+            axis_x + gap / 2.0
+        } else {
+            axis_x - gap / 2.0
+        },
+        y: 0.0,
+    })
+}
+
+/// Adopt the half frame for every legacy pair (no stored gap) that has an
+/// unanchored source matrix: store the implied gap and re-express unanchored
+/// World origins as half-frame values. Every evaluated world pose is
+/// preserved, so adoption moves nothing. Fully anchored pairs stay legacy;
+/// spacing owns their envelopes (ticket 10).
+pub(crate) fn adopt_half_frames(doc: &mut ProjectDoc) -> Result<Vec<String>, String> {
+    let targets: Vec<String> = doc
+        .layouts
+        .iter()
+        .filter(|layout| {
+            layout
+                .mirror_link
+                .as_ref()
+                .is_some_and(|link| link.split_gap.is_none())
+        })
+        .map(|layout| layout.id.clone())
+        .collect();
+    let mut changed = Vec::new();
+    for target_id in targets {
+        let (source_id, axis_x) = {
+            let link = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == target_id)
+                .and_then(|layout| layout.mirror_link.as_ref())
+                .ok_or("Linked layout is missing")?;
+            (link.source_id.clone(), link.axis_x)
+        };
+        let Some(reference) = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == source_id)
+            .map(|layout| layout.matrix_ids.clone())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|id| doc.matrices.iter().find(|matrix| matrix.id == id))
+            .find(|matrix| matrix.anchor.is_none())
+            .map(|matrix| (matrix.origin.x, matrix.pitch.x, matrix.edge_gap))
+        else {
+            continue;
+        };
+        let gap = gap_from_origin(axis_x, reference.0, reference.1, reference.2);
+        if !gap.is_finite() {
+            return Err("Split gap must be finite".into());
+        }
+        let members: Vec<(String, bool)> = {
+            let source_ids = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == source_id)
+                .map(|layout| layout.matrix_ids.clone())
+                .unwrap_or_default();
+            let target_ids = doc
+                .layouts
+                .iter()
+                .find(|layout| layout.id == target_id)
+                .map(|layout| layout.matrix_ids.clone())
+                .unwrap_or_default();
+            source_ids
+                .into_iter()
+                .map(|id| (id, false))
+                .chain(target_ids.into_iter().map(|id| (id, true)))
+                .collect()
+        };
+        for (matrix_id, mirror_side) in members {
+            if let Some(matrix) = doc
+                .matrices
+                .iter_mut()
+                .find(|matrix| matrix.id == matrix_id)
+                && matrix.anchor.is_none()
+            {
+                matrix.origin.x -= if mirror_side {
+                    axis_x + gap / 2.0
+                } else {
+                    axis_x - gap / 2.0
+                };
+                changed.push(matrix_id);
+            }
+        }
+        if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == target_id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.split_gap = Some(gap);
+            changed.push(target_id);
+        }
+    }
+    Ok(changed)
+}
+
+/// Restore board-coordinate origins for a stored-gap pair (unlink or gap
+/// removal), preserving every evaluated world pose. Refuses when a sibling
+/// gapped mirror still positions the same source half.
+pub(crate) fn unadopt_pair(doc: &mut ProjectDoc, layout_id: &str) -> Result<Vec<String>, String> {
+    let (source_id, axis_x, gap) = {
+        let layout = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == layout_id)
+            .ok_or("Layout does not exist")?;
+        let link = layout
+            .mirror_link
+            .as_ref()
+            .ok_or("Layout has no mirror link")?;
+        let gap = link.split_gap.ok_or("Layout has no stored Split gap")?;
+        (link.source_id.clone(), link.axis_x, gap)
+    };
+    if doc.layouts.iter().any(|layout| {
+        layout.id != layout_id
+            && layout
+                .mirror_link
+                .as_ref()
+                .is_some_and(|link| link.source_id == source_id && link.split_gap.is_some())
+    }) {
+        return Err(
+            "Unlink one mirrored half at a time; a sibling mirror still shares this source half"
+                .into(),
+        );
+    }
+    let mut changed = Vec::new();
+    let members: Vec<(String, bool)> = {
+        let source_ids = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == source_id)
+            .map(|layout| layout.matrix_ids.clone())
+            .unwrap_or_default();
+        let target_ids = doc
+            .layouts
+            .iter()
+            .find(|layout| layout.id == layout_id)
+            .map(|layout| layout.matrix_ids.clone())
+            .unwrap_or_default();
+        source_ids
+            .into_iter()
+            .map(|id| (id, false))
+            .chain(target_ids.into_iter().map(|id| (id, true)))
+            .collect()
+    };
+    for (matrix_id, mirror_side) in members {
+        if let Some(matrix) = doc
+            .matrices
+            .iter_mut()
+            .find(|matrix| matrix.id == matrix_id)
+            && matrix.anchor.is_none()
+        {
+            matrix.origin.x += if mirror_side {
+                axis_x + gap / 2.0
+            } else {
+                axis_x - gap / 2.0
+            };
+            changed.push(matrix_id);
+        }
+    }
+    Ok(changed)
+}
+
+/// Set the stored Split gap on every link of the pair a layout belongs to:
+/// the carrier's own link, or every mirror link pointing at a source layout.
+pub(crate) fn set_pair_gap(
+    doc: &mut ProjectDoc,
+    layout_id: &str,
+    gap: f64,
+) -> Result<Vec<String>, String> {
+    let carriers: Vec<String> = match doc.layouts.iter().find(|layout| layout.id == layout_id) {
+        Some(layout) if layout.mirror_link.is_some() => vec![layout_id.to_string()],
+        Some(_) => doc
+            .layouts
+            .iter()
+            .filter(|layout| {
+                layout
+                    .mirror_link
+                    .as_ref()
+                    .is_some_and(|link| link.source_id == layout_id)
+            })
+            .map(|layout| layout.id.clone())
+            .collect(),
+        None => vec![],
+    };
+    if carriers.is_empty() {
+        return Err(format!("Layout {layout_id} is not part of a mirrored pair"));
+    }
+    for id in &carriers {
+        if let Some(layout) = doc.layouts.iter_mut().find(|layout| layout.id == *id)
+            && let Some(link) = layout.mirror_link.as_mut()
+        {
+            link.split_gap = Some(gap);
+        }
+    }
+    Ok(carriers)
+}
+
 /// A companion's offset and turn are relative to its part, so the reflection only flips their
 /// handedness. The pair rotation is carried once, by the part's own heading.
 fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
@@ -370,11 +633,16 @@ fn reflected_companion(mut assembly: MatrixAssembly) -> MatrixAssembly {
 /// part ids. Layout records and all key values copy unchanged; the kernel's local mirror
 /// reflects the whole local heading once. Companions retain their separate part-local
 /// placement rule. Anchored Origin/Rotation are relative, not reflected world points.
+///
+/// With `half_frame`, both origins are already half-local: the mirror keeps the
+/// negated half-frame Origin/Rotation instead of a board-space reflection, so a
+/// later Split gap change moves the evaluated halves without rewriting storage.
 pub(crate) fn reflected(
     source: &Matrix,
     target: &Matrix,
     mapping: Pose2,
     local_companions: bool,
+    half_frame: bool,
 ) -> Result<Matrix, String> {
     // The pair uses a vertical reflection of the local None/X frames.
     // Switching to a horizontal local frame requires an independent layout.
@@ -386,12 +654,21 @@ pub(crate) fn reflected(
     result.columns = source.columns;
     result.pitch = source.pitch;
     result.edge_gap = source.edge_gap;
-    result.origin = pair::forward(mapping, source.origin);
-    result.rotation = if source.rotation.is_some() || mapping.rotation != 0.0 {
-        Some(pair::forward_angle(mapping, source.rotation.unwrap_or(0.0)))
+    if half_frame || source.anchor.is_some() {
+        // Half-frame and anchored origins share one rule: relative X negates.
+        result.origin = Vec2 {
+            x: -source.origin.x,
+            y: source.origin.y,
+        };
+        result.rotation = source.rotation.map(|rotation| -rotation);
     } else {
-        None
-    };
+        result.origin = pair::forward(mapping, source.origin);
+        result.rotation = if source.rotation.is_some() || mapping.rotation != 0.0 {
+            Some(pair::forward_angle(mapping, source.rotation.unwrap_or(0.0)))
+        } else {
+            None
+        };
+    }
     result.mirror = Some(if source.mirror == Some(Mirror::X) {
         Mirror::None
     } else {
@@ -629,7 +906,8 @@ pub(crate) fn sync(doc: &mut ProjectDoc, matrix_id: &str) -> Result<Vec<String>,
         })
         .collect();
     let mapping = axis_mapping(axis_x);
-    let mut reflected_matrix = reflected(source, target, mapping, false)?;
+    let half_frame = pair_gap(doc, matrix_id).is_some();
+    let mut reflected_matrix = reflected(source, target, mapping, false, half_frame)?;
     // Ticket 20: map anchor targets by identity, not list position or the
     // counterpart's stale anchor. Row/column stay the physical key; Follow
     // keeps its subset with source-world transport in the kernel.
@@ -2349,7 +2627,13 @@ fn synthesize_rejoin_record(
         part_ids: Vec::new(),
         ..owned.clone()
     };
-    let mut synthesized = reflected(&owned, &placeholder, axis_mapping(link.axis_x), false)?;
+    let mut synthesized = reflected(
+        &owned,
+        &placeholder,
+        axis_mapping(link.axis_x),
+        false,
+        link.split_gap.is_some(),
+    )?;
     synthesized.board_id = Some(layout.board_id.clone());
     if let Some(anchor) = synthesized.anchor.clone() {
         let mapped =
@@ -2527,6 +2811,7 @@ mod case_hardware_tests {
             &empty_target(),
             axis_mapping(50.0),
             true,
+            false,
         )
         .unwrap();
         assert_eq!(reflected.origin, Vec2 { x: 90.0, y: 5.0 });
@@ -2544,8 +2829,14 @@ mod case_hardware_tests {
             at: Vec2 { x: 100.0, y: 10.0 },
             rotation: 40.0,
         };
-        let reflected =
-            reflected(&matrix_with_companion(), &empty_target(), mapping, true).unwrap();
+        let reflected = reflected(
+            &matrix_with_companion(),
+            &empty_target(),
+            mapping,
+            true,
+            false,
+        )
+        .unwrap();
         // The origin goes through the map and the heading is `rotation - angle`.
         let expected = pair::forward(mapping, Vec2 { x: 10.0, y: 5.0 });
         assert_eq!(reflected.origin, expected);

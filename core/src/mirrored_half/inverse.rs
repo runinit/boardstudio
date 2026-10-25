@@ -410,6 +410,21 @@ pub(super) fn canonicalize(
         // outline family; ApplyOutlineEdit is the live translated outline edit.
         Op::ApplyOutlineEdit { .. } => outline::translate(&links, operation, &mut canonical)?,
         // Ticket 114: native SetLayout compatibility and raw mechanical configuration.
+        Op::SetSplitGap {
+            layout_id,
+            split_gap,
+        } => {
+            // A same-board Split gap edit runs on the authored half; a native
+            // mirror layout resolves to its source layout first.
+            let source = match links.target(MirroredItemKind::Layout, layout_id)? {
+                Target::Linked(link) => link.correspondence.source_id.clone(),
+                Target::NotMirror | Target::Local | Target::Omitted => layout_id.clone(),
+            };
+            canonical.operation = Op::SetSplitGap {
+                layout_id: source,
+                split_gap: *split_gap,
+            };
+        }
         Op::SetLayout { layout } => match layout::translate(&links, layout)? {
             layout::Outcome::Translated(source) => {
                 canonical.operation = Op::SetLayout { layout: source };
@@ -1301,7 +1316,7 @@ fn invert_matrix(
     halves: &MirroredHalves,
     document: &ProjectDoc,
 ) -> Result<Matrix, String> {
-    let mut source = crate::matrix::layout::reflected(payload, receiver, mapping, false)?;
+    let mut source = crate::matrix::layout::reflected(payload, receiver, mapping, false, false)?;
     // `reflected` maps the origin with the forward map, which is not its own inverse when the
     // map has a translation along the mirror line; the heading rule is an involution.
     source.origin = if payload.anchor.is_some() {

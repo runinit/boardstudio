@@ -731,6 +731,7 @@ fn mirrored_pair_with_held_left_component(
                     exceptions: vec![],
                     source_id: "left-layout".into(),
                     axis_x: 10.0,
+                    split_gap: None,
                 }),
             ),
             matrix: Box::new(left),

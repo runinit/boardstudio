@@ -4296,7 +4296,7 @@ fn project_matrix(
         return Err("The matrix correspondence does not match its source and mirror".into());
     }
 
-    crate::matrix::layout::reflected(source, mirror, mapping, false)
+    crate::matrix::layout::reflected(source, mirror, mapping, false, false)
 }
 
 /// Project one source part through its established correspondence, retaining target identifiers.
