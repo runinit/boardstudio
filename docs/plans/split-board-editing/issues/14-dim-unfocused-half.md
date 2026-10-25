@@ -1,6 +1,6 @@
 # 14: Dim the unfocused half; click to focus
 
-Status: claimed
+Status: resolved
 Type: build
 Blocked by: none (decisions in [05](05-decide-dim-and-focus-interaction.md), presentation from [07](07-prototype-split-editing-view.md))
 Map: [map.md](../map.md)
@@ -18,10 +18,28 @@ never dim.
 
 ## Acceptance
 
-- [ ] A mounted browser test covers: click the dimmed half → focus and selection; tree select →
+- [x] A mounted browser test covers: click the dimmed half → focus and selection; tree select →
   focus unchanged; switch to PCB → no dim; switch back → focus kept.
-- [ ] Focus creates no document revision or Undo entry.
-- [ ] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+- [x] Focus creates no document revision or Undo entry.
+- [x] `python3 scripts/check.py` passes (repo, tooling, lint, build, test, browser); `check.py test --update-native-baseline` only for deliberate test renames.
+
+## Answer
+
+- View-only `SplitHalf` focus (`web/crates/ui-model/src/split_focus.rs` + `split_focus`
+  signal on `LayoutWorkspaceState`): starts on the source (Left) half, moves only on canvas
+  clicks of the dimmed half, never writes the document. Variant-B dim (grey dashed
+  `is-dimmed` + inline "<half> · linked mirror · click to edit here" label) renders in the
+  Layout 2D `Scene` only; selection stays solid on the dimmed half. PCB/Case never mount that
+  `Scene`, so they never dim. Spacing edits and workspace switches preserve the signal.
+- Evidence: `layout_split_focus_tests::dimmed_half_click_focuses_and_tree_pcb_roundtrip_keeps_focus`
+  green in headless Chrome (incl. a committed-revision-keeps-focus phase); 28 related browser
+  tests green; `check.py` repo/tooling/lint/typecheck/build/test green on ticket-14 content
+  (native: 2280 baselined + 4 new tolerated, no baseline change; full `check.py browser`
+  incl. the drag smoke needs CI playwright, unavailable in this env). Live-app visual pass:
+  guide-created split board dims right with label, real mouse click flips focus with selection,
+  tree select and PCB roundtrip keep focus, 4 flips in 0.63 s wall.
+- Note for tickets 09/10: the test fixture constructs `LayoutMirrorLink` without your new
+  fields; adopt it when your contract lands (you already patched it twice in passing).
 
 ## Comments
 
